@@ -45,6 +45,7 @@ from datetime import datetime, timedelta
 from typing import List
 from unittest.mock import MagicMock, patch
 
+import math
 import numpy as np
 import pandas as pd
 import pytest
@@ -767,6 +768,177 @@ class TestFeatureStoreIntegration(unittest.TestCase):
         df = self.spark.table("energy_copilot.gold.feature_store_price")
         null_count = df.filter(F.col("rrp_target").isNull()).count()
         self.assertEqual(null_count, 0, f"Found {null_count} null rrp_target rows")
+
+
+
+# ---------------------------------------------------------------------------
+# 6. Renewable Evaluate -- Wind + Solar Unit-Test Mode + Metric Helpers
+# ---------------------------------------------------------------------------
+
+class TestRenewableEvaluate(unittest.TestCase):
+    """
+    Unit tests for the Sprint 7a wind and solar evaluate.py pipelines.
+
+    All tests run entirely in-process without Spark, MLflow, or LightGBM.
+    The evaluate.py modules use synthetic data + persistence baselines when
+    spark=None, making them safe for CI/CD.
+    """
+
+    # ------------------------------------------------------------------
+    # 1. Wind evaluate unit-test mode
+    # ------------------------------------------------------------------
+
+    def test_wind_evaluate_unit_mode(self):
+        """
+        Calling run_evaluation(spark=None) for wind must complete without error
+        and return a list of per-region result dicts for all 5 NEM regions.
+        """
+        from models.wind_forecast.evaluate import run_evaluation as wind_eval
+
+        try:
+            results = wind_eval(spark=None, regions=["NSW1", "VIC1"], promote=False)
+        except Exception as exc:
+            self.fail(
+                f"wind_forecast.evaluate.run_evaluation(spark=None) raised an unexpected "
+                f"exception: {exc}"
+            )
+
+        self.assertIsInstance(results, list, "run_evaluation should return a list")
+        self.assertEqual(len(results), 2, "Expected one result dict per region")
+
+        for r in results:
+            self.assertIn("region",            r, "result must contain 'region'")
+            self.assertIn("mae_mw",            r, "result must contain 'mae_mw'")
+            self.assertIn("mape_pct",          r, "result must contain 'mape_pct'")
+            self.assertIn("ramp_accuracy_pct", r, "result must contain 'ramp_accuracy_pct'")
+            self.assertIn("passed_dod",        r, "result must contain 'passed_dod'")
+            self.assertGreaterEqual(r["mae_mw"],  0.0, "MAE must be non-negative")
+            self.assertGreaterEqual(r["mape_pct"], 0.0, "MAPE must be non-negative")
+            self.assertIsInstance(r["passed_dod"], bool, "passed_dod must be a boolean")
+
+    # ------------------------------------------------------------------
+    # 2. Solar evaluate unit-test mode
+    # ------------------------------------------------------------------
+
+    def test_solar_evaluate_unit_mode(self):
+        """
+        Calling run_evaluation(spark=None) for solar must complete without error
+        and return result dicts with daytime MAPE, zero-compliance, and seasonal
+        MAPE fields populated.
+        """
+        from models.solar_forecast.evaluate import run_evaluation as solar_eval
+
+        try:
+            results = solar_eval(spark=None, regions=["QLD1", "SA1"], promote=False)
+        except Exception as exc:
+            self.fail(
+                f"solar_forecast.evaluate.run_evaluation(spark=None) raised an unexpected "
+                f"exception: {exc}"
+            )
+
+        self.assertIsInstance(results, list, "run_evaluation should return a list")
+        self.assertEqual(len(results), 2, "Expected one result dict per region")
+
+        for r in results:
+            self.assertIn("region",              r, "result must contain 'region'")
+            self.assertIn("daytime_mape_pct",    r, "result must contain 'daytime_mape_pct'")
+            self.assertIn("overall_mae_mw",      r, "result must contain 'overall_mae_mw'")
+            self.assertIn("zero_compliance_pct", r, "result must contain 'zero_compliance_pct'")
+            self.assertIn("summer_mape_pct",     r, "result must contain 'summer_mape_pct'")
+            self.assertIn("passed_dod",          r, "result must contain 'passed_dod'")
+            self.assertGreaterEqual(r["daytime_mape_pct"], 0.0, "Daytime MAPE must be non-negative")
+            self.assertGreaterEqual(r["overall_mae_mw"],   0.0, "Overall MAE must be non-negative")
+            self.assertIsInstance(r["passed_dod"], bool, "passed_dod must be a boolean")
+
+    # ------------------------------------------------------------------
+    # 3. Ramp accuracy computation
+    # ------------------------------------------------------------------
+
+    def test_ramp_accuracy_computation(self):
+        """
+        Manually compute ramp accuracy for a small synthetic Series and verify
+        the result is within the valid range [0, 100].
+
+        Uses compute_ramp_accuracy() from wind_forecast.evaluate directly.
+        """
+        from models.wind_forecast.evaluate import compute_ramp_accuracy, RAMP_DEADBAND_MW
+
+        # Construct a simple time series with known ramps
+        y_true = np.array([100.0, 200.0, 300.0, 250.0, 100.0, 100.0, 110.0], dtype=float)
+        # Perfect predictions: ramp accuracy should be 100%
+        ramp_acc_perfect = compute_ramp_accuracy(y_true, y_true.copy(), RAMP_DEADBAND_MW)
+        self.assertAlmostEqual(
+            ramp_acc_perfect, 100.0, places=1,
+            msg="Perfect forecast should give ramp accuracy = 100%",
+        )
+
+        # All-zero predictions: ramp accuracy will be low but must be in [0, 100]
+        y_pred_zeros = np.zeros_like(y_true)
+        ramp_acc_bad = compute_ramp_accuracy(y_true, y_pred_zeros, RAMP_DEADBAND_MW)
+        self.assertGreaterEqual(ramp_acc_bad,   0.0,   msg="Ramp accuracy must be >= 0")
+        self.assertLessEqual(   ramp_acc_bad, 100.0,   msg="Ramp accuracy must be <= 100")
+
+        # General case: monotonically increasing true series vs. noisy prediction
+        rng    = np.random.default_rng(seed=123)
+        y_true_ramp = np.linspace(0, 2000, 100)
+        y_pred_ramp = y_true_ramp + rng.normal(0, 40, 100)
+        ramp_acc_general = compute_ramp_accuracy(y_true_ramp, y_pred_ramp, RAMP_DEADBAND_MW)
+        self.assertGreater(ramp_acc_general,  0.0,   msg="Ramp accuracy must be > 0 for a plausible forecast")
+        self.assertLessEqual(ramp_acc_general, 100.0, msg="Ramp accuracy must be <= 100")
+
+    # ------------------------------------------------------------------
+    # 4. Zero-compliance metric
+    # ------------------------------------------------------------------
+
+    def test_zero_compliance(self):
+        """
+        Verify compute_zero_compliance() returns the correct fraction when given
+        a mixed prediction array for a set of night-hour intervals.
+
+        Setup:
+          - 10 rows, all in night hours (e.g. hour = 2)
+          - 7 predictions near-zero (< 0.5 MW), 3 non-zero (> 0.5 MW)
+          - Expected zero-compliance = 70%
+        """
+        from models.solar_forecast.evaluate import (
+            compute_zero_compliance,
+            NIGHT_HOURS,
+            ZERO_CLAMP_THRESHOLD_MW,
+        )
+
+        n_rows     = 10
+        night_hour = NIGHT_HOURS[0]   # e.g. 2 -- definitely a night hour
+        hour_arr   = np.full(n_rows, night_hour, dtype=int)
+
+        # 7 near-zero predictions + 3 non-zero predictions
+        y_pred     = np.array([0.0, 0.1, 0.0, 0.3, 0.0, 0.0, 0.0, 5.0, 10.0, 8.0], dtype=float)
+        y_true     = np.zeros(n_rows, dtype=float)   # actual is always 0 at night
+
+        compliance = compute_zero_compliance(y_true, y_pred, hour_arr, threshold_mw=ZERO_CLAMP_THRESHOLD_MW)
+
+        self.assertAlmostEqual(
+            compliance, 70.0, places=1,
+            msg=(
+                f"Expected zero-compliance = 70.0% (7/10 predictions < {ZERO_CLAMP_THRESHOLD_MW} MW), "
+                f"got {compliance:.2f}%"
+            ),
+        )
+
+        # Edge case: all predictions correctly clamped to 0 -> 100%
+        y_pred_all_zero = np.zeros(n_rows, dtype=float)
+        compliance_perfect = compute_zero_compliance(y_true, y_pred_all_zero, hour_arr, threshold_mw=ZERO_CLAMP_THRESHOLD_MW)
+        self.assertAlmostEqual(
+            compliance_perfect, 100.0, places=1,
+            msg="All-zero predictions should give 100% zero-compliance",
+        )
+
+        # Edge case: no night hours in data -> should return NaN
+        day_hour_arr = np.full(n_rows, 12, dtype=int)   # all daytime
+        compliance_nan = compute_zero_compliance(y_true, y_pred, day_hour_arr, threshold_mw=ZERO_CLAMP_THRESHOLD_MW)
+        self.assertTrue(
+            math.isnan(compliance_nan),
+            msg="Zero-compliance should be NaN when there are no night-hour rows",
+        )
 
 
 # ---------------------------------------------------------------------------
