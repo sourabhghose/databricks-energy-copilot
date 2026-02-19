@@ -25185,3 +25185,488 @@ async def get_consumer_protection_complaints():
 async def get_consumer_protection_switching():
     dash = await get_consumer_protection_dashboard()
     return dash.switching_rates
+
+# ── Sprint 40a: Generator Availability & EFOR Analytics ──────────────────
+
+class GeneratorAvailabilityRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    station: str
+    owner: str
+    state: str
+    technology: str               # BLACK_COAL | BROWN_COAL | GAS_CCGT | GAS_OCGT | HYDRO | WIND | SOLAR
+    registered_capacity_mw: float
+    year: int
+    total_hours: int              # = 8760
+    available_hours: int
+    forced_outage_hours: int
+    planned_outage_hours: int
+    partial_outage_hours: int
+    availability_factor_pct: float   # available / total
+    efor_pct: float                  # forced outage / (available + forced)
+    planned_outage_rate_pct: float
+    equivalent_availability_factor_pct: float  # EAF = 100 - EFOR - planned - partial
+    net_generation_gwh: float
+    capacity_factor_pct: float
+
+class EforTrendRecord(BaseModel):
+    record_id: str
+    technology: str
+    year: int
+    fleet_avg_efor_pct: float
+    fleet_avg_availability_pct: float
+    fleet_avg_planned_outage_pct: float
+    worst_unit_efor_pct: float
+    best_unit_efor_pct: float
+    unit_count: int
+    total_forced_outage_events: int
+    avg_forced_outage_duration_hrs: float
+
+class AvailabilityDashboard(BaseModel):
+    timestamp: str
+    fleet_avg_availability_pct: float
+    fleet_avg_efor_pct: float
+    highest_efor_technology: str
+    lowest_efor_technology: str
+    total_forced_outage_mwh_yr: float
+    availability_records: list[GeneratorAvailabilityRecord]
+    efor_trends: list[EforTrendRecord]
+
+_efor_cache: dict = {}
+
+def _build_efor_dashboard() -> AvailabilityDashboard:
+    import random
+    rng = random.Random(3341)
+    now = "2025-07-15T08:00:00"
+
+    # Technology EFOR benchmarks (mean, std)
+    tech_efor = {
+        "BLACK_COAL":  (5.2, 2.8),
+        "BROWN_COAL":  (7.8, 3.5),
+        "GAS_CCGT":    (3.1, 1.8),
+        "GAS_OCGT":    (4.5, 2.5),
+        "HYDRO":       (2.2, 1.5),
+        "WIND":        (1.8, 1.2),
+        "SOLAR":       (0.9, 0.7),
+    }
+    tech_planned = {
+        "BLACK_COAL":  (8.5, 2.0),
+        "BROWN_COAL":  (10.2, 2.5),
+        "GAS_CCGT":    (5.8, 1.5),
+        "GAS_OCGT":    (3.5, 1.2),
+        "HYDRO":       (6.5, 2.0),
+        "WIND":        (4.2, 1.5),
+        "SOLAR":       (3.0, 1.0),
+    }
+
+    units_def = [
+        # (unit_id, name, station, owner, state, tech, mw)
+        ("BAYSW-1", "Bayswater 1", "Bayswater", "AGL Energy", "NSW", "BLACK_COAL", 660),
+        ("BAYSW-2", "Bayswater 2", "Bayswater", "AGL Energy", "NSW", "BLACK_COAL", 660),
+        ("ERARING-1", "Eraring 1", "Eraring", "Origin Energy", "NSW", "BLACK_COAL", 720),
+        ("ERARING-2", "Eraring 2", "Eraring", "Origin Energy", "NSW", "BLACK_COAL", 720),
+        ("TALLAWARRA", "Tallawarra B", "Tallawarra", "EnergyAustralia", "NSW", "GAS_CCGT", 316),
+        ("COLONGRA", "Colongra OCGT", "Colongra", "EnergyAustralia", "NSW", "GAS_OCGT", 667),
+        ("LIDDELL-3", "Liddell 3 (ret)", "Liddell", "AGL Energy", "NSW", "BLACK_COAL", 500),
+        ("LOYANGA-1", "Loy Yang A 1", "Loy Yang A", "AGL Energy", "VIC", "BROWN_COAL", 560),
+        ("LOYANGA-2", "Loy Yang A 2", "Loy Yang A", "AGL Energy", "VIC", "BROWN_COAL", 560),
+        ("LOYANGB-1", "Loy Yang B 1", "Loy Yang B", "EnergyAustralia", "VIC", "BROWN_COAL", 500),
+        ("MORTLAKE", "Mortlake OCGT", "Mortlake", "Origin Energy", "VIC", "GAS_OCGT", 566),
+        ("DARLDOWNS", "Darling Downs CCGT", "Darling Downs", "Origin Energy", "QLD", "GAS_CCGT", 630),
+        ("CALLIDE-C3", "Callide C3", "Callide C", "CS Energy", "QLD", "BLACK_COAL", 450),
+        ("TARONG-1", "Tarong 1", "Tarong", "Stanwell", "QLD", "BLACK_COAL", 350),
+        ("GLADSTONE-1", "Gladstone 1", "Gladstone", "NRG", "QLD", "BLACK_COAL", 280),
+        ("PELICAN-PT", "Pelican Point CCGT", "Pelican Point", "Engie", "SA", "GAS_CCGT", 478),
+        ("TORRENS-A", "Torrens Island A", "Torrens Island", "AGL Energy", "SA", "GAS_OCGT", 480),
+        ("SNOWY-6", "Tumut 3 Hydro", "Snowy", "Snowy Hydro", "NSW", "HYDRO", 1500),
+        ("HUME-HW", "Hume Hydro", "Hume", "Snowy Hydro", "NSW", "HYDRO", 58),
+        ("GORDON", "Gordon Hydro", "Gordon", "Hydro Tasmania", "TAS", "HYDRO", 432),
+    ]
+
+    availability_records = []
+    for year in [2022, 2023, 2024]:
+        for uid, name, station, owner, state, tech, mw in units_def:
+            efor_mu, efor_sd  = tech_efor[tech]
+            plan_mu, plan_sd  = tech_planned[tech]
+            efor  = max(0.2, min(25.0, rng.gauss(efor_mu, efor_sd)))
+            plan  = max(1.0, min(20.0, rng.gauss(plan_mu, plan_sd)))
+            part  = rng.uniform(0.5, 3.5)
+            total_h = 8760
+            fo_h  = int(total_h * efor / 100)
+            po_h  = int(total_h * plan / 100)
+            par_h = int(total_h * part / 100)
+            avail_h = total_h - fo_h - po_h - par_h
+            avail_f = avail_h / total_h * 100
+            eaf   = 100 - efor - plan - part
+            cf    = max(5, eaf * rng.uniform(0.55, 0.85))
+            gen   = round(mw * cf / 100 * 8760 / 1000, 1)
+            availability_records.append(GeneratorAvailabilityRecord(
+                unit_id=f"{uid}-{year}", unit_name=name, station=station, owner=owner,
+                state=state, technology=tech, registered_capacity_mw=float(mw),
+                year=year, total_hours=total_h, available_hours=avail_h,
+                forced_outage_hours=fo_h, planned_outage_hours=po_h, partial_outage_hours=par_h,
+                availability_factor_pct=round(avail_f, 1), efor_pct=round(efor, 1),
+                planned_outage_rate_pct=round(plan, 1),
+                equivalent_availability_factor_pct=round(eaf, 1),
+                net_generation_gwh=gen, capacity_factor_pct=round(cf, 1),
+            ))
+
+    # EFOR trends by technology 2018-2024
+    efor_trends = []
+    for tech in tech_efor:
+        mu, sd = tech_efor[tech]
+        for year in range(2018, 2025):
+            fleet_efor = max(0.5, mu * rng.uniform(0.85, 1.20))
+            fleet_avail = 100 - fleet_efor - tech_planned[tech][0] * rng.uniform(0.9, 1.1) - rng.uniform(1, 3)
+            worst  = min(28.0, fleet_efor * rng.uniform(2.0, 4.5))
+            best   = max(0.1, fleet_efor * rng.uniform(0.1, 0.4))
+            n_units = rng.randint(3, 12)
+            events  = int(n_units * fleet_efor / 5 * rng.uniform(0.8, 1.3))
+            avg_dur = rng.uniform(12.0, 96.0)
+            efor_trends.append(EforTrendRecord(
+                record_id=f"EFOR-{tech[:5]}-{year}", technology=tech, year=year,
+                fleet_avg_efor_pct=round(fleet_efor, 2),
+                fleet_avg_availability_pct=round(fleet_avail, 1),
+                fleet_avg_planned_outage_pct=round(tech_planned[tech][0], 1),
+                worst_unit_efor_pct=round(worst, 1), best_unit_efor_pct=round(best, 1),
+                unit_count=n_units, total_forced_outage_events=events,
+                avg_forced_outage_duration_hrs=round(avg_dur, 1),
+            ))
+
+    all_2024 = [r for r in availability_records if r.year == 2024]
+    fleet_avail = sum(r.availability_factor_pct for r in all_2024) / len(all_2024)
+    fleet_efor  = sum(r.efor_pct for r in all_2024) / len(all_2024)
+    total_fo_mwh = sum(r.registered_capacity_mw * r.forced_outage_hours / 1000 for r in all_2024)
+
+    by_tech_efor = {}
+    for r in all_2024:
+        by_tech_efor.setdefault(r.technology, []).append(r.efor_pct)
+    avg_by_tech = {t: sum(v) / len(v) for t, v in by_tech_efor.items()}
+    highest_efor_tech = max(avg_by_tech, key=avg_by_tech.get)
+    lowest_efor_tech  = min(avg_by_tech, key=avg_by_tech.get)
+
+    return AvailabilityDashboard(
+        timestamp=now,
+        fleet_avg_availability_pct=round(fleet_avail, 1),
+        fleet_avg_efor_pct=round(fleet_efor, 2),
+        highest_efor_technology=highest_efor_tech,
+        lowest_efor_technology=lowest_efor_tech,
+        total_forced_outage_mwh_yr=round(total_fo_mwh, 0),
+        availability_records=availability_records,
+        efor_trends=efor_trends,
+    )
+
+@app.get("/api/efor/dashboard", response_model=AvailabilityDashboard, dependencies=[Depends(verify_api_key)])
+async def get_efor_dashboard():
+    cached = _cache_get(_efor_cache, "efor_dashboard")
+    if cached: return cached
+    result = _build_efor_dashboard()
+    _cache_set(_efor_cache, "efor_dashboard", result)
+    return result
+
+@app.get("/api/efor/availability", response_model=list[GeneratorAvailabilityRecord], dependencies=[Depends(verify_api_key)])
+async def get_efor_availability():
+    dash = await get_efor_dashboard()
+    return dash.availability_records
+
+@app.get("/api/efor/trends", response_model=list[EforTrendRecord], dependencies=[Depends(verify_api_key)])
+async def get_efor_trends():
+    dash = await get_efor_dashboard()
+    return dash.efor_trends
+
+# ── Sprint 40b: Climate Risk & Network Infrastructure Resilience ──────────
+
+class NetworkAssetRiskRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_type: str               # SUBSTATION | TRANSMISSION_LINE | DISTRIBUTION_ZONE | GENERATION_SITE
+    owner: str
+    state: str
+    region: str
+    voltage_kv: float
+    age_years: int
+    flood_risk_score: float       # 0-10
+    bushfire_risk_score: float    # 0-10
+    extreme_heat_risk_score: float # 0-10
+    storm_risk_score: float       # 0-10
+    composite_risk_score: float   # weighted average
+    risk_category: str            # LOW | MODERATE | HIGH | CRITICAL
+    customers_at_risk: int
+    adaptation_cost_m_aud: float
+    adaptation_status: str        # PLANNED | IN_PROGRESS | COMPLETE | NOT_STARTED
+
+class ClimateEventRecord(BaseModel):
+    event_id: str
+    event_date: str
+    event_type: str               # FLOOD | BUSHFIRE | HEATWAVE | STORM | CYCLONE
+    state: str
+    severity: str                 # MINOR | MODERATE | SEVERE | EXTREME
+    assets_affected: int
+    customers_affected: int
+    outage_duration_hrs: float
+    restoration_cost_m_aud: float
+    insured_loss_m_aud: float
+    network_damage_description: str
+
+class ClimateRiskDashboard(BaseModel):
+    timestamp: str
+    total_assets_assessed: int
+    high_critical_risk_assets: int
+    total_adaptation_capex_m_aud: float
+    avg_composite_risk_score: float
+    events_last_5yr: int
+    total_event_restoration_cost_m_aud: float
+    assets: list[NetworkAssetRiskRecord]
+    events: list[ClimateEventRecord]
+
+_climate_risk_cache: dict = {}
+
+def _build_climate_risk_dashboard() -> ClimateRiskDashboard:
+    import random
+    rng = random.Random(5566)
+    now = "2025-07-15T08:00:00"
+
+    def risk_category(score):
+        if score >= 7.5: return "CRITICAL"
+        if score >= 5.0: return "HIGH"
+        if score >= 2.5: return "MODERATE"
+        return "LOW"
+
+    assets = [
+        # NSW substations and lines
+        NetworkAssetRiskRecord("NW-SUB-HAY", "Hay 66kV Substation", "SUBSTATION", "Ausgrid", "NSW", "NSW1", 66.0, 42, 8.2, 3.1, 5.8, 4.2, 6.8, "HIGH", 12400, 18.5, "IN_PROGRESS"),
+        NetworkAssetRiskRecord("NW-SUB-LISMORE", "Lismore 132kV Substation", "SUBSTATION", "Ausgrid", "NSW", "NSW1", 132.0, 38, 9.5, 2.8, 4.1, 7.8, 7.9, "CRITICAL", 28500, 45.0, "PLANNED"),
+        NetworkAssetRiskRecord("NW-LINE-LIDDELL", "Liddell-Tomago 330kV Line", "TRANSMISSION_LINE", "TransGrid", "NSW", "NSW1", 330.0, 32, 2.4, 7.8, 6.5, 5.1, 6.2, "HIGH", 450000, 32.0, "NOT_STARTED"),
+        NetworkAssetRiskRecord("NW-SUB-TEMORA", "Temora 33kV Zone Sub", "DISTRIBUTION_ZONE", "Essential Energy", "NSW", "NSW1", 33.0, 55, 6.8, 4.2, 5.5, 5.8, 6.0, "HIGH", 4800, 8.5, "PLANNED"),
+        NetworkAssetRiskRecord("NW-LINE-RIVERINA", "Riverina 132kV Corridor", "TRANSMISSION_LINE", "TransGrid", "NSW", "NSW1", 132.0, 28, 7.4, 3.5, 5.8, 5.2, 6.1, "HIGH", 85000, 28.0, "NOT_STARTED"),
+        NetworkAssetRiskRecord("NW-GEN-ERARING", "Eraring Power Station Site", "GENERATION_SITE", "Origin Energy", "NSW", "NSW1", 500.0, 43, 7.8, 2.2, 6.8, 3.8, 6.2, "HIGH", 0, 22.0, "PLANNED"),
+        # VIC
+        NetworkAssetRiskRecord("NW-SUB-MORWELL", "Morwell 220kV Substation", "SUBSTATION", "AusNet", "VIC", "VIC1", 220.0, 48, 3.2, 8.5, 6.8, 4.5, 6.8, "HIGH", 18000, 28.0, "IN_PROGRESS"),
+        NetworkAssetRiskRecord("NW-LINE-WESTERNVIC", "Western Victoria 500kV Line", "TRANSMISSION_LINE", "AusNet", "VIC", "VIC1", 500.0, 8, 2.8, 7.2, 5.5, 5.8, 5.8, "HIGH", 620000, 0.0, "COMPLETE"),
+        NetworkAssetRiskRecord("NW-SUB-BALLARAT", "Ballarat 66kV Zone Sub", "DISTRIBUTION_ZONE", "Powercor", "VIC", "VIC1", 66.0, 35, 1.8, 9.2, 5.2, 5.5, 7.1, "HIGH", 32000, 12.5, "PLANNED"),
+        NetworkAssetRiskRecord("NW-SUB-ORBOST", "Orbost 22kV Zone Sub", "DISTRIBUTION_ZONE", "AusNet", "VIC", "VIC1", 22.0, 52, 7.5, 8.8, 4.8, 7.2, 7.9, "CRITICAL", 3200, 15.0, "IN_PROGRESS"),
+        # QLD
+        NetworkAssetRiskRecord("NW-SUB-TOWNSVILLE", "Townsville 132kV Substation", "SUBSTATION", "Powerlink", "QLD", "QLD1", 132.0, 30, 8.8, 2.5, 9.2, 8.5, 8.5, "CRITICAL", 85000, 55.0, "PLANNED"),
+        NetworkAssetRiskRecord("NW-LINE-NORTHERN", "Northern QLD 275kV Corridor", "TRANSMISSION_LINE", "Powerlink", "QLD", "QLD1", 275.0, 22, 7.2, 3.8, 8.8, 8.2, 7.8, "CRITICAL", 180000, 78.0, "NOT_STARTED"),
+        NetworkAssetRiskRecord("NW-SUB-ROCKHAMPTON", "Rockhampton 66kV Sub", "SUBSTATION", "Ergon Energy", "QLD", "QLD1", 66.0, 40, 8.5, 3.2, 8.0, 6.8, 7.5, "CRITICAL", 42000, 35.0, "PLANNED"),
+        NetworkAssetRiskRecord("NW-LINE-CAPRICORNIA", "Capricornia 132kV Lines", "TRANSMISSION_LINE", "Powerlink", "QLD", "QLD1", 132.0, 35, 5.5, 6.5, 8.2, 7.5, 7.1, "HIGH", 65000, 25.0, "NOT_STARTED"),
+        # SA
+        NetworkAssetRiskRecord("NW-SUB-CEDUNA", "Ceduna 66kV Zone Sub", "DISTRIBUTION_ZONE", "SAPN", "SA", "SA1", 66.0, 48, 2.2, 6.8, 8.5, 5.8, 6.4, "HIGH", 4500, 8.0, "NOT_STARTED"),
+        NetworkAssetRiskRecord("NW-LINE-EYRE", "Eyre Peninsula 132kV Line", "TRANSMISSION_LINE", "ElectraNet", "SA", "SA1", 132.0, 40, 1.8, 5.5, 8.2, 4.8, 5.7, "HIGH", 25000, 18.5, "PLANNED"),
+        # TAS
+        NetworkAssetRiskRecord("NW-LINE-BASSLINK", "Basslink HVDC Cable", "TRANSMISSION_LINE", "Basslink Pty Ltd", "TAS", "TAS1", 400.0, 20, 4.5, 1.8, 3.5, 7.8, 4.9, "MODERATE", 520000, 55.0, "IN_PROGRESS"),
+        NetworkAssetRiskRecord("NW-SUB-GORDON", "Gordon Power Station", "GENERATION_SITE", "Hydro Tasmania", "TAS", "TAS1", 220.0, 55, 5.8, 2.5, 3.2, 6.5, 4.8, "MODERATE", 0, 12.0, "PLANNED"),
+    ]
+
+    events = [
+        ClimateEventRecord("EVT-2022-LISMORE-FLOOD", "2022-03-01", "FLOOD", "NSW", "EXTREME", 28, 42000, 168.0, 185.0, 120.0, "Catastrophic flooding of Lismore zone substation and feeder network"),
+        ClimateEventRecord("EVT-2022-SEQ-FLOOD", "2022-02-28", "FLOOD", "QLD", "SEVERE", 45, 95000, 72.0, 220.0, 145.0, "South East QLD flooding affecting multiple 66kV substations and LV network"),
+        ClimateEventRecord("EVT-2023-ALICE-HEAT", "2023-01-15", "HEATWAVE", "NT", "EXTREME", 8, 28000, 4.0, 12.0, 5.0, "Extreme heat event causing transformer overloading in Alice Springs"),
+        ClimateEventRecord("EVT-2023-SA-HEAT", "2023-01-24", "HEATWAVE", "SA", "SEVERE", 18, 65000, 6.5, 28.0, 18.0, "South Australia heatwave causing distribution network stress and load shedding"),
+        ClimateEventRecord("EVT-2019-BUSHFIRE-NSW", "2019-11-08", "BUSHFIRE", "NSW", "EXTREME", 62, 125000, 240.0, 380.0, 195.0, "NSW Spring bushfires causing widespread damage to transmission and distribution assets"),
+        ClimateEventRecord("EVT-2019-BUSHFIRE-VIC", "2019-12-30", "BUSHFIRE", "VIC", "SEVERE", 38, 85000, 120.0, 210.0, 145.0, "East Gippsland bushfire causing distribution network damage and extended outages"),
+        ClimateEventRecord("EVT-2021-STORM-QLD", "2021-02-01", "STORM", "QLD", "MODERATE", 24, 48000, 28.0, 35.0, 22.0, "Tropical cyclone activity damaging distribution network in North Queensland"),
+        ClimateEventRecord("EVT-2024-FLOOD-NSW", "2024-07-12", "FLOOD", "NSW", "MODERATE", 15, 22000, 18.0, 42.0, 28.0, "Mid-North Coast flooding affecting rural distribution network"),
+        ClimateEventRecord("EVT-2023-STORM-VIC", "2023-10-18", "STORM", "VIC", "SEVERE", 32, 75000, 48.0, 88.0, 55.0, "Spring storm damaging distribution network across Melbourne outer suburbs"),
+        ClimateEventRecord("EVT-2022-CYCLONE-QLD", "2022-04-05", "CYCLONE", "QLD", "SEVERE", 42, 58000, 96.0, 145.0, 92.0, "Tropical cyclone causing significant damage to Townsville distribution network"),
+        ClimateEventRecord("EVT-2024-HEAT-WA", "2024-02-08", "HEATWAVE", "WA", "EXTREME", 22, 180000, 8.0, 55.0, 32.0, "Perth heatwave causing record demand and distribution equipment failure"),
+        ClimateEventRecord("EVT-2020-FIRE-SA", "2020-01-03", "BUSHFIRE", "SA", "SEVERE", 28, 35000, 72.0, 65.0, 42.0, "Kangaroo Island bushfire affecting distribution network assets"),
+    ]
+
+    high_crit = sum(1 for a in assets if a.risk_category in ("HIGH", "CRITICAL"))
+    total_adapt_capex = sum(a.adaptation_cost_m_aud for a in assets)
+    avg_risk = sum(a.composite_risk_score for a in assets) / len(assets)
+    total_event_cost = sum(e.restoration_cost_m_aud for e in events)
+
+    return ClimateRiskDashboard(
+        timestamp=now,
+        total_assets_assessed=len(assets),
+        high_critical_risk_assets=high_crit,
+        total_adaptation_capex_m_aud=round(total_adapt_capex, 1),
+        avg_composite_risk_score=round(avg_risk, 2),
+        events_last_5yr=len(events),
+        total_event_restoration_cost_m_aud=round(total_event_cost, 1),
+        assets=assets,
+        events=events,
+    )
+
+@app.get("/api/climate-risk/dashboard", response_model=ClimateRiskDashboard, dependencies=[Depends(verify_api_key)])
+async def get_climate_risk_dashboard():
+    cached = _cache_get(_climate_risk_cache, "climate_risk")
+    if cached: return cached
+    result = _build_climate_risk_dashboard()
+    _cache_set(_climate_risk_cache, "climate_risk", result)
+    return result
+
+@app.get("/api/climate-risk/assets", response_model=list[NetworkAssetRiskRecord], dependencies=[Depends(verify_api_key)])
+async def get_climate_risk_assets():
+    dash = await get_climate_risk_dashboard()
+    return dash.assets
+
+@app.get("/api/climate-risk/events", response_model=list[ClimateEventRecord], dependencies=[Depends(verify_api_key)])
+async def get_climate_risk_events():
+    dash = await get_climate_risk_dashboard()
+    return dash.events
+
+# ── Sprint 40c: Smart Grid Innovation & Grid Modernisation Analytics ───────
+
+class DoeRecord(BaseModel):
+    record_id: str
+    dnsp: str
+    state: str
+    program_name: str
+    doe_type: str                    # STATIC | DYNAMIC | COORDINATED
+    customers_enrolled: int
+    avg_export_limit_kw: float
+    avg_import_limit_kw: float
+    peak_solar_managed_mw: float
+    voltage_violations_prevented: int
+    implementation_cost_m_aud: float
+    status: str                      # TRIAL | ROLLOUT | OPERATIONAL
+
+class DermsRecord(BaseModel):
+    record_id: str
+    dnsp: str
+    state: str
+    system_name: str
+    der_types_managed: list[str]     # SOLAR | BATTERY | EV | HVAC | POOL_PUMP
+    registered_assets: int
+    controllable_mw: float
+    coordination_events_yr: int
+    peak_response_mw: float
+    interoperability_standard: str   # CSIP_AUS | OPENADR | IEEE2030_5 | PROPRIETARY
+    rollout_year: int
+    opex_m_aud_pa: float
+
+class AmiAdoptionRecord(BaseModel):
+    record_id: str
+    state: str
+    dnsp: str
+    quarter: str
+    smart_meters_installed: int
+    total_customers: int
+    penetration_pct: float
+    interval_data_enabled_pct: float
+    remote_disconnect_enabled_pct: float
+    demand_response_enrolled: int
+    ami_capex_m_aud: float
+
+class SmartGridDashboard(BaseModel):
+    timestamp: str
+    total_doe_customers: int
+    total_derms_assets: int
+    total_controllable_mw: float
+    national_ami_penetration_pct: float
+    coordination_events_yr: int
+    doe_programs: list[DoeRecord]
+    derms_systems: list[DermsRecord]
+    ami_adoption: list[AmiAdoptionRecord]
+
+_smart_grid_cache: dict = {}
+
+def _build_smart_grid_dashboard() -> SmartGridDashboard:
+    import random
+    rng = random.Random(2288)
+    now = "2025-07-15T08:00:00"
+
+    doe_programs = [
+        DoeRecord("DOE-AUSGRID-01", "Ausgrid", "NSW", "Ausgrid Dynamic Exports Program", "DYNAMIC", 42500, 5.0, 10.0, 212.5, 18400, 28.5, "ROLLOUT"),
+        DoeRecord("DOE-AUSGRID-02", "Ausgrid", "NSW", "Ausgrid Coordinated DER Pilot", "COORDINATED", 8200, 6.5, 12.0, 53.3, 4200, 8.2, "TRIAL"),
+        DoeRecord("DOE-ENDEAVOUR-01", "Endeavour Energy", "NSW", "Endeavour Dynamic Exports", "DYNAMIC", 28000, 4.5, 9.5, 126.0, 12500, 18.5, "ROLLOUT"),
+        DoeRecord("DOE-ESSENTIAL-01", "Essential Energy", "NSW", "Essential Static DOE Rural", "STATIC", 15000, 3.0, 8.0, 45.0, 6800, 8.5, "OPERATIONAL"),
+        DoeRecord("DOE-JEMENA-01", "Jemena", "VIC", "Jemena Virtual Power Plant DOE", "COORDINATED", 12000, 7.0, 12.0, 84.0, 5500, 12.0, "TRIAL"),
+        DoeRecord("DOE-POWERCOR-01", "Powercor", "VIC", "Powercor Dynamic Exports Rollout", "DYNAMIC", 35000, 5.5, 11.0, 192.5, 15800, 24.0, "ROLLOUT"),
+        DoeRecord("DOE-CITIPOWER-01", "CitiPower", "VIC", "CitiPower Urban DERMS DOE", "COORDINATED", 22000, 6.0, 12.0, 132.0, 10200, 16.5, "ROLLOUT"),
+        DoeRecord("DOE-ENERGEX-01", "Energex", "QLD", "Energex Solar Smart Program", "DYNAMIC", 55000, 4.0, 9.0, 220.0, 24500, 35.0, "OPERATIONAL"),
+        DoeRecord("DOE-ERGON-01", "Ergon Energy", "QLD", "Ergon Network 2.0 DOE", "DYNAMIC", 18000, 3.5, 8.5, 63.0, 8200, 14.5, "ROLLOUT"),
+        DoeRecord("DOE-SAPN-01", "SA Power Networks", "SA", "SAPN Virtual Power Plant DOE", "COORDINATED", 48000, 7.5, 13.0, 360.0, 21500, 42.0, "OPERATIONAL"),
+        DoeRecord("DOE-WESTERNPOWER-01", "Western Power", "WA", "Western Power SolarEdge DOE", "STATIC", 32000, 3.0, 8.0, 96.0, 14200, 18.5, "OPERATIONAL"),
+        DoeRecord("DOE-TASNETWORKS-01", "TasNetworks", "TAS", "TasNetworks Inverter Program", "STATIC", 8500, 4.0, 9.0, 34.0, 3800, 6.5, "OPERATIONAL"),
+    ]
+
+    derms_systems = [
+        DermsRecord("DERMS-AUSGRID-01", "Ausgrid", "NSW", "Ausgrid ADMS+DERMS",
+                    ["SOLAR","BATTERY","EV"], 125000, 625.0, 480, 312.0, "CSIP_AUS", 2023, 4.8),
+        DermsRecord("DERMS-ENERGEX-01", "Energex", "QLD", "Energex ADMS DERMS",
+                    ["SOLAR","BATTERY","POOL_PUMP"], 180000, 720.0, 680, 360.0, "IEEE2030_5", 2022, 6.2),
+        DermsRecord("DERMS-SAPN-01", "SA Power Networks", "SA", "SAPN VPP DERMS (Tesla)",
+                    ["BATTERY","SOLAR","HVAC"], 65000, 845.0, 920, 422.0, "PROPRIETARY", 2021, 5.5),
+        DermsRecord("DERMS-POWERCOR-01", "Powercor", "VIC", "Powercor FLEX DERMS",
+                    ["SOLAR","BATTERY","EV"], 95000, 522.5, 380, 261.0, "OPENADR", 2024, 3.8),
+        DermsRecord("DERMS-WESTERN-01", "Western Power", "WA", "Western Power CER DERMS",
+                    ["SOLAR","BATTERY","POOL_PUMP","HVAC"], 142000, 568.0, 550, 284.0, "CSIP_AUS", 2023, 5.2),
+        DermsRecord("DERMS-ERGON-01", "Ergon Energy", "QLD", "Ergon Network Virtual",
+                    ["SOLAR","BATTERY"], 52000, 182.0, 280, 91.0, "CSIP_AUS", 2024, 2.8),
+        DermsRecord("DERMS-ENDEAVOUR-01", "Endeavour Energy", "NSW", "Endeavour DERMS Pilot",
+                    ["SOLAR","BATTERY","EV"], 42000, 189.0, 210, 94.5, "CSIP_AUS", 2024, 2.2),
+        DermsRecord("DERMS-TASNETWORKS-01", "TasNetworks", "TAS", "TasNetworks Grid Intelligence",
+                    ["HYDRO","BATTERY","SOLAR"], 28000, 196.0, 320, 98.0, "IEEE2030_5", 2022, 2.5),
+    ]
+
+    # AMI adoption — 4 quarters × 6 states
+    quarters = ["2024-Q3", "2024-Q4", "2025-Q1", "2025-Q2"]
+    ami_base = {
+        "NSW": (4200000, 0.68, 0.62, 0.55, 185000, 820.0),
+        "VIC": (2900000, 1.00, 0.95, 0.88, 280000, 0.0),    # VIC 100% mandated
+        "QLD": (2400000, 0.72, 0.65, 0.58, 165000, 680.0),
+        "SA":  (900000,  0.88, 0.82, 0.75, 95000, 210.0),
+        "WA":  (1200000, 0.58, 0.52, 0.45, 85000, 380.0),
+        "TAS": (280000,  0.52, 0.46, 0.40, 18000, 65.0),
+    }
+    ami_adoption = []
+    for state, (tot_cust, ami_pct, iv_pct, rd_pct, dr_enr, capex) in ami_base.items():
+        dnsps = {"NSW": "Ausgrid", "VIC": "Jemena", "QLD": "Energex", "SA": "SAPN", "WA": "Western Power", "TAS": "TasNetworks"}
+        for i, qtr in enumerate(quarters):
+            growth = 1 + i * 0.02
+            smart_m = int(tot_cust * ami_pct * growth)
+            ami_adoption.append(AmiAdoptionRecord(
+                f"AMI-{state}-{qtr}", state, dnsps[state], qtr,
+                smart_m, tot_cust,
+                round(smart_m / tot_cust * 100, 1),
+                round(iv_pct * 100, 1),
+                round(rd_pct * 100, 1),
+                int(dr_enr * growth),
+                round(capex / 4, 1),  # quarterly capex
+            ))
+
+    total_doe_cust    = sum(p.customers_enrolled for p in doe_programs)
+    total_derms_assets = sum(d.registered_assets for d in derms_systems)
+    total_ctrl_mw     = sum(d.controllable_mw for d in derms_systems)
+    latest_ami        = [r for r in ami_adoption if r.quarter == "2025-Q2"]
+    nat_ami_pct       = sum(r.smart_meters_installed for r in latest_ami) / sum(r.total_customers for r in latest_ami) * 100
+    total_coord_yr    = sum(d.coordination_events_yr for d in derms_systems)
+
+    return SmartGridDashboard(
+        timestamp=now,
+        total_doe_customers=total_doe_cust,
+        total_derms_assets=total_derms_assets,
+        total_controllable_mw=round(total_ctrl_mw, 1),
+        national_ami_penetration_pct=round(nat_ami_pct, 1),
+        coordination_events_yr=total_coord_yr,
+        doe_programs=doe_programs,
+        derms_systems=derms_systems,
+        ami_adoption=ami_adoption,
+    )
+
+@app.get("/api/smart-grid/dashboard", response_model=SmartGridDashboard, dependencies=[Depends(verify_api_key)])
+async def get_smart_grid_dashboard():
+    cached = _cache_get(_smart_grid_cache, "smart_grid")
+    if cached: return cached
+    result = _build_smart_grid_dashboard()
+    _cache_set(_smart_grid_cache, "smart_grid", result)
+    return result
+
+@app.get("/api/smart-grid/doe-programs", response_model=list[DoeRecord], dependencies=[Depends(verify_api_key)])
+async def get_smart_grid_doe():
+    dash = await get_smart_grid_dashboard()
+    return dash.doe_programs
+
+@app.get("/api/smart-grid/derms", response_model=list[DermsRecord], dependencies=[Depends(verify_api_key)])
+async def get_smart_grid_derms():
+    dash = await get_smart_grid_dashboard()
+    return dash.derms_systems
+
+@app.get("/api/smart-grid/ami", response_model=list[AmiAdoptionRecord], dependencies=[Depends(verify_api_key)])
+async def get_smart_grid_ami():
+    dash = await get_smart_grid_dashboard()
+    return dash.ami_adoption

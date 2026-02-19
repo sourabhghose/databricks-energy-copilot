@@ -42,6 +42,8 @@ import {
   Wind,
   AlertOctagon,
   Heart,
+  CloudLightning,
+  Cpu,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -132,6 +134,9 @@ import ForwardCurveAnalytics from './pages/ForwardCurveAnalytics'
 import CoalRetirement from './pages/CoalRetirement'
 import GasGenEconomics from './pages/GasGenEconomics'
 import ConsumerProtection from './pages/ConsumerProtection'
+import GeneratorAvailability from './pages/GeneratorAvailability'
+import ClimateRiskAnalytics from './pages/ClimateRiskAnalytics'
+import SmartGridAnalytics from './pages/SmartGridAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -222,6 +227,9 @@ const NAV_ITEMS = [
   { to: '/coal-retirement', label: 'Coal Retirement',  Icon: Flame          },
   { to: '/gas-gen',         label: 'Gas Economics',    Icon: Activity       },
   { to: '/consumer-protection', label: 'Consumer Protection', Icon: Shield   },
+  { to: '/efor',            label: 'Generator EFOR',   Icon: Activity       },
+  { to: '/climate-risk',    label: 'Climate Risk',     Icon: CloudLightning },
+  { to: '/smart-grid',      label: 'Smart Grid',       Icon: Cpu            },
   { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
 ]
 
@@ -387,6 +395,9 @@ export default function App() {
               <Route path="/coal-retirement" element={<CoalRetirement />}       />
               <Route path="/gas-gen"         element={<GasGenEconomics />}       />
               <Route path="/consumer-protection" element={<ConsumerProtection />} />
+              <Route path="/efor"            element={<GeneratorAvailability />} />
+              <Route path="/climate-risk"    element={<ClimateRiskAnalytics />} />
+              <Route path="/smart-grid"      element={<SmartGridAnalytics />}   />
               <Route path="/settings"        element={<Settings />}              />
             </Routes>
           </main>

@@ -3596,3 +3596,66 @@ class TestConsumerProtectionEndpoints:
         r = client.get("/api/consumer-protection/switching", headers=AUTH)
         assert r.status_code == 200
         assert len(r.json()) >= 20
+
+class TestEforEndpoints:
+    def test_efor_dashboard(self, client):
+        r = client.get("/api/efor/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["fleet_avg_availability_pct"] > 0
+        assert len(d["availability_records"]) >= 40
+        assert len(d["efor_trends"]) >= 40
+
+    def test_efor_availability(self, client):
+        r = client.get("/api/efor/availability", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 40
+
+    def test_efor_trends(self, client):
+        r = client.get("/api/efor/trends", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 40
+
+class TestClimateRiskEndpoints:
+    def test_climate_risk_dashboard(self, client):
+        r = client.get("/api/climate-risk/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_assets_assessed"] >= 15
+        assert len(d["assets"]) >= 15
+        assert len(d["events"]) >= 10
+
+    def test_climate_risk_assets(self, client):
+        r = client.get("/api/climate-risk/assets", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 15
+
+    def test_climate_risk_events(self, client):
+        r = client.get("/api/climate-risk/events", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+class TestSmartGridEndpoints:
+    def test_smart_grid_dashboard(self, client):
+        r = client.get("/api/smart-grid/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_doe_customers"] > 0
+        assert len(d["doe_programs"]) >= 10
+        assert len(d["derms_systems"]) >= 6
+        assert len(d["ami_adoption"]) >= 20
+
+    def test_smart_grid_doe(self, client):
+        r = client.get("/api/smart-grid/doe-programs", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_smart_grid_derms(self, client):
+        r = client.get("/api/smart-grid/derms", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 6
+
+    def test_smart_grid_ami(self, client):
+        r = client.get("/api/smart-grid/ami", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20

@@ -2279,6 +2279,158 @@ export interface ConsumerProtectionDashboard {
   switching_rates: SwitchingRateRecord[]
 }
 
+// ── Sprint 40a: Generator Availability & EFOR ──
+export interface GeneratorAvailabilityRecord {
+  unit_id: string
+  unit_name: string
+  station: string
+  owner: string
+  state: string
+  technology: string
+  registered_capacity_mw: number
+  year: number
+  total_hours: number
+  available_hours: number
+  forced_outage_hours: number
+  planned_outage_hours: number
+  partial_outage_hours: number
+  availability_factor_pct: number
+  efor_pct: number
+  planned_outage_rate_pct: number
+  equivalent_availability_factor_pct: number
+  net_generation_gwh: number
+  capacity_factor_pct: number
+}
+
+export interface EforTrendRecord {
+  record_id: string
+  technology: string
+  year: number
+  fleet_avg_efor_pct: number
+  fleet_avg_availability_pct: number
+  fleet_avg_planned_outage_pct: number
+  worst_unit_efor_pct: number
+  best_unit_efor_pct: number
+  unit_count: number
+  total_forced_outage_events: number
+  avg_forced_outage_duration_hrs: number
+}
+
+export interface AvailabilityDashboard {
+  timestamp: string
+  fleet_avg_availability_pct: number
+  fleet_avg_efor_pct: number
+  highest_efor_technology: string
+  lowest_efor_technology: string
+  total_forced_outage_mwh_yr: number
+  availability_records: GeneratorAvailabilityRecord[]
+  efor_trends: EforTrendRecord[]
+}
+
+// ── Sprint 40b: Climate Risk & Infrastructure Resilience ──
+export interface NetworkAssetRiskRecord {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  owner: string
+  state: string
+  region: string
+  voltage_kv: number
+  age_years: number
+  flood_risk_score: number
+  bushfire_risk_score: number
+  extreme_heat_risk_score: number
+  storm_risk_score: number
+  composite_risk_score: number
+  risk_category: string
+  customers_at_risk: number
+  adaptation_cost_m_aud: number
+  adaptation_status: string
+}
+
+export interface ClimateEventRecord {
+  event_id: string
+  event_date: string
+  event_type: string
+  state: string
+  severity: string
+  assets_affected: number
+  customers_affected: number
+  outage_duration_hrs: number
+  restoration_cost_m_aud: number
+  insured_loss_m_aud: number
+  network_damage_description: string
+}
+
+export interface ClimateRiskDashboard {
+  timestamp: string
+  total_assets_assessed: number
+  high_critical_risk_assets: number
+  total_adaptation_capex_m_aud: number
+  avg_composite_risk_score: number
+  events_last_5yr: number
+  total_event_restoration_cost_m_aud: number
+  assets: NetworkAssetRiskRecord[]
+  events: ClimateEventRecord[]
+}
+
+// ── Sprint 40c: Smart Grid Innovation ──
+export interface DoeRecord {
+  record_id: string
+  dnsp: string
+  state: string
+  program_name: string
+  doe_type: string
+  customers_enrolled: number
+  avg_export_limit_kw: number
+  avg_import_limit_kw: number
+  peak_solar_managed_mw: number
+  voltage_violations_prevented: number
+  implementation_cost_m_aud: number
+  status: string
+}
+
+export interface DermsRecord {
+  record_id: string
+  dnsp: string
+  state: string
+  system_name: string
+  der_types_managed: string[]
+  registered_assets: number
+  controllable_mw: number
+  coordination_events_yr: number
+  peak_response_mw: number
+  interoperability_standard: string
+  rollout_year: number
+  opex_m_aud_pa: number
+}
+
+export interface AmiAdoptionRecord {
+  record_id: string
+  state: string
+  dnsp: string
+  quarter: string
+  smart_meters_installed: number
+  total_customers: number
+  penetration_pct: number
+  interval_data_enabled_pct: number
+  remote_disconnect_enabled_pct: number
+  demand_response_enrolled: number
+  ami_capex_m_aud: number
+}
+
+export interface SmartGridDashboard {
+  timestamp: string
+  total_doe_customers: number
+  total_derms_assets: number
+  total_controllable_mw: number
+  national_ami_penetration_pct: number
+  coordination_events_yr: number
+  doe_programs: DoeRecord[]
+  derms_systems: DermsRecord[]
+  ami_adoption: AmiAdoptionRecord[]
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3963,6 +4115,26 @@ export const api = {
     get<ConsumerComplaintRecord[]>('/api/consumer-protection/complaints'),
   getConsumerSwitching: (): Promise<SwitchingRateRecord[]> =>
     get<SwitchingRateRecord[]>('/api/consumer-protection/switching'),
+  getEforDashboard: (): Promise<AvailabilityDashboard> =>
+    get<AvailabilityDashboard>('/api/efor/dashboard'),
+  getEforAvailability: (): Promise<GeneratorAvailabilityRecord[]> =>
+    get<GeneratorAvailabilityRecord[]>('/api/efor/availability'),
+  getEforTrends: (): Promise<EforTrendRecord[]> =>
+    get<EforTrendRecord[]>('/api/efor/trends'),
+  getClimateRiskDashboard: (): Promise<ClimateRiskDashboard> =>
+    get<ClimateRiskDashboard>('/api/climate-risk/dashboard'),
+  getClimateRiskAssets: (): Promise<NetworkAssetRiskRecord[]> =>
+    get<NetworkAssetRiskRecord[]>('/api/climate-risk/assets'),
+  getClimateRiskEvents: (): Promise<ClimateEventRecord[]> =>
+    get<ClimateEventRecord[]>('/api/climate-risk/events'),
+  getSmartGridDashboard: (): Promise<SmartGridDashboard> =>
+    get<SmartGridDashboard>('/api/smart-grid/dashboard'),
+  getSmartGridDoe: (): Promise<DoeRecord[]> =>
+    get<DoeRecord[]>('/api/smart-grid/doe-programs'),
+  getSmartGridDerms: (): Promise<DermsRecord[]> =>
+    get<DermsRecord[]>('/api/smart-grid/derms'),
+  getSmartGridAmi: (): Promise<AmiAdoptionRecord[]> =>
+    get<AmiAdoptionRecord[]>('/api/smart-grid/ami'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

@@ -736,3 +736,18 @@
 - ConsumerProtection.tsx: complaints stacked bar chart by quarter, retail offers table (DMO vs market), switching rates table
 - /api/consumer-protection/dashboard, /offers, /complaints, /switching (48 retail offers, 96 complaint records, 32 switching records)
 - 4 TestConsumerProtectionEndpoints tests
+
+## Sprint 40a — Generator Availability & EFOR Analytics [COMPLETE]
+- GeneratorAvailability.tsx: EFOR trend line chart by technology (2018-2024), availability table sorted by EFOR with colour-coded thresholds
+- /api/efor/dashboard, /availability, /trends (60 unit-year records, 49 technology trend records)
+- 3 TestEforEndpoints tests
+
+## Sprint 40b — Climate Risk & Infrastructure Resilience Analytics [COMPLETE]
+- ClimateRiskAnalytics.tsx: composite risk horizontal bar chart (top 10 assets), asset risk table with adaptation status, climate event timeline table
+- /api/climate-risk/dashboard, /assets, /events (18 network assets with risk scores, 12 historical climate events)
+- 3 TestClimateRiskEndpoints tests
+
+## Sprint 40c — Smart Grid Innovation & Grid Modernisation Analytics [COMPLETE]
+- SmartGridAnalytics.tsx: DOE program bar chart with state filters, DERMS systems table, AMI adoption tracking
+- /api/smart-grid/dashboard, /doe-programs, /derms, /ami (12 DOE programs, 8 DERMS systems, 24 AMI adoption records)
+- 4 TestSmartGridEndpoints tests
