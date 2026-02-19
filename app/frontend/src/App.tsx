@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Sparkles,
   Bell,
+  Activity,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -14,14 +15,16 @@ import Forecasts from './pages/Forecasts'
 import Copilot from './pages/Copilot'
 import Genie from './pages/Genie'
 import Alerts from './pages/Alerts'
+import Monitoring from './pages/Monitoring'
 
 const NAV_ITEMS = [
-  { to: '/',         label: 'Home',        Icon: LayoutDashboard },
-  { to: '/live',     label: 'Live Market', Icon: Zap             },
-  { to: '/forecasts',label: 'Forecasts',   Icon: TrendingUp      },
-  { to: '/copilot',  label: 'Copilot',     Icon: MessageSquare   },
-  { to: '/genie',    label: 'Genie',       Icon: Sparkles        },
-  { to: '/alerts',   label: 'Alerts',      Icon: Bell            },
+  { to: '/',           label: 'Home',        Icon: LayoutDashboard },
+  { to: '/live',       label: 'Live Market', Icon: Zap             },
+  { to: '/forecasts',  label: 'Forecasts',   Icon: TrendingUp      },
+  { to: '/copilot',    label: 'Copilot',     Icon: MessageSquare   },
+  { to: '/genie',      label: 'Genie',       Icon: Sparkles        },
+  { to: '/alerts',     label: 'Alerts',      Icon: Bell            },
+  { to: '/monitoring', label: 'Monitoring',  Icon: Activity        },
 ]
 
 function Sidebar() {
@@ -96,7 +99,8 @@ export default function App() {
               <Route path="/forecasts" element={<Forecasts />}  />
               <Route path="/copilot"   element={<Copilot />}    />
               <Route path="/genie"     element={<Genie />}      />
-              <Route path="/alerts"    element={<Alerts />}     />
+              <Route path="/alerts"      element={<Alerts />}      />
+              <Route path="/monitoring"  element={<Monitoring />}  />
             </Routes>
           </main>
         </div>

@@ -69,6 +69,26 @@ export interface InterconnectorFlow {
   limitMw: number
 }
 
+export interface ModelHealthRecord {
+  model_name: string;
+  region: string;
+  alias: string;
+  model_version?: string;
+  last_updated?: string;
+  status: 'ok' | 'stale' | 'missing';
+}
+
+export interface SystemHealthResponse {
+  timestamp: string;
+  databricks_ok: boolean;
+  lakebase_ok: boolean;
+  models_healthy: number;
+  models_total: number;
+  pipeline_last_run?: string;
+  data_freshness_minutes?: number;
+  model_details: ModelHealthRecord[];
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -219,5 +239,13 @@ export const api = {
       JSON.stringify({ message, history })
     )
     return new EventSource(`/api/chat?payload=${encodeURIComponent(payload)}`)
+  },
+
+  /**
+   * Get system-wide health status including DB connectivity, model registry,
+   * data freshness, and pipeline last run time.
+   */
+  getSystemHealth(): Promise<SystemHealthResponse> {
+    return get<SystemHealthResponse>('/api/system/health')
   },
 }
