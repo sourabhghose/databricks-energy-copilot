@@ -23063,3 +23063,550 @@ def get_rez_dev_projects(rez_id: Optional[str] = None, technology: Optional[str]
         records = [r for r in records if r.technology == technology]
     _cache_set(cache_key, records, _TTL_REZ_DEV)
     return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36c — Energy Poverty & Social Equity Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_EQUITY = 3600
+
+
+class EnergyHardshipRecord(BaseModel):
+    state: str
+    year: int
+    residential_customers: int
+    hardship_program_customers: int
+    hardship_rate_pct: float
+    disconnections: int
+    disconnection_rate_per_1000: float
+    avg_bill_aud: float
+    concession_recipients: int
+    concession_value_m_aud: float
+    solar_penetration_pct: float
+    avg_retail_tariff_kwh: float
+
+class AffordabilityIndicator(BaseModel):
+    indicator_id: str
+    region: str
+    demographic: str             # LOW_INCOME / RURAL / INDIGENOUS / RENTER / ELDERLY
+    energy_burden_pct: float     # % of income spent on energy
+    digital_exclusion_pct: float # % without online account access
+    summer_bill_aud: float
+    winter_bill_aud: float
+    avg_concession_aud: float
+    hardship_debt_avg_aud: float
+    payment_plan_uptake_pct: float
+
+class EquityDashboard(BaseModel):
+    timestamp: str
+    national_avg_hardship_rate_pct: float
+    national_disconnection_rate: float
+    total_concession_value_m_aud: float
+    hardship_customers: int
+    hardship_records: List[EnergyHardshipRecord]
+    affordability_indicators: List[AffordabilityIndicator]
+
+
+def _make_hardship_records() -> List[EnergyHardshipRecord]:
+    import random as r
+    states_data = [
+        ("NSW", 3_850_000, 4.8, 12800, 2480, 1680.0, 720_000, 285.4, 22.4, 0.0368),
+        ("VIC", 2_980_000, 5.2, 11200, 2180, 1580.0, 620_000, 248.6, 19.8, 0.0342),
+        ("QLD", 2_420_000, 4.2, 9800, 1980, 1720.0, 480_000, 192.4, 24.6, 0.0388),
+        ("SA", 810_000, 6.4, 4200, 2680, 1920.0, 185_000, 89.6, 16.8, 0.0415),
+        ("WA", 1_180_000, 3.8, 5800, 1480, 1480.0, 268_000, 112.8, 18.2, 0.0298),
+        ("TAS", 248_000, 7.2, 2800, 4280, 1980.0, 68_000, 28.4, 12.4, 0.0295),
+        ("ACT", 198_000, 2.8, 980, 1280, 1580.0, 42_000, 16.8, 28.6, 0.0312),
+        ("NT", 98_000, 8.6, 1980, 6480, 2180.0, 28_000, 12.4, 8.4, 0.0442),
+    ]
+    records = []
+    for state, customers, hrate, disc, disc_rate_base, avg_bill, conc, conc_val, solar, tariff in states_data:
+        disc_per_1000 = round(disc / customers * 1000, 1)
+        records.append(EnergyHardshipRecord(
+            state=state,
+            year=2024,
+            residential_customers=customers,
+            hardship_program_customers=int(customers * hrate / 100 + r.randint(-500, 500)),
+            hardship_rate_pct=round(hrate + r.uniform(-0.3, 0.3), 1),
+            disconnections=disc + r.randint(-200, 200),
+            disconnection_rate_per_1000=round(disc_per_1000 + r.uniform(-0.1, 0.1), 1),
+            avg_bill_aud=round(avg_bill + r.uniform(-50, 50), 0),
+            concession_recipients=conc + r.randint(-5000, 5000),
+            concession_value_m_aud=round(conc_val + r.uniform(-5, 5), 1),
+            solar_penetration_pct=round(solar + r.uniform(-1, 1), 1),
+            avg_retail_tariff_kwh=round(tariff + r.uniform(-0.002, 0.002), 4),
+        ))
+    return records
+
+
+def _make_affordability_indicators() -> List[AffordabilityIndicator]:
+    import random as r
+    demographics_data = [
+        ("NSW", "LOW_INCOME", 8.4, 18.2, 680, 840, 220, 1840, 42.6),
+        ("NSW", "RENTER", 6.8, 24.6, 580, 720, 0, 1280, 28.4),
+        ("NSW", "ELDERLY", 7.2, 32.4, 620, 760, 280, 1640, 48.2),
+        ("VIC", "LOW_INCOME", 9.2, 16.8, 620, 920, 240, 1920, 44.8),
+        ("VIC", "INDIGENOUS", 12.4, 42.8, 580, 840, 185, 2240, 38.6),
+        ("SA", "LOW_INCOME", 11.8, 14.2, 720, 1120, 260, 2180, 46.2),
+        ("SA", "RURAL", 9.6, 28.4, 680, 980, 185, 1840, 36.4),
+        ("QLD", "LOW_INCOME", 7.6, 20.4, 640, 680, 180, 1680, 38.4),
+        ("QLD", "INDIGENOUS", 14.8, 48.6, 580, 620, 140, 2680, 32.6),
+        ("TAS", "LOW_INCOME", 13.6, 22.4, 520, 1140, 320, 2480, 52.4),
+        ("TAS", "ELDERLY", 11.2, 38.6, 480, 1080, 380, 2180, 56.8),
+        ("NT", "INDIGENOUS", 18.4, 58.2, 680, 720, 185, 3240, 28.4),
+        ("WA", "RURAL", 8.4, 32.6, 560, 640, 180, 1680, 34.2),
+        ("ACT", "LOW_INCOME", 6.2, 12.8, 560, 720, 320, 1280, 48.6),
+    ]
+    records = []
+    for i, (region, demo, burden, digital, summer, winter, conc, debt, uptake) in enumerate(demographics_data):
+        records.append(AffordabilityIndicator(
+            indicator_id=f"AI{i+1:03d}",
+            region=region,
+            demographic=demo,
+            energy_burden_pct=round(burden + r.uniform(-0.5, 0.5), 1),
+            digital_exclusion_pct=round(digital + r.uniform(-2, 2), 1),
+            summer_bill_aud=round(summer + r.uniform(-30, 30), 0),
+            winter_bill_aud=round(winter + r.uniform(-30, 30), 0),
+            avg_concession_aud=float(conc),
+            hardship_debt_avg_aud=round(debt + r.uniform(-100, 100), 0),
+            payment_plan_uptake_pct=round(uptake + r.uniform(-2, 2), 1),
+        ))
+    return records
+
+
+def _make_equity_dashboard() -> EquityDashboard:
+    import random as r
+    hardship = _make_hardship_records()
+    indicators = _make_affordability_indicators()
+    nat_hard = round(sum(h.hardship_rate_pct for h in hardship) / len(hardship), 2)
+    nat_disc = round(sum(h.disconnection_rate_per_1000 for h in hardship) / len(hardship), 1)
+    total_conc = round(sum(h.concession_value_m_aud for h in hardship), 1)
+    total_hard_customers = sum(h.hardship_program_customers for h in hardship)
+    return EquityDashboard(
+        timestamp=_now_aest(),
+        national_avg_hardship_rate_pct=nat_hard,
+        national_disconnection_rate=nat_disc,
+        total_concession_value_m_aud=total_conc,
+        hardship_customers=total_hard_customers,
+        hardship_records=hardship,
+        affordability_indicators=indicators,
+    )
+
+
+@app.get(
+    "/api/equity/dashboard",
+    response_model=EquityDashboard,
+    summary="Energy Poverty & Social Equity Analytics dashboard",
+    tags=["Equity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_equity_dashboard():
+    cached = _cache_get("equity:dashboard")
+    if cached:
+        return cached
+    data = _make_equity_dashboard()
+    _cache_set("equity:dashboard", data, _TTL_EQUITY)
+    return data
+
+
+@app.get(
+    "/api/equity/hardship",
+    response_model=List[EnergyHardshipRecord],
+    summary="State-level energy hardship records",
+    tags=["Equity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hardship_records(state: Optional[str] = None):
+    cache_key = f"equity:hardship:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_hardship_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    _cache_set(cache_key, records, _TTL_EQUITY)
+    return records
+
+
+@app.get(
+    "/api/equity/affordability",
+    response_model=List[AffordabilityIndicator],
+    summary="Energy affordability indicators by demographic",
+    tags=["Equity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_affordability_indicators(region: Optional[str] = None, demographic: Optional[str] = None):
+    cache_key = f"equity:affordability:{region}:{demographic}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    indicators = _make_affordability_indicators()
+    if region:
+        indicators = [i for i in indicators if i.region == region]
+    if demographic:
+        indicators = [i for i in indicators if i.demographic == demographic]
+    _cache_set(cache_key, indicators, _TTL_EQUITY)
+    return indicators
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36b — Network Congestion & Constraint Binding Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_CONGESTION = 1800
+
+
+class CongestionEvent(BaseModel):
+    event_id: str
+    constraint_id: str
+    constraint_name: str
+    region_from: str
+    region_to: str
+    binding_date: str
+    duration_hours: float
+    peak_congestion_mw: float
+    congestion_cost_m_aud: float
+    congestion_rent_m_aud: float
+    price_differential_aud_mwh: float
+    cause: str                    # THERMAL / STABILITY / VOLTAGE / WEATHER
+
+class ConstraintRecord(BaseModel):
+    constraint_id: str
+    constraint_name: str
+    lhs_description: str
+    rhs_value_mw: float
+    current_flow_mw: float
+    binding_frequency_pct: float  # % of trading intervals it binds
+    annual_congestion_cost_m_aud: float
+    last_updated: str
+    region: str
+    type: str                     # N-1 / N-2 / THERMAL / STABILITY
+
+class CongestionDashboard(BaseModel):
+    timestamp: str
+    total_events_ytd: int
+    total_congestion_cost_m_aud: float
+    total_congestion_rent_m_aud: float
+    avg_event_duration_h: float
+    most_binding_constraint: str
+    events: List[CongestionEvent]
+    constraints: List[ConstraintRecord]
+
+
+def _make_congestion_events() -> List[CongestionEvent]:
+    import random as r
+    constraints = [
+        ("S>>VIC1", "Heywood South-to-VIC", "SA1", "VIC1"),
+        ("V>>NSW1", "VIC-NSW Interconnector", "VIC1", "NSW1"),
+        ("Q>>NSW1", "QNI North-to-NSW", "QLD1", "NSW1"),
+        ("F>>VIC1", "Basslink Forward", "TAS1", "VIC1"),
+        ("N>>Q", "NSW-to-QLD Reverse", "NSW1", "QLD1"),
+    ]
+    causes = ["THERMAL", "STABILITY", "VOLTAGE", "WEATHER"]
+    records = []
+    for i in range(20):
+        cid, cname, rfrom, rto = r.choice(constraints)
+        duration = round(r.uniform(0.5, 24), 1)
+        peak = round(r.uniform(50, 600), 0)
+        cost = round(duration * peak * r.uniform(0.002, 0.008), 2)
+        rent = round(cost * r.uniform(0.6, 0.9), 2)
+        diff = round(r.uniform(15, 180), 2)
+        records.append(CongestionEvent(
+            event_id=f"CE{i+1:04d}",
+            constraint_id=cid,
+            constraint_name=cname,
+            region_from=rfrom,
+            region_to=rto,
+            binding_date=f"2025-{r.randint(1, 12):02d}-{r.randint(1, 28):02d}",
+            duration_hours=duration,
+            peak_congestion_mw=peak,
+            congestion_cost_m_aud=cost,
+            congestion_rent_m_aud=rent,
+            price_differential_aud_mwh=diff,
+            cause=r.choice(causes),
+        ))
+    return records
+
+
+def _make_constraint_records() -> List[ConstraintRecord]:
+    import random as r
+    constraints_data = [
+        ("S>>VIC1", "Heywood South-to-VIC export limit", "Sum(HEYWOOD flows)", 650, 580, 38.4, 42.8, "SA1", "THERMAL"),
+        ("V>>NSW1", "VIC-NSW regulated import limit", "Sum(HVDC links)", 1350, 1180, 28.6, 28.4, "VIC1", "STABILITY"),
+        ("Q>>NSW1", "QNI North limit", "Sum(QNI regulated lines)", 600, 520, 24.2, 18.6, "QLD1", "THERMAL"),
+        ("F>>VIC1", "Basslink forward transfer", "Basslink HVDC cable rating", 478, 380, 18.8, 12.4, "TAS1", "THERMAL"),
+        ("N1::L::WAGGA220", "Wagga 220kV limit N-1", "WAGGA transmission capacity", 480, 420, 42.6, 38.2, "NSW1", "N-1"),
+        ("N1::L::MUSWELLBK", "Muswellbrook N-1 constraint", "Muswellbrook lines", 320, 280, 22.4, 18.8, "NSW1", "N-1"),
+        ("V::S::LATROBE", "Latrobe valley stability", "Latrobe generation stability", 2400, 2100, 16.8, 14.2, "VIC1", "STABILITY"),
+        ("V::BENDIGO220", "Bendigo 220kV voltage", "Bendigo substation voltage", 850, 740, 8.4, 6.8, "VIC1", "VOLTAGE"),
+        ("SA_MAIN_N-1", "SA main grid N-1 limit", "SA network contingency", 1800, 1650, 32.4, 28.6, "SA1", "N-1"),
+        ("TAS::LATROBE_LOOP", "Tasmania loop flow", "Basslink loop flow limit", 240, 180, 14.2, 8.4, "TAS1", "STABILITY"),
+    ]
+    records = []
+    for cid, cname, lhs, rhs, flow, bind_pct, cost, region, ctype in constraints_data:
+        records.append(ConstraintRecord(
+            constraint_id=cid,
+            constraint_name=cname,
+            lhs_description=lhs,
+            rhs_value_mw=float(rhs + r.randint(-20, 20)),
+            current_flow_mw=float(flow + r.randint(-30, 30)),
+            binding_frequency_pct=round(bind_pct + r.uniform(-2, 2), 1),
+            annual_congestion_cost_m_aud=round(cost + r.uniform(-2, 2), 1),
+            last_updated=_now_aest(),
+            region=region,
+            type=ctype,
+        ))
+    return records
+
+
+def _make_congestion_dashboard() -> CongestionDashboard:
+    import random as r
+    events = _make_congestion_events()
+    constraints = _make_constraint_records()
+    total_cost = round(sum(e.congestion_cost_m_aud for e in events), 2)
+    total_rent = round(sum(e.congestion_rent_m_aud for e in events), 2)
+    avg_dur = round(sum(e.duration_hours for e in events) / len(events), 1)
+    most_binding = max(constraints, key=lambda c: c.binding_frequency_pct).constraint_name
+    return CongestionDashboard(
+        timestamp=_now_aest(),
+        total_events_ytd=len(events),
+        total_congestion_cost_m_aud=total_cost,
+        total_congestion_rent_m_aud=total_rent,
+        avg_event_duration_h=avg_dur,
+        most_binding_constraint=most_binding,
+        events=events,
+        constraints=constraints,
+    )
+
+
+@app.get(
+    "/api/congestion/dashboard",
+    response_model=CongestionDashboard,
+    summary="Network Congestion & Constraint Binding dashboard",
+    tags=["Congestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_congestion_dashboard():
+    cached = _cache_get("congestion:dashboard")
+    if cached:
+        return cached
+    data = _make_congestion_dashboard()
+    _cache_set("congestion:dashboard", data, _TTL_CONGESTION)
+    return data
+
+
+@app.get(
+    "/api/congestion/events",
+    response_model=List[CongestionEvent],
+    summary="Congestion binding events",
+    tags=["Congestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_congestion_events(cause: Optional[str] = None, region_from: Optional[str] = None):
+    cache_key = f"congestion:events:{cause}:{region_from}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    events = _make_congestion_events()
+    if cause:
+        events = [e for e in events if e.cause == cause]
+    if region_from:
+        events = [e for e in events if e.region_from == region_from]
+    _cache_set(cache_key, events, _TTL_CONGESTION)
+    return events
+
+
+@app.get(
+    "/api/congestion/constraints",
+    response_model=List[ConstraintRecord],
+    summary="NEM constraint equation records",
+    tags=["Congestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_congestion_constraints(region: Optional[str] = None, constraint_type: Optional[str] = None):
+    cache_key = f"congestion:constraints:{region}:{constraint_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    constraints = _make_constraint_records()
+    if region:
+        constraints = [c for c in constraints if c.region == region]
+    if constraint_type:
+        constraints = [c for c in constraints if c.type == constraint_type]
+    _cache_set(cache_key, constraints, _TTL_CONGESTION)
+    return constraints
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36a — NEM Trading Desk Real-Time Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_TRADING = 300  # 5 minutes for near-real-time data
+
+
+class TradingPosition(BaseModel):
+    position_id: str
+    trader: str
+    region: str
+    product: str                  # SPOT / CAP / SWAP / OPTION
+    direction: str                # LONG / SHORT
+    volume_mw: float
+    entry_price_aud_mwh: float
+    current_price_aud_mwh: float
+    pnl_aud: float
+    open_date: str
+    expiry_date: str
+    counterparty: str
+
+class RegionSpread(BaseModel):
+    region_from: str
+    region_to: str
+    interconnector: str
+    spot_spread_aud_mwh: float
+    forward_spread_aud_mwh: float
+    flow_mw: float
+    capacity_mw: float
+    congestion_revenue_m_aud: float
+    arbitrage_opportunity: bool
+
+class TradingDashboard(BaseModel):
+    timestamp: str
+    total_long_mw: float
+    total_short_mw: float
+    net_position_mw: float
+    total_pnl_aud: float
+    daily_volume_mw: float
+    regions_active: int
+    positions: List[TradingPosition]
+    spreads: List[RegionSpread]
+
+
+def _make_trading_positions() -> List[TradingPosition]:
+    import random as r
+    traders = ["Alice Johnson", "Ben Nguyen", "Carol Smith", "David Lee", "Emma Williams"]
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    products = ["SPOT", "CAP", "SWAP"]
+    counterparties = ["Origin Energy", "AGL", "EnergyAustralia", "Engie", "Shell Energy", "Macquarie"]
+    records = []
+    for i in range(15):
+        entry = round(r.uniform(60, 200), 2)
+        current = round(entry * r.uniform(0.8, 1.4), 2)
+        direction = r.choice(["LONG", "SHORT"])
+        volume = round(r.uniform(10, 200), 0)
+        sign = 1 if direction == "LONG" else -1
+        pnl = round(sign * volume * (current - entry), 2)
+        records.append(TradingPosition(
+            position_id=f"POS{i+1:03d}",
+            trader=r.choice(traders),
+            region=r.choice(regions),
+            product=r.choice(products),
+            direction=direction,
+            volume_mw=volume,
+            entry_price_aud_mwh=entry,
+            current_price_aud_mwh=current,
+            pnl_aud=pnl,
+            open_date=f"2025-{r.randint(1, 12):02d}-{r.randint(1, 28):02d}",
+            expiry_date=f"2026-{r.randint(1, 12):02d}-{r.randint(1, 28):02d}",
+            counterparty=r.choice(counterparties),
+        ))
+    return records
+
+
+def _make_region_spreads() -> List[RegionSpread]:
+    import random as r
+    spreads_data = [
+        ("NSW1", "VIC1", "VIC-NSW", 12.4, 8.2, 850, 1350),
+        ("NSW1", "QLD1", "QNI", -8.6, -4.2, 480, 600),
+        ("NSW1", "SA1", "SNOWY1-SA", 18.2, 12.8, 320, 450),
+        ("VIC1", "SA1", "HEYWOOD", 22.4, 16.8, 480, 650),
+        ("VIC1", "TAS1", "BASSLINK", -5.2, -2.4, 280, 480),
+    ]
+    records = []
+    for rfrom, rto, ic, spot_sp, fwd_sp, flow, cap in spreads_data:
+        arb = abs(spot_sp) > 15
+        records.append(RegionSpread(
+            region_from=rfrom,
+            region_to=rto,
+            interconnector=ic,
+            spot_spread_aud_mwh=round(spot_sp + r.uniform(-3, 3), 2),
+            forward_spread_aud_mwh=round(fwd_sp + r.uniform(-2, 2), 2),
+            flow_mw=round(flow + r.uniform(-50, 50), 0),
+            capacity_mw=float(cap),
+            congestion_revenue_m_aud=round(abs(spot_sp) * flow / 10000, 2),
+            arbitrage_opportunity=arb,
+        ))
+    return records
+
+
+def _make_trading_dashboard() -> TradingDashboard:
+    import random as r
+    positions = _make_trading_positions()
+    spreads = _make_region_spreads()
+    longs = sum(p.volume_mw for p in positions if p.direction == "LONG")
+    shorts = sum(p.volume_mw for p in positions if p.direction == "SHORT")
+    total_pnl = sum(p.pnl_aud for p in positions)
+    return TradingDashboard(
+        timestamp=_now_aest(),
+        total_long_mw=round(longs, 0),
+        total_short_mw=round(shorts, 0),
+        net_position_mw=round(longs - shorts, 0),
+        total_pnl_aud=round(total_pnl, 2),
+        daily_volume_mw=round(r.uniform(800, 2400), 0),
+        regions_active=5,
+        positions=positions,
+        spreads=spreads,
+    )
+
+
+@app.get(
+    "/api/trading/dashboard",
+    response_model=TradingDashboard,
+    summary="NEM Trading Desk Real-Time Analytics dashboard",
+    tags=["Trading"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_trading_dashboard():
+    cached = _cache_get("trading:dashboard")
+    if cached:
+        return cached
+    data = _make_trading_dashboard()
+    _cache_set("trading:dashboard", data, _TTL_TRADING)
+    return data
+
+
+@app.get(
+    "/api/trading/positions",
+    response_model=List[TradingPosition],
+    summary="Open trading positions",
+    tags=["Trading"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_trading_positions(region: Optional[str] = None, direction: Optional[str] = None):
+    cache_key = f"trading:positions:{region}:{direction}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    positions = _make_trading_positions()
+    if region:
+        positions = [p for p in positions if p.region == region]
+    if direction:
+        positions = [p for p in positions if p.direction == direction]
+    _cache_set(cache_key, positions, _TTL_TRADING)
+    return positions
+
+
+@app.get(
+    "/api/trading/spreads",
+    response_model=List[RegionSpread],
+    summary="NEM regional price spreads",
+    tags=["Trading"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_trading_spreads():
+    cached = _cache_get("trading:spreads")
+    if cached:
+        return cached
+    spreads = _make_region_spreads()
+    _cache_set("trading:spreads", spreads, _TTL_TRADING)
+    return spreads

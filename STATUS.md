@@ -676,3 +676,18 @@
 - RezDevelopment.tsx: REZ capacity progress chart, zones table with state/status filters, generation pipeline table
 - /api/rez/dashboard, /zones, /projects (11 REZs: New England, CWO, Southern QLD, Gippsland; 14 generation projects)
 - 4 TestRezEndpoints tests
+
+## Sprint 36a — NEM Trading Desk Real-Time Analytics [COMPLETE]
+- TradingDesk.tsx: positions P&L table, regional spread bar chart, arbitrage opportunity badges
+- /api/trading/dashboard, /positions, /spreads (15 positions, 5 interconnector spreads)
+- 4 TestTradingEndpoints tests
+
+## Sprint 36b — Network Congestion & Constraint Binding Analytics [COMPLETE]
+- CongestionAnalytics.tsx: cost vs rent bar chart by interconnector, events table with cause/region filters, constraint binding frequency table
+- /api/congestion/dashboard, /events, /constraints (20 congestion events, 10 constraint records)
+- 4 TestCongestionEndpoints tests
+
+## Sprint 36c — Energy Poverty & Social Equity Analytics [COMPLETE]
+- EnergyEquity.tsx: hardship rate bar chart with disconnection rate line, state hardship table, demographic affordability table
+- /api/equity/dashboard, /hardship, /affordability (8-state hardship records, 14 demographic affordability indicators)
+- 4 TestEquityEndpoints tests

@@ -3281,3 +3281,96 @@ class TestRezEndpoints:
         assert r.status_code == 200
         for rec in r.json():
             assert rec["state"] == "NSW"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36c — Energy Poverty & Social Equity Analytics
+# ---------------------------------------------------------------------------
+
+class TestEquityEndpoints:
+    def test_equity_dashboard_returns_200(self, client=client):
+        r = client.get("/api/equity/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "hardship_records" in d
+        assert "affordability_indicators" in d
+        assert d["national_avg_hardship_rate_pct"] > 0
+
+    def test_hardship_records_list(self, client=client):
+        r = client.get("/api/equity/hardship")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 6
+
+    def test_affordability_indicators_list(self, client=client):
+        r = client.get("/api/equity/affordability")
+        assert r.status_code == 200
+        indicators = r.json()
+        assert len(indicators) >= 10
+
+    def test_affordability_demographic_filter(self, client=client):
+        r = client.get("/api/equity/affordability?demographic=LOW_INCOME")
+        assert r.status_code == 200
+        for ind in r.json():
+            assert ind["demographic"] == "LOW_INCOME"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36a — NEM Trading Desk Analytics
+# ---------------------------------------------------------------------------
+
+class TestTradingEndpoints:
+    def test_trading_dashboard_returns_200(self, client=client):
+        r = client.get("/api/trading/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "positions" in d
+        assert "spreads" in d
+
+    def test_trading_positions_list(self, client=client):
+        r = client.get("/api/trading/positions")
+        assert r.status_code == 200
+        positions = r.json()
+        assert len(positions) >= 10
+
+    def test_trading_spreads_list(self, client=client):
+        r = client.get("/api/trading/spreads")
+        assert r.status_code == 200
+        assert len(r.json()) >= 4
+
+    def test_trading_direction_filter(self, client=client):
+        r = client.get("/api/trading/positions?direction=LONG")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["direction"] == "LONG"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 36b — Network Congestion & Constraint Binding
+# ---------------------------------------------------------------------------
+
+class TestCongestionEndpoints:
+    def test_congestion_dashboard_returns_200(self, client=client):
+        r = client.get("/api/congestion/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "events" in d
+        assert "constraints" in d
+        assert d["total_events_ytd"] >= 10
+
+    def test_congestion_events_list(self, client=client):
+        r = client.get("/api/congestion/events")
+        assert r.status_code == 200
+        events = r.json()
+        assert len(events) >= 15
+
+    def test_congestion_constraints_list(self, client=client):
+        r = client.get("/api/congestion/constraints")
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_congestion_cause_filter(self, client=client):
+        r = client.get("/api/congestion/events?cause=THERMAL")
+        assert r.status_code == 200
+        for e in r.json():
+            assert e["cause"] == "THERMAL"

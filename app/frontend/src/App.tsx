@@ -40,6 +40,8 @@ import {
   Receipt,
   Wifi,
   Wind,
+  AlertOctagon,
+  Heart,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -119,6 +121,8 @@ import EvCharging from './pages/EvCharging'
 import StorageArbitrage from './pages/StorageArbitrage'
 import DemandForecastAnalytics from './pages/DemandForecastAnalytics'
 import RezDevelopment from './pages/RezDevelopment'
+import CongestionAnalytics from './pages/CongestionAnalytics'
+import EnergyEquity from './pages/EnergyEquity'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -198,6 +202,8 @@ const NAV_ITEMS = [
   { to: '/storage',       label: 'Storage Arbitrage', Icon: Battery        },
   { to: '/demand-forecast', label: 'Demand Forecast', Icon: TrendingUp    },
   { to: '/rez-development', label: 'REZ Development',   Icon: MapPin         },
+  { to: '/congestion',     label: 'Congestion',        Icon: AlertOctagon   },
+  { to: '/equity',         label: 'Energy Equity',     Icon: Heart          },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -352,6 +358,8 @@ export default function App() {
               <Route path="/storage"      element={<StorageArbitrage />}    />
               <Route path="/demand-forecast" element={<DemandForecastAnalytics />} />
               <Route path="/rez-development" element={<RezDevelopment />}      />
+              <Route path="/congestion"   element={<CongestionAnalytics />} />
+              <Route path="/equity"       element={<EnergyEquity />}        />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

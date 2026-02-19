@@ -1791,6 +1791,27 @@ export interface RezRecord { rez_id: string; rez_name: string; state: string; re
 export interface RezGenerationProject { project_id: string; project_name: string; rez_id: string; technology: string; capacity_mw: number; developer: string; state: string; status: string; commissioning_year: number; estimated_generation_gwh: number; firming_partner: string }
 export interface RezDevDashboard { timestamp: string; total_rez_zones: number; total_pipeline_gw: number; committed_capacity_mw: number; operating_capacity_mw: number; total_transmission_investment_m_aud: number; rez_records: RezRecord[]; generation_projects: RezGenerationProject[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 36a — NEM Trading Desk interfaces
+// ---------------------------------------------------------------------------
+export interface TradingPosition { position_id: string; trader: string; region: string; product: string; direction: string; volume_mw: number; entry_price_aud_mwh: number; current_price_aud_mwh: number; pnl_aud: number; open_date: string; expiry_date: string; counterparty: string }
+export interface RegionSpread { region_from: string; region_to: string; interconnector: string; spot_spread_aud_mwh: number; forward_spread_aud_mwh: number; flow_mw: number; capacity_mw: number; congestion_revenue_m_aud: number; arbitrage_opportunity: boolean }
+export interface TradingDashboard { timestamp: string; total_long_mw: number; total_short_mw: number; net_position_mw: number; total_pnl_aud: number; daily_volume_mw: number; regions_active: number; positions: TradingPosition[]; spreads: RegionSpread[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 36b — Network Congestion & Constraint Binding interfaces
+// ---------------------------------------------------------------------------
+export interface CongestionEvent { event_id: string; constraint_id: string; constraint_name: string; region_from: string; region_to: string; binding_date: string; duration_hours: number; peak_congestion_mw: number; congestion_cost_m_aud: number; congestion_rent_m_aud: number; price_differential_aud_mwh: number; cause: string }
+export interface ConstraintRecord { constraint_id: string; constraint_name: string; lhs_description: string; rhs_value_mw: number; current_flow_mw: number; binding_frequency_pct: number; annual_congestion_cost_m_aud: number; last_updated: string; region: string; type: string }
+export interface CongestionDashboard { timestamp: string; total_events_ytd: number; total_congestion_cost_m_aud: number; total_congestion_rent_m_aud: number; avg_event_duration_h: number; most_binding_constraint: string; events: CongestionEvent[]; constraints: ConstraintRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 36c — Energy Poverty & Social Equity interfaces
+// ---------------------------------------------------------------------------
+export interface EnergyHardshipRecord { state: string; year: number; residential_customers: number; hardship_program_customers: number; hardship_rate_pct: number; disconnections: number; disconnection_rate_per_1000: number; avg_bill_aud: number; concession_recipients: number; concession_value_m_aud: number; solar_penetration_pct: number; avg_retail_tariff_kwh: number }
+export interface AffordabilityIndicator { indicator_id: string; region: string; demographic: string; energy_burden_pct: number; digital_exclusion_pct: number; summer_bill_aud: number; winter_bill_aud: number; avg_concession_aud: number; hardship_debt_avg_aud: number; payment_plan_uptake_pct: number }
+export interface EquityDashboard { timestamp: string; national_avg_hardship_rate_pct: number; national_disconnection_rate: number; total_concession_value_m_aud: number; hardship_customers: number; hardship_records: EnergyHardshipRecord[]; affordability_indicators: AffordabilityIndicator[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3368,6 +3389,44 @@ export const api = {
     if (params?.technology) qs.append('technology', params.technology)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<RezGenerationProject[]>(`/api/rez-dev/projects${query}`)
+  },
+  getTradingDashboard: () => get<TradingDashboard>('/api/trading/dashboard'),
+  getTradingPositions: (params?: { region?: string; direction?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.direction) qs.append('direction', params.direction)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TradingPosition[]>(`/api/trading/positions${query}`)
+  },
+  getTradingSpreads: () => get<RegionSpread[]>('/api/trading/spreads'),
+  getCongestionDashboard: () => get<CongestionDashboard>('/api/congestion/dashboard'),
+  getCongestionEvents: (params?: { cause?: string; region_from?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.cause) qs.append('cause', params.cause)
+    if (params?.region_from) qs.append('region_from', params.region_from)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<CongestionEvent[]>(`/api/congestion/events${query}`)
+  },
+  getCongestionConstraints: (params?: { region?: string; constraint_type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.constraint_type) qs.append('constraint_type', params.constraint_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<ConstraintRecord[]>(`/api/congestion/constraints${query}`)
+  },
+  getEquityDashboard: () => get<EquityDashboard>('/api/equity/dashboard'),
+  getHardshipRecords: (params?: { state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<EnergyHardshipRecord[]>(`/api/equity/hardship${query}`)
+  },
+  getAffordabilityIndicators: (params?: { region?: string; demographic?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.demographic) qs.append('demographic', params.demographic)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<AffordabilityIndicator[]>(`/api/equity/affordability${query}`)
   },
 }
 
