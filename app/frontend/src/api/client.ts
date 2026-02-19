@@ -1678,6 +1678,30 @@ export interface ComplianceRecord { record_id: string; participant: string; rule
 export interface MarketAnomalyRecord { anomaly_id: string; region: string; trading_interval: string; anomaly_type: string; spot_price: number; expected_price: number; deviation_pct: number; generator_id: string; flagged: boolean; explanation: string | null }
 export interface SurveillanceDashboard { timestamp: string; open_investigations: number; referred_to_aer_ytd: number; total_penalties_ytd_aud: number; participants_under_review: number; notices: MarketSurveillanceNotice[]; compliance_records: ComplianceRecord[]; anomalies: MarketAnomalyRecord[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 31a — Green Hydrogen & Electrolysis Economics interfaces
+// ---------------------------------------------------------------------------
+export interface ElectrolysisProject { project_id: string; project_name: string; developer: string; state: string; technology: string; capacity_mw: number; hydrogen_output_tpd: number; target_cost_kg_aud: number; current_cost_kg_aud: number; lcoh_aud_kg: number; electrolyser_efficiency_pct: number; utilisation_pct: number; renewable_source: string; status: string; commissioning_year: number; offtake_secured: boolean; export_ready: boolean }
+export interface HydrogenPriceBenchmark { region: string; date: string; spot_h2_price_aud_kg: number; green_premium_aud_kg: number; grey_h2_price_aud_kg: number; blue_h2_price_aud_kg: number; ammonia_equiv_aud_t: number; japan_target_price_aud_kg: number; cost_competitiveness_pct: number }
+export interface HydrogenCapacityRecord { state: string; year: number; operating_mw: number; under_construction_mw: number; approved_mw: number; proposed_mw: number; pipeline_mw: number; government_target_mw: number; progress_to_target_pct: number }
+export interface HydrogenDashboard { timestamp: string; total_operating_capacity_mw: number; total_pipeline_capacity_mw: number; national_avg_lcoh_aud_kg: number; projects_at_target_cost: number; projects: ElectrolysisProject[]; price_benchmarks: HydrogenPriceBenchmark[]; capacity_records: HydrogenCapacityRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 31b — Offshore Wind Project Tracker interfaces
+// ---------------------------------------------------------------------------
+export interface OffshoreWindProject { project_id: string; project_name: string; developer: string; state: string; zone: string; capacity_mw: number; turbine_count: number; turbine_mw: number; water_depth_m: number; distance_offshore_km: number; foundation_type: string; status: string; feasibility_licence: boolean; environment_approval: boolean; financial_close: boolean; construction_start: number | null; commissioning_year: number | null; capex_b_aud: number; lcoe_aud_mwh: number; jobs_construction: number; jobs_operations: number; offshore_infrastructure_zone: string }
+export interface OffshoreWindZoneSummary { zone_name: string; state: string; total_capacity_mw: number; num_projects: number; avg_water_depth_m: number; avg_distance_km: number; declared_year: number; area_km2: number; wind_speed_ms: number; capacity_factor_pct: number; grid_connection_point: string }
+export interface OffshoreTimeline { project_id: string; project_name: string; milestone: string; planned_year: number; actual_year: number | null; completed: boolean; notes: string }
+export interface OffshoreWindDashboard { timestamp: string; total_proposed_capacity_gw: number; projects_with_feasibility_licence: number; projects_in_construction: number; earliest_commissioning_year: number; projects: OffshoreWindProject[]; zone_summaries: OffshoreWindZoneSummary[]; timeline_milestones: OffshoreTimeline[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 31c — CER & Renewable Energy Target interfaces
+// ---------------------------------------------------------------------------
+export interface LretRecord { year: number; liable_entity_acquittal_gwh: number; renewable_power_percentage: number; lret_target_gwh: number; lret_shortfall_gwh: number; laret_price_aud: number; laret_certificates_created: number; laret_certificates_surrendered: number; laret_surplus_deficit: number; num_accredited_power_stations: number }
+export interface SresRecord { year: number; sth_systems_installed: number; solar_water_heaters_installed: number; stc_price_aud: number; stc_created_million: number; stc_assigned_million: number; clearing_house_price_aud: number; avg_system_size_kw: number; total_capacity_installed_mw: number }
+export interface CerAccreditedStation { station_id: string; station_name: string; developer: string; state: string; fuel_source: string; capacity_mw: number; accreditation_date: string; lgc_created_ytd: number; lgc_price_aud: number; status: string }
+export interface CerDashboard { timestamp: string; lret_target_2030_gwh: number; current_year_renewable_pct: number; total_accredited_stations: number; stc_clearing_house_price_aud: number; laret_spot_price_aud: number; lret_records: LretRecord[]; sres_records: SresRecord[]; accredited_stations: CerAccreditedStation[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3074,6 +3098,33 @@ export const api = {
     if (params?.region) qs.append('region', params.region)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<MarketAnomalyRecord[]>(`/api/surveillance/anomalies${query}`)
+  },
+  getHydrogenDashboard: () => get<HydrogenDashboard>('/api/hydrogen/dashboard'),
+  getHydrogenProjects: (params?: { state?: string; status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<ElectrolysisProject[]>(`/api/hydrogen/projects${query}`)
+  },
+  getHydrogenBenchmarks: () => get<HydrogenPriceBenchmark[]>('/api/hydrogen/benchmarks'),
+  getOffshoreWindDashboard: () => get<OffshoreWindDashboard>('/api/offshore-wind/dashboard'),
+  getOffshoreProjects: (params?: { state?: string; status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<OffshoreWindProject[]>(`/api/offshore-wind/projects${query}`)
+  },
+  getOffshoreZones: () => get<OffshoreWindZoneSummary[]>('/api/offshore-wind/zones'),
+  getCerDashboard: () => get<CerDashboard>('/api/cer/dashboard'),
+  getLretRecords: () => get<LretRecord[]>('/api/cer/lret'),
+  getCerStations: (params?: { fuel_source?: string; state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.fuel_source) qs.append('fuel_source', params.fuel_source)
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<CerAccreditedStation[]>(`/api/cer/stations${query}`)
   },
 }
 

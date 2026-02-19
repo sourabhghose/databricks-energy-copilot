@@ -601,3 +601,18 @@
 - MarketSurveillance.tsx: surveillance notices table, compliance records, anomaly detection
 - /api/surveillance/dashboard, /notices, /anomalies endpoints
 - 4 TestSurveillanceEndpoints tests
+
+## Sprint 31a — Green Hydrogen & Electrolysis Economics [COMPLETE]
+- HydrogenAnalytics.tsx: LCOH comparison chart, project pipeline table, capacity stacked bar chart
+- /api/hydrogen/dashboard, /projects, /benchmarks endpoints
+- 4 TestHydrogenEndpoints tests
+
+## Sprint 31b — Offshore Wind Project Tracker [COMPLETE]
+- OffshoreWind.tsx: declared zones table, project tracker with approvals status, milestone timeline
+- /api/offshore-wind/dashboard, /projects, /zones endpoints (8 projects, 7 zones)
+- 4 TestOffshoreWindEndpoints tests
+
+## Sprint 31c — Clean Energy Regulator (CER) & RET Dashboard [COMPLETE]
+- CerDashboard.tsx: LRET/LGC price history, SRES solar installation chart, accredited stations table
+- /api/cer/dashboard, /lret, /stations endpoints (11-year LRET history, 10 accredited stations)
+- 4 TestCerEndpoints tests

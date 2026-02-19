@@ -19941,3 +19941,691 @@ def get_aer_determinations(tnsp: Optional[str] = None):
         records = [r for r in records if r.tnsp == tnsp]
     _cache_set(cache_key, records, _TTL_TNSP)
     return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31a — Green Hydrogen & Electrolysis Economics
+# ---------------------------------------------------------------------------
+
+_TTL_HYDROGEN = 3600
+
+
+class ElectrolysisProject(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    technology: str  # PEM / ALKALINE / SOEC
+    capacity_mw: float
+    hydrogen_output_tpd: float
+    target_cost_kg_aud: float
+    current_cost_kg_aud: float
+    lcoh_aud_kg: float  # Levelised Cost of Hydrogen
+    electrolyser_efficiency_pct: float
+    utilisation_pct: float
+    renewable_source: str
+    status: str  # OPERATING / CONSTRUCTION / APPROVED / PROPOSED
+    commissioning_year: int
+    offtake_secured: bool
+    export_ready: bool
+
+
+class HydrogenPriceBenchmark(BaseModel):
+    region: str
+    date: str
+    spot_h2_price_aud_kg: float
+    green_premium_aud_kg: float
+    grey_h2_price_aud_kg: float
+    blue_h2_price_aud_kg: float
+    ammonia_equiv_aud_t: float
+    japan_target_price_aud_kg: float
+    cost_competitiveness_pct: float
+
+
+class HydrogenCapacityRecord(BaseModel):
+    state: str
+    year: int
+    operating_mw: float
+    under_construction_mw: float
+    approved_mw: float
+    proposed_mw: float
+    pipeline_mw: float
+    government_target_mw: float
+    progress_to_target_pct: float
+
+
+class HydrogenDashboard(BaseModel):
+    timestamp: str
+    total_operating_capacity_mw: float
+    total_pipeline_capacity_mw: float
+    national_avg_lcoh_aud_kg: float
+    projects_at_target_cost: int
+    projects: List[ElectrolysisProject]
+    price_benchmarks: List[HydrogenPriceBenchmark]
+    capacity_records: List[HydrogenCapacityRecord]
+
+
+def _make_electrolysis_projects() -> List[ElectrolysisProject]:
+    import random as r
+    projects_data = [
+        ("APTUS-H2", "Aptus Green Hydrogen", "Fortescue", "WA", "PEM", 250.0),
+        ("H2K-PORT", "H2K Port Kembla", "H2K Energy", "NSW", "ALKALINE", 100.0),
+        ("APA-H2", "APA Hydrogen Hub", "APA Group", "QLD", "PEM", 50.0),
+        ("LAVO-SYD", "LAVO Sydney Facility", "LAVO", "NSW", "PEM", 5.0),
+        ("CWH2-SA", "CWH2 South Australia", "CWP Global", "SA", "ALKALINE", 500.0),
+        ("HYP-PILB", "Hyphen Pilbara", "Hyphen Hydrogen", "WA", "PEM", 14000.0),
+        ("BLD-H2", "Bolingbroke H2", "Origin Energy", "QLD", "ALKALINE", 200.0),
+        ("TASGAS-H2", "TasGas H2 Hub", "TasGas", "TAS", "SOEC", 30.0),
+    ]
+    statuses = ["OPERATING", "CONSTRUCTION", "APPROVED", "PROPOSED"]
+    renewables = ["WIND", "SOLAR_PV", "WIND+SOLAR", "HYDRO"]
+    records = []
+    for pid, pname, dev, state, tech, cap_mw in projects_data:
+        h2_tpd = round(cap_mw * 0.02 * r.uniform(0.8, 1.2), 2)
+        lcoh = round(r.uniform(3.5, 12.0), 2)
+        status = r.choice(statuses)
+        records.append(ElectrolysisProject(
+            project_id=pid,
+            project_name=pname,
+            developer=dev,
+            state=state,
+            technology=tech,
+            capacity_mw=cap_mw,
+            hydrogen_output_tpd=h2_tpd,
+            target_cost_kg_aud=round(r.uniform(2.0, 4.0), 2),
+            current_cost_kg_aud=lcoh,
+            lcoh_aud_kg=lcoh,
+            electrolyser_efficiency_pct=round(r.uniform(60, 80), 1),
+            utilisation_pct=round(r.uniform(40, 85), 1),
+            renewable_source=r.choice(renewables),
+            status=status,
+            commissioning_year=r.randint(2024, 2030),
+            offtake_secured=r.random() > 0.5,
+            export_ready=r.random() > 0.6,
+        ))
+    return records
+
+
+def _make_hydrogen_price_benchmarks() -> List[HydrogenPriceBenchmark]:
+    import random as r
+    regions = ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide"]
+    benchmarks = []
+    for region in regions:
+        grey = round(r.uniform(2.5, 4.0), 2)
+        blue = round(grey * r.uniform(1.2, 1.6), 2)
+        green = round(grey * r.uniform(2.0, 3.5), 2)
+        japan_target = round(r.uniform(3.5, 5.5), 2)
+        competitiveness = round(japan_target / green * 100, 1)
+        benchmarks.append(HydrogenPriceBenchmark(
+            region=region,
+            date="2025-12-01",
+            spot_h2_price_aud_kg=green,
+            green_premium_aud_kg=round(green - grey, 2),
+            grey_h2_price_aud_kg=grey,
+            blue_h2_price_aud_kg=blue,
+            ammonia_equiv_aud_t=round(green * 178, 2),
+            japan_target_price_aud_kg=japan_target,
+            cost_competitiveness_pct=competitiveness,
+        ))
+    return benchmarks
+
+
+def _make_hydrogen_capacity_records() -> List[HydrogenCapacityRecord]:
+    import random as r
+    states = [
+        ("WA", 2000, 50000),
+        ("QLD", 500, 10000),
+        ("NSW", 300, 8000),
+        ("SA", 200, 5000),
+        ("TAS", 100, 2000),
+        ("VIC", 150, 3000),
+    ]
+    records = []
+    for state, target_current, target_2030 in states:
+        operating = round(r.uniform(0, 50), 1)
+        construction = round(r.uniform(0, 200), 1)
+        approved = round(r.uniform(0, 500), 1)
+        proposed = round(r.uniform(100, target_2030 * 0.5), 1)
+        pipeline = operating + construction + approved + proposed
+        records.append(HydrogenCapacityRecord(
+            state=state,
+            year=2025,
+            operating_mw=operating,
+            under_construction_mw=construction,
+            approved_mw=approved,
+            proposed_mw=proposed,
+            pipeline_mw=round(pipeline, 1),
+            government_target_mw=float(target_2030),
+            progress_to_target_pct=round(pipeline / target_2030 * 100, 1),
+        ))
+    return records
+
+
+def _make_hydrogen_dashboard() -> HydrogenDashboard:
+    import random as r
+    projects = _make_electrolysis_projects()
+    benchmarks = _make_hydrogen_price_benchmarks()
+    capacity = _make_hydrogen_capacity_records()
+    operating = sum(c.operating_mw for c in capacity)
+    pipeline = sum(c.pipeline_mw for c in capacity)
+    lcoh_list = [p.lcoh_aud_kg for p in projects]
+    avg_lcoh = round(sum(lcoh_list) / len(lcoh_list), 2) if lcoh_list else 6.5
+    at_target = sum(1 for p in projects if p.current_cost_kg_aud <= p.target_cost_kg_aud)
+    return HydrogenDashboard(
+        timestamp=_now_aest(),
+        total_operating_capacity_mw=round(operating, 1),
+        total_pipeline_capacity_mw=round(pipeline, 1),
+        national_avg_lcoh_aud_kg=avg_lcoh,
+        projects_at_target_cost=at_target,
+        projects=projects,
+        price_benchmarks=benchmarks,
+        capacity_records=capacity,
+    )
+
+
+@app.get(
+    "/api/hydrogen/dashboard",
+    response_model=HydrogenDashboard,
+    summary="Green Hydrogen & Electrolysis Economics dashboard",
+    tags=["Hydrogen"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hydrogen_dashboard():
+    cached = _cache_get("hydrogen:dashboard")
+    if cached:
+        return cached
+    data = _make_hydrogen_dashboard()
+    _cache_set("hydrogen:dashboard", data, _TTL_HYDROGEN)
+    return data
+
+
+@app.get(
+    "/api/hydrogen/projects",
+    response_model=List[ElectrolysisProject],
+    summary="Green hydrogen electrolysis projects",
+    tags=["Hydrogen"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hydrogen_projects(state: Optional[str] = None, status: Optional[str] = None):
+    cache_key = f"hydrogen:projects:{state}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_electrolysis_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if status:
+        projects = [p for p in projects if p.status == status]
+    _cache_set(cache_key, projects, _TTL_HYDROGEN)
+    return projects
+
+
+@app.get(
+    "/api/hydrogen/benchmarks",
+    response_model=List[HydrogenPriceBenchmark],
+    summary="Hydrogen price benchmarks by region",
+    tags=["Hydrogen"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hydrogen_benchmarks():
+    cached = _cache_get("hydrogen:benchmarks")
+    if cached:
+        return cached
+    data = _make_hydrogen_price_benchmarks()
+    _cache_set("hydrogen:benchmarks", data, _TTL_HYDROGEN)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31b — Offshore Wind Project Tracker
+# ---------------------------------------------------------------------------
+
+_TTL_OFFSHORE = 3600
+
+
+class OffshoreWindProject(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    zone: str  # Star of South / Gippsland / Hunter / Portland Bay etc.
+    capacity_mw: float
+    turbine_count: int
+    turbine_mw: float
+    water_depth_m: float
+    distance_offshore_km: float
+    foundation_type: str  # MONOPILE / JACKET / FLOATING / TBD
+    status: str
+    feasibility_licence: bool
+    environment_approval: bool
+    financial_close: bool
+    construction_start: Optional[int]
+    commissioning_year: Optional[int]
+    capex_b_aud: float
+    lcoe_aud_mwh: float
+    jobs_construction: int
+    jobs_operations: int
+    offshore_infrastructure_zone: str
+
+
+class OffshoreWindZoneSummary(BaseModel):
+    zone_name: str
+    state: str
+    total_capacity_mw: float
+    num_projects: int
+    avg_water_depth_m: float
+    avg_distance_km: float
+    declared_year: int
+    area_km2: float
+    wind_speed_ms: float
+    capacity_factor_pct: float
+    grid_connection_point: str
+
+
+class OffshoreTimeline(BaseModel):
+    project_id: str
+    project_name: str
+    milestone: str
+    planned_year: int
+    actual_year: Optional[int]
+    completed: bool
+    notes: str
+
+
+class OffshoreWindDashboard(BaseModel):
+    timestamp: str
+    total_proposed_capacity_gw: float
+    projects_with_feasibility_licence: int
+    projects_in_construction: int
+    earliest_commissioning_year: int
+    projects: List[OffshoreWindProject]
+    zone_summaries: List[OffshoreWindZoneSummary]
+    timeline_milestones: List[OffshoreTimeline]
+
+
+def _make_offshore_wind_projects() -> List[OffshoreWindProject]:
+    import random as r
+    projects_data = [
+        ("SOSTAR-01", "Star of the South", "Copenhagen Infrastructure Partners", "VIC", "Bass Strait South", 2200.0, 120, 15.0, 40, 20, "MONOPILE"),
+        ("GIPP-01", "Gippsland Offshore Wind", "Equinor", "VIC", "Gippsland", 3000.0, 150, 20.0, 50, 30, "JACKET"),
+        ("HUNT-01", "Hunter Coast Offshore", "BlueFloat Energy", "NSW", "Hunter", 1400.0, 70, 20.0, 35, 15, "MONOPILE"),
+        ("PORTLAND-01", "Portland Bay Offshore", "Global Power Generation", "VIC", "Portland Bay", 2000.0, 100, 20.0, 45, 25, "MONOPILE"),
+        ("ILLAWARRA-01", "Illawarra Offshore Wind", "Orsted", "NSW", "Illawarra", 1200.0, 60, 20.0, 30, 12, "JACKET"),
+        ("BUNBURY-01", "Bunbury Offshore Wind", "Hexicon", "WA", "South West WA", 1000.0, 50, 20.0, 60, 40, "FLOATING"),
+        ("PILBARA-OW", "Pilbara Offshore Wind", "Fortescue", "WA", "Pilbara", 5000.0, 250, 20.0, 80, 60, "FLOATING"),
+        ("SPENCER-01", "Spencer Gulf Offshore", "Copenhagen Infrastructure Partners", "SA", "Spencer Gulf", 1500.0, 75, 20.0, 25, 18, "MONOPILE"),
+    ]
+    statuses = ["FEASIBILITY", "ENVIRONMENT_REVIEW", "APPROVED", "CONSTRUCTION", "PROPOSED"]
+    records = []
+    for pid, pname, dev, state, zone, cap, turbines, t_mw, depth, dist, foundation in projects_data:
+        status = r.choice(statuses)
+        feasibility = status in ("ENVIRONMENT_REVIEW", "APPROVED", "CONSTRUCTION")
+        env_approval = status in ("APPROVED", "CONSTRUCTION")
+        fin_close = status == "CONSTRUCTION"
+        comm_yr = r.randint(2030, 2038) if status != "CONSTRUCTION" else r.randint(2028, 2032)
+        records.append(OffshoreWindProject(
+            project_id=pid,
+            project_name=pname,
+            developer=dev,
+            state=state,
+            zone=zone,
+            capacity_mw=cap,
+            turbine_count=turbines,
+            turbine_mw=t_mw,
+            water_depth_m=round(depth + r.uniform(-5, 10), 1),
+            distance_offshore_km=round(dist + r.uniform(-5, 10), 1),
+            foundation_type=foundation,
+            status=status,
+            feasibility_licence=feasibility,
+            environment_approval=env_approval,
+            financial_close=fin_close,
+            construction_start=r.randint(2026, 2032) if fin_close else None,
+            commissioning_year=comm_yr,
+            capex_b_aud=round(cap * 0.004 * r.uniform(0.9, 1.2), 2),
+            lcoe_aud_mwh=round(r.uniform(80, 160), 2),
+            jobs_construction=r.randint(500, 5000),
+            jobs_operations=r.randint(50, 500),
+            offshore_infrastructure_zone=zone,
+        ))
+    return records
+
+
+def _make_offshore_zone_summaries() -> List[OffshoreWindZoneSummary]:
+    import random as r
+    zones = [
+        ("Gippsland", "VIC", 3800, 2022, 15000, 8.5, "Latrobe Valley"),
+        ("Hunter", "NSW", 2400, 2023, 8000, 9.2, "Newcastle"),
+        ("Bass Strait South", "VIC", 2200, 2022, 10000, 8.8, "Geelong"),
+        ("Portland Bay", "VIC", 2000, 2022, 6000, 8.3, "Portland"),
+        ("Illawarra", "NSW", 1200, 2023, 4000, 9.0, "Wollongong"),
+        ("South West WA", "WA", 1000, 2024, 3500, 8.1, "Bunbury"),
+        ("Spencer Gulf", "SA", 1500, 2024, 5000, 8.6, "Port Augusta"),
+    ]
+    return [
+        OffshoreWindZoneSummary(
+            zone_name=zone,
+            state=state,
+            total_capacity_mw=float(total),
+            num_projects=r.randint(1, 4),
+            avg_water_depth_m=round(r.uniform(25, 60), 1),
+            avg_distance_km=round(r.uniform(10, 50), 1),
+            declared_year=declared,
+            area_km2=float(area),
+            wind_speed_ms=ws,
+            capacity_factor_pct=round(r.uniform(42, 55), 1),
+            grid_connection_point=grid,
+        )
+        for zone, state, total, declared, area, ws, grid in zones
+    ]
+
+
+def _make_offshore_timeline() -> List[OffshoreTimeline]:
+    milestones_data = [
+        ("SOSTAR-01", "Star of the South", [
+            ("Feasibility Licence Granted", 2022, 2022, True, "First feasibility licence in Australia"),
+            ("Environment Impact Statement", 2024, None, False, "EIS lodged Dec 2024"),
+            ("Financial Close", 2026, None, False, "Targeted H1 2026"),
+            ("Construction Start", 2027, None, False, "Subject to approvals"),
+            ("First Power", 2030, None, False, "Target commissioning"),
+        ]),
+        ("GIPP-01", "Gippsland Offshore Wind", [
+            ("Feasibility Licence", 2023, 2023, True, "Equinor licence granted"),
+            ("Environmental Approval", 2026, None, False, "Under review"),
+            ("Financial Close", 2027, None, False, "Targeted H2 2027"),
+        ]),
+        ("HUNT-01", "Hunter Coast Offshore", [
+            ("Feasibility Licence", 2023, 2023, True, "BlueFloat Energy licence"),
+            ("Community Consultation", 2024, 2024, True, "Completed Dec 2024"),
+            ("EIS Submission", 2025, None, False, "Targeted 2025"),
+        ]),
+    ]
+    records = []
+    for pid, pname, milestones_list in milestones_data:
+        for milestone, planned, actual, completed, notes in milestones_list:
+            records.append(OffshoreTimeline(
+                project_id=pid,
+                project_name=pname,
+                milestone=milestone,
+                planned_year=planned,
+                actual_year=actual,
+                completed=completed,
+                notes=notes,
+            ))
+    return records
+
+
+def _make_offshore_dashboard() -> OffshoreWindDashboard:
+    projects = _make_offshore_wind_projects()
+    zones = _make_offshore_zone_summaries()
+    timeline = _make_offshore_timeline()
+    total_gw = round(sum(p.capacity_mw for p in projects) / 1000, 2)
+    with_licence = sum(1 for p in projects if p.feasibility_licence)
+    in_construction = sum(1 for p in projects if p.status == "CONSTRUCTION")
+    years = [p.commissioning_year for p in projects if p.commissioning_year]
+    earliest = min(years) if years else 2030
+    return OffshoreWindDashboard(
+        timestamp=_now_aest(),
+        total_proposed_capacity_gw=total_gw,
+        projects_with_feasibility_licence=with_licence,
+        projects_in_construction=in_construction,
+        earliest_commissioning_year=earliest,
+        projects=projects,
+        zone_summaries=zones,
+        timeline_milestones=timeline,
+    )
+
+
+@app.get(
+    "/api/offshore-wind/dashboard",
+    response_model=OffshoreWindDashboard,
+    summary="Offshore Wind Project Tracker dashboard",
+    tags=["Offshore Wind"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_offshore_dashboard():
+    cached = _cache_get("offshore_wind:dashboard")
+    if cached:
+        return cached
+    data = _make_offshore_dashboard()
+    _cache_set("offshore_wind:dashboard", data, _TTL_OFFSHORE)
+    return data
+
+
+@app.get(
+    "/api/offshore-wind/projects",
+    response_model=List[OffshoreWindProject],
+    summary="Offshore wind projects list",
+    tags=["Offshore Wind"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_offshore_projects(state: Optional[str] = None, status: Optional[str] = None):
+    cache_key = f"offshore_wind:projects:{state}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_offshore_wind_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if status:
+        projects = [p for p in projects if p.status == status]
+    _cache_set(cache_key, projects, _TTL_OFFSHORE)
+    return projects
+
+
+@app.get(
+    "/api/offshore-wind/zones",
+    response_model=List[OffshoreWindZoneSummary],
+    summary="Offshore wind declared zones",
+    tags=["Offshore Wind"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_offshore_zones():
+    cached = _cache_get("offshore_wind:zones")
+    if cached:
+        return cached
+    data = _make_offshore_zone_summaries()
+    _cache_set("offshore_wind:zones", data, _TTL_OFFSHORE)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31c — Clean Energy Regulator (CER) & RET Dashboard
+# ---------------------------------------------------------------------------
+
+_TTL_CER = 3600
+
+
+class LretRecord(BaseModel):
+    year: int
+    liable_entity_acquittal_gwh: float
+    renewable_power_percentage: float
+    lret_target_gwh: float
+    lret_shortfall_gwh: float
+    laret_price_aud: float  # Large-scale Generation Certificate
+    laret_certificates_created: int
+    laret_certificates_surrendered: int
+    laret_surplus_deficit: int
+    num_accredited_power_stations: int
+
+
+class SresRecord(BaseModel):
+    year: int
+    sth_systems_installed: int
+    solar_water_heaters_installed: int
+    stc_price_aud: float  # Small-scale Technology Certificate
+    stc_created_million: float
+    stc_assigned_million: float
+    clearing_house_price_aud: float
+    avg_system_size_kw: float
+    total_capacity_installed_mw: float
+
+
+class CerAccreditedStation(BaseModel):
+    station_id: str
+    station_name: str
+    developer: str
+    state: str
+    fuel_source: str
+    capacity_mw: float
+    accreditation_date: str
+    lgc_created_ytd: int
+    lgc_price_aud: float
+    status: str
+
+
+class CerDashboard(BaseModel):
+    timestamp: str
+    lret_target_2030_gwh: float
+    current_year_renewable_pct: float
+    total_accredited_stations: int
+    stc_clearing_house_price_aud: float
+    laret_spot_price_aud: float
+    lret_records: List[LretRecord]
+    sres_records: List[SresRecord]
+    accredited_stations: List[CerAccreditedStation]
+
+
+def _make_lret_records() -> List[LretRecord]:
+    import random as r
+    records = []
+    for year in range(2015, 2026):
+        target = round(r.uniform(25000, 33000), 0)
+        acquittal = round(target * r.uniform(0.85, 1.05), 0)
+        shortage = max(0.0, round(target - acquittal, 0))
+        records.append(LretRecord(
+            year=year,
+            liable_entity_acquittal_gwh=acquittal,
+            renewable_power_percentage=round(r.uniform(18, 38), 2),
+            lret_target_gwh=target,
+            lret_shortfall_gwh=shortage,
+            laret_price_aud=round(r.uniform(25, 85), 2),
+            laret_certificates_created=r.randint(20_000_000, 40_000_000),
+            laret_certificates_surrendered=r.randint(18_000_000, 38_000_000),
+            laret_surplus_deficit=r.randint(-2_000_000, 5_000_000),
+            num_accredited_power_stations=r.randint(350, 600),
+        ))
+    return records
+
+
+def _make_sres_records() -> List[SresRecord]:
+    import random as r
+    records = []
+    for year in range(2018, 2026):
+        systems = r.randint(200_000, 380_000)
+        records.append(SresRecord(
+            year=year,
+            sth_systems_installed=systems,
+            solar_water_heaters_installed=r.randint(5000, 25000),
+            stc_price_aud=round(r.uniform(28, 40), 2),
+            stc_created_million=round(r.uniform(15, 25), 2),
+            stc_assigned_million=round(r.uniform(14, 24), 2),
+            clearing_house_price_aud=40.0,
+            avg_system_size_kw=round(r.uniform(8, 13), 1),
+            total_capacity_installed_mw=round(systems * r.uniform(8, 13) / 1000, 1),
+        ))
+    return records
+
+
+def _make_cer_accredited_stations() -> List[CerAccreditedStation]:
+    import random as r
+    stations_data = [
+        ("ACS001", "Loy Yang A", "AGL Energy", "VIC", "BROWN_COAL", 2200.0),
+        ("ACS002", "Macarthur Wind Farm", "AGL Energy", "VIC", "WIND", 420.0),
+        ("ACS003", "Bungala Solar One", "Enerparc", "SA", "SOLAR_PV", 110.0),
+        ("ACS004", "Hornsdale Wind Farm", "Neoen", "SA", "WIND", 315.0),
+        ("ACS005", "Snowy 2.0", "Snowy Hydro", "NSW", "HYDRO", 2000.0),
+        ("ACS006", "Warradarge Wind", "Bright Energy", "WA", "WIND", 231.0),
+        ("ACS007", "Darling Downs Solar", "Origin", "QLD", "SOLAR_PV", 110.0),
+        ("ACS008", "Emerald Solar Park", "Renew Estate", "QLD", "SOLAR_PV", 180.0),
+        ("ACS009", "Cunderdin Wind Farm", "Acciona", "WA", "WIND", 60.0),
+        ("ACS010", "Woolooga Solar Farm", "Total Eren", "QLD", "SOLAR_PV", 100.0),
+    ]
+    return [
+        CerAccreditedStation(
+            station_id=sid,
+            station_name=sname,
+            developer=dev,
+            state=state,
+            fuel_source=fuel,
+            capacity_mw=cap,
+            accreditation_date=f"20{r.randint(5,24):02d}-{r.randint(1,12):02d}-01",
+            lgc_created_ytd=r.randint(50_000, 2_000_000),
+            lgc_price_aud=round(r.uniform(35, 80), 2),
+            status=r.choice(["REGISTERED", "REGISTERED", "REGISTERED", "SUSPENDED"]),
+        )
+        for sid, sname, dev, state, fuel, cap in stations_data
+    ]
+
+
+def _make_cer_dashboard() -> CerDashboard:
+    import random as r
+    lret = _make_lret_records()
+    sres = _make_sres_records()
+    stations = _make_cer_accredited_stations()
+    current_year_pct = lret[-1].renewable_power_percentage if lret else 30.0
+    stc_price = sres[-1].clearing_house_price_aud if sres else 40.0
+    lgc_price = round(r.uniform(35, 75), 2)
+    return CerDashboard(
+        timestamp=_now_aest(),
+        lret_target_2030_gwh=33000.0,
+        current_year_renewable_pct=current_year_pct,
+        total_accredited_stations=len(stations),
+        stc_clearing_house_price_aud=stc_price,
+        laret_spot_price_aud=lgc_price,
+        lret_records=lret,
+        sres_records=sres,
+        accredited_stations=stations,
+    )
+
+
+@app.get(
+    "/api/cer/dashboard",
+    response_model=CerDashboard,
+    summary="Clean Energy Regulator & RET dashboard",
+    tags=["CER"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_cer_dashboard():
+    cached = _cache_get("cer:dashboard")
+    if cached:
+        return cached
+    data = _make_cer_dashboard()
+    _cache_set("cer:dashboard", data, _TTL_CER)
+    return data
+
+
+@app.get(
+    "/api/cer/lret",
+    response_model=List[LretRecord],
+    summary="Large-scale Renewable Energy Target records",
+    tags=["CER"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_lret_records():
+    cached = _cache_get("cer:lret")
+    if cached:
+        return cached
+    data = _make_lret_records()
+    _cache_set("cer:lret", data, _TTL_CER)
+    return data
+
+
+@app.get(
+    "/api/cer/stations",
+    response_model=List[CerAccreditedStation],
+    summary="CER accredited power stations",
+    tags=["CER"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_cer_stations(fuel_source: Optional[str] = None, state: Optional[str] = None):
+    cache_key = f"cer:stations:{fuel_source}:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    stations = _make_cer_accredited_stations()
+    if fuel_source:
+        stations = [s for s in stations if s.fuel_source == fuel_source]
+    if state:
+        stations = [s for s in stations if s.state == state]
+    _cache_set(cache_key, stations, _TTL_CER)
+    return stations

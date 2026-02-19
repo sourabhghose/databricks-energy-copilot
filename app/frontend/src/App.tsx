@@ -39,6 +39,7 @@ import {
   GitBranch,
   Receipt,
   Wifi,
+  Wind,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -99,10 +100,13 @@ import TariffAnalytics from './pages/TariffAnalytics'
 import GridModernisation from './pages/GridModernisation'
 import WemOverview from './pages/WemOverview'
 import MarketSurveillance from './pages/MarketSurveillance'
+import CerDashboard from './pages/CerDashboard'
+import OffshoreWind from './pages/OffshoreWind'
 import CauserPays from './pages/CauserPays'
 import SpotCapAnalytics from './pages/SpotCapAnalytics'
 import TnspAnalytics from './pages/TnspAnalytics'
 import InertiaAnalytics from './pages/InertiaAnalytics'
+import HydrogenAnalytics from './pages/HydrogenAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -167,6 +171,9 @@ const NAV_ITEMS = [
   { to: '/inertia',         label: 'Inertia & Strength', Icon: Activity       },
   { to: '/tnsp',           label: 'TNSP & AER',        Icon: Network        },
   { to: '/surveillance',  label: 'Market Surveillance', Icon: Shield         },
+  { to: '/hydrogen',       label: 'Green Hydrogen',    Icon: Flame          },
+  { to: '/offshore-wind',  label: 'Offshore Wind',     Icon: Wind           },
+  { to: '/cer',          label: 'CER & RET',       Icon: Leaf           },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -306,6 +313,9 @@ export default function App() {
               <Route path="/inertia"      element={<InertiaAnalytics />}   />
               <Route path="/tnsp"         element={<TnspAnalytics />}      />
               <Route path="/surveillance" element={<MarketSurveillance />} />
+              <Route path="/hydrogen"     element={<HydrogenAnalytics />} />
+              <Route path="/offshore-wind" element={<OffshoreWind />}      />
+              <Route path="/cer"          element={<CerDashboard />}  />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

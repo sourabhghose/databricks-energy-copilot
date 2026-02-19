@@ -2776,3 +2776,111 @@ class TestSurveillanceEndpoints:
         assert r.status_code == 200
         anomalies = r.json()
         assert len(anomalies) >= 5
+
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31a — Green Hydrogen & Electrolysis Economics
+# ---------------------------------------------------------------------------
+
+class TestHydrogenEndpoints:
+    def test_hydrogen_dashboard_returns_200(self, client=client):
+        r = client.get("/api/hydrogen/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "projects" in d
+        assert "price_benchmarks" in d
+        assert "capacity_records" in d
+        assert d["national_avg_lcoh_aud_kg"] > 0
+
+    def test_hydrogen_projects_list(self, client=client):
+        r = client.get("/api/hydrogen/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 5
+        for p in projects:
+            assert p["lcoh_aud_kg"] > 0
+
+    def test_hydrogen_benchmarks_list(self, client=client):
+        r = client.get("/api/hydrogen/benchmarks")
+        assert r.status_code == 200
+        benchmarks = r.json()
+        assert len(benchmarks) >= 4
+
+    def test_hydrogen_status_filter(self, client=client):
+        r = client.get("/api/hydrogen/projects?status=OPERATING")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["status"] == "OPERATING"
+
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31b — Offshore Wind Project Tracker
+# ---------------------------------------------------------------------------
+
+class TestOffshoreWindEndpoints:
+    def test_offshore_dashboard_returns_200(self, client=client):
+        r = client.get("/api/offshore-wind/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "projects" in d
+        assert "zone_summaries" in d
+        assert d["total_proposed_capacity_gw"] > 0
+
+    def test_offshore_projects_list(self, client=client):
+        r = client.get("/api/offshore-wind/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 5
+        for p in projects:
+            assert p["capacity_mw"] > 0
+
+    def test_offshore_zones_list(self, client=client):
+        r = client.get("/api/offshore-wind/zones")
+        assert r.status_code == 200
+        zones = r.json()
+        assert len(zones) >= 4
+
+    def test_offshore_state_filter(self, client=client):
+        r = client.get("/api/offshore-wind/projects?state=VIC")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["state"] == "VIC"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 31c — Clean Energy Regulator & RET Dashboard
+# ---------------------------------------------------------------------------
+
+class TestCerEndpoints:
+    def test_cer_dashboard_returns_200(self, client=client):
+        r = client.get("/api/cer/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "lret_records" in d
+        assert "sres_records" in d
+        assert "accredited_stations" in d
+        assert d["lret_target_2030_gwh"] == 33000.0
+
+    def test_lret_records_list(self, client=client):
+        r = client.get("/api/cer/lret")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 5
+        for rec in records:
+            assert rec["lret_target_gwh"] > 0
+
+    def test_cer_stations_list(self, client=client):
+        r = client.get("/api/cer/stations")
+        assert r.status_code == 200
+        stations = r.json()
+        assert len(stations) >= 5
+        for s in stations:
+            assert s["status"] in ["REGISTERED", "SUSPENDED"]
+
+    def test_cer_stations_fuel_filter(self, client=client):
+        r = client.get("/api/cer/stations?fuel_source=WIND")
+        assert r.status_code == 200
+        for s in r.json():
+            assert s["fuel_source"] == "WIND"
