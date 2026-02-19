@@ -50,6 +50,8 @@ import {
   TreePine,
   Car,
   Award,
+  Layers,
+  BookOpen,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -158,6 +160,9 @@ import CarbonCreditMarket from './pages/CarbonCreditMarket'
 import GridResilience from './pages/GridResilience'
 import EvFleetCharging from './pages/EvFleetCharging'
 import RecMarket from './pages/RecMarket'
+import TransmissionCongestion from './pages/TransmissionCongestion'
+import DermsOrchestration from './pages/DermsOrchestration'
+import MarketDesignReform from './pages/MarketDesignReform'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -265,7 +270,10 @@ const NAV_ITEMS = [
   { to: '/carbon-credit',     label: 'Carbon Credits',     Icon: TreePine       },
   { to: '/grid-resilience',   label: 'Grid Resilience',    Icon: ShieldAlert    },
   { to: '/ev-fleet',          label: 'EV Fleet & V2G',     Icon: Car            },
-  { to: '/rec-market',        label: 'REC Market (LGC/STC)', Icon: Award        },
+  { to: '/rec-market',            label: 'REC Market (LGC/STC)',   Icon: Award        },
+  { to: '/transmission-congestion', label: 'Transmission Congestion', Icon: Network    },
+  { to: '/derms-orchestration', label: 'DERMS & VPP',          Icon: Layers         },
+  { to: '/market-design',     label: 'Market Design',      Icon: BookOpen       },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -449,6 +457,9 @@ export default function App() {
               <Route path="/grid-resilience"   element={<GridResilience />}      />
               <Route path="/ev-fleet"          element={<EvFleetCharging />}     />
               <Route path="/rec-market"        element={<RecMarket />}           />
+              <Route path="/transmission-congestion" element={<TransmissionCongestion />} />
+              <Route path="/derms-orchestration" element={<DermsOrchestration />}   />
+              <Route path="/market-design"     element={<MarketDesignReform />}  />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

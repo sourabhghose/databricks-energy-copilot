@@ -4995,6 +4995,42 @@ export const api = {
     get<SurplusDeficitRecord[]>('/api/rec-market/surplus-deficit'),
   getRecMarketStc: (): Promise<StcRecord[]> =>
     get<StcRecord[]>('/api/rec-market/stc'),
+
+  // Sprint 46a — Transmission Congestion & Nodal Pricing Analytics
+  getTransmissionCongestionDashboard: (): Promise<TransmissionCongestionDashboard> =>
+    get<TransmissionCongestionDashboard>('/api/transmission-congestion/dashboard'),
+  getTransmissionCongestionConstraints: (): Promise<ConstraintBindingRecord[]> =>
+    get<ConstraintBindingRecord[]>('/api/transmission-congestion/constraints'),
+  getTransmissionCongestionNodalPrices: (): Promise<NodalPriceRecord[]> =>
+    get<NodalPriceRecord[]>('/api/transmission-congestion/nodal-prices'),
+  getTransmissionCongestionRent: (): Promise<CongestionRentRecord[]> =>
+    get<CongestionRentRecord[]>('/api/transmission-congestion/congestion-rent'),
+  getTransmissionCongestionHeatmap: (): Promise<CongestionHeatmapRecord[]> =>
+    get<CongestionHeatmapRecord[]>('/api/transmission-congestion/heatmap'),
+
+  // Sprint 46b — DERMS & DER Orchestration Analytics
+  getDermsOrchestrationDashboard: (): Promise<DermsOrchestrationDashboard> =>
+    get<DermsOrchestrationDashboard>('/api/derms-orchestration/dashboard'),
+  getDermsOrchestrationAggregators: (): Promise<DerAggregatorRecord[]> =>
+    get<DerAggregatorRecord[]>('/api/derms-orchestration/aggregators'),
+  getDermsOrchestrationDispatchEvents: (): Promise<DerDispatchEventRecord[]> =>
+    get<DerDispatchEventRecord[]>('/api/derms-orchestration/dispatch-events'),
+  getDermsOrchestrationDerPortfolio: (): Promise<DerPortfolioRecord[]> =>
+    get<DerPortfolioRecord[]>('/api/derms-orchestration/der-portfolio'),
+  getDermsOrchestrationKpis: (): Promise<DerOrchestrationKpiRecord[]> =>
+    get<DerOrchestrationKpiRecord[]>('/api/derms-orchestration/kpis'),
+
+  // Sprint 46c — Electricity Market Design & Reform Analytics
+  getMarketDesignDashboard: (): Promise<MarketDesignDashboard> =>
+    get<MarketDesignDashboard>('/api/market-design/dashboard'),
+  getMarketDesignProposals: (): Promise<MarketDesignProposalRecord[]> =>
+    get<MarketDesignProposalRecord[]>('/api/market-design/proposals'),
+  getMarketDesignCapacityMechanisms: (): Promise<CapacityMechanismRecord[]> =>
+    get<CapacityMechanismRecord[]>('/api/market-design/capacity-mechanisms'),
+  getMarketDesignSettlementReforms: (): Promise<SettlementReformRecord[]> =>
+    get<SettlementReformRecord[]>('/api/market-design/settlement-reforms'),
+  getMarketDesignMarketComparison: (): Promise<MarketDesignComparisonRecord[]> =>
+    get<MarketDesignComparisonRecord[]>('/api/market-design/market-comparison'),
 }
 
 // ---------------------------------------------------------------------------
@@ -5217,4 +5253,203 @@ export interface RecMarketDashboard {
   lgc_surplus_deficit_m: number   // positive = surplus, negative = deficit in millions
   lret_target_2030_twh: number
   lret_progress_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 46a — Transmission Congestion & Nodal Pricing Analytics
+// ---------------------------------------------------------------------------
+
+export interface ConstraintBindingRecord {
+  constraint_id: string
+  constraint_name: string
+  interconnector: string       // e.g. VIC1-NSW1, QLD1-NSW1, SA1-VIC1
+  direction: string            // IMPORT, EXPORT
+  binding_hours_2024: number
+  binding_pct: number          // % of trading intervals bound
+  avg_shadow_price: number     // $/MWh
+  max_shadow_price: number
+  congestion_rent_m_aud: number
+  primary_cause: string        // THERMAL, STABILITY, VOLTAGE, NETWORK_OUTAGE
+}
+
+export interface NodalPriceRecord {
+  node_id: string
+  node_name: string
+  region: string
+  node_type: string            // GENERATION, LOAD, INTERCONNECT
+  avg_lmp_2024: number         // Locational Marginal Price $/MWh
+  congestion_component: number
+  loss_component: number
+  energy_component: number
+  max_lmp: number
+  min_lmp: number
+  price_volatility_pct: number
+}
+
+export interface CongestionRentRecord {
+  year: number
+  quarter: string
+  interconnector: string
+  total_rent_m_aud: number
+  srec_allocated_m_aud: number  // Surplus Rent from Excess Capacity
+  tnsp_retained_m_aud: number
+  hedging_value_m_aud: number
+}
+
+export interface CongestionHeatmapRecord {
+  month: string              // YYYY-MM
+  interconnector: string
+  avg_flow_mw: number
+  capacity_mw: number
+  utilisation_pct: number
+  binding_events: number
+  avg_price_separation: number  // $/MWh price diff between regions
+}
+
+export interface TransmissionCongestionDashboard {
+  timestamp: string
+  constraint_binding: ConstraintBindingRecord[]
+  nodal_prices: NodalPriceRecord[]
+  congestion_rent: CongestionRentRecord[]
+  congestion_heatmap: CongestionHeatmapRecord[]
+  total_congestion_rent_m_aud: number
+  most_constrained_interconnector: string
+  avg_binding_pct: number
+  peak_shadow_price: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 46b — DERMS & DER Orchestration Analytics
+// ---------------------------------------------------------------------------
+
+export interface DerAggregatorRecord {
+  aggregator_id: string
+  aggregator_name: string
+  state: string
+  der_types: string[]
+  enrolled_devices: number
+  controllable_devices: number
+  peak_dispatch_mw: number
+  registered_capacity_mw: number
+  market_registration: string   // VPP, FCAS, DEMAND_RESPONSE, ALL
+  avg_response_time_sec: number
+  dispatch_success_rate_pct: number
+}
+
+export interface DerDispatchEventRecord {
+  event_id: string
+  event_date: string
+  aggregator_id: string
+  aggregator_name: string
+  trigger: string               // PRICE_SPIKE, GRID_FREQUENCY, OPERATOR_INSTRUCTION, SCHEDULED
+  requested_mw: number
+  delivered_mw: number
+  response_accuracy_pct: number
+  duration_minutes: number
+  market_revenue_aud: number
+  grid_service: string          // ENERGY, FCAS_R6, FCAS_R60, DEMAND_RESPONSE
+}
+
+export interface DerPortfolioRecord {
+  state: string
+  der_type: string              // ROOFTOP_SOLAR, HOME_BATTERY, EV_CHARGER, HVAC, HOT_WATER
+  total_units: number
+  smart_enabled_units: number
+  smart_penetration_pct: number
+  avg_capacity_kw: number
+  total_capacity_mw: number
+  potential_flexibility_mw: number
+  enrolled_in_vpp_pct: number
+}
+
+export interface DerOrchestrationKpiRecord {
+  month: string
+  state: string
+  total_der_dispatches: number
+  total_energy_dispatched_mwh: number
+  total_fcas_provided_mwh: number
+  peak_coincidence_reduction_mw: number
+  revenue_per_device_aud: number
+  customer_satisfaction_score: number
+}
+
+export interface DermsOrchestrationDashboard {
+  timestamp: string
+  aggregators: DerAggregatorRecord[]
+  dispatch_events: DerDispatchEventRecord[]
+  der_portfolio: DerPortfolioRecord[]
+  kpi_records: DerOrchestrationKpiRecord[]
+  total_controllable_mw: number
+  total_enrolled_devices: number
+  avg_dispatch_accuracy_pct: number
+  peak_flexibility_mw: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 46c — Electricity Market Design & Reform Analytics
+// ---------------------------------------------------------------------------
+
+export interface MarketDesignProposalRecord {
+  proposal_id: string
+  title: string
+  proposing_body: string         // AEMC, AEMO, AER, GOVERNMENT, INDUSTRY
+  reform_area: string            // CAPACITY_MECHANISM, PRICING, SETTLEMENT, STORAGE, DER, RETAIL, PLANNING
+  status: string                 // CONSULTATION, DRAFT_DETERMINATION, FINAL_DETERMINATION, IMPLEMENTED, REJECTED
+  lodgement_date: string
+  decision_date: string | null
+  impact_assessment: string      // LOW, MEDIUM, HIGH, TRANSFORMATIVE
+  annual_benefit_m_aud: number | null
+  affected_parties: string[]
+  summary: string
+}
+
+export interface CapacityMechanismRecord {
+  mechanism_id: string
+  mechanism_name: string
+  region: string
+  mechanism_type: string         // RELIABILITY_OBLIGATION, CAPACITY_AUCTION, STRATEGIC_RESERVE, CAPACITY_PAYMENT
+  status: string                 // PROPOSED, PILOT, OPERATIONAL
+  target_capacity_mw: number
+  contracted_capacity_mw: number
+  cost_per_mw_aud: number
+  duration_years: number
+  technology_neutral: boolean
+  storage_eligible: boolean
+}
+
+export interface SettlementReformRecord {
+  reform_name: string
+  implementation_date: string
+  region: string
+  pre_reform_avg_price: number
+  post_reform_avg_price: number
+  price_volatility_change_pct: number
+  storage_revenue_change_m_aud: number
+  demand_response_change_mw: number
+  winner: string                 // GENERATORS, STORAGE, CONSUMERS, MIXED
+  assessment: string
+}
+
+export interface MarketDesignComparisonRecord {
+  market: string                 // NEM, WEM, ERCOT, PJM, CAISO, NORDPOOL, GB_NETA
+  country: string
+  market_type: string            // GROSS_POOL, NET_POOL, BILATERAL, HYBRID
+  settlement_interval_min: number
+  capacity_mechanism: string     // NONE, AUCTION, OBLIGATION, PAYMENT
+  price_cap_aud_mwh: number
+  renewables_pct: number
+  avg_price_aud_mwh: number
+  market_size_twh: number
+}
+
+export interface MarketDesignDashboard {
+  timestamp: string
+  proposals: MarketDesignProposalRecord[]
+  capacity_mechanisms: CapacityMechanismRecord[]
+  settlement_reforms: SettlementReformRecord[]
+  market_comparison: MarketDesignComparisonRecord[]
+  active_proposals: number
+  implemented_reforms: number
+  total_reform_benefit_b_aud: number
+  capacity_mechanism_pipeline_gw: number
 }

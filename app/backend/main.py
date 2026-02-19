@@ -29937,3 +29937,1621 @@ def get_rec_market_stc():
     result = _make_stc_records()
     _cache_set(cache_key, result, _TTL_REC_MARKET)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 46a — Transmission Congestion & Nodal Pricing Analytics
+# ---------------------------------------------------------------------------
+
+class ConstraintBindingRecord(BaseModel):
+    constraint_id: str
+    constraint_name: str
+    interconnector: str        # e.g. VIC1-NSW1, QLD1-NSW1, SA1-VIC1
+    direction: str             # IMPORT, EXPORT
+    binding_hours_2024: int
+    binding_pct: float         # % of trading intervals bound
+    avg_shadow_price: float    # $/MWh
+    max_shadow_price: float
+    congestion_rent_m_aud: float
+    primary_cause: str         # THERMAL, STABILITY, VOLTAGE, NETWORK_OUTAGE
+
+
+class NodalPriceRecord(BaseModel):
+    node_id: str
+    node_name: str
+    region: str
+    node_type: str             # GENERATION, LOAD, INTERCONNECT
+    avg_lmp_2024: float        # Locational Marginal Price $/MWh
+    congestion_component: float
+    loss_component: float
+    energy_component: float
+    max_lmp: float
+    min_lmp: float
+    price_volatility_pct: float
+
+
+class CongestionRentRecord(BaseModel):
+    year: int
+    quarter: str
+    interconnector: str
+    total_rent_m_aud: float
+    srec_allocated_m_aud: float  # Surplus Rent from Excess Capacity
+    tnsp_retained_m_aud: float
+    hedging_value_m_aud: float
+
+
+class CongestionHeatmapRecord(BaseModel):
+    month: str             # YYYY-MM
+    interconnector: str
+    avg_flow_mw: float
+    capacity_mw: float
+    utilisation_pct: float
+    binding_events: int
+    avg_price_separation: float  # $/MWh price diff between regions
+
+
+class TransmissionCongestionDashboard(BaseModel):
+    timestamp: str
+    constraint_binding: List[ConstraintBindingRecord]
+    nodal_prices: List[NodalPriceRecord]
+    congestion_rent: List[CongestionRentRecord]
+    congestion_heatmap: List[CongestionHeatmapRecord]
+    total_congestion_rent_m_aud: float
+    most_constrained_interconnector: str
+    avg_binding_pct: float
+    peak_shadow_price: float
+
+
+# --- Mock data builders ---
+
+def _make_constraint_binding_records() -> List[ConstraintBindingRecord]:
+    return [
+        ConstraintBindingRecord(
+            constraint_id="V-S-MNSP1_IMPORT",
+            constraint_name="VIC to SA MNSP1 Import Limit",
+            interconnector="SA1-VIC1",
+            direction="IMPORT",
+            binding_hours_2024=3412,
+            binding_pct=38.9,
+            avg_shadow_price=487.2,
+            max_shadow_price=15100.0,
+            congestion_rent_m_aud=198.4,
+            primary_cause="THERMAL",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="N-Q-MNSP1_EXPORT",
+            constraint_name="NSW to QLD MNSP1 Export Limit",
+            interconnector="QLD1-NSW1",
+            direction="EXPORT",
+            binding_hours_2024=2887,
+            binding_pct=32.9,
+            avg_shadow_price=312.6,
+            max_shadow_price=12300.0,
+            congestion_rent_m_aud=145.7,
+            primary_cause="THERMAL",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="V-N-MNSP1_IMPORT",
+            constraint_name="VIC to NSW MNSP1 Import Limit",
+            interconnector="VIC1-NSW1",
+            direction="IMPORT",
+            binding_hours_2024=2214,
+            binding_pct=25.3,
+            avg_shadow_price=241.8,
+            max_shadow_price=9800.0,
+            congestion_rent_m_aud=112.3,
+            primary_cause="STABILITY",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="T-V-HVDC_EXPORT",
+            constraint_name="TAS to VIC Basslink Export Limit",
+            interconnector="TAS1-VIC1",
+            direction="EXPORT",
+            binding_hours_2024=1892,
+            binding_pct=21.6,
+            avg_shadow_price=198.5,
+            max_shadow_price=8200.0,
+            congestion_rent_m_aud=89.6,
+            primary_cause="THERMAL",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="N-Q-MNSP1_IMPORT",
+            constraint_name="QLD to NSW MNSP1 Import Limit",
+            interconnector="QLD1-NSW1",
+            direction="IMPORT",
+            binding_hours_2024=1543,
+            binding_pct=17.6,
+            avg_shadow_price=176.4,
+            max_shadow_price=7600.0,
+            congestion_rent_m_aud=72.8,
+            primary_cause="VOLTAGE",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="V-N-MNSP1_EXPORT",
+            constraint_name="NSW to VIC MNSP1 Export Limit",
+            interconnector="VIC1-NSW1",
+            direction="EXPORT",
+            binding_hours_2024=1328,
+            binding_pct=15.2,
+            avg_shadow_price=152.3,
+            max_shadow_price=6900.0,
+            congestion_rent_m_aud=58.4,
+            primary_cause="THERMAL",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="V-S-MNSP1_EXPORT",
+            constraint_name="SA to VIC MNSP1 Export Limit",
+            interconnector="SA1-VIC1",
+            direction="EXPORT",
+            binding_hours_2024=1102,
+            binding_pct=12.6,
+            avg_shadow_price=123.7,
+            max_shadow_price=5400.0,
+            congestion_rent_m_aud=46.2,
+            primary_cause="NETWORK_OUTAGE",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="T-V-HVDC_IMPORT",
+            constraint_name="VIC to TAS Basslink Import Limit",
+            interconnector="TAS1-VIC1",
+            direction="IMPORT",
+            binding_hours_2024=876,
+            binding_pct=10.0,
+            avg_shadow_price=98.6,
+            max_shadow_price=4100.0,
+            congestion_rent_m_aud=31.8,
+            primary_cause="STABILITY",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="SA_VOLTAGE_STAB",
+            constraint_name="SA Voltage Stability Constraint",
+            interconnector="SA1-VIC1",
+            direction="IMPORT",
+            binding_hours_2024=614,
+            binding_pct=7.0,
+            avg_shadow_price=67.4,
+            max_shadow_price=3200.0,
+            congestion_rent_m_aud=18.6,
+            primary_cause="VOLTAGE",
+        ),
+        ConstraintBindingRecord(
+            constraint_id="QLD_THERMAL_N",
+            constraint_name="QLD North Thermal Constraint",
+            interconnector="QLD1-NSW1",
+            direction="EXPORT",
+            binding_hours_2024=438,
+            binding_pct=5.0,
+            avg_shadow_price=41.8,
+            max_shadow_price=2100.0,
+            congestion_rent_m_aud=9.7,
+            primary_cause="THERMAL",
+        ),
+    ]
+
+
+def _make_nodal_price_records() -> List[NodalPriceRecord]:
+    return [
+        NodalPriceRecord(
+            node_id="NSW_ERARING",
+            node_name="Eraring Power Station",
+            region="NSW1",
+            node_type="GENERATION",
+            avg_lmp_2024=87.4,
+            congestion_component=-12.3,
+            loss_component=4.2,
+            energy_component=95.5,
+            max_lmp=14800.0,
+            min_lmp=-62.0,
+            price_volatility_pct=42.6,
+        ),
+        NodalPriceRecord(
+            node_id="NSW_SYDNEY_CBD",
+            node_name="Sydney CBD Load Node",
+            region="NSW1",
+            node_type="LOAD",
+            avg_lmp_2024=102.8,
+            congestion_component=8.6,
+            loss_component=5.1,
+            energy_component=89.1,
+            max_lmp=16200.0,
+            min_lmp=-45.0,
+            price_volatility_pct=48.3,
+        ),
+        NodalPriceRecord(
+            node_id="VIC_LOYYANG",
+            node_name="Loy Yang Complex",
+            region="VIC1",
+            node_type="GENERATION",
+            avg_lmp_2024=72.1,
+            congestion_component=-18.7,
+            loss_component=3.8,
+            energy_component=87.0,
+            max_lmp=12400.0,
+            min_lmp=-85.0,
+            price_volatility_pct=38.9,
+        ),
+        NodalPriceRecord(
+            node_id="VIC_MELBOURNE",
+            node_name="Melbourne Metro Load",
+            region="VIC1",
+            node_type="LOAD",
+            avg_lmp_2024=95.3,
+            congestion_component=14.2,
+            loss_component=4.9,
+            energy_component=76.2,
+            max_lmp=15600.0,
+            min_lmp=-38.0,
+            price_volatility_pct=44.7,
+        ),
+        NodalPriceRecord(
+            node_id="QLD_TARONG",
+            node_name="Tarong Power Station",
+            region="QLD1",
+            node_type="GENERATION",
+            avg_lmp_2024=81.6,
+            congestion_component=-8.4,
+            loss_component=3.1,
+            energy_component=86.9,
+            max_lmp=11200.0,
+            min_lmp=-54.0,
+            price_volatility_pct=36.2,
+        ),
+        NodalPriceRecord(
+            node_id="QLD_BRISBANE",
+            node_name="Brisbane CBD Load",
+            region="QLD1",
+            node_type="LOAD",
+            avg_lmp_2024=98.7,
+            congestion_component=11.4,
+            loss_component=5.8,
+            energy_component=81.5,
+            max_lmp=14900.0,
+            min_lmp=-29.0,
+            price_volatility_pct=46.1,
+        ),
+        NodalPriceRecord(
+            node_id="SA_TORRENS",
+            node_name="Torrens Island Power Station",
+            region="SA1",
+            node_type="GENERATION",
+            avg_lmp_2024=118.4,
+            congestion_component=22.6,
+            loss_component=6.7,
+            energy_component=89.1,
+            max_lmp=18400.0,
+            min_lmp=-112.0,
+            price_volatility_pct=67.8,
+        ),
+        NodalPriceRecord(
+            node_id="SA_ADELAIDE",
+            node_name="Adelaide Metro Load",
+            region="SA1",
+            node_type="LOAD",
+            avg_lmp_2024=134.2,
+            congestion_component=38.4,
+            loss_component=7.2,
+            energy_component=88.6,
+            max_lmp=21600.0,
+            min_lmp=-94.0,
+            price_volatility_pct=74.3,
+        ),
+        NodalPriceRecord(
+            node_id="TAS_BASSLINK",
+            node_name="Basslink Interconnect Node",
+            region="TAS1",
+            node_type="INTERCONNECT",
+            avg_lmp_2024=76.3,
+            congestion_component=-6.2,
+            loss_component=8.4,
+            energy_component=74.1,
+            max_lmp=13800.0,
+            min_lmp=-72.0,
+            price_volatility_pct=52.4,
+        ),
+        NodalPriceRecord(
+            node_id="NSW_TRANSGRID_N",
+            node_name="TransGrid North NSW",
+            region="NSW1",
+            node_type="INTERCONNECT",
+            avg_lmp_2024=91.6,
+            congestion_component=6.8,
+            loss_component=3.4,
+            energy_component=81.4,
+            max_lmp=15100.0,
+            min_lmp=-41.0,
+            price_volatility_pct=45.2,
+        ),
+        NodalPriceRecord(
+            node_id="VIC_MOORABOOL",
+            node_name="Moorabool Wind Zone",
+            region="VIC1",
+            node_type="GENERATION",
+            avg_lmp_2024=58.2,
+            congestion_component=-32.6,
+            loss_component=2.8,
+            energy_component=88.0,
+            max_lmp=9400.0,
+            min_lmp=-142.0,
+            price_volatility_pct=82.1,
+        ),
+        NodalPriceRecord(
+            node_id="QLD_SOLAR_FARM",
+            node_name="Western Downs Solar Farm",
+            region="QLD1",
+            node_type="GENERATION",
+            avg_lmp_2024=44.7,
+            congestion_component=-46.8,
+            loss_component=2.4,
+            energy_component=89.1,
+            max_lmp=7200.0,
+            min_lmp=-198.0,
+            price_volatility_pct=91.4,
+        ),
+    ]
+
+
+def _make_congestion_rent_records() -> List[CongestionRentRecord]:
+    data = []
+    interconnectors = ["VIC1-NSW1", "QLD1-NSW1", "SA1-VIC1", "TAS1-VIC1"]
+    quarters_data = {
+        "VIC1-NSW1": [(42.1, 14.7, 18.4, 9.0), (38.6, 13.5, 16.9, 8.2), (51.4, 18.0, 22.4, 11.0), (46.2, 16.2, 20.1, 9.9)],
+        "QLD1-NSW1": [(38.4, 13.4, 16.8, 8.2), (44.7, 15.6, 19.5, 9.6), (41.2, 14.4, 18.0, 8.8), (48.9, 17.1, 21.3, 10.5)],
+        "SA1-VIC1":  [(52.6, 18.4, 22.9, 11.3), (61.3, 21.5, 26.7, 13.1), (58.7, 20.5, 25.6, 12.6), (67.4, 23.6, 29.4, 14.4)],
+        "TAS1-VIC1": [(22.4, 7.8, 9.8, 4.8), (19.8, 6.9, 8.6, 4.3), (26.1, 9.1, 11.4, 5.6), (23.7, 8.3, 10.3, 5.1)],
+    }
+    for ic in interconnectors:
+        for qi, q in enumerate(["Q1", "Q2", "Q3", "Q4"]):
+            vals = quarters_data[ic][qi]
+            data.append(CongestionRentRecord(
+                year=2024,
+                quarter=q,
+                interconnector=ic,
+                total_rent_m_aud=vals[0],
+                srec_allocated_m_aud=vals[1],
+                tnsp_retained_m_aud=vals[2],
+                hedging_value_m_aud=vals[3],
+            ))
+    return data
+
+
+def _make_congestion_heatmap_records() -> List[CongestionHeatmapRecord]:
+    data = []
+    months = ["2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06"]
+    ic_specs = {
+        "VIC1-NSW1": {
+            "capacity_mw": 1350.0,
+            "flows":       [1148.0, 1094.0, 1229.0, 1013.0, 878.0, 986.0],
+            "util":        [85.0, 81.0, 91.0, 75.0, 65.0, 73.0],
+            "events":      [312, 287, 356, 243, 198, 264],
+            "separation":  [42.6, 38.4, 51.2, 29.7, 18.3, 33.8],
+        },
+        "QLD1-NSW1": {
+            "capacity_mw": 1078.0,
+            "flows":       [852.0, 809.0, 938.0, 764.0, 614.0, 712.0],
+            "util":        [79.0, 75.0, 87.0, 71.0, 57.0, 66.0],
+            "events":      [274, 246, 318, 211, 163, 219],
+            "separation":  [36.4, 32.1, 44.8, 24.6, 14.7, 27.3],
+        },
+        "SA1-VIC1": {
+            "capacity_mw": 650.0,
+            "flows":       [598.0, 572.0, 618.0, 541.0, 448.0, 513.0],
+            "util":        [92.0, 88.0, 95.0, 83.0, 69.0, 79.0],
+            "events":      [386, 348, 412, 296, 214, 312],
+            "separation":  [68.4, 59.7, 78.6, 47.2, 24.8, 52.1],
+        },
+        "TAS1-VIC1": {
+            "capacity_mw": 594.0,
+            "flows":       [411.0, 378.0, 476.0, 338.0, 267.0, 312.0],
+            "util":        [69.0, 64.0, 80.0, 57.0, 45.0, 53.0],
+            "events":      [187, 164, 238, 134, 98, 148],
+            "separation":  [24.3, 19.8, 32.6, 14.7, 8.2, 17.4],
+        },
+    }
+    for ic, spec in ic_specs.items():
+        for mi, month in enumerate(months):
+            data.append(CongestionHeatmapRecord(
+                month=month,
+                interconnector=ic,
+                avg_flow_mw=spec["flows"][mi],
+                capacity_mw=spec["capacity_mw"],
+                utilisation_pct=spec["util"][mi],
+                binding_events=spec["events"][mi],
+                avg_price_separation=spec["separation"][mi],
+            ))
+    return data
+
+
+_TTL_TRANSMISSION_CONGESTION = 600
+
+
+def _make_transmission_congestion_dashboard() -> TransmissionCongestionDashboard:
+    constraints = _make_constraint_binding_records()
+    nodal = _make_nodal_price_records()
+    rent = _make_congestion_rent_records()
+    heatmap = _make_congestion_heatmap_records()
+    total_rent = sum(r.total_rent_m_aud for r in rent)
+    avg_binding = sum(c.binding_pct for c in constraints) / len(constraints)
+    peak_shadow = max(c.max_shadow_price for c in constraints)
+    most_constrained = max(constraints, key=lambda c: c.binding_pct).interconnector
+    return TransmissionCongestionDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        constraint_binding=constraints,
+        nodal_prices=nodal,
+        congestion_rent=rent,
+        congestion_heatmap=heatmap,
+        total_congestion_rent_m_aud=round(total_rent, 2),
+        most_constrained_interconnector=most_constrained,
+        avg_binding_pct=round(avg_binding, 2),
+        peak_shadow_price=peak_shadow,
+    )
+
+
+# --- Endpoints ---
+
+@app.get(
+    "/api/transmission-congestion/dashboard",
+    response_model=TransmissionCongestionDashboard,
+    summary="Transmission Congestion & Nodal Pricing full dashboard",
+    tags=["TransmissionCongestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_congestion_dashboard():
+    cache_key = "transmission_congestion:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_transmission_congestion_dashboard()
+    _cache_set(cache_key, result, _TTL_TRANSMISSION_CONGESTION)
+    return result
+
+
+@app.get(
+    "/api/transmission-congestion/constraints",
+    response_model=List[ConstraintBindingRecord],
+    summary="NEM constraint binding frequency records",
+    tags=["TransmissionCongestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_congestion_constraints():
+    cache_key = "transmission_congestion:constraints"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_constraint_binding_records()
+    _cache_set(cache_key, result, _TTL_TRANSMISSION_CONGESTION)
+    return result
+
+
+@app.get(
+    "/api/transmission-congestion/nodal-prices",
+    response_model=List[NodalPriceRecord],
+    summary="Locational Marginal Price records by node",
+    tags=["TransmissionCongestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_congestion_nodal_prices():
+    cache_key = "transmission_congestion:nodal_prices"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_nodal_price_records()
+    _cache_set(cache_key, result, _TTL_TRANSMISSION_CONGESTION)
+    return result
+
+
+@app.get(
+    "/api/transmission-congestion/congestion-rent",
+    response_model=List[CongestionRentRecord],
+    summary="Congestion rent distribution by interconnector and quarter",
+    tags=["TransmissionCongestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_congestion_rent():
+    cache_key = "transmission_congestion:congestion_rent"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_congestion_rent_records()
+    _cache_set(cache_key, result, _TTL_TRANSMISSION_CONGESTION)
+    return result
+
+
+@app.get(
+    "/api/transmission-congestion/heatmap",
+    response_model=List[CongestionHeatmapRecord],
+    summary="Congestion heatmap — monthly utilisation and price separation per interconnector",
+    tags=["TransmissionCongestion"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_congestion_heatmap():
+    cache_key = "transmission_congestion:heatmap"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_congestion_heatmap_records()
+    _cache_set(cache_key, result, _TTL_TRANSMISSION_CONGESTION)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 46b — DERMS & DER Orchestration Analytics
+# ---------------------------------------------------------------------------
+
+class DerAggregatorRecord(BaseModel):
+    aggregator_id: str
+    aggregator_name: str
+    state: str
+    der_types: list[str]        # ROOFTOP_SOLAR, HOME_BATTERY, EV, HOT_WATER, AC
+    enrolled_devices: int
+    controllable_devices: int
+    peak_dispatch_mw: float
+    registered_capacity_mw: float
+    market_registration: str    # VPP, FCAS, DEMAND_RESPONSE, ALL
+    avg_response_time_sec: float
+    dispatch_success_rate_pct: float
+
+class DerDispatchEventRecord(BaseModel):
+    event_id: str
+    event_date: str
+    aggregator_id: str
+    aggregator_name: str
+    trigger: str                # PRICE_SPIKE, GRID_FREQUENCY, OPERATOR_INSTRUCTION, SCHEDULED
+    requested_mw: float
+    delivered_mw: float
+    response_accuracy_pct: float
+    duration_minutes: int
+    market_revenue_aud: float
+    grid_service: str           # ENERGY, FCAS_R6, FCAS_R60, DEMAND_RESPONSE
+
+class DerPortfolioRecord(BaseModel):
+    state: str
+    der_type: str               # ROOFTOP_SOLAR, HOME_BATTERY, EV_CHARGER, HVAC, HOT_WATER
+    total_units: int
+    smart_enabled_units: int
+    smart_penetration_pct: float
+    avg_capacity_kw: float
+    total_capacity_mw: float
+    potential_flexibility_mw: float
+    enrolled_in_vpp_pct: float
+
+class DerOrchestrationKpiRecord(BaseModel):
+    month: str
+    state: str
+    total_der_dispatches: int
+    total_energy_dispatched_mwh: float
+    total_fcas_provided_mwh: float
+    peak_coincidence_reduction_mw: float
+    revenue_per_device_aud: float
+    customer_satisfaction_score: float
+
+class DermsOrchestrationDashboard(BaseModel):
+    timestamp: str
+    aggregators: list[DerAggregatorRecord]
+    dispatch_events: list[DerDispatchEventRecord]
+    der_portfolio: list[DerPortfolioRecord]
+    kpi_records: list[DerOrchestrationKpiRecord]
+    total_controllable_mw: float
+    total_enrolled_devices: int
+    avg_dispatch_accuracy_pct: float
+    peak_flexibility_mw: float
+
+
+_DERMS_AGGREGATORS: list[DerAggregatorRecord] = [
+    DerAggregatorRecord(
+        aggregator_id="AGG-001", aggregator_name="AGL VPP", state="NSW",
+        der_types=["ROOFTOP_SOLAR", "HOME_BATTERY", "EV"],
+        enrolled_devices=48500, controllable_devices=41200,
+        peak_dispatch_mw=185.4, registered_capacity_mw=220.0,
+        market_registration="ALL", avg_response_time_sec=4.2,
+        dispatch_success_rate_pct=96.8,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-002", aggregator_name="Origin VPP", state="VIC",
+        der_types=["HOME_BATTERY", "HOT_WATER", "AC"],
+        enrolled_devices=32100, controllable_devices=28900,
+        peak_dispatch_mw=124.7, registered_capacity_mw=148.0,
+        market_registration="VPP", avg_response_time_sec=5.8,
+        dispatch_success_rate_pct=94.2,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-003", aggregator_name="Tesla Energy Plan", state="SA",
+        der_types=["HOME_BATTERY", "ROOFTOP_SOLAR"],
+        enrolled_devices=12800, controllable_devices=12500,
+        peak_dispatch_mw=89.6, registered_capacity_mw=102.0,
+        market_registration="FCAS", avg_response_time_sec=1.1,
+        dispatch_success_rate_pct=98.4,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-004", aggregator_name="Amber Electric", state="QLD",
+        der_types=["HOME_BATTERY", "EV", "ROOFTOP_SOLAR"],
+        enrolled_devices=8900, controllable_devices=7600,
+        peak_dispatch_mw=42.3, registered_capacity_mw=55.0,
+        market_registration="VPP", avg_response_time_sec=6.5,
+        dispatch_success_rate_pct=89.7,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-005", aggregator_name="Reposit Power", state="NSW",
+        der_types=["HOME_BATTERY", "ROOFTOP_SOLAR"],
+        enrolled_devices=6200, controllable_devices=5900,
+        peak_dispatch_mw=34.8, registered_capacity_mw=40.0,
+        market_registration="FCAS", avg_response_time_sec=1.8,
+        dispatch_success_rate_pct=97.1,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-006", aggregator_name="EnergyAustralia Smart Home", state="VIC",
+        der_types=["AC", "HOT_WATER", "EV"],
+        enrolled_devices=19400, controllable_devices=15800,
+        peak_dispatch_mw=58.2, registered_capacity_mw=75.0,
+        market_registration="DEMAND_RESPONSE", avg_response_time_sec=12.3,
+        dispatch_success_rate_pct=87.6,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-007", aggregator_name="Simply Energy DER", state="SA",
+        der_types=["ROOFTOP_SOLAR", "HOME_BATTERY", "HOT_WATER"],
+        enrolled_devices=5100, controllable_devices=4400,
+        peak_dispatch_mw=28.9, registered_capacity_mw=35.0,
+        market_registration="VPP", avg_response_time_sec=7.4,
+        dispatch_success_rate_pct=91.3,
+    ),
+    DerAggregatorRecord(
+        aggregator_id="AGG-008", aggregator_name="Ausgrid DER Program", state="NSW",
+        der_types=["ROOFTOP_SOLAR", "HOME_BATTERY", "EV", "AC"],
+        enrolled_devices=21600, controllable_devices=18300,
+        peak_dispatch_mw=96.7, registered_capacity_mw=115.0,
+        market_registration="ALL", avg_response_time_sec=3.9,
+        dispatch_success_rate_pct=95.5,
+    ),
+]
+
+_DERMS_DISPATCH_EVENTS: list[DerDispatchEventRecord] = [
+    DerDispatchEventRecord(
+        event_id="EVT-001", event_date="2024-01-08", aggregator_id="AGG-001",
+        aggregator_name="AGL VPP", trigger="PRICE_SPIKE",
+        requested_mw=150.0, delivered_mw=147.3, response_accuracy_pct=98.2,
+        duration_minutes=30, market_revenue_aud=221000.0, grid_service="ENERGY",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-002", event_date="2024-01-15", aggregator_id="AGG-003",
+        aggregator_name="Tesla Energy Plan", trigger="GRID_FREQUENCY",
+        requested_mw=60.0, delivered_mw=59.8, response_accuracy_pct=99.7,
+        duration_minutes=5, market_revenue_aud=44000.0, grid_service="FCAS_R6",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-003", event_date="2024-01-22", aggregator_id="AGG-002",
+        aggregator_name="Origin VPP", trigger="OPERATOR_INSTRUCTION",
+        requested_mw=100.0, delivered_mw=93.4, response_accuracy_pct=93.4,
+        duration_minutes=60, market_revenue_aud=112000.0, grid_service="DEMAND_RESPONSE",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-004", event_date="2024-02-05", aggregator_id="AGG-005",
+        aggregator_name="Reposit Power", trigger="GRID_FREQUENCY",
+        requested_mw=28.0, delivered_mw=27.6, response_accuracy_pct=98.6,
+        duration_minutes=10, market_revenue_aud=19800.0, grid_service="FCAS_R60",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-005", event_date="2024-02-12", aggregator_id="AGG-008",
+        aggregator_name="Ausgrid DER Program", trigger="PRICE_SPIKE",
+        requested_mw=80.0, delivered_mw=75.2, response_accuracy_pct=94.0,
+        duration_minutes=45, market_revenue_aud=98500.0, grid_service="ENERGY",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-006", event_date="2024-02-19", aggregator_id="AGG-004",
+        aggregator_name="Amber Electric", trigger="SCHEDULED",
+        requested_mw=35.0, delivered_mw=31.4, response_accuracy_pct=89.7,
+        duration_minutes=120, market_revenue_aud=37600.0, grid_service="DEMAND_RESPONSE",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-007", event_date="2024-02-28", aggregator_id="AGG-001",
+        aggregator_name="AGL VPP", trigger="PRICE_SPIKE",
+        requested_mw=175.0, delivered_mw=169.4, response_accuracy_pct=96.8,
+        duration_minutes=60, market_revenue_aud=305000.0, grid_service="ENERGY",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-008", event_date="2024-03-06", aggregator_id="AGG-006",
+        aggregator_name="EnergyAustralia Smart Home", trigger="OPERATOR_INSTRUCTION",
+        requested_mw=50.0, delivered_mw=43.2, response_accuracy_pct=86.4,
+        duration_minutes=90, market_revenue_aud=51800.0, grid_service="DEMAND_RESPONSE",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-009", event_date="2024-03-14", aggregator_id="AGG-003",
+        aggregator_name="Tesla Energy Plan", trigger="GRID_FREQUENCY",
+        requested_mw=70.0, delivered_mw=69.5, response_accuracy_pct=99.3,
+        duration_minutes=6, market_revenue_aud=55200.0, grid_service="FCAS_R6",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-010", event_date="2024-03-21", aggregator_id="AGG-007",
+        aggregator_name="Simply Energy DER", trigger="PRICE_SPIKE",
+        requested_mw=22.0, delivered_mw=20.1, response_accuracy_pct=91.4,
+        duration_minutes=30, market_revenue_aud=24100.0, grid_service="ENERGY",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-011", event_date="2024-03-29", aggregator_id="AGG-002",
+        aggregator_name="Origin VPP", trigger="SCHEDULED",
+        requested_mw=90.0, delivered_mw=85.6, response_accuracy_pct=95.1,
+        duration_minutes=180, market_revenue_aud=77000.0, grid_service="DEMAND_RESPONSE",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-012", event_date="2024-04-03", aggregator_id="AGG-008",
+        aggregator_name="Ausgrid DER Program", trigger="GRID_FREQUENCY",
+        requested_mw=75.0, delivered_mw=72.8, response_accuracy_pct=97.1,
+        duration_minutes=8, market_revenue_aud=58200.0, grid_service="FCAS_R60",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-013", event_date="2024-04-10", aggregator_id="AGG-005",
+        aggregator_name="Reposit Power", trigger="PRICE_SPIKE",
+        requested_mw=30.0, delivered_mw=29.4, response_accuracy_pct=98.0,
+        duration_minutes=20, market_revenue_aud=35300.0, grid_service="ENERGY",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-014", event_date="2024-04-17", aggregator_id="AGG-001",
+        aggregator_name="AGL VPP", trigger="OPERATOR_INSTRUCTION",
+        requested_mw=120.0, delivered_mw=95.4, response_accuracy_pct=79.5,
+        duration_minutes=60, market_revenue_aud=143000.0, grid_service="DEMAND_RESPONSE",
+    ),
+    DerDispatchEventRecord(
+        event_id="EVT-015", event_date="2024-04-24", aggregator_id="AGG-004",
+        aggregator_name="Amber Electric", trigger="SCHEDULED",
+        requested_mw=40.0, delivered_mw=36.8, response_accuracy_pct=92.0,
+        duration_minutes=240, market_revenue_aud=29500.0, grid_service="ENERGY",
+    ),
+]
+
+_DERMS_PORTFOLIO: list[DerPortfolioRecord] = [
+    # NSW
+    DerPortfolioRecord(state="NSW", der_type="ROOFTOP_SOLAR", total_units=980000,
+        smart_enabled_units=392000, smart_penetration_pct=40.0, avg_capacity_kw=8.2,
+        total_capacity_mw=8036.0, potential_flexibility_mw=1200.0, enrolled_in_vpp_pct=12.5),
+    DerPortfolioRecord(state="NSW", der_type="HOME_BATTERY", total_units=88000,
+        smart_enabled_units=72000, smart_penetration_pct=81.8, avg_capacity_kw=10.0,
+        total_capacity_mw=880.0, potential_flexibility_mw=620.0, enrolled_in_vpp_pct=28.4),
+    DerPortfolioRecord(state="NSW", der_type="EV_CHARGER", total_units=52000,
+        smart_enabled_units=20800, smart_penetration_pct=40.0, avg_capacity_kw=7.4,
+        total_capacity_mw=384.8, potential_flexibility_mw=180.0, enrolled_in_vpp_pct=8.2),
+    DerPortfolioRecord(state="NSW", der_type="HVAC", total_units=1200000,
+        smart_enabled_units=240000, smart_penetration_pct=20.0, avg_capacity_kw=3.5,
+        total_capacity_mw=4200.0, potential_flexibility_mw=320.0, enrolled_in_vpp_pct=5.4),
+    # VIC
+    DerPortfolioRecord(state="VIC", der_type="ROOFTOP_SOLAR", total_units=740000,
+        smart_enabled_units=266400, smart_penetration_pct=36.0, avg_capacity_kw=7.8,
+        total_capacity_mw=5772.0, potential_flexibility_mw=920.0, enrolled_in_vpp_pct=10.8),
+    DerPortfolioRecord(state="VIC", der_type="HOME_BATTERY", total_units=62000,
+        smart_enabled_units=49600, smart_penetration_pct=80.0, avg_capacity_kw=9.6,
+        total_capacity_mw=595.2, potential_flexibility_mw=430.0, enrolled_in_vpp_pct=25.7),
+    DerPortfolioRecord(state="VIC", der_type="EV_CHARGER", total_units=44000,
+        smart_enabled_units=15400, smart_penetration_pct=35.0, avg_capacity_kw=7.2,
+        total_capacity_mw=316.8, potential_flexibility_mw=145.0, enrolled_in_vpp_pct=7.6),
+    DerPortfolioRecord(state="VIC", der_type="HOT_WATER", total_units=680000,
+        smart_enabled_units=170000, smart_penetration_pct=25.0, avg_capacity_kw=3.6,
+        total_capacity_mw=2448.0, potential_flexibility_mw=290.0, enrolled_in_vpp_pct=9.1),
+    # QLD
+    DerPortfolioRecord(state="QLD", der_type="ROOFTOP_SOLAR", total_units=860000,
+        smart_enabled_units=258000, smart_penetration_pct=30.0, avg_capacity_kw=7.5,
+        total_capacity_mw=6450.0, potential_flexibility_mw=980.0, enrolled_in_vpp_pct=9.2),
+    DerPortfolioRecord(state="QLD", der_type="HOME_BATTERY", total_units=45000,
+        smart_enabled_units=34650, smart_penetration_pct=77.0, avg_capacity_kw=9.8,
+        total_capacity_mw=441.0, potential_flexibility_mw=310.0, enrolled_in_vpp_pct=22.3),
+    DerPortfolioRecord(state="QLD", der_type="EV_CHARGER", total_units=28000,
+        smart_enabled_units=8400, smart_penetration_pct=30.0, avg_capacity_kw=7.0,
+        total_capacity_mw=196.0, potential_flexibility_mw=88.0, enrolled_in_vpp_pct=6.1),
+    DerPortfolioRecord(state="QLD", der_type="HVAC", total_units=1450000,
+        smart_enabled_units=217500, smart_penetration_pct=15.0, avg_capacity_kw=4.2,
+        total_capacity_mw=6090.0, potential_flexibility_mw=410.0, enrolled_in_vpp_pct=4.8),
+    # SA
+    DerPortfolioRecord(state="SA", der_type="ROOFTOP_SOLAR", total_units=380000,
+        smart_enabled_units=190000, smart_penetration_pct=50.0, avg_capacity_kw=8.0,
+        total_capacity_mw=3040.0, potential_flexibility_mw=520.0, enrolled_in_vpp_pct=18.6),
+    DerPortfolioRecord(state="SA", der_type="HOME_BATTERY", total_units=58000,
+        smart_enabled_units=52200, smart_penetration_pct=90.0, avg_capacity_kw=10.5,
+        total_capacity_mw=609.0, potential_flexibility_mw=480.0, enrolled_in_vpp_pct=32.1),
+    DerPortfolioRecord(state="SA", der_type="EV_CHARGER", total_units=18000,
+        smart_enabled_units=6300, smart_penetration_pct=35.0, avg_capacity_kw=7.1,
+        total_capacity_mw=127.8, potential_flexibility_mw=58.0, enrolled_in_vpp_pct=9.4),
+    DerPortfolioRecord(state="SA", der_type="HOT_WATER", total_units=260000,
+        smart_enabled_units=104000, smart_penetration_pct=40.0, avg_capacity_kw=3.8,
+        total_capacity_mw=988.0, potential_flexibility_mw=195.0, enrolled_in_vpp_pct=14.2),
+    # WA
+    DerPortfolioRecord(state="WA", der_type="ROOFTOP_SOLAR", total_units=340000,
+        smart_enabled_units=85000, smart_penetration_pct=25.0, avg_capacity_kw=7.6,
+        total_capacity_mw=2584.0, potential_flexibility_mw=410.0, enrolled_in_vpp_pct=6.8),
+    DerPortfolioRecord(state="WA", der_type="HOME_BATTERY", total_units=32000,
+        smart_enabled_units=22400, smart_penetration_pct=70.0, avg_capacity_kw=9.4,
+        total_capacity_mw=300.8, potential_flexibility_mw=210.0, enrolled_in_vpp_pct=15.9),
+    DerPortfolioRecord(state="WA", der_type="EV_CHARGER", total_units=12000,
+        smart_enabled_units=3600, smart_penetration_pct=30.0, avg_capacity_kw=7.0,
+        total_capacity_mw=84.0, potential_flexibility_mw=38.0, enrolled_in_vpp_pct=5.2),
+    DerPortfolioRecord(state="WA", der_type="HVAC", total_units=820000,
+        smart_enabled_units=123000, smart_penetration_pct=15.0, avg_capacity_kw=4.0,
+        total_capacity_mw=3280.0, potential_flexibility_mw=240.0, enrolled_in_vpp_pct=4.1),
+]
+
+_DERMS_KPIS: list[DerOrchestrationKpiRecord] = [
+    # NSW
+    DerOrchestrationKpiRecord(month="2024-01", state="NSW", total_der_dispatches=42,
+        total_energy_dispatched_mwh=1840.0, total_fcas_provided_mwh=320.0,
+        peak_coincidence_reduction_mw=185.0, revenue_per_device_aud=28.4,
+        customer_satisfaction_score=4.2),
+    DerOrchestrationKpiRecord(month="2024-02", state="NSW", total_der_dispatches=38,
+        total_energy_dispatched_mwh=1620.0, total_fcas_provided_mwh=290.0,
+        peak_coincidence_reduction_mw=172.0, revenue_per_device_aud=24.8,
+        customer_satisfaction_score=4.3),
+    DerOrchestrationKpiRecord(month="2024-03", state="NSW", total_der_dispatches=51,
+        total_energy_dispatched_mwh=2150.0, total_fcas_provided_mwh=410.0,
+        peak_coincidence_reduction_mw=210.0, revenue_per_device_aud=32.1,
+        customer_satisfaction_score=4.1),
+    DerOrchestrationKpiRecord(month="2024-04", state="NSW", total_der_dispatches=35,
+        total_energy_dispatched_mwh=1480.0, total_fcas_provided_mwh=265.0,
+        peak_coincidence_reduction_mw=158.0, revenue_per_device_aud=22.6,
+        customer_satisfaction_score=4.4),
+    # VIC
+    DerOrchestrationKpiRecord(month="2024-01", state="VIC", total_der_dispatches=36,
+        total_energy_dispatched_mwh=1540.0, total_fcas_provided_mwh=280.0,
+        peak_coincidence_reduction_mw=162.0, revenue_per_device_aud=25.7,
+        customer_satisfaction_score=4.0),
+    DerOrchestrationKpiRecord(month="2024-02", state="VIC", total_der_dispatches=31,
+        total_energy_dispatched_mwh=1320.0, total_fcas_provided_mwh=240.0,
+        peak_coincidence_reduction_mw=143.0, revenue_per_device_aud=22.1,
+        customer_satisfaction_score=4.2),
+    DerOrchestrationKpiRecord(month="2024-03", state="VIC", total_der_dispatches=44,
+        total_energy_dispatched_mwh=1860.0, total_fcas_provided_mwh=340.0,
+        peak_coincidence_reduction_mw=189.0, revenue_per_device_aud=29.8,
+        customer_satisfaction_score=4.0),
+    DerOrchestrationKpiRecord(month="2024-04", state="VIC", total_der_dispatches=28,
+        total_energy_dispatched_mwh=1180.0, total_fcas_provided_mwh=215.0,
+        peak_coincidence_reduction_mw=128.0, revenue_per_device_aud=19.4,
+        customer_satisfaction_score=4.3),
+    # QLD
+    DerOrchestrationKpiRecord(month="2024-01", state="QLD", total_der_dispatches=28,
+        total_energy_dispatched_mwh=1180.0, total_fcas_provided_mwh=195.0,
+        peak_coincidence_reduction_mw=122.0, revenue_per_device_aud=18.9,
+        customer_satisfaction_score=3.9),
+    DerOrchestrationKpiRecord(month="2024-02", state="QLD", total_der_dispatches=24,
+        total_energy_dispatched_mwh=1020.0, total_fcas_provided_mwh=172.0,
+        peak_coincidence_reduction_mw=108.0, revenue_per_device_aud=16.4,
+        customer_satisfaction_score=4.0),
+    DerOrchestrationKpiRecord(month="2024-03", state="QLD", total_der_dispatches=34,
+        total_energy_dispatched_mwh=1440.0, total_fcas_provided_mwh=240.0,
+        peak_coincidence_reduction_mw=148.0, revenue_per_device_aud=22.8,
+        customer_satisfaction_score=3.8),
+    DerOrchestrationKpiRecord(month="2024-04", state="QLD", total_der_dispatches=20,
+        total_energy_dispatched_mwh=860.0, total_fcas_provided_mwh=145.0,
+        peak_coincidence_reduction_mw=92.0, revenue_per_device_aud=14.1,
+        customer_satisfaction_score=4.1),
+    # SA
+    DerOrchestrationKpiRecord(month="2024-01", state="SA", total_der_dispatches=22,
+        total_energy_dispatched_mwh=920.0, total_fcas_provided_mwh=310.0,
+        peak_coincidence_reduction_mw=98.0, revenue_per_device_aud=34.2,
+        customer_satisfaction_score=4.5),
+    DerOrchestrationKpiRecord(month="2024-02", state="SA", total_der_dispatches=19,
+        total_energy_dispatched_mwh=800.0, total_fcas_provided_mwh=275.0,
+        peak_coincidence_reduction_mw=86.0, revenue_per_device_aud=29.8,
+        customer_satisfaction_score=4.6),
+    DerOrchestrationKpiRecord(month="2024-03", state="SA", total_der_dispatches=27,
+        total_energy_dispatched_mwh=1140.0, total_fcas_provided_mwh=380.0,
+        peak_coincidence_reduction_mw=120.0, revenue_per_device_aud=41.5,
+        customer_satisfaction_score=4.4),
+    DerOrchestrationKpiRecord(month="2024-04", state="SA", total_der_dispatches=16,
+        total_energy_dispatched_mwh=680.0, total_fcas_provided_mwh=228.0,
+        peak_coincidence_reduction_mw=74.0, revenue_per_device_aud=25.3,
+        customer_satisfaction_score=4.5),
+    # WA
+    DerOrchestrationKpiRecord(month="2024-01", state="WA", total_der_dispatches=14,
+        total_energy_dispatched_mwh=580.0, total_fcas_provided_mwh=95.0,
+        peak_coincidence_reduction_mw=62.0, revenue_per_device_aud=12.8,
+        customer_satisfaction_score=3.8),
+    DerOrchestrationKpiRecord(month="2024-02", state="WA", total_der_dispatches=12,
+        total_energy_dispatched_mwh=496.0, total_fcas_provided_mwh=82.0,
+        peak_coincidence_reduction_mw=54.0, revenue_per_device_aud=10.9,
+        customer_satisfaction_score=3.9),
+    DerOrchestrationKpiRecord(month="2024-03", state="WA", total_der_dispatches=18,
+        total_energy_dispatched_mwh=742.0, total_fcas_provided_mwh=124.0,
+        peak_coincidence_reduction_mw=78.0, revenue_per_device_aud=16.2,
+        customer_satisfaction_score=3.7),
+    DerOrchestrationKpiRecord(month="2024-04", state="WA", total_der_dispatches=10,
+        total_energy_dispatched_mwh=416.0, total_fcas_provided_mwh=70.0,
+        peak_coincidence_reduction_mw=46.0, revenue_per_device_aud=9.4,
+        customer_satisfaction_score=4.0),
+]
+
+
+def _make_derms_orchestration_dashboard() -> DermsOrchestrationDashboard:
+    from datetime import datetime as _dt
+    total_controllable = sum(a.peak_dispatch_mw for a in _DERMS_AGGREGATORS)
+    total_enrolled = sum(a.enrolled_devices for a in _DERMS_AGGREGATORS)
+    avg_accuracy = sum(e.response_accuracy_pct for e in _DERMS_DISPATCH_EVENTS) / len(_DERMS_DISPATCH_EVENTS)
+    peak_flex = sum(p.potential_flexibility_mw for p in _DERMS_PORTFOLIO)
+    return DermsOrchestrationDashboard(
+        timestamp=_dt.utcnow().isoformat() + "Z",
+        aggregators=_DERMS_AGGREGATORS,
+        dispatch_events=_DERMS_DISPATCH_EVENTS,
+        der_portfolio=_DERMS_PORTFOLIO,
+        kpi_records=_DERMS_KPIS,
+        total_controllable_mw=round(total_controllable, 1),
+        total_enrolled_devices=total_enrolled,
+        avg_dispatch_accuracy_pct=round(avg_accuracy, 1),
+        peak_flexibility_mw=round(peak_flex, 1),
+    )
+
+
+_TTL_DERMS = 300
+
+
+@app.get(
+    "/api/derms-orchestration/dashboard",
+    response_model=DermsOrchestrationDashboard,
+    summary="DERMS & DER Orchestration full dashboard",
+    tags=["DermsOrchestration"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_derms_orchestration_dashboard():
+    cache_key = "derms_orchestration:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_derms_orchestration_dashboard()
+    _cache_set(cache_key, result, _TTL_DERMS)
+    return result
+
+
+@app.get(
+    "/api/derms-orchestration/aggregators",
+    response_model=List[DerAggregatorRecord],
+    summary="DER aggregator registry",
+    tags=["DermsOrchestration"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_derms_aggregators():
+    cache_key = "derms_orchestration:aggregators"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    _cache_set(cache_key, _DERMS_AGGREGATORS, _TTL_DERMS)
+    return _DERMS_AGGREGATORS
+
+
+@app.get(
+    "/api/derms-orchestration/dispatch-events",
+    response_model=List[DerDispatchEventRecord],
+    summary="VPP dispatch event log",
+    tags=["DermsOrchestration"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_derms_dispatch_events():
+    cache_key = "derms_orchestration:dispatch_events"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    _cache_set(cache_key, _DERMS_DISPATCH_EVENTS, _TTL_DERMS)
+    return _DERMS_DISPATCH_EVENTS
+
+
+@app.get(
+    "/api/derms-orchestration/der-portfolio",
+    response_model=List[DerPortfolioRecord],
+    summary="DER portfolio by state and type",
+    tags=["DermsOrchestration"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_derms_der_portfolio():
+    cache_key = "derms_orchestration:der_portfolio"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    _cache_set(cache_key, _DERMS_PORTFOLIO, _TTL_DERMS)
+    return _DERMS_PORTFOLIO
+
+
+@app.get(
+    "/api/derms-orchestration/kpis",
+    response_model=List[DerOrchestrationKpiRecord],
+    summary="DERMS orchestration monthly KPIs by state",
+    tags=["DermsOrchestration"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_derms_kpis():
+    cache_key = "derms_orchestration:kpis"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    _cache_set(cache_key, _DERMS_KPIS, _TTL_DERMS)
+    return _DERMS_KPIS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 46c — Electricity Market Design & Reform Analytics
+# ---------------------------------------------------------------------------
+
+class MarketDesignProposalRecord(BaseModel):
+    proposal_id: str
+    title: str
+    proposing_body: str         # AEMC, AEMO, AER, GOVERNMENT, INDUSTRY
+    reform_area: str            # CAPACITY_MECHANISM, PRICING, SETTLEMENT, STORAGE, DER, RETAIL, PLANNING
+    status: str                 # CONSULTATION, DRAFT_DETERMINATION, FINAL_DETERMINATION, IMPLEMENTED, REJECTED
+    lodgement_date: str
+    decision_date: Optional[str]
+    impact_assessment: str      # LOW, MEDIUM, HIGH, TRANSFORMATIVE
+    annual_benefit_m_aud: Optional[float]
+    affected_parties: List[str]
+    summary: str
+
+class CapacityMechanismRecord(BaseModel):
+    mechanism_id: str
+    mechanism_name: str
+    region: str
+    mechanism_type: str         # RELIABILITY_OBLIGATION, CAPACITY_AUCTION, STRATEGIC_RESERVE, CAPACITY_PAYMENT
+    status: str                 # PROPOSED, PILOT, OPERATIONAL
+    target_capacity_mw: float
+    contracted_capacity_mw: float
+    cost_per_mw_aud: float
+    duration_years: int
+    technology_neutral: bool
+    storage_eligible: bool
+
+class SettlementReformRecord(BaseModel):
+    reform_name: str
+    implementation_date: str
+    region: str
+    pre_reform_avg_price: float
+    post_reform_avg_price: float
+    price_volatility_change_pct: float
+    storage_revenue_change_m_aud: float
+    demand_response_change_mw: float
+    winner: str                 # GENERATORS, STORAGE, CONSUMERS, MIXED
+    assessment: str
+
+class MarketDesignComparisonRecord(BaseModel):
+    market: str                 # NEM, WEM, ERCOT, PJM, CAISO, NORDPOOL, GB_NETA
+    country: str
+    market_type: str            # GROSS_POOL, NET_POOL, BILATERAL, HYBRID
+    settlement_interval_min: int
+    capacity_mechanism: str     # NONE, AUCTION, OBLIGATION, PAYMENT
+    price_cap_aud_mwh: float
+    renewables_pct: float
+    avg_price_aud_mwh: float
+    market_size_twh: float
+
+class MarketDesignDashboard(BaseModel):
+    timestamp: str
+    proposals: List[MarketDesignProposalRecord]
+    capacity_mechanisms: List[CapacityMechanismRecord]
+    settlement_reforms: List[SettlementReformRecord]
+    market_comparison: List[MarketDesignComparisonRecord]
+    active_proposals: int
+    implemented_reforms: int
+    total_reform_benefit_b_aud: float
+    capacity_mechanism_pipeline_gw: float
+
+
+def _make_market_design_proposals() -> List[MarketDesignProposalRecord]:
+    return [
+        MarketDesignProposalRecord(
+            proposal_id="MD-001",
+            title="5-Minute Settlement Rule Change",
+            proposing_body="AEMC",
+            reform_area="SETTLEMENT",
+            status="IMPLEMENTED",
+            lodgement_date="2017-08-15",
+            decision_date="2021-10-05",
+            impact_assessment="TRANSFORMATIVE",
+            annual_benefit_m_aud=180.0,
+            affected_parties=["GENERATORS", "STORAGE", "RETAILERS", "CONSUMERS"],
+            summary="Changed NEM settlement interval from 30 minutes to 5 minutes, aligning dispatch and settlement. "
+                    "Enables fast-response resources like batteries to be remunerated accurately for their dispatch.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-002",
+            title="Capacity Investment Scheme (CIS) Design",
+            proposing_body="GOVERNMENT",
+            reform_area="CAPACITY_MECHANISM",
+            status="IMPLEMENTED",
+            lodgement_date="2023-02-01",
+            decision_date="2023-06-30",
+            impact_assessment="TRANSFORMATIVE",
+            annual_benefit_m_aud=620.0,
+            affected_parties=["GENERATORS", "STORAGE", "CONSUMERS", "NETWORKS"],
+            summary="Federal government announced the Capacity Investment Scheme to underwrite 32 GW of new "
+                    "renewable generation and 9 GW of storage through competitive tender rounds.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-003",
+            title="Storage and System Services Rule Change",
+            proposing_body="AEMC",
+            reform_area="STORAGE",
+            status="IMPLEMENTED",
+            lodgement_date="2020-11-10",
+            decision_date="2021-11-25",
+            impact_assessment="HIGH",
+            annual_benefit_m_aud=95.0,
+            affected_parties=["STORAGE", "NETWORKS", "CONSUMERS"],
+            summary="Created a regulatory framework enabling batteries to be registered as both generators "
+                    "and loads, providing clearer market signals and removing barriers to storage dispatch.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-004",
+            title="Integrating Energy Storage Systems Rule Change",
+            proposing_body="AEMC",
+            reform_area="STORAGE",
+            status="FINAL_DETERMINATION",
+            lodgement_date="2019-06-20",
+            decision_date="2021-09-16",
+            impact_assessment="HIGH",
+            annual_benefit_m_aud=110.0,
+            affected_parties=["STORAGE", "GENERATORS", "NETWORKS"],
+            summary="Expanded the market framework to allow energy storage to participate across multiple "
+                    "market segments simultaneously, including FCAS, energy and network services.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-005",
+            title="DER Integration Strategy — Virtual Power Plants",
+            proposing_body="AEMO",
+            reform_area="DER",
+            status="IMPLEMENTED",
+            lodgement_date="2020-03-01",
+            decision_date="2022-06-01",
+            impact_assessment="HIGH",
+            annual_benefit_m_aud=240.0,
+            affected_parties=["CONSUMERS", "RETAILERS", "NETWORKS", "STORAGE"],
+            summary="Comprehensive framework for integrating distributed energy resources including rooftop "
+                    "solar, home batteries and EV charging into the NEM dispatch and market settlement.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-006",
+            title="Retail Market Reform — Default Market Offer",
+            proposing_body="AER",
+            reform_area="RETAIL",
+            status="IMPLEMENTED",
+            lodgement_date="2018-12-14",
+            decision_date="2019-05-01",
+            impact_assessment="HIGH",
+            annual_benefit_m_aud=448.0,
+            affected_parties=["CONSUMERS", "RETAILERS"],
+            summary="AER introduced the Default Market Offer price cap to protect consumers from excessive "
+                    "standing offer tariffs, providing a safety net while maintaining competitive retail market.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-007",
+            title="ISP — Actionable Projects Funding Framework",
+            proposing_body="AEMO",
+            reform_area="PLANNING",
+            status="DRAFT_DETERMINATION",
+            lodgement_date="2023-08-01",
+            decision_date=None,
+            impact_assessment="TRANSFORMATIVE",
+            annual_benefit_m_aud=None,
+            affected_parties=["NETWORKS", "GENERATORS", "CONSUMERS"],
+            summary="Framework to translate ISP actionable project determinations into regulated network "
+                    "investment decisions, clarifying cost allocation and investment trigger mechanisms.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-008",
+            title="Intraday Auction Proposal for Renewable Integration",
+            proposing_body="INDUSTRY",
+            reform_area="PRICING",
+            status="CONSULTATION",
+            lodgement_date="2024-02-20",
+            decision_date=None,
+            impact_assessment="MEDIUM",
+            annual_benefit_m_aud=55.0,
+            affected_parties=["GENERATORS", "STORAGE", "RETAILERS"],
+            summary="Industry proposal to introduce intraday forward auction markets to improve price "
+                    "discovery and hedging opportunities for variable renewable energy participants.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-009",
+            title="Minimum Demand Management Rule Change",
+            proposing_body="AEMC",
+            reform_area="PRICING",
+            status="FINAL_DETERMINATION",
+            lodgement_date="2022-10-12",
+            decision_date="2024-01-18",
+            impact_assessment="MEDIUM",
+            annual_benefit_m_aud=38.0,
+            affected_parties=["GENERATORS", "NETWORKS", "AEMO"],
+            summary="Addresses system security risks during periods of minimum demand by clarifying "
+                    "AEMO's powers to direct generators and manage system strength concerns.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-010",
+            title="Demand Response Mechanism — Direct Load Control",
+            proposing_body="AEMC",
+            reform_area="RETAIL",
+            status="IMPLEMENTED",
+            lodgement_date="2019-04-05",
+            decision_date="2021-06-24",
+            impact_assessment="MEDIUM",
+            annual_benefit_m_aud=73.0,
+            affected_parties=["CONSUMERS", "RETAILERS", "GENERATORS"],
+            summary="Introduced a mechanism allowing large consumers to bid demand reductions into the "
+                    "NEM spot market as a competitive alternative to generation, improving price outcomes.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-011",
+            title="Whole of System Plan — Network Investment Triggers",
+            proposing_body="AER",
+            reform_area="PLANNING",
+            status="CONSULTATION",
+            lodgement_date="2024-05-10",
+            decision_date=None,
+            impact_assessment="HIGH",
+            annual_benefit_m_aud=None,
+            affected_parties=["NETWORKS", "GENERATORS", "CONSUMERS", "AEMO"],
+            summary="AER consultation on reforming the regulatory investment test framework to better "
+                    "account for non-network alternatives and system-wide cost benefit analysis.",
+        ),
+        MarketDesignProposalRecord(
+            proposal_id="MD-012",
+            title="NEM Pricing Rule Review — Price Cap Settings",
+            proposing_body="AEMC",
+            reform_area="PRICING",
+            status="REJECTED",
+            lodgement_date="2021-07-01",
+            decision_date="2022-09-15",
+            impact_assessment="MEDIUM",
+            annual_benefit_m_aud=None,
+            affected_parties=["GENERATORS", "RETAILERS", "CONSUMERS"],
+            summary="Proposal to permanently reduce the Market Price Cap from $15,500/MWh to $5,000/MWh. "
+                    "AEMC rejected citing need to preserve investment signals for dispatchable generation.",
+        ),
+    ]
+
+
+def _make_capacity_mechanisms() -> List[CapacityMechanismRecord]:
+    return [
+        CapacityMechanismRecord(
+            mechanism_id="CM-001",
+            mechanism_name="NSW Retailer Reliability Obligation",
+            region="NSW1",
+            mechanism_type="RELIABILITY_OBLIGATION",
+            status="OPERATIONAL",
+            target_capacity_mw=1200.0,
+            contracted_capacity_mw=980.0,
+            cost_per_mw_aud=85000.0,
+            duration_years=3,
+            technology_neutral=True,
+            storage_eligible=True,
+        ),
+        CapacityMechanismRecord(
+            mechanism_id="CM-002",
+            mechanism_name="QLD Strategic Reserve Arrangement",
+            region="QLD1",
+            mechanism_type="STRATEGIC_RESERVE",
+            status="OPERATIONAL",
+            target_capacity_mw=600.0,
+            contracted_capacity_mw=600.0,
+            cost_per_mw_aud=72000.0,
+            duration_years=2,
+            technology_neutral=False,
+            storage_eligible=False,
+        ),
+        CapacityMechanismRecord(
+            mechanism_id="CM-003",
+            mechanism_name="SA Capacity Auction Pilot",
+            region="SA1",
+            mechanism_type="CAPACITY_AUCTION",
+            status="PILOT",
+            target_capacity_mw=400.0,
+            contracted_capacity_mw=220.0,
+            cost_per_mw_aud=68000.0,
+            duration_years=1,
+            technology_neutral=True,
+            storage_eligible=True,
+        ),
+        CapacityMechanismRecord(
+            mechanism_id="CM-004",
+            mechanism_name="VIC Capacity Payment Review",
+            region="VIC1",
+            mechanism_type="CAPACITY_PAYMENT",
+            status="PROPOSED",
+            target_capacity_mw=800.0,
+            contracted_capacity_mw=0.0,
+            cost_per_mw_aud=55000.0,
+            duration_years=5,
+            technology_neutral=True,
+            storage_eligible=True,
+        ),
+        CapacityMechanismRecord(
+            mechanism_id="CM-005",
+            mechanism_name="National Capacity Mechanism Proposal",
+            region="NEM",
+            mechanism_type="CAPACITY_AUCTION",
+            status="PROPOSED",
+            target_capacity_mw=5000.0,
+            contracted_capacity_mw=0.0,
+            cost_per_mw_aud=78000.0,
+            duration_years=10,
+            technology_neutral=True,
+            storage_eligible=True,
+        ),
+        CapacityMechanismRecord(
+            mechanism_id="CM-006",
+            mechanism_name="WEM Capacity Credit Mechanism",
+            region="WEM",
+            mechanism_type="RELIABILITY_OBLIGATION",
+            status="OPERATIONAL",
+            target_capacity_mw=2200.0,
+            contracted_capacity_mw=2150.0,
+            cost_per_mw_aud=92000.0,
+            duration_years=4,
+            technology_neutral=True,
+            storage_eligible=True,
+        ),
+    ]
+
+
+def _make_settlement_reforms() -> List[SettlementReformRecord]:
+    return [
+        SettlementReformRecord(
+            reform_name="5-Minute Settlement — NEM Implementation",
+            implementation_date="2021-10-05",
+            region="NEM",
+            pre_reform_avg_price=82.4,
+            post_reform_avg_price=74.8,
+            price_volatility_change_pct=-12.3,
+            storage_revenue_change_m_aud=180.0,
+            demand_response_change_mw=340.0,
+            winner="STORAGE",
+            assessment="Successfully reduced arbitrage opportunities for slow-ramping generators. "
+                        "Battery storage revenue improved substantially as dispatch aligned with settlement. "
+                        "Average spot prices fell as fast-response resources competed more effectively.",
+        ),
+        SettlementReformRecord(
+            reform_name="WEM Real-Time Market Reforms 2023",
+            implementation_date="2023-10-01",
+            region="WEM",
+            pre_reform_avg_price=118.6,
+            post_reform_avg_price=98.2,
+            price_volatility_change_pct=-18.7,
+            storage_revenue_change_m_aud=94.0,
+            demand_response_change_mw=210.0,
+            winner="MIXED",
+            assessment="WEM introduced real-time balancing market replacing the balancing mechanism. "
+                        "Both consumers and storage benefited from improved price signals, "
+                        "though some peaking generators saw revenue reduction.",
+        ),
+        SettlementReformRecord(
+            reform_name="Intraday Settlement Auction Proposal",
+            implementation_date="2026-07-01",
+            region="NEM",
+            pre_reform_avg_price=88.3,
+            post_reform_avg_price=82.1,
+            price_volatility_change_pct=-7.2,
+            storage_revenue_change_m_aud=55.0,
+            demand_response_change_mw=180.0,
+            winner="MIXED",
+            assessment="Proposed introduction of 4-hour ahead intraday auction to improve renewable "
+                        "integration and provide additional hedging opportunities. Currently in rule "
+                        "change proposal stage with AEMC consultation underway.",
+        ),
+        SettlementReformRecord(
+            reform_name="Real-Time Pricing Pilot — SA Households",
+            implementation_date="2022-11-01",
+            region="SA1",
+            pre_reform_avg_price=112.5,
+            post_reform_avg_price=97.8,
+            price_volatility_change_pct=8.4,
+            storage_revenue_change_m_aud=22.0,
+            demand_response_change_mw=85.0,
+            winner="CONSUMERS",
+            assessment="Trial of real-time pricing tariffs for 5,000 SA households with smart meters. "
+                        "Participants reduced peak demand significantly, but price volatility exposure "
+                        "increased. Consumer bill savings averaged $420 per year for active participants.",
+        ),
+        SettlementReformRecord(
+            reform_name="Demand Response Mechanism — NEM Launch",
+            implementation_date="2021-10-24",
+            region="NEM",
+            pre_reform_avg_price=91.2,
+            post_reform_avg_price=88.6,
+            price_volatility_change_pct=-3.1,
+            storage_revenue_change_m_aud=12.0,
+            demand_response_change_mw=420.0,
+            winner="CONSUMERS",
+            assessment="Launch of the NEM Demand Response Mechanism allowing large consumers to bid "
+                        "load reductions into the spot market. Uptake was modest initially but growing "
+                        "as industrial consumers build capability and market awareness improves.",
+        ),
+    ]
+
+
+def _make_market_design_comparison() -> List[MarketDesignComparisonRecord]:
+    return [
+        MarketDesignComparisonRecord(
+            market="NEM",
+            country="Australia",
+            market_type="GROSS_POOL",
+            settlement_interval_min=5,
+            capacity_mechanism="OBLIGATION",
+            price_cap_aud_mwh=16600.0,
+            renewables_pct=38.2,
+            avg_price_aud_mwh=88.4,
+            market_size_twh=198.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="WEM",
+            country="Australia",
+            market_type="GROSS_POOL",
+            settlement_interval_min=30,
+            capacity_mechanism="OBLIGATION",
+            price_cap_aud_mwh=1000.0,
+            renewables_pct=42.1,
+            avg_price_aud_mwh=98.2,
+            market_size_twh=18.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="ERCOT",
+            country="United States",
+            market_type="GROSS_POOL",
+            settlement_interval_min=5,
+            capacity_mechanism="NONE",
+            price_cap_aud_mwh=14000.0,
+            renewables_pct=33.7,
+            avg_price_aud_mwh=62.4,
+            market_size_twh=440.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="PJM",
+            country="United States",
+            market_type="GROSS_POOL",
+            settlement_interval_min=5,
+            capacity_mechanism="AUCTION",
+            price_cap_aud_mwh=2800.0,
+            renewables_pct=22.8,
+            avg_price_aud_mwh=55.6,
+            market_size_twh=840.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="CAISO",
+            country="United States",
+            market_type="GROSS_POOL",
+            settlement_interval_min=5,
+            capacity_mechanism="OBLIGATION",
+            price_cap_aud_mwh=2200.0,
+            renewables_pct=55.3,
+            avg_price_aud_mwh=78.2,
+            market_size_twh=290.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="NORDPOOL",
+            country="Norway / Sweden / Denmark / Finland",
+            market_type="HYBRID",
+            settlement_interval_min=60,
+            capacity_mechanism="NONE",
+            price_cap_aud_mwh=4800.0,
+            renewables_pct=91.4,
+            avg_price_aud_mwh=58.8,
+            market_size_twh=380.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="GB_NETA",
+            country="United Kingdom",
+            market_type="NET_POOL",
+            settlement_interval_min=30,
+            capacity_mechanism="AUCTION",
+            price_cap_aud_mwh=6500.0,
+            renewables_pct=48.6,
+            avg_price_aud_mwh=134.6,
+            market_size_twh=305.0,
+        ),
+        MarketDesignComparisonRecord(
+            market="SINGAPORE",
+            country="Singapore",
+            market_type="GROSS_POOL",
+            settlement_interval_min=30,
+            capacity_mechanism="PAYMENT",
+            price_cap_aud_mwh=2400.0,
+            renewables_pct=4.8,
+            avg_price_aud_mwh=246.8,
+            market_size_twh=55.0,
+        ),
+    ]
+
+
+def _make_market_design_dashboard() -> MarketDesignDashboard:
+    proposals = _make_market_design_proposals()
+    mechanisms = _make_capacity_mechanisms()
+    reforms = _make_settlement_reforms()
+    comparison = _make_market_design_comparison()
+
+    active = sum(1 for p in proposals if p.status in ("CONSULTATION", "DRAFT_DETERMINATION", "FINAL_DETERMINATION"))
+    implemented = sum(1 for p in proposals if p.status == "IMPLEMENTED")
+    total_benefit = sum(p.annual_benefit_m_aud for p in proposals if p.annual_benefit_m_aud) / 1000.0
+    pipeline_gw = sum(m.target_capacity_mw for m in mechanisms if m.status in ("PROPOSED", "PILOT")) / 1000.0
+
+    return MarketDesignDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        proposals=proposals,
+        capacity_mechanisms=mechanisms,
+        settlement_reforms=reforms,
+        market_comparison=comparison,
+        active_proposals=active,
+        implemented_reforms=implemented,
+        total_reform_benefit_b_aud=round(total_benefit, 2),
+        capacity_mechanism_pipeline_gw=round(pipeline_gw, 2),
+    )
+
+
+_TTL_MARKET_DESIGN = 600
+
+
+@app.get(
+    "/api/market-design/dashboard",
+    response_model=MarketDesignDashboard,
+    summary="Electricity market design & reform dashboard",
+    tags=["MarketDesign"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_design_dashboard():
+    cache_key = "market_design:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_market_design_dashboard()
+    _cache_set(cache_key, result, _TTL_MARKET_DESIGN)
+    return result
+
+
+@app.get(
+    "/api/market-design/proposals",
+    response_model=List[MarketDesignProposalRecord],
+    summary="NEM reform proposals list",
+    tags=["MarketDesign"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_design_proposals():
+    cache_key = "market_design:proposals"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_market_design_proposals()
+    _cache_set(cache_key, result, _TTL_MARKET_DESIGN)
+    return result
+
+
+@app.get(
+    "/api/market-design/capacity-mechanisms",
+    response_model=List[CapacityMechanismRecord],
+    summary="Capacity mechanism designs",
+    tags=["MarketDesign"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_design_capacity_mechanisms():
+    cache_key = "market_design:capacity_mechanisms"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_capacity_mechanisms()
+    _cache_set(cache_key, result, _TTL_MARKET_DESIGN)
+    return result
+
+
+@app.get(
+    "/api/market-design/settlement-reforms",
+    response_model=List[SettlementReformRecord],
+    summary="Settlement reform impact records",
+    tags=["MarketDesign"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_design_settlement_reforms():
+    cache_key = "market_design:settlement_reforms"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_settlement_reforms()
+    _cache_set(cache_key, result, _TTL_MARKET_DESIGN)
+    return result
+
+
+@app.get(
+    "/api/market-design/market-comparison",
+    response_model=List[MarketDesignComparisonRecord],
+    summary="Global electricity market design comparison",
+    tags=["MarketDesign"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_design_market_comparison():
+    cache_key = "market_design:market_comparison"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_market_design_comparison()
+    _cache_set(cache_key, result, _TTL_MARKET_DESIGN)
+    return result

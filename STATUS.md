@@ -889,3 +889,66 @@
 - api methods: getRecMarketDashboard, getRecMarketLgcSpot, getRecMarketLgcCreation, getRecMarketSurplusDeficit, getRecMarketStc added to api object in client.ts
 - App.tsx: RecMarket imported, Award imported from lucide-react, /rec-market route added, "REC Market (LGC/STC)" nav item (Award icon)
 - 5 TestRecMarketEndpoints tests appended to tests/test_backend.py
+
+## Sprint 46a — Transmission Congestion & Nodal Pricing Analytics [COMPLETE]
+- TransmissionCongestion.tsx: Network icon header, title "Transmission Congestion & Nodal Pricing Analytics", subtitle about NEM constraint binding, LMP decomposition, congestion rent
+  - 4 KPI cards: Total Congestion Rent ($M AUD, all interconnectors 2024), Most Constrained Interconnector, Avg Binding %, Peak Shadow Price ($/MWh)
+  - Congestion Heatmap chart: Recharts ComposedChart — grouped bars by interconnector (VIC1-NSW1 blue, QLD1-NSW1 green, SA1-VIC1 amber, TAS1-VIC1 cyan) for utilisation % + pink line overlay for avg price separation (right axis); 6 months Jan–Jun 2024
+  - Constraint Binding table: sorted descending by binding %; interconnector badge (colored), direction badge (IMPORT blue, EXPORT purple), binding hours, binding % (red/amber/green threshold coloring), avg/max shadow prices, congestion rent ($M), primary cause badge (THERMAL red, STABILITY orange, VOLTAGE amber, NETWORK_OUTAGE gray)
+  - Nodal LMP Decomposition stacked bar chart: Energy (blue), Loss (green), Congestion (amber) components per node; 12 nodes across NSW/VIC/QLD/SA/TAS
+  - Congestion Rent Distribution table: per interconnector-quarter with total rent, SREC allocated, TNSP retained, hedging value; total row in footer
+  - Interconnector color legend panel at bottom
+- Backend Pydantic models: ConstraintBindingRecord, NodalPriceRecord, CongestionRentRecord, CongestionHeatmapRecord, TransmissionCongestionDashboard
+- Endpoints: /api/transmission-congestion/dashboard, /constraints, /nodal-prices, /congestion-rent, /heatmap (all with verify_api_key)
+  - 10 constraint binding records: VIC1-NSW1/QLD1-NSW1/SA1-VIC1/TAS1-VIC1 (IMPORT+EXPORT directions); binding 5–39%; avg shadow prices $42–$487/MWh; max shadow prices $2.1K–$15.1K; congestion rent $9.7M–$198.4M; causes THERMAL/STABILITY/VOLTAGE/NETWORK_OUTAGE
+  - 12 nodal price records: Eraring/Sydney CBD (NSW), Loy Yang/Melbourne (VIC), Tarong/Brisbane (QLD), Torrens/Adelaide (SA), Basslink (TAS), TransGrid North (NSW), Moorabool Wind (VIC), Western Downs Solar (QLD); LMP $44.7–$134.2/MWh; congestion -$46.8 to +$38.4/MWh
+  - 16 congestion rent records: 4 interconnectors × 4 quarters 2024; total rent $19.8M–$67.4M per IC-quarter; SREC/TNSP/hedging components
+  - 24 heatmap records: 4 interconnectors × 6 months (Jan–Jun 2024); utilisation 45–95%; binding events 98–412; price separation $8.2–$78.6/MWh
+- Dashboard KPIs: total_congestion_rent_m_aud (sum across all 16 rent records), most_constrained_interconnector=SA1-VIC1 (38.9% binding), avg_binding_pct across 10 constraints, peak_shadow_price=$15,100/MWh
+- Cache TTL: 600s (10 minutes)
+- TypeScript interfaces: ConstraintBindingRecord, NodalPriceRecord, CongestionRentRecord, CongestionHeatmapRecord, TransmissionCongestionDashboard added to client.ts
+- api methods: getTransmissionCongestionDashboard, getTransmissionCongestionConstraints, getTransmissionCongestionNodalPrices, getTransmissionCongestionRent, getTransmissionCongestionHeatmap added to api object in client.ts
+- App.tsx: TransmissionCongestion imported; Network icon already in lucide-react imports; /transmission-congestion route added; "Transmission Congestion" nav item (Network icon) added before Settings
+- 5 TestTransmissionCongestionEndpoints tests appended to tests/test_backend.py
+
+## Sprint 46c — Electricity Market Design & Reform Tracker [COMPLETE]
+- MarketDesignReform.tsx: BookOpen icon header, title "Electricity Market Design & Reform Tracker", subtitle about NEM reform pipeline, capacity mechanisms, and global market benchmarking
+  - 4 KPI cards: Active Reform Proposals (3), Implemented Reforms (6), Total Reform Benefit ($1.9B AUD), Capacity Mechanism Pipeline (5.4 GW)
+  - Proposals by Reform Area bar chart: Recharts BarChart showing count per area (indigo bars); 7 areas represented
+  - Capacity Mechanisms Target vs Contracted bar chart: Recharts grouped BarChart; amber=target, green=contracted; per region
+  - Reform Proposals table: filterable by status dropdown; title+summary excerpt, proposing body, reform area badge (CAPACITY_MECHANISM red, PRICING amber, SETTLEMENT blue, STORAGE cyan, DER green, RETAIL purple, PLANNING gray), status badge (CONSULTATION blue, DRAFT_DETERMINATION amber, FINAL_DETERMINATION orange, IMPLEMENTED green, REJECTED red), impact badge (LOW/MEDIUM/HIGH/TRANSFORMATIVE), decision date, annual benefit ($M)
+  - Capacity Mechanisms table: mechanism name, region, type badge (RELIABILITY_OBLIGATION red, CAPACITY_AUCTION blue, STRATEGIC_RESERVE amber, CAPACITY_PAYMENT purple), status badge, target/contracted MW with progress bar + fill %, cost per MW ($AUD), storage eligible checkmark/x
+  - Settlement Reforms section: grid of cards (1-3 col responsive); each card shows pre/post reform avg price with delta, volatility change %, storage revenue impact, demand response change, winner badge (GENERATORS red, STORAGE blue, CONSUMERS green, MIXED amber), assessment excerpt
+  - Global Market Comparison table: NEM row highlighted (indigo background + HOME badge); 8 markets (NEM/WEM/ERCOT/PJM/CAISO/NORDPOOL/GB_NETA/SINGAPORE); market type badge, settlement interval, capacity mechanism type badge, price cap, renewables % (green if >=50%), avg price, market size TWh
+- Backend Pydantic models: MarketDesignProposalRecord, CapacityMechanismRecord, SettlementReformRecord, MarketDesignComparisonRecord, MarketDesignDashboard
+- Endpoints: /api/market-design/dashboard, /proposals, /capacity-mechanisms, /settlement-reforms, /market-comparison (all with verify_api_key)
+  - 12 reform proposals: 5-minute settlement (IMPLEMENTED), Capacity Investment Scheme (IMPLEMENTED), Storage registration (IMPLEMENTED), Integrating ESS (FINAL_DETERMINATION), DER integration (IMPLEMENTED), Default Market Offer (IMPLEMENTED), ISP actionable projects (DRAFT_DETERMINATION), Intraday auction proposal (CONSULTATION), Minimum demand management (FINAL_DETERMINATION), Demand response mechanism (IMPLEMENTED), Whole of System Plan (CONSULTATION), NEM price cap review (REJECTED)
+  - 6 capacity mechanism records: NSW Retailer Reliability Obligation (OPERATIONAL), QLD Strategic Reserve (OPERATIONAL), SA Capacity Auction Pilot (PILOT), VIC Capacity Payment Review (PROPOSED), National Capacity Mechanism Proposal (PROPOSED), WEM Capacity Credit Mechanism (OPERATIONAL)
+  - 5 settlement reform records: 5-minute settlement NEM 2021 (STORAGE winner), WEM Real-Time 2023 (MIXED), Intraday Auction proposal 2026 (MIXED), SA Real-Time Pricing Pilot 2022 (CONSUMERS), NEM Demand Response 2021 (CONSUMERS)
+  - 8 market comparison records: NEM (GROSS_POOL, 5-min, OBLIGATION, 38.2% RE), WEM (GROSS_POOL, 30-min), ERCOT (GROSS_POOL, 5-min, NONE), PJM (GROSS_POOL, 5-min, AUCTION), CAISO (GROSS_POOL, 5-min, OBLIGATION), NORDPOOL (HYBRID, 60-min, NONE, 91.4% RE), GB_NETA (NET_POOL, 30-min, AUCTION), SINGAPORE (GROSS_POOL, 30-min, PAYMENT)
+- Dashboard KPIs: active_proposals=3 (CONSULTATION+DRAFT+FINAL), implemented_reforms=6, total_reform_benefit_b_aud (sum of annual benefits / 1000), capacity_mechanism_pipeline_gw (PROPOSED+PILOT target MW / 1000)
+- Cache TTL: 600s (10 minutes)
+- TypeScript interfaces: MarketDesignProposalRecord, CapacityMechanismRecord, SettlementReformRecord, MarketDesignComparisonRecord, MarketDesignDashboard added to client.ts
+- api methods: getMarketDesignDashboard, getMarketDesignProposals, getMarketDesignCapacityMechanisms, getMarketDesignSettlementReforms, getMarketDesignMarketComparison added to api object in client.ts
+- App.tsx: MarketDesignReform imported; BookOpen added to lucide-react imports; /market-design route added; "Market Design" nav item (BookOpen icon) added before Settings
+- 5 TestMarketDesignEndpoints tests appended to tests/test_backend.py
+
+## Sprint 46b — DERMS & DER Orchestration Analytics [COMPLETE]
+- DermsOrchestration.tsx: Layers icon header, title "DERMS & DER Orchestration Analytics", subtitle about VPP dispatch, grid flexibility services and behind-the-meter resource orchestration
+  - 4 KPI cards: Total Controllable Capacity (MW), Total Enrolled Devices, Avg Dispatch Accuracy %, Peak Flexibility (MW)
+  - DER Portfolio stacked bar chart: potential_flexibility_mw per DER type (ROOFTOP_SOLAR amber, HOME_BATTERY blue, EV_CHARGER green, HVAC purple, HOT_WATER cyan) grouped by state (NSW/VIC/QLD/SA/WA)
+  - Monthly KPI line chart: peak_coincidence_reduction_mw by state (NSW/VIC/QLD/SA/WA) over Jan–Apr 2024
+  - Aggregator Registry table: name, state, DER types, enrolled/controllable devices, peak dispatch MW, market registration badge (VPP green, FCAS amber, DEMAND_RESPONSE blue, ALL purple), response time, dispatch success % (color-coded)
+  - VPP Dispatch Event Log table: date, aggregator, trigger badge (PRICE_SPIKE red, GRID_FREQUENCY orange, OPERATOR_INSTRUCTION blue, SCHEDULED gray), requested/delivered MW, accuracy % (color-coded), duration, revenue ($AUD), grid service badge (ENERGY blue, FCAS_R6/R60 amber, DEMAND_RESPONSE green)
+- Backend Pydantic models: DerAggregatorRecord, DerDispatchEventRecord, DerPortfolioRecord, DerOrchestrationKpiRecord, DermsOrchestrationDashboard
+- Endpoints: /api/derms-orchestration/dashboard, /aggregators, /dispatch-events, /der-portfolio, /kpis (all with verify_api_key)
+  - 8 aggregator records: AGL VPP (NSW), Origin VPP (VIC), Tesla Energy Plan (SA), Amber Electric (QLD), Reposit Power (NSW), EnergyAustralia Smart Home (VIC), Simply Energy DER (SA), Ausgrid DER Program (NSW); enrolled 5100–48500 devices; dispatch success 87.6–98.4%
+  - 15 dispatch events: Jan–Apr 2024; all 4 trigger types; accuracy 79.5–99.7%; all grid service types; revenue $19.8K–$305K
+  - 20 DER portfolio records: 4 DER types × 5 states (NSW/VIC/QLD/SA/WA); smart penetration 15–90%; VPP enrolment 4.1–32.1%
+  - 20 KPI records: 5 states × 4 months Jan–Apr 2024; dispatches 10–51/month; peak coincidence reduction 46–210 MW
+- Dashboard KPIs: total_controllable_mw (sum peak_dispatch_mw), total_enrolled_devices (sum enrolled_devices), avg_dispatch_accuracy_pct (mean across 15 events), peak_flexibility_mw (sum potential_flexibility_mw across portfolio)
+- Cache TTL: 300s (5 minutes)
+- TypeScript interfaces: DerAggregatorRecord, DerDispatchEventRecord, DerPortfolioRecord, DerOrchestrationKpiRecord, DermsOrchestrationDashboard added to client.ts
+- api methods: getDermsOrchestrationDashboard, getDermsOrchestrationAggregators, getDermsOrchestrationDispatchEvents, getDermsOrchestrationDerPortfolio, getDermsOrchestrationKpis added to api object in client.ts
+- App.tsx: DermsOrchestration imported; Layers icon added to lucide-react imports; /derms-orchestration route added; "DERMS & VPP" nav item (Layers icon) added before Settings
+- 5 TestDermsOrchestrationEndpoints tests appended to tests/test_backend.py
