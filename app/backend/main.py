@@ -1,5 +1,5 @@
 # ============================================================
-# AUS Energy Copilot — FastAPI Backend
+# AUS Energy Copilot — FastAPI Backend (production-ready)
 # ============================================================
 # Entry point: app/backend/main.py
 # Run locally:  uvicorn main:app --reload --port 8000
@@ -11,24 +11,132 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
-from typing import AsyncGenerator, List, Optional
+import time
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import anthropic
-from databricks import sql as dbsql
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Logging
+# Structured JSON logging  (mirrors nemweb_downloader._JsonFormatter)
 # ---------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+class _JsonFormatter(logging.Formatter):
+    _SKIP = frozenset({
+        "msg", "args", "levelname", "levelno", "pathname", "filename",
+        "module", "exc_info", "exc_text", "stack_info", "lineno",
+        "funcName", "created", "msecs", "relativeCreated", "thread",
+        "threadName", "processName", "process", "message", "name", "taskName",
+    })
+
+    def format(self, record: logging.LogRecord) -> str:
+        obj: Dict[str, Any] = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level":     record.levelname,
+            "message":   record.getMessage(),
+            "module":    record.module,
+        }
+        if record.exc_info:
+            obj["exception"] = self.formatException(record.exc_info)
+        for k, v in record.__dict__.items():
+            if k not in self._SKIP:
+                obj[k] = v
+        return json.dumps(obj, default=str)
+
+
+def _configure_logging(level: str = "INFO") -> logging.Logger:
+    lg = logging.getLogger("energy_copilot")
+    if not lg.handlers:
+        h = logging.StreamHandler()
+        h.setFormatter(_JsonFormatter())
+        lg.addHandler(h)
+    lg.setLevel(getattr(logging, level.upper(), logging.INFO))
+    lg.propagate = False
+    return lg
+
+
+logger = _configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+
+# ---------------------------------------------------------------------------
+# DB clients (imported after logging is configured)
+# ---------------------------------------------------------------------------
+from db import DatabricksSQLClient, LakebaseClient  # noqa: E402
+
+_db:       DatabricksSQLClient = DatabricksSQLClient()
+_lakebase: LakebaseClient      = LakebaseClient()
+
+# ---------------------------------------------------------------------------
+# Mock mode flag
+# ---------------------------------------------------------------------------
+MOCK_MODE: bool = _db.mock_mode
+
+# ---------------------------------------------------------------------------
+# Environment / config
+# ---------------------------------------------------------------------------
+DATABRICKS_CATALOG: str = os.getenv("DATABRICKS_CATALOG", "energy_copilot")
+ANTHROPIC_API_KEY:  str = os.getenv("ANTHROPIC_API_KEY", "")
+CLAUDE_MODEL             = "claude-sonnet-4-5"
+
+ALLOW_ORIGINS: List[str] = os.getenv("ALLOW_ORIGINS", "*").split(",")
+
+# ---------------------------------------------------------------------------
+# Simple in-memory TTL cache
+# ---------------------------------------------------------------------------
+# Structure: { cache_key: {"data": ..., "expires_at": float} }
+_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def _cache_get(key: str) -> Optional[Any]:
+    entry = _cache.get(key)
+    if entry is None:
+        return None
+    if time.monotonic() > entry["expires_at"]:
+        del _cache[key]
+        return None
+    return entry["data"]
+
+
+def _cache_set(key: str, data: Any, ttl_seconds: float) -> None:
+    _cache[key] = {"data": data, "expires_at": time.monotonic() + ttl_seconds}
+
+
+# Cache TTLs (seconds)
+_TTL_LATEST_PRICES  = 10
+_TTL_GENERATION     = 30
+_TTL_INTERCONNECTORS = 30
+_TTL_FORECASTS      = 60
+
+# ---------------------------------------------------------------------------
+# FastAPI lifespan — startup health check
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Run startup checks; yield; run shutdown cleanup."""
+    if MOCK_MODE:
+        logger.info("startup_check", extra={"mock_mode": True, "databricks": "skipped", "lakebase": "skipped"})
+    else:
+        db_ok = await asyncio.to_thread(_db.health_check)
+        lb_ok = await asyncio.to_thread(_lakebase.health_check)
+        logger.info(
+            "startup_check",
+            extra={"databricks_healthy": db_ok, "lakebase_healthy": lb_ok},
+        )
+        if not db_ok:
+            logger.warning("Databricks SQL Warehouse health check failed at startup.")
+    yield
+    # Shutdown: nothing to clean up (connections are per-request)
+
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -37,118 +145,164 @@ app = FastAPI(
     title="AUS Energy Copilot API",
     description="Backend API for the Australian NEM Energy Copilot dashboard",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",   # Create React App
-        "http://localhost:5173",   # Vite dev server
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ---------------------------------------------------------------------------
-# Environment / config
-# ---------------------------------------------------------------------------
-DATABRICKS_HOST: str = os.environ["DATABRICKS_HOST"]
-DATABRICKS_TOKEN: str = os.environ["DATABRICKS_TOKEN"]
-DATABRICKS_WAREHOUSE_ID: str = os.environ["DATABRICKS_WAREHOUSE_ID"]
-DATABRICKS_CATALOG: str = os.getenv("DATABRICKS_CATALOG", "energy_copilot")
-ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
-
-CLAUDE_MODEL = "claude-sonnet-4-5"
-
-# ---------------------------------------------------------------------------
-# Databricks SQL connection factory
+# Middleware — structured request logging + request ID injection
 # ---------------------------------------------------------------------------
 
-def _get_db_connection():
-    """Return a databricks-sql-connector connection to the SQL warehouse."""
-    return dbsql.connect(
-        server_hostname=DATABRICKS_HOST.replace("https://", ""),
-        http_path=f"/sql/1.0/warehouses/{DATABRICKS_WAREHOUSE_ID}",
-        access_token=DATABRICKS_TOKEN,
+@app.middleware("http")
+async def _logging_middleware(request: Request, call_next) -> Response:
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    t0 = time.monotonic()
+    response: Response = await call_next(request)
+    duration_ms = round((time.monotonic() - t0) * 1000, 1)
+    logger.info(
+        "http_request",
+        extra={
+            "request_id":  request_id,
+            "method":      request.method,
+            "path":        request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        },
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+# ---------------------------------------------------------------------------
+# Global exception handler — structured JSON error response
+# ---------------------------------------------------------------------------
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.exception(
+        "unhandled_exception",
+        extra={"request_id": request_id, "path": request.url.path},
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error":      "Internal server error",
+            "detail":     str(exc),
+            "request_id": request_id,
+        },
     )
 
+# ---------------------------------------------------------------------------
+# DB dependency — yields a Databricks cursor or raises 503
+# ---------------------------------------------------------------------------
 
-def _run_query(sql: str, params: Optional[dict] = None) -> list[dict]:
-    """Execute *sql* on the warehouse and return rows as a list of dicts."""
-    conn = _get_db_connection()
+def get_db_cursor():
+    """
+    FastAPI dependency that yields a Databricks SQL cursor.
+    Raises 503 when the warehouse is unavailable.
+    Only usable in non-mock mode (callers should check MOCK_MODE first).
+    """
+    if MOCK_MODE:
+        yield None
+        return
     try:
-        with conn.cursor() as cursor:
-            cursor.execute(sql, params or {})
-            cols = [d[0] for d in cursor.description]
-            return [dict(zip(cols, row)) for row in cursor.fetchall()]
-    finally:
-        conn.close()
-
+        with _db.cursor() as cursor:
+            yield cursor
+    except Exception as exc:
+        logger.exception("Failed to open Databricks cursor")
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "Database unavailable", "detail": str(exc)},
+        )
 
 # ---------------------------------------------------------------------------
-# Pydantic models
+# Pydantic response models
 # ---------------------------------------------------------------------------
 
 class PriceRecord(BaseModel):
-    region: str
-    settlement_date: datetime
-    rrp: float
-    raise_reg_rrp: Optional[float] = None
-    lower_reg_rrp: Optional[float] = None
-    total_demand: Optional[float] = None
+    region:          str             = Field(..., description="NEM region code, e.g. NSW1")
+    settlement_date: datetime        = Field(..., description="Dispatch interval timestamp (UTC)")
+    rrp:             float           = Field(..., description="Regional reference price (AUD/MWh)")
+    raise_reg_rrp:   Optional[float] = Field(None, description="Raise regulation FCAS price (AUD/MWh)")
+    lower_reg_rrp:   Optional[float] = Field(None, description="Lower regulation FCAS price (AUD/MWh)")
+    total_demand:    Optional[float] = Field(None, description="Regional total demand (MW)")
 
 
 class ForecastRecord(BaseModel):
-    region: str
-    forecast_time: datetime
-    horizon_minutes: int
-    predicted_rrp: float
-    lower_bound: Optional[float] = None
-    upper_bound: Optional[float] = None
+    region:          str             = Field(..., description="NEM region code")
+    forecast_time:   datetime        = Field(..., description="Forecast target interval timestamp (UTC)")
+    horizon_minutes: int             = Field(..., description="Minutes ahead from forecast run time")
+    predicted_rrp:   float           = Field(..., description="Predicted regional reference price (AUD/MWh)")
+    lower_bound:     Optional[float] = Field(None, description="Lower confidence bound (AUD/MWh)")
+    upper_bound:     Optional[float] = Field(None, description="Upper confidence bound (AUD/MWh)")
 
 
 class GenerationRecord(BaseModel):
-    region: str
-    settlement_date: datetime
-    fuel_type: str
-    generation_mw: float
+    region:          str      = Field(..., description="NEM region code")
+    settlement_date: datetime = Field(..., description="Dispatch interval timestamp (UTC)")
+    fuel_type:       str      = Field(..., description="Fuel/technology type, e.g. BLACK_COAL")
+    generation_mw:   float    = Field(..., description="Generation output (MW)")
 
 
 class InterconnectorRecord(BaseModel):
-    interconnector_id: str
-    settlement_date: datetime
-    mw_flow: float
-    export_limit: float
-    import_limit: float
+    interconnector_id: str      = Field(..., description="Interconnector identifier, e.g. VIC1-NSW1")
+    settlement_date:   datetime = Field(..., description="Dispatch interval timestamp (UTC)")
+    mw_flow:           float    = Field(..., description="Net MW flow (positive = export from first region)")
+    export_limit:      float    = Field(..., description="Export limit (MW)")
+    import_limit:      float    = Field(..., description="Import limit (MW)")
 
 
 class FcasRecord(BaseModel):
-    region: str
-    settlement_date: datetime
-    service: str
-    rrp: float
+    region:          str      = Field(..., description="NEM region code")
+    settlement_date: datetime = Field(..., description="Dispatch interval timestamp (UTC)")
+    service:         str      = Field(..., description="FCAS service, e.g. RAISE6SEC")
+    rrp:             float    = Field(..., description="FCAS clearing price (AUD/MWh)")
 
 
 class AlertConfig(BaseModel):
-    alert_id: str
-    region: Optional[str]
-    alert_type: str
-    threshold_value: float
-    is_active: bool
-    created_at: datetime
+    alert_id:             str            = Field(..., description="Unique alert identifier (UUID)")
+    region:               Optional[str]  = Field(None, description="NEM region code; null = all regions")
+    alert_type:           str            = Field(..., description="Alert type, e.g. price_threshold")
+    threshold_value:      float          = Field(..., description="Numeric threshold that triggers the alert")
+    notification_channel: Optional[str]  = Field(None, description="email | slack | webhook")
+    is_active:            bool           = Field(..., description="Whether the alert is currently enabled")
+    created_at:           datetime       = Field(..., description="Alert creation timestamp (UTC)")
+    updated_at:           Optional[datetime] = Field(None, description="Last modification timestamp (UTC)")
+
+
+class AlertCreateRequest(BaseModel):
+    region:               Optional[str]  = Field(None, description="NEM region code; omit for all regions")
+    alert_type:           str            = Field(..., description="price_threshold | demand_surge | data_staleness | model_drift")
+    threshold_value:      float          = Field(..., ge=0, description="Threshold value that triggers the alert")
+    notification_channel: Optional[str]  = Field("email", description="email | slack | webhook")
+    is_active:            bool           = Field(True, description="Create the alert in active state")
 
 
 class ChatMessage(BaseModel):
-    role: str = Field(..., pattern="^(user|assistant)$")
+    role:    str = Field(..., pattern="^(user|assistant)$")
     content: str
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=8000)
+    message: str            = Field(..., min_length=1, max_length=8000)
     history: List[ChatMessage] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Helpers — run a SQL query via _db (respects mock mode)
+# ---------------------------------------------------------------------------
+
+def _run_query(sql: str) -> List[Dict[str, Any]]:
+    """Execute SQL against Databricks and return rows as dicts."""
+    return _db.execute(sql)
 
 
 # ---------------------------------------------------------------------------
@@ -185,8 +339,8 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {
                 "region": {"type": "string", "description": "NEM region code, e.g. NSW1."},
-                "start": {"type": "string", "description": "ISO-8601 start datetime, e.g. 2026-02-01T00:00:00"},
-                "end": {"type": "string", "description": "ISO-8601 end datetime, e.g. 2026-02-01T23:59:59"},
+                "start":  {"type": "string", "description": "ISO-8601 start datetime, e.g. 2026-02-01T00:00:00"},
+                "end":    {"type": "string", "description": "ISO-8601 end datetime, e.g. 2026-02-01T23:59:59"},
             },
             "required": ["region", "start", "end"],
         },
@@ -198,8 +352,8 @@ CHAT_TOOLS = [
             "type": "object",
             "properties": {
                 "region": {"type": "string"},
-                "start": {"type": "string", "description": "ISO-8601 start datetime"},
-                "end": {"type": "string", "description": "ISO-8601 end datetime"},
+                "start":  {"type": "string", "description": "ISO-8601 start datetime"},
+                "end":    {"type": "string", "description": "ISO-8601 end datetime"},
             },
             "required": ["region", "start", "end"],
         },
@@ -250,16 +404,21 @@ CHAT_TOOLS = [
 def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
     """
     Execute a named tool and return a JSON string of results.
-    Falls back to a descriptive error on any failure so the LLM can
-    communicate the issue to the user gracefully.
+    Falls back to mock data when MOCK_MODE is True.
+    Returns a descriptive error string so the LLM can report the failure.
     """
+    import mock_data as md
+
     try:
         if tool_name == "get_latest_prices":
             region_filter = tool_input.get("region")
+            if MOCK_MODE:
+                return json.dumps(md.get_mock_latest_prices(region_filter), default=str)
             where = f"WHERE regionid = '{region_filter}'" if region_filter else ""
             rows = _run_query(
                 f"""
-                SELECT regionid, settlementdate, rrp, raise_reg_rrp, lower_reg_rrp, totaldemand
+                SELECT regionid AS region, settlementdate AS settlement_date,
+                       rrp, raise_reg_rrp, lower_reg_rrp, totaldemand AS total_demand
                 FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
                 {where}
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY regionid ORDER BY settlementdate DESC) = 1
@@ -269,9 +428,19 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
             return json.dumps(rows, default=str)
 
         elif tool_name == "get_price_history":
+            if MOCK_MODE:
+                return json.dumps(
+                    md.get_mock_price_history(
+                        tool_input["region"],
+                        start=tool_input.get("start"),
+                        end=tool_input.get("end"),
+                    ),
+                    default=str,
+                )
             rows = _run_query(
                 f"""
-                SELECT settlementdate, rrp, totaldemand
+                SELECT regionid AS region, settlementdate AS settlement_date,
+                       rrp, raise_reg_rrp, lower_reg_rrp, totaldemand AS total_demand
                 FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
                 WHERE regionid = '{tool_input["region"]}'
                   AND settlementdate BETWEEN '{tool_input["start"]}' AND '{tool_input["end"]}'
@@ -281,13 +450,23 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
             return json.dumps(rows, default=str)
 
         elif tool_name == "get_generation_mix":
+            if MOCK_MODE:
+                return json.dumps(
+                    md.get_mock_generation(
+                        tool_input["region"],
+                        start=tool_input.get("start"),
+                        end=tool_input.get("end"),
+                    ),
+                    default=str,
+                )
             rows = _run_query(
                 f"""
-                SELECT settlementdate, fuel_type, SUM(generation_mw) AS generation_mw
+                SELECT regionid AS region, settlementdate AS settlement_date,
+                       fuel_type, SUM(generation_mw) AS generation_mw
                 FROM {DATABRICKS_CATALOG}.gold.nem_generation_by_fuel
                 WHERE regionid = '{tool_input["region"]}'
                   AND settlementdate BETWEEN '{tool_input["start"]}' AND '{tool_input["end"]}'
-                GROUP BY settlementdate, fuel_type
+                GROUP BY regionid, settlementdate, fuel_type
                 ORDER BY settlementdate, fuel_type
                 """
             )
@@ -295,10 +474,14 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
 
         elif tool_name == "get_interconnector_flows":
             ic_filter = tool_input.get("interconnector_id")
+            if MOCK_MODE:
+                return json.dumps(md.get_mock_interconnectors(ic_filter), default=str)
             where = f"AND interconnectorid = '{ic_filter}'" if ic_filter else ""
             rows = _run_query(
                 f"""
-                SELECT interconnectorid, settlementdate, mwflow, exportlimit, importlimit
+                SELECT interconnectorid AS interconnector_id,
+                       settlementdate AS settlement_date,
+                       mwflow AS mw_flow, exportlimit AS export_limit, importlimit AS import_limit
                 FROM {DATABRICKS_CATALOG}.gold.nem_interconnectors
                 WHERE 1=1 {where}
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY interconnectorid ORDER BY settlementdate DESC) = 1
@@ -308,9 +491,15 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
             return json.dumps(rows, default=str)
 
         elif tool_name == "get_price_forecast":
+            if MOCK_MODE:
+                return json.dumps(
+                    md.get_mock_forecasts(tool_input["region"], tool_input.get("horizon", "24h")),
+                    default=str,
+                )
             rows = _run_query(
                 f"""
-                SELECT forecast_time, horizon_minutes, predicted_rrp, lower_bound, upper_bound
+                SELECT regionid AS region, forecast_time, horizon_minutes,
+                       predicted_rrp, lower_bound, upper_bound
                 FROM {DATABRICKS_CATALOG}.gold.price_forecasts
                 WHERE regionid = '{tool_input["region"]}'
                   AND horizon = '{tool_input["horizon"]}'
@@ -320,15 +509,20 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
             return json.dumps(rows, default=str)
 
         elif tool_name == "get_market_summary":
+            if MOCK_MODE:
+                rows = md.get_mock_latest_prices()
+                return json.dumps(
+                    {"summary_date": tool_input["date"], "regions": rows},
+                    default=str,
+                )
             rows = _run_query(
                 f"""
-                SELECT
-                    regionid,
-                    MIN(rrp)  AS min_price,
-                    MAX(rrp)  AS max_price,
-                    AVG(rrp)  AS avg_price,
-                    MAX(totaldemand) AS peak_demand,
-                    COUNT(*)  AS dispatch_intervals
+                SELECT regionid,
+                       MIN(rrp)         AS min_price,
+                       MAX(rrp)         AS max_price,
+                       AVG(rrp)         AS avg_price,
+                       MAX(totaldemand) AS peak_demand,
+                       COUNT(*)         AS dispatch_intervals
                 FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
                 WHERE DATE(settlementdate) = '{tool_input["date"]}'
                 GROUP BY regionid
@@ -349,170 +543,398 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
 # API routes — market data
 # ---------------------------------------------------------------------------
 
-@app.get("/api/prices/latest", response_model=List[PriceRecord])
-def get_latest_prices(region: Optional[str] = Query(None, description="NEM region code")):
-    """Return the most recent 5-minute dispatch price per region."""
+@app.get(
+    "/api/prices/latest",
+    response_model=List[PriceRecord],
+    summary="Latest dispatch prices",
+    tags=["Market Data"],
+)
+def get_latest_prices(
+    region: Optional[str] = Query(None, description="NEM region code, e.g. NSW1"),
+):
+    """Return the most recent 5-minute dispatch price per NEM region."""
+    import mock_data as md
+
+    cache_key = f"prices_latest:{region or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        result = md.get_mock_latest_prices(region)
+        _cache_set(cache_key, result, _TTL_LATEST_PRICES)
+        return result
+
     where = f"AND regionid = '{region}'" if region else ""
-    try:
-        rows = _run_query(
-            f"""
-            SELECT regionid AS region, settlementdate AS settlement_date,
-                   rrp, raise_reg_rrp, lower_reg_rrp, totaldemand AS total_demand
-            FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
-            WHERE 1=1 {where}
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY regionid ORDER BY settlementdate DESC) = 1
-            ORDER BY regionid
-            """
-        )
-        return rows
-    except Exception as exc:
-        logger.exception("/api/prices/latest failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+    rows = _run_query(
+        f"""
+        SELECT regionid AS region, settlementdate AS settlement_date,
+               rrp, raise_reg_rrp, lower_reg_rrp, totaldemand AS total_demand
+        FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
+        WHERE 1=1 {where}
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY regionid ORDER BY settlementdate DESC) = 1
+        ORDER BY regionid
+        """
+    )
+    if not rows and region:
+        raise HTTPException(status_code=404, detail=f"No price data found for region: {region}")
+    _cache_set(cache_key, rows, _TTL_LATEST_PRICES)
+    return rows
 
 
-@app.get("/api/prices/history", response_model=List[PriceRecord])
+@app.get(
+    "/api/prices/history",
+    response_model=List[PriceRecord],
+    summary="Price history",
+    tags=["Market Data"],
+)
 def get_price_history(
-    region: str = Query(..., description="NEM region code, e.g. NSW1"),
-    start: str = Query(..., description="ISO-8601 start datetime"),
-    end: str = Query(..., description="ISO-8601 end datetime"),
+    region: str           = Query(..., description="NEM region code, e.g. NSW1"),
+    start:  str           = Query(..., description="ISO-8601 start datetime"),
+    end:    str           = Query(..., description="ISO-8601 end datetime"),
 ):
     """Return 5-minute dispatch prices for a region over a time range."""
-    try:
-        rows = _run_query(
-            f"""
-            SELECT regionid AS region, settlementdate AS settlement_date,
-                   rrp, raise_reg_rrp, lower_reg_rrp, totaldemand AS total_demand
-            FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
-            WHERE regionid = '{region}'
-              AND settlementdate BETWEEN '{start}' AND '{end}'
-            ORDER BY settlementdate
-            """
+    import mock_data as md
+
+    if MOCK_MODE:
+        return md.get_mock_price_history(region, start=start, end=end)
+
+    rows = _run_query(
+        f"""
+        SELECT regionid AS region, settlementdate AS settlement_date,
+               rrp, raise_reg_rrp, lower_reg_rrp, totaldemand AS total_demand
+        FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
+        WHERE regionid = '{region}'
+          AND settlementdate BETWEEN '{start}' AND '{end}'
+        ORDER BY settlementdate
+        """
+    )
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No price history found for region={region} between {start} and {end}",
         )
-        return rows
-    except Exception as exc:
-        logger.exception("/api/prices/history failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+    return rows
 
 
-@app.get("/api/forecasts", response_model=List[ForecastRecord])
+@app.get(
+    "/api/forecasts",
+    response_model=List[ForecastRecord],
+    summary="Price forecasts",
+    tags=["Forecasts"],
+)
 def get_forecasts(
-    region: str = Query(..., description="NEM region code"),
+    region:  str = Query(..., description="NEM region code"),
     horizon: str = Query("24h", description="Forecast horizon: 30min, 1h, 4h, 24h, 7d"),
 ):
     """Return ML price forecasts for a region and horizon."""
-    try:
-        rows = _run_query(
-            f"""
-            SELECT regionid AS region, forecast_time, horizon_minutes,
-                   predicted_rrp, lower_bound, upper_bound
-            FROM {DATABRICKS_CATALOG}.gold.price_forecasts
-            WHERE regionid = '{region}'
-              AND horizon = '{horizon}'
-            ORDER BY forecast_time
-            """
+    import mock_data as md
+
+    cache_key = f"forecasts:{region}:{horizon}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        result = md.get_mock_forecasts(region, horizon)
+        _cache_set(cache_key, result, _TTL_FORECASTS)
+        return result
+
+    rows = _run_query(
+        f"""
+        SELECT regionid AS region, forecast_time, horizon_minutes,
+               predicted_rrp, lower_bound, upper_bound
+        FROM {DATABRICKS_CATALOG}.gold.price_forecasts
+        WHERE regionid = '{region}'
+          AND horizon = '{horizon}'
+        ORDER BY forecast_time
+        """
+    )
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No forecast data found for region={region}, horizon={horizon}",
         )
-        return rows
-    except Exception as exc:
-        logger.exception("/api/forecasts failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+    _cache_set(cache_key, rows, _TTL_FORECASTS)
+    return rows
 
 
-@app.get("/api/generation", response_model=List[GenerationRecord])
+@app.get(
+    "/api/generation",
+    response_model=List[GenerationRecord],
+    summary="Generation by fuel type",
+    tags=["Market Data"],
+)
 def get_generation(
-    region: str = Query(..., description="NEM region code"),
-    start: Optional[str] = Query(None, description="ISO-8601 start datetime"),
-    end: Optional[str] = Query(None, description="ISO-8601 end datetime"),
+    region: str            = Query(..., description="NEM region code"),
+    start:  Optional[str]  = Query(None, description="ISO-8601 start datetime"),
+    end:    Optional[str]  = Query(None, description="ISO-8601 end datetime"),
 ):
     """Return generation by fuel type for a region."""
+    import mock_data as md
+
+    cache_key = f"generation:{region}:{start}:{end}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        result = md.get_mock_generation(region, start=start, end=end)
+        _cache_set(cache_key, result, _TTL_GENERATION)
+        return result
+
     time_filter = ""
     if start and end:
         time_filter = f"AND settlementdate BETWEEN '{start}' AND '{end}'"
     elif start:
         time_filter = f"AND settlementdate >= '{start}'"
-    try:
-        rows = _run_query(
-            f"""
-            SELECT regionid AS region, settlementdate AS settlement_date,
-                   fuel_type, generation_mw
-            FROM {DATABRICKS_CATALOG}.gold.nem_generation_by_fuel
-            WHERE regionid = '{region}' {time_filter}
-            ORDER BY settlementdate, fuel_type
-            """
-        )
-        return rows
-    except Exception as exc:
-        logger.exception("/api/generation failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+
+    rows = _run_query(
+        f"""
+        SELECT regionid AS region, settlementdate AS settlement_date,
+               fuel_type, generation_mw
+        FROM {DATABRICKS_CATALOG}.gold.nem_generation_by_fuel
+        WHERE regionid = '{region}' {time_filter}
+        ORDER BY settlementdate, fuel_type
+        """
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No generation data found for region: {region}")
+    _cache_set(cache_key, rows, _TTL_GENERATION)
+    return rows
 
 
-@app.get("/api/interconnectors", response_model=List[InterconnectorRecord])
+@app.get(
+    "/api/interconnectors",
+    response_model=List[InterconnectorRecord],
+    summary="Interconnector flows",
+    tags=["Market Data"],
+)
 def get_interconnectors(
     interconnector_id: Optional[str] = Query(None, description="e.g. VIC1-NSW1"),
 ):
     """Return current interconnector flows."""
+    import mock_data as md
+
+    cache_key = f"interconnectors:{interconnector_id or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        result = md.get_mock_interconnectors(interconnector_id)
+        _cache_set(cache_key, result, _TTL_INTERCONNECTORS)
+        return result
+
     where = f"AND interconnectorid = '{interconnector_id}'" if interconnector_id else ""
-    try:
-        rows = _run_query(
-            f"""
-            SELECT interconnectorid AS interconnector_id, settlementdate AS settlement_date,
-                   mwflow AS mw_flow, exportlimit AS export_limit, importlimit AS import_limit
-            FROM {DATABRICKS_CATALOG}.gold.nem_interconnectors
-            WHERE 1=1 {where}
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY interconnectorid ORDER BY settlementdate DESC) = 1
-            ORDER BY interconnectorid
-            """
+    rows = _run_query(
+        f"""
+        SELECT interconnectorid AS interconnector_id, settlementdate AS settlement_date,
+               mwflow AS mw_flow, exportlimit AS export_limit, importlimit AS import_limit
+        FROM {DATABRICKS_CATALOG}.gold.nem_interconnectors
+        WHERE 1=1 {where}
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY interconnectorid ORDER BY settlementdate DESC) = 1
+        ORDER BY interconnectorid
+        """
+    )
+    if not rows and interconnector_id:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No data found for interconnector: {interconnector_id}",
         )
-        return rows
-    except Exception as exc:
-        logger.exception("/api/interconnectors failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+    _cache_set(cache_key, rows, _TTL_INTERCONNECTORS)
+    return rows
 
 
-@app.get("/api/fcas", response_model=List[FcasRecord])
+@app.get(
+    "/api/fcas",
+    response_model=List[FcasRecord],
+    summary="FCAS prices",
+    tags=["Market Data"],
+)
 def get_fcas(
-    region: str = Query(..., description="NEM region code"),
+    region:  str           = Query(..., description="NEM region code"),
     service: Optional[str] = Query(None, description="FCAS service type, e.g. RAISE6SEC"),
-    start: Optional[str] = Query(None),
-    end: Optional[str] = Query(None),
+    start:   Optional[str] = Query(None, description="ISO-8601 start datetime"),
+    end:     Optional[str] = Query(None, description="ISO-8601 end datetime"),
 ):
     """Return FCAS prices for a region."""
+    import mock_data as md
+
+    if MOCK_MODE:
+        return md.get_mock_fcas(region, service, start, end)
+
     service_filter = f"AND service = '{service}'" if service else ""
-    time_filter = ""
+    time_filter    = ""
     if start and end:
         time_filter = f"AND settlementdate BETWEEN '{start}' AND '{end}'"
-    try:
-        rows = _run_query(
-            f"""
-            SELECT regionid AS region, settlementdate AS settlement_date,
-                   service, rrp
-            FROM {DATABRICKS_CATALOG}.gold.nem_fcas_prices
-            WHERE regionid = '{region}' {service_filter} {time_filter}
-            ORDER BY settlementdate, service
-            """
+
+    rows = _run_query(
+        f"""
+        SELECT regionid AS region, settlementdate AS settlement_date, service, rrp
+        FROM {DATABRICKS_CATALOG}.gold.nem_fcas_prices
+        WHERE regionid = '{region}' {service_filter} {time_filter}
+        ORDER BY settlementdate, service
+        """
+    )
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No FCAS data found for region={region}, service={service}",
         )
-        return rows
-    except Exception as exc:
-        logger.exception("/api/fcas failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+    return rows
 
 
-@app.get("/api/alerts", response_model=List[AlertConfig])
-def get_alerts(is_active: Optional[bool] = Query(None)):
-    """Return alert configurations from the Lakebase alerts table."""
-    where = f"WHERE is_active = {str(is_active).lower()}" if is_active is not None else ""
-    try:
-        rows = _run_query(
-            f"""
-            SELECT alert_id, region, alert_type, threshold_value, is_active, created_at
-            FROM {DATABRICKS_CATALOG}.gold.alert_configs
-            {where}
-            ORDER BY created_at DESC
-            """
+# ---------------------------------------------------------------------------
+# Alerts CRUD — backed by Lakebase (psycopg2)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/alerts",
+    response_model=List[AlertConfig],
+    summary="List alert configurations",
+    tags=["Alerts"],
+)
+def list_alerts(
+    is_active: Optional[bool] = Query(None, description="Filter by active state"),
+):
+    """Return alert configurations from Lakebase."""
+    import mock_data as md
+
+    if _lakebase.mock_mode:
+        alerts = md.get_mock_alerts()
+        if is_active is not None:
+            alerts = [a for a in alerts if a["is_active"] == is_active]
+        return alerts
+
+    if is_active is not None:
+        rows = _lakebase.execute(
+            "SELECT * FROM public.alert_configs WHERE is_active = %s ORDER BY created_at DESC",
+            (is_active,),
         )
-        return rows
+    else:
+        rows = _lakebase.execute(
+            "SELECT * FROM public.alert_configs ORDER BY created_at DESC"
+        )
+    return rows
+
+
+@app.post(
+    "/api/alerts",
+    response_model=AlertConfig,
+    status_code=201,
+    summary="Create an alert configuration",
+    tags=["Alerts"],
+)
+def create_alert(body: AlertCreateRequest):
+    """Create a new alert configuration in Lakebase."""
+    import mock_data as md
+
+    now      = datetime.now(timezone.utc)
+    alert_id = str(uuid.uuid4())
+
+    new_alert: Dict[str, Any] = {
+        "alert_id":             alert_id,
+        "region":               body.region,
+        "alert_type":           body.alert_type,
+        "threshold_value":      body.threshold_value,
+        "notification_channel": body.notification_channel,
+        "is_active":            body.is_active,
+        "created_at":           now.isoformat(),
+        "updated_at":           now.isoformat(),
+    }
+
+    if _lakebase.mock_mode:
+        logger.info("create_alert mock mode — not persisted", extra={"alert_id": alert_id})
+        return new_alert
+
+    try:
+        _lakebase.upsert(
+            table="public.alert_configs",
+            data={
+                "alert_id":             alert_id,
+                "region":               body.region,
+                "alert_type":           body.alert_type,
+                "threshold_value":      body.threshold_value,
+                "notification_channel": body.notification_channel,
+                "is_active":            body.is_active,
+                "created_at":           now,
+                "updated_at":           now,
+            },
+            conflict_cols=["alert_id"],
+        )
     except Exception as exc:
-        logger.exception("/api/alerts failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.exception("Failed to persist alert to Lakebase")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+
+    return new_alert
+
+
+@app.get(
+    "/api/alerts/{alert_id}",
+    response_model=AlertConfig,
+    summary="Get a single alert configuration",
+    tags=["Alerts"],
+)
+def get_alert(alert_id: str):
+    """Return a single alert configuration by ID."""
+    import mock_data as md
+
+    if _lakebase.mock_mode:
+        match = next(
+            (a for a in md.get_mock_alerts() if a["alert_id"] == alert_id),
+            None,
+        )
+        if not match:
+            raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+        return match
+
+    row = _lakebase.execute_one(
+        "SELECT * FROM public.alert_configs WHERE alert_id = %s",
+        (alert_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+    return row
+
+
+@app.delete(
+    "/api/alerts/{alert_id}",
+    status_code=204,
+    summary="Delete an alert configuration",
+    tags=["Alerts"],
+)
+def delete_alert(alert_id: str):
+    """Delete an alert configuration from Lakebase by ID."""
+    import mock_data as md
+
+    if _lakebase.mock_mode:
+        # In mock mode, verify it "exists" so the 404 behaviour is testable
+        match = next(
+            (a for a in md.get_mock_alerts() if a["alert_id"] == alert_id),
+            None,
+        )
+        if not match:
+            raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+        return  # 204 No Content
+
+    # Check existence first so we can return 404 rather than silently succeed
+    row = _lakebase.execute_one(
+        "SELECT alert_id FROM public.alert_configs WHERE alert_id = %s",
+        (alert_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+
+    try:
+        _lakebase.execute(
+            "DELETE FROM public.alert_configs WHERE alert_id = %s",
+            (alert_id,),
+        )
+    except Exception as exc:
+        logger.exception("Failed to delete alert from Lakebase")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+    # 204 No Content — return nothing
 
 
 # ---------------------------------------------------------------------------
@@ -554,6 +976,10 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
     Agentic loop: call Claude with tools, execute tool calls, feed results back,
     and yield text deltas as SSE data events.
     """
+    if not ANTHROPIC_API_KEY:
+        yield f"data: {json.dumps({'type': 'error', 'content': 'ANTHROPIC_API_KEY is not configured.'})}\n\n"
+        return
+
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     messages = [
@@ -571,9 +997,9 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
             tools=CHAT_TOOLS,
             messages=messages,
         ) as stream:
-            full_text = ""
+            full_text                        = ""
             tool_calls_in_stream: list[dict] = []
-            current_tool: dict | None = None
+            current_tool: dict | None        = None
 
             for event in stream:
                 event_type = event.type
@@ -581,8 +1007,8 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
                 if event_type == "content_block_start":
                     if event.content_block.type == "tool_use":
                         current_tool = {
-                            "id": event.content_block.id,
-                            "name": event.content_block.name,
+                            "id":         event.content_block.id,
+                            "name":       event.content_block.name,
                             "input_json": "",
                         }
 
@@ -609,7 +1035,6 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
             stop_reason = stream.get_final_message().stop_reason
 
         if stop_reason != "tool_use" or not tool_calls_in_stream:
-            # No more tool calls — we're done.
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return
 
@@ -619,9 +1044,9 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
             assistant_content.append({"type": "text", "text": full_text})
         for tc in tool_calls_in_stream:
             assistant_content.append({
-                "type": "tool_use",
-                "id": tc["id"],
-                "name": tc["name"],
+                "type":  "tool_use",
+                "id":    tc["id"],
+                "name":  tc["name"],
                 "input": tc["input"],
             })
         messages.append({"role": "assistant", "content": assistant_content})
@@ -633,9 +1058,9 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
             result = await asyncio.to_thread(_tool_dispatch, tc["name"], tc["input"])
             yield f"data: {json.dumps({'type': 'tool_result', 'tool': tc['name']})}\n\n"
             tool_results.append({
-                "type": "tool_result",
+                "type":        "tool_result",
                 "tool_use_id": tc["id"],
-                "content": result,
+                "content":     result,
             })
 
         messages.append({"role": "user", "content": tool_results})
@@ -643,7 +1068,11 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
     yield f"data: {json.dumps({'type': 'error', 'content': 'Maximum tool-call rounds reached.'})}\n\n"
 
 
-@app.post("/api/chat")
+@app.post(
+    "/api/chat",
+    summary="SSE streaming chat with Claude copilot",
+    tags=["Copilot"],
+)
 async def chat(request: ChatRequest):
     """
     SSE streaming chat endpoint.
@@ -662,6 +1091,21 @@ async def chat(request: ChatRequest):
 # Health check
 # ---------------------------------------------------------------------------
 
-@app.get("/health")
-def health():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+@app.get("/health", summary="Service health", tags=["Operations"])
+async def health():
+    """
+    Return service health including DB connectivity status.
+    Returns 503 if both Databricks and Lakebase are unreachable.
+    """
+    db_ok = await asyncio.to_thread(_db.health_check)
+    lb_ok = await asyncio.to_thread(_lakebase.health_check)
+    payload = {
+        "status":              "ok" if (db_ok and lb_ok) else "degraded",
+        "timestamp":           datetime.now(timezone.utc).isoformat(),
+        "mock_mode":           MOCK_MODE,
+        "databricks_healthy":  db_ok,
+        "lakebase_healthy":    lb_ok,
+    }
+    if not db_ok and not lb_ok and not MOCK_MODE:
+        raise HTTPException(status_code=503, detail=payload)
+    return payload

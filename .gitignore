@@ -1,0 +1,146 @@
+# ============================================================
+# AUS Energy Copilot — .gitignore
+# ============================================================
+
+# ------------------------------------------------------------
+# Python
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Distribution / packaging
+.Python
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+.env
+*.env
+!.env.example
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+nosetests.xml
+pytest.xml
+
+# MyPy / type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ------------------------------------------------------------
+# Node / React / Vite
+# ------------------------------------------------------------
+node_modules/
+app/frontend/dist/
+app/frontend/.vite/
+*.tsbuildinfo
+.npm
+.yarn-integrity
+
+# ------------------------------------------------------------
+# Databricks
+# ------------------------------------------------------------
+.databricks/
+*.databricks
+bundle.*.yml
+.databricks-connect
+databricks.yml.local
+
+# Databricks CLI cache
+~/.databricks/
+
+# ------------------------------------------------------------
+# MLflow
+# ------------------------------------------------------------
+mlruns/
+mlartifacts/
+mlflow.db
+
+# ------------------------------------------------------------
+# IDE / editors
+# ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------------------------
+# OS generated files
+# ------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ------------------------------------------------------------
+# Secrets & credentials
+# ------------------------------------------------------------
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+secrets.yml
+secrets.yaml
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+service-account.json
+*-credentials.json
+*.secret
+token.json
+
+# ------------------------------------------------------------
+# Logs & temp files
+# ------------------------------------------------------------
+*.log
+logs/
+*.tmp
+*.temp
+.cache/
+
+# ------------------------------------------------------------
+# Terraform (if used for infra)
+# ------------------------------------------------------------
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+# ------------------------------------------------------------
+# Docker
+# ------------------------------------------------------------
+.dockerignore

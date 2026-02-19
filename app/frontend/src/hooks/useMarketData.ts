@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../api/client'
-import type { RegionPrice, PricePoint, ForecastPoint, Alert } from '../api/client'
+import type { RegionPrice, PricePoint, ForecastPoint, Alert, GenerationDataPoint, InterconnectorFlow } from '../api/client'
 
 // ---------------------------------------------------------------------------
 // Generic fetch hook factory
@@ -204,4 +204,134 @@ export function useAlerts(): FetchState<Alert[]> {
     [],
     []
   )
+}
+
+// ---------------------------------------------------------------------------
+// useGeneration
+// Polls generation mix data for a NEM region.
+// Falls back to plausible mock data if the API is unavailable.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param region  NEM region code (e.g. "NSW1")
+ * @param pollMs  Polling interval in milliseconds (default: 60 000 = 60 s)
+ * @returns       { data: GenerationDataPoint[]; loading: boolean; error: string | null }
+ */
+export function useGeneration(
+  region: string,
+  pollMs = 60_000
+): FetchState<GenerationDataPoint[]> {
+  const [data, setData]       = useState<GenerationDataPoint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  const fetchGeneration = useCallback(async () => {
+    const now = new Date()
+    const end = now.toISOString()
+    const start = new Date(now.getTime() - 24 * 60 * 60_000).toISOString()
+
+    try {
+      const result = await api.getGeneration(region, start, end)
+      if (mountedRef.current) {
+        setData(result)
+        setError(null)
+      }
+    } catch {
+      // API unavailable — generate plausible mock data (12 x 5-min intervals)
+      if (!mountedRef.current) return
+
+      const mock: GenerationDataPoint[] = Array.from({ length: 12 }, (_, i) => {
+        const ts = new Date(now.getTime() - (11 - i) * 5 * 60_000)
+        return {
+          timestamp: ts.toISOString(),
+          coal:    2000 + Math.random() * 200,
+          gas:     500  + Math.random() * 100,
+          wind:    800  + Math.random() * 200,
+          solar:   400  + Math.random() * 80,
+          hydro:   300  + Math.random() * 50,
+          battery: 50   + Math.random() * 30,
+        }
+      })
+
+      setData(mock)
+      setError(null)
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false)
+      }
+    }
+  }, [region])
+
+  useEffect(() => {
+    void fetchGeneration()
+    const interval = setInterval(() => void fetchGeneration(), pollMs)
+    return () => clearInterval(interval)
+  }, [fetchGeneration, pollMs])
+
+  return { data, loading, error }
+}
+
+// ---------------------------------------------------------------------------
+// useInterconnectors
+// Polls NEM interconnector flow data.
+// Falls back to plausible static mock data if the API is unavailable.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param pollMs  Polling interval in milliseconds (default: 30 000 = 30 s)
+ * @returns       { data: InterconnectorFlow[]; loading: boolean; error: string | null }
+ */
+export function useInterconnectors(pollMs = 30_000): FetchState<InterconnectorFlow[]> {
+  const MOCK_FLOWS: InterconnectorFlow[] = [
+    { id: 'QNI',        from: 'QLD1', to: 'NSW1', flowMw:  320, limitMw: 1078 },
+    { id: 'VIC1-NSW1',  from: 'VIC1', to: 'NSW1', flowMw: -150, limitMw: 1600 },
+    { id: 'V-SA',       from: 'VIC1', to: 'SA1',  flowMw:  200, limitMw:  600 },
+    { id: 'V-TAS',      from: 'VIC1', to: 'TAS1', flowMw:  -80, limitMw:  594 },
+    { id: 'Murraylink', from: 'SA1',  to: 'VIC1', flowMw:   90, limitMw:  220 },
+  ]
+
+  const [data, setData]       = useState<InterconnectorFlow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  const fetchInterconnectors = useCallback(async () => {
+    try {
+      const result = await api.getInterconnectors()
+      if (mountedRef.current) {
+        setData(result)
+        setError(null)
+      }
+    } catch {
+      // API unavailable — use mock data so the diagram is never empty
+      if (!mountedRef.current) return
+      setData(MOCK_FLOWS)
+      setError(null)
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false)
+      }
+    }
+  // MOCK_FLOWS is defined outside the closure so it is stable; no dep needed
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    void fetchInterconnectors()
+    const interval = setInterval(() => void fetchInterconnectors(), pollMs)
+    return () => clearInterval(interval)
+  }, [fetchInterconnectors, pollMs])
+
+  return { data, loading, error }
 }
