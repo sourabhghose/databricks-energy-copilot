@@ -111,10 +111,11 @@ def _cache_set(key: str, data: Any, ttl_seconds: float) -> None:
 
 
 # Cache TTLs (seconds)
-_TTL_LATEST_PRICES  = 10
-_TTL_GENERATION     = 30
+_TTL_LATEST_PRICES   = 10
+_TTL_GENERATION      = 30
 _TTL_INTERCONNECTORS = 30
-_TTL_FORECASTS      = 60
+_TTL_FORECASTS       = 60
+_TTL_MARKET_SUMMARY  = 3600  # summary only regenerates once per day
 
 # ---------------------------------------------------------------------------
 # FastAPI lifespan — startup health check
@@ -284,6 +285,15 @@ class AlertCreateRequest(BaseModel):
     threshold_value:      float          = Field(..., ge=0, description="Threshold value that triggers the alert")
     notification_channel: Optional[str]  = Field("email", description="email | slack | webhook")
     is_active:            bool           = Field(True, description="Create the alert in active state")
+
+
+class MarketSummaryRecord(BaseModel):
+    summary_date:           str            = Field(..., description="Date the summary covers (YYYY-MM-DD)")
+    narrative:              str            = Field(..., description="AI-generated daily market narrative text")
+    model_id:               Optional[str]  = Field(None, description="Claude model used to generate the narrative")
+    generated_at:           Optional[datetime] = Field(None, description="Timestamp when the summary was produced (UTC)")
+    word_count:             Optional[int]  = Field(None, description="Word count of the narrative text")
+    generation_succeeded:   Optional[bool] = Field(None, description="Whether LLM generation completed without error")
 
 
 class ChatMessage(BaseModel):
@@ -783,6 +793,95 @@ def get_fcas(
             detail=f"No FCAS data found for region={region}, service={service}",
         )
     return rows
+
+
+# ---------------------------------------------------------------------------
+# /api/market-summary/latest — most recent daily AI market narrative
+# ---------------------------------------------------------------------------
+
+_MOCK_MARKET_SUMMARY: Dict[str, Any] = {
+    "summary_date":         "2026-02-19",
+    "narrative": (
+        "The National Electricity Market experienced moderate conditions on 19 February 2026. "
+        "NSW1 prices averaged $82/MWh with a morning peak of $145/MWh driven by elevated demand "
+        "during the 07:30–08:30 AEST period. SA1 recorded a brief negative pricing interval of "
+        "-$12/MWh at 13:15 AEST following high rooftop solar output. VIC1-NSW1 interconnector "
+        "carried a sustained northward flow of 850 MW throughout the afternoon, supporting NSW1 "
+        "supply adequacy. QLD1 returned the lowest average price at $71/MWh. No market "
+        "suspension events were observed. Renewable penetration peaked at 62% NEM-wide at 13:00 "
+        "AEST. Gas peakers were dispatched in SA1 and VIC1 during the evening ramp. FCAS "
+        "Raise6Sec prices spiked to $48/MWh at 07:42 AEST coinciding with a 280 MW generation "
+        "trip in QLD1, recovering within two minutes."
+    ),
+    "model_id":             "claude-sonnet-4-5",
+    "generated_at":         "2026-02-19T19:32:04+00:00",
+    "word_count":           152,
+    "generation_succeeded": True,
+}
+
+
+@app.get(
+    "/api/market-summary/latest",
+    response_model=MarketSummaryRecord,
+    summary="Latest daily AI market summary",
+    tags=["Market Data"],
+)
+def get_latest_market_summary() -> Dict[str, Any]:
+    """
+    Return the most recently generated daily AI market narrative from
+    ``energy_copilot.gold.daily_market_summary``.
+
+    The response is cached for 3600 seconds because the summary is
+    regenerated only once per day (pipeline 06, 05:30 AEST).
+
+    Falls back to a plausible mock response when the Databricks SQL
+    warehouse is unavailable.
+
+    Returns:
+        A ``MarketSummaryRecord`` containing ``summary_date``, ``narrative``,
+        ``model_id``, ``generated_at``, ``word_count``, and
+        ``generation_succeeded``.
+    """
+    cache_key = "market_summary:latest"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        _cache_set(cache_key, _MOCK_MARKET_SUMMARY, _TTL_MARKET_SUMMARY)
+        return _MOCK_MARKET_SUMMARY
+
+    try:
+        rows = _run_query(
+            f"""
+            SELECT
+                CAST(summary_date AS STRING)   AS summary_date,
+                narrative,
+                model_id,
+                generated_at,
+                word_count,
+                generation_succeeded
+            FROM {DATABRICKS_CATALOG}.gold.daily_market_summary
+            ORDER BY summary_date DESC
+            LIMIT 1
+            """
+        )
+    except Exception as exc:
+        logger.warning(
+            "market_summary_db_unavailable",
+            extra={"error": str(exc), "fallback": "mock"},
+        )
+        _cache_set(cache_key, _MOCK_MARKET_SUMMARY, _TTL_MARKET_SUMMARY)
+        return _MOCK_MARKET_SUMMARY
+
+    if not rows:
+        logger.warning("market_summary_no_rows", extra={"fallback": "mock"})
+        _cache_set(cache_key, _MOCK_MARKET_SUMMARY, _TTL_MARKET_SUMMARY)
+        return _MOCK_MARKET_SUMMARY
+
+    result = rows[0]
+    _cache_set(cache_key, result, _TTL_MARKET_SUMMARY)
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,428 @@
+# ============================================================
+# Databricks Asset Bundle — AUS Energy Copilot
+# Schema: DAB v2 (targets, not environments)
+# Deploy dev:  databricks bundle deploy --target dev
+# Deploy prod: databricks bundle deploy --target prod
+# ============================================================
+
+bundle:
+  name: energy-copilot
+
+variables:
+  catalog:
+    description: "Unity Catalog name for the target environment"
+    default: energy_copilot
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+targets:
+  dev:
+    mode: development
+    workspace:
+      host: ${DATABRICKS_HOST}
+    variables:
+      catalog: energy_copilot_dev
+
+  prod:
+    mode: production
+    workspace:
+      host: ${DATABRICKS_HOST}
+    variables:
+      catalog: energy_copilot
+
+# ---------------------------------------------------------------------------
+# Shared cluster definitions (referenced by jobs)
+# ---------------------------------------------------------------------------
+# Reusable cluster spec for ingest/forecast jobs
+# - Spot instance preference, autoscale 2-8, DBR 15.4 LTS ML
+# ---------------------------------------------------------------------------
+
+resources:
+
+  # -------------------------------------------------------------------------
+  # Jobs
+  # -------------------------------------------------------------------------
+  jobs:
+
+    # -----------------------------------------------------------------------
+    # Job 01 — NEMWEB Ingest
+    # Runs every 5 minutes 24/7 on spot i3.xlarge workers
+    # -----------------------------------------------------------------------
+    job_01_nemweb_ingest:
+      name: "[${bundle.target}] 01 — NEMWEB Ingest"
+      description: "Bronze→Silver→Gold DLT pipeline for NEMWEB dispatch data. 5-minute cadence."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "01_nemweb_ingest"
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: nemweb_ingest
+          notebook_task:
+            notebook_path: pipelines/01_nemweb_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: i3.xlarge
+            driver_node_type_id: i3.xlarge
+            autoscale:
+              min_workers: 2
+              max_workers: 8
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              spot_bid_price_percent: 100
+              first_on_demand: 1
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+              spark.databricks.delta.autoCompact.enabled: "true"
+            runtime_engine: PHOTON
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ops@energy-copilot.internal
+
+    # -----------------------------------------------------------------------
+    # Job 02 — OpenElectricity Ingest
+    # Runs every 30 minutes
+    # -----------------------------------------------------------------------
+    job_02_openelec_ingest:
+      name: "[${bundle.target}] 02 — OpenElectricity Ingest"
+      description: "Incremental ingest from OpenElectricity API (renewable generation, capacity factors)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "02_openelec_ingest"
+      schedule:
+        quartz_cron_expression: "0 */30 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: openelec_ingest
+          notebook_task:
+            notebook_path: pipelines/02_openelec_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: i3.xlarge
+            driver_node_type_id: i3.xlarge
+            autoscale:
+              min_workers: 2
+              max_workers: 8
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              spot_bid_price_percent: 100
+              first_on_demand: 1
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+            runtime_engine: PHOTON
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ops@energy-copilot.internal
+
+    # -----------------------------------------------------------------------
+    # Job 03 — Weather Ingest
+    # Runs every 30 minutes
+    # -----------------------------------------------------------------------
+    job_03_weather_ingest:
+      name: "[${bundle.target}] 03 — Weather Ingest"
+      description: "Open-Meteo BOM ACCESS-G NWP ingest (+1h/+4h/+24h forecast horizons)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "03_weather_ingest"
+      schedule:
+        quartz_cron_expression: "0 10 */1 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: weather_ingest
+          notebook_task:
+            notebook_path: pipelines/03_weather_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: i3.xlarge
+            driver_node_type_id: i3.xlarge
+            autoscale:
+              min_workers: 2
+              max_workers: 8
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              spot_bid_price_percent: 100
+              first_on_demand: 1
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+            runtime_engine: PHOTON
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ops@energy-copilot.internal
+
+    # -----------------------------------------------------------------------
+    # Job 04 — Solar Ingest
+    # Runs every 30 minutes
+    # -----------------------------------------------------------------------
+    job_04_solar_ingest:
+      name: "[${bundle.target}] 04 — Solar Ingest"
+      description: "APVI rooftop solar ingest (ACT→NSW1 region mapping)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "04_solar_ingest"
+      schedule:
+        quartz_cron_expression: "0 20 */1 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: solar_ingest
+          notebook_task:
+            notebook_path: pipelines/04_solar_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: i3.xlarge
+            driver_node_type_id: i3.xlarge
+            autoscale:
+              min_workers: 2
+              max_workers: 8
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              spot_bid_price_percent: 100
+              first_on_demand: 1
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+            runtime_engine: PHOTON
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ops@energy-copilot.internal
+
+    # -----------------------------------------------------------------------
+    # Job 05 — Forecast Pipeline
+    # Runs every 5 minutes, depends on ingest jobs completing
+    # -----------------------------------------------------------------------
+    job_05_forecast_pipeline:
+      name: "[${bundle.target}] 05 — Forecast Pipeline"
+      description: "ML inference: LightGBM price/demand/wind/solar + IsolationForest anomaly detection."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "05_forecast_pipeline"
+      schedule:
+        quartz_cron_expression: "0 2 */5 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: forecast_pipeline
+          notebook_task:
+            notebook_path: pipelines/05_forecast_pipeline.py
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "15.4.x-ml-scala2.12"
+            node_type_id: i3.xlarge
+            driver_node_type_id: i3.xlarge
+            autoscale:
+              min_workers: 2
+              max_workers: 8
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              spot_bid_price_percent: 100
+              first_on_demand: 1
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+            runtime_engine: PHOTON
+          libraries:
+            - pypi:
+                package: lightgbm>=4.0.0
+            - pypi:
+                package: scikit-learn>=1.4.0
+            - pypi:
+                package: mlflow>=2.13.0
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ops@energy-copilot.internal
+
+    # -----------------------------------------------------------------------
+    # Job 06 — Daily Market Summary
+    # Daily at 05:30 AEST = 19:30 UTC
+    # -----------------------------------------------------------------------
+    job_06_market_summary:
+      name: "[${bundle.target}] 06 — Daily Market Summary"
+      description: "Claude Sonnet 4.5 AI-generated daily NEM market narrative. Runs at 05:30 AEST."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "06_market_summary"
+      schedule:
+        quartz_cron_expression: "0 30 19 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: market_summary
+          notebook_task:
+            notebook_path: pipelines/06_market_summary.py
+            base_parameters:
+              catalog: ${var.catalog}
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: i3.xlarge
+            driver_node_type_id: i3.xlarge
+            autoscale:
+              min_workers: 2
+              max_workers: 4
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              spot_bid_price_percent: 100
+              first_on_demand: 1
+            spark_conf:
+              spark.databricks.delta.optimizeWrite.enabled: "true"
+          libraries:
+            - pypi:
+                package: anthropic>=0.44.0
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ops@energy-copilot.internal
+
+  # -------------------------------------------------------------------------
+  # DLT Pipelines (pipelines 01-04 as Delta Live Tables)
+  # -------------------------------------------------------------------------
+  pipelines:
+
+    dlt_nemweb_ingest:
+      name: "[${bundle.target}] DLT — NEMWEB Ingest (01)"
+      description: "Delta Live Tables pipeline for NEMWEB Bronze→Silver→Gold medallion. Autoloader streaming."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/01_nemweb_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+        spark.databricks.delta.optimizeWrite.enabled: "true"
+        spark.databricks.delta.autoCompact.enabled: "true"
+      clusters:
+        - label: default
+          autoscale:
+            min_workers: 2
+            max_workers: 8
+            mode: ENHANCED
+          aws_attributes:
+            availability: SPOT_WITH_FALLBACK
+            spot_bid_price_percent: 100
+            first_on_demand: 1
+          spark_version: "15.4.x-scala2.12"
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+    dlt_openelec_ingest:
+      name: "[${bundle.target}] DLT — OpenElectricity Ingest (02)"
+      description: "Delta Live Tables pipeline for OpenElectricity API incremental ingest."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/02_openelec_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+        spark.databricks.delta.optimizeWrite.enabled: "true"
+      clusters:
+        - label: default
+          autoscale:
+            min_workers: 2
+            max_workers: 8
+            mode: ENHANCED
+          aws_attributes:
+            availability: SPOT_WITH_FALLBACK
+            spot_bid_price_percent: 100
+            first_on_demand: 1
+          spark_version: "15.4.x-scala2.12"
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+    dlt_weather_ingest:
+      name: "[${bundle.target}] DLT — Weather Ingest (03)"
+      description: "Delta Live Tables pipeline for Open-Meteo NWP weather data."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/03_weather_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+        spark.databricks.delta.optimizeWrite.enabled: "true"
+      clusters:
+        - label: default
+          autoscale:
+            min_workers: 2
+            max_workers: 8
+            mode: ENHANCED
+          aws_attributes:
+            availability: SPOT_WITH_FALLBACK
+            spot_bid_price_percent: 100
+            first_on_demand: 1
+          spark_version: "15.4.x-scala2.12"
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+    dlt_solar_ingest:
+      name: "[${bundle.target}] DLT — Solar Ingest (04)"
+      description: "Delta Live Tables pipeline for APVI rooftop solar data."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/04_solar_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+        spark.databricks.delta.optimizeWrite.enabled: "true"
+      clusters:
+        - label: default
+          autoscale:
+            min_workers: 2
+            max_workers: 8
+            mode: ENHANCED
+          aws_attributes:
+            availability: SPOT_WITH_FALLBACK
+            spot_bid_price_percent: 100
+            first_on_demand: 1
+          spark_version: "15.4.x-scala2.12"
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+  # -------------------------------------------------------------------------
+  # MLflow Experiments
+  # -------------------------------------------------------------------------
+  experiments:
+    price_forecast_experiment:
+      name: /Shared/energy_copilot/experiments/price_forecast
+      description: "LightGBM multi-horizon price forecast — 5 NEM regions, horizons 5min to 7d."
+
+    demand_forecast_experiment:
+      name: /Shared/energy_copilot/experiments/demand_forecast
+      description: "LightGBM regional demand forecast — MAPE target < 3%."
+
+    wind_forecast_experiment:
+      name: /Shared/energy_copilot/experiments/wind_forecast
+      description: "LightGBM wind generation forecast — NWP windspeed_100m as primary driver."
+
+    solar_forecast_experiment:
+      name: /Shared/energy_copilot/experiments/solar_forecast
+      description: "LightGBM solar generation forecast — night-hours excluded, zero-clamped inference."
+
+    anomaly_forecast_experiment:
+      name: /Shared/energy_copilot/experiments/anomaly_forecast
+      description: "IsolationForest + rule-based anomaly detector — price spikes, negative pricing, separation."
