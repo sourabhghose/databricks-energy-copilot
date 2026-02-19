@@ -24665,3 +24665,523 @@ async def get_forward_curve_options():
 async def get_forward_curve_seasonal():
     dash = await get_forward_curve_dashboard()
     return dash.seasonal_premiums
+
+# ── Sprint 39a: Coal Fleet Retirement & Energy Transition Analytics ───────
+
+class CoalRetirementRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    station: str
+    owner: str
+    state: str
+    technology: str                  # BLACK_COAL | BROWN_COAL
+    registered_capacity_mw: float
+    commissioning_year: int
+    planned_retirement_year: int
+    age_years: int
+    remaining_life_years: int
+    status: str                      # OPERATING | RETIRING_ANNOUNCED | RETIRED | EXTENDED
+    retirement_reason: str           # AGE | ECONOMICS | POLICY | FUEL_COST
+    replacement_capacity_needed_mw: float
+    replacement_technologies: list[str]
+    annual_generation_gwh: float
+    carbon_intensity_tco2_mwh: float
+
+class CapacityGapRecord(BaseModel):
+    record_id: str
+    year: int
+    state: str
+    retirements_mw: float
+    new_renewables_mw: float
+    new_storage_mw: float
+    new_gas_mw: float
+    net_capacity_change_mw: float
+    cumulative_gap_mw: float         # negative = shortfall
+    reliability_margin_pct: float
+
+class TransitionInvestmentRecord(BaseModel):
+    record_id: str
+    year: int
+    state: str
+    investment_type: str             # SOLAR | WIND | STORAGE | TRANSMISSION | HYDROGEN
+    capex_committed_m_aud: float
+    capex_pipeline_m_aud: float
+    mw_committed: float
+    mw_pipeline: float
+
+class CoalRetirementDashboard(BaseModel):
+    timestamp: str
+    operating_coal_units: int
+    total_coal_capacity_mw: float
+    retirements_by_2030_mw: float
+    retirements_by_2035_mw: float
+    replacement_gap_2030_mw: float
+    avg_coal_age_years: float
+    retirement_records: list[CoalRetirementRecord]
+    capacity_gaps: list[CapacityGapRecord]
+    transition_investments: list[TransitionInvestmentRecord]
+
+_coal_ret_cache: dict = {}
+
+def _build_coal_retirement_dashboard() -> CoalRetirementDashboard:
+    import random
+    rng = random.Random(8823)
+    now = "2025-07-15T08:00:00"
+
+    retirement_records = [
+        # NSW black coal
+        CoalRetirementRecord("BAYSW-1", "Bayswater Unit 1", "Bayswater", "AGL Energy", "NSW", "BLACK_COAL", 660.0, 1985, 2030, 40, 5, "RETIRING_ANNOUNCED", "AGE", 660.0, ["WIND","SOLAR","STORAGE"], 4380.0, 0.83),
+        CoalRetirementRecord("BAYSW-2", "Bayswater Unit 2", "Bayswater", "AGL Energy", "NSW", "BLACK_COAL", 660.0, 1985, 2030, 40, 5, "RETIRING_ANNOUNCED", "AGE", 660.0, ["WIND","SOLAR","STORAGE"], 4200.0, 0.84),
+        CoalRetirementRecord("BAYSW-3", "Bayswater Unit 3", "Bayswater", "AGL Energy", "NSW", "BLACK_COAL", 660.0, 1986, 2030, 39, 5, "RETIRING_ANNOUNCED", "AGE", 660.0, ["WIND","SOLAR","STORAGE"], 4100.0, 0.85),
+        CoalRetirementRecord("BAYSW-4", "Bayswater Unit 4", "Bayswater", "AGL Energy", "NSW", "BLACK_COAL", 660.0, 1986, 2031, 39, 6, "OPERATING", "AGE", 660.0, ["WIND","SOLAR","STORAGE"], 3900.0, 0.85),
+        CoalRetirementRecord("ERARING-1", "Eraring Unit 1", "Eraring", "Origin Energy", "NSW", "BLACK_COAL", 720.0, 1982, 2027, 43, 2, "RETIRING_ANNOUNCED", "ECONOMICS", 720.0, ["SOLAR","STORAGE","TRANSMISSION"], 3200.0, 0.88),
+        CoalRetirementRecord("ERARING-2", "Eraring Unit 2", "Eraring", "Origin Energy", "NSW", "BLACK_COAL", 720.0, 1983, 2027, 42, 2, "RETIRING_ANNOUNCED", "ECONOMICS", 720.0, ["SOLAR","STORAGE","TRANSMISSION"], 3100.0, 0.88),
+        CoalRetirementRecord("ERARING-3", "Eraring Unit 3", "Eraring", "Origin Energy", "NSW", "BLACK_COAL", 720.0, 1984, 2028, 41, 3, "OPERATING", "ECONOMICS", 720.0, ["SOLAR","STORAGE","TRANSMISSION"], 3400.0, 0.87),
+        CoalRetirementRecord("ERARING-4", "Eraring Unit 4", "Eraring", "Origin Energy", "NSW", "BLACK_COAL", 720.0, 1984, 2028, 41, 3, "OPERATING", "ECONOMICS", 720.0, ["SOLAR","STORAGE","TRANSMISSION"], 3500.0, 0.87),
+        # VIC brown coal
+        CoalRetirementRecord("LOYYANG-A1", "Loy Yang A Unit 1", "Loy Yang A", "AGL Energy", "VIC", "BROWN_COAL", 560.0, 1984, 2035, 41, 10, "OPERATING", "AGE", 560.0, ["OFFSHORE_WIND","STORAGE","HYDROGEN"], 4200.0, 1.32),
+        CoalRetirementRecord("LOYYANG-A2", "Loy Yang A Unit 2", "Loy Yang A", "AGL Energy", "VIC", "BROWN_COAL", 560.0, 1985, 2035, 40, 10, "OPERATING", "AGE", 560.0, ["OFFSHORE_WIND","STORAGE"], 4100.0, 1.33),
+        CoalRetirementRecord("LOYYANG-A3", "Loy Yang A Unit 3", "Loy Yang A", "AGL Energy", "VIC", "BROWN_COAL", 560.0, 1986, 2036, 39, 11, "OPERATING", "AGE", 560.0, ["OFFSHORE_WIND","STORAGE"], 3900.0, 1.35),
+        CoalRetirementRecord("LOYYANG-B1", "Loy Yang B Unit 1", "Loy Yang B", "EnergyAustralia", "VIC", "BROWN_COAL", 500.0, 1993, 2032, 32, 7, "OPERATING", "AGE", 500.0, ["WIND","SOLAR","STORAGE"], 3600.0, 1.28),
+        CoalRetirementRecord("LOYYANG-B2", "Loy Yang B Unit 2", "Loy Yang B", "EnergyAustralia", "VIC", "BROWN_COAL", 500.0, 1993, 2032, 32, 7, "OPERATING", "AGE", 500.0, ["WIND","SOLAR","STORAGE"], 3700.0, 1.27),
+        CoalRetirementRecord("HAZELWOOD-RET", "Hazelwood (retired)", "Hazelwood", "ENGIE", "VIC", "BROWN_COAL", 1600.0, 1971, 2017, 54, 0, "RETIRED", "ECONOMICS", 0.0, [], 0.0, 0.0),
+        # QLD
+        CoalRetirementRecord("CALLIDE-C3", "Callide C Unit 3", "Callide C", "CS Energy", "QLD", "BLACK_COAL", 450.0, 2001, 2037, 24, 12, "OPERATING", "AGE", 450.0, ["SOLAR","WIND","STORAGE"], 3200.0, 0.82),
+        CoalRetirementRecord("TARONG-1", "Tarong Unit 1", "Tarong", "Stanwell", "QLD", "BLACK_COAL", 350.0, 1984, 2033, 41, 8, "OPERATING", "AGE", 350.0, ["SOLAR","WIND","STORAGE"], 2800.0, 0.85),
+    ]
+
+    # Capacity gap 2025–2040 by state
+    capacity_gaps = []
+    gap_data = {
+        "NSW": [(2025,   0,  400, 200, 200, 800,  0),
+                (2026,   0,  600, 400, 100, 1100, 0),
+                (2027, 1440,  800, 600, 200, 160, -1280),
+                (2028, 1440,  900, 800, 100, 360, -2360),
+                (2029,   0,  1200, 600, 0, 1800, -560),
+                (2030, 1320, 1500, 800, 0, 980, -900),
+                (2031,  660, 1800, 1000, 0, 2140, 1240),
+                (2032,   0,  2000, 1200, 0, 3200, 4440),
+                (2035,   0,  2500, 1500, 0, 4000, 8440),
+                (2040,   0,  3000, 2000, 0, 5000, 13440)],
+        "VIC": [(2025,   0,  300, 200, 0, 500, 0),
+                (2026,   0,  400, 300, 0, 700, 0),
+                (2027,   0,  600, 400, 0, 1000, 0),
+                (2028,   0,  800, 600, 0, 1400, 0),
+                (2030, 1000,  900, 700, 0, 600, -400),
+                (2032, 1000, 1200, 900, 0, 1100, 700),
+                (2035, 1120, 1500, 1200, 0, 1580, 2280),
+                (2040,   0, 2000, 1500, 0, 3500, 5780)],
+        "QLD": [(2025,   0, 600, 300, 100, 1000, 0),
+                (2027,   0, 800, 500, 100, 1400, 0),
+                (2030, 350, 1000, 700, 0, 1350, 1000),
+                (2033, 350, 1200, 900, 0, 1750, 2750),
+                (2037, 450, 1400, 1100, 0, 2050, 4800)],
+    }
+    for state, rows in gap_data.items():
+        cum_gap = 0.0
+        for row in rows:
+            yr, ret, new_ren, new_stor, new_gas, net_chg, _ = row
+            cum_gap = _ if _ != 0 else cum_gap + net_chg - ret
+            rel_margin = max(5.0, 25.0 - abs(cum_gap) / 500)
+            capacity_gaps.append(CapacityGapRecord(
+                f"GAP-{state}-{yr}", yr, state, float(ret), float(new_ren),
+                float(new_stor), float(new_gas), float(net_chg), round(cum_gap, 0),
+                round(rel_margin, 1),
+            ))
+
+    # Transition investment pipeline
+    inv_types = ["SOLAR", "WIND", "STORAGE", "TRANSMISSION", "HYDROGEN"]
+    transition_investments = []
+    inv_base = {
+        "NSW": [("SOLAR", 4200, 6800, 2800, 4500),
+                ("WIND",  3100, 5200, 2100, 3500),
+                ("STORAGE", 1800, 3200, 1200, 2400),
+                ("TRANSMISSION", 5200, 2800, 0, 0),
+                ("HYDROGEN", 800, 4200, 0, 500)],
+        "VIC": [("SOLAR", 2800, 4600, 1800, 3200),
+                ("WIND",  4200, 6800, 2800, 4500),
+                ("STORAGE", 1400, 2800, 900, 2000),
+                ("TRANSMISSION", 3800, 2200, 0, 0),
+                ("HYDROGEN", 1200, 5800, 0, 800)],
+        "QLD": [("SOLAR", 5800, 8200, 3800, 5500),
+                ("WIND",  2200, 4600, 1400, 3000),
+                ("STORAGE", 1200, 2400, 800, 1800),
+                ("TRANSMISSION", 6200, 3400, 0, 0),
+                ("HYDROGEN", 600, 3800, 0, 400)],
+    }
+    for state, rows in inv_base.items():
+        for (itype, cap_com, cap_pip, mw_com, mw_pip) in rows:
+            year = 2025
+            transition_investments.append(TransitionInvestmentRecord(
+                f"INV-{state}-{itype}", year, state, itype,
+                float(cap_com), float(cap_pip), float(mw_com), float(mw_pip),
+            ))
+
+    operating = [r for r in retirement_records if r.status != "RETIRED"]
+    total_cap  = sum(r.registered_capacity_mw for r in operating)
+    ret_2030   = sum(r.registered_capacity_mw for r in operating if r.planned_retirement_year <= 2030)
+    ret_2035   = sum(r.registered_capacity_mw for r in operating if r.planned_retirement_year <= 2035)
+    avg_age    = sum(r.age_years for r in operating) / len(operating)
+    rep_gap    = ret_2030 - sum(r.new_renewables_mw + r.new_storage_mw for r in capacity_gaps if r.year <= 2030)
+
+    return CoalRetirementDashboard(
+        timestamp=now,
+        operating_coal_units=len(operating),
+        total_coal_capacity_mw=round(total_cap, 1),
+        retirements_by_2030_mw=round(ret_2030, 1),
+        retirements_by_2035_mw=round(ret_2035, 1),
+        replacement_gap_2030_mw=round(max(0, rep_gap), 1),
+        avg_coal_age_years=round(avg_age, 1),
+        retirement_records=retirement_records,
+        capacity_gaps=capacity_gaps,
+        transition_investments=transition_investments,
+    )
+
+@app.get("/api/coal-retirement/dashboard", response_model=CoalRetirementDashboard, dependencies=[Depends(verify_api_key)])
+async def get_coal_retirement_dashboard():
+    cached = _cache_get(_coal_ret_cache, "coal_retirement")
+    if cached: return cached
+    result = _build_coal_retirement_dashboard()
+    _cache_set(_coal_ret_cache, "coal_retirement", result)
+    return result
+
+@app.get("/api/coal-retirement/units", response_model=list[CoalRetirementRecord], dependencies=[Depends(verify_api_key)])
+async def get_coal_retirement_units():
+    dash = await get_coal_retirement_dashboard()
+    return dash.retirement_records
+
+@app.get("/api/coal-retirement/capacity-gaps", response_model=list[CapacityGapRecord], dependencies=[Depends(verify_api_key)])
+async def get_coal_retirement_gaps():
+    dash = await get_coal_retirement_dashboard()
+    return dash.capacity_gaps
+
+@app.get("/api/coal-retirement/investments", response_model=list[TransitionInvestmentRecord], dependencies=[Depends(verify_api_key)])
+async def get_coal_retirement_investments():
+    dash = await get_coal_retirement_dashboard()
+    return dash.transition_investments
+
+# ── Sprint 39b: Gas-Fired Generation Economics Analytics ─────────────────
+
+class GasGeneratorRecord(BaseModel):
+    generator_id: str
+    name: str
+    owner: str
+    state: str
+    technology: str                   # CCGT | OCGT | COGEN | GAS_STEAM
+    registered_capacity_mw: float
+    heat_rate_gj_mwh: float           # Fuel efficiency
+    variable_om_aud_mwh: float
+    fixed_om_aud_kw_yr: float
+    gas_contract_type: str            # SPOT | FIRM_GSA | INTERRUPTIBLE
+    gas_price_gj: float               # $/GJ
+    fuel_cost_aud_mwh: float          # = heat_rate * gas_price
+    short_run_marginal_cost_aud_mwh: float  # fuel + VOM
+    capacity_factor_pct: float
+    annual_generation_gwh: float
+    annual_revenue_m_aud: float
+    start_up_cost_aud: float
+    min_gen_pct: float
+    commissioning_year: int
+
+class SparkSpreadRecord(BaseModel):
+    record_id: str
+    month: str                        # YYYY-MM
+    region: str
+    avg_spot_price_aud_mwh: float
+    gas_price_aud_gj: float
+    heat_rate_reference_gj_mwh: float
+    fuel_cost_aud_mwh: float          # gas_price * heat_rate
+    spark_spread_aud_mwh: float       # spot - fuel_cost
+    dark_spread_aud_mwh: float        # for coal context (0 if no coal)
+    operating_hours: int              # hours generator economic
+    peak_spark_spread: float
+
+class GasGenEconomicsDashboard(BaseModel):
+    timestamp: str
+    total_gas_capacity_mw: float
+    avg_heat_rate_gj_mwh: float
+    avg_gas_price_aud_gj: float
+    avg_spark_spread_aud_mwh: float
+    ccgt_count: int
+    ocgt_count: int
+    generators: list[GasGeneratorRecord]
+    spark_spreads: list[SparkSpreadRecord]
+
+_gas_gen_cache: dict = {}
+
+def _build_gas_gen_dashboard() -> GasGenEconomicsDashboard:
+    import random
+    rng = random.Random(4456)
+    now = "2025-07-15T08:00:00"
+
+    generators = [
+        # NSW CCGT/OCGT
+        GasGeneratorRecord("ERGT-NSW-01", "Tallawarra B CCGT", "EnergyAustralia", "NSW", "CCGT", 316.0, 6.8, 4.2, 38.0, "FIRM_GSA", 11.50, 78.2, 82.4, 42.0, 1160.0, 95.5, 28000.0, 35.0, 2023),
+        GasGeneratorRecord("ERGT-NSW-02", "Colongra OCGT", "EnergyAustralia", "NSW", "OCGT", 667.0, 10.2, 6.8, 28.0, "FIRM_GSA", 12.80, 130.6, 137.4, 12.0, 700.0, 96.3, 8500.0, 25.0, 2009),
+        GasGeneratorRecord("ERGT-NSW-03", "Hunter Valley OCGT", "APA Group", "NSW", "OCGT", 50.0, 11.5, 8.2, 24.0, "SPOT", 14.20, 163.3, 171.5, 6.0, 26.0, 4.5, 4500.0, 20.0, 2018),
+        GasGeneratorRecord("ERGT-NSW-04", "Smithfield COGEN", "Shell", "NSW", "COGEN", 172.0, 7.8, 3.8, 32.0, "FIRM_GSA", 10.80, 84.2, 88.0, 78.0, 1172.0, 103.0, 12000.0, 55.0, 1996),
+        # VIC
+        GasGeneratorRecord("ERGT-VIC-01", "Newport OCGT", "AGL Energy", "VIC", "OCGT", 500.0, 10.8, 7.2, 26.0, "FIRM_GSA", 11.20, 120.96, 128.16, 8.0, 350.0, 44.8, 7200.0, 22.0, 1972),
+        GasGeneratorRecord("ERGT-VIC-02", "Jeeralang A OCGT", "AGL Energy", "VIC", "GAS_STEAM", 228.0, 12.5, 8.8, 22.0, "FIRM_GSA", 10.80, 135.0, 143.8, 5.0, 99.8, 14.2, 6800.0, 18.0, 1978),
+        GasGeneratorRecord("ERGT-VIC-03", "Valley Power OCGT", "Engie", "VIC", "OCGT", 300.0, 10.5, 7.0, 27.0, "INTERRUPTIBLE", 10.20, 107.1, 114.1, 10.0, 262.8, 30.0, 7500.0, 24.0, 2003),
+        GasGeneratorRecord("ERGT-VIC-04", "Mortlake OCGT", "Origin Energy", "VIC", "OCGT", 566.0, 10.1, 6.5, 28.5, "FIRM_GSA", 11.80, 119.2, 125.7, 15.0, 743.2, 93.0, 8200.0, 26.0, 2012),
+        # QLD
+        GasGeneratorRecord("ERGT-QLD-01", "Darling Downs CCGT", "Origin Energy", "QLD", "CCGT", 630.0, 6.5, 4.0, 40.0, "FIRM_GSA", 10.20, 66.3, 70.3, 55.0, 3025.8, 212.8, 22000.0, 38.0, 2010),
+        GasGeneratorRecord("ERGT-QLD-02", "Condamine CCGT", "CS Energy", "QLD", "CCGT", 144.0, 7.1, 4.5, 36.0, "FIRM_GSA", 10.80, 76.7, 81.2, 48.0, 604.8, 49.1, 18000.0, 35.0, 2009),
+        GasGeneratorRecord("ERGT-QLD-03", "Roma OCGT", "APA Group", "QLD", "OCGT", 80.0, 11.2, 7.8, 22.0, "SPOT", 13.50, 151.2, 159.0, 8.0, 56.0, 8.9, 4800.0, 22.0, 2007),
+        # SA
+        GasGeneratorRecord("ERGT-SA-01", "Torrens Island A OCGT", "AGL Energy", "SA", "GAS_STEAM", 480.0, 13.2, 9.5, 20.0, "FIRM_GSA", 12.80, 168.96, 178.46, 6.0, 252.3, 44.8, 8200.0, 16.0, 1967),
+        GasGeneratorRecord("ERGT-SA-02", "Pelican Point CCGT", "Engie", "SA", "CCGT", 478.0, 6.9, 4.2, 38.0, "FIRM_GSA", 13.80, 95.2, 99.4, 45.0, 1885.0, 187.0, 21000.0, 38.0, 2000),
+        GasGeneratorRecord("ERGT-SA-03", "Quarantine OCGT", "AGL Energy", "SA", "OCGT", 200.0, 10.8, 7.5, 24.0, "INTERRUPTIBLE", 14.20, 153.4, 160.9, 5.0, 87.6, 14.1, 5500.0, 20.0, 1999),
+    ]
+
+    # Spark spread records — 12 months × 4 regions
+    months = [f"2024-{m:02d}" if m >= 7 else f"2025-{m:02d}" for m in list(range(7,13)) + list(range(1,7))]
+    base_spot = {"NSW1": 92.0, "QLD1": 88.0, "VIC1": 78.0, "SA1": 110.0}
+    base_gas  = {"NSW1": 11.5, "QLD1": 10.5, "VIC1": 10.8, "SA1": 13.5}
+    base_hr   = 7.0  # reference heat rate GJ/MWh (OCGT avg)
+
+    spark_spreads = []
+    for region in ["NSW1", "QLD1", "VIC1", "SA1"]:
+        for i, month in enumerate(months):
+            spot   = base_spot[region] * rng.uniform(0.75, 1.55)
+            gp     = base_gas[region]  * rng.uniform(0.92, 1.12)
+            fuel   = gp * base_hr
+            spark  = round(spot - fuel, 1)
+            peak_s = round(spot * rng.uniform(1.5, 3.5) - fuel, 1)
+            op_hrs = max(0, int(spark / 10 * 720))  # roughly proportional
+            spark_spreads.append(SparkSpreadRecord(
+                f"SS-{region}-{month}", month, region,
+                round(spot, 1), round(gp, 2), base_hr,
+                round(fuel, 1), spark, 0.0, op_hrs, peak_s,
+            ))
+
+    total_cap  = sum(g.registered_capacity_mw for g in generators)
+    avg_hr     = sum(g.heat_rate_gj_mwh for g in generators) / len(generators)
+    avg_gp     = sum(g.gas_price_gj for g in generators) / len(generators)
+    latest_ss  = [r for r in spark_spreads if r.month == "2025-06"]
+    avg_spark  = sum(r.spark_spread_aud_mwh for r in latest_ss) / len(latest_ss) if latest_ss else 0.0
+    ccgt_cnt   = sum(1 for g in generators if g.technology == "CCGT")
+    ocgt_cnt   = sum(1 for g in generators if g.technology in ("OCGT","GAS_STEAM"))
+
+    return GasGenEconomicsDashboard(
+        timestamp=now,
+        total_gas_capacity_mw=round(total_cap, 1),
+        avg_heat_rate_gj_mwh=round(avg_hr, 2),
+        avg_gas_price_aud_gj=round(avg_gp, 2),
+        avg_spark_spread_aud_mwh=round(avg_spark, 1),
+        ccgt_count=ccgt_cnt,
+        ocgt_count=ocgt_cnt,
+        generators=generators,
+        spark_spreads=spark_spreads,
+    )
+
+@app.get("/api/gas-gen/dashboard", response_model=GasGenEconomicsDashboard, dependencies=[Depends(verify_api_key)])
+async def get_gas_gen_dashboard():
+    cached = _cache_get(_gas_gen_cache, "gas_gen_dashboard")
+    if cached: return cached
+    result = _build_gas_gen_dashboard()
+    _cache_set(_gas_gen_cache, "gas_gen_dashboard", result)
+    return result
+
+@app.get("/api/gas-gen/generators", response_model=list[GasGeneratorRecord], dependencies=[Depends(verify_api_key)])
+async def get_gas_generators():
+    dash = await get_gas_gen_dashboard()
+    return dash.generators
+
+@app.get("/api/gas-gen/spark-spreads", response_model=list[SparkSpreadRecord], dependencies=[Depends(verify_api_key)])
+async def get_gas_spark_spreads():
+    dash = await get_gas_gen_dashboard()
+    return dash.spark_spreads
+
+# ── Sprint 39c: Consumer Protection & Retail Analytics ───────────────────
+
+class RetailOfferRecord(BaseModel):
+    offer_id: str
+    retailer: str
+    state: str
+    offer_type: str                  # DMO | STANDING | MARKET_FIXED | MARKET_VFT | BASIC_PLAN
+    annual_bill_aud: float
+    daily_supply_charge_aud: float
+    usage_rate_c_kwh: float          # peak rate c/kWh
+    off_peak_rate_c_kwh: float
+    peak_vs_dmo_pct: float           # % above/below DMO (negative = below)
+    conditional_discounts: bool
+    green_power_pct: float
+    contract_length_months: int
+    exit_fee_aud: float
+
+class ConsumerComplaintRecord(BaseModel):
+    record_id: str
+    quarter: str                     # YYYY-QN
+    state: str
+    category: str                    # BILLING | DISCONNECTION | CREDIT | CONTRACT | METERING | GENERAL
+    complaint_count: int
+    resolved_first_contact_pct: float
+    median_resolution_days: float
+    escalated_to_ombudsman_pct: float
+
+class SwitchingRateRecord(BaseModel):
+    record_id: str
+    quarter: str
+    state: str
+    total_switches: int
+    switches_per_1000_customers: float
+    inbound_switches: int            # to this retailer
+    outbound_switches: int           # from this retailer
+    churn_triggered_by: str         # PRICE | SERVICE | DOORKNOCK | DIGITAL | OTHER
+
+class ConsumerProtectionDashboard(BaseModel):
+    timestamp: str
+    avg_dmo_annual_bill_aud: float
+    avg_market_offer_saving_pct: float
+    total_complaints_ytd: int
+    ombudsman_cases_ytd: int
+    avg_switching_rate_per_1000: float
+    hardship_customers_pct: float
+    retail_offers: list[RetailOfferRecord]
+    complaints: list[ConsumerComplaintRecord]
+    switching_rates: list[SwitchingRateRecord]
+
+_consumer_protection_cache: dict = {}
+
+def _build_consumer_protection_dashboard() -> ConsumerProtectionDashboard:
+    import random
+    rng = random.Random(7729)
+    now = "2025-07-15T08:00:00"
+
+    # Retail offers by state and type
+    retailers = {
+        "NSW": ["AGL Energy", "Origin Energy", "EnergyAustralia", "Red Energy", "Alinta Energy", "1st Energy"],
+        "VIC": ["AGL Energy", "Origin Energy", "EnergyAustralia", "Red Energy", "Powershop", "Tango Energy"],
+        "QLD": ["Origin Energy", "Ergon Energy", "AGL Energy", "Lumo Energy", "Simply Energy", "OVO Energy"],
+        "SA":  ["AGL Energy", "Origin Energy", "EnergyAustralia", "Lumo Energy", "Simply Energy", "Momentum"],
+    }
+    dmo_annual = {"NSW": 1960, "VIC": 1420, "QLD": 1850, "SA": 2180}
+    supply_charge = {"NSW": 88.0, "VIC": 102.0, "QLD": 95.0, "SA": 112.0}
+
+    retail_offers = []
+    for state, rets in retailers.items():
+        dmo = dmo_annual[state]
+        sc  = supply_charge[state]
+        for i, retailer in enumerate(rets):
+            # DMO offer
+            usage_r  = round((dmo - sc * 365) / 365 / 6.0 * 100, 2)  # ~ 6kWh/day approx
+            retail_offers.append(RetailOfferRecord(
+                offer_id=f"OFF-{state}-{retailer[:6].replace(' ','')}-DMO",
+                retailer=retailer, state=state, offer_type="DMO",
+                annual_bill_aud=float(dmo), daily_supply_charge_aud=sc / 100,
+                usage_rate_c_kwh=usage_r, off_peak_rate_c_kwh=round(usage_r * 0.75, 2),
+                peak_vs_dmo_pct=0.0, conditional_discounts=False, green_power_pct=0.0,
+                contract_length_months=0, exit_fee_aud=0.0,
+            ))
+            # Market offer
+            discount  = rng.uniform(-0.18, 0.05)  # mostly cheaper than DMO
+            mkt_bill  = dmo * (1 + discount)
+            mkt_usage = usage_r * (1 + discount * 0.7)
+            opeak     = mkt_usage * rng.uniform(0.60, 0.75)
+            cond_disc = rng.choice([True, False])
+            green     = rng.uniform(0, 20) if i < 3 else 0.0
+            contract  = rng.choice([0, 12, 24])
+            exit_fee  = 0.0 if contract == 0 else rng.uniform(50, 150)
+            retail_offers.append(RetailOfferRecord(
+                offer_id=f"OFF-{state}-{retailer[:6].replace(' ','')}-MKT",
+                retailer=retailer, state=state,
+                offer_type="MARKET_VFT" if not cond_disc else "MARKET_FIXED",
+                annual_bill_aud=round(mkt_bill, 0),
+                daily_supply_charge_aud=sc / 100,
+                usage_rate_c_kwh=round(mkt_usage, 2),
+                off_peak_rate_c_kwh=round(opeak, 2),
+                peak_vs_dmo_pct=round(discount * 100, 1),
+                conditional_discounts=cond_disc,
+                green_power_pct=round(green, 1),
+                contract_length_months=contract,
+                exit_fee_aud=round(exit_fee, 0),
+            ))
+
+    # Complaints — 8 quarters × 4 states × 3 categories
+    categories = ["BILLING", "DISCONNECTION", "CONTRACT", "CREDIT", "METERING"]
+    quarters   = ["2023-Q3","2023-Q4","2024-Q1","2024-Q2","2024-Q3","2024-Q4","2025-Q1","2025-Q2"]
+    states     = ["NSW", "VIC", "QLD", "SA"]
+    complaints = []
+    for qtr in quarters:
+        for state in states:
+            for cat in categories[:3]:   # top 3 categories
+                cnt    = rng.randint(180, 1800)
+                res_fc = round(rng.uniform(55, 80), 1)
+                med_d  = round(rng.uniform(3, 18), 1)
+                esc    = round(rng.uniform(1.5, 8.5), 1)
+                complaints.append(ConsumerComplaintRecord(
+                    record_id=f"CMP-{state}-{qtr}-{cat[:4]}",
+                    quarter=qtr, state=state, category=cat,
+                    complaint_count=cnt,
+                    resolved_first_contact_pct=res_fc,
+                    median_resolution_days=med_d,
+                    escalated_to_ombudsman_pct=esc,
+                ))
+
+    # Switching rates — 8 quarters × 4 states
+    switching_triggers = ["PRICE", "SERVICE", "DOORKNOCK", "DIGITAL", "OTHER"]
+    switching_rates = []
+    for qtr in quarters:
+        for state in states:
+            total_sw = rng.randint(8000, 45000)
+            rate     = round(total_sw / rng.randint(800, 2200), 1)
+            inbound  = int(total_sw * rng.uniform(0.42, 0.58))
+            outbound = total_sw - inbound
+            trigger  = rng.choice(switching_triggers)
+            switching_rates.append(SwitchingRateRecord(
+                record_id=f"SW-{state}-{qtr}",
+                quarter=qtr, state=state,
+                total_switches=total_sw,
+                switches_per_1000_customers=rate,
+                inbound_switches=inbound,
+                outbound_switches=outbound,
+                churn_triggered_by=trigger,
+            ))
+
+    avg_dmo       = sum(dmo_annual.values()) / len(dmo_annual)
+    market_offers = [o for o in retail_offers if "MKT" in o.offer_id]
+    avg_saving    = abs(sum(o.peak_vs_dmo_pct for o in market_offers) / len(market_offers))
+    latest_q      = "2025-Q2"
+    latest_cmps   = [c for c in complaints if c.quarter == latest_q]
+    total_cmps    = sum(c.complaint_count for c in latest_cmps) * 4  # annualised approx
+    ombudsman_ytd = int(total_cmps * 0.055)
+    latest_sw     = [s for s in switching_rates if s.quarter == latest_q]
+    avg_sw_rate   = sum(s.switches_per_1000_customers for s in latest_sw) / len(latest_sw)
+
+    return ConsumerProtectionDashboard(
+        timestamp=now,
+        avg_dmo_annual_bill_aud=round(avg_dmo, 0),
+        avg_market_offer_saving_pct=round(avg_saving, 1),
+        total_complaints_ytd=total_cmps,
+        ombudsman_cases_ytd=ombudsman_ytd,
+        avg_switching_rate_per_1000=round(avg_sw_rate, 1),
+        hardship_customers_pct=round(rng.uniform(2.8, 4.5), 1),
+        retail_offers=retail_offers,
+        complaints=complaints,
+        switching_rates=switching_rates,
+    )
+
+@app.get("/api/consumer-protection/dashboard", response_model=ConsumerProtectionDashboard, dependencies=[Depends(verify_api_key)])
+async def get_consumer_protection_dashboard():
+    cached = _cache_get(_consumer_protection_cache, "consumer_dashboard")
+    if cached: return cached
+    result = _build_consumer_protection_dashboard()
+    _cache_set(_consumer_protection_cache, "consumer_dashboard", result)
+    return result
+
+@app.get("/api/consumer-protection/offers", response_model=list[RetailOfferRecord], dependencies=[Depends(verify_api_key)])
+async def get_consumer_protection_offers():
+    dash = await get_consumer_protection_dashboard()
+    return dash.retail_offers
+
+@app.get("/api/consumer-protection/complaints", response_model=list[ConsumerComplaintRecord], dependencies=[Depends(verify_api_key)])
+async def get_consumer_protection_complaints():
+    dash = await get_consumer_protection_dashboard()
+    return dash.complaints
+
+@app.get("/api/consumer-protection/switching", response_model=list[SwitchingRateRecord], dependencies=[Depends(verify_api_key)])
+async def get_consumer_protection_switching():
+    dash = await get_consumer_protection_dashboard()
+    return dash.switching_rates

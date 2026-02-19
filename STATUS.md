@@ -721,3 +721,18 @@
 - ForwardCurveAnalytics.tsx: forward curve line chart (CAL25/26/27 by region), cap/floor options table, seasonal premium heatmap
 - /api/forward-curve/dashboard, /prices, /options, /seasonal (4-region curve, 27 cap/floor options, 80 seasonal premium records)
 - 4 TestForwardCurveEndpoints tests
+
+## Sprint 39a — Coal Fleet Retirement & Energy Transition Analytics [COMPLETE]
+- CoalRetirement.tsx: capacity gap grouped bar chart (retirements vs renewables vs storage by state/year), retirement units table, transition investment pipeline table
+- /api/coal-retirement/dashboard, /units, /capacity-gaps, /investments (16 coal units incl. retired, 20+ gap records, 15 investment records)
+- 4 TestCoalRetirementEndpoints tests
+
+## Sprint 39b — Gas-Fired Generation Economics Analytics [COMPLETE]
+- GasGenEconomics.tsx: 12-month spark spread trend chart by region, gas generators SRMC table, gas contract type badges
+- /api/gas-gen/dashboard, /generators, /spark-spreads (14 CCGT/OCGT generators, 48 spark spread records across 4 regions)
+- 3 TestGasGenEndpoints tests
+
+## Sprint 39c — Consumer Protection & Retail Market Analytics [COMPLETE]
+- ConsumerProtection.tsx: complaints stacked bar chart by quarter, retail offers table (DMO vs market), switching rates table
+- /api/consumer-protection/dashboard, /offers, /complaints, /switching (48 retail offers, 96 complaint records, 32 switching records)
+- 4 TestConsumerProtectionEndpoints tests

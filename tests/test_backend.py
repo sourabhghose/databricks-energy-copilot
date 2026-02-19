@@ -3527,3 +3527,72 @@ class TestForwardCurveEndpoints:
         r = client.get("/api/forward-curve/seasonal", headers=AUTH)
         assert r.status_code == 200
         assert len(r.json()) >= 50
+
+class TestCoalRetirementEndpoints:
+    def test_coal_retirement_dashboard(self, client):
+        r = client.get("/api/coal-retirement/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["operating_coal_units"] >= 10
+        assert d["total_coal_capacity_mw"] > 0
+        assert len(d["retirement_records"]) >= 12
+        assert len(d["capacity_gaps"]) >= 15
+
+    def test_coal_retirement_units(self, client):
+        r = client.get("/api/coal-retirement/units", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 12
+
+    def test_coal_retirement_gaps(self, client):
+        r = client.get("/api/coal-retirement/capacity-gaps", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 15
+
+    def test_coal_retirement_investments(self, client):
+        r = client.get("/api/coal-retirement/investments", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+class TestGasGenEndpoints:
+    def test_gas_gen_dashboard(self, client):
+        r = client.get("/api/gas-gen/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_gas_capacity_mw"] > 0
+        assert len(d["generators"]) >= 10
+        assert len(d["spark_spreads"]) >= 40
+
+    def test_gas_generators(self, client):
+        r = client.get("/api/gas-gen/generators", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_gas_spark_spreads(self, client):
+        r = client.get("/api/gas-gen/spark-spreads", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 40
+
+class TestConsumerProtectionEndpoints:
+    def test_consumer_dashboard(self, client):
+        r = client.get("/api/consumer-protection/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["avg_dmo_annual_bill_aud"] > 0
+        assert len(d["retail_offers"]) >= 20
+        assert len(d["complaints"]) >= 50
+        assert len(d["switching_rates"]) >= 20
+
+    def test_consumer_offers(self, client):
+        r = client.get("/api/consumer-protection/offers", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+    def test_consumer_complaints(self, client):
+        r = client.get("/api/consumer-protection/complaints", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 50
+
+    def test_consumer_switching(self, client):
+        r = client.get("/api/consumer-protection/switching", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20

@@ -129,6 +129,9 @@ import RabAnalytics from './pages/RabAnalytics'
 import NemRealTimeDashboard from './pages/NemRealTimeDashboard'
 import RitAnalytics from './pages/RitAnalytics'
 import ForwardCurveAnalytics from './pages/ForwardCurveAnalytics'
+import CoalRetirement from './pages/CoalRetirement'
+import GasGenEconomics from './pages/GasGenEconomics'
+import ConsumerProtection from './pages/ConsumerProtection'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -216,6 +219,9 @@ const NAV_ITEMS = [
   { to: '/realtime',        label: 'NEM Live',         Icon: Radio          },
   { to: '/rit',             label: 'Network RIT',      Icon: GitBranch      },
   { to: '/forward-curve',   label: 'Forward Curve',    Icon: TrendingUp     },
+  { to: '/coal-retirement', label: 'Coal Retirement',  Icon: Flame          },
+  { to: '/gas-gen',         label: 'Gas Economics',    Icon: Activity       },
+  { to: '/consumer-protection', label: 'Consumer Protection', Icon: Shield   },
   { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
 ]
 
@@ -378,6 +384,9 @@ export default function App() {
               <Route path="/realtime"       element={<NemRealTimeDashboard />}  />
               <Route path="/rit"            element={<RitAnalytics />}          />
               <Route path="/forward-curve"  element={<ForwardCurveAnalytics />} />
+              <Route path="/coal-retirement" element={<CoalRetirement />}       />
+              <Route path="/gas-gen"         element={<GasGenEconomics />}       />
+              <Route path="/consumer-protection" element={<ConsumerProtection />} />
               <Route path="/settings"        element={<Settings />}              />
             </Routes>
           </main>

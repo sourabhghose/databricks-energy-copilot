@@ -2120,6 +2120,165 @@ export interface Fwd38cDashboard {
   seasonal_premiums: Fwd38cSeasonalPremiumRecord[]
 }
 
+// ── Sprint 39a: Coal Retirement & Transition ──
+export interface CoalRetirementRecord {
+  unit_id: string
+  unit_name: string
+  station: string
+  owner: string
+  state: string
+  technology: string
+  registered_capacity_mw: number
+  commissioning_year: number
+  planned_retirement_year: number
+  age_years: number
+  remaining_life_years: number
+  status: string
+  retirement_reason: string
+  replacement_capacity_needed_mw: number
+  replacement_technologies: string[]
+  annual_generation_gwh: number
+  carbon_intensity_tco2_mwh: number
+}
+
+export interface CapacityGapRecord {
+  record_id: string
+  year: number
+  state: string
+  retirements_mw: number
+  new_renewables_mw: number
+  new_storage_mw: number
+  new_gas_mw: number
+  net_capacity_change_mw: number
+  cumulative_gap_mw: number
+  reliability_margin_pct: number
+}
+
+export interface TransitionInvestmentRecord {
+  record_id: string
+  year: number
+  state: string
+  investment_type: string
+  capex_committed_m_aud: number
+  capex_pipeline_m_aud: number
+  mw_committed: number
+  mw_pipeline: number
+}
+
+export interface CoalRetirementDashboard {
+  timestamp: string
+  operating_coal_units: number
+  total_coal_capacity_mw: number
+  retirements_by_2030_mw: number
+  retirements_by_2035_mw: number
+  replacement_gap_2030_mw: number
+  avg_coal_age_years: number
+  retirement_records: CoalRetirementRecord[]
+  capacity_gaps: CapacityGapRecord[]
+  transition_investments: TransitionInvestmentRecord[]
+}
+
+// ── Sprint 39b: Gas Generation Economics ──
+export interface GasGeneratorRecord {
+  generator_id: string
+  name: string
+  owner: string
+  state: string
+  technology: string
+  registered_capacity_mw: number
+  heat_rate_gj_mwh: number
+  variable_om_aud_mwh: number
+  fixed_om_aud_kw_yr: number
+  gas_contract_type: string
+  gas_price_gj: number
+  fuel_cost_aud_mwh: number
+  short_run_marginal_cost_aud_mwh: number
+  capacity_factor_pct: number
+  annual_generation_gwh: number
+  annual_revenue_m_aud: number
+  start_up_cost_aud: number
+  min_gen_pct: number
+  commissioning_year: number
+}
+
+export interface SparkSpreadRecord {
+  record_id: string
+  month: string
+  region: string
+  avg_spot_price_aud_mwh: number
+  gas_price_aud_gj: number
+  heat_rate_reference_gj_mwh: number
+  fuel_cost_aud_mwh: number
+  spark_spread_aud_mwh: number
+  dark_spread_aud_mwh: number
+  operating_hours: number
+  peak_spark_spread: number
+}
+
+export interface GasGenEconomicsDashboard {
+  timestamp: string
+  total_gas_capacity_mw: number
+  avg_heat_rate_gj_mwh: number
+  avg_gas_price_aud_gj: number
+  avg_spark_spread_aud_mwh: number
+  ccgt_count: number
+  ocgt_count: number
+  generators: GasGeneratorRecord[]
+  spark_spreads: SparkSpreadRecord[]
+}
+
+// ── Sprint 39c: Consumer Protection & Retail ──
+export interface RetailOfferRecord {
+  offer_id: string
+  retailer: string
+  state: string
+  offer_type: string
+  annual_bill_aud: number
+  daily_supply_charge_aud: number
+  usage_rate_c_kwh: number
+  off_peak_rate_c_kwh: number
+  peak_vs_dmo_pct: number
+  conditional_discounts: boolean
+  green_power_pct: number
+  contract_length_months: number
+  exit_fee_aud: number
+}
+
+export interface ConsumerComplaintRecord {
+  record_id: string
+  quarter: string
+  state: string
+  category: string
+  complaint_count: number
+  resolved_first_contact_pct: number
+  median_resolution_days: number
+  escalated_to_ombudsman_pct: number
+}
+
+export interface SwitchingRateRecord {
+  record_id: string
+  quarter: string
+  state: string
+  total_switches: number
+  switches_per_1000_customers: number
+  inbound_switches: number
+  outbound_switches: number
+  churn_triggered_by: string
+}
+
+export interface ConsumerProtectionDashboard {
+  timestamp: string
+  avg_dmo_annual_bill_aud: number
+  avg_market_offer_saving_pct: number
+  total_complaints_ytd: number
+  ombudsman_cases_ytd: number
+  avg_switching_rate_per_1000: number
+  hardship_customers_pct: number
+  retail_offers: RetailOfferRecord[]
+  complaints: ConsumerComplaintRecord[]
+  switching_rates: SwitchingRateRecord[]
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3782,6 +3941,28 @@ export const api = {
     get<Fwd38cCapOptionRecord[]>('/api/forward-curve/options'),
   getForwardCurveSeasonal: (): Promise<Fwd38cSeasonalPremiumRecord[]> =>
     get<Fwd38cSeasonalPremiumRecord[]>('/api/forward-curve/seasonal'),
+  getCoalRetirementDashboard: (): Promise<CoalRetirementDashboard> =>
+    get<CoalRetirementDashboard>('/api/coal-retirement/dashboard'),
+  getCoalRetirementUnits: (): Promise<CoalRetirementRecord[]> =>
+    get<CoalRetirementRecord[]>('/api/coal-retirement/units'),
+  getCoalRetirementGaps: (): Promise<CapacityGapRecord[]> =>
+    get<CapacityGapRecord[]>('/api/coal-retirement/capacity-gaps'),
+  getCoalRetirementInvestments: (): Promise<TransitionInvestmentRecord[]> =>
+    get<TransitionInvestmentRecord[]>('/api/coal-retirement/investments'),
+  getGasGenDashboard: (): Promise<GasGenEconomicsDashboard> =>
+    get<GasGenEconomicsDashboard>('/api/gas-gen/dashboard'),
+  getGasGenerators: (): Promise<GasGeneratorRecord[]> =>
+    get<GasGeneratorRecord[]>('/api/gas-gen/generators'),
+  getGasSparkSpreads: (): Promise<SparkSpreadRecord[]> =>
+    get<SparkSpreadRecord[]>('/api/gas-gen/spark-spreads'),
+  getConsumerProtectionDashboard: (): Promise<ConsumerProtectionDashboard> =>
+    get<ConsumerProtectionDashboard>('/api/consumer-protection/dashboard'),
+  getConsumerOffers: (): Promise<RetailOfferRecord[]> =>
+    get<RetailOfferRecord[]>('/api/consumer-protection/offers'),
+  getConsumerComplaints: (): Promise<ConsumerComplaintRecord[]> =>
+    get<ConsumerComplaintRecord[]>('/api/consumer-protection/complaints'),
+  getConsumerSwitching: (): Promise<SwitchingRateRecord[]> =>
+    get<SwitchingRateRecord[]>('/api/consumer-protection/switching'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
