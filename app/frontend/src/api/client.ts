@@ -1702,6 +1702,29 @@ export interface SresRecord { year: number; sth_systems_installed: number; solar
 export interface CerAccreditedStation { station_id: string; station_name: string; developer: string; state: string; fuel_source: string; capacity_mw: number; accreditation_date: string; lgc_created_ytd: number; lgc_price_aud: number; status: string }
 export interface CerDashboard { timestamp: string; lret_target_2030_gwh: number; current_year_renewable_pct: number; total_accredited_stations: number; stc_clearing_house_price_aud: number; laret_spot_price_aud: number; lret_records: LretRecord[]; sres_records: SresRecord[]; accredited_stations: CerAccreditedStation[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 32a — Pumped Hydro Energy Storage (PHES) interfaces
+// ---------------------------------------------------------------------------
+export interface PhesProject { project_id: string; project_name: string; developer: string; state: string; capacity_mw: number; storage_hours: number; energy_capacity_mwh: number; upper_reservoir_ml: number; lower_reservoir_ml: number; head_height_m: number; tunnel_km: number; status: string; capex_b_aud: number; lcoe_aud_mwh: number; construction_start: number | null; commissioning_year: number | null; round_trip_efficiency_pct: number; cycle_life_years: number; jobs_peak_construction: number; isp_role: string }
+export interface PhesOperationRecord { project_id: string; project_name: string; state: string; date: string; generation_mwh: number; pumping_mwh: number; net_mwh: number; capacity_factor_pct: number; cycles: number; arbitrage_revenue_aud: number; fcas_revenue_aud: number; capacity_market_revenue_aud: number }
+export interface PhesMarketOutlook { year: number; total_phes_capacity_mw: number; total_phes_storage_gwh: number; share_of_storage_pct: number; avg_lcoe_aud_mwh: number; investment_committed_b_aud: number; isp_target_mw: number }
+export interface PhesDashboard { timestamp: string; total_operating_mw: number; total_pipeline_mw: number; total_storage_gwh: number; largest_project: string; projects: PhesProject[]; operations: PhesOperationRecord[]; market_outlook: PhesMarketOutlook[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 32c — Safeguard Mechanism & ERF interfaces
+// ---------------------------------------------------------------------------
+export interface SafeguardFacility { facility_id: string; facility_name: string; operator: string; sector: string; state: string; baseline_co2e_kt: number; actual_emissions_co2e_kt: number; emissions_above_below_kt: number; safeguard_mechanism_credits_accu: number; purchased_accu: number; compliance_status: string; reporting_year: number; decline_rate_pct: number; headroom_kt: number }
+export interface ErfProject { project_id: string; project_name: string; developer: string; state: string; methodology: string; abatement_kt_co2e: number; accu_issued: number; accu_price_aud: number; contract_type: string; contract_value_m_aud: number; start_date: string; end_date: string; status: string }
+export interface AccuMarketRecord { date: string; spot_price_aud: number; forward_price_aud: number; volume_traded: number; total_accu_issued_m: number; total_accu_retired_m: number; safeguard_demand_kt: number; govt_contracts_kt: number }
+export interface SafeguardDashboard { timestamp: string; total_covered_facilities: number; total_baseline_emissions_mt: number; total_actual_emissions_mt: number; total_exceedances_mt: number; accu_spot_price_aud: number; facilities: SafeguardFacility[]; erf_projects: ErfProject[]; accu_market: AccuMarketRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 32b — Major Transmission Projects interfaces
+// ---------------------------------------------------------------------------
+export interface TransmissionProject { project_id: string; project_name: string; tnsp: string; states: string[]; category: string; circuit_km: number; voltage_kv: number; capacity_mw: number; capex_b_aud: number; status: string; rar_submitted: boolean; rit_t_passed: boolean; aer_approved: boolean; construction_start: number | null; commissioning_year: number | null; consumer_benefit_b_aud: number; jobs_created: number; isp_2024_priority: string }
+export interface TransmissionMilestone { project_id: string; project_name: string; milestone: string; planned_date: string; actual_date: string | null; status: string; notes: string }
+export interface TransmissionDashboard { timestamp: string; total_pipeline_capex_b_aud: number; km_under_construction: number; km_approved: number; projects_at_risk: number; projects: TransmissionProject[]; milestones: TransmissionMilestone[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3125,6 +3148,38 @@ export const api = {
     if (params?.state) qs.append('state', params.state)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<CerAccreditedStation[]>(`/api/cer/stations${query}`)
+  },
+  getPhesDashboard: () => get<PhesDashboard>('/api/phes/dashboard'),
+  getPhesProjects: (params?: { state?: string; status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<PhesProject[]>(`/api/phes/projects${query}`)
+  },
+  getPhesOutlook: () => get<PhesMarketOutlook[]>('/api/phes/outlook'),
+  getSafeguardDashboard: () => get<SafeguardDashboard>('/api/safeguard/dashboard'),
+  getSafeguardFacilities: (params?: { sector?: string; state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.sector) qs.append('sector', params.sector)
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<SafeguardFacility[]>(`/api/safeguard/facilities${query}`)
+  },
+  getAccuMarket: () => get<AccuMarketRecord[]>('/api/safeguard/accu-market'),
+  getTransmissionDashboard: () => get<TransmissionDashboard>('/api/transmission/dashboard'),
+  getTransmissionProjects: (params?: { status?: string; category?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.append('status', params.status)
+    if (params?.category) qs.append('category', params.category)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TransmissionProject[]>(`/api/transmission/projects${query}`)
+  },
+  getTransmissionMilestones: (params?: { project_id?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.project_id) qs.append('project_id', params.project_id)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TransmissionMilestone[]>(`/api/transmission/milestones${query}`)
   },
 }
 

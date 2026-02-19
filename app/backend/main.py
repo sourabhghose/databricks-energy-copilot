@@ -20629,3 +20629,651 @@ def get_cer_stations(fuel_source: Optional[str] = None, state: Optional[str] = N
         stations = [s for s in stations if s.state == state]
     _cache_set(cache_key, stations, _TTL_CER)
     return stations
+
+
+# ---------------------------------------------------------------------------
+# Sprint 32a — Pumped Hydro Energy Storage (PHES) Investment Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_PHES = 3600
+
+
+class PhesProject(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    capacity_mw: float
+    storage_hours: int
+    energy_capacity_mwh: float
+    upper_reservoir_ml: float
+    lower_reservoir_ml: float
+    head_height_m: float
+    tunnel_km: float
+    status: str  # OPERATING / CONSTRUCTION / APPROVED / FEASIBILITY / PROPOSED
+    capex_b_aud: float
+    lcoe_aud_mwh: float
+    construction_start: Optional[int]
+    commissioning_year: Optional[int]
+    round_trip_efficiency_pct: float
+    cycle_life_years: int
+    jobs_peak_construction: int
+    isp_role: str  # COMMITTED / ACTIONABLE / ANTICIPATED / NOT_IN_ISP
+
+
+class PhesOperationRecord(BaseModel):
+    project_id: str
+    project_name: str
+    state: str
+    date: str
+    generation_mwh: float
+    pumping_mwh: float
+    net_mwh: float
+    capacity_factor_pct: float
+    cycles: float
+    arbitrage_revenue_aud: float
+    fcas_revenue_aud: float
+    capacity_market_revenue_aud: float
+
+
+class PhesMarketOutlook(BaseModel):
+    year: int
+    total_phes_capacity_mw: float
+    total_phes_storage_gwh: float
+    share_of_storage_pct: float
+    avg_lcoe_aud_mwh: float
+    investment_committed_b_aud: float
+    isp_target_mw: float
+
+
+class PhesDashboard(BaseModel):
+    timestamp: str
+    total_operating_mw: float
+    total_pipeline_mw: float
+    total_storage_gwh: float
+    largest_project: str
+    projects: List[PhesProject]
+    operations: List[PhesOperationRecord]
+    market_outlook: List[PhesMarketOutlook]
+
+
+def _make_phes_projects() -> List[PhesProject]:
+    import random as r
+    projects_data = [
+        ("SNOWY20", "Snowy 2.0", "Snowy Hydro", "NSW", 2000, 350, 700_000, 500_000, 700, 27, "CONSTRUCTION", 12.0),
+        ("BORUMBA", "Borumba Dam PHES", "Queensland Government", "QLD", 2000, 24, 900_000, 400_000, 250, 8, "APPROVED", 8.5),
+        ("PIONEER-BURDEKIN", "Pioneer-Burdekin", "Queensland Government", "QLD", 5000, 24, 1_500_000, 800_000, 600, 15, "FEASIBILITY", 25.0),
+        ("CHRISTMAS-HILLS", "Christmas Hills PHES", "AGL Energy", "VIC", 500, 8, 200_000, 100_000, 400, 5, "FEASIBILITY", 2.0),
+        ("LAKE-LYELL", "Lake Lyell Expansion", "Snowy Hydro", "NSW", 600, 12, 300_000, 150_000, 350, 3, "FEASIBILITY", 2.5),
+        ("WIVENHOE-EXPAND", "Wivenhoe Expansion", "CS Energy", "QLD", 570, 24, 300_000, 200_000, 200, 4, "PROPOSED", 2.2),
+        ("KIDSTON", "Kidston PHES", "Genex Power", "QLD", 250, 8, 150_000, 80_000, 190, 2, "CONSTRUCTION", 0.8),
+        ("SNOWY1-EXPAND", "Snowy 1 Expansion", "Snowy Hydro", "NSW", 400, 20, 200_000, 100_000, 800, 2, "APPROVED", 1.5),
+    ]
+    statuses_by_name = {
+        "CONSTRUCTION": ("CONSTRUCTION", 2027, 2028),
+        "APPROVED": ("APPROVED", 2026, 2030),
+        "FEASIBILITY": ("FEASIBILITY", None, 2032),
+        "PROPOSED": ("PROPOSED", None, 2035),
+    }
+    isp_roles = ["COMMITTED", "ACTIONABLE", "ANTICIPATED", "NOT_IN_ISP"]
+    records = []
+    for pid, pname, dev, state, cap, hrs, upper, lower, head, tunnel, status_key, capex in projects_data:
+        status, cs, comm = statuses_by_name[status_key]
+        records.append(PhesProject(
+            project_id=pid,
+            project_name=pname,
+            developer=dev,
+            state=state,
+            capacity_mw=float(cap),
+            storage_hours=hrs,
+            energy_capacity_mwh=float(cap * hrs),
+            upper_reservoir_ml=float(upper),
+            lower_reservoir_ml=float(lower),
+            head_height_m=float(head),
+            tunnel_km=float(tunnel),
+            status=status,
+            capex_b_aud=capex,
+            lcoe_aud_mwh=round(r.uniform(110, 200), 2),
+            construction_start=cs,
+            commissioning_year=comm,
+            round_trip_efficiency_pct=round(r.uniform(75, 82), 1),
+            cycle_life_years=r.randint(50, 100),
+            jobs_peak_construction=r.randint(500, 5000),
+            isp_role=r.choice(isp_roles),
+        ))
+    return records
+
+
+def _make_phes_operations() -> List[PhesOperationRecord]:
+    import random as r
+    operating = [
+        ("SNOWY1", "Snowy Scheme", "NSW"),
+        ("KIDSTON", "Kidston PHES", "QLD"),
+    ]
+    records = []
+    for pid, pname, state in operating:
+        for month in range(1, 13):
+            gen = round(r.uniform(50000, 200000), 2)
+            pump = round(r.uniform(60000, 220000), 2)
+            records.append(PhesOperationRecord(
+                project_id=pid,
+                project_name=pname,
+                state=state,
+                date=f"2025-{month:02d}-01",
+                generation_mwh=gen,
+                pumping_mwh=pump,
+                net_mwh=round(gen - pump, 2),
+                capacity_factor_pct=round(r.uniform(15, 45), 2),
+                cycles=round(r.uniform(0.5, 2.0), 2),
+                arbitrage_revenue_aud=round(r.uniform(500_000, 5_000_000), 2),
+                fcas_revenue_aud=round(r.uniform(100_000, 1_000_000), 2),
+                capacity_market_revenue_aud=round(r.uniform(50_000, 500_000), 2),
+            ))
+    return records
+
+
+def _make_phes_market_outlook() -> List[PhesMarketOutlook]:
+    import random as r
+    records = []
+    base_mw = 4500.0
+    for year in range(2025, 2036):
+        base_mw = round(base_mw * r.uniform(1.0, 1.3), 0)
+        records.append(PhesMarketOutlook(
+            year=year,
+            total_phes_capacity_mw=base_mw,
+            total_phes_storage_gwh=round(base_mw * 0.016, 2),
+            share_of_storage_pct=round(r.uniform(40, 65), 2),
+            avg_lcoe_aud_mwh=round(r.uniform(100, 180), 2),
+            investment_committed_b_aud=round(r.uniform(1, 30), 2),
+            isp_target_mw=round(r.uniform(5000, 22000), 0),
+        ))
+    return records
+
+
+def _make_phes_dashboard() -> PhesDashboard:
+    import random as r
+    projects = _make_phes_projects()
+    operations = _make_phes_operations()
+    outlook = _make_phes_market_outlook()
+    operating_mw = sum(p.capacity_mw for p in projects if p.status == "CONSTRUCTION") + 4500.0
+    pipeline_mw = sum(p.capacity_mw for p in projects if p.status not in ("OPERATING", "CONSTRUCTION"))
+    total_gwh = round(operating_mw * 0.016 + pipeline_mw * 0.020, 2)
+    largest = max(projects, key=lambda p: p.capacity_mw)
+    return PhesDashboard(
+        timestamp=_now_aest(),
+        total_operating_mw=round(operating_mw, 1),
+        total_pipeline_mw=round(pipeline_mw, 1),
+        total_storage_gwh=total_gwh,
+        largest_project=largest.project_name,
+        projects=projects,
+        operations=operations,
+        market_outlook=outlook,
+    )
+
+
+@app.get(
+    "/api/phes/dashboard",
+    response_model=PhesDashboard,
+    summary="Pumped Hydro Energy Storage analytics dashboard",
+    tags=["PHES"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_phes_dashboard():
+    cached = _cache_get("phes:dashboard")
+    if cached:
+        return cached
+    data = _make_phes_dashboard()
+    _cache_set("phes:dashboard", data, _TTL_PHES)
+    return data
+
+
+@app.get(
+    "/api/phes/projects",
+    response_model=List[PhesProject],
+    summary="PHES project pipeline",
+    tags=["PHES"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_phes_projects(state: Optional[str] = None, status: Optional[str] = None):
+    cache_key = f"phes:projects:{state}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_phes_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if status:
+        projects = [p for p in projects if p.status == status]
+    _cache_set(cache_key, projects, _TTL_PHES)
+    return projects
+
+
+@app.get(
+    "/api/phes/outlook",
+    response_model=List[PhesMarketOutlook],
+    summary="PHES market capacity outlook 2025-2035",
+    tags=["PHES"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_phes_outlook():
+    cached = _cache_get("phes:outlook")
+    if cached:
+        return cached
+    data = _make_phes_market_outlook()
+    _cache_set("phes:outlook", data, _TTL_PHES)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Sprint 32c — Safeguard Mechanism & Emissions Reduction Fund (ERF) Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_SAFEGUARD = 3600
+
+
+class SafeguardFacility(BaseModel):
+    facility_id: str
+    facility_name: str
+    operator: str
+    sector: str  # ELECTRICITY / MINING / MANUFACTURING / OIL_GAS / TRANSPORT
+    state: str
+    baseline_co2e_kt: float
+    actual_emissions_co2e_kt: float
+    emissions_above_below_kt: float
+    safeguard_mechanism_credits_accu: int
+    purchased_accu: int
+    compliance_status: str  # COMPLIANT / NON_COMPLIANT / EXCESS_EMISSIONS
+    reporting_year: int
+    decline_rate_pct: float
+    headroom_kt: float
+
+
+class ErfProject(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    methodology: str
+    abatement_kt_co2e: float
+    accu_issued: int
+    accu_price_aud: float
+    contract_type: str  # CFF / ERF_AUCTION / VOLUNTARY
+    contract_value_m_aud: float
+    start_date: str
+    end_date: str
+    status: str  # ACTIVE / COMPLETED / SUSPENDED
+
+
+class AccuMarketRecord(BaseModel):
+    date: str
+    spot_price_aud: float
+    forward_price_aud: float
+    volume_traded: int
+    total_accu_issued_m: float
+    total_accu_retired_m: float
+    safeguard_demand_kt: float
+    govt_contracts_kt: float
+
+
+class SafeguardDashboard(BaseModel):
+    timestamp: str
+    total_covered_facilities: int
+    total_baseline_emissions_mt: float
+    total_actual_emissions_mt: float
+    total_exceedances_mt: float
+    accu_spot_price_aud: float
+    facilities: List[SafeguardFacility]
+    erf_projects: List[ErfProject]
+    accu_market: List[AccuMarketRecord]
+
+
+def _make_safeguard_facilities() -> List[SafeguardFacility]:
+    import random as r
+    facilities_data = [
+        ("SGF001", "Loy Yang A Power Station", "AGL Energy", "ELECTRICITY", "VIC"),
+        ("SGF002", "Eraring Power Station", "Origin Energy", "ELECTRICITY", "NSW"),
+        ("SGF003", "Vales Point B", "Delta Electricity", "ELECTRICITY", "NSW"),
+        ("SGF004", "BHP Olympic Dam", "BHP", "MINING", "SA"),
+        ("SGF005", "Bowen Basin Coal Mines", "BMA", "MINING", "QLD"),
+        ("SGF006", "BlueScope Port Kembla", "BlueScope Steel", "MANUFACTURING", "NSW"),
+        ("SGF007", "Santos Moomba", "Santos", "OIL_GAS", "SA"),
+        ("SGF008", "Woodside NW Shelf", "Woodside", "OIL_GAS", "WA"),
+        ("SGF009", "Qantas Flight Operations", "Qantas", "TRANSPORT", "NSW"),
+        ("SGF010", "Alcoa Wagerup Refinery", "Alcoa", "MANUFACTURING", "WA"),
+    ]
+    records = []
+    for fid, fname, op, sector, state in facilities_data:
+        baseline = round(r.uniform(200, 2000), 1)
+        actual = round(baseline * r.uniform(0.85, 1.10), 1)
+        above_below = round(actual - baseline, 1)
+        exceedance = max(0, above_below)
+        headroom = max(0, -above_below)
+        compliance = "COMPLIANT" if above_below <= 0 else ("NON_COMPLIANT" if above_below > 50 else "EXCESS_EMISSIONS")
+        records.append(SafeguardFacility(
+            facility_id=fid,
+            facility_name=fname,
+            operator=op,
+            sector=sector,
+            state=state,
+            baseline_co2e_kt=baseline,
+            actual_emissions_co2e_kt=actual,
+            emissions_above_below_kt=above_below,
+            safeguard_mechanism_credits_accu=r.randint(0, 100_000),
+            purchased_accu=r.randint(0, int(exceedance * 1000)) if exceedance > 0 else 0,
+            compliance_status=compliance,
+            reporting_year=2025,
+            decline_rate_pct=round(r.uniform(3.0, 8.0), 2),
+            headroom_kt=headroom,
+        ))
+    return records
+
+
+def _make_erf_projects() -> List[ErfProject]:
+    import random as r
+    methodologies = [
+        "Avoided Deforestation",
+        "Landfill Gas Capture",
+        "Savanna Fire Management",
+        "Industrial Fugitive Emissions",
+        "Reforestation",
+        "Soil Carbon",
+        "Industrial Energy Efficiency",
+    ]
+    projects_data = [
+        ("ERF001", "Queensland Savanna Burning", "Carbon Neutral Australia", "QLD"),
+        ("ERF002", "NSW Avoided Clearing", "GreenCollar", "NSW"),
+        ("ERF003", "WA Landfill Gas", "LMS Energy", "WA"),
+        ("ERF004", "SA Reforestation", "Green Triangle Carbon", "SA"),
+        ("ERF005", "VIC Soil Carbon Pilot", "Agriprove", "VIC"),
+        ("ERF006", "NT Savanna Management", "NT Carbon", "NT"),
+        ("ERF007", "TAS Forest Carbon", "Forest Enterprises", "TAS"),
+        ("ERF008", "QLD Industrial EE", "GHD Advisory", "QLD"),
+    ]
+    records = []
+    for pid, pname, dev, state in projects_data:
+        abatement = round(r.uniform(10, 500), 2)
+        price = round(r.uniform(15, 35), 2)
+        records.append(ErfProject(
+            project_id=pid,
+            project_name=pname,
+            developer=dev,
+            state=state,
+            methodology=r.choice(methodologies),
+            abatement_kt_co2e=abatement,
+            accu_issued=r.randint(5_000, 500_000),
+            accu_price_aud=price,
+            contract_type=r.choice(["CFF", "ERF_AUCTION", "VOLUNTARY"]),
+            contract_value_m_aud=round(abatement * price / 1000, 2),
+            start_date=f"20{r.randint(16,22):02d}-{r.randint(1,12):02d}-01",
+            end_date=f"20{r.randint(25,35):02d}-{r.randint(1,12):02d}-30",
+            status=r.choice(["ACTIVE", "ACTIVE", "ACTIVE", "COMPLETED", "SUSPENDED"]),
+        ))
+    return records
+
+
+def _make_accu_market_records() -> List[AccuMarketRecord]:
+    import random as r
+    records = []
+    for month in range(1, 13):
+        spot = round(r.uniform(28, 55), 2)
+        records.append(AccuMarketRecord(
+            date=f"2025-{month:02d}-01",
+            spot_price_aud=spot,
+            forward_price_aud=round(spot * r.uniform(0.95, 1.10), 2),
+            volume_traded=r.randint(100_000, 2_000_000),
+            total_accu_issued_m=round(r.uniform(100, 180), 2),
+            total_accu_retired_m=round(r.uniform(80, 160), 2),
+            safeguard_demand_kt=round(r.uniform(20_000, 60_000), 1),
+            govt_contracts_kt=round(r.uniform(5_000, 20_000), 1),
+        ))
+    return records
+
+
+def _make_safeguard_dashboard() -> SafeguardDashboard:
+    import random as r
+    facilities = _make_safeguard_facilities()
+    projects = _make_erf_projects()
+    market = _make_accu_market_records()
+    total_baseline = sum(f.baseline_co2e_kt for f in facilities) / 1000  # to MT
+    total_actual = sum(f.actual_emissions_co2e_kt for f in facilities) / 1000
+    total_excess = sum(f.emissions_above_below_kt for f in facilities if f.emissions_above_below_kt > 0) / 1000
+    accu_spot = market[-1].spot_price_aud if market else round(r.uniform(30, 50), 2)
+    return SafeguardDashboard(
+        timestamp=_now_aest(),
+        total_covered_facilities=len(facilities),
+        total_baseline_emissions_mt=round(total_baseline, 2),
+        total_actual_emissions_mt=round(total_actual, 2),
+        total_exceedances_mt=round(total_excess, 2),
+        accu_spot_price_aud=accu_spot,
+        facilities=facilities,
+        erf_projects=projects,
+        accu_market=market,
+    )
+
+
+@app.get(
+    "/api/safeguard/dashboard",
+    response_model=SafeguardDashboard,
+    summary="Safeguard Mechanism & ERF Analytics dashboard",
+    tags=["Safeguard"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_safeguard_dashboard():
+    cached = _cache_get("safeguard:dashboard")
+    if cached:
+        return cached
+    data = _make_safeguard_dashboard()
+    _cache_set("safeguard:dashboard", data, _TTL_SAFEGUARD)
+    return data
+
+
+@app.get(
+    "/api/safeguard/facilities",
+    response_model=List[SafeguardFacility],
+    summary="Safeguard mechanism covered facilities",
+    tags=["Safeguard"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_safeguard_facilities(sector: Optional[str] = None, state: Optional[str] = None):
+    cache_key = f"safeguard:facilities:{sector}:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    facilities = _make_safeguard_facilities()
+    if sector:
+        facilities = [f for f in facilities if f.sector == sector]
+    if state:
+        facilities = [f for f in facilities if f.state == state]
+    _cache_set(cache_key, facilities, _TTL_SAFEGUARD)
+    return facilities
+
+
+@app.get(
+    "/api/safeguard/accu-market",
+    response_model=List[AccuMarketRecord],
+    summary="ACCU market price and volume data",
+    tags=["Safeguard"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_accu_market():
+    cached = _cache_get("safeguard:accu_market")
+    if cached:
+        return cached
+    data = _make_accu_market_records()
+    _cache_set("safeguard:accu_market", data, _TTL_SAFEGUARD)
+    return data
+
+# ---------------------------------------------------------------------------
+# Sprint 32b — Major Transmission Projects Dashboard
+# ---------------------------------------------------------------------------
+
+_TTL_TRANSMISSION = 3600
+
+
+class TransmissionProject(BaseModel):
+    project_id: str
+    project_name: str
+    tnsp: str
+    states: List[str]
+    category: str
+    circuit_km: float
+    voltage_kv: int
+    capacity_mw: float
+    capex_b_aud: float
+    status: str
+    rar_submitted: bool
+    rit_t_passed: bool
+    aer_approved: bool
+    construction_start: Optional[int]
+    commissioning_year: Optional[int]
+    consumer_benefit_b_aud: float
+    jobs_created: int
+    isp_2024_priority: str
+
+
+class TransmissionMilestone(BaseModel):
+    project_id: str
+    project_name: str
+    milestone: str
+    planned_date: str
+    actual_date: Optional[str]
+    status: str
+    notes: str
+
+
+class TransmissionDashboard(BaseModel):
+    timestamp: str
+    total_pipeline_capex_b_aud: float
+    km_under_construction: float
+    km_approved: float
+    projects_at_risk: int
+    projects: List[TransmissionProject]
+    milestones: List[TransmissionMilestone]
+
+
+def _make_transmission_projects() -> List[TransmissionProject]:
+    import random as r
+    projects_data = [
+        ("HUMELINK", "HumeLink", "TransGrid", ["NSW"], "COMMITTED_ISP", 365, 500, 2200, 3.3, "CONSTRUCTION"),
+        ("VNI-WEST", "VNI West", "TransGrid/AusNet", ["NSW", "VIC"], "ACTIONABLE_ISP", 190, 500, 2900, 3.3, "AER_REVIEW"),
+        ("ENERGY-CONNECT", "Project EnergyConnect", "ElectraNet/TransGrid", ["SA", "NSW"], "COMMITTED_ISP", 900, 330, 800, 2.4, "CONSTRUCTION"),
+        ("MARINUS-LINK", "Marinus Link", "TasNetworks", ["TAS", "VIC"], "ACTIONABLE_ISP", 255, 500, 1500, 3.5, "APPROVED"),
+        ("BALACLAVA-SW", "South West Vic Upgrade", "AusNet Services", ["VIC"], "ACTIONABLE_ISP", 190, 500, 1800, 1.8, "AER_REVIEW"),
+        ("QNSW", "QNI Medium", "Powerlink/TransGrid", ["QLD", "NSW"], "ANTICIPATED", 580, 330, 1000, 1.4, "PROPOSED"),
+        ("NQRR", "North Queensland RER", "Powerlink", ["QLD"], "ACTIONABLE_ISP", 450, 500, 3000, 3.2, "APPROVED"),
+        ("SYDNEY-RING", "Sydney Ring", "TransGrid", ["NSW"], "REGULATORY", 80, 500, 1200, 0.8, "APPROVED"),
+    ]
+    records = []
+    for pid, pname, tnsp, states, cat, km, kv, cap, capex, status in projects_data:
+        aer_ok = status in ("CONSTRUCTION", "APPROVED")
+        cs = r.randint(2023, 2026) if status == "CONSTRUCTION" else (r.randint(2025, 2028) if aer_ok else None)
+        records.append(TransmissionProject(
+            project_id=pid, project_name=pname, tnsp=tnsp, states=states,
+            category=cat, circuit_km=float(km), voltage_kv=kv, capacity_mw=float(cap),
+            capex_b_aud=capex, status=status, rar_submitted=True,
+            rit_t_passed=aer_ok, aer_approved=aer_ok,
+            construction_start=cs, commissioning_year=r.randint(2026, 2032),
+            consumer_benefit_b_aud=round(capex * r.uniform(1.2, 3.5), 2),
+            jobs_created=r.randint(300, 3000),
+            isp_2024_priority="HIGH" if capex >= 2.0 else ("MEDIUM" if capex >= 1.0 else "LOW"),
+        ))
+    return records
+
+
+def _make_transmission_milestones() -> List[TransmissionMilestone]:
+    data = [
+        ("HUMELINK", "HumeLink", "RIT-T Complete", "2022-06", "2022-08", "COMPLETE", "Passed RIT-T"),
+        ("HUMELINK", "HumeLink", "AER Approval", "2023-03", "2023-06", "COMPLETE", "AER approved"),
+        ("HUMELINK", "HumeLink", "Construction Start", "2024-01", "2024-03", "COMPLETE", "Works commenced"),
+        ("HUMELINK", "HumeLink", "Commissioning", "2026-06", None, "IN_PROGRESS", "On track"),
+        ("VNI-WEST", "VNI West", "RIT-T Lodged", "2023-06", "2023-07", "COMPLETE", "Published"),
+        ("VNI-WEST", "VNI West", "AER Approval", "2024-12", None, "IN_PROGRESS", "Under review"),
+        ("VNI-WEST", "VNI West", "Financial Close", "2025-06", None, "UPCOMING", "Pending AER"),
+        ("ENERGY-CONNECT", "EnergyConnect", "RIT-T Complete", "2021-01", "2021-04", "COMPLETE", "Passed"),
+        ("ENERGY-CONNECT", "EnergyConnect", "Groundbreaking", "2022-07", "2022-08", "COMPLETE", "Launched"),
+        ("ENERGY-CONNECT", "EnergyConnect", "Full Commissioning", "2026-03", None, "UPCOMING", "SA-NSW"),
+        ("MARINUS-LINK", "Marinus Link", "RIT-T Complete", "2023-12", "2024-01", "COMPLETE", "Positive"),
+        ("MARINUS-LINK", "Marinus Link", "AER Approval", "2025-06", None, "UPCOMING", "H1 2025"),
+    ]
+    return [
+        TransmissionMilestone(
+            project_id=pid, project_name=pname, milestone=m,
+            planned_date=pd, actual_date=ad, status=st, notes=n
+        )
+        for pid, pname, m, pd, ad, st, n in data
+    ]
+
+
+def _make_transmission_dashboard() -> TransmissionDashboard:
+    import random as r
+    projects = _make_transmission_projects()
+    milestones = _make_transmission_milestones()
+    total_capex = sum(p.capex_b_aud for p in projects)
+    km_construction = sum(p.circuit_km for p in projects if p.status == "CONSTRUCTION")
+    km_approved = sum(p.circuit_km for p in projects if p.status == "APPROVED")
+    at_risk = sum(1 for p in projects if p.status in ("AER_REVIEW", "PROPOSED"))
+    return TransmissionDashboard(
+        timestamp=_now_aest(),
+        total_pipeline_capex_b_aud=round(total_capex, 2),
+        km_under_construction=round(km_construction, 1),
+        km_approved=round(km_approved, 1),
+        projects_at_risk=at_risk,
+        projects=projects,
+        milestones=milestones,
+    )
+
+
+@app.get(
+    "/api/transmission/dashboard",
+    response_model=TransmissionDashboard,
+    summary="Major Transmission Projects dashboard",
+    tags=["Transmission"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_dashboard():
+    cached = _cache_get("transmission:dashboard")
+    if cached:
+        return cached
+    data = _make_transmission_dashboard()
+    _cache_set("transmission:dashboard", data, _TTL_TRANSMISSION)
+    return data
+
+
+@app.get(
+    "/api/transmission/projects",
+    response_model=List[TransmissionProject],
+    summary="Major transmission projects list",
+    tags=["Transmission"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_projects(status: Optional[str] = None, category: Optional[str] = None):
+    cache_key = f"transmission:projects:{status}:{category}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_transmission_projects()
+    if status:
+        projects = [p for p in projects if p.status == status]
+    if category:
+        projects = [p for p in projects if p.category == category]
+    _cache_set(cache_key, projects, _TTL_TRANSMISSION)
+    return projects
+
+
+@app.get(
+    "/api/transmission/milestones",
+    response_model=List[TransmissionMilestone],
+    summary="Transmission project milestone tracker",
+    tags=["Transmission"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_transmission_milestones(project_id: Optional[str] = None):
+    cache_key = f"transmission:milestones:{project_id}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    milestones = _make_transmission_milestones()
+    if project_id:
+        milestones = [m for m in milestones if m.project_id == project_id]
+    _cache_set(cache_key, milestones, _TTL_TRANSMISSION)
+    return milestones

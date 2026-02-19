@@ -2884,3 +2884,110 @@ class TestCerEndpoints:
         assert r.status_code == 200
         for s in r.json():
             assert s["fuel_source"] == "WIND"
+
+
+
+# ---------------------------------------------------------------------------
+# Sprint 32c — Safeguard Mechanism & ERF Analytics
+# ---------------------------------------------------------------------------
+
+class TestSafeguardEndpoints:
+    def test_safeguard_dashboard_returns_200(self, client=client):
+        r = client.get("/api/safeguard/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "facilities" in d
+        assert "erf_projects" in d
+        assert "accu_market" in d
+        assert d["total_covered_facilities"] >= 5
+
+    def test_safeguard_facilities_list(self, client=client):
+        r = client.get("/api/safeguard/facilities")
+        assert r.status_code == 200
+        facilities = r.json()
+        assert len(facilities) >= 5
+        for f in facilities:
+            assert f["compliance_status"] in ["COMPLIANT", "NON_COMPLIANT", "EXCESS_EMISSIONS"]
+
+    def test_accu_market_list(self, client=client):
+        r = client.get("/api/safeguard/accu-market")
+        assert r.status_code == 200
+        market = r.json()
+        assert len(market) == 12
+        for m in market:
+            assert m["spot_price_aud"] > 0
+
+    def test_safeguard_sector_filter(self, client=client):
+        r = client.get("/api/safeguard/facilities?sector=ELECTRICITY")
+        assert r.status_code == 200
+        for f in r.json():
+            assert f["sector"] == "ELECTRICITY"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 32a — Pumped Hydro Energy Storage (PHES)
+# ---------------------------------------------------------------------------
+
+class TestPhesEndpoints:
+    def test_phes_dashboard_returns_200(self, client=client):
+        r = client.get("/api/phes/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "projects" in d
+        assert "operations" in d
+        assert "market_outlook" in d
+        assert d["total_operating_mw"] > 0
+
+    def test_phes_projects_list(self, client=client):
+        r = client.get("/api/phes/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 5
+        for p in projects:
+            assert p["capacity_mw"] > 0
+
+    def test_phes_outlook_list(self, client=client):
+        r = client.get("/api/phes/outlook")
+        assert r.status_code == 200
+        outlook = r.json()
+        assert len(outlook) >= 5
+
+    def test_phes_status_filter(self, client=client):
+        r = client.get("/api/phes/projects?status=CONSTRUCTION")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["status"] == "CONSTRUCTION"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 32b — Major Transmission Projects Dashboard
+# ---------------------------------------------------------------------------
+
+class TestTransmissionEndpoints:
+    def test_transmission_dashboard_returns_200(self, client=client):
+        r = client.get("/api/transmission/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "projects" in d
+        assert "milestones" in d
+        assert d["total_pipeline_capex_b_aud"] > 0
+
+    def test_transmission_projects_list(self, client=client):
+        r = client.get("/api/transmission/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 5
+        for p in projects:
+            assert p["capex_b_aud"] > 0
+
+    def test_transmission_milestones_list(self, client=client):
+        r = client.get("/api/transmission/milestones")
+        assert r.status_code == 200
+        milestones = r.json()
+        assert len(milestones) >= 5
+
+    def test_transmission_status_filter(self, client=client):
+        r = client.get("/api/transmission/projects?status=CONSTRUCTION")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["status"] == "CONSTRUCTION"

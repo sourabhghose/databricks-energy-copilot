@@ -616,3 +616,18 @@
 - CerDashboard.tsx: LRET/LGC price history, SRES solar installation chart, accredited stations table
 - /api/cer/dashboard, /lret, /stations endpoints (11-year LRET history, 10 accredited stations)
 - 4 TestCerEndpoints tests
+
+## Sprint 32a — Pumped Hydro Energy Storage (PHES) Analytics [COMPLETE]
+- PhesAnalytics.tsx: capacity outlook chart, project pipeline table, generation/pumping operations chart
+- /api/phes/dashboard, /projects, /outlook endpoints (8 projects, 2025-2035 outlook)
+- 4 TestPhesEndpoints tests
+
+## Sprint 32c — Safeguard Mechanism & ERF Analytics [COMPLETE]
+- SafeguardAnalytics.tsx: ACCU price/volume chart, safeguard facilities compliance table, ERF projects table
+- /api/safeguard/dashboard, /facilities, /accu-market (10 facilities, 8 ERF projects, 12-month ACCU market)
+- 4 TestSafeguardEndpoints tests
+
+## Sprint 32b — Major Transmission Projects Dashboard [COMPLETE]
+- TransmissionProjects.tsx: project table with RIT-T/AER status, milestone tracker, capex vs benefit chart
+- /api/transmission/dashboard, /projects, /milestones (8 projects: HumeLink, VNI West, EnergyConnect, Marinus Link)
+- 4 TestTransmissionEndpoints tests

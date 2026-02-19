@@ -101,12 +101,15 @@ import GridModernisation from './pages/GridModernisation'
 import WemOverview from './pages/WemOverview'
 import MarketSurveillance from './pages/MarketSurveillance'
 import CerDashboard from './pages/CerDashboard'
+import SafeguardAnalytics from './pages/SafeguardAnalytics'
+import PhesAnalytics from './pages/PhesAnalytics'
 import OffshoreWind from './pages/OffshoreWind'
 import CauserPays from './pages/CauserPays'
 import SpotCapAnalytics from './pages/SpotCapAnalytics'
 import TnspAnalytics from './pages/TnspAnalytics'
 import InertiaAnalytics from './pages/InertiaAnalytics'
 import HydrogenAnalytics from './pages/HydrogenAnalytics'
+import TransmissionProjects from './pages/TransmissionProjects'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -174,6 +177,9 @@ const NAV_ITEMS = [
   { to: '/hydrogen',       label: 'Green Hydrogen',    Icon: Flame          },
   { to: '/offshore-wind',  label: 'Offshore Wind',     Icon: Wind           },
   { to: '/cer',          label: 'CER & RET',       Icon: Leaf           },
+  { to: '/phes',          label: 'Pumped Hydro (PHES)', Icon: Droplets       },
+  { to: '/safeguard',     label: 'Safeguard & ERF',   Icon: Leaf           },
+  { to: '/transmission', label: 'Major Transmission', Icon: GitBranch },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -316,6 +322,9 @@ export default function App() {
               <Route path="/hydrogen"     element={<HydrogenAnalytics />} />
               <Route path="/offshore-wind" element={<OffshoreWind />}      />
               <Route path="/cer"          element={<CerDashboard />}  />
+              <Route path="/phes"         element={<PhesAnalytics />}      />
+              <Route path="/safeguard"    element={<SafeguardAnalytics />} />
+              <Route path="/transmission" element={<TransmissionProjects />} />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>
