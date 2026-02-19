@@ -11,6 +11,7 @@ import {
   ArrowRightLeft,
   BarChart2,
   Battery,
+  BatteryCharging,
   Moon,
   Sun,
   Thermometer,
@@ -30,6 +31,7 @@ import {
   Shield,
   Calendar,
   Gauge,
+  FileText,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -70,6 +72,9 @@ import SystemSecurity from './pages/SystemSecurity'
 import BiddingAnalytics from './pages/BiddingAnalytics'
 import NemEvents from './pages/NemEvents'
 import FcasMarket from './pages/FcasMarket'
+import BatteryEconomics from './pages/BatteryEconomics'
+import NemSettlement from './pages/NemSettlement'
+import CarbonAnalytics from './pages/CarbonAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -110,6 +115,9 @@ const NAV_ITEMS = [
   { to: '/bidding',        label: 'Bidding Analytics', Icon: BarChart2      },
   { to: '/nem-events',     label: 'NEM Events',        Icon: Calendar       },
   { to: '/fcas-market',    label: 'FCAS Market',       Icon: Gauge          },
+  { to: '/battery-econ',  label: 'Battery Economics', Icon: BatteryCharging },
+  { to: '/settlement',    label: 'NEM Settlement',    Icon: FileText        },
+  { to: '/carbon',        label: 'Carbon Analytics',  Icon: Leaf            },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -225,6 +233,9 @@ export default function App() {
               <Route path="/bidding"      element={<BiddingAnalytics />}   />
               <Route path="/nem-events"   element={<NemEvents />}          />
               <Route path="/fcas-market"  element={<FcasMarket />}         />
+              <Route path="/battery-econ" element={<BatteryEconomics />}  />
+              <Route path="/settlement"   element={<NemSettlement />}      />
+              <Route path="/carbon"       element={<CarbonAnalytics />}   />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

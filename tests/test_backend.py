@@ -1923,3 +1923,117 @@ class TestFcasMarketEndpoints:
         assert r.status_code == 200
         for p in r.json():
             assert p["region"] == "NSW1"
+
+
+class TestBatteryEconomicsEndpoints:
+    def test_battery_economics_dashboard_returns_200(self, client=client):
+        r = client.get("/api/battery-economics/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "batteries" in d
+        assert "opportunities" in d
+        assert "dispatch_schedule" in d
+        assert d["total_fleet_capacity_mwh"] > 0
+
+    def test_battery_units_list(self, client=client):
+        r = client.get("/api/battery-economics/batteries")
+        assert r.status_code == 200
+        batteries = r.json()
+        assert isinstance(batteries, list)
+        assert len(batteries) >= 5
+        assert all(b["roundtrip_efficiency_pct"] > 0 for b in batteries)
+
+    def test_battery_region_filter(self, client=client):
+        r = client.get("/api/battery-economics/batteries?region=SA1")
+        assert r.status_code == 200
+        for b in r.json():
+            assert b["region"] == "SA1"
+
+    def test_dispatch_schedule_24_hours(self, client=client):
+        r = client.get("/api/battery-economics/schedule")
+        assert r.status_code == 200
+        schedule = r.json()
+        assert len(schedule) == 24
+        hours = [s["hour"] for s in schedule]
+        assert hours == list(range(24))
+
+
+class TestSettlementEndpoints:
+    def test_settlement_dashboard_returns_200(self, client=client):
+        r = client.get("/api/settlement/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "settlement_runs" in d
+        assert "residues" in d
+        assert "prudential_records" in d
+        assert d["total_energy_settlement_aud"] > 0
+
+    def test_settlement_runs_have_statuses(self, client=client):
+        r = client.get("/api/settlement/dashboard")
+        assert r.status_code == 200
+        runs = r.json()["settlement_runs"]
+        statuses = {run["status"] for run in runs}
+        assert "COMPLETE" in statuses
+
+    def test_prudential_records_list(self, client=client):
+        r = client.get("/api/settlement/prudential")
+        assert r.status_code == 200
+        records = r.json()
+        assert isinstance(records, list)
+        assert len(records) >= 5
+        for rec in records:
+            assert 0 <= rec["utilisation_pct"] <= 200
+
+    def test_prudential_status_filter(self, client=client):
+        r = client.get("/api/settlement/prudential?status=WARNING")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["status"] == "WARNING"
+
+    def test_settlement_residues_list(self, client=client):
+        r = client.get("/api/settlement/residues")
+        assert r.status_code == 200
+        residues = r.json()
+        assert isinstance(residues, list)
+        assert len(residues) > 0
+        assert "interconnector_id" in residues[0]
+
+
+class TestCarbonAnalyticsEndpoints:
+    def test_carbon_dashboard_returns_200(self, client=client):
+        r = client.get("/api/carbon/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "region_records" in d
+        assert "annual_trajectory" in d
+        assert "fuel_factors" in d
+        assert d["nem_emissions_intensity_now"] > 0
+
+    def test_carbon_regions_all_five(self, client=client):
+        r = client.get("/api/carbon/regions")
+        assert r.status_code == 200
+        regions = r.json()
+        region_codes = {rec["region"] for rec in regions}
+        assert region_codes == {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}
+
+    def test_carbon_trajectory_historical_and_forecast(self, client=client):
+        r = client.get("/api/carbon/trajectory")
+        assert r.status_code == 200
+        trajectory = r.json()
+        years = [t["year"] for t in trajectory]
+        assert 2005 in years
+        assert 2030 in years
+        # At least some historical (actual not null)
+        actual_records = [t for t in trajectory if t["actual_emissions_mt"] is not None]
+        assert len(actual_records) >= 3
+        # At least some forecast
+        forecast_records = [t for t in trajectory if t["forecast_emissions_mt"] is not None]
+        assert len(forecast_records) >= 3
+
+    def test_emissions_intensity_by_region_valid(self, client=client):
+        r = client.get("/api/carbon/regions")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert 0 <= rec["emissions_intensity_kg_co2_mwh"] <= 1500
+            pcts = rec["renewable_pct"] + rec["coal_pct"] + rec["gas_pct"]
+            assert pcts <= 101  # allow rounding

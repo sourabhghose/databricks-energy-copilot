@@ -1491,6 +1491,31 @@ export interface FcasMarketDashboard {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 23a — Battery Arbitrage & Economics interfaces
+// ---------------------------------------------------------------------------
+
+export interface BatteryArbitrageSlot { hour: number; time_label: string; action: string; power_mw: number; spot_price: number; energy_revenue: number; soc_pct: number }
+export interface BatteryUnit { bess_id: string; station_name: string; region: string; technology: string; capacity_mwh: number; power_mw: number; roundtrip_efficiency_pct: number; cycles_today: number; soc_current_pct: number; energy_revenue_today: number; fcas_revenue_today: number; sras_revenue_today: number; total_revenue_today: number; annual_revenue_est_aud: number; lcoe_aud_mwh: number }
+export interface ArbitrageOpportunity { region: string; date: string; peak_price: number; off_peak_price: number; spread: number; optimal_cycles: number; theoretical_max_revenue_mw: number; actual_captured_pct: number }
+export interface BatteryEconomicsDashboard { timestamp: string; total_fleet_capacity_mwh: number; total_fleet_power_mw: number; avg_roundtrip_efficiency_pct: number; fleet_revenue_today_aud: number; energy_pct: number; fcas_pct: number; sras_pct: number; best_arbitrage_region: string; best_spread_today: number; batteries: BatteryUnit[]; opportunities: ArbitrageOpportunity[]; dispatch_schedule: BatteryArbitrageSlot[] }
+
+// Sprint 23c — NEM Settlement & Prudential interfaces
+export interface SettlementResidueRecord { interval_id: string; interconnector_id: string; flow_mw: number; price_differential: number; settlement_residue_aud: number; direction: string; allocation_pool: string }
+export interface PrudentialRecord { participant_id: string; participant_name: string; participant_type: string; credit_limit_aud: number; current_exposure_aud: number; utilisation_pct: number; outstanding_amount_aud: number; days_since_review: number; status: string; default_notice_issued: boolean }
+export interface SettlementRun { run_id: string; run_type: string; trading_date: string; run_datetime: string; status: string; records_processed: number; total_settlement_aud: number; largest_payment_aud: number; largest_receipt_aud: number; runtime_seconds: number }
+export interface TecAdjustment { participant_id: string; duid: string; station_name: string; region: string; previous_tec_mw: number; new_tec_mw: number; change_mw: number; effective_date: string; reason: string; mlf_before: number; mlf_after: number }
+export interface SettlementDashboard { timestamp: string; settlement_period: string; total_energy_settlement_aud: number; total_fcas_settlement_aud: number; total_residues_aud: number; prudential_exceedances: number; pending_settlement_runs: number; largest_residue_interconnector: string; settlement_runs: SettlementRun[]; residues: SettlementResidueRecord[]; prudential_records: PrudentialRecord[]; tec_adjustments: TecAdjustment[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 23b — Carbon Emissions Intensity interfaces
+// ---------------------------------------------------------------------------
+export interface RegionEmissionsRecord { region: string; timestamp: string; emissions_intensity_kg_co2_mwh: number; renewable_pct: number; coal_pct: number; gas_pct: number; hydro_pct: number; wind_pct: number; solar_pct: number; battery_pct: number; total_generation_mw: number; net_emissions_t_co2_hr: number }
+export interface FuelEmissionsFactor { fuel_type: string; scope: string; kg_co2_mwh: number; kg_co2_mwh_with_losses: number; generation_share_pct: number; annual_abatement_potential_gt: number }
+export interface EmissionsTrajectory { year: number; actual_emissions_mt: number | null; forecast_emissions_mt: number | null; renewable_share_pct: number; emissions_intensity_avg: number; vs_2005_baseline_pct: number }
+export interface Scope2Calculator { state: string; consumption_gwh: number; emissions_factor_kg_co2_mwh: number; scope2_emissions_t_co2: number; green_power_offset_pct: number; net_scope2_t_co2: number }
+export interface CarbonDashboard { timestamp: string; nem_emissions_intensity_now: number; lowest_region: string; lowest_intensity: number; highest_region: string; highest_intensity: number; renewable_share_now_pct: number; vs_same_time_last_year_pct: number; annual_trajectory: EmissionsTrajectory[]; region_records: RegionEmissionsRecord[]; fuel_factors: FuelEmissionsFactor[]; scope2_by_state: Scope2Calculator[] }
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2464,6 +2489,52 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch FCAS providers')
     return res.json()
   },
+
+  getBatteryEconomicsDashboard: (): Promise<BatteryEconomicsDashboard> =>
+    get<BatteryEconomicsDashboard>('/api/battery-economics/dashboard'),
+
+  getBatteryUnits: async (params?: { region?: string; technology?: string }): Promise<BatteryUnit[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.technology) qs.append('technology', params.technology)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/battery-economics/batteries${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch battery units')
+    return res.json()
+  },
+
+  getBatterySchedule: async (params?: { bess_id?: string }): Promise<BatteryArbitrageSlot[]> => {
+    const qs = new URLSearchParams()
+    if (params?.bess_id) qs.append('bess_id', params.bess_id)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/battery-economics/schedule${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch battery schedule')
+    return res.json()
+  },
+
+  getSettlementDashboard: (): Promise<SettlementDashboard> => get<SettlementDashboard>('/api/settlement/dashboard'),
+
+  getSettlementResidues: async (params?: { interconnector?: string }): Promise<SettlementResidueRecord[]> => {
+    const qs = new URLSearchParams()
+    if (params?.interconnector) qs.append('interconnector', params.interconnector)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/settlement/residues${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch settlement residues')
+    return res.json()
+  },
+
+  getSettlementPrudential: async (params?: { status?: string }): Promise<PrudentialRecord[]> => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/settlement/prudential${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch prudential records')
+    return res.json()
+  },
+
+  getCarbonDashboard: () => get<CarbonDashboard>('/api/carbon/dashboard'),
+  getCarbonRegions: () => get<RegionEmissionsRecord[]>('/api/carbon/regions'),
+  getCarbonTrajectory: () => get<EmissionsTrajectory[]>('/api/carbon/trajectory'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

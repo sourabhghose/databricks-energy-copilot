@@ -11719,3 +11719,1010 @@ def get_fcas_providers(
         providers = [p for p in providers if p.fuel_type.lower() == fuel_type.lower()]
     _cache_set(cache_key, providers, _TTL_FCAS_MARKET)
     return providers
+
+
+# ---------------------------------------------------------------------------
+# Sprint 23a — Battery Storage Arbitrage & Economics Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_BATTERY_ECON = 30
+
+
+class BatteryArbitrageSlot(BaseModel):
+    hour: int
+    time_label: str
+    action: str
+    power_mw: float
+    spot_price: float
+    energy_revenue: float
+    soc_pct: float
+
+
+class BatteryUnit(BaseModel):
+    bess_id: str
+    station_name: str
+    region: str
+    technology: str
+    capacity_mwh: float
+    power_mw: float
+    roundtrip_efficiency_pct: float
+    cycles_today: float
+    soc_current_pct: float
+    energy_revenue_today: float
+    fcas_revenue_today: float
+    sras_revenue_today: float
+    total_revenue_today: float
+    annual_revenue_est_aud: float
+    lcoe_aud_mwh: float
+
+
+class ArbitrageOpportunity(BaseModel):
+    region: str
+    date: str
+    peak_price: float
+    off_peak_price: float
+    spread: float
+    optimal_cycles: float
+    theoretical_max_revenue_mw: float
+    actual_captured_pct: float
+
+
+class BatteryEconomicsDashboard(BaseModel):
+    timestamp: str
+    total_fleet_capacity_mwh: float
+    total_fleet_power_mw: float
+    avg_roundtrip_efficiency_pct: float
+    fleet_revenue_today_aud: float
+    energy_pct: float
+    fcas_pct: float
+    sras_pct: float
+    best_arbitrage_region: str
+    best_spread_today: float
+    batteries: List[BatteryUnit]
+    opportunities: List[ArbitrageOpportunity]
+    dispatch_schedule: List[BatteryArbitrageSlot]
+
+
+def _make_battery_units() -> List[BatteryUnit]:
+    import random
+    rng = random.Random(42)
+    raw = [
+        ("HPSA1",  "Hornsdale Power Reserve",   "SA1",  "Li-Ion",      194.0,  150.0, 92.5,  0.95, 68.0, 45.0, 40.0, 15.0, 8_200_000,  95.0),
+        ("LBSA1",  "Lake Bonney BESS",            "SA1",  "Li-Ion",       52.0,   25.0, 91.0,  0.60, 55.0, 45.0, 40.0, 15.0, 1_450_000,  98.0),
+        ("WSBNSW1","Waratah Super Battery",       "NSW1", "Li-Ion",     1680.0,  850.0, 93.0,  1.10, 72.0, 44.0, 41.0, 15.0,45_000_000,  88.0),
+        ("OBQLD1", "Onslow Battery",              "QLD1", "Li-Ion",      200.0,  100.0, 90.5,  0.85, 60.0, 45.0, 40.0, 15.0, 5_500_000,  97.0),
+        ("TIBSA1", "Torrens Island BESS",         "SA1",  "Li-Ion",      500.0,  250.0, 92.0,  1.00, 65.0, 45.0, 40.0, 15.0,13_800_000,  92.0),
+        ("VBBVIC1","Victorian Big Battery",       "VIC1", "Li-Ion",      450.0,  300.0, 91.5,  0.90, 58.0, 46.0, 39.0, 15.0,12_100_000,  94.0),
+        ("HWBVIC1","Hazelwood Battery",           "VIC1", "Flow Battery", 100.0,  50.0, 78.0,  0.40, 45.0, 43.0, 42.0, 15.0, 2_200_000, 110.0),
+    ]
+    units = []
+    for bess_id, station_name, region, technology, cap_mwh, pwr_mw, rte, cycles, soc, e_pct, f_pct, s_pct, annual, lcoe in raw:
+        daily_base = annual / 365.0
+        energy_rev = daily_base * e_pct / 100.0 * (1 + rng.uniform(-0.05, 0.05))
+        fcas_rev   = daily_base * f_pct / 100.0 * (1 + rng.uniform(-0.05, 0.05))
+        sras_rev   = daily_base * s_pct / 100.0 * (1 + rng.uniform(-0.05, 0.05))
+        total_rev  = energy_rev + fcas_rev + sras_rev
+        units.append(BatteryUnit(
+            bess_id=bess_id,
+            station_name=station_name,
+            region=region,
+            technology=technology,
+            capacity_mwh=cap_mwh,
+            power_mw=pwr_mw,
+            roundtrip_efficiency_pct=rte,
+            cycles_today=cycles,
+            soc_current_pct=soc,
+            energy_revenue_today=round(energy_rev, 2),
+            fcas_revenue_today=round(fcas_rev, 2),
+            sras_revenue_today=round(sras_rev, 2),
+            total_revenue_today=round(total_rev, 2),
+            annual_revenue_est_aud=annual,
+            lcoe_aud_mwh=lcoe,
+        ))
+    return units
+
+
+def _make_arbitrage_opportunities() -> List[ArbitrageOpportunity]:
+    from datetime import date
+    today = date.today().isoformat()
+    raw = [
+        ("SA1",  820.0, 15.0, 420.0, 2.0, 310.0, 78.5),
+        ("QLD1", 750.0, 18.0, 380.0, 1.8, 270.0, 74.2),
+        ("VIC1", 680.0, 22.0, 310.0, 1.5, 225.0, 71.8),
+        ("NSW1", 620.0, 20.0, 280.0, 1.4, 200.0, 68.9),
+        ("TAS1", 450.0, 25.0, 190.0, 1.2, 140.0, 65.0),
+    ]
+    opps = []
+    for region, peak, off_peak, spread, cycles, max_rev, captured in raw:
+        opps.append(ArbitrageOpportunity(
+            region=region,
+            date=today,
+            peak_price=peak,
+            off_peak_price=off_peak,
+            spread=spread,
+            optimal_cycles=cycles,
+            theoretical_max_revenue_mw=max_rev,
+            actual_captured_pct=captured,
+        ))
+    return opps
+
+
+def _make_dispatch_schedule() -> List[BatteryArbitrageSlot]:
+    # 24-hour schedule for Waratah Super Battery
+    # Charge overnight 00:00-07:00 at $20-50/MWh
+    # Idle 07:00-16:00
+    # Discharge peak 16:00-21:00 at $150-800/MWh
+    # Idle 21:00-23:00
+    hourly = [
+        # hour, action,       power_mw,  spot_price, energy_revenue, soc_after
+        (0,  "CHARGE",    -600.0,   28.0,   -16.8,    28.0),
+        (1,  "CHARGE",    -700.0,   22.0,   -15.4,    38.0),
+        (2,  "CHARGE",    -750.0,   20.0,   -15.0,    49.0),
+        (3,  "CHARGE",    -750.0,   18.0,   -13.5,    60.0),
+        (4,  "CHARGE",    -700.0,   19.0,   -13.3,    70.0),
+        (5,  "CHARGE",    -650.0,   24.0,   -15.6,    79.0),
+        (6,  "CHARGE",    -500.0,   35.0,   -17.5,    86.0),
+        (7,  "IDLE",         0.0,   48.0,     0.0,    86.0),
+        (8,  "IDLE",         0.0,   62.0,     0.0,    86.0),
+        (9,  "IDLE",         0.0,   75.0,     0.0,    86.0),
+        (10, "IDLE",         0.0,   80.0,     0.0,    86.0),
+        (11, "IDLE",         0.0,   85.0,     0.0,    86.0),
+        (12, "IDLE",         0.0,   82.0,     0.0,    86.0),
+        (13, "IDLE",         0.0,   78.0,     0.0,    86.0),
+        (14, "IDLE",         0.0,   90.0,     0.0,    86.0),
+        (15, "IDLE",         0.0,  120.0,     0.0,    86.0),
+        (16, "DISCHARGE",  750.0,  350.0,  262.5,    73.0),
+        (17, "DISCHARGE",  850.0,  620.0,  527.0,    58.0),
+        (18, "DISCHARGE",  850.0,  800.0,  680.0,    43.0),
+        (19, "DISCHARGE",  750.0,  580.0,  435.0,    29.0),
+        (20, "DISCHARGE",  600.0,  250.0,  150.0,    20.0),
+        (21, "IDLE",         0.0,  150.0,     0.0,    20.0),
+        (22, "IDLE",         0.0,   90.0,     0.0,    20.0),
+        (23, "IDLE",         0.0,   55.0,     0.0,    20.0),
+    ]
+    slots = []
+    for hour, action, power_mw, spot_price, energy_revenue, soc_pct in hourly:
+        slots.append(BatteryArbitrageSlot(
+            hour=hour,
+            time_label=f"{hour:02d}:00",
+            action=action,
+            power_mw=power_mw,
+            spot_price=spot_price,
+            energy_revenue=energy_revenue,
+            soc_pct=soc_pct,
+        ))
+    return slots
+
+
+def _make_battery_economics_dashboard() -> BatteryEconomicsDashboard:
+    from datetime import datetime, timezone
+    batteries = _make_battery_units()
+    opportunities = _make_arbitrage_opportunities()
+    schedule = _make_dispatch_schedule()
+    total_cap = sum(b.capacity_mwh for b in batteries)
+    total_pwr = sum(b.power_mw for b in batteries)
+    avg_rte = sum(b.roundtrip_efficiency_pct for b in batteries) / len(batteries)
+    fleet_rev = sum(b.total_revenue_today for b in batteries)
+    total_energy = sum(b.energy_revenue_today for b in batteries)
+    total_fcas   = sum(b.fcas_revenue_today for b in batteries)
+    total_sras   = sum(b.sras_revenue_today for b in batteries)
+    energy_pct = round(total_energy / fleet_rev * 100, 1)
+    fcas_pct   = round(total_fcas   / fleet_rev * 100, 1)
+    sras_pct   = round(total_sras   / fleet_rev * 100, 1)
+    best_opp = max(opportunities, key=lambda o: o.spread)
+    return BatteryEconomicsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_fleet_capacity_mwh=round(total_cap, 1),
+        total_fleet_power_mw=round(total_pwr, 1),
+        avg_roundtrip_efficiency_pct=round(avg_rte, 2),
+        fleet_revenue_today_aud=round(fleet_rev, 2),
+        energy_pct=energy_pct,
+        fcas_pct=fcas_pct,
+        sras_pct=sras_pct,
+        best_arbitrage_region=best_opp.region,
+        best_spread_today=best_opp.spread,
+        batteries=batteries,
+        opportunities=opportunities,
+        dispatch_schedule=schedule,
+    )
+
+
+@router.get(
+    "/api/battery-economics/dashboard",
+    response_model=BatteryEconomicsDashboard,
+    summary="Battery economics dashboard",
+    tags=["Battery Economics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_battery_economics_dashboard():
+    """Return full battery arbitrage & economics dashboard.  Cached 30 s."""
+    cache_key = "battery_econ:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    data = _make_battery_economics_dashboard()
+    _cache_set(cache_key, data, _TTL_BATTERY_ECON)
+    return data
+
+
+@router.get(
+    "/api/battery-economics/batteries",
+    response_model=List[BatteryUnit],
+    summary="Battery unit list",
+    tags=["Battery Economics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_battery_units(
+    region: Optional[str] = Query(None, description="NEM region filter (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    technology: Optional[str] = Query(None, description="Technology filter e.g. 'Li-Ion', 'Flow Battery'"),
+):
+    """Return list of battery units with revenue stacking breakdown.  Filterable by region and technology.  Cached 30 s."""
+    cache_key = f"battery_econ:batteries:{region}:{technology}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    units = _make_battery_units()
+    if region:
+        units = [u for u in units if u.region == region]
+    if technology:
+        units = [u for u in units if u.technology.lower() == technology.lower()]
+    _cache_set(cache_key, units, _TTL_BATTERY_ECON)
+    return units
+
+
+@router.get(
+    "/api/battery-economics/schedule",
+    response_model=List[BatteryArbitrageSlot],
+    summary="Battery dispatch schedule",
+    tags=["Battery Economics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_battery_schedule(
+    bess_id: Optional[str] = Query(None, description="BESS unit ID (defaults to Waratah Super Battery)"),
+):
+    """Return 24-hour optimal charge/discharge schedule for the specified (or default) battery unit.  Cached 30 s."""
+    cache_key = f"battery_econ:schedule:{bess_id}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    schedule = _make_dispatch_schedule()
+    _cache_set(cache_key, schedule, _TTL_BATTERY_ECON)
+    return schedule
+
+
+# ---------------------------------------------------------------------------
+# Sprint 23c — NEM Settlement & Prudential Management Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_SETTLEMENT_DASHBOARD = 300
+_TTL_SETTLEMENT_RESIDUES = 60
+_TTL_SETTLEMENT_PRUDENTIAL = 300
+
+
+class SettlementResidueRecord(BaseModel):
+    interval_id: str
+    interconnector_id: str
+    flow_mw: float
+    price_differential: float
+    settlement_residue_aud: float
+    direction: str
+    allocation_pool: str
+
+
+class PrudentialRecord(BaseModel):
+    participant_id: str
+    participant_name: str
+    participant_type: str
+    credit_limit_aud: float
+    current_exposure_aud: float
+    utilisation_pct: float
+    outstanding_amount_aud: float
+    days_since_review: int
+    status: str
+    default_notice_issued: bool
+
+
+class SettlementRun(BaseModel):
+    run_id: str
+    run_type: str
+    trading_date: str
+    run_datetime: str
+    status: str
+    records_processed: int
+    total_settlement_aud: float
+    largest_payment_aud: float
+    largest_receipt_aud: float
+    runtime_seconds: float
+
+
+class TecAdjustment(BaseModel):
+    participant_id: str
+    duid: str
+    station_name: str
+    region: str
+    previous_tec_mw: float
+    new_tec_mw: float
+    change_mw: float
+    effective_date: str
+    reason: str
+    mlf_before: float
+    mlf_after: float
+
+
+class SettlementDashboard(BaseModel):
+    timestamp: str
+    settlement_period: str
+    total_energy_settlement_aud: float
+    total_fcas_settlement_aud: float
+    total_residues_aud: float
+    prudential_exceedances: int
+    pending_settlement_runs: int
+    largest_residue_interconnector: str
+    settlement_runs: List[SettlementRun]
+    residues: List[SettlementResidueRecord]
+    prudential_records: List[PrudentialRecord]
+    tec_adjustments: List[TecAdjustment]
+
+
+def _make_settlement_residues() -> List[SettlementResidueRecord]:
+    """8 settlement residue records across 4 NEM interconnectors, 2 dispatch intervals each."""
+    intervals = ["2026-02-19 13:55", "2026-02-19 14:00"]
+    records = [
+        # VIC1-NSW1 — moderate flow, moderate differential
+        SettlementResidueRecord(
+            interval_id=intervals[0], interconnector_id="VIC1-NSW1", flow_mw=850.0,
+            price_differential=95.0, settlement_residue_aud=850.0 * 95.0 * (5 / 60),
+            direction="EXPORT", allocation_pool="SRA_POOL",
+        ),
+        SettlementResidueRecord(
+            interval_id=intervals[1], interconnector_id="VIC1-NSW1", flow_mw=920.0,
+            price_differential=112.0, settlement_residue_aud=920.0 * 112.0 * (5 / 60),
+            direction="EXPORT", allocation_pool="SRA_POOL",
+        ),
+        # SA1-VIC1 — high price differential due to SA price spikes
+        SettlementResidueRecord(
+            interval_id=intervals[0], interconnector_id="SA1-VIC1", flow_mw=580.0,
+            price_differential=385.0, settlement_residue_aud=580.0 * 385.0 * (5 / 60),
+            direction="IMPORT", allocation_pool="SRA_POOL",
+        ),
+        SettlementResidueRecord(
+            interval_id=intervals[1], interconnector_id="SA1-VIC1", flow_mw=610.0,
+            price_differential=412.0, settlement_residue_aud=610.0 * 412.0 * (5 / 60),
+            direction="IMPORT", allocation_pool="SRA_POOL",
+        ),
+        # VIC1-TAS1 (Basslink) — lower flows, moderate differential
+        SettlementResidueRecord(
+            interval_id=intervals[0], interconnector_id="VIC1-TAS1", flow_mw=220.0,
+            price_differential=55.0, settlement_residue_aud=220.0 * 55.0 * (5 / 60),
+            direction="EXPORT", allocation_pool="TUOS",
+        ),
+        SettlementResidueRecord(
+            interval_id=intervals[1], interconnector_id="VIC1-TAS1", flow_mw=195.0,
+            price_differential=48.0, settlement_residue_aud=195.0 * 48.0 * (5 / 60),
+            direction="EXPORT", allocation_pool="TUOS",
+        ),
+        # QLD1-NSW1 — high flow corridor, lower differential
+        SettlementResidueRecord(
+            interval_id=intervals[0], interconnector_id="QLD1-NSW1", flow_mw=1180.0,
+            price_differential=62.0, settlement_residue_aud=1180.0 * 62.0 * (5 / 60),
+            direction="EXPORT", allocation_pool="SRA_POOL",
+        ),
+        SettlementResidueRecord(
+            interval_id=intervals[1], interconnector_id="QLD1-NSW1", flow_mw=1210.0,
+            price_differential=70.0, settlement_residue_aud=1210.0 * 70.0 * (5 / 60),
+            direction="EXPORT", allocation_pool="SRA_POOL",
+        ),
+    ]
+    return records
+
+
+def _make_prudential_records() -> List[PrudentialRecord]:
+    """8 NEM market participants with a mix of prudential statuses."""
+    participants = [
+        PrudentialRecord(
+            participant_id="AGLSA", participant_name="AGL Energy (Retail)", participant_type="RETAILER",
+            credit_limit_aud=250_000_000.0, current_exposure_aud=142_000_000.0,
+            utilisation_pct=56.8, outstanding_amount_aud=38_500_000.0,
+            days_since_review=12, status="OK", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="ORIGENERGY", participant_name="Origin Energy Retail", participant_type="RETAILER",
+            credit_limit_aud=280_000_000.0, current_exposure_aud=195_000_000.0,
+            utilisation_pct=69.6, outstanding_amount_aud=52_200_000.0,
+            days_since_review=8, status="OK", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="ENERGYAUS", participant_name="EnergyAustralia Retail", participant_type="RETAILER",
+            credit_limit_aud=220_000_000.0, current_exposure_aud=148_000_000.0,
+            utilisation_pct=67.3, outstanding_amount_aud=41_800_000.0,
+            days_since_review=15, status="OK", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="AGLGEN", participant_name="AGL Generation Pty Ltd", participant_type="GENERATOR",
+            credit_limit_aud=180_000_000.0, current_exposure_aud=138_000_000.0,
+            utilisation_pct=76.7, outstanding_amount_aud=29_600_000.0,
+            days_since_review=22, status="WARNING", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="ALINTAW", participant_name="Alinta Wind Holdings", participant_type="GENERATOR",
+            credit_limit_aud=85_000_000.0, current_exposure_aud=71_200_000.0,
+            utilisation_pct=83.8, outstanding_amount_aud=18_400_000.0,
+            days_since_review=18, status="WARNING", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="DELTA2", participant_name="Delta Electricity", participant_type="GENERATOR",
+            credit_limit_aud=120_000_000.0, current_exposure_aud=105_600_000.0,
+            utilisation_pct=88.0, outstanding_amount_aud=22_100_000.0,
+            days_since_review=31, status="WARNING", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="PROPENRG", participant_name="Propel Energy Trading", participant_type="TRADER",
+            credit_limit_aud=45_000_000.0, current_exposure_aud=48_200_000.0,
+            utilisation_pct=107.1, outstanding_amount_aud=12_800_000.0,
+            days_since_review=5, status="EXCEEDANCE", default_notice_issued=False,
+        ),
+        PrudentialRecord(
+            participant_id="VOLTRADE", participant_name="Volta Trading Pty Ltd", participant_type="TRADER",
+            credit_limit_aud=30_000_000.0, current_exposure_aud=38_900_000.0,
+            utilisation_pct=129.7, outstanding_amount_aud=9_500_000.0,
+            days_since_review=3, status="DEFAULT", default_notice_issued=True,
+        ),
+    ]
+    return participants
+
+
+def _make_settlement_runs() -> List[SettlementRun]:
+    """6 recent NEM settlement runs with realistic statuses and settlement amounts."""
+    runs = [
+        SettlementRun(
+            run_id="DSP-20260219-1400", run_type="DISPATCH", trading_date="2026-02-19",
+            run_datetime="2026-02-19T14:05:12", status="COMPLETE",
+            records_processed=48250, total_settlement_aud=82_450_000.0,
+            largest_payment_aud=18_200_000.0, largest_receipt_aud=22_100_000.0,
+            runtime_seconds=18.4,
+        ),
+        SettlementRun(
+            run_id="DSP-20260219-1355", run_type="DISPATCH", trading_date="2026-02-19",
+            run_datetime="2026-02-19T14:00:08", status="COMPLETE",
+            records_processed=48180, total_settlement_aud=79_820_000.0,
+            largest_payment_aud=17_600_000.0, largest_receipt_aud=20_900_000.0,
+            runtime_seconds=16.9,
+        ),
+        SettlementRun(
+            run_id="DSP-20260219-1350", run_type="DISPATCH", trading_date="2026-02-19",
+            run_datetime="2026-02-19T13:55:41", status="FAILED",
+            records_processed=0, total_settlement_aud=0.0,
+            largest_payment_aud=0.0, largest_receipt_aud=0.0,
+            runtime_seconds=2.1,
+        ),
+        SettlementRun(
+            run_id="BILL-WEEK-20260215", run_type="BILLING_WEEKLY", trading_date="2026-02-15",
+            run_datetime="2026-02-16T02:15:00", status="COMPLETE",
+            records_processed=2_016_000, total_settlement_aud=418_600_000.0,
+            largest_payment_aud=95_200_000.0, largest_receipt_aud=112_400_000.0,
+            runtime_seconds=384.7,
+        ),
+        SettlementRun(
+            run_id="BILL-MON-202601", run_type="BILLING_MONTHLY", trading_date="2026-01-31",
+            run_datetime="2026-02-18T22:30:00", status="RUNNING",
+            records_processed=8_245_000, total_settlement_aud=1_842_000_000.0,
+            largest_payment_aud=412_000_000.0, largest_receipt_aud=489_000_000.0,
+            runtime_seconds=1248.0,
+        ),
+        SettlementRun(
+            run_id="FINAL-202512", run_type="FINAL", trading_date="2025-12-31",
+            run_datetime="2026-02-20T06:00:00", status="PENDING",
+            records_processed=0, total_settlement_aud=0.0,
+            largest_payment_aud=0.0, largest_receipt_aud=0.0,
+            runtime_seconds=0.0,
+        ),
+    ]
+    return runs
+
+
+def _make_tec_adjustments() -> List[TecAdjustment]:
+    """5 recent TEC/MLF adjustments for NEM generators."""
+    adjustments = [
+        TecAdjustment(
+            participant_id="NEXERASA", duid="SNOWY2-U1", station_name="Snowy 2.0 Unit 1",
+            region="NSW1", previous_tec_mw=0.0, new_tec_mw=350.0, change_mw=350.0,
+            effective_date="2026-02-15", reason="AUGMENTATION",
+            mlf_before=0.0, mlf_after=0.988,
+        ),
+        TecAdjustment(
+            participant_id="SUNFARMQ", duid="SUNFQ1", station_name="Darling Downs Solar Farm",
+            region="QLD1", previous_tec_mw=0.0, new_tec_mw=280.0, change_mw=280.0,
+            effective_date="2026-02-12", reason="NEW_UNIT",
+            mlf_before=0.0, mlf_after=0.962,
+        ),
+        TecAdjustment(
+            participant_id="ERGTASV", duid="LIDDELL3", station_name="Liddell Power Station U3",
+            region="NSW1", previous_tec_mw=500.0, new_tec_mw=380.0, change_mw=-120.0,
+            effective_date="2026-02-10", reason="DERATING",
+            mlf_before=1.012, mlf_after=1.009,
+        ),
+        TecAdjustment(
+            participant_id="AGLGEN", duid="ANGASTON1", station_name="Angaston Gas Turbine",
+            region="SA1", previous_tec_mw=50.0, new_tec_mw=0.0, change_mw=-50.0,
+            effective_date="2026-02-08", reason="DECOMMISSION",
+            mlf_before=0.974, mlf_after=0.0,
+        ),
+        TecAdjustment(
+            participant_id="WDFL1", duid="WDFL-W1", station_name="Woolnorth Wind Farm Stage 3",
+            region="TAS1", previous_tec_mw=0.0, new_tec_mw=140.0, change_mw=140.0,
+            effective_date="2026-02-05", reason="AUGMENTATION",
+            mlf_before=0.0, mlf_after=0.995,
+        ),
+    ]
+    return adjustments
+
+
+def _make_settlement_dashboard() -> SettlementDashboard:
+    """Aggregate settlement dashboard."""
+    import datetime as _dt
+    residues = _make_settlement_residues()
+    prudential = _make_prudential_records()
+    runs = _make_settlement_runs()
+    tec = _make_tec_adjustments()
+    total_residues = sum(r.settlement_residue_aud for r in residues)
+    exceedances = sum(1 for p in prudential if p.status in ("EXCEEDANCE", "DEFAULT"))
+    pending_runs = sum(1 for r in runs if r.status in ("PENDING", "RUNNING"))
+    # SA1-VIC1 has highest per-interval residue
+    largest_ic = max(residues, key=lambda r: r.settlement_residue_aud).interconnector_id
+    return SettlementDashboard(
+        timestamp=_dt.datetime.now().isoformat(),
+        settlement_period="Week ending 2026-02-15",
+        total_energy_settlement_aud=418_600_000.0,
+        total_fcas_settlement_aud=28_400_000.0,
+        total_residues_aud=round(total_residues, 2),
+        prudential_exceedances=exceedances,
+        pending_settlement_runs=pending_runs,
+        largest_residue_interconnector=largest_ic,
+        settlement_runs=runs,
+        residues=residues,
+        prudential_records=prudential,
+        tec_adjustments=tec,
+    )
+
+
+@router.get(
+    "/api/settlement/dashboard",
+    response_model=SettlementDashboard,
+    summary="NEM Settlement & Prudential dashboard",
+    tags=["Settlement"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_settlement_dashboard():
+    """Return the NEM settlement and prudential management dashboard.  Cached 300 s."""
+    cache_key = "settlement:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    data = _make_settlement_dashboard()
+    _cache_set(cache_key, data, _TTL_SETTLEMENT_DASHBOARD)
+    return data
+
+
+@router.get(
+    "/api/settlement/residues",
+    response_model=List[SettlementResidueRecord],
+    summary="Settlement residue records",
+    tags=["Settlement"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_settlement_residues(
+    interconnector: Optional[str] = Query(None, description="Interconnector ID filter e.g. 'SA1-VIC1'"),
+):
+    """Return settlement residue records for NEM interconnectors.  Filterable by interconnector.  Cached 60 s."""
+    cache_key = f"settlement:residues:{interconnector}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_settlement_residues()
+    if interconnector:
+        records = [r for r in records if r.interconnector_id == interconnector]
+    _cache_set(cache_key, records, _TTL_SETTLEMENT_RESIDUES)
+    return records
+
+
+@router.get(
+    "/api/settlement/prudential",
+    response_model=List[PrudentialRecord],
+    summary="Prudential management records",
+    tags=["Settlement"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_settlement_prudential(
+    status: Optional[str] = Query(None, description="Status filter: OK, WARNING, EXCEEDANCE, DEFAULT"),
+):
+    """Return prudential management records for NEM market participants.  Filterable by status.  Cached 300 s."""
+    cache_key = f"settlement:prudential:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_prudential_records()
+    if status:
+        records = [r for r in records if r.status == status]
+    _cache_set(cache_key, records, _TTL_SETTLEMENT_PRUDENTIAL)
+    return records
+
+
+# ===========================================================================
+# Sprint 23b — Carbon Emissions Intensity & Net Zero Tracking
+# ===========================================================================
+
+# --- TTL constants -----------------------------------------------------------
+_TTL_CARBON_DASHBOARD = 300
+_TTL_CARBON_REGIONS = 60
+_TTL_CARBON_TRAJECTORY = 3600
+
+
+# --- Pydantic models ---------------------------------------------------------
+
+class RegionEmissionsRecord(BaseModel):
+    region: str
+    timestamp: str
+    emissions_intensity_kg_co2_mwh: float
+    renewable_pct: float
+    coal_pct: float
+    gas_pct: float
+    hydro_pct: float
+    wind_pct: float
+    solar_pct: float
+    battery_pct: float
+    total_generation_mw: float
+    net_emissions_t_co2_hr: float
+
+
+class FuelEmissionsFactor(BaseModel):
+    fuel_type: str
+    scope: str
+    kg_co2_mwh: float
+    kg_co2_mwh_with_losses: float
+    generation_share_pct: float
+    annual_abatement_potential_gt: float
+
+
+class EmissionsTrajectory(BaseModel):
+    year: int
+    actual_emissions_mt: Optional[float]
+    forecast_emissions_mt: Optional[float]
+    renewable_share_pct: float
+    emissions_intensity_avg: float
+    vs_2005_baseline_pct: float
+
+
+class Scope2Calculator(BaseModel):
+    state: str
+    consumption_gwh: float
+    emissions_factor_kg_co2_mwh: float
+    scope2_emissions_t_co2: float
+    green_power_offset_pct: float
+    net_scope2_t_co2: float
+
+
+class CarbonDashboard(BaseModel):
+    timestamp: str
+    nem_emissions_intensity_now: float
+    lowest_region: str
+    lowest_intensity: float
+    highest_region: str
+    highest_intensity: float
+    renewable_share_now_pct: float
+    vs_same_time_last_year_pct: float
+    annual_trajectory: List[EmissionsTrajectory]
+    region_records: List[RegionEmissionsRecord]
+    fuel_factors: List[FuelEmissionsFactor]
+    scope2_by_state: List[Scope2Calculator]
+
+
+# --- Mock data helpers -------------------------------------------------------
+
+def _make_region_emissions() -> List[RegionEmissionsRecord]:
+    now = datetime.utcnow().isoformat() + "Z"
+    return [
+        RegionEmissionsRecord(
+            region="NSW1",
+            timestamp=now,
+            emissions_intensity_kg_co2_mwh=450.0,
+            renewable_pct=22.0,
+            coal_pct=58.0,
+            gas_pct=12.0,
+            hydro_pct=6.0,
+            wind_pct=3.5,
+            solar_pct=4.5,
+            battery_pct=0.5,
+            total_generation_mw=9800.0,
+            net_emissions_t_co2_hr=4410.0,
+        ),
+        RegionEmissionsRecord(
+            region="QLD1",
+            timestamp=now,
+            emissions_intensity_kg_co2_mwh=520.0,
+            renewable_pct=18.0,
+            coal_pct=62.0,
+            gas_pct=12.0,
+            hydro_pct=2.0,
+            wind_pct=3.0,
+            solar_pct=5.0,
+            battery_pct=0.0,
+            total_generation_mw=8200.0,
+            net_emissions_t_co2_hr=4264.0,
+        ),
+        RegionEmissionsRecord(
+            region="VIC1",
+            timestamp=now,
+            emissions_intensity_kg_co2_mwh=500.0,
+            renewable_pct=24.0,
+            coal_pct=55.0,
+            gas_pct=12.0,
+            hydro_pct=4.0,
+            wind_pct=8.0,
+            solar_pct=4.0,
+            battery_pct=1.0,
+            total_generation_mw=6500.0,
+            net_emissions_t_co2_hr=3250.0,
+        ),
+        RegionEmissionsRecord(
+            region="SA1",
+            timestamp=now,
+            emissions_intensity_kg_co2_mwh=120.0,
+            renewable_pct=70.0,
+            coal_pct=0.0,
+            gas_pct=22.0,
+            hydro_pct=0.0,
+            wind_pct=38.0,
+            solar_pct=28.0,
+            battery_pct=4.0,
+            total_generation_mw=2100.0,
+            net_emissions_t_co2_hr=252.0,
+        ),
+        RegionEmissionsRecord(
+            region="TAS1",
+            timestamp=now,
+            emissions_intensity_kg_co2_mwh=50.0,
+            renewable_pct=95.0,
+            coal_pct=0.0,
+            gas_pct=5.0,
+            hydro_pct=88.0,
+            wind_pct=7.0,
+            solar_pct=0.0,
+            battery_pct=0.0,
+            total_generation_mw=1600.0,
+            net_emissions_t_co2_hr=80.0,
+        ),
+    ]
+
+
+def _make_fuel_emission_factors() -> List[FuelEmissionsFactor]:
+    return [
+        FuelEmissionsFactor(
+            fuel_type="Black Coal",
+            scope="Scope 1 (combustion)",
+            kg_co2_mwh=820.0,
+            kg_co2_mwh_with_losses=902.0,
+            generation_share_pct=28.0,
+            annual_abatement_potential_gt=0.065,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Brown Coal",
+            scope="Scope 1 (combustion)",
+            kg_co2_mwh=1100.0,
+            kg_co2_mwh_with_losses=1210.0,
+            generation_share_pct=12.0,
+            annual_abatement_potential_gt=0.042,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Gas CCGT",
+            scope="Scope 1 (combustion)",
+            kg_co2_mwh=490.0,
+            kg_co2_mwh_with_losses=539.0,
+            generation_share_pct=18.0,
+            annual_abatement_potential_gt=0.028,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Gas OCGT",
+            scope="Scope 1 (combustion)",
+            kg_co2_mwh=590.0,
+            kg_co2_mwh_with_losses=649.0,
+            generation_share_pct=7.0,
+            annual_abatement_potential_gt=0.013,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Hydro",
+            scope="Scope 1 (zero direct)",
+            kg_co2_mwh=0.0,
+            kg_co2_mwh_with_losses=4.0,
+            generation_share_pct=10.0,
+            annual_abatement_potential_gt=0.0,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Wind",
+            scope="Scope 1 (zero direct)",
+            kg_co2_mwh=0.0,
+            kg_co2_mwh_with_losses=4.0,
+            generation_share_pct=13.0,
+            annual_abatement_potential_gt=0.0,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Solar",
+            scope="Scope 1 (zero direct)",
+            kg_co2_mwh=0.0,
+            kg_co2_mwh_with_losses=20.0,
+            generation_share_pct=10.0,
+            annual_abatement_potential_gt=0.0,
+        ),
+        FuelEmissionsFactor(
+            fuel_type="Battery",
+            scope="Scope 1 (zero direct)",
+            kg_co2_mwh=0.0,
+            kg_co2_mwh_with_losses=15.0,
+            generation_share_pct=2.0,
+            annual_abatement_potential_gt=0.0,
+        ),
+    ]
+
+
+def _make_emissions_trajectory() -> List[EmissionsTrajectory]:
+    data = [
+        # year, actual_mt, forecast_mt, renewable_pct, intensity_avg, vs_2005_pct
+        (2005, 220.0,  None,  8.0,  850.0,   0.0),
+        (2006, 218.0,  None,  9.0,  840.0,  -0.9),
+        (2007, 215.0,  None,  9.5,  830.0,  -2.3),
+        (2008, 213.0,  None, 10.0,  820.0,  -3.2),
+        (2009, 210.0,  None, 11.0,  810.0,  -4.5),
+        (2010, 208.0,  None, 12.0,  800.0,  -5.5),
+        (2011, 205.0,  None, 13.0,  790.0,  -6.8),
+        (2012, 200.0,  None, 14.0,  775.0,  -9.1),
+        (2013, 196.0,  None, 15.0,  760.0, -10.9),
+        (2014, 192.0,  None, 16.5,  740.0, -12.7),
+        (2015, 188.0,  None, 18.0,  720.0, -14.5),
+        (2016, 184.0,  None, 20.0,  700.0, -16.4),
+        (2017, 180.0,  None, 22.0,  680.0, -18.2),
+        (2018, 175.0,  None, 25.0,  655.0, -20.5),
+        (2019, 170.0,  None, 28.0,  630.0, -22.7),
+        (2020, 163.0,  None, 31.0,  600.0, -25.9),
+        (2021, 157.0,  None, 33.0,  575.0, -28.6),
+        (2022, 151.0,  None, 36.0,  550.0, -31.4),
+        (2023, 145.0,  None, 38.0,  520.0, -34.1),
+        (2024, 138.0,  None, 40.0,  490.0, -37.3),
+        (2025, 128.0,  None, 42.0,  455.0, -41.8),
+        (2026,  None, 118.0, 47.0,  415.0, -46.4),
+        (2027,  None, 105.0, 53.0,  370.0, -52.3),
+        (2028,  None,  92.0, 60.0,  325.0, -58.2),
+        (2029,  None,  83.0, 67.0,  285.0, -62.3),
+        (2030,  None,  75.0, 74.0,  245.0, -65.9),
+        (2031,  None,  66.0, 78.0,  210.0, -70.0),
+        (2032,  None,  58.0, 80.0,  178.0, -73.6),
+        (2033,  None,  52.0, 81.0,  155.0, -76.4),
+        (2034,  None,  48.0, 81.5,  138.0, -78.2),
+        (2035,  None,  45.0, 82.0,  125.0, -79.5),
+    ]
+    return [
+        EmissionsTrajectory(
+            year=yr,
+            actual_emissions_mt=actual,
+            forecast_emissions_mt=forecast,
+            renewable_share_pct=ren,
+            emissions_intensity_avg=intensity,
+            vs_2005_baseline_pct=vs2005,
+        )
+        for yr, actual, forecast, ren, intensity, vs2005 in data
+    ]
+
+
+def _make_scope2_by_state() -> List[Scope2Calculator]:
+    states = [
+        ("QLD", 65.0,  0.82, 12.0),
+        ("NSW", 80.0,  0.73, 15.0),
+        ("VIC", 55.0,  0.78, 18.0),
+        ("SA",  18.0,  0.15, 35.0),
+        ("TAS", 10.0,  0.09, 40.0),
+    ]
+    result = []
+    for state, consumption_gwh, ef, green_pct in states:
+        scope2 = consumption_gwh * 1000.0 * ef
+        net_scope2 = scope2 * (1.0 - green_pct / 100.0)
+        result.append(Scope2Calculator(
+            state=state,
+            consumption_gwh=consumption_gwh,
+            emissions_factor_kg_co2_mwh=ef,
+            scope2_emissions_t_co2=round(scope2, 1),
+            green_power_offset_pct=green_pct,
+            net_scope2_t_co2=round(net_scope2, 1),
+        ))
+    return result
+
+
+def _make_carbon_dashboard() -> CarbonDashboard:
+    now = datetime.utcnow().isoformat() + "Z"
+    regions = _make_region_emissions()
+    fuel_factors = _make_fuel_emission_factors()
+    trajectory = _make_emissions_trajectory()
+    scope2 = _make_scope2_by_state()
+
+    intensities = [(r.region, r.emissions_intensity_kg_co2_mwh) for r in regions]
+    lowest = min(intensities, key=lambda x: x[1])
+    highest = max(intensities, key=lambda x: x[1])
+
+    total_gen = sum(r.total_generation_mw for r in regions)
+    weighted_renewable = (
+        sum(r.renewable_pct * r.total_generation_mw for r in regions) / total_gen
+        if total_gen > 0 else 0.0
+    )
+    weighted_intensity = (
+        sum(r.emissions_intensity_kg_co2_mwh * r.total_generation_mw for r in regions) / total_gen
+        if total_gen > 0 else 0.0
+    )
+
+    return CarbonDashboard(
+        timestamp=now,
+        nem_emissions_intensity_now=round(weighted_intensity, 1),
+        lowest_region=lowest[0],
+        lowest_intensity=lowest[1],
+        highest_region=highest[0],
+        highest_intensity=highest[1],
+        renewable_share_now_pct=round(weighted_renewable, 1),
+        vs_same_time_last_year_pct=-12.4,
+        annual_trajectory=trajectory,
+        region_records=regions,
+        fuel_factors=fuel_factors,
+        scope2_by_state=scope2,
+    )
+
+
+# --- Endpoints ---------------------------------------------------------------
+
+@app.get(
+    "/api/carbon/dashboard",
+    response_model=CarbonDashboard,
+    summary="Carbon emissions dashboard",
+    tags=["Carbon Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_dashboard():
+    """Return aggregated carbon emissions dashboard including NEM-wide intensity,
+    regional breakdown, fuel emissions factors, trajectory and Scope 2 data.
+    Cached 300 s."""
+    cached = _cache_get("carbon:dashboard")
+    if cached:
+        return cached
+    dashboard = _make_carbon_dashboard()
+    _cache_set("carbon:dashboard", dashboard, _TTL_CARBON_DASHBOARD)
+    return dashboard
+
+
+@app.get(
+    "/api/carbon/regions",
+    response_model=List[RegionEmissionsRecord],
+    summary="Real-time emissions intensity by NEM region",
+    tags=["Carbon Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_regions():
+    """Return real-time emissions intensity and generation mix for each NEM region.
+    Cached 60 s."""
+    cached = _cache_get("carbon:regions")
+    if cached:
+        return cached
+    regions = _make_region_emissions()
+    _cache_set("carbon:regions", regions, _TTL_CARBON_REGIONS)
+    return regions
+
+
+@app.get(
+    "/api/carbon/trajectory",
+    response_model=List[EmissionsTrajectory],
+    summary="NEM annual emissions trajectory 2005-2035",
+    tags=["Carbon Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_trajectory():
+    """Return historical actual and forecast emissions trajectory from 2005 to 2035,
+    including renewable share and vs-2005-baseline metrics. Cached 3600 s."""
+    cached = _cache_get("carbon:trajectory")
+    if cached:
+        return cached
+    trajectory = _make_emissions_trajectory()
+    _cache_set("carbon:trajectory", trajectory, _TTL_CARBON_TRAJECTORY)
+    return trajectory

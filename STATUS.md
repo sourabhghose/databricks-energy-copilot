@@ -445,3 +445,24 @@
 - TypeScript interfaces in client.ts + API methods
 - 4 tests in TestFcasMarketEndpoints
 - Covers all 8 FCAS services (R6S/R60S/R5M/R5RE/L6S/L60S/L5M/L5RE), causer pays, enablement limits
+
+## Sprint 23c — NEM Settlement & Prudential Management Analytics (2026-02-19)
+**Status**: COMPLETE
+- SettlementResidueRecord, PrudentialRecord, SettlementRun, TecAdjustment, SettlementDashboard models
+- GET /api/settlement/dashboard, /residues, /prudential
+- NemSettlement.tsx (~520 lines): settlement runs table, prudential status, residues, TEC adjustments
+- 5 tests in TestSettlementEndpoints
+
+## Sprint 23a — Battery Storage Arbitrage & Economics Analytics (2026-02-19)
+**Status**: COMPLETE
+- BatteryArbitrageSlot, BatteryUnit, ArbitrageOpportunity, BatteryEconomicsDashboard models
+- GET /api/battery-economics/dashboard, /batteries, /schedule
+- BatteryEconomics.tsx (~500 lines): dispatch schedule chart, fleet table, arbitrage opportunities, revenue PieChart
+- 4 tests in TestBatteryEconomicsEndpoints
+
+## Sprint 23b — Carbon Emissions Intensity & Net Zero Tracking (2026-02-19)
+**Status**: COMPLETE
+- RegionEmissionsRecord, FuelEmissionsFactor, EmissionsTrajectory, Scope2Calculator, CarbonDashboard models
+- GET /api/carbon/dashboard, /regions, /trajectory
+- CarbonAnalytics.tsx (~520 lines): trajectory ComposedChart, region intensity table, fuel factors, Scope 2 calculator
+- 4 tests in TestCarbonAnalyticsEndpoints
