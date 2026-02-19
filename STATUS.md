@@ -243,3 +243,7 @@
 ## Sprint 8c — System Monitoring Frontend — 2026-02-19
 **Completed:** app/backend/main.py (/api/system/health endpoint, ModelHealthRecord + SystemHealthResponse Pydantic models), app/frontend/src/api/client.ts (SystemHealthResponse + ModelHealthRecord interfaces + getSystemHealth method), app/frontend/src/pages/Monitoring.tsx (new page ~300 lines: infra health cards, model registry grid, auto-refresh, loading skeletons), app/frontend/src/App.tsx (Monitoring route + nav link with Activity icon)
 **Notes:** Monitoring page shows 4 infra health cards (Databricks, Lakebase, data freshness, pipeline last-run) and a region×model-type grid for all 21 ML models. Auto-refreshes every 30s. Stopped a stuck subagent that was using base64-encoding to work around JSX template-literal escaping — rewrote Monitoring.tsx directly.
+
+## Sprint 9a — README + Test Coverage — 2026-02-19
+**Completed:** README.md (full rewrite ~300 lines: architecture ASCII diagram, quick start, project structure, ML model table, API table, sprint checklist), tests/test_backend.py (TestSprintEightEndpoints: 4 new tests for /api/system/health and extended /api/market-summary/latest validation)
+**Notes:** README now reflects the full production architecture. System health endpoint verified to return correct model count (21) and per-model structure.

@@ -298,3 +298,110 @@ class TestRateLimiting:
         assert "summary_text" in data
         assert data["summary_text"] is not None
         assert len(data["summary_text"]) > 0
+
+
+# ===========================================================================
+# TestSprintEightEndpoints
+# ===========================================================================
+
+class TestSprintEightEndpoints:
+    """Integration tests for Sprint 8 endpoints: /api/system/health and
+    extended /api/market-summary/latest validation."""
+
+    def test_system_health_endpoint(self):
+        """GET /api/system/health returns 200 with required top-level keys.
+
+        The response must include all five keys defined in SystemHealthResponse:
+        databricks_ok, lakebase_ok, models_healthy, models_total, and
+        model_details. In mock_mode both DB health checks return True so
+        databricks_ok and lakebase_ok should both be True.
+        """
+        response = client.get("/api/system/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "databricks_ok" in data
+        assert "lakebase_ok" in data
+        assert "models_healthy" in data
+        assert "models_total" in data
+        assert "model_details" in data
+        # In mock mode both DB checks are True
+        assert isinstance(data["databricks_ok"], bool)
+        assert isinstance(data["lakebase_ok"], bool)
+        assert isinstance(data["models_healthy"], int)
+        assert isinstance(data["models_total"], int)
+        assert isinstance(data["model_details"], list)
+
+    def test_system_health_model_details_structure(self):
+        """Each item in model_details has the required ModelHealthRecord keys.
+
+        Every entry in the model_details list must contain model_name, region,
+        alias, and status. Optional fields (model_version, last_updated) may
+        be present or None. status must be one of 'ok', 'stale', or 'missing'.
+        """
+        response = client.get("/api/system/health")
+        assert response.status_code == 200
+        data = response.json()
+        model_details = data["model_details"]
+        assert len(model_details) > 0, "model_details must not be empty"
+        for item in model_details:
+            assert "model_name" in item, f"model_name missing from {item}"
+            assert "region" in item, f"region missing from {item}"
+            assert "alias" in item, f"alias missing from {item}"
+            assert "status" in item, f"status missing from {item}"
+            assert item["status"] in (
+                "ok", "stale", "missing"
+            ), f"unexpected status value: {item['status']}"
+            assert isinstance(item["model_name"], str) and len(item["model_name"]) > 0
+            assert isinstance(item["region"], str) and len(item["region"]) > 0
+            assert isinstance(item["alias"], str) and len(item["alias"]) > 0
+
+    def test_system_health_model_count(self):
+        """models_total equals len(model_details).
+
+        The models_total field in the response must be consistent with the
+        actual number of records returned in model_details. In mock_mode the
+        backend generates 4 model types x 5 regions + 1 anomaly model = 21.
+        """
+        response = client.get("/api/system/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["models_total"] == len(data["model_details"]), (
+            f"models_total={data['models_total']} does not match "
+            f"len(model_details)={len(data['model_details'])}"
+        )
+        # Verify the expected count: 4 types * 5 regions + 1 anomaly = 21
+        assert data["models_total"] == 21, (
+            f"Expected 21 models (20 regional + 1 anomaly), got {data['models_total']}"
+        )
+
+    def test_market_summary_has_required_fields(self):
+        """GET /api/market-summary/latest includes narrative, generated_at, and word_count.
+
+        Extends the existing market summary test to also validate the
+        generated_at and word_count fields defined in MarketSummaryRecord.
+        The narrative must be a non-empty string. generated_at must be a
+        non-empty string (ISO-8601 timestamp). word_count must be a positive
+        integer greater than zero.
+        """
+        response = client.get("/api/market-summary/latest")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, dict)
+
+        # narrative is the primary required field
+        assert "narrative" in data
+        assert isinstance(data["narrative"], str)
+        assert len(data["narrative"]) > 0
+
+        # generated_at must be present and non-empty
+        assert "generated_at" in data
+        assert data["generated_at"] is not None
+        assert isinstance(data["generated_at"], str)
+        assert len(data["generated_at"]) > 0
+
+        # word_count must be a positive integer
+        assert "word_count" in data
+        assert data["word_count"] is not None
+        assert isinstance(data["word_count"], int)
+        assert data["word_count"] > 0
