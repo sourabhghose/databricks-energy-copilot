@@ -210,3 +210,12 @@
 **Notes:**
 - wind_forecast/train.py: 6 wind-specific features added (lags 1-12, 4h rolling stats, ramp rate, capacity factor, high/low wind flags). Optuna 50 trials, MedianPruner, MAE objective. MAPE target <8%. Feature importances logged as JSON. Unit test mode with synthetic sine-wave wind data. Alias = "production".
 - solar_forecast/train.py: 7 solar-specific features (lags, capacity factor, daylight flag, sun angle proxy, season sin/cos, cloud proxy). Night interval exclusion from training to prevent trivial-zero fitting. Optuna 50 trials, MAE objective. MAPE target <10%. Alias = "production".
+
+
+## Sprint 7b — Agent Eval CI + Production Hardening — 2026-02-19
+**Completed:** .github/workflows/ci.yml (agent-eval job, syntax-check lint), agent/evaluation/run_evaluation.py (--dry-run/--max-pairs/--output-file/mock mode), app/backend/main.py (rate limiting middleware, X-Request-ID header, /api/market-summary/latest extended fields), tests/test_backend.py (rate limit + market summary tests)
+**Notes:**
+- ci.yml: `agent-evaluation` job added with `needs: python-tests`; runs `--dry-run --max-pairs 5` for fast CI; uploads eval-report.json as artifact. `lint` job extended with `find agent/models -name "*.py" -exec python -m py_compile {} \;` syntax checks.
+- run_evaluation.py: `--dry-run` wraps all `mlflow.*` calls; `--max-pairs N` slices `ALL_EVAL_PAIRS[:N]`; `--output-file PATH` writes CI-format JSON with `pass_rate`, `total_pairs`, `passed`, `failed`, `scores_by_dimension`. Mock LLM judge (score=0.8) activated when `ANTHROPIC_API_KEY` starts with `sk-ant-dummy` or `sk-ant-test`.
+- main.py: In-process per-IP rate limiter middleware added before logging middleware using `defaultdict(list)` timestamp store; configurable via `RATE_LIMIT_REQUESTS` and `RATE_LIMIT_WINDOW_SECONDS` env vars. X-Request-ID response header was already present. `MarketSummaryRecord` extended with `summary_id`, `summary_text`, `highest_price_region`, `lowest_price_region`, `avg_nem_price` optional fields; mock data updated with NSW1 highest, TAS1 lowest, avg_nem_price=$86.20.
+- test_backend.py: `TestRateLimiting` class added with `test_rate_limit_not_triggered_by_single_request` and `test_market_summary_endpoint` covering the new endpoint fields.

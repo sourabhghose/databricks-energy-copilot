@@ -264,3 +264,37 @@ class TestChatEndpoint:
         assert response.status_code == 200
         content_type = response.headers.get("content-type", "")
         assert "text/event-stream" in content_type or "application/json" in content_type
+
+
+# ===========================================================================
+# TestRateLimiting
+# ===========================================================================
+
+class TestRateLimiting:
+    """Tests for the in-process per-IP rate limiting middleware."""
+
+    def test_rate_limit_not_triggered_by_single_request(self):
+        """A single GET /health request must return 200, not 429.
+
+        The rate limiter allows RATE_LIMIT_REQUESTS (default 60) requests per
+        window. A single request is well within that limit and must not be
+        blocked.
+        """
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.status_code != 429
+
+    def test_market_summary_endpoint(self):
+        """GET /api/market-summary/latest returns 200 with summary_text key.
+
+        In mock_mode the endpoint returns the _MOCK_MARKET_SUMMARY dict which
+        now includes the extended MarketSummaryWidget fields: summary_id,
+        summary_text, highest_price_region, lowest_price_region, avg_nem_price.
+        """
+        response = client.get("/api/market-summary/latest")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "summary_text" in data
+        assert data["summary_text"] is not None
+        assert len(data["summary_text"]) > 0
