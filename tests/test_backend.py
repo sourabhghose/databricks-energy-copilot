@@ -3812,3 +3812,83 @@ class TestDecarbonizationEndpoints:
         r = client.get("/api/decarbonization/technology", headers=AUTH)
         assert r.status_code == 200
         assert len(r.json()) >= 20
+
+
+class TestNuclearLdesEndpoints:
+    def test_nuclear_ldes_dashboard(self, client):
+        r = client.get("/api/nuclear-ldes/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "smr_projects" in d
+        assert len(d["smr_projects"]) > 0
+        assert "long_duration_projects" in d
+        assert len(d["long_duration_projects"]) > 0
+
+    def test_smr_projects(self, client):
+        r = client.get("/api/nuclear-ldes/smr-projects", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_long_duration_projects(self, client):
+        r = client.get("/api/nuclear-ldes/long-duration", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+    def test_capacity_outlook(self, client):
+        r = client.get("/api/nuclear-ldes/capacity-outlook", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestEnergyPovertyEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/energy-poverty/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "hardship_records" in d
+        assert len(d["hardship_records"]) > 0
+
+    def test_hardship(self, client):
+        r = client.get("/api/energy-poverty/hardship", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_worker_transition(self, client):
+        r = client.get("/api/energy-poverty/worker-transition", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_programs(self, client):
+        r = client.get("/api/energy-poverty/programs", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+
+class TestBiddingBehaviourEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/bidding-behaviour/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "withholding_records" in d
+        assert len(d["withholding_records"]) > 0
+
+    def test_withholding(self, client):
+        r = client.get("/api/bidding-behaviour/withholding", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_rebid_patterns(self, client):
+        r = client.get("/api/bidding-behaviour/rebid-patterns", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_market_concentration(self, client):
+        r = client.get("/api/bidding-behaviour/market-concentration", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) > 0

@@ -2783,6 +2783,198 @@ export interface DecarbonizationDashboard {
   technology_deployment: TechnologyDeploymentRecord[]
 }
 
+// ---------------------------------------------------------------------------
+// Sprint 43a — Nuclear & Long-Duration Storage Investment Analytics
+// ---------------------------------------------------------------------------
+
+export interface SmrProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  technology: string
+  state: string
+  capacity_mw: number
+  status: string
+  capex_b_aud: number
+  lcoe_mwh: number
+  construction_start_year: number | null
+  first_power_year: number | null
+  design_life_years: number
+  cf_pct: number
+  co2_intensity_kg_mwh: number
+}
+
+export interface LongDurationStorageRecord {
+  project_id: string
+  project_name: string
+  technology: string
+  developer: string
+  state: string
+  capacity_mwh: number
+  power_mw: number
+  duration_hours: number
+  status: string
+  capex_m_aud: number
+  lcos_mwh: number
+  round_trip_efficiency_pct: number
+  cycles_per_year: number
+  design_life_years: number
+}
+
+export interface CleanFirmCapacityRecord {
+  year: number
+  nuclear_gw: number
+  long_duration_storage_gw: number
+  pumped_hydro_gw: number
+  gas_ccs_gw: number
+  hydrogen_peaker_gw: number
+}
+
+export interface NuclearLongDurationDashboard {
+  timestamp: string
+  smr_projects: SmrProjectRecord[]
+  long_duration_projects: LongDurationStorageRecord[]
+  capacity_outlook: CleanFirmCapacityRecord[]
+  total_smr_pipeline_gw: number
+  total_lds_pipeline_gwh: number
+  avg_smr_lcoe: number
+  avg_lds_lcos: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 43b — Wholesale Market Bidding Behaviour & Strategic Withholding
+// ---------------------------------------------------------------------------
+
+export interface BidWithholdingRecord {
+  participant_id: string
+  participant_name: string
+  region: string
+  technology: string
+  dispatch_interval: string
+  registered_capacity_mw: number
+  offered_capacity_mw: number
+  dispatched_mw: number
+  withheld_mw: number
+  withholding_ratio_pct: number
+  spot_price_aud_mwh: number
+  rebid_count: number
+  rebid_reason: string
+}
+
+export interface BidPriceDistRecord {
+  participant_id: string
+  participant_name: string
+  technology: string
+  price_band_aud_mwh: number
+  volume_offered_mw: number
+  pct_of_portfolio: number
+}
+
+export interface RebidPatternRecord {
+  participant_id: string
+  participant_name: string
+  month: string
+  total_rebids: number
+  late_rebids: number
+  avg_rebid_price_change: number
+  price_impact_aud_mwh: number
+  market_impact_score: number
+}
+
+export interface MarketConcentrationRecord {
+  region: string
+  year: number
+  hhi_index: number
+  cr3_pct: number
+  top_participant: string
+  top_share_pct: number
+  withholding_events: number
+  avg_withholding_mw: number
+}
+
+export interface BiddingBehaviourDashboard {
+  timestamp: string
+  withholding_records: BidWithholdingRecord[]
+  price_distribution: BidPriceDistRecord[]
+  rebid_patterns: RebidPatternRecord[]
+  market_concentration: MarketConcentrationRecord[]
+  total_withheld_mw: number
+  avg_withholding_ratio_pct: number
+  high_withholding_events: number
+  market_power_index: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 43c — Energy Poverty & Just Transition Analytics
+// ---------------------------------------------------------------------------
+
+export interface EnergyPovertyHardshipRecord {
+  region: string
+  state: string
+  year: number
+  quarter: string
+  households_in_hardship: number
+  hardship_rate_pct: number
+  disconnection_notices: number
+  actual_disconnections: number
+  concession_recipients: number
+  avg_bill_aud: number
+  bill_stress_pct: number
+}
+
+export interface CoalWorkerTransitionRecord {
+  region: string
+  state: string
+  facility_name: string
+  technology: string
+  closure_year: number
+  workers_affected: number
+  transition_programs: number
+  retraining_enrolled: number
+  reemployed: number
+  avg_reemployment_wage_ratio: number
+  transition_fund_m_aud: number
+  program_status: string
+}
+
+export interface EnergyAffordabilityRecord {
+  state: string
+  year: number
+  median_bill_aud: number
+  low_income_bill_aud: number
+  bill_as_pct_income_median: number
+  bill_as_pct_income_low: number
+  solar_penetration_low_income_pct: number
+  concession_coverage_pct: number
+  hardship_program_spend_m_aud: number
+}
+
+export interface JustTransitionProgramRecord {
+  program_id: string
+  program_name: string
+  state: string
+  region: string
+  program_type: string
+  budget_m_aud: number
+  beneficiaries: number
+  status: string
+  start_year: number
+  end_year: number | null
+  outcomes_score: number
+}
+
+export interface EnergyPovertyDashboard {
+  timestamp: string
+  hardship_records: EnergyPovertyHardshipRecord[]
+  worker_transition: CoalWorkerTransitionRecord[]
+  affordability: EnergyAffordabilityRecord[]
+  just_transition_programs: JustTransitionProgramRecord[]
+  national_hardship_rate_pct: number
+  total_workers_in_transition: number
+  total_transition_fund_b_aud: number
+  low_income_solar_gap_pct: number
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -4535,6 +4727,22 @@ export const api = {
     get<NetZeroMilestoneRecord[]>('/api/decarbonization/milestones'),
   getDecarbonizationTechnology: (): Promise<TechnologyDeploymentRecord[]> =>
     get<TechnologyDeploymentRecord[]>('/api/decarbonization/technology'),
+  getNuclearLdesDashboard: (): Promise<NuclearLongDurationDashboard> =>
+    get<NuclearLongDurationDashboard>('/api/nuclear-ldes/dashboard'),
+  getBiddingBehaviourDashboard: (): Promise<BiddingBehaviourDashboard> =>
+    get<BiddingBehaviourDashboard>('/api/bidding-behaviour/dashboard'),
+  getBiddingBehaviourWithholding: (): Promise<BidWithholdingRecord[]> =>
+    get<BidWithholdingRecord[]>('/api/bidding-behaviour/withholding'),
+  getBiddingBehaviourPriceDistribution: (): Promise<BidPriceDistRecord[]> =>
+    get<BidPriceDistRecord[]>('/api/bidding-behaviour/price-distribution'),
+  getBiddingBehaviourRebidPatterns: (): Promise<RebidPatternRecord[]> =>
+    get<RebidPatternRecord[]>('/api/bidding-behaviour/rebid-patterns'),
+  getBiddingBehaviourMarketConcentration: (): Promise<MarketConcentrationRecord[]> =>
+    get<MarketConcentrationRecord[]>('/api/bidding-behaviour/market-concentration'),
+
+  // Sprint 43c — Energy Poverty & Just Transition Analytics
+  getEnergyPovertyDashboard: (): Promise<EnergyPovertyDashboard> =>
+    get<EnergyPovertyDashboard>('/api/energy-poverty/dashboard'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

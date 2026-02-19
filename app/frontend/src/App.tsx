@@ -44,6 +44,7 @@ import {
   Heart,
   CloudLightning,
   Cpu,
+  Atom,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -143,6 +144,9 @@ import BatteryTechAnalytics from './pages/BatteryTechAnalytics'
 import CommunityEnergy from './pages/CommunityEnergy'
 import AssetManagement from './pages/AssetManagement'
 import DecarbonizationPathway from './pages/DecarbonizationPathway'
+import NuclearLongDuration from './pages/NuclearLongDuration'
+import BiddingBehaviour from './pages/BiddingBehaviour'
+import EnergyPoverty from './pages/EnergyPoverty'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -242,7 +246,10 @@ const NAV_ITEMS = [
   { to: '/community-energy', label: 'Community Energy', Icon: Users         },
   { to: '/asset-management', label: 'Asset Management', Icon: Wrench        },
   { to: '/decarbonization', label: 'Net Zero Pathway', Icon: Leaf           },
-  { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
+  { to: '/nuclear-ldes',      label: 'Nuclear & LDES',     Icon: Atom           },
+  { to: '/bidding-behaviour', label: 'Bidding Behaviour',  Icon: BarChart2      },
+  { to: '/energy-poverty',    label: 'Energy Poverty',     Icon: Heart          },
+  { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
 function Sidebar() {
@@ -416,7 +423,10 @@ export default function App() {
               <Route path="/community-energy" element={<CommunityEnergy />}     />
               <Route path="/asset-management" element={<AssetManagement />}    />
               <Route path="/decarbonization" element={<DecarbonizationPathway />} />
-              <Route path="/settings"        element={<Settings />}              />
+              <Route path="/nuclear-ldes"      element={<NuclearLongDuration />}    />
+              <Route path="/bidding-behaviour" element={<BiddingBehaviour />}    />
+              <Route path="/energy-poverty"    element={<EnergyPoverty />}       />
+              <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
         </div>

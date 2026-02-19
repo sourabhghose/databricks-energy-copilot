@@ -781,3 +781,36 @@
 - DecarbonizationPathway.tsx: sectoral emissions vs target bar chart, technology deployment trend line chart, net zero milestones table with progress bars and funding gap
 - /api/decarbonization/dashboard, /sectors, /milestones, /technology (10 sectoral records, 12 milestones, 25 technology deployment records)
 - 4 TestDecarbonizationEndpoints tests
+
+## Sprint 43a — Nuclear SMR & Long-Duration Energy Storage Investment Analytics [COMPLETE]
+- NuclearLongDuration.tsx: 4 KPI cards (Total SMR Pipeline GW, Total LDES Pipeline GWh, Avg SMR LCOE, Avg LDES LCOS), stacked area chart for Clean Firm Capacity Outlook 2025-2040 (nuclear/LDES/pumped hydro/gas CCS/H2 peaker), SMR projects table with technology/status badges, long-duration storage table with technology/status badges
+- Backend Pydantic models: SmrProjectRecord, LongDurationStorageRecord, CleanFirmCapacityRecord, NuclearLongDurationDashboard
+- /api/nuclear-ldes/dashboard, /smr-projects, /long-duration, /capacity-outlook (8 SMR projects across NSW/VIC/SA/QLD covering AP1000/BWRX-300/ARC-100/NuScale; 10 LDES projects covering IRON_AIR/FLOW_BATTERY/COMPRESSED_AIR/GRAVITY/PUMPED_HYDRO/LIQUID_AIR; 16-year capacity outlook 2025-2040)
+- Mock data: 8 SMR projects (CAPEX 4-12B AUD, LCOE 110-180 $/MWh, first power 2035-2045, CF 85-92%, CO2 <10 kg/MWh); 10 LDES projects (duration 4-100h, LCOS 55-200 $/MWh, status PROPOSED/FEASIBILITY/APPROVED)
+- TypeScript interfaces: SmrProjectRecord, LongDurationStorageRecord, CleanFirmCapacityRecord, NuclearLongDurationDashboard; api.getNuclearLdesDashboard() method added to client.ts
+- App.tsx: Atom icon imported, NuclearLongDuration page imported, /nuclear-ldes route added, "Nuclear & LDES" nav item added
+- 4 TestNuclearLdesEndpoints tests appended to tests/test_backend.py
+
+## Sprint 43b — Wholesale Market Bidding Behaviour & Strategic Withholding Analytics [COMPLETE]
+- BiddingBehaviour.tsx: 4 KPI cards (Total Withheld MW, Avg Withholding Ratio %, High Withholding Events, Market Power Index), Market Concentration table (5 NEM regions x 2 years with HHI color coding: <1500 green / <2500 amber / >=2500 red), Capacity Withholding Records table with region filter (participant, technology badges, withheld MW, withholding ratio color coded, spot price, rebid count badge, rebid reason), Rebid Patterns ComposedChart with dual Y-axis (total rebids + late rebids as bars, market impact score as line overlay, participant selector), Bid Price Distribution table (participants vs price bands heatmap showing volume MW and portfolio %)
+- Backend Pydantic models: BidWithholdingRecord, BidPriceDistRecord, RebidPatternRecord, MarketConcentrationRecord, BiddingBehaviourDashboard
+- /api/bidding-behaviour/dashboard, /withholding, /price-distribution, /rebid-patterns, /market-concentration (all require X-API-Key)
+  - 12 withholding records: AGL, Origin, EnergyAustralia, Snowy Hydro, Alinta across NSW1/VIC1/QLD1/SA1; technologies COAL/GAS/HYDRO/SOLAR; withholding ratios 10.98-82.86%; rebid counts 1-8; spot prices $50-$15,000/MWh
+  - 15 price distribution records: 5 participants x multiple price bands (-$1000, $0, $50, $100, $300, $1000, $5000, $15000)
+  - 36 rebid pattern records: 6 participants (AGL, Origin, EnergyAustralia, Snowy, Alinta, Meridian) x 6 months (Jan-Jun 2024); late_rebids 2-20; market_impact_score 2.0-8.1
+  - 10 market concentration records: NSW1, VIC1, QLD1, SA1, TAS1 x years 2023 and 2024; HHI 1520-3380; CR3 45.8-74.2%
+  - KPI aggregates: total_withheld_mw, avg_withholding_ratio_pct, high_withholding_events (ratio >40%), market_power_index (HHI/500 normalised)
+- TypeScript interfaces: BidWithholdingRecord, BidPriceDistRecord, RebidPatternRecord, MarketConcentrationRecord, BiddingBehaviourDashboard added to client.ts
+- api methods: getBiddingBehaviourDashboard, getBiddingBehaviourWithholding, getBiddingBehaviourPriceDistribution, getBiddingBehaviourRebidPatterns, getBiddingBehaviourMarketConcentration added to api object in client.ts
+- App.tsx: BiddingBehaviour page imported, /bidding-behaviour route added, "Bidding Behaviour" nav item added (BarChart2 icon already present)
+- 4 TestBiddingBehaviourEndpoints tests appended to tests/test_backend.py
+
+## Sprint 43c — Energy Poverty & Just Transition Analytics [COMPLETE]
+- EnergyPoverty.tsx: 4 KPI cards (national hardship rate, workers in transition, total transition fund, low-income solar gap), hardship rate trend line chart by state over 4 quarters, coal worker transition table (wage ratio colored red/amber/green), affordability table (bill % income colored by stress level), just transition programs table (program type and status badges, outcomes score bar)
+- /api/energy-poverty/dashboard, /hardship, /worker-transition, /affordability, /programs
+  - 20 hardship records (5 states × 4 quarters 2024; hardship rates 8.6–15.8%; avg bills $1550–$2450 AUD)
+  - 8 coal worker transition records (Liddell NSW, Yallourn VIC, Eraring NSW, Bayswater NSW, Muja WA, Callide QLD, Tarong QLD, Hazelwood VIC; closure years 2017–2032; statuses PLANNING/ACTIVE/COMPLETED)
+  - 5 affordability records (NSW, VIC, QLD, SA, WA for 2024; low-income solar penetration 8–29%; concession coverage 68–82%)
+  - 12 just transition programs (WORKER_RETRAINING, COMMUNITY_FUND, CLEAN_ENERGY_ACCESS, ECONOMIC_DIVERSIFICATION; budgets $20M–$500M; up to 58,000 beneficiaries)
+- 4 TestEnergyPovertyEndpoints tests
+- App.tsx: Heart icon nav entry at /energy-poverty; Heart already in lucide-react imports

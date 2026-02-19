@@ -26735,3 +26735,947 @@ async def get_decarbonization_milestones():
 async def get_decarbonization_technology():
     dash = await get_decarbonization_dashboard()
     return dash.technology_deployment
+
+# ---------------------------------------------------------------------------
+# Sprint 43a — Nuclear & Long-Duration Storage Investment Analytics
+# ---------------------------------------------------------------------------
+
+class SmrProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    technology: str          # AP1000, BWRX-300, ARC-100, NuScale, etc.
+    state: str
+    capacity_mw: float
+    status: str              # PROPOSED, PRE-FEASIBILITY, FEASIBILITY, APPROVED
+    capex_b_aud: float
+    lcoe_mwh: float
+    construction_start_year: int | None
+    first_power_year: int | None
+    design_life_years: int
+    cf_pct: float
+    co2_intensity_kg_mwh: float
+
+class LongDurationStorageRecord(BaseModel):
+    project_id: str
+    project_name: str
+    technology: str          # IRON_AIR, FLOW_BATTERY, COMPRESSED_AIR, GRAVITY, PUMPED_HYDRO, LIQUID_AIR
+    developer: str
+    state: str
+    capacity_mwh: float
+    power_mw: float
+    duration_hours: float
+    status: str
+    capex_m_aud: float
+    lcos_mwh: float
+    round_trip_efficiency_pct: float
+    cycles_per_year: int
+    design_life_years: int
+
+class CleanFirmCapacityRecord(BaseModel):
+    year: int
+    nuclear_gw: float
+    long_duration_storage_gw: float
+    pumped_hydro_gw: float
+    gas_ccs_gw: float
+    hydrogen_peaker_gw: float
+
+class NuclearLongDurationDashboard(BaseModel):
+    timestamp: str
+    smr_projects: list[SmrProjectRecord]
+    long_duration_projects: list[LongDurationStorageRecord]
+    capacity_outlook: list[CleanFirmCapacityRecord]
+    total_smr_pipeline_gw: float
+    total_lds_pipeline_gwh: float
+    avg_smr_lcoe: float
+    avg_lds_lcos: float
+
+
+def _build_nuclear_long_duration_dashboard() -> NuclearLongDurationDashboard:
+    smr_projects = [
+        SmrProjectRecord(
+            project_id="SMR-001", project_name="Hunter Valley SMR Hub",
+            developer="AGL Energy / GE-Hitachi", technology="BWRX-300",
+            state="NSW", capacity_mw=300.0, status="PRE-FEASIBILITY",
+            capex_b_aud=6.2, lcoe_mwh=145.0, construction_start_year=2032,
+            first_power_year=2037, design_life_years=60, cf_pct=90.0,
+            co2_intensity_kg_mwh=5.5
+        ),
+        SmrProjectRecord(
+            project_id="SMR-002", project_name="Liddell Clean Energy Centre",
+            developer="Westinghouse / Origin Energy", technology="AP1000",
+            state="NSW", capacity_mw=1100.0, status="PROPOSED",
+            capex_b_aud=11.8, lcoe_mwh=160.0, construction_start_year=None,
+            first_power_year=2042, design_life_years=60, cf_pct=91.0,
+            co2_intensity_kg_mwh=4.8
+        ),
+        SmrProjectRecord(
+            project_id="SMR-003", project_name="Latrobe Valley Nuclear Precinct",
+            developer="Rolls-Royce SMR / EnergyAustralia", technology="BWRX-300",
+            state="VIC", capacity_mw=600.0, status="PROPOSED",
+            capex_b_aud=9.4, lcoe_mwh=152.0, construction_start_year=None,
+            first_power_year=2041, design_life_years=60, cf_pct=90.5,
+            co2_intensity_kg_mwh=5.0
+        ),
+        SmrProjectRecord(
+            project_id="SMR-004", project_name="Torrens Island Nuclear Hub",
+            developer="NuScale Power / Santos", technology="NuScale VOYGR",
+            state="SA", capacity_mw=462.0, status="PRE-FEASIBILITY",
+            capex_b_aud=7.1, lcoe_mwh=168.0, construction_start_year=2033,
+            first_power_year=2038, design_life_years=60, cf_pct=88.5,
+            co2_intensity_kg_mwh=6.2
+        ),
+        SmrProjectRecord(
+            project_id="SMR-005", project_name="Tarong North Nuclear Station",
+            developer="Framatome / Stanwell", technology="AP1000",
+            state="QLD", capacity_mw=1100.0, status="PROPOSED",
+            capex_b_aud=12.1, lcoe_mwh=155.0, construction_start_year=None,
+            first_power_year=2044, design_life_years=60, cf_pct=91.5,
+            co2_intensity_kg_mwh=4.5
+        ),
+        SmrProjectRecord(
+            project_id="SMR-006", project_name="Callide Advanced Nuclear Project",
+            developer="TerraPower / CS Energy", technology="ARC-100",
+            state="QLD", capacity_mw=100.0, status="PRE-FEASIBILITY",
+            capex_b_aud=4.3, lcoe_mwh=178.0, construction_start_year=2034,
+            first_power_year=2039, design_life_years=60, cf_pct=87.0,
+            co2_intensity_kg_mwh=7.1
+        ),
+        SmrProjectRecord(
+            project_id="SMR-007", project_name="Port Augusta Nuclear Energy Project",
+            developer="GE-Hitachi / Alinta Energy", technology="BWRX-300",
+            state="SA", capacity_mw=300.0, status="PROPOSED",
+            capex_b_aud=5.8, lcoe_mwh=148.0, construction_start_year=None,
+            first_power_year=2043, design_life_years=60, cf_pct=90.0,
+            co2_intensity_kg_mwh=5.3
+        ),
+        SmrProjectRecord(
+            project_id="SMR-008", project_name="Muswellbrook SMR Development",
+            developer="Moltex Energy / AGL Energy", technology="ARC-100",
+            state="NSW", capacity_mw=100.0, status="PROPOSED",
+            capex_b_aud=4.0, lcoe_mwh=172.0, construction_start_year=None,
+            first_power_year=2045, design_life_years=60, cf_pct=86.5,
+            co2_intensity_kg_mwh=7.4
+        ),
+    ]
+
+    long_duration_projects = [
+        LongDurationStorageRecord(
+            project_id="LDES-001", project_name="SA Iron Air Grid Battery",
+            technology="IRON_AIR", developer="Form Energy / SA Power Networks",
+            state="SA", capacity_mwh=1000.0, power_mw=50.0, duration_hours=20.0,
+            status="FEASIBILITY", capex_m_aud=280.0, lcos_mwh=95.0,
+            round_trip_efficiency_pct=72.0, cycles_per_year=300, design_life_years=20
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-002", project_name="NSW Vanadium Flow Battery Complex",
+            technology="FLOW_BATTERY", developer="Invinity Energy / Transgrid",
+            state="NSW", capacity_mwh=500.0, power_mw=50.0, duration_hours=10.0,
+            status="APPROVED", capex_m_aud=195.0, lcos_mwh=110.0,
+            round_trip_efficiency_pct=78.0, cycles_per_year=350, design_life_years=25
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-003", project_name="Broken Hill CAES Project",
+            technology="COMPRESSED_AIR", developer="Hydrostor / AGL",
+            state="NSW", capacity_mwh=8000.0, power_mw=200.0, duration_hours=40.0,
+            status="FEASIBILITY", capex_m_aud=620.0, lcos_mwh=75.0,
+            round_trip_efficiency_pct=65.0, cycles_per_year=250, design_life_years=35
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-004", project_name="Victorian Gravity Energy Tower",
+            technology="GRAVITY", developer="Energy Vault / AusNet",
+            state="VIC", capacity_mwh=400.0, power_mw=100.0, duration_hours=4.0,
+            status="PROPOSED", capex_m_aud=180.0, lcos_mwh=130.0,
+            round_trip_efficiency_pct=80.0, cycles_per_year=400, design_life_years=30
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-005", project_name="Kidston Pumped Hydro Stage 2",
+            technology="PUMPED_HYDRO", developer="Genex Power",
+            state="QLD", capacity_mwh=1500.0, power_mw=250.0, duration_hours=6.0,
+            status="APPROVED", capex_m_aud=740.0, lcos_mwh=60.0,
+            round_trip_efficiency_pct=82.0, cycles_per_year=365, design_life_years=50
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-006", project_name="Eyre Peninsula Liquid Air Storage",
+            technology="LIQUID_AIR", developer="Highview Power / ElectraNet",
+            state="SA", capacity_mwh=2000.0, power_mw=50.0, duration_hours=40.0,
+            status="FEASIBILITY", capex_m_aud=310.0, lcos_mwh=120.0,
+            round_trip_efficiency_pct=60.0, cycles_per_year=200, design_life_years=30
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-007", project_name="Pilbara Iron Air Microgrid",
+            technology="IRON_AIR", developer="Form Energy / Horizon Power",
+            state="QLD", capacity_mwh=300.0, power_mw=15.0, duration_hours=20.0,
+            status="PROPOSED", capex_m_aud=90.0, lcos_mwh=105.0,
+            round_trip_efficiency_pct=71.0, cycles_per_year=280, design_life_years=20
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-008", project_name="Liddell Vanadium Flow Battery",
+            technology="FLOW_BATTERY", developer="VRB Energy / Neoen",
+            state="NSW", capacity_mwh=1200.0, power_mw=100.0, duration_hours=12.0,
+            status="PROPOSED", capex_m_aud=390.0, lcos_mwh=115.0,
+            round_trip_efficiency_pct=76.0, cycles_per_year=330, design_life_years=25
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-009", project_name="Adelaide Hills Gravity Storage",
+            technology="GRAVITY", developer="Gravitricity / ENGIE",
+            state="SA", capacity_mwh=200.0, power_mw=40.0, duration_hours=5.0,
+            status="PRE-FEASIBILITY", capex_m_aud=85.0, lcos_mwh=145.0,
+            round_trip_efficiency_pct=82.0, cycles_per_year=400, design_life_years=25
+        ),
+        LongDurationStorageRecord(
+            project_id="LDES-010", project_name="Talbingo Pumped Storage Expansion",
+            technology="PUMPED_HYDRO", developer="Snowy Hydro",
+            state="NSW", capacity_mwh=9000.0, power_mw=500.0, duration_hours=18.0,
+            status="FEASIBILITY", capex_m_aud=2100.0, lcos_mwh=55.0,
+            round_trip_efficiency_pct=83.0, cycles_per_year=280, design_life_years=60
+        ),
+    ]
+
+    capacity_outlook = [
+        CleanFirmCapacityRecord(year=2025, nuclear_gw=0.0, long_duration_storage_gw=0.3, pumped_hydro_gw=9.0, gas_ccs_gw=0.0, hydrogen_peaker_gw=0.0),
+        CleanFirmCapacityRecord(year=2026, nuclear_gw=0.0, long_duration_storage_gw=0.5, pumped_hydro_gw=9.0, gas_ccs_gw=0.0, hydrogen_peaker_gw=0.0),
+        CleanFirmCapacityRecord(year=2027, nuclear_gw=0.0, long_duration_storage_gw=0.8, pumped_hydro_gw=9.5, gas_ccs_gw=0.0, hydrogen_peaker_gw=0.1),
+        CleanFirmCapacityRecord(year=2028, nuclear_gw=0.0, long_duration_storage_gw=1.2, pumped_hydro_gw=9.5, gas_ccs_gw=0.0, hydrogen_peaker_gw=0.2),
+        CleanFirmCapacityRecord(year=2029, nuclear_gw=0.0, long_duration_storage_gw=1.8, pumped_hydro_gw=10.2, gas_ccs_gw=0.2, hydrogen_peaker_gw=0.3),
+        CleanFirmCapacityRecord(year=2030, nuclear_gw=0.0, long_duration_storage_gw=2.5, pumped_hydro_gw=11.0, gas_ccs_gw=0.5, hydrogen_peaker_gw=0.5),
+        CleanFirmCapacityRecord(year=2031, nuclear_gw=0.0, long_duration_storage_gw=3.2, pumped_hydro_gw=11.5, gas_ccs_gw=0.8, hydrogen_peaker_gw=0.8),
+        CleanFirmCapacityRecord(year=2032, nuclear_gw=0.0, long_duration_storage_gw=4.0, pumped_hydro_gw=12.0, gas_ccs_gw=1.0, hydrogen_peaker_gw=1.0),
+        CleanFirmCapacityRecord(year=2033, nuclear_gw=0.0, long_duration_storage_gw=4.8, pumped_hydro_gw=12.5, gas_ccs_gw=1.2, hydrogen_peaker_gw=1.3),
+        CleanFirmCapacityRecord(year=2034, nuclear_gw=0.0, long_duration_storage_gw=5.5, pumped_hydro_gw=13.0, gas_ccs_gw=1.5, hydrogen_peaker_gw=1.6),
+        CleanFirmCapacityRecord(year=2035, nuclear_gw=0.0, long_duration_storage_gw=6.5, pumped_hydro_gw=13.5, gas_ccs_gw=2.0, hydrogen_peaker_gw=2.0),
+        CleanFirmCapacityRecord(year=2036, nuclear_gw=0.3, long_duration_storage_gw=7.5, pumped_hydro_gw=14.0, gas_ccs_gw=2.5, hydrogen_peaker_gw=2.4),
+        CleanFirmCapacityRecord(year=2037, nuclear_gw=0.6, long_duration_storage_gw=8.5, pumped_hydro_gw=14.5, gas_ccs_gw=3.0, hydrogen_peaker_gw=2.8),
+        CleanFirmCapacityRecord(year=2038, nuclear_gw=0.9, long_duration_storage_gw=9.5, pumped_hydro_gw=15.0, gas_ccs_gw=3.5, hydrogen_peaker_gw=3.2),
+        CleanFirmCapacityRecord(year=2039, nuclear_gw=1.5, long_duration_storage_gw=10.5, pumped_hydro_gw=15.5, gas_ccs_gw=4.0, hydrogen_peaker_gw=3.6),
+        CleanFirmCapacityRecord(year=2040, nuclear_gw=2.2, long_duration_storage_gw=11.5, pumped_hydro_gw=16.0, gas_ccs_gw=4.5, hydrogen_peaker_gw=4.0),
+    ]
+
+    total_smr_gw = round(sum(p.capacity_mw for p in smr_projects) / 1000.0, 2)
+    total_lds_gwh = round(sum(p.capacity_mwh for p in long_duration_projects) / 1000.0, 2)
+    avg_smr_lcoe = round(sum(p.lcoe_mwh for p in smr_projects) / len(smr_projects), 1)
+    avg_lds_lcos = round(sum(p.lcos_mwh for p in long_duration_projects) / len(long_duration_projects), 1)
+
+    return NuclearLongDurationDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        smr_projects=smr_projects,
+        long_duration_projects=long_duration_projects,
+        capacity_outlook=capacity_outlook,
+        total_smr_pipeline_gw=total_smr_gw,
+        total_lds_pipeline_gwh=total_lds_gwh,
+        avg_smr_lcoe=avg_smr_lcoe,
+        avg_lds_lcos=avg_lds_lcos,
+    )
+
+
+_nuclear_ldes_cache: dict = {}
+
+@app.get("/api/nuclear-ldes/dashboard", response_model=NuclearLongDurationDashboard, dependencies=[Depends(verify_api_key)])
+async def get_nuclear_ldes_dashboard():
+    cached = _cache_get(_nuclear_ldes_cache, "nuclear_ldes")
+    if cached:
+        return cached
+    result = _build_nuclear_long_duration_dashboard()
+    _cache_set(_nuclear_ldes_cache, "nuclear_ldes", result)
+    return result
+
+@app.get("/api/nuclear-ldes/smr-projects", response_model=list[SmrProjectRecord], dependencies=[Depends(verify_api_key)])
+async def get_smr_projects():
+    dash = await get_nuclear_ldes_dashboard()
+    return dash.smr_projects
+
+@app.get("/api/nuclear-ldes/long-duration", response_model=list[LongDurationStorageRecord], dependencies=[Depends(verify_api_key)])
+async def get_long_duration_projects():
+    dash = await get_nuclear_ldes_dashboard()
+    return dash.long_duration_projects
+
+@app.get("/api/nuclear-ldes/capacity-outlook", response_model=list[CleanFirmCapacityRecord], dependencies=[Depends(verify_api_key)])
+async def get_capacity_outlook():
+    dash = await get_nuclear_ldes_dashboard()
+    return dash.capacity_outlook
+
+# ---------------------------------------------------------------------------
+# Sprint 43b — Wholesale Market Bidding Behaviour & Strategic Withholding
+# ---------------------------------------------------------------------------
+
+class BidWithholdingRecord(BaseModel):
+    participant_id: str
+    participant_name: str
+    region: str
+    technology: str
+    dispatch_interval: str
+    registered_capacity_mw: float
+    offered_capacity_mw: float
+    dispatched_mw: float
+    withheld_mw: float
+    withholding_ratio_pct: float
+    spot_price_aud_mwh: float
+    rebid_count: int
+    rebid_reason: str
+
+class BidPriceDistRecord(BaseModel):
+    participant_id: str
+    participant_name: str
+    technology: str
+    price_band_aud_mwh: float
+    volume_offered_mw: float
+    pct_of_portfolio: float
+
+class RebidPatternRecord(BaseModel):
+    participant_id: str
+    participant_name: str
+    month: str          # YYYY-MM
+    total_rebids: int
+    late_rebids: int    # within 5min of dispatch
+    avg_rebid_price_change: float
+    price_impact_aud_mwh: float
+    market_impact_score: float  # 0-10
+
+class MarketConcentrationRecord(BaseModel):
+    region: str
+    year: int
+    hhi_index: float
+    cr3_pct: float       # top 3 participants share
+    top_participant: str
+    top_share_pct: float
+    withholding_events: int
+    avg_withholding_mw: float
+
+class BiddingBehaviourDashboard(BaseModel):
+    timestamp: str
+    withholding_records: list[BidWithholdingRecord]
+    price_distribution: list[BidPriceDistRecord]
+    rebid_patterns: list[RebidPatternRecord]
+    market_concentration: list[MarketConcentrationRecord]
+    total_withheld_mw: float
+    avg_withholding_ratio_pct: float
+    high_withholding_events: int
+    market_power_index: float
+
+
+def _build_bidding_behaviour_dashboard() -> BiddingBehaviourDashboard:
+    from datetime import datetime
+    ts = datetime.utcnow().isoformat() + "Z"
+
+    withholding_records = [
+        BidWithholdingRecord(
+            participant_id="AGLHAL",
+            participant_name="AGL Energy",
+            region="SA1",
+            technology="GAS",
+            dispatch_interval="2024-06-15T14:30:00",
+            registered_capacity_mw=780.0,
+            offered_capacity_mw=520.0,
+            dispatched_mw=310.0,
+            withheld_mw=460.0,
+            withholding_ratio_pct=58.97,
+            spot_price_aud_mwh=450.0,
+            rebid_count=4,
+            rebid_reason="Economic withholding - price below SRMC",
+        ),
+        BidWithholdingRecord(
+            participant_id="AGLHAL",
+            participant_name="AGL Energy",
+            region="NSW1",
+            technology="COAL",
+            dispatch_interval="2024-06-15T09:00:00",
+            registered_capacity_mw=1400.0,
+            offered_capacity_mw=1260.0,
+            dispatched_mw=1180.0,
+            withheld_mw=220.0,
+            withholding_ratio_pct=15.71,
+            spot_price_aud_mwh=85.0,
+            rebid_count=1,
+            rebid_reason="Planned maintenance outage",
+        ),
+        BidWithholdingRecord(
+            participant_id="ORIGINSA",
+            participant_name="Origin Energy",
+            region="SA1",
+            technology="GAS",
+            dispatch_interval="2024-06-15T16:00:00",
+            registered_capacity_mw=635.0,
+            offered_capacity_mw=420.0,
+            dispatched_mw=198.0,
+            withheld_mw=437.0,
+            withholding_ratio_pct=68.82,
+            spot_price_aud_mwh=1250.0,
+            rebid_count=6,
+            rebid_reason="Strategic rebid - market price spike",
+        ),
+        BidWithholdingRecord(
+            participant_id="ENAUSTAS",
+            participant_name="EnergyAustralia",
+            region="VIC1",
+            technology="GAS",
+            dispatch_interval="2024-06-15T18:30:00",
+            registered_capacity_mw=500.0,
+            offered_capacity_mw=310.0,
+            dispatched_mw=220.0,
+            withheld_mw=280.0,
+            withholding_ratio_pct=56.0,
+            spot_price_aud_mwh=900.0,
+            rebid_count=3,
+            rebid_reason="Fuel supply constraint",
+        ),
+        BidWithholdingRecord(
+            participant_id="SNOWYH",
+            participant_name="Snowy Hydro",
+            region="NSW1",
+            technology="HYDRO",
+            dispatch_interval="2024-06-15T19:00:00",
+            registered_capacity_mw=4100.0,
+            offered_capacity_mw=3690.0,
+            dispatched_mw=2800.0,
+            withheld_mw=1300.0,
+            withholding_ratio_pct=31.71,
+            spot_price_aud_mwh=300.0,
+            rebid_count=2,
+            rebid_reason="Water storage management",
+        ),
+        BidWithholdingRecord(
+            participant_id="ALINTWN",
+            participant_name="Alinta Energy",
+            region="WA1",
+            technology="COAL",
+            dispatch_interval="2024-06-15T11:00:00",
+            registered_capacity_mw=820.0,
+            offered_capacity_mw=780.0,
+            dispatched_mw=730.0,
+            withheld_mw=90.0,
+            withholding_ratio_pct=10.98,
+            spot_price_aud_mwh=68.0,
+            rebid_count=1,
+            rebid_reason="Technical constraints",
+        ),
+        BidWithholdingRecord(
+            participant_id="AGLHAL",
+            participant_name="AGL Energy",
+            region="QLD1",
+            technology="COAL",
+            dispatch_interval="2024-06-15T13:00:00",
+            registered_capacity_mw=1680.0,
+            offered_capacity_mw=1400.0,
+            dispatched_mw=1350.0,
+            withheld_mw=330.0,
+            withholding_ratio_pct=19.64,
+            spot_price_aud_mwh=110.0,
+            rebid_count=2,
+            rebid_reason="Boiler maintenance",
+        ),
+        BidWithholdingRecord(
+            participant_id="ORIGINSA",
+            participant_name="Origin Energy",
+            region="NSW1",
+            technology="GAS",
+            dispatch_interval="2024-06-15T20:30:00",
+            registered_capacity_mw=450.0,
+            offered_capacity_mw=200.0,
+            dispatched_mw=120.0,
+            withheld_mw=330.0,
+            withholding_ratio_pct=73.33,
+            spot_price_aud_mwh=15000.0,
+            rebid_count=8,
+            rebid_reason="Peak price event - strategic withholding",
+        ),
+        BidWithholdingRecord(
+            participant_id="ENAUSTAS",
+            participant_name="EnergyAustralia",
+            region="NSW1",
+            technology="COAL",
+            dispatch_interval="2024-06-15T08:00:00",
+            registered_capacity_mw=720.0,
+            offered_capacity_mw=690.0,
+            dispatched_mw=640.0,
+            withheld_mw=80.0,
+            withholding_ratio_pct=11.11,
+            spot_price_aud_mwh=72.0,
+            rebid_count=1,
+            rebid_reason="Minor equipment fault",
+        ),
+        BidWithholdingRecord(
+            participant_id="SNOWYH",
+            participant_name="Snowy Hydro",
+            region="VIC1",
+            technology="HYDRO",
+            dispatch_interval="2024-06-15T07:30:00",
+            registered_capacity_mw=1600.0,
+            offered_capacity_mw=1400.0,
+            dispatched_mw=1350.0,
+            withheld_mw=250.0,
+            withholding_ratio_pct=15.63,
+            spot_price_aud_mwh=55.0,
+            rebid_count=1,
+            rebid_reason="Catchment inflow management",
+        ),
+        BidWithholdingRecord(
+            participant_id="ALINTWN",
+            participant_name="Alinta Energy",
+            region="SA1",
+            technology="GAS",
+            dispatch_interval="2024-06-15T21:00:00",
+            registered_capacity_mw=350.0,
+            offered_capacity_mw=150.0,
+            dispatched_mw=60.0,
+            withheld_mw=290.0,
+            withholding_ratio_pct=82.86,
+            spot_price_aud_mwh=5000.0,
+            rebid_count=7,
+            rebid_reason="Price spike event - capacity withheld",
+        ),
+        BidWithholdingRecord(
+            participant_id="AGLHAL",
+            participant_name="AGL Energy",
+            region="VIC1",
+            technology="SOLAR",
+            dispatch_interval="2024-06-15T12:30:00",
+            registered_capacity_mw=400.0,
+            offered_capacity_mw=320.0,
+            dispatched_mw=290.0,
+            withheld_mw=110.0,
+            withholding_ratio_pct=27.5,
+            spot_price_aud_mwh=50.0,
+            rebid_count=2,
+            rebid_reason="Curtailment due to network constraint",
+        ),
+    ]
+
+    price_distribution = [
+        BidPriceDistRecord(participant_id="AGLHAL", participant_name="AGL Energy",     technology="COAL",  price_band_aud_mwh=-1000.0, volume_offered_mw=50.0,   pct_of_portfolio=2.3),
+        BidPriceDistRecord(participant_id="AGLHAL", participant_name="AGL Energy",     technology="COAL",  price_band_aud_mwh=0.0,     volume_offered_mw=120.0,  pct_of_portfolio=5.5),
+        BidPriceDistRecord(participant_id="AGLHAL", participant_name="AGL Energy",     technology="COAL",  price_band_aud_mwh=50.0,    volume_offered_mw=850.0,  pct_of_portfolio=38.9),
+        BidPriceDistRecord(participant_id="ORIGINSA", participant_name="Origin Energy", technology="GAS",   price_band_aud_mwh=0.0,     volume_offered_mw=30.0,   pct_of_portfolio=3.1),
+        BidPriceDistRecord(participant_id="ORIGINSA", participant_name="Origin Energy", technology="GAS",   price_band_aud_mwh=100.0,   volume_offered_mw=200.0,  pct_of_portfolio=20.7),
+        BidPriceDistRecord(participant_id="ORIGINSA", participant_name="Origin Energy", technology="GAS",   price_band_aud_mwh=300.0,   volume_offered_mw=150.0,  pct_of_portfolio=15.5),
+        BidPriceDistRecord(participant_id="ORIGINSA", participant_name="Origin Energy", technology="GAS",   price_band_aud_mwh=5000.0,  volume_offered_mw=280.0,  pct_of_portfolio=29.0),
+        BidPriceDistRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia", technology="GAS", price_band_aud_mwh=50.0,    volume_offered_mw=80.0,   pct_of_portfolio=9.5),
+        BidPriceDistRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia", technology="GAS", price_band_aud_mwh=300.0,   volume_offered_mw=180.0,  pct_of_portfolio=21.3),
+        BidPriceDistRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia", technology="GAS", price_band_aud_mwh=1000.0,  volume_offered_mw=120.0,  pct_of_portfolio=14.2),
+        BidPriceDistRecord(participant_id="SNOWYH", participant_name="Snowy Hydro",    technology="HYDRO", price_band_aud_mwh=-1000.0, volume_offered_mw=400.0,  pct_of_portfolio=9.8),
+        BidPriceDistRecord(participant_id="SNOWYH", participant_name="Snowy Hydro",    technology="HYDRO", price_band_aud_mwh=300.0,   volume_offered_mw=1200.0, pct_of_portfolio=29.3),
+        BidPriceDistRecord(participant_id="SNOWYH", participant_name="Snowy Hydro",    technology="HYDRO", price_band_aud_mwh=15000.0, volume_offered_mw=800.0,  pct_of_portfolio=19.5),
+        BidPriceDistRecord(participant_id="ALINTWN", participant_name="Alinta Energy",  technology="COAL",  price_band_aud_mwh=50.0,    volume_offered_mw=580.0,  pct_of_portfolio=42.3),
+        BidPriceDistRecord(participant_id="ALINTWN", participant_name="Alinta Energy",  technology="GAS",   price_band_aud_mwh=5000.0,  volume_offered_mw=210.0,  pct_of_portfolio=15.3),
+    ]
+
+    rebid_patterns = [
+        # AGL Energy - Jan to Jun 2024
+        RebidPatternRecord(participant_id="AGLHAL",   participant_name="AGL Energy",        month="2024-01", total_rebids=82,  late_rebids=12, avg_rebid_price_change=45.2,  price_impact_aud_mwh=18.5, market_impact_score=4.2),
+        RebidPatternRecord(participant_id="AGLHAL",   participant_name="AGL Energy",        month="2024-02", total_rebids=94,  late_rebids=15, avg_rebid_price_change=55.8,  price_impact_aud_mwh=24.1, market_impact_score=5.1),
+        RebidPatternRecord(participant_id="AGLHAL",   participant_name="AGL Energy",        month="2024-03", total_rebids=77,  late_rebids=10, avg_rebid_price_change=38.4,  price_impact_aud_mwh=15.2, market_impact_score=3.8),
+        RebidPatternRecord(participant_id="AGLHAL",   participant_name="AGL Energy",        month="2024-04", total_rebids=105, late_rebids=18, avg_rebid_price_change=68.9,  price_impact_aud_mwh=32.4, market_impact_score=6.2),
+        RebidPatternRecord(participant_id="AGLHAL",   participant_name="AGL Energy",        month="2024-05", total_rebids=119, late_rebids=20, avg_rebid_price_change=82.3,  price_impact_aud_mwh=45.8, market_impact_score=7.1),
+        RebidPatternRecord(participant_id="AGLHAL",   participant_name="AGL Energy",        month="2024-06", total_rebids=98,  late_rebids=16, avg_rebid_price_change=62.1,  price_impact_aud_mwh=28.9, market_impact_score=5.8),
+        # Origin Energy - Jan to Jun 2024
+        RebidPatternRecord(participant_id="ORIGINSA", participant_name="Origin Energy",     month="2024-01", total_rebids=64,  late_rebids=8,  avg_rebid_price_change=52.1,  price_impact_aud_mwh=22.3, market_impact_score=4.8),
+        RebidPatternRecord(participant_id="ORIGINSA", participant_name="Origin Energy",     month="2024-02", total_rebids=71,  late_rebids=11, avg_rebid_price_change=60.4,  price_impact_aud_mwh=28.7, market_impact_score=5.5),
+        RebidPatternRecord(participant_id="ORIGINSA", participant_name="Origin Energy",     month="2024-03", total_rebids=58,  late_rebids=7,  avg_rebid_price_change=44.2,  price_impact_aud_mwh=18.1, market_impact_score=4.1),
+        RebidPatternRecord(participant_id="ORIGINSA", participant_name="Origin Energy",     month="2024-04", total_rebids=89,  late_rebids=14, avg_rebid_price_change=75.3,  price_impact_aud_mwh=38.6, market_impact_score=6.8),
+        RebidPatternRecord(participant_id="ORIGINSA", participant_name="Origin Energy",     month="2024-05", total_rebids=102, late_rebids=19, avg_rebid_price_change=91.8,  price_impact_aud_mwh=52.4, market_impact_score=7.9),
+        RebidPatternRecord(participant_id="ORIGINSA", participant_name="Origin Energy",     month="2024-06", total_rebids=76,  late_rebids=13, avg_rebid_price_change=65.2,  price_impact_aud_mwh=31.2, market_impact_score=6.1),
+        # EnergyAustralia - Jan to Jun 2024
+        RebidPatternRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia",  month="2024-01", total_rebids=55,  late_rebids=7,  avg_rebid_price_change=38.9,  price_impact_aud_mwh=15.8, market_impact_score=3.5),
+        RebidPatternRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia",  month="2024-02", total_rebids=68,  late_rebids=9,  avg_rebid_price_change=48.6,  price_impact_aud_mwh=21.3, market_impact_score=4.4),
+        RebidPatternRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia",  month="2024-03", total_rebids=49,  late_rebids=6,  avg_rebid_price_change=32.1,  price_impact_aud_mwh=12.4, market_impact_score=3.0),
+        RebidPatternRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia",  month="2024-04", total_rebids=82,  late_rebids=13, avg_rebid_price_change=66.4,  price_impact_aud_mwh=34.2, market_impact_score=6.0),
+        RebidPatternRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia",  month="2024-05", total_rebids=95,  late_rebids=17, avg_rebid_price_change=78.9,  price_impact_aud_mwh=44.1, market_impact_score=7.2),
+        RebidPatternRecord(participant_id="ENAUSTAS", participant_name="EnergyAustralia",  month="2024-06", total_rebids=71,  late_rebids=11, avg_rebid_price_change=58.3,  price_impact_aud_mwh=26.8, market_impact_score=5.3),
+        # Snowy Hydro - Jan to Jun 2024
+        RebidPatternRecord(participant_id="SNOWYH",   participant_name="Snowy Hydro",       month="2024-01", total_rebids=38,  late_rebids=4,  avg_rebid_price_change=125.4, price_impact_aud_mwh=58.2, market_impact_score=5.8),
+        RebidPatternRecord(participant_id="SNOWYH",   participant_name="Snowy Hydro",       month="2024-02", total_rebids=44,  late_rebids=6,  avg_rebid_price_change=148.2, price_impact_aud_mwh=71.4, market_impact_score=6.5),
+        RebidPatternRecord(participant_id="SNOWYH",   participant_name="Snowy Hydro",       month="2024-03", total_rebids=31,  late_rebids=3,  avg_rebid_price_change=98.7,  price_impact_aud_mwh=44.3, market_impact_score=4.8),
+        RebidPatternRecord(participant_id="SNOWYH",   participant_name="Snowy Hydro",       month="2024-04", total_rebids=52,  late_rebids=8,  avg_rebid_price_change=183.5, price_impact_aud_mwh=91.6, market_impact_score=7.4),
+        RebidPatternRecord(participant_id="SNOWYH",   participant_name="Snowy Hydro",       month="2024-05", total_rebids=60,  late_rebids=11, avg_rebid_price_change=210.8, price_impact_aud_mwh=108.9, market_impact_score=8.1),
+        RebidPatternRecord(participant_id="SNOWYH",   participant_name="Snowy Hydro",       month="2024-06", total_rebids=47,  late_rebids=8,  avg_rebid_price_change=165.3, price_impact_aud_mwh=82.1, market_impact_score=6.9),
+        # Alinta Energy - Jan to Jun 2024
+        RebidPatternRecord(participant_id="ALINTWN",  participant_name="Alinta Energy",     month="2024-01", total_rebids=29,  late_rebids=3,  avg_rebid_price_change=28.4,  price_impact_aud_mwh=10.2, market_impact_score=2.4),
+        RebidPatternRecord(participant_id="ALINTWN",  participant_name="Alinta Energy",     month="2024-02", total_rebids=35,  late_rebids=5,  avg_rebid_price_change=34.6,  price_impact_aud_mwh=13.8, market_impact_score=3.1),
+        RebidPatternRecord(participant_id="ALINTWN",  participant_name="Alinta Energy",     month="2024-03", total_rebids=24,  late_rebids=2,  avg_rebid_price_change=22.1,  price_impact_aud_mwh=8.4,  market_impact_score=2.0),
+        RebidPatternRecord(participant_id="ALINTWN",  participant_name="Alinta Energy",     month="2024-04", total_rebids=41,  late_rebids=6,  avg_rebid_price_change=48.9,  price_impact_aud_mwh=19.6, market_impact_score=3.8),
+        RebidPatternRecord(participant_id="ALINTWN",  participant_name="Alinta Energy",     month="2024-05", total_rebids=48,  late_rebids=8,  avg_rebid_price_change=57.3,  price_impact_aud_mwh=24.1, market_impact_score=4.5),
+        RebidPatternRecord(participant_id="ALINTWN",  participant_name="Alinta Energy",     month="2024-06", total_rebids=36,  late_rebids=5,  avg_rebid_price_change=40.8,  price_impact_aud_mwh=16.3, market_impact_score=3.4),
+        # Meridian Energy - Jan to Jun 2024
+        RebidPatternRecord(participant_id="MERIDN",   participant_name="Meridian Energy",   month="2024-01", total_rebids=42,  late_rebids=5,  avg_rebid_price_change=88.4,  price_impact_aud_mwh=38.5, market_impact_score=4.9),
+        RebidPatternRecord(participant_id="MERIDN",   participant_name="Meridian Energy",   month="2024-02", total_rebids=51,  late_rebids=7,  avg_rebid_price_change=104.1, price_impact_aud_mwh=46.2, market_impact_score=5.6),
+        RebidPatternRecord(participant_id="MERIDN",   participant_name="Meridian Energy",   month="2024-03", total_rebids=38,  late_rebids=4,  avg_rebid_price_change=72.3,  price_impact_aud_mwh=31.4, market_impact_score=4.1),
+        RebidPatternRecord(participant_id="MERIDN",   participant_name="Meridian Energy",   month="2024-04", total_rebids=65,  late_rebids=11, avg_rebid_price_change=138.6, price_impact_aud_mwh=62.8, market_impact_score=6.7),
+        RebidPatternRecord(participant_id="MERIDN",   participant_name="Meridian Energy",   month="2024-05", total_rebids=74,  late_rebids=14, avg_rebid_price_change=158.2, price_impact_aud_mwh=74.6, market_impact_score=7.5),
+        RebidPatternRecord(participant_id="MERIDN",   participant_name="Meridian Energy",   month="2024-06", total_rebids=56,  late_rebids=9,  avg_rebid_price_change=118.4, price_impact_aud_mwh=53.1, market_impact_score=6.0),
+    ]
+
+    market_concentration = [
+        # NSW1 - 2023 and 2024
+        MarketConcentrationRecord(region="NSW1", year=2023, hhi_index=2150.0, cr3_pct=58.4, top_participant="AGL Energy",       top_share_pct=28.2, withholding_events=142, avg_withholding_mw=385.0),
+        MarketConcentrationRecord(region="NSW1", year=2024, hhi_index=2280.0, cr3_pct=61.1, top_participant="AGL Energy",       top_share_pct=30.1, withholding_events=168, avg_withholding_mw=412.0),
+        # VIC1 - 2023 and 2024
+        MarketConcentrationRecord(region="VIC1", year=2023, hhi_index=1820.0, cr3_pct=52.8, top_participant="EnergyAustralia",  top_share_pct=24.6, withholding_events=98,  avg_withholding_mw=268.0),
+        MarketConcentrationRecord(region="VIC1", year=2024, hhi_index=1950.0, cr3_pct=55.3, top_participant="EnergyAustralia",  top_share_pct=26.4, withholding_events=115, avg_withholding_mw=294.0),
+        # QLD1 - 2023 and 2024
+        MarketConcentrationRecord(region="QLD1", year=2023, hhi_index=2450.0, cr3_pct=64.2, top_participant="Origin Energy",    top_share_pct=32.1, withholding_events=187, avg_withholding_mw=452.0),
+        MarketConcentrationRecord(region="QLD1", year=2024, hhi_index=2680.0, cr3_pct=67.8, top_participant="Origin Energy",    top_share_pct=34.5, withholding_events=214, avg_withholding_mw=498.0),
+        # SA1 - 2023 and 2024
+        MarketConcentrationRecord(region="SA1",  year=2023, hhi_index=3120.0, cr3_pct=71.5, top_participant="AGL Energy",       top_share_pct=38.4, withholding_events=224, avg_withholding_mw=318.0),
+        MarketConcentrationRecord(region="SA1",  year=2024, hhi_index=3380.0, cr3_pct=74.2, top_participant="AGL Energy",       top_share_pct=40.1, withholding_events=261, avg_withholding_mw=342.0),
+        # TAS1 - 2023 and 2024
+        MarketConcentrationRecord(region="TAS1", year=2023, hhi_index=1520.0, cr3_pct=45.8, top_participant="Hydro Tasmania",   top_share_pct=22.4, withholding_events=64,  avg_withholding_mw=148.0),
+        MarketConcentrationRecord(region="TAS1", year=2024, hhi_index=1620.0, cr3_pct=48.1, top_participant="Hydro Tasmania",   top_share_pct=23.8, withholding_events=78,  avg_withholding_mw=162.0),
+    ]
+
+    total_withheld = sum(r.withheld_mw for r in withholding_records)
+    avg_ratio = sum(r.withholding_ratio_pct for r in withholding_records) / len(withholding_records)
+    high_events = sum(1 for r in withholding_records if r.withholding_ratio_pct > 40.0)
+    avg_hhi = sum(r.hhi_index for r in market_concentration) / len(market_concentration)
+    market_power_index = round(avg_hhi / 500.0, 2)  # normalise HHI to 0-10 scale
+
+    return BiddingBehaviourDashboard(
+        timestamp=ts,
+        withholding_records=withholding_records,
+        price_distribution=price_distribution,
+        rebid_patterns=rebid_patterns,
+        market_concentration=market_concentration,
+        total_withheld_mw=round(total_withheld, 1),
+        avg_withholding_ratio_pct=round(avg_ratio, 2),
+        high_withholding_events=high_events,
+        market_power_index=market_power_index,
+    )
+
+
+_bidding_behaviour_cache: dict = {}
+
+@app.get("/api/bidding-behaviour/dashboard", response_model=BiddingBehaviourDashboard, dependencies=[Depends(verify_api_key)])
+async def get_bidding_behaviour_dashboard():
+    cached = _cache_get(_bidding_behaviour_cache, "bidding_behaviour")
+    if cached: return cached
+    result = _build_bidding_behaviour_dashboard()
+    _cache_set(_bidding_behaviour_cache, "bidding_behaviour", result)
+    return result
+
+@app.get("/api/bidding-behaviour/withholding", response_model=list[BidWithholdingRecord], dependencies=[Depends(verify_api_key)])
+async def get_bidding_behaviour_withholding():
+    dash = await get_bidding_behaviour_dashboard()
+    return dash.withholding_records
+
+@app.get("/api/bidding-behaviour/price-distribution", response_model=list[BidPriceDistRecord], dependencies=[Depends(verify_api_key)])
+async def get_bidding_behaviour_price_distribution():
+    dash = await get_bidding_behaviour_dashboard()
+    return dash.price_distribution
+
+@app.get("/api/bidding-behaviour/rebid-patterns", response_model=list[RebidPatternRecord], dependencies=[Depends(verify_api_key)])
+async def get_bidding_behaviour_rebid_patterns():
+    dash = await get_bidding_behaviour_dashboard()
+    return dash.rebid_patterns
+
+@app.get("/api/bidding-behaviour/market-concentration", response_model=list[MarketConcentrationRecord], dependencies=[Depends(verify_api_key)])
+async def get_bidding_behaviour_market_concentration():
+    dash = await get_bidding_behaviour_dashboard()
+    return dash.market_concentration
+
+# ---------------------------------------------------------------------------
+# Sprint 43c — Energy Poverty & Just Transition Analytics
+# ---------------------------------------------------------------------------
+
+class EnergyPovertyHardshipRecord(BaseModel):
+    region: str
+    state: str
+    year: int
+    quarter: str              # Q1–Q4
+    households_in_hardship: int
+    hardship_rate_pct: float
+    disconnection_notices: int
+    actual_disconnections: int
+    concession_recipients: int
+    avg_bill_aud: float
+    bill_stress_pct: float    # % spending >10% income on energy
+
+class CoalWorkerTransitionRecord(BaseModel):
+    region: str
+    state: str
+    facility_name: str
+    technology: str           # BLACK_COAL, BROWN_COAL
+    closure_year: int
+    workers_affected: int
+    transition_programs: int
+    retraining_enrolled: int
+    reemployed: int
+    avg_reemployment_wage_ratio: float  # new wage / old wage
+    transition_fund_m_aud: float
+    program_status: str       # PLANNING, ACTIVE, COMPLETED
+
+class EnergyAffordabilityRecord(BaseModel):
+    state: str
+    year: int
+    median_bill_aud: float
+    low_income_bill_aud: float
+    bill_as_pct_income_median: float
+    bill_as_pct_income_low: float
+    solar_penetration_low_income_pct: float
+    concession_coverage_pct: float
+    hardship_program_spend_m_aud: float
+
+class JustTransitionProgramRecord(BaseModel):
+    program_id: str
+    program_name: str
+    state: str
+    region: str
+    program_type: str         # WORKER_RETRAINING, COMMUNITY_FUND, CLEAN_ENERGY_ACCESS, ECONOMIC_DIVERSIFICATION
+    budget_m_aud: float
+    beneficiaries: int
+    status: str               # ACTIVE, COMPLETED, PLANNED
+    start_year: int
+    end_year: int | None
+    outcomes_score: float     # 0-10
+
+class EnergyPovertyDashboard(BaseModel):
+    timestamp: str
+    hardship_records: list[EnergyPovertyHardshipRecord]
+    worker_transition: list[CoalWorkerTransitionRecord]
+    affordability: list[EnergyAffordabilityRecord]
+    just_transition_programs: list[JustTransitionProgramRecord]
+    national_hardship_rate_pct: float
+    total_workers_in_transition: int
+    total_transition_fund_b_aud: float
+    low_income_solar_gap_pct: float
+
+
+def _build_energy_poverty_dashboard() -> EnergyPovertyDashboard:
+    # 20 hardship records — 5 states × 4 quarters of 2024
+    _hardship_data = [
+        # NSW
+        {"region": "NSW Central", "state": "NSW", "year": 2024, "quarter": "Q1",
+         "households_in_hardship": 142000, "hardship_rate_pct": 11.2, "disconnection_notices": 18500,
+         "actual_disconnections": 3200, "concession_recipients": 98000, "avg_bill_aud": 1850.0, "bill_stress_pct": 14.5},
+        {"region": "NSW Central", "state": "NSW", "year": 2024, "quarter": "Q2",
+         "households_in_hardship": 138000, "hardship_rate_pct": 10.8, "disconnection_notices": 16800,
+         "actual_disconnections": 2900, "concession_recipients": 99500, "avg_bill_aud": 1780.0, "bill_stress_pct": 13.8},
+        {"region": "NSW Central", "state": "NSW", "year": 2024, "quarter": "Q3",
+         "households_in_hardship": 151000, "hardship_rate_pct": 11.9, "disconnection_notices": 21000,
+         "actual_disconnections": 3600, "concession_recipients": 97200, "avg_bill_aud": 2050.0, "bill_stress_pct": 15.9},
+        {"region": "NSW Central", "state": "NSW", "year": 2024, "quarter": "Q4",
+         "households_in_hardship": 145000, "hardship_rate_pct": 11.4, "disconnection_notices": 19200,
+         "actual_disconnections": 3350, "concession_recipients": 100100, "avg_bill_aud": 1920.0, "bill_stress_pct": 14.9},
+        # VIC
+        {"region": "VIC Metro", "state": "VIC", "year": 2024, "quarter": "Q1",
+         "households_in_hardship": 165000, "hardship_rate_pct": 13.7, "disconnection_notices": 22000,
+         "actual_disconnections": 4100, "concession_recipients": 115000, "avg_bill_aud": 2100.0, "bill_stress_pct": 17.2},
+        {"region": "VIC Metro", "state": "VIC", "year": 2024, "quarter": "Q2",
+         "households_in_hardship": 160000, "hardship_rate_pct": 13.2, "disconnection_notices": 20500,
+         "actual_disconnections": 3800, "concession_recipients": 116500, "avg_bill_aud": 1980.0, "bill_stress_pct": 16.5},
+        {"region": "VIC Metro", "state": "VIC", "year": 2024, "quarter": "Q3",
+         "households_in_hardship": 172000, "hardship_rate_pct": 14.3, "disconnection_notices": 24500,
+         "actual_disconnections": 4500, "concession_recipients": 113800, "avg_bill_aud": 2280.0, "bill_stress_pct": 18.8},
+        {"region": "VIC Metro", "state": "VIC", "year": 2024, "quarter": "Q4",
+         "households_in_hardship": 168000, "hardship_rate_pct": 13.9, "disconnection_notices": 23100,
+         "actual_disconnections": 4200, "concession_recipients": 117200, "avg_bill_aud": 2150.0, "bill_stress_pct": 17.8},
+        # QLD
+        {"region": "QLD South-East", "state": "QLD", "year": 2024, "quarter": "Q1",
+         "households_in_hardship": 98000, "hardship_rate_pct": 8.9, "disconnection_notices": 12500,
+         "actual_disconnections": 2100, "concession_recipients": 72000, "avg_bill_aud": 1620.0, "bill_stress_pct": 10.8},
+        {"region": "QLD South-East", "state": "QLD", "year": 2024, "quarter": "Q2",
+         "households_in_hardship": 95000, "hardship_rate_pct": 8.6, "disconnection_notices": 11800,
+         "actual_disconnections": 1950, "concession_recipients": 73200, "avg_bill_aud": 1550.0, "bill_stress_pct": 10.2},
+        {"region": "QLD South-East", "state": "QLD", "year": 2024, "quarter": "Q3",
+         "households_in_hardship": 105000, "hardship_rate_pct": 9.5, "disconnection_notices": 14200,
+         "actual_disconnections": 2400, "concession_recipients": 71000, "avg_bill_aud": 1750.0, "bill_stress_pct": 11.7},
+        {"region": "QLD South-East", "state": "QLD", "year": 2024, "quarter": "Q4",
+         "households_in_hardship": 101000, "hardship_rate_pct": 9.1, "disconnection_notices": 13100,
+         "actual_disconnections": 2250, "concession_recipients": 74000, "avg_bill_aud": 1680.0, "bill_stress_pct": 11.1},
+        # SA
+        {"region": "SA Adelaide", "state": "SA", "year": 2024, "quarter": "Q1",
+         "households_in_hardship": 58000, "hardship_rate_pct": 14.8, "disconnection_notices": 8200,
+         "actual_disconnections": 1600, "concession_recipients": 42000, "avg_bill_aud": 2320.0, "bill_stress_pct": 20.5},
+        {"region": "SA Adelaide", "state": "SA", "year": 2024, "quarter": "Q2",
+         "households_in_hardship": 55000, "hardship_rate_pct": 14.1, "disconnection_notices": 7600,
+         "actual_disconnections": 1450, "concession_recipients": 43200, "avg_bill_aud": 2180.0, "bill_stress_pct": 19.4},
+        {"region": "SA Adelaide", "state": "SA", "year": 2024, "quarter": "Q3",
+         "households_in_hardship": 62000, "hardship_rate_pct": 15.8, "disconnection_notices": 9100,
+         "actual_disconnections": 1820, "concession_recipients": 41500, "avg_bill_aud": 2450.0, "bill_stress_pct": 22.0},
+        {"region": "SA Adelaide", "state": "SA", "year": 2024, "quarter": "Q4",
+         "households_in_hardship": 59500, "hardship_rate_pct": 15.2, "disconnection_notices": 8600,
+         "actual_disconnections": 1680, "concession_recipients": 43800, "avg_bill_aud": 2380.0, "bill_stress_pct": 21.1},
+        # WA
+        {"region": "WA Perth", "state": "WA", "year": 2024, "quarter": "Q1",
+         "households_in_hardship": 72000, "hardship_rate_pct": 9.8, "disconnection_notices": 10500,
+         "actual_disconnections": 1900, "concession_recipients": 52000, "avg_bill_aud": 1720.0, "bill_stress_pct": 12.3},
+        {"region": "WA Perth", "state": "WA", "year": 2024, "quarter": "Q2",
+         "households_in_hardship": 69000, "hardship_rate_pct": 9.4, "disconnection_notices": 9800,
+         "actual_disconnections": 1750, "concession_recipients": 53500, "avg_bill_aud": 1650.0, "bill_stress_pct": 11.7},
+        {"region": "WA Perth", "state": "WA", "year": 2024, "quarter": "Q3",
+         "households_in_hardship": 77000, "hardship_rate_pct": 10.5, "disconnection_notices": 12200,
+         "actual_disconnections": 2200, "concession_recipients": 51000, "avg_bill_aud": 1860.0, "bill_stress_pct": 13.6},
+        {"region": "WA Perth", "state": "WA", "year": 2024, "quarter": "Q4",
+         "households_in_hardship": 74000, "hardship_rate_pct": 10.1, "disconnection_notices": 11300,
+         "actual_disconnections": 2050, "concession_recipients": 54200, "avg_bill_aud": 1790.0, "bill_stress_pct": 12.9},
+    ]
+
+    hardship_records = [EnergyPovertyHardshipRecord(**r) for r in _hardship_data]
+
+    # 8 coal worker transition records
+    _transition_data = [
+        {"region": "Hunter Valley", "state": "NSW", "facility_name": "Liddell Power Station",
+         "technology": "BLACK_COAL", "closure_year": 2023, "workers_affected": 450,
+         "transition_programs": 4, "retraining_enrolled": 380, "reemployed": 310,
+         "avg_reemployment_wage_ratio": 0.88, "transition_fund_m_aud": 95.0, "program_status": "ACTIVE"},
+        {"region": "Latrobe Valley", "state": "VIC", "facility_name": "Yallourn Power Station",
+         "technology": "BROWN_COAL", "closure_year": 2022, "workers_affected": 750,
+         "transition_programs": 6, "retraining_enrolled": 620, "reemployed": 530,
+         "avg_reemployment_wage_ratio": 0.82, "transition_fund_m_aud": 220.0, "program_status": "ACTIVE"},
+        {"region": "Lake Macquarie", "state": "NSW", "facility_name": "Eraring Power Station",
+         "technology": "BLACK_COAL", "closure_year": 2025, "workers_affected": 600,
+         "transition_programs": 5, "retraining_enrolled": 410, "reemployed": 180,
+         "avg_reemployment_wage_ratio": 0.91, "transition_fund_m_aud": 150.0, "program_status": "ACTIVE"},
+        {"region": "Hunter Valley", "state": "NSW", "facility_name": "Bayswater Power Station",
+         "technology": "BLACK_COAL", "closure_year": 2030, "workers_affected": 800,
+         "transition_programs": 3, "retraining_enrolled": 120, "reemployed": 0,
+         "avg_reemployment_wage_ratio": 0.0, "transition_fund_m_aud": 180.0, "program_status": "PLANNING"},
+        {"region": "Collie", "state": "WA", "facility_name": "Muja Power Station",
+         "technology": "BLACK_COAL", "closure_year": 2024, "workers_affected": 350,
+         "transition_programs": 4, "retraining_enrolled": 290, "reemployed": 240,
+         "avg_reemployment_wage_ratio": 0.79, "transition_fund_m_aud": 85.0, "program_status": "ACTIVE"},
+        {"region": "Callide Valley", "state": "QLD", "facility_name": "Callide Power Station",
+         "technology": "BLACK_COAL", "closure_year": 2028, "workers_affected": 420,
+         "transition_programs": 2, "retraining_enrolled": 85, "reemployed": 0,
+         "avg_reemployment_wage_ratio": 0.0, "transition_fund_m_aud": 110.0, "program_status": "PLANNING"},
+        {"region": "South Burnett", "state": "QLD", "facility_name": "Tarong Power Station",
+         "technology": "BLACK_COAL", "closure_year": 2032, "workers_affected": 500,
+         "transition_programs": 1, "retraining_enrolled": 0, "reemployed": 0,
+         "avg_reemployment_wage_ratio": 0.0, "transition_fund_m_aud": 60.0, "program_status": "PLANNING"},
+        {"region": "Latrobe Valley", "state": "VIC", "facility_name": "Hazelwood Power Station",
+         "technology": "BROWN_COAL", "closure_year": 2017, "workers_affected": 750,
+         "transition_programs": 7, "retraining_enrolled": 680, "reemployed": 612,
+         "avg_reemployment_wage_ratio": 0.76, "transition_fund_m_aud": 266.0, "program_status": "COMPLETED"},
+    ]
+
+    worker_transition = [CoalWorkerTransitionRecord(**r) for r in _transition_data]
+
+    # 5 affordability records — one per state for 2024
+    _affordability_data = [
+        {"state": "NSW", "year": 2024, "median_bill_aud": 1890.0, "low_income_bill_aud": 2050.0,
+         "bill_as_pct_income_median": 3.2, "bill_as_pct_income_low": 11.8,
+         "solar_penetration_low_income_pct": 12.5, "concession_coverage_pct": 72.0, "hardship_program_spend_m_aud": 48.5},
+        {"state": "VIC", "year": 2024, "median_bill_aud": 2050.0, "low_income_bill_aud": 2210.0,
+         "bill_as_pct_income_median": 3.6, "bill_as_pct_income_low": 13.9,
+         "solar_penetration_low_income_pct": 8.2, "concession_coverage_pct": 78.5, "hardship_program_spend_m_aud": 62.0},
+        {"state": "QLD", "year": 2024, "median_bill_aud": 1650.0, "low_income_bill_aud": 1780.0,
+         "bill_as_pct_income_median": 2.8, "bill_as_pct_income_low": 10.4,
+         "solar_penetration_low_income_pct": 22.1, "concession_coverage_pct": 68.0, "hardship_program_spend_m_aud": 35.2},
+        {"state": "SA", "year": 2024, "median_bill_aud": 2250.0, "low_income_bill_aud": 2420.0,
+         "bill_as_pct_income_median": 4.1, "bill_as_pct_income_low": 16.2,
+         "solar_penetration_low_income_pct": 28.6, "concession_coverage_pct": 82.0, "hardship_program_spend_m_aud": 28.8},
+        {"state": "WA", "year": 2024, "median_bill_aud": 1720.0, "low_income_bill_aud": 1870.0,
+         "bill_as_pct_income_median": 3.0, "bill_as_pct_income_low": 11.2,
+         "solar_penetration_low_income_pct": 18.4, "concession_coverage_pct": 75.5, "hardship_program_spend_m_aud": 31.5},
+    ]
+
+    affordability = [EnergyAffordabilityRecord(**r) for r in _affordability_data]
+
+    # 12 just transition programs
+    _program_data = [
+        {"program_id": "JTP-001", "program_name": "Latrobe Valley Worker Transition Centre",
+         "state": "VIC", "region": "Latrobe Valley", "program_type": "WORKER_RETRAINING",
+         "budget_m_aud": 380.0, "beneficiaries": 15000, "status": "ACTIVE",
+         "start_year": 2017, "end_year": 2027, "outcomes_score": 7.8},
+        {"program_id": "JTP-002", "program_name": "Hunter Valley Economic Futures Fund",
+         "state": "NSW", "region": "Hunter Valley", "program_type": "ECONOMIC_DIVERSIFICATION",
+         "budget_m_aud": 500.0, "beneficiaries": 45000, "status": "ACTIVE",
+         "start_year": 2022, "end_year": 2035, "outcomes_score": 6.5},
+        {"program_id": "JTP-003", "program_name": "Collie Transition Program",
+         "state": "WA", "region": "Collie", "program_type": "COMMUNITY_FUND",
+         "budget_m_aud": 220.0, "beneficiaries": 8500, "status": "ACTIVE",
+         "start_year": 2021, "end_year": 2030, "outcomes_score": 7.2},
+        {"program_id": "JTP-004", "program_name": "NSW Low-Income Solar Initiative",
+         "state": "NSW", "region": "Statewide", "program_type": "CLEAN_ENERGY_ACCESS",
+         "budget_m_aud": 120.0, "beneficiaries": 35000, "status": "ACTIVE",
+         "start_year": 2023, "end_year": 2026, "outcomes_score": 8.1},
+        {"program_id": "JTP-005", "program_name": "VIC Hardship Relief Fund",
+         "state": "VIC", "region": "Statewide", "program_type": "COMMUNITY_FUND",
+         "budget_m_aud": 85.0, "beneficiaries": 42000, "status": "ACTIVE",
+         "start_year": 2022, "end_year": None, "outcomes_score": 7.5},
+        {"program_id": "JTP-006", "program_name": "QLD Coal Community Resilience Program",
+         "state": "QLD", "region": "Central QLD", "program_type": "ECONOMIC_DIVERSIFICATION",
+         "budget_m_aud": 250.0, "beneficiaries": 22000, "status": "PLANNED",
+         "start_year": 2025, "end_year": 2032, "outcomes_score": 5.8},
+        {"program_id": "JTP-007", "program_name": "SA Energy Concession Enhancement",
+         "state": "SA", "region": "Statewide", "program_type": "CLEAN_ENERGY_ACCESS",
+         "budget_m_aud": 45.0, "beneficiaries": 58000, "status": "ACTIVE",
+         "start_year": 2021, "end_year": None, "outcomes_score": 8.4},
+        {"program_id": "JTP-008", "program_name": "Hazelwood Transition Authority",
+         "state": "VIC", "region": "Latrobe Valley", "program_type": "WORKER_RETRAINING",
+         "budget_m_aud": 266.0, "beneficiaries": 7500, "status": "COMPLETED",
+         "start_year": 2017, "end_year": 2024, "outcomes_score": 7.1},
+        {"program_id": "JTP-009", "program_name": "WA Renew Low-Income Homes",
+         "state": "WA", "region": "Perth Metro", "program_type": "CLEAN_ENERGY_ACCESS",
+         "budget_m_aud": 95.0, "beneficiaries": 28000, "status": "ACTIVE",
+         "start_year": 2023, "end_year": 2027, "outcomes_score": 8.6},
+        {"program_id": "JTP-010", "program_name": "Eraring Transition Support Package",
+         "state": "NSW", "region": "Lake Macquarie", "program_type": "WORKER_RETRAINING",
+         "budget_m_aud": 150.0, "beneficiaries": 3200, "status": "ACTIVE",
+         "start_year": 2023, "end_year": 2028, "outcomes_score": 6.9},
+        {"program_id": "JTP-011", "program_name": "Callide Valley Future Fund",
+         "state": "QLD", "region": "Callide Valley", "program_type": "COMMUNITY_FUND",
+         "budget_m_aud": 110.0, "beneficiaries": 12000, "status": "PLANNED",
+         "start_year": 2026, "end_year": 2035, "outcomes_score": 5.2},
+        {"program_id": "JTP-012", "program_name": "National Energy Concessions Review",
+         "state": "National", "region": "All States", "program_type": "ECONOMIC_DIVERSIFICATION",
+         "budget_m_aud": 20.0, "beneficiaries": 500, "status": "COMPLETED",
+         "start_year": 2022, "end_year": 2023, "outcomes_score": 6.3},
+    ]
+
+    just_transition_programs = [JustTransitionProgramRecord(**r) for r in _program_data]
+
+    # Aggregate KPIs
+    all_rates = [r.hardship_rate_pct for r in hardship_records]
+    national_hardship_rate_pct = round(sum(all_rates) / len(all_rates), 2)
+    total_workers_in_transition = sum(
+        r.workers_affected for r in worker_transition if r.program_status != "COMPLETED"
+    )
+    total_transition_fund_b_aud = round(
+        sum(r.transition_fund_m_aud for r in worker_transition) / 1000, 3
+    )
+    # Low-income solar gap = difference between overall solar penetration and low-income solar penetration
+    avg_low_income_solar = sum(r.solar_penetration_low_income_pct for r in affordability) / len(affordability)
+    overall_solar_pct = 35.0  # approximate national average
+    low_income_solar_gap_pct = round(overall_solar_pct - avg_low_income_solar, 2)
+
+    return EnergyPovertyDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        hardship_records=hardship_records,
+        worker_transition=worker_transition,
+        affordability=affordability,
+        just_transition_programs=just_transition_programs,
+        national_hardship_rate_pct=national_hardship_rate_pct,
+        total_workers_in_transition=total_workers_in_transition,
+        total_transition_fund_b_aud=total_transition_fund_b_aud,
+        low_income_solar_gap_pct=low_income_solar_gap_pct,
+    )
+
+
+_energy_poverty_cache: dict = {}
+
+@app.get("/api/energy-poverty/dashboard", response_model=EnergyPovertyDashboard, dependencies=[Depends(verify_api_key)])
+async def get_energy_poverty_dashboard():
+    cached = _cache_get(_energy_poverty_cache, "energy_poverty")
+    if cached:
+        return cached
+    result = _build_energy_poverty_dashboard()
+    _cache_set(_energy_poverty_cache, "energy_poverty", result)
+    return result
+
+@app.get("/api/energy-poverty/hardship", response_model=list[EnergyPovertyHardshipRecord], dependencies=[Depends(verify_api_key)])
+async def get_energy_poverty_hardship():
+    dash = await get_energy_poverty_dashboard()
+    return dash.hardship_records
+
+@app.get("/api/energy-poverty/worker-transition", response_model=list[CoalWorkerTransitionRecord], dependencies=[Depends(verify_api_key)])
+async def get_energy_poverty_worker_transition():
+    dash = await get_energy_poverty_dashboard()
+    return dash.worker_transition
+
+@app.get("/api/energy-poverty/affordability", response_model=list[EnergyAffordabilityRecord], dependencies=[Depends(verify_api_key)])
+async def get_energy_poverty_affordability():
+    dash = await get_energy_poverty_dashboard()
+    return dash.affordability
+
+@app.get("/api/energy-poverty/programs", response_model=list[JustTransitionProgramRecord], dependencies=[Depends(verify_api_key)])
+async def get_energy_poverty_programs():
+    dash = await get_energy_poverty_dashboard()
+    return dash.just_transition_programs
