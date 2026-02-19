@@ -22,8 +22,10 @@ const HORIZONS = [
 ] as const
 type Horizon = typeof HORIZONS[number]['id']
 
+const LS_REGION_KEY = 'forecastRegion'
+
 // ---------------------------------------------------------------------------
-// Model accuracy — fetched from /api/forecasts/accuracy or static fallback
+// Model accuracy -- fetched from /api/forecasts/accuracy or static fallback
 // ---------------------------------------------------------------------------
 
 interface AccuracyRow {
@@ -53,7 +55,6 @@ function useAccuracy(region: string): { data: AccuracyRow[]; loading: boolean } 
       })
       .then(rows => { setData(rows); setLoading(false) })
       .catch(() => {
-        // API not available — use static placeholder values
         setData(STATIC_ACCURACY)
         setLoading(false)
       })
@@ -63,11 +64,45 @@ function useAccuracy(region: string): { data: AccuracyRow[]; loading: boolean } 
 }
 
 // ---------------------------------------------------------------------------
-// Chart data builder — merges forecast with simulated actuals
+// Model accuracy badge
+// ---------------------------------------------------------------------------
+
+interface AccuracyBadgeProps {
+  mape: number
+}
+
+function AccuracyBadge({ mape }: AccuracyBadgeProps) {
+  if (mape < 10) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+                        bg-emerald-100 text-emerald-700 border border-emerald-200">
+        MAPE {mape.toFixed(1)}%
+      </span>
+    )
+  }
+  if (mape < 15) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+                        bg-amber-100 text-amber-700 border border-amber-200">
+        MAPE {mape.toFixed(1)}%
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold
+                      bg-red-100 text-red-700 border border-red-200">
+      MAPE {mape.toFixed(1)}%
+    </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chart data builder -- merges forecast with simulated actuals
 // ---------------------------------------------------------------------------
 
 function buildChartData(
-  forecasts: { timestamp: string; predicted: number; lower: number; upper: number }[]
+  forecasts: { timestamp: string; predicted: number; lower: number; upper: number }[],
+  mae: number,
 ) {
   return forecasts.map((f, i) => ({
     time: new Date(f.timestamp).toLocaleTimeString('en-AU', {
@@ -75,9 +110,12 @@ function buildChartData(
       minute:   '2-digit',
       timeZone: 'Australia/Sydney',
     }),
-    predicted: f.predicted,
-    lower:     f.lower,
-    upper:     f.upper,
+    predicted:  f.predicted,
+    lower:      f.lower,
+    upper:      f.upper,
+    // MAE confidence band: predicted +/- 1 MAE
+    maeLower:   f.predicted - mae,
+    maeUpper:   f.predicted + mae,
     // Simulate actuals only for the historical portion (~60% of points)
     actual: i < Math.floor(forecasts.length * 0.6)
       ? f.predicted + (Math.random() - 0.5) * 20
@@ -88,12 +126,13 @@ function buildChartData(
 // ---------------------------------------------------------------------------
 // Loading skeleton
 // ---------------------------------------------------------------------------
+
 function ChartSkeleton() {
   return (
     <div className="space-y-2 animate-pulse">
       <div className="h-4 bg-gray-100 rounded w-1/3" />
       <div className="h-72 bg-gray-50 rounded flex items-center justify-center text-gray-400 text-sm">
-        Loading forecast data…
+        Loading forecast data...
       </div>
     </div>
   )
@@ -102,14 +141,33 @@ function ChartSkeleton() {
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+
 export default function Forecasts() {
-  const [region, setRegion]   = useState<Region>('NSW1')
+  // Region state persisted to localStorage
+  const [region, setRegion] = useState<Region>(
+    () => (localStorage.getItem(LS_REGION_KEY) as Region | null) ?? 'NSW1'
+  )
+
+  useEffect(() => {
+    localStorage.setItem(LS_REGION_KEY, region)
+  }, [region])
+
   const [horizon, setHorizon] = useState<Horizon>('4hr')
 
   const { data: forecasts, loading: forecastLoading, error } = useForecasts(region, horizon)
   const { data: accuracy, loading: accuracyLoading } = useAccuracy(region)
 
-  const chartData = useMemo(() => buildChartData(forecasts), [forecasts])
+  // Use the MAPE for the currently selected horizon for the badge
+  const currentAccuracy = useMemo(
+    () => accuracy.find(a => a.horizon === horizon) ?? accuracy[0],
+    [accuracy, horizon]
+  )
+  const currentMae = currentAccuracy?.mae ?? 15
+
+  const chartData = useMemo(
+    () => buildChartData(forecasts, currentMae),
+    [forecasts, currentMae]
+  )
 
   // X-axis tick interval: show ~8 ticks across the chart width
   const tickInterval = Math.max(1, Math.floor(chartData.length / 8))
@@ -135,7 +193,8 @@ export default function Forecasts() {
             id="region-select"
             value={region}
             onChange={e => setRegion(e.target.value as Region)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white
+                       text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {REGIONS.map(r => (
               <option key={r} value={r}>{r}</option>
@@ -171,11 +230,17 @@ export default function Forecasts() {
 
       {/* Forecast chart */}
       <section className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">
-          {region} Price Forecast — {horizon} horizon
-        </h3>
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="text-sm font-semibold text-gray-700">
+            {region} Price Forecast &mdash; {horizon} horizon
+          </h3>
+          {!accuracyLoading && currentAccuracy && (
+            <AccuracyBadge mape={currentAccuracy.mape} />
+          )}
+        </div>
         <p className="text-xs text-gray-400 mb-4">
-          Actual vs Predicted (90% confidence band)
+          Actual vs Predicted &middot; shaded bands: 90% confidence interval (blue) and
+          &plusmn;1 MAE (grey)
         </p>
 
         {forecastLoading ? (
@@ -201,6 +266,8 @@ export default function Forecasts() {
                     actual:    'Actual',
                     upper:     'Upper 90%',
                     lower:     'Lower 90%',
+                    maeUpper:  '+1 MAE',
+                    maeLower:  '-1 MAE',
                   }
                   return [`$${v.toFixed(2)}/MWh`, labels[name] ?? name]
                 }}
@@ -216,10 +283,8 @@ export default function Forecasts() {
               />
 
               {/*
-               * Confidence band rendered as two overlapping Areas.
-               * upper fills blue from its value down to 0 (behind the lower area).
-               * lower covers the area below the lower bound with white,
-               * effectively "erasing" the fill below the band.
+               * 90% confidence band: upper fills blue down; lower covers
+               * below the band with white, creating a sandwiched fill.
                */}
               <Area
                 type="monotone"
@@ -238,6 +303,29 @@ export default function Forecasts() {
                 fillOpacity={1}
                 legendType="none"
                 name="lower"
+              />
+
+              {/*
+               * +/-1 MAE confidence band (grey/translucent) rendered on
+               * top of the 90% band but below the forecast line.
+               */}
+              <Area
+                type="monotone"
+                dataKey="maeUpper"
+                stroke="none"
+                fill="#D1D5DB"
+                fillOpacity={0.35}
+                legendType="none"
+                name="maeUpper"
+              />
+              <Area
+                type="monotone"
+                dataKey="maeLower"
+                stroke="none"
+                fill="#ffffff"
+                fillOpacity={0.9}
+                legendType="none"
+                name="maeLower"
               />
 
               {/* Predicted price line */}
@@ -270,7 +358,7 @@ export default function Forecasts() {
       {/* Model accuracy panel */}
       <section className="bg-white rounded-lg border border-gray-200 p-4">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">
-          Model Accuracy — {region}
+          Model Accuracy &mdash; {region}
         </h3>
 
         {accuracyLoading ? (
@@ -279,7 +367,8 @@ export default function Forecasts() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs font-medium text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                <tr className="text-xs font-medium text-gray-400 uppercase tracking-wide
+                               border-b border-gray-100">
                   <th className="text-left pb-2 pr-6">Horizon</th>
                   <th className="text-right pb-2 pr-6">MAE ($/MWh)</th>
                   <th className="text-right pb-2">MAPE (%)</th>
@@ -287,13 +376,13 @@ export default function Forecasts() {
               </thead>
               <tbody>
                 {accuracy.map(row => {
-                  const horizon = HORIZONS.find(h => h.id === row.horizon)
-                  const maeColor = row.mae < 12 ? 'text-emerald-600' : row.mae < 15 ? 'text-amber-600' : 'text-red-600'
+                  const h         = HORIZONS.find(hh => hh.id === row.horizon)
+                  const maeColor  = row.mae  < 12 ? 'text-emerald-600' : row.mae  < 15 ? 'text-amber-600' : 'text-red-600'
                   const mapeColor = row.mape < 10 ? 'text-emerald-600' : row.mape < 15 ? 'text-amber-600' : 'text-red-600'
                   return (
                     <tr key={row.horizon} className="border-b border-gray-50 last:border-0">
                       <td className="py-2.5 pr-6 font-medium text-gray-700">
-                        {horizon?.label ?? row.horizon}
+                        {h?.label ?? row.horizon}
                       </td>
                       <td className={`py-2.5 pr-6 text-right font-mono font-semibold tabular-nums ${maeColor}`}>
                         ${row.mae.toFixed(1)}
@@ -307,8 +396,8 @@ export default function Forecasts() {
               </tbody>
             </table>
             <p className="text-xs text-gray-400 mt-3">
-              MAE = Mean Absolute Error · MAPE = Mean Absolute Percentage Error
-              · Metrics exclude extreme events &gt; $500/MWh
+              MAE = Mean Absolute Error &middot; MAPE = Mean Absolute Percentage Error
+              &middot; Metrics exclude extreme events &gt; $500/MWh
             </p>
           </div>
         )}

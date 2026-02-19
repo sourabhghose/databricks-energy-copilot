@@ -12,10 +12,26 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { usePriceHistory, useGeneration, useInterconnectors } from '../hooks/useMarketData'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, AlertCircle } from 'lucide-react'
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const REGIONS = ['NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'] as const
 type Region = typeof REGIONS[number]
+
+const FUEL_COLORS: Record<string, string> = {
+  coal:    '#374151',
+  gas:     '#F59E0B',
+  wind:    '#3B82F6',
+  solar:   '#EAB308',
+  hydro:   '#06B6D4',
+  battery: '#8B5CF6',
+  other:   '#9CA3AF',
+}
+
+const LS_REGION_KEY = 'liveMarketRegion'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,17 +52,68 @@ function formatTime(ts: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Price spike badge
+// ---------------------------------------------------------------------------
+
+interface SpikeBadgeProps {
+  price: number
+}
+
+function SpikeBadge({ price }: SpikeBadgeProps) {
+  if (price > 5000) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
+                        bg-red-100 text-red-700 border border-red-300 animate-pulse">
+        EXTREME SPIKE
+      </span>
+    )
+  }
+  if (price > 300) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
+                        bg-amber-100 text-amber-700 border border-amber-300 animate-pulse">
+        SPIKE
+      </span>
+    )
+  }
+  return null
+}
+
+// ---------------------------------------------------------------------------
+// Empty / error state card
+// ---------------------------------------------------------------------------
+
+function EmptyStateCard() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 h-52 rounded-lg
+                    bg-gray-50 border border-dashed border-gray-200 text-gray-500">
+      <AlertCircle size={28} className="text-gray-400" />
+      <p className="text-sm text-center px-6">
+        Market data temporarily unavailable &mdash; showing indicative values
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
+
 export default function LiveMarket() {
-  const [region, setRegion] = useState<Region>('NSW1')
+  // Region state persisted to localStorage
+  const [region, setRegion] = useState<Region>(
+    () => (localStorage.getItem(LS_REGION_KEY) as Region | null) ?? 'NSW1'
+  )
+
+  useEffect(() => {
+    localStorage.setItem(LS_REGION_KEY, region)
+  }, [region])
 
   // --- Time window for price history (refreshes every 30 s) ---
   const [timeWindow, setTimeWindow] = useState(now24hWindow)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    // Auto-refresh the time window every 30 s, which forces hook refetch
     intervalRef.current = setInterval(() => {
       setTimeWindow(now24hWindow())
     }, 30_000)
@@ -62,6 +129,14 @@ export default function LiveMarket() {
     timeWindow.end
   )
 
+  // Latest price (for spike indicator)
+  const latestPrice = useMemo(() => {
+    if (priceHistory.length > 0) {
+      return priceHistory[priceHistory.length - 1].price
+    }
+    return null
+  }, [priceHistory])
+
   // Fallback synthetic price data when API is unavailable
   const priceData = useMemo(() => {
     if (priceHistory.length > 0) {
@@ -76,6 +151,8 @@ export default function LiveMarket() {
       price: 60 + Math.sin(i * 0.5) * 40 + Math.random() * 20,
     }))
   }, [priceHistory])
+
+  const dataUnavailable = !priceLoading && priceHistory.length === 0
 
   // --- Generation mix (polls every 60 s) ---
   const { data: genData, loading: genLoading } = useGeneration(region, 60_000)
@@ -106,7 +183,7 @@ export default function LiveMarket() {
             <RefreshCw size={11} className={priceLoading ? 'animate-spin' : ''} />
             <span>
               {priceLoading
-                ? 'Refreshing…'
+                ? 'Refreshing...'
                 : `Updated ${lastRefresh.toLocaleTimeString('en-AU', {
                     hour: '2-digit', minute: '2-digit', second: '2-digit',
                     timeZone: 'Australia/Sydney',
@@ -114,11 +191,12 @@ export default function LiveMarket() {
             </span>
           </div>
 
-          {/* Region selector */}
+          {/* Region selector — persisted to localStorage */}
           <select
             value={region}
             onChange={e => setRegion(e.target.value as Region)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white
+                       text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {REGIONS.map(r => (
               <option key={r} value={r}>{r}</option>
@@ -129,15 +207,21 @@ export default function LiveMarket() {
 
       {/* 24-hr price chart with $300 and $5000 reference lines */}
       <section className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">
-          {region} — Spot Price (last 24 hrs)
-        </h3>
-        <p className="text-xs text-gray-400 mb-3">$/MWh · auto-refreshes every 30 s</p>
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="text-sm font-semibold text-gray-700">
+            {region} &mdash; Spot Price (last 24 hrs)
+          </h3>
+          {latestPrice !== null && <SpikeBadge price={latestPrice} />}
+        </div>
+        <p className="text-xs text-gray-400 mb-3">$/MWh &middot; auto-refreshes every 30 s</p>
 
         {priceLoading && priceHistory.length === 0 ? (
-          <div className="h-52 bg-gray-50 rounded animate-pulse flex items-center justify-center text-sm text-gray-400">
-            Loading price data…
+          <div className="h-52 bg-gray-50 rounded animate-pulse flex items-center
+                          justify-center text-sm text-gray-400">
+            Loading price data...
           </div>
+        ) : dataUnavailable ? (
+          <EmptyStateCard />
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={priceData}>
@@ -156,7 +240,7 @@ export default function LiveMarket() {
                 formatter={(v: number) => [`$${v.toFixed(2)}/MWh`, 'Spot Price']}
                 labelFormatter={l => `Time: ${l}`}
               />
-              {/* Amber threshold — $300/MWh */}
+              {/* Amber threshold -- $300/MWh */}
               <ReferenceLine
                 y={300}
                 stroke="#F59E0B"
@@ -168,7 +252,7 @@ export default function LiveMarket() {
                   fill: '#F59E0B',
                 }}
               />
-              {/* Red threshold — $5000/MWh (market price cap) */}
+              {/* Red threshold -- $5000/MWh (market price cap) */}
               <ReferenceLine
                 y={5000}
                 stroke="#EF4444"
@@ -196,11 +280,14 @@ export default function LiveMarket() {
       {/* Generation chart */}
       <section className="bg-white rounded-lg border border-gray-200 p-4">
         {genLoading && genData.length === 0 ? (
-          <div className="h-72 bg-gray-50 rounded animate-pulse flex items-center justify-center text-sm text-gray-400">
-            Loading generation data…
+          <div className="h-72 bg-gray-50 rounded animate-pulse flex items-center
+                          justify-center text-sm text-gray-400">
+            Loading generation data...
           </div>
+        ) : !genLoading && genData.length === 0 ? (
+          <EmptyStateCard />
         ) : (
-          <GenerationChart region={region} data={genData} />
+          <GenerationChart region={region} data={genData} fuelColors={FUEL_COLORS} />
         )}
       </section>
 
@@ -208,9 +295,12 @@ export default function LiveMarket() {
       <section className="bg-white rounded-lg border border-gray-200 p-4">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Interconnector Flows</h3>
         {interLoading && interconnectors.length === 0 ? (
-          <div className="h-48 bg-gray-50 rounded animate-pulse flex items-center justify-center text-sm text-gray-400">
-            Loading interconnector data…
+          <div className="h-48 bg-gray-50 rounded animate-pulse flex items-center
+                          justify-center text-sm text-gray-400">
+            Loading interconnector data...
           </div>
+        ) : !interLoading && interconnectors.length === 0 ? (
+          <EmptyStateCard />
         ) : (
           <InterconnectorMap flows={interconnectors} />
         )}
@@ -218,3 +308,7 @@ export default function LiveMarket() {
     </div>
   )
 }
+
+// Named export of FUEL_COLORS so GenerationChart and other components can
+// import it from this module if needed.
+export { FUEL_COLORS }
