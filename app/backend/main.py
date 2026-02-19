@@ -16659,3 +16659,1020 @@ def get_tnsp_programs():
     data = _make_tnsp_programs()
     _cache_set("isp:tnsp-programs", data, _TTL_ISP)
     return data
+
+
+# ---------------------------------------------------------------------------
+# Sprint 27a — Small-Scale Solar & EV Fleet Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_SOLAR_EV = 300
+
+
+class SolarGenerationRecord(BaseModel):
+    state: str
+    postcode_zone: str               # "metro", "regional", "rural"
+    installed_capacity_mw: float
+    avg_generation_mw: float
+    capacity_factor_pct: float
+    num_systems: int
+    avg_system_size_kw: float
+    curtailment_mw: float
+    export_to_grid_mw: float
+    self_consumption_mw: float
+    nem_impact_mw: float
+
+
+class EvFleetRecord(BaseModel):
+    state: str
+    ev_type: str                     # "BEV", "PHEV", "FCEV"
+    total_vehicles: int
+    annual_growth_pct: float
+    avg_battery_size_kwh: float
+    avg_daily_km: float
+    daily_charging_demand_mwh: float
+    peak_charging_hour: int
+    smart_charging_capable_pct: float
+    v2g_capable_pct: float
+    v2g_potential_mw: float
+
+
+class SolarEvDashboard(BaseModel):
+    timestamp: str
+    total_rooftop_solar_gw: float
+    current_rooftop_generation_gw: float
+    nem_solar_pct: float
+    total_evs: int
+    bev_count: int
+    total_ev_charging_demand_mw: float
+    v2g_fleet_potential_mw: float
+    minimum_demand_impact_mw: float
+    solar_records: List[SolarGenerationRecord]
+    ev_records: List[EvFleetRecord]
+    hourly_profile: List[dict]
+    growth_projection: List[dict]
+
+
+def _make_solar_records() -> List[SolarGenerationRecord]:
+    """5 states x 3 zones = 15 solar generation records."""
+    data = [
+        # NSW
+        ("NSW", "metro",    7200.0, 1512.0, 21.0, 680000, 10.6,  60.0, 900.0,  612.0, -1512.0),
+        ("NSW", "regional", 450.0,   85.0,  18.9,  42000, 10.7,   8.0,  50.0,   35.0,  -85.0),
+        ("NSW", "rural",    150.0,   26.0,  17.3,  14000, 10.7,   2.0,  16.0,   10.0,  -26.0),
+        # QLD — highest CF metro 26%
+        ("QLD", "metro",    6800.0, 1768.0, 26.0, 620000, 11.0, 110.0, 1050.0, 718.0, -1768.0),
+        ("QLD", "regional", 320.0,   75.0,  23.4,  30000, 10.7,  12.0,  45.0,   30.0,  -75.0),
+        ("QLD", "rural",     80.0,   17.0,  21.3,   7500, 10.7,   2.0,  10.0,    7.0,  -17.0),
+        # VIC — winter lower CF
+        ("VIC", "metro",    5000.0,  850.0, 17.0, 510000, 9.8,   35.0, 510.0,  340.0,  -850.0),
+        ("VIC", "regional", 320.0,   51.0,  15.9,  33000, 9.7,   4.0,  31.0,   20.0,   -51.0),
+        ("VIC", "rural",     80.0,   12.0,  14.8,   8200, 9.8,   1.0,   7.0,    5.0,   -12.0),
+        # SA — highest curtailment ratio
+        ("SA",  "metro",    2800.0,  532.0, 19.0, 275000, 10.2, 185.0, 320.0,  212.0,  -532.0),
+        ("SA",  "regional", 250.0,   45.0,  18.0,  24000, 10.4,  18.0,  27.0,   18.0,   -45.0),
+        ("SA",  "rural",     50.0,    8.5,  17.0,   4800, 10.4,   4.0,   5.0,    3.5,    -8.5),
+        # WA — not NEM but included for completeness
+        ("WA",  "metro",    2900.0,  580.0, 22.0, 278000, 10.4,  65.0, 350.0,  230.0,  -580.0),
+        ("WA",  "regional", 240.0,   46.0,  19.2,  23000, 10.4,   5.0,  28.0,   18.0,   -46.0),
+        ("WA",  "rural",     60.0,   11.0,  18.3,   5800, 10.3,   1.0,   7.0,    4.0,   -11.0),
+    ]
+    records = []
+    for (state, zone, cap, gen, cf, nsys, avg_sz, curt, exp, self_c, nem) in data:
+        records.append(SolarGenerationRecord(
+            state=state,
+            postcode_zone=zone,
+            installed_capacity_mw=cap,
+            avg_generation_mw=gen,
+            capacity_factor_pct=cf,
+            num_systems=nsys,
+            avg_system_size_kw=avg_sz,
+            curtailment_mw=curt,
+            export_to_grid_mw=exp,
+            self_consumption_mw=self_c,
+            nem_impact_mw=nem,
+        ))
+    return records
+
+
+def _make_ev_records() -> List[EvFleetRecord]:
+    """5 states x 3 EV types = 15 EV fleet records."""
+    # (state, ev_type, vehicles, growth%, avg_batt_kwh, avg_km, demand_mwh, peak_hr, smart%, v2g%, v2g_mw)
+    data = [
+        # NSW
+        ("NSW", "BEV",  185000, 48.0, 72.0, 52.0, 7400.0, 19, 38.0, 6.0,  333.0),
+        ("NSW", "PHEV",  65000, 22.0, 18.0, 48.0,  780.0, 18, 15.0, 0.5,    1.0),
+        ("NSW", "FCEV",    800, 12.0, 0.0,  55.0,    0.0, 20,  0.0, 0.0,    0.0),
+        # VIC
+        ("VIC", "BEV",  156000, 45.0, 71.0, 50.0, 6240.0, 19, 35.0, 7.0,  261.0),
+        ("VIC", "PHEV",  52000, 20.0, 17.5, 46.0,  572.0, 18, 13.0, 0.5,    0.8),
+        ("VIC", "FCEV",    600, 11.0,  0.0, 54.0,    0.0, 20,  0.0, 0.0,    0.0),
+        # QLD
+        ("QLD", "BEV",  112000, 42.0, 68.0, 53.0, 4256.0, 20, 30.0, 5.0,  168.0),
+        ("QLD", "PHEV",  38000, 18.0, 17.0, 49.0,  418.0, 19, 12.0, 0.5,    0.6),
+        ("QLD", "FCEV",    400, 10.0,  0.0, 56.0,    0.0, 20,  0.0, 0.0,    0.0),
+        # SA — leading V2G at 12%
+        ("SA",  "BEV",   52000, 40.0, 69.0, 50.0, 1976.0, 19, 42.0, 12.0, 187.2),
+        ("SA",  "PHEV",  18000, 17.0, 17.0, 47.0,  198.0, 18, 18.0, 1.0,    0.5),
+        ("SA",  "FCEV",    200, 10.0,  0.0, 55.0,    0.0, 20,  0.0, 0.0,    0.0),
+        # WA
+        ("WA",  "BEV",   48000, 38.0, 67.0, 51.0, 1824.0, 19, 28.0, 5.0,   72.0),
+        ("WA",  "PHEV",  16000, 16.0, 17.0, 47.0,  176.0, 18, 10.0, 0.5,    0.4),
+        ("WA",  "FCEV",    150, 10.0,  0.0, 55.0,    0.0, 20,  0.0, 0.0,    0.0),
+    ]
+    records = []
+    for (state, ev_type, veh, growth, batt, km, demand, peak, smart, v2g_pct, v2g_mw) in data:
+        records.append(EvFleetRecord(
+            state=state,
+            ev_type=ev_type,
+            total_vehicles=veh,
+            annual_growth_pct=growth,
+            avg_battery_size_kwh=batt,
+            avg_daily_km=km,
+            daily_charging_demand_mwh=demand,
+            peak_charging_hour=peak,
+            smart_charging_capable_pct=smart,
+            v2g_capable_pct=v2g_pct,
+            v2g_potential_mw=v2g_mw,
+        ))
+    return records
+
+
+def _make_hourly_solar_ev_profile() -> List[dict]:
+    """24-hour duck curve profile: solar peaks midday, EV peaks evening."""
+    # Solar profile (MW) — peaks 10:00-14:00 at ~12,000 MW
+    solar_profile = [
+        0.0, 0.0, 0.0, 0.0, 0.0, 100.0,
+        800.0, 2500.0, 5800.0, 9200.0, 11400.0, 12200.0,
+        12000.0, 11600.0, 10200.0, 7800.0, 4500.0, 1800.0,
+        400.0, 50.0, 0.0, 0.0, 0.0, 0.0,
+    ]
+    # EV charging profile (MW) — peaks 18:00-21:00 at ~3,200 MW
+    ev_profile = [
+        600.0, 400.0, 300.0, 250.0, 280.0, 350.0,
+        500.0, 700.0, 900.0, 800.0, 750.0, 700.0,
+        650.0, 620.0, 680.0, 900.0, 1600.0, 2400.0,
+        3200.0, 3100.0, 2800.0, 2000.0, 1200.0, 800.0,
+    ]
+    # Base NEM demand (MW) without solar/EV
+    base_demand = [
+        21000.0, 20000.0, 19500.0, 19200.0, 19500.0, 20500.0,
+        22000.0, 23500.0, 24800.0, 25200.0, 25000.0, 24800.0,
+        24500.0, 24200.0, 24000.0, 24500.0, 25500.0, 26800.0,
+        27500.0, 27200.0, 26500.0, 25000.0, 23500.0, 22000.0,
+    ]
+    profile = []
+    for h in range(24):
+        net = base_demand[h] - solar_profile[h] + ev_profile[h]
+        profile.append({
+            "hour": h,
+            "solar_mw": solar_profile[h],
+            "ev_charging_mw": ev_profile[h],
+            "net_demand_mw": round(net, 1),
+        })
+    return profile
+
+
+def _make_solar_ev_growth() -> List[dict]:
+    """Growth projections 2024-2035: rooftop solar GW and EV millions."""
+    projections = [
+        (2024, 27.0, 1.2),
+        (2025, 31.5, 1.8),
+        (2026, 36.2, 2.6),
+        (2027, 41.0, 3.5),
+        (2028, 46.0, 4.5),
+        (2029, 51.0, 5.4),
+        (2030, 55.5, 6.2),
+        (2031, 59.0, 6.9),
+        (2032, 62.0, 7.4),
+        (2033, 64.5, 7.8),
+        (2034, 66.5, 8.2),
+        (2035, 68.0, 8.5),
+    ]
+    return [{"year": y, "solar_gw": s, "ev_millions": e} for y, s, e in projections]
+
+
+def _make_solar_ev_dashboard() -> SolarEvDashboard:
+    """Aggregate dashboard for solar and EV fleet analytics."""
+    solar_records = _make_solar_records()
+    ev_records = _make_ev_records()
+    hourly_profile = _make_hourly_solar_ev_profile()
+    growth_projection = _make_solar_ev_growth()
+
+    total_installed_mw = sum(r.installed_capacity_mw for r in solar_records)
+    current_gen_mw = sum(r.avg_generation_mw for r in solar_records)
+    nem_states = [r for r in solar_records if r.state != "WA"]
+    nem_gen_mw = sum(r.avg_generation_mw for r in nem_states)
+    nem_base_demand = 24500.0
+    nem_solar_pct = round((nem_gen_mw / nem_base_demand) * 100, 1)
+
+    total_evs = sum(r.total_vehicles for r in ev_records)
+    bev_count = sum(r.total_vehicles for r in ev_records if r.ev_type == "BEV")
+    total_ev_charging_mw = sum(r.daily_charging_demand_mwh / 24.0 for r in ev_records)
+    v2g_potential_mw = sum(r.v2g_potential_mw for r in ev_records)
+
+    # Minimum demand impact: rooftop solar contribution to low-demand periods
+    minimum_demand_impact_mw = round(nem_gen_mw * 0.85, 1)
+
+    return SolarEvDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_rooftop_solar_gw=round(total_installed_mw / 1000.0, 2),
+        current_rooftop_generation_gw=round(current_gen_mw / 1000.0, 2),
+        nem_solar_pct=nem_solar_pct,
+        total_evs=total_evs,
+        bev_count=bev_count,
+        total_ev_charging_demand_mw=round(total_ev_charging_mw, 1),
+        v2g_fleet_potential_mw=round(v2g_potential_mw, 1),
+        minimum_demand_impact_mw=minimum_demand_impact_mw,
+        solar_records=solar_records,
+        ev_records=ev_records,
+        hourly_profile=hourly_profile,
+        growth_projection=growth_projection,
+    )
+
+
+@app.get(
+    "/api/solar-ev/dashboard",
+    response_model=SolarEvDashboard,
+    summary="Small-Scale Solar & EV Fleet Dashboard",
+    tags=["Solar EV Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_ev_dashboard():
+    """Aggregate rooftop solar generation and EV fleet analytics dashboard.
+    Cached 300 s."""
+    cached = _cache_get("solar-ev:dashboard")
+    if cached:
+        return cached
+    data = _make_solar_ev_dashboard()
+    _cache_set("solar-ev:dashboard", data, _TTL_SOLAR_EV)
+    return data
+
+
+@app.get(
+    "/api/solar-ev/solar",
+    response_model=List[SolarGenerationRecord],
+    summary="Rooftop solar generation records by state/zone",
+    tags=["Solar EV Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_records(state: Optional[str] = Query(None)):
+    """Return rooftop solar generation records. Filterable by state.
+    Cached 300 s."""
+    cache_key = f"solar-ev:solar:{state or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_solar_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    _cache_set(cache_key, records, _TTL_SOLAR_EV)
+    return records
+
+
+@app.get(
+    "/api/solar-ev/ev-fleet",
+    response_model=List[EvFleetRecord],
+    summary="EV fleet records by state and type",
+    tags=["Solar EV Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_fleet(
+    state: Optional[str] = Query(None),
+    ev_type: Optional[str] = Query(None),
+):
+    """Return EV fleet records. Filterable by state and ev_type.
+    Cached 3600 s."""
+    cache_key = f"solar-ev:ev-fleet:{state or 'all'}:{ev_type or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_ev_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    if ev_type:
+        records = [r for r in records if r.ev_type == ev_type]
+    _cache_set(cache_key, records, 3600)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 27b — LRMC & Investment Signal Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_LRMC = 3600
+
+
+class LcoeTechnology(BaseModel):
+    technology: str
+    region: str
+    lcoe_low_aud_mwh: float
+    lcoe_mid_aud_mwh: float
+    lcoe_high_aud_mwh: float
+    capacity_factor_pct: float
+    capex_aud_kw: float
+    opex_aud_mwh: float
+    discount_rate_pct: float
+    economic_life_years: int
+    is_dispatchable: bool
+    co2_intensity_kg_mwh: float
+    learning_rate_pct: float
+
+
+class InvestmentSignal(BaseModel):
+    technology: str
+    region: str
+    signal: str
+    spot_price_avg_aud_mwh: float
+    futures_price_aud_mwh: float
+    lcoe_mid_aud_mwh: float
+    margin_aud_mwh: float
+    irr_pct: float
+    payback_years: float
+    revenue_adequacy_pct: float
+
+
+class CapacityMechanismScenario(BaseModel):
+    scenario: str
+    description: str
+    additional_capacity_gw: float
+    cost_to_consumers_m_aud: float
+    reliability_improvement_pct: float
+    recommended_technologies: List[str]
+
+
+class LrmcDashboard(BaseModel):
+    timestamp: str
+    avg_nem_lrmc_aud_mwh: float
+    cheapest_new_entrant: str
+    cheapest_lcoe_aud_mwh: float
+    technologies_above_market: int
+    best_investment_region: str
+    lcoe_technologies: List[LcoeTechnology]
+    investment_signals: List[InvestmentSignal]
+    capacity_scenarios: List[CapacityMechanismScenario]
+
+
+def _make_lcoe_technologies() -> List[LcoeTechnology]:
+    """9 technologies x 3 NEM regions = 27 records with realistic 2025-26 Australian LCOE estimates."""
+    records = [
+        # (technology, region, lcoe_low, lcoe_mid, lcoe_high, cf_pct, capex_kw, opex_mwh,
+        #  discount_rate_pct, life_yrs, is_dispatchable, co2_kg_mwh, learning_rate_pct)
+        ("Wind Onshore",  "NSW1", 68.0, 74.0,  85.0,  33.0, 2100, 12.0, 7.0, 25, False,   7.5, 5.0),
+        ("Wind Onshore",  "SA1",  60.0, 67.0,  78.0,  40.0, 2000, 11.5, 7.0, 25, False,   7.5, 5.0),
+        ("Wind Onshore",  "QLD1", 62.0, 70.0,  80.0,  38.0, 2050, 11.8, 7.0, 25, False,   7.5, 5.0),
+        ("Solar Farm",    "NSW1", 50.0, 58.0,  70.0,  26.0, 1100,  8.0, 7.0, 30, False,  22.0, 6.0),
+        ("Solar Farm",    "SA1",  48.0, 56.0,  68.0,  27.0, 1080,  7.8, 7.0, 30, False,  22.0, 6.0),
+        ("Solar Farm",    "QLD1", 45.0, 52.0,  63.0,  30.0, 1050,  7.5, 7.0, 30, False,  22.0, 6.0),
+        ("Utility BESS",  "NSW1",130.0,155.0, 185.0,  18.0, 1400, 14.0, 8.0, 15, True,   25.0, 8.0),
+        ("Utility BESS",  "SA1", 125.0,148.0, 178.0,  19.0, 1380, 13.5, 8.0, 15, True,   25.0, 8.0),
+        ("Utility BESS",  "QLD1",128.0,152.0, 182.0,  18.5, 1390, 13.8, 8.0, 15, True,   25.0, 8.0),
+        ("Gas OCGT",      "NSW1",155.0,190.0, 225.0,  12.0,  900, 85.0, 8.5, 25, True,  490.0, 1.0),
+        ("Gas OCGT",      "SA1", 158.0,195.0, 230.0,  11.0,  910, 88.0, 8.5, 25, True,  490.0, 1.0),
+        ("Gas OCGT",      "QLD1",153.0,188.0, 222.0,  12.5,  895, 83.0, 8.5, 25, True,  490.0, 1.0),
+        ("Gas CCGT",      "NSW1", 95.0,110.0, 130.0,  55.0, 1450, 35.0, 8.0, 30, True,  350.0, 1.5),
+        ("Gas CCGT",      "SA1",  98.0,113.0, 134.0,  53.0, 1460, 36.0, 8.0, 30, True,  350.0, 1.5),
+        ("Gas CCGT",      "QLD1", 93.0,108.0, 128.0,  57.0, 1440, 34.0, 8.0, 30, True,  350.0, 1.5),
+        ("Black Coal",    "NSW1", 80.0, 95.0, 110.0,  65.0, 4200, 28.0, 8.0, 40, True,  820.0, 0.5),
+        ("Black Coal",    "SA1",  85.0,100.0, 116.0,  62.0, 4250, 30.0, 8.0, 40, True,  820.0, 0.5),
+        ("Black Coal",    "QLD1", 78.0, 92.0, 107.0,  68.0, 4180, 27.0, 8.0, 40, True,  820.0, 0.5),
+        ("Pumped Hydro",  "NSW1", 88.0,112.0, 142.0,  30.0, 3500, 10.0, 7.5, 50, True,    5.0, 1.0),
+        ("Pumped Hydro",  "SA1",  92.0,118.0, 150.0,  28.0, 3600, 10.5, 7.5, 50, True,    5.0, 1.0),
+        ("Pumped Hydro",  "QLD1", 85.0,108.0, 138.0,  32.0, 3450,  9.8, 7.5, 50, True,    5.0, 1.0),
+        ("Nuclear SMR",   "NSW1",260.0,320.0, 385.0,  90.0, 9500, 18.0, 9.0, 60, True,    5.5, 3.0),
+        ("Nuclear SMR",   "SA1", 265.0,328.0, 395.0,  90.0, 9600, 18.5, 9.0, 60, True,    5.5, 3.0),
+        ("Nuclear SMR",   "QLD1",258.0,316.0, 380.0,  90.0, 9480, 17.8, 9.0, 60, True,    5.5, 3.0),
+        ("Offshore Wind", "NSW1",115.0,142.0, 168.0,  42.0, 4500, 22.0, 8.0, 25, False,   9.0, 4.0),
+        ("Offshore Wind", "SA1", 110.0,136.0, 162.0,  45.0, 4400, 21.5, 8.0, 25, False,   9.0, 4.0),
+        ("Offshore Wind", "QLD1",118.0,146.0, 173.0,  40.0, 4550, 22.5, 8.0, 25, False,   9.0, 4.0),
+    ]
+    result = []
+    for r in records:
+        (tech, region, low, mid, high, cf, capex, opex, dr, life, disp, co2, lr) = r
+        result.append(LcoeTechnology(
+            technology=tech,
+            region=region,
+            lcoe_low_aud_mwh=low,
+            lcoe_mid_aud_mwh=mid,
+            lcoe_high_aud_mwh=high,
+            capacity_factor_pct=cf,
+            capex_aud_kw=capex,
+            opex_aud_mwh=opex,
+            discount_rate_pct=dr,
+            economic_life_years=life,
+            is_dispatchable=disp,
+            co2_intensity_kg_mwh=co2,
+            learning_rate_pct=lr,
+        ))
+    return result
+
+
+def _make_investment_signals() -> List[InvestmentSignal]:
+    """One signal per technology for NSW1, reflecting 12-month average spot ~$95/MWh."""
+    spot = 95.0
+    futures = 88.0
+    signals_data = [
+        # (technology, lcoe_mid, irr_pct, payback_years, revenue_adequacy_pct, signal)
+        ("Wind Onshore",   74.0, 15.2,  9.5, 128.4, "INVEST"),
+        ("Solar Farm",     58.0, 16.8,  8.1, 163.8, "INVEST"),
+        ("Pumped Hydro",  112.0, 11.4, 12.8,  84.8, "INVEST"),
+        ("Utility BESS",  155.0,  9.2, 15.3,  61.3, "MONITOR"),
+        ("Gas OCGT",      190.0,  7.8, 18.2,  50.0, "MONITOR"),
+        ("Offshore Wind", 142.0,  8.6, 16.1,  66.9, "MONITOR"),
+        ("Gas CCGT",      110.0, 10.1, 13.5,  86.4, "CAUTION"),
+        ("Black Coal",     95.0,  6.2, 20.1, 100.0, "AVOID"),
+        ("Nuclear SMR",   320.0,  2.1, 45.0,  29.7, "AVOID"),
+    ]
+    result = []
+    for tech, lcoe_mid, irr, payback, rev_adeq, signal in signals_data:
+        margin = round(spot - lcoe_mid, 1)
+        result.append(InvestmentSignal(
+            technology=tech,
+            region="NSW1",
+            signal=signal,
+            spot_price_avg_aud_mwh=spot,
+            futures_price_aud_mwh=futures,
+            lcoe_mid_aud_mwh=lcoe_mid,
+            margin_aud_mwh=margin,
+            irr_pct=irr,
+            payback_years=payback,
+            revenue_adequacy_pct=rev_adeq,
+        ))
+    return result
+
+
+def _make_capacity_scenarios() -> List[CapacityMechanismScenario]:
+    return [
+        CapacityMechanismScenario(
+            scenario="NO_MECHANISM",
+            description="Market-only investment; no explicit capacity payment. Relies on energy price signals alone. Risk of underinvestment in dispatchable capacity.",
+            additional_capacity_gw=0.0,
+            cost_to_consumers_m_aud=0.0,
+            reliability_improvement_pct=0.0,
+            recommended_technologies=["Wind Onshore", "Solar Farm"],
+        ),
+        CapacityMechanismScenario(
+            scenario="CRM_LIGHT",
+            description="Targeted reliability investment incentive for highest-risk regions. Capacity payments of ~$50k/MW-yr for new dispatchable plant.",
+            additional_capacity_gw=1.2,
+            cost_to_consumers_m_aud=400.0,
+            reliability_improvement_pct=12.5,
+            recommended_technologies=["Utility BESS", "Gas OCGT", "Pumped Hydro"],
+        ),
+        CapacityMechanismScenario(
+            scenario="RELIABILITY_PAYMENT",
+            description="Direct reliability payments to existing and new dispatchable generators to maintain reserve margins above 15%.",
+            additional_capacity_gw=1.8,
+            cost_to_consumers_m_aud=750.0,
+            reliability_improvement_pct=19.0,
+            recommended_technologies=["Pumped Hydro", "Utility BESS", "Gas CCGT"],
+        ),
+        CapacityMechanismScenario(
+            scenario="CRM_FULL",
+            description="Full Capacity Reliability Mechanism with central procurement. Competitive tender for firm capacity contracts (3-15 yr). Highest consumer cost but strongest reliability outcome.",
+            additional_capacity_gw=3.5,
+            cost_to_consumers_m_aud=1200.0,
+            reliability_improvement_pct=31.0,
+            recommended_technologies=["Pumped Hydro", "Gas CCGT", "Utility BESS", "Offshore Wind"],
+        ),
+    ]
+
+
+def _make_lrmc_dashboard() -> LrmcDashboard:
+    import datetime as _dt
+    techs = _make_lcoe_technologies()
+    signals = _make_investment_signals()
+    scenarios = _make_capacity_scenarios()
+
+    # Capacity-weighted average across all technologies using mid LCOE
+    avg_lrmc = round(sum(t.lcoe_mid_aud_mwh for t in techs) / len(techs), 1)
+
+    # Cheapest new entrant (exclude coal and nuclear — no new commercial builds)
+    eligible = [t for t in techs if t.technology not in ("Black Coal", "Nuclear SMR")]
+    cheapest = min(eligible, key=lambda t: t.lcoe_mid_aud_mwh)
+
+    # Technologies where LCOE mid > current spot ($95/MWh)
+    spot = 95.0
+    above_market = sum(1 for t in techs if t.lcoe_mid_aud_mwh > spot)
+
+    # Best investment region: lowest average LCOE across all technologies
+    region_avgs: dict = {}
+    for t in techs:
+        region_avgs.setdefault(t.region, []).append(t.lcoe_mid_aud_mwh)
+    best_region = min(region_avgs, key=lambda r: sum(region_avgs[r]) / len(region_avgs[r]))
+
+    return LrmcDashboard(
+        timestamp=_dt.datetime.utcnow().isoformat() + "Z",
+        avg_nem_lrmc_aud_mwh=avg_lrmc,
+        cheapest_new_entrant=cheapest.technology,
+        cheapest_lcoe_aud_mwh=cheapest.lcoe_mid_aud_mwh,
+        technologies_above_market=above_market,
+        best_investment_region=best_region,
+        lcoe_technologies=techs,
+        investment_signals=signals,
+        capacity_scenarios=scenarios,
+    )
+
+
+@app.get(
+    "/api/lrmc/dashboard",
+    response_model=LrmcDashboard,
+    summary="LRMC & Investment Signal Dashboard",
+    tags=["LRMC"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_lrmc_dashboard():
+    """Return LRMC dashboard with LCOE technologies, investment signals and capacity scenarios.
+    Cached 3600 s."""
+    cached = _cache_get("lrmc:dashboard")
+    if cached:
+        return cached
+    data = _make_lrmc_dashboard()
+    _cache_set("lrmc:dashboard", data, _TTL_LRMC)
+    return data
+
+
+@app.get(
+    "/api/lrmc/technologies",
+    response_model=List[LcoeTechnology],
+    summary="LCOE by technology and region",
+    tags=["LRMC"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_lcoe_technologies(region: Optional[str] = None, technology: Optional[str] = None):
+    """Return LCOE technology records, optionally filtered by region and/or technology.
+    Cached 3600 s."""
+    cache_key = f"lrmc:technologies:{region}:{technology}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    techs = _make_lcoe_technologies()
+    if region:
+        techs = [t for t in techs if t.region == region]
+    if technology:
+        techs = [t for t in techs if t.technology == technology]
+    _cache_set(cache_key, techs, _TTL_LRMC)
+    return techs
+
+
+@app.get(
+    "/api/lrmc/signals",
+    response_model=List[InvestmentSignal],
+    summary="Investment viability signals by technology",
+    tags=["LRMC"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_investment_signals(region: Optional[str] = None, signal: Optional[str] = None):
+    """Return investment signals, optionally filtered by region and/or signal category.
+    Cached 3600 s."""
+    cache_key = f"lrmc:signals:{region}:{signal}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    signals = _make_investment_signals()
+    if region:
+        signals = [s for s in signals if s.region == region]
+    if signal:
+        signals = [s for s in signals if s.signal == signal]
+    _cache_set(cache_key, signals, _TTL_LRMC)
+    return signals
+
+
+# ---------------------------------------------------------------------------
+# Sprint 27c — Network Constraint Equations & Binding Constraint Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_CONSTRAINTS = 30
+
+
+class ConstraintEquation(BaseModel):
+    constraint_id: str
+    constraint_name: str
+    constraint_type: str
+    binding: bool
+    region: str
+    rhs_value: float
+    lhs_value: float
+    slack_mw: float
+    marginal_value: float
+    generic_equation: str
+    connected_duids: List[str]
+    frequency_binding_pct: float
+    annual_cost_est_m_aud: float
+
+
+class ConstraintSummaryByRegion(BaseModel):
+    region: str
+    active_constraints: int
+    binding_constraints: int
+    critical_constraints: int
+    total_cost_m_aud_yr: float
+    most_binding_constraint: str
+    interconnector_limited: bool
+
+
+class ConstraintViolationRecord(BaseModel):
+    violation_id: str
+    constraint_id: str
+    region: str
+    dispatch_interval: str
+    violation_mw: float
+    dispatch_price_impact: float
+    cause: str
+    resolved: bool
+
+
+class ConstraintDashboard(BaseModel):
+    timestamp: str
+    total_active_constraints: int
+    binding_constraints_now: int
+    total_annual_constraint_cost_m_aud: float
+    most_constrained_region: str
+    violations_today: int
+    region_summaries: List[ConstraintSummaryByRegion]
+    constraint_equations: List[ConstraintEquation]
+    violations: List[ConstraintViolationRecord]
+
+
+def _make_constraint_equations() -> List[ConstraintEquation]:
+    raw = [
+        # SA1
+        dict(
+            constraint_id="S>>S_NIL_TBTS",
+            constraint_name="Tailem Bend-Tungkillo-South Transmission",
+            constraint_type="THERMAL",
+            binding=True,
+            region="SA1",
+            rhs_value=650.0,
+            lhs_value=645.2,
+            marginal_value=85.0,
+            generic_equation="TAILEMBEND_GEN + TUNGKILLO_GEN <= 650",
+            connected_duids=["TBTS_1", "TBTS_2", "TUNGKILLO_1"],
+            frequency_binding_pct=38.4,
+            annual_cost_est_m_aud=18.2,
+        ),
+        dict(
+            constraint_id="SA_HEYWOOD_IMPORT",
+            constraint_name="Heywood Interconnector Import Limit",
+            constraint_type="NETWORK",
+            binding=False,
+            region="SA1",
+            rhs_value=600.0,
+            lhs_value=412.0,
+            marginal_value=0.0,
+            generic_equation="HEYWOOD_IMPORT <= 600",
+            connected_duids=["V-SA", "HEYWOOD_1"],
+            frequency_binding_pct=12.1,
+            annual_cost_est_m_aud=6.5,
+        ),
+        # VIC1
+        dict(
+            constraint_id="V>>V_NIL_BL3",
+            constraint_name="Basslink HVDC Thermal Limit",
+            constraint_type="THERMAL",
+            binding=True,
+            region="VIC1",
+            rhs_value=500.0,
+            lhs_value=496.8,
+            marginal_value=0.0,
+            generic_equation="BASSLINK_FLOW <= 500",
+            connected_duids=["BASSLINK", "MURRAY_1", "MURRAY_2"],
+            frequency_binding_pct=21.7,
+            annual_cost_est_m_aud=9.8,
+        ),
+        dict(
+            constraint_id="V_NIL_MURRAY2",
+            constraint_name="Murray Export Constraint",
+            constraint_type="STABILITY",
+            binding=False,
+            region="VIC1",
+            rhs_value=1400.0,
+            lhs_value=1180.0,
+            marginal_value=0.0,
+            generic_equation="MURRAY1_GEN + MURRAY2_GEN <= 1400",
+            connected_duids=["MURRAY_1", "MURRAY_2"],
+            frequency_binding_pct=8.3,
+            annual_cost_est_m_aud=3.1,
+        ),
+        # NSW1
+        dict(
+            constraint_id="N^^N_NIL_ROCAP",
+            constraint_name="Snowy-Sydney Transmission (RoCAP)",
+            constraint_type="THERMAL",
+            binding=True,
+            region="NSW1",
+            rhs_value=3200.0,
+            lhs_value=3194.5,
+            marginal_value=62.0,
+            generic_equation="SNOWY_EXPORT - TUMUT_GEN <= 3200",
+            connected_duids=["TUMUT_1", "TUMUT_2", "TUMUT_3", "MURRAY_1"],
+            frequency_binding_pct=44.6,
+            annual_cost_est_m_aud=22.7,
+        ),
+        dict(
+            constraint_id="N_NIL_ARMIDALE",
+            constraint_name="Armidale Regional Load Constraint",
+            constraint_type="VOLTAGE",
+            binding=False,
+            region="NSW1",
+            rhs_value=520.0,
+            lhs_value=388.0,
+            marginal_value=0.0,
+            generic_equation="ARMIDALE_LOAD <= 520",
+            connected_duids=["ARMIDALE_1", "WALCHA_1"],
+            frequency_binding_pct=5.2,
+            annual_cost_est_m_aud=1.8,
+        ),
+        # QLD1
+        dict(
+            constraint_id="Q>>Q_NIL_STRATHMORE",
+            constraint_name="Strathmore 275kV Line Thermal Limit",
+            constraint_type="THERMAL",
+            binding=True,
+            region="QLD1",
+            rhs_value=900.0,
+            lhs_value=893.0,
+            marginal_value=48.5,
+            generic_equation="STRATHMORE_275_FLOW <= 900",
+            connected_duids=["STRATHMORE_1", "TOWNSVILLE_1"],
+            frequency_binding_pct=29.3,
+            annual_cost_est_m_aud=11.4,
+        ),
+        dict(
+            constraint_id="QLD_ROSS_IMPORT",
+            constraint_name="North Queensland Ross Substation Import",
+            constraint_type="NETWORK",
+            binding=False,
+            region="QLD1",
+            rhs_value=1100.0,
+            lhs_value=880.0,
+            marginal_value=0.0,
+            generic_equation="ROSS_IMPORT <= 1100",
+            connected_duids=["ROSS_1", "TOWNSVILLE_2", "CALLIDE_C"],
+            frequency_binding_pct=14.8,
+            annual_cost_est_m_aud=4.3,
+        ),
+        # TAS1
+        dict(
+            constraint_id="T>>T_NIL_HVDC_IMPORT",
+            constraint_name="Basslink HVDC Import to Tasmania",
+            constraint_type="NETWORK",
+            binding=False,
+            region="TAS1",
+            rhs_value=500.0,
+            lhs_value=210.0,
+            marginal_value=0.0,
+            generic_equation="BASSLINK_TAS_IMPORT <= 500",
+            connected_duids=["BASSLINK", "GEORGE_TOWN_1"],
+            frequency_binding_pct=6.9,
+            annual_cost_est_m_aud=1.2,
+        ),
+        dict(
+            constraint_id="T_NIL_BELL_BAY",
+            constraint_name="Bell Bay Thermal Constraint",
+            constraint_type="THERMAL",
+            binding=False,
+            region="TAS1",
+            rhs_value=300.0,
+            lhs_value=118.0,
+            marginal_value=0.0,
+            generic_equation="BELLBAY_GEN <= 300",
+            connected_duids=["BELLBAY_1", "BELLBAY_2"],
+            frequency_binding_pct=3.4,
+            annual_cost_est_m_aud=0.8,
+        ),
+        # Extra non-binding VIC1 and SA1 constraints
+        dict(
+            constraint_id="V_NIL_MOORABOOL",
+            constraint_name="Moorabool Wind Export Limit",
+            constraint_type="STABILITY",
+            binding=False,
+            region="VIC1",
+            rhs_value=800.0,
+            lhs_value=620.0,
+            marginal_value=0.0,
+            generic_equation="MOORABOOL_WIND_EXPORT <= 800",
+            connected_duids=["MOORABOOL_WF1", "MOORABOOL_WF2"],
+            frequency_binding_pct=9.1,
+            annual_cost_est_m_aud=2.4,
+        ),
+        dict(
+            constraint_id="S_NIL_DAVENPORT",
+            constraint_name="Davenport 275kV Stability Constraint",
+            constraint_type="STABILITY",
+            binding=False,
+            region="SA1",
+            rhs_value=400.0,
+            lhs_value=330.0,
+            marginal_value=0.0,
+            generic_equation="DAVENPORT_FLOW <= 400",
+            connected_duids=["DAVENPORT_1", "PINERY_WF"],
+            frequency_binding_pct=7.6,
+            annual_cost_est_m_aud=3.9,
+        ),
+    ]
+    result = []
+    for r in raw:
+        slack = round(r["rhs_value"] - r["lhs_value"], 2)
+        result.append(
+            ConstraintEquation(
+                constraint_id=r["constraint_id"],
+                constraint_name=r["constraint_name"],
+                constraint_type=r["constraint_type"],
+                binding=r["binding"],
+                region=r["region"],
+                rhs_value=r["rhs_value"],
+                lhs_value=r["lhs_value"],
+                slack_mw=slack,
+                marginal_value=r["marginal_value"],
+                generic_equation=r["generic_equation"],
+                connected_duids=r["connected_duids"],
+                frequency_binding_pct=r["frequency_binding_pct"],
+                annual_cost_est_m_aud=r["annual_cost_est_m_aud"],
+            )
+        )
+    return result
+
+
+def _make_region_constraint_summaries() -> List[ConstraintSummaryByRegion]:
+    return [
+        ConstraintSummaryByRegion(
+            region="SA1",
+            active_constraints=12,
+            binding_constraints=4,
+            critical_constraints=2,
+            total_cost_m_aud_yr=48.3,
+            most_binding_constraint="S>>S_NIL_TBTS",
+            interconnector_limited=True,
+        ),
+        ConstraintSummaryByRegion(
+            region="NSW1",
+            active_constraints=9,
+            binding_constraints=3,
+            critical_constraints=1,
+            total_cost_m_aud_yr=31.6,
+            most_binding_constraint="N^^N_NIL_ROCAP",
+            interconnector_limited=False,
+        ),
+        ConstraintSummaryByRegion(
+            region="VIC1",
+            active_constraints=8,
+            binding_constraints=2,
+            critical_constraints=0,
+            total_cost_m_aud_yr=19.4,
+            most_binding_constraint="V>>V_NIL_BL3",
+            interconnector_limited=True,
+        ),
+        ConstraintSummaryByRegion(
+            region="QLD1",
+            active_constraints=7,
+            binding_constraints=2,
+            critical_constraints=1,
+            total_cost_m_aud_yr=22.8,
+            most_binding_constraint="Q>>Q_NIL_STRATHMORE",
+            interconnector_limited=False,
+        ),
+        ConstraintSummaryByRegion(
+            region="TAS1",
+            active_constraints=4,
+            binding_constraints=0,
+            critical_constraints=0,
+            total_cost_m_aud_yr=4.1,
+            most_binding_constraint="T>>T_NIL_HVDC_IMPORT",
+            interconnector_limited=True,
+        ),
+    ]
+
+
+def _make_constraint_violations() -> List[ConstraintViolationRecord]:
+    return [
+        ConstraintViolationRecord(
+            violation_id="VIOL-20260219-001",
+            constraint_id="S>>S_NIL_TBTS",
+            region="SA1",
+            dispatch_interval="2026-02-19T08:30:00+10:00",
+            violation_mw=12.4,
+            dispatch_price_impact=145.2,
+            cause="WIND_RAMP",
+            resolved=True,
+        ),
+        ConstraintViolationRecord(
+            violation_id="VIOL-20260219-002",
+            constraint_id="N^^N_NIL_ROCAP",
+            region="NSW1",
+            dispatch_interval="2026-02-19T17:00:00+10:00",
+            violation_mw=8.9,
+            dispatch_price_impact=98.7,
+            cause="HIGH_DEMAND",
+            resolved=False,
+        ),
+        ConstraintViolationRecord(
+            violation_id="VIOL-20260219-003",
+            constraint_id="V>>V_NIL_BL3",
+            region="VIC1",
+            dispatch_interval="2026-02-19T13:00:00+10:00",
+            violation_mw=5.3,
+            dispatch_price_impact=55.1,
+            cause="OUTAGE",
+            resolved=True,
+        ),
+        ConstraintViolationRecord(
+            violation_id="VIOL-20260219-004",
+            constraint_id="V_NIL_MURRAY2",
+            region="VIC1",
+            dispatch_interval="2026-02-19T14:30:00+10:00",
+            violation_mw=3.7,
+            dispatch_price_impact=38.4,
+            cause="OUTAGE",
+            resolved=False,
+        ),
+        ConstraintViolationRecord(
+            violation_id="VIOL-20260219-005",
+            constraint_id="Q>>Q_NIL_STRATHMORE",
+            region="QLD1",
+            dispatch_interval="2026-02-19T10:00:00+10:00",
+            violation_mw=7.1,
+            dispatch_price_impact=72.3,
+            cause="NEMDE_INTERVENTION",
+            resolved=True,
+        ),
+    ]
+
+
+def _make_constraint_dashboard() -> ConstraintDashboard:
+    equations = _make_constraint_equations()
+    region_summaries = _make_region_constraint_summaries()
+    violations = _make_constraint_violations()
+    binding_now = sum(1 for e in equations if e.binding)
+    total_cost = round(sum(e.annual_cost_est_m_aud for e in equations), 2)
+    most_constrained = max(region_summaries, key=lambda r: r.binding_constraints).region
+    return ConstraintDashboard(
+        timestamp=_now_aest(),
+        total_active_constraints=sum(r.active_constraints for r in region_summaries),
+        binding_constraints_now=binding_now,
+        total_annual_constraint_cost_m_aud=total_cost,
+        most_constrained_region=most_constrained,
+        violations_today=len(violations),
+        region_summaries=region_summaries,
+        constraint_equations=equations,
+        violations=violations,
+    )
+
+
+@app.get(
+    "/api/constraints/dashboard",
+    response_model=ConstraintDashboard,
+    summary="Network constraint dashboard overview",
+    tags=["Network Constraints"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_constraint_dashboard():
+    """Return network constraint dashboard aggregate. Cached 30 s."""
+    cached = _cache_get("constraints:dashboard")
+    if cached:
+        return cached
+    data = _make_constraint_dashboard()
+    _cache_set("constraints:dashboard", data, _TTL_CONSTRAINTS)
+    return data
+
+
+@app.get(
+    "/api/constraints/equations",
+    response_model=List[ConstraintEquation],
+    summary="Active NEMDE constraint equations",
+    tags=["Network Constraints"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_constraint_equations(region: Optional[str] = None, binding: Optional[str] = None):
+    """Return list of active constraint equations. Filterable by region and binding status. Cached 30 s."""
+    cache_key = f"constraints:equations:{region}:{binding}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    equations = _make_constraint_equations()
+    if region:
+        equations = [e for e in equations if e.region == region]
+    if binding is not None:
+        bind_flag = binding.lower() in ("true", "1", "yes")
+        equations = [e for e in equations if e.binding == bind_flag]
+    _cache_set(cache_key, equations, _TTL_CONSTRAINTS)
+    return equations
+
+
+@app.get(
+    "/api/constraints/violations",
+    response_model=List[ConstraintViolationRecord],
+    summary="Constraint violation records for today",
+    tags=["Network Constraints"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_constraint_violations(region: Optional[str] = None):
+    """Return constraint violation records. Filterable by region. Cached 30 s."""
+    cache_key = f"constraints:violations:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    violations = _make_constraint_violations()
+    if region:
+        violations = [v for v in violations if v.region == region]
+    _cache_set(cache_key, violations, _TTL_CONSTRAINTS)
+    return violations

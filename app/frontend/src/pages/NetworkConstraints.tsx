@@ -1,0 +1,510 @@
+import { useEffect, useState, useCallback } from 'react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts'
+import { GitBranch, AlertTriangle, RefreshCw, Zap, DollarSign, MapPin, Activity } from 'lucide-react'
+import { api } from '../api/client'
+import type { ConstraintDashboard, ConstraintEquation, ConstraintViolationRecord } from '../api/client'
+
+// ---------------------------------------------------------------------------
+// Types & helpers
+// ---------------------------------------------------------------------------
+
+const REGIONS = ['All', 'SA1', 'NSW1', 'VIC1', 'QLD1', 'TAS1']
+
+function regionChip(region: string) {
+  const colours: Record<string, string> = {
+    SA1: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+    NSW1: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    VIC1: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+    QLD1: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    TAS1: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  }
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${colours[region] ?? 'bg-gray-100 text-gray-600'}`}>
+      {region}
+    </span>
+  )
+}
+
+function constraintTypeBadge(type: string) {
+  const map: Record<string, string> = {
+    THERMAL: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+    VOLTAGE: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300',
+    STABILITY: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    NETWORK: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+  }
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${map[type] ?? 'bg-gray-100 text-gray-600'}`}>
+      {type}
+    </span>
+  )
+}
+
+function causeBadge(cause: string) {
+  const map: Record<string, string> = {
+    WIND_RAMP: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    HIGH_DEMAND: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+    OUTAGE: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    NEMDE_INTERVENTION: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  }
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${map[cause] ?? 'bg-gray-100 text-gray-600'}`}>
+      {cause.replace(/_/g, ' ')}
+    </span>
+  )
+}
+
+function slackColor(slack: number): string {
+  if (slack < 0) return 'text-red-600 dark:text-red-400 font-semibold'
+  if (slack < 10) return 'text-amber-600 dark:text-amber-400 font-semibold'
+  return 'text-green-600 dark:text-green-400'
+}
+
+function barFill(eq: ConstraintEquation): string {
+  if (eq.binding) return '#ef4444'
+  if (eq.slack_mw < 20) return '#f59e0b'
+  return '#3b82f6'
+}
+
+// ---------------------------------------------------------------------------
+// KPI card
+// ---------------------------------------------------------------------------
+
+interface KpiCardProps {
+  label: string
+  value: string | number
+  icon: React.ReactNode
+  alert?: boolean
+  sub?: string
+}
+
+function KpiCard({ label, value, icon, alert, sub }: KpiCardProps) {
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border ${alert ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-gray-700'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</span>
+        <span className={`p-1.5 rounded-lg ${alert ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'}`}>
+          {icon}
+        </span>
+      </div>
+      <div className={`text-2xl font-bold ${alert ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+        {value}
+      </div>
+      {sub && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</div>}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
+export default function NetworkConstraints() {
+  const [dashboard, setDashboard] = useState<ConstraintDashboard | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  // Filters for equations table
+  const [regionFilter, setRegionFilter] = useState<string>('All')
+  const [bindingOnly, setBindingOnly] = useState(false)
+
+  const fetchData = useCallback(async () => {
+    try {
+      const data = await api.getConstraintDashboard()
+      setDashboard(data)
+      setLastUpdated(new Date())
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load constraint data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+    const id = setInterval(fetchData, 30_000)
+    return () => clearInterval(id)
+  }, [fetchData])
+
+  // ---------------------------------------------------------------------------
+  // Derived data
+  // ---------------------------------------------------------------------------
+
+  const filteredEquations: ConstraintEquation[] = dashboard
+    ? dashboard.constraint_equations.filter(e => {
+        if (regionFilter !== 'All' && e.region !== regionFilter) return false
+        if (bindingOnly && !e.binding) return false
+        return true
+      })
+    : []
+
+  const chartData = dashboard
+    ? [...dashboard.constraint_equations]
+        .sort((a, b) => b.annual_cost_est_m_aud - a.annual_cost_est_m_aud)
+        .slice(0, 8)
+        .map(e => ({ name: e.constraint_id, cost: e.annual_cost_est_m_aud, binding: e.binding, slack: e.slack_mw }))
+    : []
+
+  const violations: ConstraintViolationRecord[] = dashboard?.violations ?? []
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="animate-spin text-blue-500" size={28} />
+        <span className="ml-3 text-gray-500 dark:text-gray-400">Loading constraint data...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-3 p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl m-6">
+        <AlertTriangle className="text-red-500" size={20} />
+        <span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
+        <button onClick={fetchData} className="ml-auto px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-red-800 dark:hover:bg-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium">
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  if (!dashboard) return null
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <GitBranch className="text-blue-600 dark:text-blue-400" size={22} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              Network Constraint Equations &amp; Binding Constraints
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Active NEMDE constraints, shadow prices, and dispatch impact
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
+            <span className="text-xs font-medium text-green-700 dark:text-green-300">Live • 30s</span>
+          </div>
+          {lastUpdated && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              Updated {lastUpdated.toLocaleTimeString('en-AU')}
+            </span>
+          )}
+          <button
+            onClick={fetchData}
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          label="Binding Constraints Now"
+          value={dashboard.binding_constraints_now}
+          icon={<Zap size={16} />}
+          alert={dashboard.binding_constraints_now > 3}
+          sub={`of ${dashboard.total_active_constraints} active`}
+        />
+        <KpiCard
+          label="Annual Constraint Cost"
+          value={`$${dashboard.total_annual_constraint_cost_m_aud.toFixed(1)}M`}
+          icon={<DollarSign size={16} />}
+          sub="estimated AUD/year"
+        />
+        <KpiCard
+          label="Most Constrained Region"
+          value={dashboard.most_constrained_region}
+          icon={<MapPin size={16} />}
+          sub="by binding count"
+        />
+        <KpiCard
+          label="Violations Today"
+          value={dashboard.violations_today}
+          icon={<AlertTriangle size={16} />}
+          alert={dashboard.violations_today > 0}
+          sub="dispatch interval breaches"
+        />
+      </div>
+
+      {/* Region Summary Cards */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wide">
+          Region Summary
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {dashboard.region_summaries.map(rs => (
+            <div
+              key={rs.region}
+              className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700"
+            >
+              <div className="flex items-center justify-between mb-2">
+                {regionChip(rs.region)}
+                {rs.interconnector_limited && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">IC-Ltd</span>
+                )}
+              </div>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400 text-xs">Active</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">{rs.active_constraints}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400 text-xs">Binding</span>
+                  <span className={`font-semibold ${rs.binding_constraints > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                    {rs.binding_constraints}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400 text-xs">Cost/yr</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">${rs.total_cost_m_aud_yr.toFixed(1)}M</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Constraint Cost Bar Chart */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity size={16} className="text-blue-500" />
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Annual Constraint Cost by Equation (Top 8)
+          </h2>
+          <div className="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />Binding</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />Tight (&lt;20 MW)</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" />Normal</span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={chartData} margin={{ top: 4, right: 16, bottom: 60, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 10, fill: '#6b7280' }}
+              angle={-35}
+              textAnchor="end"
+              interval={0}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6b7280' }}
+              tickFormatter={v => `$${v}M`}
+              label={{ value: '$M/yr', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#9ca3af' } }}
+            />
+            <Tooltip
+              formatter={(v: number) => [`$${v.toFixed(1)}M`, 'Annual Cost']}
+              labelStyle={{ fontSize: 12 }}
+              contentStyle={{ background: '#1f2937', border: 'none', borderRadius: 8, color: '#f9fafb' }}
+            />
+            <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
+              {chartData.map((entry, i) => (
+                <Cell
+                  key={`cell-${i}`}
+                  fill={entry.binding ? '#ef4444' : entry.slack < 20 ? '#f59e0b' : '#3b82f6'}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Constraint Equations Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <GitBranch size={16} className="text-blue-500" />
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Constraint Equations
+            </h2>
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              ({filteredEquations.length} shown)
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Region filter */}
+            <select
+              value={regionFilter}
+              onChange={e => setRegionFilter(e.target.value)}
+              className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {REGIONS.map(r => (
+                <option key={r} value={r}>{r === 'All' ? 'All Regions' : r}</option>
+              ))}
+            </select>
+            {/* Binding toggle */}
+            <button
+              onClick={() => setBindingOnly(v => !v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                bindingOnly
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {bindingOnly ? 'Binding Only' : 'Show All'}
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-900/50">
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Constraint ID</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Region</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Binding</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">RHS (MW)</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">LHS (MW)</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Slack (MW)</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Shadow $/MWh</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Bind Freq %</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {filteredEquations.map(eq => (
+                <tr key={eq.constraint_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                  <td className="px-4 py-3">
+                    <code className="text-xs font-mono text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
+                      {eq.constraint_id}
+                    </code>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-300 max-w-[180px] truncate" title={eq.constraint_name}>
+                    {eq.constraint_name}
+                  </td>
+                  <td className="px-4 py-3">{constraintTypeBadge(eq.constraint_type)}</td>
+                  <td className="px-4 py-3">{regionChip(eq.region)}</td>
+                  <td className="px-4 py-3 text-center">
+                    {eq.binding ? (
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">YES</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">NO</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs text-gray-700 dark:text-gray-300 font-mono">
+                    {eq.rhs_value.toFixed(1)}
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs text-gray-700 dark:text-gray-300 font-mono">
+                    {eq.lhs_value.toFixed(1)}
+                  </td>
+                  <td className={`px-4 py-3 text-right text-xs font-mono ${slackColor(eq.slack_mw)}`}>
+                    {eq.slack_mw.toFixed(2)}
+                  </td>
+                  <td className={`px-4 py-3 text-right text-xs font-mono ${eq.marginal_value > 50 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-700 dark:text-gray-300'}`}>
+                    {eq.marginal_value > 0 ? `$${eq.marginal_value.toFixed(1)}` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs text-gray-700 dark:text-gray-300">
+                    {eq.frequency_binding_pct.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+              {filteredEquations.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                    No constraint equations match the current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Violations Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
+          <AlertTriangle size={16} className="text-red-500" />
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Constraint Violations Today
+          </h2>
+          <span className="text-xs text-gray-400 dark:text-gray-500">({violations.length})</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-900/50">
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Violation ID</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Constraint</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Region</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Interval</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Violation MW</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Price Impact $/MWh</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cause</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resolved</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {violations.map(v => (
+                <tr key={v.violation_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                  <td className="px-4 py-3">
+                    <code className="text-xs font-mono text-gray-600 dark:text-gray-400">{v.violation_id}</code>
+                  </td>
+                  <td className="px-4 py-3">
+                    <code className="text-xs font-mono text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
+                      {v.constraint_id}
+                    </code>
+                  </td>
+                  <td className="px-4 py-3">{regionChip(v.region)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                    {new Date(v.dispatch_interval).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })} AEST
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs font-semibold text-red-600 dark:text-red-400 font-mono">
+                    {v.violation_mw.toFixed(1)} MW
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs font-mono text-gray-700 dark:text-gray-300">
+                    ${v.dispatch_price_impact.toFixed(1)}
+                  </td>
+                  <td className="px-4 py-3">{causeBadge(v.cause)}</td>
+                  <td className="px-4 py-3 text-center">
+                    {v.resolved ? (
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">Resolved</span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">Active</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {violations.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                    No violations recorded today.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Footer note */}
+      <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
+        Constraint data sourced from NEMDE dispatch engine. Shadow prices are Lagrange multipliers from the LP solution.
+      </p>
+    </div>
+  )
+}

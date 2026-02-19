@@ -509,6 +509,13 @@
 - PpaMarket.tsx (~520 lines): tech mix PieChart, LGC trend AreaChart, PPA table, behind-meter assets
 - 4 tests in TestPpaEndpoints
 
+## Sprint 27b — LRMC & Investment Signal Analytics (2026-02-19)
+**Status**: COMPLETE
+- LcoeTechnology, InvestmentSignal, CapacityMechanismScenario, LrmcDashboard models
+- GET /api/lrmc/dashboard, /technologies, /signals
+- LrmcAnalytics.tsx (~520 lines): LCOE range chart, investment signal table, capacity scenarios, LCOE comparison
+- 4 tests in TestLrmcEndpoints
+
 ## Sprint 26c — AEMO ISP Transmission Investment Tracker (2026-02-19)
 **Status**: COMPLETE
 - IspProjectMilestone, IspMajorProject, TnspCapexProgram, IspDashboard models
@@ -529,3 +536,17 @@
 - GET /api/regulatory/dashboard, /rule-changes, /calendar
 - RegulatoryTracker.tsx (~510 lines): calendar timeline, rule changes table, AER determinations, pipeline BarChart
 - 4 tests in TestRegulatoryEndpoints
+
+## Sprint 27a — Small-Scale Solar & EV Fleet Analytics (2026-02-19)
+**Status**: COMPLETE
+- SolarGenerationRecord, EvFleetRecord, SolarEvDashboard models
+- GET /api/solar-ev/dashboard, /solar, /ev-fleet
+- SolarEvAnalytics.tsx (~520 lines): duck curve chart, growth projection, solar table, EV fleet table
+- 4 tests in TestSolarEvEndpoints
+
+## Sprint 27c — Network Constraint Equation & Binding Constraint Analytics (2026-02-19)
+**Status**: COMPLETE
+- ConstraintEquation, ConstraintSummaryByRegion, ConstraintViolationRecord, ConstraintDashboard models
+- GET /api/constraints/dashboard, /equations, /violations
+- NetworkConstraints.tsx (~510 lines): constraint cost chart, equations table with slack coloring, violations log
+- 4 tests in TestNetworkConstraintEndpoints

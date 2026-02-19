@@ -2345,3 +2345,108 @@ class TestIspTrackerEndpoints:
         assert r.status_code == 200
         for p in r.json():
             assert p["current_status"] == "UNDER_CONSTRUCTION"
+
+
+class TestLrmcEndpoints:
+    def test_lrmc_dashboard_returns_200(self, client=client):
+        r = client.get("/api/lrmc/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "lcoe_technologies" in d
+        assert "investment_signals" in d
+        assert "capacity_scenarios" in d
+        assert d["cheapest_lcoe_aud_mwh"] > 0
+
+    def test_lcoe_technologies_list(self, client=client):
+        r = client.get("/api/lrmc/technologies")
+        assert r.status_code == 200
+        techs = r.json()
+        assert len(techs) >= 15
+        tech_names = {t["technology"] for t in techs}
+        assert "Wind Onshore" in tech_names
+        assert "Solar Farm" in tech_names
+        for t in techs:
+            assert t["lcoe_low_aud_mwh"] <= t["lcoe_mid_aud_mwh"] <= t["lcoe_high_aud_mwh"]
+
+    def test_investment_signals_list(self, client=client):
+        r = client.get("/api/lrmc/signals")
+        assert r.status_code == 200
+        signals = r.json()
+        assert len(signals) >= 6
+        signal_types = {s["signal"] for s in signals}
+        assert "INVEST" in signal_types
+
+    def test_lrmc_region_filter(self, client=client):
+        r = client.get("/api/lrmc/technologies?region=SA1")
+        assert r.status_code == 200
+        for t in r.json():
+            assert t["region"] == "SA1"
+
+
+class TestSolarEvEndpoints:
+    def test_solar_ev_dashboard_returns_200(self, client=client):
+        r = client.get("/api/solar-ev/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "solar_records" in d
+        assert "ev_records" in d
+        assert "hourly_profile" in d
+        assert len(d["hourly_profile"]) == 24
+
+    def test_solar_records_by_state(self, client=client):
+        r = client.get("/api/solar-ev/solar")
+        assert r.status_code == 200
+        records = r.json()
+        states = {r["state"] for r in records}
+        assert "NSW" in states and "QLD" in states
+        for rec in records:
+            assert 0 <= rec["capacity_factor_pct"] <= 100
+
+    def test_ev_fleet_list(self, client=client):
+        r = client.get("/api/solar-ev/ev-fleet")
+        assert r.status_code == 200
+        fleet = r.json()
+        types = {f["ev_type"] for f in fleet}
+        assert "BEV" in types
+        assert "PHEV" in types
+
+    def test_solar_state_filter(self, client=client):
+        r = client.get("/api/solar-ev/solar?state=SA")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["state"] == "SA"
+
+
+class TestNetworkConstraintEndpoints:
+    def test_constraint_dashboard_returns_200(self, client=client):
+        r = client.get("/api/constraints/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "constraint_equations" in d
+        assert "region_summaries" in d
+        assert "violations" in d
+        assert len(d["region_summaries"]) == 5
+
+    def test_constraint_equations_list(self, client=client):
+        r = client.get("/api/constraints/equations")
+        assert r.status_code == 200
+        equations = r.json()
+        assert len(equations) >= 8
+        binding = [e for e in equations if e["binding"]]
+        assert len(binding) >= 2
+        for e in equations:
+            assert e["slack_mw"] == round(e["rhs_value"] - e["lhs_value"], 2)
+
+    def test_constraint_region_filter(self, client=client):
+        r = client.get("/api/constraints/equations?region=SA1")
+        assert r.status_code == 200
+        for e in r.json():
+            assert e["region"] == "SA1"
+
+    def test_constraint_violations_list(self, client=client):
+        r = client.get("/api/constraints/violations")
+        assert r.status_code == 200
+        violations = r.json()
+        assert len(violations) >= 3
+        causes = {v["cause"] for v in violations}
+        assert len(causes) >= 2

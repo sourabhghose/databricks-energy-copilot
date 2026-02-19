@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Target,
   MapPin,
+  GitBranch,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -88,6 +89,9 @@ import PpaMarket from './pages/PpaMarket'
 import DispatchAccuracy from './pages/DispatchAccuracy'
 import RegulatoryTracker from './pages/RegulatoryTracker'
 import IspTracker from './pages/IspTracker'
+import SolarEvAnalytics from './pages/SolarEvAnalytics'
+import LrmcAnalytics from './pages/LrmcAnalytics'
+import NetworkConstraints from './pages/NetworkConstraints'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -140,6 +144,9 @@ const NAV_ITEMS = [
   { to: '/dispatch',      label: 'Dispatch Accuracy',  Icon: Target         },
   { to: '/regulatory',    label: 'Regulatory',         Icon: FileText       },
   { to: '/isp-tracker',   label: 'ISP Tracker',        Icon: MapPin         },
+  { to: '/solar-ev',      label: 'Solar & EV',         Icon: Zap            },
+  { to: '/lrmc',          label: 'LRMC & Investment',  Icon: TrendingDown   },
+  { to: '/constraints',    label: 'Constraints',        Icon: GitBranch      },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -267,6 +274,9 @@ export default function App() {
               <Route path="/dispatch"     element={<DispatchAccuracy />}   />
               <Route path="/regulatory"   element={<RegulatoryTracker />}  />
               <Route path="/isp-tracker"  element={<IspTracker />}         />
+              <Route path="/solar-ev"     element={<SolarEvAnalytics />}   />
+              <Route path="/lrmc"         element={<LrmcAnalytics />}      />
+              <Route path="/constraints"  element={<NetworkConstraints />}  />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

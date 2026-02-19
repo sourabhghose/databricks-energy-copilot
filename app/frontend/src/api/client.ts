@@ -1586,6 +1586,27 @@ export interface TnspCapexProgram { tnsp: string; regulatory_period: string; sta
 export interface IspDashboard { timestamp: string; total_pipeline_capex_bn_aud: number; committed_projects: number; projects_under_construction: number; total_new_km: number; total_new_capacity_mw: number; delayed_projects: number; isp_projects: IspMajorProject[]; tnsp_programs: TnspCapexProgram[] }
 
 // ---------------------------------------------------------------------------
+// Sprint 27a — Solar EV Analytics interfaces
+// ---------------------------------------------------------------------------
+export interface SolarGenerationRecord { state: string; postcode_zone: string; installed_capacity_mw: number; avg_generation_mw: number; capacity_factor_pct: number; num_systems: number; avg_system_size_kw: number; curtailment_mw: number; export_to_grid_mw: number; self_consumption_mw: number; nem_impact_mw: number }
+export interface EvFleetRecord { state: string; ev_type: string; total_vehicles: number; annual_growth_pct: number; avg_battery_size_kwh: number; avg_daily_km: number; daily_charging_demand_mwh: number; peak_charging_hour: number; smart_charging_capable_pct: number; v2g_capable_pct: number; v2g_potential_mw: number }
+export interface SolarEvDashboard { timestamp: string; total_rooftop_solar_gw: number; current_rooftop_generation_gw: number; nem_solar_pct: number; total_evs: number; bev_count: number; total_ev_charging_demand_mw: number; v2g_fleet_potential_mw: number; minimum_demand_impact_mw: number; solar_records: SolarGenerationRecord[]; ev_records: EvFleetRecord[]; hourly_profile: Array<{hour: number; solar_mw: number; ev_charging_mw: number; net_demand_mw: number}>; growth_projection: Array<{year: number; solar_gw: number; ev_millions: number}> }
+
+// Sprint 27b — LRMC Investment Signal interfaces
+export interface LcoeTechnology { technology: string; region: string; lcoe_low_aud_mwh: number; lcoe_mid_aud_mwh: number; lcoe_high_aud_mwh: number; capacity_factor_pct: number; capex_aud_kw: number; opex_aud_mwh: number; discount_rate_pct: number; economic_life_years: number; is_dispatchable: boolean; co2_intensity_kg_mwh: number; learning_rate_pct: number }
+export interface InvestmentSignal { technology: string; region: string; signal: string; spot_price_avg_aud_mwh: number; futures_price_aud_mwh: number; lcoe_mid_aud_mwh: number; margin_aud_mwh: number; irr_pct: number; payback_years: number; revenue_adequacy_pct: number }
+export interface CapacityMechanismScenario { scenario: string; description: string; additional_capacity_gw: number; cost_to_consumers_m_aud: number; reliability_improvement_pct: number; recommended_technologies: string[] }
+export interface LrmcDashboard { timestamp: string; avg_nem_lrmc_aud_mwh: number; cheapest_new_entrant: string; cheapest_lcoe_aud_mwh: number; technologies_above_market: number; best_investment_region: string; lcoe_technologies: LcoeTechnology[]; investment_signals: InvestmentSignal[]; capacity_scenarios: CapacityMechanismScenario[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 27c — Network Constraint interfaces
+// ---------------------------------------------------------------------------
+export interface ConstraintEquation { constraint_id: string; constraint_name: string; constraint_type: string; binding: boolean; region: string; rhs_value: number; lhs_value: number; slack_mw: number; marginal_value: number; generic_equation: string; connected_duids: string[]; frequency_binding_pct: number; annual_cost_est_m_aud: number }
+export interface ConstraintSummaryByRegion { region: string; active_constraints: number; binding_constraints: number; critical_constraints: number; total_cost_m_aud_yr: number; most_binding_constraint: string; interconnector_limited: boolean }
+export interface ConstraintViolationRecord { violation_id: string; constraint_id: string; region: string; dispatch_interval: string; violation_mw: number; dispatch_price_impact: number; cause: string; resolved: boolean }
+export interface ConstraintDashboard { timestamp: string; total_active_constraints: number; binding_constraints_now: number; total_annual_constraint_cost_m_aud: number; most_constrained_region: string; violations_today: number; region_summaries: ConstraintSummaryByRegion[]; constraint_equations: ConstraintEquation[]; violations: ConstraintViolationRecord[] }
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2792,6 +2813,61 @@ export const api = {
   },
 
   getTnspPrograms: () => get<TnspCapexProgram[]>('/api/isp/tnsp-programs'),
+
+  // Sprint 27a — Solar EV Analytics
+  getSolarEvDashboard: () => get<SolarEvDashboard>('/api/solar-ev/dashboard'),
+
+  getSolarRecords: (params?: { state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<SolarGenerationRecord[]>(`/api/solar-ev/solar${query}`)
+  },
+
+  getEvFleet: (params?: { state?: string; ev_type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.ev_type) qs.append('ev_type', params.ev_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<EvFleetRecord[]>(`/api/solar-ev/ev-fleet${query}`)
+  },
+
+  // Sprint 27b — LRMC & Investment Signal Analytics
+  getLrmcDashboard: () => get<LrmcDashboard>('/api/lrmc/dashboard'),
+
+  getLcoeTechnologies: (params?: { region?: string; technology?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.technology) qs.append('technology', params.technology)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<LcoeTechnology[]>(`/api/lrmc/technologies${query}`)
+  },
+
+  getInvestmentSignals: (params?: { region?: string; signal?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.signal) qs.append('signal', params.signal)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<InvestmentSignal[]>(`/api/lrmc/signals${query}`)
+  },
+
+  // Sprint 27c — Network Constraint Analytics
+  getConstraintDashboard: () => get<ConstraintDashboard>('/api/constraints/dashboard'),
+
+  getConstraintEquations: (params?: { region?: string; binding?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.binding) qs.append('binding', params.binding)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<ConstraintEquation[]>(`/api/constraints/equations${query}`)
+  },
+
+  getConstraintViolations: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<ConstraintViolationRecord[]>(`/api/constraints/violations${query}`)
+  },
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
