@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
+venv
+.venv
+env
+
+# Node / Frontend
+app/frontend/node_modules
+app/frontend/dist
+app/frontend/.env.local
+
+# Databricks
+.databricks
+databricks.yml
+
+# Docs
+docs
+
+# Test results
+.pytest_cache
+htmlcov
+.coverage
+
+# OS
+.DS_Store
+*.swp

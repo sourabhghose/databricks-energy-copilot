@@ -42,6 +42,9 @@ pytest.xml
 # MyPy / type checkers
 .mypy_cache/
 .dmypy.json
+
+# Ruff cache
+.ruff_cache/
 dmypy.json
 .pytype/
 .pyre/
@@ -140,7 +143,4 @@ logs/
 *.tfstate.backup
 *.tfvars
 
-# ------------------------------------------------------------
-# Docker
-# ------------------------------------------------------------
-.dockerignore
+

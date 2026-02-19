@@ -196,3 +196,17 @@
 **Notes:**
 - test_backend.py: 5 test classes covering health, prices (latest + history), forecasts, generation, alerts (list/create/delete), and chat (streaming). All tests use FastAPI TestClient (no live services). Module-level env var stubs enable mock_mode in DatabricksSQLClient/LakebaseClient. TestChatEndpoint tests that the /api/chat endpoint returns a 200 with either SSE or JSON content-type. Alert DELETE 404 test validates Lakebase 404 propagation. create_alert validates request body schema enforcement.
 - app/app.yaml: Databricks Apps v2 config using `command:` (uvicorn with 2 workers). Env vars use `valueFrom.fieldRef` for auto-injected DATABRICKS_HOST/TOKEN, `valueFrom.secretRef` for Anthropic key and Lakebase creds (scope: energy_copilot). Static values for DATABRICKS_CATALOG, LOG_LEVEL, PYTHONPATH=/app. The PYTHONPATH=/app ensures that `import agent.*` and `import models.*` resolve correctly when the app is deployed with the repo structure mounted at /app.
+
+## CI + Config Quality Workstream — Sprint 6
+**Completed:** pyproject.toml (pythonpath fix), .github/workflows/ci.yml (PYTHONPATH env var), .dockerignore, setup.py stub, .gitignore updates
+**Notes:**
+- pyproject.toml: Added `pythonpath = ["."]` to `[tool.pytest.ini_options]`. This is required for `from app.backend.main import app` in test_backend.py and `from models.anomaly_detection.train import classify_events_rule` in test_models.py to resolve from the repo root. pytest 7+ supports the `pythonpath` ini option natively.
+- ci.yml: Added `PYTHONPATH: .` to python-tests job env (belt-and-suspenders alongside pyproject.toml pythonpath config). This ensures the env var is set even if an older pytest version is used or if pyproject.toml pythonpath support is not available.
+- .dockerignore: Excludes .git, Python bytecode, node_modules, .databricks, docs, and test artifacts from Docker build context. Keeps image build fast and prevents credential files from being accidentally included.
+- setup.py: Stub enabling `pip install -e .` for editable installs, useful in CI if any tool resolves the package via setuptools.
+
+## Wind + Solar Model Enhancement — Sprint 6
+**Completed:** models/wind_forecast/train.py (rewritten, ~380 lines), models/solar_forecast/train.py (rewritten, ~380 lines)
+**Notes:**
+- wind_forecast/train.py: 6 wind-specific features added (lags 1-12, 4h rolling stats, ramp rate, capacity factor, high/low wind flags). Optuna 50 trials, MedianPruner, MAE objective. MAPE target <8%. Feature importances logged as JSON. Unit test mode with synthetic sine-wave wind data. Alias = "production".
+- solar_forecast/train.py: 7 solar-specific features (lags, capacity factor, daylight flag, sun angle proxy, season sin/cos, cloud proxy). Night interval exclusion from training to prevent trivial-zero fitting. Optuna 50 trials, MAE objective. MAPE target <10%. Alias = "production".

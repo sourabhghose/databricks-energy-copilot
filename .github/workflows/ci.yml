@@ -15,6 +15,7 @@ jobs:
       DATABRICKS_HOST: https://dummy.azuredatabricks.net
       DATABRICKS_TOKEN: dummy
       ANTHROPIC_API_KEY: dummy
+      PYTHONPATH: .
 
     steps:
       - name: Checkout code
