@@ -97,6 +97,9 @@ import NetworkConstraints from './pages/NetworkConstraints'
 import PriceSetterAnalytics from './pages/PriceSetterAnalytics'
 import TariffAnalytics from './pages/TariffAnalytics'
 import GridModernisation from './pages/GridModernisation'
+import WemOverview from './pages/WemOverview'
+import CauserPays from './pages/CauserPays'
+import SpotCapAnalytics from './pages/SpotCapAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -155,6 +158,9 @@ const NAV_ITEMS = [
   { to: '/price-setter',   label: 'Price Setter',       Icon: Target         },
   { to: '/tariff',         label: 'Tariff Analytics',   Icon: Receipt        },
   { to: '/grid-mod',       label: 'Grid Modernisation', Icon: Wifi           },
+  { to: '/spot-cap',       label: 'Price Cap & CPT',   Icon: AlertTriangle  },
+  { to: '/causer-pays',    label: 'Causer Pays',        Icon: Gauge          },
+  { to: '/wem',            label: 'WEM Market',        Icon: Building2      },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -288,6 +294,9 @@ export default function App() {
               <Route path="/price-setter" element={<PriceSetterAnalytics />} />
               <Route path="/tariff"       element={<TariffAnalytics />}    />
               <Route path="/grid-mod"     element={<GridModernisation />}  />
+              <Route path="/spot-cap"      element={<SpotCapAnalytics />} />
+              <Route path="/causer-pays" element={<CauserPays />}       />
+              <Route path="/wem"          element={<WemOverview />}         />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

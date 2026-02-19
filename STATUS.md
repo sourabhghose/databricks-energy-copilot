@@ -571,3 +571,18 @@
 - GET /api/grid-modernisation/dashboard, /smart-meters, /projects
 - GridModernisation.tsx (~520 lines): penetration BarChart, SAIDI reliability, smart meter table, projects table
 - 4 tests in TestGridModernisationEndpoints
+
+## Sprint 29a — Spot Price Cap & CPT Analytics [COMPLETE]
+- SpotCapAnalytics.tsx: CPT tracker, cap/floor events, regional summary table
+- /api/spot-cap/dashboard, /cpt-tracker, /cap-events
+- 4 TestSpotCapEndpoints tests
+
+## Sprint 29b — Causer Pays & FCAS Performance Analytics [COMPLETE]
+- CauserPays.tsx: performance factor chart, contributors table, FCAS market summary
+- /api/causer-pays/dashboard, /contributors, /performance
+- 4 TestCauserPaysEndpoints tests
+
+## Sprint 29c — WEM Western Australia Energy Market [COMPLETE]
+- WemOverview.tsx: balancing price chart, facility table with tech filter, reserve capacity (SRMC) chart
+- /api/wem/dashboard, /prices, /facilities endpoints
+- 4 TestWemEndpoints tests

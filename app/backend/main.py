@@ -18683,3 +18683,642 @@ def get_grid_mod_projects(
         projects = [p for p in projects if p.status == status]
     _cache_set(cache_key, projects, _TTL_GRID_MOD)
     return projects
+
+# ---------------------------------------------------------------------------
+# Sprint 29a — Spot Price Cap & Cumulative Price Threshold (CPT) Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_SPOT_CAP = 300
+
+import random as _rand_cap
+
+class SpotCapEvent(BaseModel):
+    event_id: str
+    region: str
+    trading_interval: str
+    spot_price: float
+    market_price_cap: float
+    below_floor: bool
+    floor_price: float
+    cumulative_price_at_interval: float
+    dispatch_intervals_capped: int
+
+class CptTrackerRecord(BaseModel):
+    region: str
+    trading_date: str
+    cumulative_price: float
+    cpt_threshold: float
+    pct_of_cpt: float
+    daily_avg_price: float
+    cap_events_today: int
+    floor_events_today: int
+    days_until_reset: int
+    quarter: str
+
+class SpotCapSummary(BaseModel):
+    region: str
+    year: int
+    total_cap_events: int
+    total_floor_events: int
+    avg_price_during_cap_events: float
+    max_cumulative_price: float
+    cpt_breaches: int
+    total_cpt_periods: int
+    revenue_impact_m_aud: float
+
+class SpotCapDashboard(BaseModel):
+    timestamp: str
+    market_price_cap_aud: float
+    market_floor_price_aud: float
+    cumulative_price_threshold_aud: float
+    cpt_period_days: int
+    national_cap_events_ytd: int
+    national_floor_events_ytd: int
+    active_cpt_regions: List[str]
+    cap_events: List[SpotCapEvent]
+    cpt_tracker: List[CptTrackerRecord]
+    regional_summaries: List[SpotCapSummary]
+
+def _make_spot_cap_events() -> List[SpotCapEvent]:
+    import random as r
+    events = []
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    for i in range(20):
+        region = r.choice(regions)
+        dt = f"2025-{r.randint(1,12):02d}-{r.randint(1,28):02d}T{r.randint(0,23):02d}:{'00' if r.random()>0.5 else '30'}:00"
+        is_cap = r.random() > 0.3
+        spot = 15500.0 if is_cap else round(-r.uniform(50, 1000), 2)
+        floor = -1000.0
+        events.append(SpotCapEvent(
+            event_id=f"CAP-{i+1:04d}",
+            region=region,
+            trading_interval=dt,
+            spot_price=spot,
+            market_price_cap=15500.0,
+            below_floor=not is_cap,
+            floor_price=floor,
+            cumulative_price_at_interval=round(r.uniform(200, 280000), 2),
+            dispatch_intervals_capped=r.randint(1, 12) if is_cap else 0,
+        ))
+    return events
+
+def _make_cpt_tracker() -> List[CptTrackerRecord]:
+    import random as r
+    records = []
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    quarters = ["Q1-2025", "Q2-2025", "Q3-2025", "Q4-2025"]
+    for region in regions:
+        for q_idx, quarter in enumerate(quarters):
+            cum_price = round(r.uniform(5000, 270000), 2)
+            records.append(CptTrackerRecord(
+                region=region,
+                trading_date=f"2025-{(q_idx*3+2):02d}-15",
+                cumulative_price=cum_price,
+                cpt_threshold=1300000.0,
+                pct_of_cpt=round(cum_price / 13000, 2),
+                daily_avg_price=round(r.uniform(50, 250), 2),
+                cap_events_today=r.randint(0, 5),
+                floor_events_today=r.randint(0, 3),
+                days_until_reset=r.randint(1, 90),
+                quarter=quarter,
+            ))
+    return records
+
+def _make_spot_cap_summaries() -> List[SpotCapSummary]:
+    import random as r
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    return [
+        SpotCapSummary(
+            region=reg,
+            year=2025,
+            total_cap_events=r.randint(5, 80),
+            total_floor_events=r.randint(2, 30),
+            avg_price_during_cap_events=round(r.uniform(12000, 15500), 2),
+            max_cumulative_price=round(r.uniform(80000, 260000), 2),
+            cpt_breaches=r.randint(0, 3),
+            total_cpt_periods=4,
+            revenue_impact_m_aud=round(r.uniform(5, 120), 2),
+        )
+        for reg in regions
+    ]
+
+def _make_spot_cap_dashboard() -> SpotCapDashboard:
+    import random as r
+    events = _make_spot_cap_events()
+    tracker = _make_cpt_tracker()
+    summaries = _make_spot_cap_summaries()
+    active_cpt = [s.region for s in summaries if s.max_cumulative_price > 200000]
+    return SpotCapDashboard(
+        timestamp=_now_aest(),
+        market_price_cap_aud=15500.0,
+        market_floor_price_aud=-1000.0,
+        cumulative_price_threshold_aud=1300000.0,
+        cpt_period_days=7,
+        national_cap_events_ytd=sum(s.total_cap_events for s in summaries),
+        national_floor_events_ytd=sum(s.total_floor_events for s in summaries),
+        active_cpt_regions=active_cpt,
+        cap_events=events,
+        cpt_tracker=tracker,
+        regional_summaries=summaries,
+    )
+
+
+@app.get(
+    "/api/spot-cap/dashboard",
+    response_model=SpotCapDashboard,
+    summary="Spot Price Cap & CPT Analytics dashboard",
+    tags=["Spot Cap"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_spot_cap_dashboard():
+    cached = _cache_get("spot_cap:dashboard")
+    if cached:
+        return cached
+    data = _make_spot_cap_dashboard()
+    _cache_set("spot_cap:dashboard", data, _TTL_SPOT_CAP)
+    return data
+
+
+@app.get(
+    "/api/spot-cap/cpt-tracker",
+    response_model=List[CptTrackerRecord],
+    summary="CPT tracker records by region and quarter",
+    tags=["Spot Cap"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_cpt_tracker(region: Optional[str] = None, quarter: Optional[str] = None):
+    cache_key = f"spot_cap:cpt_tracker:{region}:{quarter}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_cpt_tracker()
+    if region:
+        records = [r for r in records if r.region == region]
+    if quarter:
+        records = [r for r in records if r.quarter == quarter]
+    _cache_set(cache_key, records, _TTL_SPOT_CAP)
+    return records
+
+
+@app.get(
+    "/api/spot-cap/cap-events",
+    response_model=List[SpotCapEvent],
+    summary="Historical price cap and floor events",
+    tags=["Spot Cap"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_cap_events(region: Optional[str] = None):
+    cache_key = f"spot_cap:cap_events:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    events = _make_spot_cap_events()
+    if region:
+        events = [e for e in events if e.region == region]
+    _cache_set(cache_key, events, _TTL_SPOT_CAP)
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Sprint 29b — Causer Pays & FCAS Performance Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_CAUSER_PAYS = 600
+
+
+class CauserPaysContributor(BaseModel):
+    participant_id: str
+    participant_name: str
+    region: str
+    fuel_type: str
+    fcas_service: str
+    contribution_mw: float
+    causer_pays_unit: str
+    deviation_mw: float
+    enablement_mw: float
+    performance_factor: float
+    causer_pays_amount_aud: float
+    period: str
+
+
+class FcasPerformanceRecord(BaseModel):
+    unit_id: str
+    participant_name: str
+    region: str
+    fuel_type: str
+    service: str
+    enablement_min_mw: float
+    enablement_max_mw: float
+    actual_response_mw: float
+    required_response_mw: float
+    performance_factor: float
+    mlf: float
+    causer_pays_eligible: bool
+    total_payments_aud: float
+    quarter: str
+
+
+class FcasMarketSummary(BaseModel):
+    service: str
+    region: str
+    quarter: str
+    total_volume_mw: float
+    total_cost_aud: float
+    avg_price_aud_mwh: float
+    causer_pays_pool_aud: float
+    num_providers: int
+    concentration_hhi: float
+
+
+class CauserPaysDashboard(BaseModel):
+    timestamp: str
+    total_causer_pays_pool_ytd_aud: float
+    avg_performance_factor: float
+    num_active_providers: int
+    highest_performing_participant: str
+    contributors: List[CauserPaysContributor]
+    performance_records: List[FcasPerformanceRecord]
+    market_summaries: List[FcasMarketSummary]
+
+
+def _make_causer_pays_contributors() -> List[CauserPaysContributor]:
+    import random as r
+    services = ["RAISE6SEC", "RAISE60SEC", "RAISE5MIN", "LOWER6SEC", "LOWER60SEC", "LOWER5MIN"]
+    participants = [
+        ("AGL001", "AGL Energy", "NSW1", "GAS"),
+        ("ORG001", "Origin Energy", "QLD1", "COAL"),
+        ("ENA001", "Engie", "VIC1", "GAS"),
+        ("NER001", "Neoen", "SA1", "WIND"),
+        ("IHR001", "Infigen", "NSW1", "WIND"),
+        ("SFP001", "Snowy Hydro", "NSW1", "HYDRO"),
+        ("TAS001", "Hydro Tasmania", "TAS1", "HYDRO"),
+        ("LYD001", "Loy Yang A", "VIC1", "COAL"),
+    ]
+    contributors = []
+    for i, (pid, pname, region, fuel) in enumerate(participants):
+        service = services[i % len(services)]
+        enablement = round(r.uniform(20, 150), 2)
+        deviation = round(r.uniform(-10, 10), 2)
+        perf = round(max(0.3, min(1.0, 1.0 - abs(deviation) / enablement)), 4)
+        contributors.append(CauserPaysContributor(
+            participant_id=pid,
+            participant_name=pname,
+            region=region,
+            fuel_type=fuel,
+            fcas_service=service,
+            contribution_mw=round(r.uniform(5, 80), 2),
+            causer_pays_unit="$/MW",
+            deviation_mw=deviation,
+            enablement_mw=enablement,
+            performance_factor=perf,
+            causer_pays_amount_aud=round(r.uniform(500, 25000), 2),
+            period="Q4-2025",
+        ))
+    return contributors
+
+
+def _make_fcas_performance_records() -> List[FcasPerformanceRecord]:
+    import random as r
+    services = ["RAISE6SEC", "RAISE60SEC", "RAISE5MIN", "LOWER6SEC", "LOWER60SEC"]
+    units = [
+        ("BW01", "AGL Energy", "NSW1", "GAS"),
+        ("ER01", "Origin Energy", "QLD1", "COAL"),
+        ("VT01", "Engie", "VIC1", "GAS"),
+        ("HP01", "Neoen", "SA1", "WIND"),
+        ("SH01", "Snowy Hydro", "NSW1", "HYDRO"),
+        ("HT01", "Hydro Tasmania", "TAS1", "HYDRO"),
+        ("LY01", "Loy Yang A", "VIC1", "COAL"),
+        ("LY02", "Loy Yang B", "VIC1", "COAL"),
+        ("GG01", "Pelican Point", "SA1", "GAS"),
+        ("WP01", "Westwind", "SA1", "WIND"),
+    ]
+    records = []
+    for uid, pname, region, fuel in units:
+        service = r.choice(services)
+        req = round(r.uniform(10, 100), 2)
+        actual = round(req * r.uniform(0.7, 1.1), 2)
+        pf = round(min(1.0, actual / req), 4)
+        records.append(FcasPerformanceRecord(
+            unit_id=uid,
+            participant_name=pname,
+            region=region,
+            fuel_type=fuel,
+            service=service,
+            enablement_min_mw=round(r.uniform(0, 10), 2),
+            enablement_max_mw=round(r.uniform(50, 150), 2),
+            actual_response_mw=actual,
+            required_response_mw=req,
+            performance_factor=pf,
+            mlf=round(r.uniform(0.9, 1.05), 4),
+            causer_pays_eligible=pf >= 0.8,
+            total_payments_aud=round(r.uniform(1000, 50000), 2),
+            quarter="Q4-2025",
+        ))
+    return records
+
+
+def _make_fcas_market_summaries() -> List[FcasMarketSummary]:
+    import random as r
+    services = ["RAISE6SEC", "RAISE60SEC", "RAISE5MIN", "LOWER6SEC", "LOWER60SEC", "LOWER5MIN",
+                "RAISEREG", "LOWERREG"]
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    summaries = []
+    for service in services:
+        region = r.choice(regions)
+        vol = round(r.uniform(50, 500), 2)
+        price = round(r.uniform(2, 80), 2)
+        summaries.append(FcasMarketSummary(
+            service=service,
+            region=region,
+            quarter="Q4-2025",
+            total_volume_mw=vol,
+            total_cost_aud=round(vol * price * 4 * 365 / 4, 2),
+            avg_price_aud_mwh=price,
+            causer_pays_pool_aud=round(r.uniform(50000, 2000000), 2),
+            num_providers=r.randint(3, 15),
+            concentration_hhi=round(r.uniform(800, 3500), 1),
+        ))
+    return summaries
+
+
+def _make_causer_pays_dashboard() -> CauserPaysDashboard:
+    import random as r
+    contributors = _make_causer_pays_contributors()
+    performance = _make_fcas_performance_records()
+    summaries = _make_fcas_market_summaries()
+    best = max(contributors, key=lambda c: c.performance_factor)
+    return CauserPaysDashboard(
+        timestamp=_now_aest(),
+        total_causer_pays_pool_ytd_aud=round(r.uniform(5_000_000, 25_000_000), 2),
+        avg_performance_factor=round(sum(c.performance_factor for c in contributors) / len(contributors), 4),
+        num_active_providers=len({c.participant_id for c in contributors}),
+        highest_performing_participant=best.participant_name,
+        contributors=contributors,
+        performance_records=performance,
+        market_summaries=summaries,
+    )
+
+
+@app.get(
+    "/api/causer-pays/dashboard",
+    response_model=CauserPaysDashboard,
+    summary="Causer Pays & FCAS Performance dashboard",
+    tags=["Causer Pays"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_causer_pays_dashboard():
+    cached = _cache_get("causer_pays:dashboard")
+    if cached:
+        return cached
+    data = _make_causer_pays_dashboard()
+    _cache_set("causer_pays:dashboard", data, _TTL_CAUSER_PAYS)
+    return data
+
+
+@app.get(
+    "/api/causer-pays/contributors",
+    response_model=List[CauserPaysContributor],
+    summary="Causer pays contributor records",
+    tags=["Causer Pays"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_causer_pays_contributors(region: Optional[str] = None, service: Optional[str] = None):
+    cache_key = f"causer_pays:contributors:{region}:{service}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_causer_pays_contributors()
+    if region:
+        records = [r for r in records if r.region == region]
+    if service:
+        records = [r for r in records if r.fcas_service == service]
+    _cache_set(cache_key, records, _TTL_CAUSER_PAYS)
+    return records
+
+
+@app.get(
+    "/api/causer-pays/performance",
+    response_model=List[FcasPerformanceRecord],
+    summary="FCAS unit performance records",
+    tags=["Causer Pays"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_fcas_performance(region: Optional[str] = None, service: Optional[str] = None):
+    cache_key = f"causer_pays:performance:{region}:{service}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_fcas_performance_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    if service:
+        records = [r for r in records if r.service == service]
+    _cache_set(cache_key, records, _TTL_CAUSER_PAYS)
+    return records
+
+# ---------------------------------------------------------------------------
+# Sprint 29c — WEM (Western Australia Energy Market) Overview
+# ---------------------------------------------------------------------------
+
+_TTL_WEM = 300
+
+
+class WemBalancingPrice(BaseModel):
+    trading_interval: str
+    balancing_price_aud: float
+    reference_price_aud: float
+    mcap_aud: float
+    load_forecast_mw: float
+    actual_load_mw: float
+    reserves_mw: float
+    facility_count: int
+
+
+class WemFacility(BaseModel):
+    facility_id: str
+    facility_name: str
+    participant: str
+    technology: str
+    registered_capacity_mw: float
+    accredited_capacity_mw: float
+    lpf: float  # Load following facility flag as float (1=yes, 0=no)
+    balancing_flag: bool
+    region: str
+    commissioning_year: int
+    capacity_credit_mw: float
+
+
+class WemSrMcRecord(BaseModel):
+    year: int
+    reserve_capacity_requirement_mw: float
+    certified_reserve_capacity_mw: float
+    surplus_deficit_mw: float
+    srmc_aud_per_mwh: float
+    max_reserve_capacity_price_aud: float
+    rcp_outcome_aud: float
+    num_accredited_facilities: int
+
+
+class WemDashboard(BaseModel):
+    timestamp: str
+    current_balancing_price_aud: float
+    reference_price_aud: float
+    mcap_aud: float
+    current_load_mw: float
+    spinning_reserve_mw: float
+    total_registered_capacity_mw: float
+    renewable_penetration_pct: float
+    num_registered_facilities: int
+    balancing_prices: List[WemBalancingPrice]
+    facilities: List[WemFacility]
+    srmc_records: List[WemSrMcRecord]
+
+
+def _make_wem_balancing_prices() -> List[WemBalancingPrice]:
+    import random as r
+    prices = []
+    for i in range(48):
+        hour = i // 2
+        minute = "00" if i % 2 == 0 else "30"
+        prices.append(WemBalancingPrice(
+            trading_interval=f"2025-12-01T{hour:02d}:{minute}:00",
+            balancing_price_aud=round(r.uniform(30, 300), 2),
+            reference_price_aud=round(r.uniform(50, 200), 2),
+            mcap_aud=300.0,
+            load_forecast_mw=round(r.uniform(1600, 2800), 2),
+            actual_load_mw=round(r.uniform(1550, 2850), 2),
+            reserves_mw=round(r.uniform(150, 400), 2),
+            facility_count=r.randint(50, 80),
+        ))
+    return prices
+
+
+def _make_wem_facilities() -> List[WemFacility]:
+    import random as r
+    facilities_data = [
+        ("MUJA_G5", "Muja G5", "Synergy", "COAL", 200.0),
+        ("MUJA_G6", "Muja G6", "Synergy", "COAL", 200.0),
+        ("COLLIE_G1", "Collie G1", "Griffin Energy", "COAL", 340.0),
+        ("COCKBURN_GT1", "Cockburn GT1", "Synergy", "GAS_CCGT", 240.0),
+        ("KWINANA_GT1", "Kwinana GT1", "Synergy", "GAS_GT", 180.0),
+        ("PPP_KWI", "Pinjar Gas Turbines", "Synergy", "GAS_GT", 588.0),
+        ("NEWGEN_NEERABUP", "Neerabup GT", "NewGen", "GAS_GT", 330.0),
+        ("ALCOA_WP", "Wagerup Power", "Alcoa", "GAS_COGEN", 110.0),
+        ("AMBRISOLAR", "Ambrisolar Farm", "Alinta", "SOLAR", 10.0),
+        ("YANDIN_WF", "Yandin Wind Farm", "CWP", "WIND", 214.0),
+        ("WARRADARGE_WF", "Warradarge Wind", "Bright Energy", "WIND", 231.0),
+        ("BADGINGARRA_WF", "Badgingarra Wind", "Bright Energy", "WIND", 130.0),
+        ("COOGEE_BESS", "Coogee BESS", "Synergy", "BATTERY", 50.0),
+        ("ALKIMOS_BESS", "Alkimos BESS", "AGL", "BATTERY", 100.0),
+        ("GREENOUGH_SOLAR", "Greenough River Solar", "ERM Power", "SOLAR", 10.0),
+        ("MERREDIN_BESS", "Merredin BESS", "Synergy", "BATTERY", 20.0),
+    ]
+    return [
+        WemFacility(
+            facility_id=fid,
+            facility_name=fname,
+            participant=part,
+            technology=tech,
+            registered_capacity_mw=cap,
+            accredited_capacity_mw=round(cap * r.uniform(0.85, 1.0), 2),
+            lpf=1.0 if tech not in ("SOLAR", "WIND") else 0.0,
+            balancing_flag=tech not in ("SOLAR",),
+            region="WEM",
+            commissioning_year=r.randint(2001, 2024),
+            capacity_credit_mw=round(cap * r.uniform(0.5, 0.95), 2) if tech not in ("SOLAR",) else round(cap * 0.1, 2),
+        )
+        for fid, fname, part, tech, cap in facilities_data
+    ]
+
+
+def _make_wem_srmc_records() -> List[WemSrMcRecord]:
+    import random as r
+    records = []
+    for year in range(2020, 2026):
+        rcr = round(r.uniform(3500, 4500), 2)
+        crc = round(rcr * r.uniform(0.95, 1.10), 2)
+        records.append(WemSrMcRecord(
+            year=year,
+            reserve_capacity_requirement_mw=rcr,
+            certified_reserve_capacity_mw=crc,
+            surplus_deficit_mw=round(crc - rcr, 2),
+            srmc_aud_per_mwh=round(r.uniform(25, 65), 2),
+            max_reserve_capacity_price_aud=round(r.uniform(140000, 190000), 2),
+            rcp_outcome_aud=round(r.uniform(100000, 185000), 2),
+            num_accredited_facilities=r.randint(45, 80),
+        ))
+    return records
+
+
+def _make_wem_dashboard() -> WemDashboard:
+    import random as r
+    prices = _make_wem_balancing_prices()
+    facilities = _make_wem_facilities()
+    srmc = _make_wem_srmc_records()
+    renewables = sum(f.registered_capacity_mw for f in facilities if f.technology in ("WIND", "SOLAR", "BATTERY"))
+    total = sum(f.registered_capacity_mw for f in facilities)
+    return WemDashboard(
+        timestamp=_now_aest(),
+        current_balancing_price_aud=prices[-1].balancing_price_aud,
+        reference_price_aud=prices[-1].reference_price_aud,
+        mcap_aud=300.0,
+        current_load_mw=prices[-1].actual_load_mw,
+        spinning_reserve_mw=prices[-1].reserves_mw,
+        total_registered_capacity_mw=round(total, 2),
+        renewable_penetration_pct=round(renewables / total * 100, 2),
+        num_registered_facilities=len(facilities),
+        balancing_prices=prices,
+        facilities=facilities,
+        srmc_records=srmc,
+    )
+
+
+@app.get(
+    "/api/wem/dashboard",
+    response_model=WemDashboard,
+    summary="WEM Western Australia Energy Market dashboard",
+    tags=["WEM"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wem_dashboard():
+    cached = _cache_get("wem:dashboard")
+    if cached:
+        return cached
+    data = _make_wem_dashboard()
+    _cache_set("wem:dashboard", data, _TTL_WEM)
+    return data
+
+
+@app.get(
+    "/api/wem/prices",
+    response_model=List[WemBalancingPrice],
+    summary="WEM balancing price time series",
+    tags=["WEM"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wem_prices():
+    cached = _cache_get("wem:prices")
+    if cached:
+        return cached
+    data = _make_wem_balancing_prices()
+    _cache_set("wem:prices", data, _TTL_WEM)
+    return data
+
+
+@app.get(
+    "/api/wem/facilities",
+    response_model=List[WemFacility],
+    summary="WEM registered facilities list",
+    tags=["WEM"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wem_facilities(technology: Optional[str] = None):
+    cache_key = f"wem:facilities:{technology}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    facilities = _make_wem_facilities()
+    if technology:
+        facilities = [f for f in facilities if f.technology == technology]
+    _cache_set(cache_key, facilities, _TTL_WEM)
+    return facilities

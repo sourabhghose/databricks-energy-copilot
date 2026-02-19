@@ -1631,6 +1631,30 @@ export interface NetworkReliabilityStats { dnsp: string; state: string; year: nu
 export interface GridModernisationDashboard { timestamp: string; national_smart_meter_pct: number; tou_tariff_adoption_pct: number; interval_data_coverage_pct: number; total_grid_mod_investment_m_aud: number; projects_underway: number; avg_saidi_minutes: number; smart_meter_records: SmartMeterRecord[]; grid_mod_projects: GridModernisationProject[]; reliability_stats: NetworkReliabilityStats[] }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Sprint 29a — Spot Price Cap & CPT Analytics interfaces
+// ---------------------------------------------------------------------------
+export interface SpotCapEvent { event_id: string; region: string; trading_interval: string; spot_price: number; market_price_cap: number; below_floor: boolean; floor_price: number; cumulative_price_at_interval: number; dispatch_intervals_capped: number }
+export interface CptTrackerRecord { region: string; trading_date: string; cumulative_price: number; cpt_threshold: number; pct_of_cpt: number; daily_avg_price: number; cap_events_today: number; floor_events_today: number; days_until_reset: number; quarter: string }
+export interface SpotCapSummary { region: string; year: number; total_cap_events: number; total_floor_events: number; avg_price_during_cap_events: number; max_cumulative_price: number; cpt_breaches: number; total_cpt_periods: number; revenue_impact_m_aud: number }
+export interface SpotCapDashboard { timestamp: string; market_price_cap_aud: number; market_floor_price_aud: number; cumulative_price_threshold_aud: number; cpt_period_days: number; national_cap_events_ytd: number; national_floor_events_ytd: number; active_cpt_regions: string[]; cap_events: SpotCapEvent[]; cpt_tracker: CptTrackerRecord[]; regional_summaries: SpotCapSummary[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 29c — WEM Western Australia Energy Market interfaces
+// ---------------------------------------------------------------------------
+export interface WemBalancingPrice { trading_interval: string; balancing_price_aud: number; reference_price_aud: number; mcap_aud: number; load_forecast_mw: number; actual_load_mw: number; reserves_mw: number; facility_count: number }
+export interface WemFacility { facility_id: string; facility_name: string; participant: string; technology: string; registered_capacity_mw: number; accredited_capacity_mw: number; lpf: number; balancing_flag: boolean; region: string; commissioning_year: number; capacity_credit_mw: number }
+export interface WemSrMcRecord { year: number; reserve_capacity_requirement_mw: number; certified_reserve_capacity_mw: number; surplus_deficit_mw: number; srmc_aud_per_mwh: number; max_reserve_capacity_price_aud: number; rcp_outcome_aud: number; num_accredited_facilities: number }
+export interface WemDashboard { timestamp: string; current_balancing_price_aud: number; reference_price_aud: number; mcap_aud: number; current_load_mw: number; spinning_reserve_mw: number; total_registered_capacity_mw: number; renewable_penetration_pct: number; num_registered_facilities: number; balancing_prices: WemBalancingPrice[]; facilities: WemFacility[]; srmc_records: WemSrMcRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 29b — Causer Pays & FCAS Performance interfaces
+// ---------------------------------------------------------------------------
+export interface CauserPaysContributor { participant_id: string; participant_name: string; region: string; fuel_type: string; fcas_service: string; contribution_mw: number; causer_pays_unit: string; deviation_mw: number; enablement_mw: number; performance_factor: number; causer_pays_amount_aud: number; period: string }
+export interface FcasPerformanceRecord { unit_id: string; participant_name: string; region: string; fuel_type: string; service: string; enablement_min_mw: number; enablement_max_mw: number; actual_response_mw: number; required_response_mw: number; performance_factor: number; mlf: number; causer_pays_eligible: boolean; total_payments_aud: number; quarter: string }
+export interface FcasMarketSummary { service: string; region: string; quarter: string; total_volume_mw: number; total_cost_aud: number; avg_price_aud_mwh: number; causer_pays_pool_aud: number; num_providers: number; concentration_hhi: number }
+export interface CauserPaysDashboard { timestamp: string; total_causer_pays_pool_ytd_aud: number; avg_performance_factor: number; num_active_providers: number; highest_performing_participant: string; contributors: CauserPaysContributor[]; performance_records: FcasPerformanceRecord[]; market_summaries: FcasMarketSummary[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2948,6 +2972,44 @@ export const api = {
     if (params?.status) qs.append('status', params.status)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<GridModernisationProject[]>(`/api/grid-modernisation/projects${query}`)
+  },
+
+  getSpotCapDashboard: () => get<SpotCapDashboard>('/api/spot-cap/dashboard'),
+  getCptTracker: (params?: { region?: string; quarter?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.quarter) qs.append('quarter', params.quarter)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<CptTrackerRecord[]>(`/api/spot-cap/cpt-tracker${query}`)
+  },
+  getCapEvents: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<SpotCapEvent[]>(`/api/spot-cap/cap-events${query}`)
+  },
+  getWemDashboard: () => get<WemDashboard>('/api/wem/dashboard'),
+  getWemPrices: () => get<WemBalancingPrice[]>('/api/wem/prices'),
+  getWemFacilities: (params?: { technology?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.technology) qs.append('technology', params.technology)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<WemFacility[]>(`/api/wem/facilities${query}`)
+  },
+  getCauserPaysDashboard: () => get<CauserPaysDashboard>('/api/causer-pays/dashboard'),
+  getCauserPaysContributors: (params?: { region?: string; service?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.service) qs.append('service', params.service)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<CauserPaysContributor[]>(`/api/causer-pays/contributors${query}`)
+  },
+  getFcasPerformance: (params?: { region?: string; service?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.service) qs.append('service', params.service)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<FcasPerformanceRecord[]>(`/api/causer-pays/performance${query}`)
   },
 }
 

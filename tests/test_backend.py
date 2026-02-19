@@ -2557,3 +2557,113 @@ class TestTariffEndpoints:
         assert r.status_code == 200
         for c in r.json():
             assert c["state"] == "SA"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 29a — Spot Price Cap & CPT Analytics
+# ---------------------------------------------------------------------------
+
+class TestSpotCapEndpoints:
+    def test_spot_cap_dashboard_returns_200(self, client=client):
+        r = client.get("/api/spot-cap/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "cap_events" in d
+        assert "cpt_tracker" in d
+        assert "regional_summaries" in d
+        assert d["market_price_cap_aud"] == 15500.0
+
+    def test_cpt_tracker_list(self, client=client):
+        r = client.get("/api/spot-cap/cpt-tracker")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 5
+        for rec in records:
+            assert 0 <= rec["pct_of_cpt"] <= 110
+
+    def test_cap_events_list(self, client=client):
+        r = client.get("/api/spot-cap/cap-events")
+        assert r.status_code == 200
+        events = r.json()
+        assert len(events) >= 5
+
+    def test_cap_events_region_filter(self, client=client):
+        r = client.get("/api/spot-cap/cap-events?region=SA1")
+        assert r.status_code == 200
+        for e in r.json():
+            assert e["region"] == "SA1"
+
+
+
+# ---------------------------------------------------------------------------
+# Sprint 29b — Causer Pays & FCAS Performance Analytics
+# ---------------------------------------------------------------------------
+
+class TestCauserPaysEndpoints:
+    def test_causer_pays_dashboard_returns_200(self, client=client):
+        r = client.get("/api/causer-pays/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "contributors" in d
+        assert "performance_records" in d
+        assert "market_summaries" in d
+        assert d["avg_performance_factor"] > 0
+
+    def test_contributors_list(self, client=client):
+        r = client.get("/api/causer-pays/contributors")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 4
+        for rec in records:
+            assert 0 <= rec["performance_factor"] <= 1.0
+
+    def test_fcas_performance_list(self, client=client):
+        r = client.get("/api/causer-pays/performance")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 5
+        for rec in records:
+            assert rec["performance_factor"] <= 1.0
+
+    def test_causer_pays_region_filter(self, client=client):
+        r = client.get("/api/causer-pays/contributors?region=NSW1")
+        assert r.status_code == 200
+        for c in r.json():
+            assert c["region"] == "NSW1"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 29c — WEM Western Australia Energy Market
+# ---------------------------------------------------------------------------
+
+class TestWemEndpoints:
+    def test_wem_dashboard_returns_200(self, client=client):
+        r = client.get("/api/wem/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "balancing_prices" in d
+        assert "facilities" in d
+        assert "srmc_records" in d
+        assert d["mcap_aud"] == 300.0
+
+    def test_wem_prices_list(self, client=client):
+        r = client.get("/api/wem/prices")
+        assert r.status_code == 200
+        prices = r.json()
+        assert len(prices) == 48
+        for p in prices:
+            assert p["balancing_price_aud"] <= 300.0
+
+    def test_wem_facilities_list(self, client=client):
+        r = client.get("/api/wem/facilities")
+        assert r.status_code == 200
+        facilities = r.json()
+        assert len(facilities) >= 10
+        techs = {f["technology"] for f in facilities}
+        assert "COAL" in techs or "GAS_GT" in techs
+
+    def test_wem_facilities_technology_filter(self, client=client):
+        r = client.get("/api/wem/facilities?technology=WIND")
+        assert r.status_code == 200
+        for f in r.json():
+            assert f["technology"] == "WIND"
