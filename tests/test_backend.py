@@ -511,3 +511,78 @@ class TestSessionEndpoints:
             json={"rating": 6},
         )
         assert response.status_code == 422
+
+
+# ===========================================================================
+# TestAlertEndpoints
+# ===========================================================================
+
+class TestAlertEndpoints:
+    """Tests for alert history and notification endpoints."""
+
+    def test_alert_history_returns_list(self):
+        """GET /api/alerts/history returns 200 with a list of trigger events."""
+        response = client.get("/api/alerts/history")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_alert_stats_returns_expected_keys(self):
+        """GET /api/alerts/stats returns 200 with required summary keys."""
+        response = client.get("/api/alerts/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_alerts" in data
+        assert "triggered_last_24h" in data
+        assert "notifications_sent" in data
+
+    def test_test_notification_in_mock_mode(self):
+        """POST /api/alerts/test-notification returns success in mock mode."""
+        response = client.post("/api/alerts/test-notification", json={
+            "channel": "slack",
+            "test_message": "test"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["channel"] == "slack"
+
+
+# ===========================================================================
+# TestForecastEndpoints
+# ===========================================================================
+
+class TestForecastEndpoints:
+    """Tests for forecast endpoints including CI fields."""
+
+    def test_forecasts_include_ci_fields(self):
+        """GET /api/forecasts includes price_p10 and price_p90 fields."""
+        response = client.get("/api/forecasts?region=NSW1&horizon=1hr")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) > 0
+        # Each forecast record should include confidence interval fields
+        first = data[0]
+        assert "price_forecast" in first or "predicted_rrp" in first
+        assert "price_p10" in first
+        assert "price_p90" in first
+
+    def test_forecasts_summary_endpoint(self):
+        """GET /api/forecasts/summary returns 200 with MAPE values."""
+        response = client.get("/api/forecasts/summary")
+        assert response.status_code == 200
+        data = response.json()
+        assert "price_mape_1hr" in data
+        assert "price_mape_4hr" in data
+        assert "models_loaded" in data
+        assert data["models_loaded"] == 20
+
+    def test_forecast_ci_ordering(self):
+        """price_p10 should be <= predicted_rrp <= price_p90."""
+        response = client.get("/api/forecasts?region=NSW1&horizon=4hr")
+        assert response.status_code == 200
+        data = response.json()
+        for record in data:
+            if record.get("price_p10") and record.get("price_p90"):
+                assert record["price_p10"] <= record["predicted_rrp"]
+                assert record["predicted_rrp"] <= record["price_p90"]

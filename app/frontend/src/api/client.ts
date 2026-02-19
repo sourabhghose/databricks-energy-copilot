@@ -20,6 +20,25 @@ export interface ForecastPoint {
   predicted: number
   lower: number
   upper: number
+  price_p10?: number
+  price_p90?: number
+  demand_p10?: number
+  demand_p90?: number
+  forecast_confidence?: number
+}
+
+export interface ForecastSummary {
+  regions: string[]
+  horizons_available: number[]
+  models_loaded: number
+  avg_confidence: number
+  price_mape_1hr: number
+  price_mape_4hr: number
+  price_mape_24hr: number
+  demand_mape_1hr: number
+  demand_mape_4hr: number
+  demand_mape_24hr: number
+  last_evaluation: string
 }
 
 export interface Alert {
@@ -98,6 +117,23 @@ export interface RegionComparisonPoint {
   TAS1?: number;
 }
 
+export interface ConstraintRecord {
+  interval_datetime: string;
+  constraintid: string;
+  rhs: number;
+  marginalvalue: number;
+  violationdegree: number;
+}
+
+export interface FcasRecord {
+  interval_datetime: string;
+  regionid: string;
+  service: string;
+  totaldemand: number;
+  clearedmw: number;
+  rrp: number;
+}
+
 export interface SessionMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -113,6 +149,26 @@ export interface CopilotSession {
   total_tokens: number;
   messages?: SessionMessage[];
   rating?: number;
+}
+
+export interface AlertTriggerEvent {
+  event_id: string;
+  alert_id: string;
+  triggered_at: string;
+  region: string;
+  alert_type: string;
+  threshold: number;
+  actual_value: number;
+  notification_sent: boolean;
+  channel: string;
+}
+
+export interface AlertStats {
+  total_alerts: number;
+  triggered_last_24h: number;
+  notifications_sent: number;
+  channels: string[];
+  most_triggered_region: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +388,63 @@ export const api = {
     const params = new URLSearchParams({ start, end })
     if (intervalMinutes) params.set('interval_minutes', String(intervalMinutes))
     return get<RegionComparisonPoint[]>(`/api/prices/compare?${params}`)
+  },
+
+  /**
+   * Get binding network constraints for a region.
+   * @param region      NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)
+   * @param hoursBack   Look-back window in hours (1–168)
+   * @param bindingOnly When true, only return constraints with marginalvalue > 0
+   */
+  getConstraints(region: string, hoursBack: number, bindingOnly: boolean): Promise<ConstraintRecord[]> {
+    const params = new URLSearchParams({ region, hours_back: String(hoursBack), binding_only: String(bindingOnly) })
+    return get<ConstraintRecord[]>(`/api/constraints?${params}`)
+  },
+
+  /**
+   * Get FCAS market prices and clearings for a region.
+   * @param region    NEM region code
+   * @param hoursBack Look-back window in hours (1–48)
+   */
+  getFcas(region: string, hoursBack: number): Promise<FcasRecord[]> {
+    const params = new URLSearchParams({ region, hours_back: String(hoursBack) })
+    return get<FcasRecord[]>(`/api/fcas/market?${params}`)
+  },
+
+  /**
+   * Get forecast model accuracy summary including MAPE metrics by horizon.
+   * Returns model confidence, price and demand MAPE for 1hr, 4hr, and 24hr horizons.
+   */
+  getForecastSummary(): Promise<ForecastSummary> {
+    return get<ForecastSummary>('/api/forecasts/summary')
+  },
+
+  /**
+   * Get alert trigger event history.
+   * @param region    Optional NEM region code filter
+   * @param hoursBack Number of hours back to query (1–168, default 24)
+   */
+  getAlertHistory(region?: string, hoursBack?: number): Promise<AlertTriggerEvent[]> {
+    const params = new URLSearchParams()
+    if (region) params.set('region', region)
+    if (hoursBack) params.set('hours_back', String(hoursBack))
+    return get<AlertTriggerEvent[]>(`/api/alerts/history?${params}`)
+  },
+
+  /**
+   * Send a test notification via the specified channel.
+   * @param channel    Delivery channel: "slack" | "email" | "webhook"
+   * @param webhookUrl Optional webhook URL (required for slack/webhook channels)
+   */
+  testNotification(channel: string, webhookUrl?: string): Promise<{ success: boolean; message: string; channel: string }> {
+    return post('/api/alerts/test-notification', { channel, webhook_url: webhookUrl, test_message: 'AUS Energy Copilot — test notification' })
+  },
+
+  /**
+   * Get alert summary statistics (total, triggered 24h, notifications sent, etc.).
+   */
+  getAlertStats(): Promise<AlertStats> {
+    return get<AlertStats>('/api/alerts/stats')
   },
 }
 

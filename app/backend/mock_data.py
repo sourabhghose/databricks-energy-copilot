@@ -137,22 +137,27 @@ def get_mock_forecasts(
     start: str | None = None,
 ) -> List[Dict[str, Any]]:
     """
-    Return forecast points with 10% confidence bands.
+    Return forecast points with 10% confidence bands and p10/p90 CI fields.
     Points are spaced 30 minutes apart for all horizons.
+    CI band width scales with sqrt(horizon_hours / 24).
     """
     base = _BASELINE_PRICE.get(region, 85.0)
+    demand_base = _BASELINE_DEMAND_MW.get(region, 5000.0)
 
     horizon_hours_map = {
         "30min": 0.5,
         "1h":    1.0,
+        "1hr":   1.0,
         "4h":    4.0,
+        "4hr":   4.0,
         "24h":   24.0,
+        "24hr":  24.0,
         "7d":    168.0,
     }
-    horizon_hours = horizon_hours_map.get(horizon, 24.0)
+    total_horizon_hours = horizon_hours_map.get(horizon, 24.0)
 
     t_start = _floor_5min(_utcnow()) if not start else datetime.fromisoformat(start.replace("Z", "+00:00"))
-    t_end   = t_start + timedelta(hours=horizon_hours)
+    t_end   = t_start + timedelta(hours=total_horizon_hours)
 
     rows: List[Dict[str, Any]] = []
     current = t_start
@@ -161,16 +166,31 @@ def get_mock_forecasts(
         hour_frac  = current.hour + current.minute / 60.0
         sine_factor = 1.0 + 0.20 * math.sin(math.pi * (hour_frac - 6) / 12)
         predicted  = round(base * sine_factor * _noise(0.05), 2)
-        # Confidence band widens with forecast distance
+        # Legacy confidence band (widens with forecast distance)
         minutes_ahead = max(0, (current - t_start).total_seconds() / 60)
         band = round(predicted * 0.08 * (1 + minutes_ahead / 720), 2)
+        # Demand forecast (sine-wave with noise)
+        demand_forecast = round(demand_base * sine_factor * _noise(0.03), 1)
+        # Horizon-scaled CI using sqrt(horizon_hours / 24)
+        horizon_hours = minutes_ahead / 60.0
+        sqrt_factor = math.sqrt(max(horizon_hours, 0.0) / 24.0) if horizon_hours > 0 else 0.0
+        price_p10 = round(predicted * (1 - 0.08 * sqrt_factor), 2)
+        price_p90 = round(predicted * (1 + 0.12 * sqrt_factor), 2)
+        demand_p10 = round(demand_forecast * (1 - 0.04 * sqrt_factor), 1)
+        demand_p90 = round(demand_forecast * (1 + 0.06 * sqrt_factor), 1)
+        forecast_confidence = round(max(0.4, 1.0 - 0.06 * horizon_hours), 4)
         rows.append({
-            "region":          region,
-            "forecast_time":   current.isoformat(),
-            "horizon_minutes": int(minutes_ahead),
-            "predicted_rrp":   predicted,
-            "lower_bound":     round(predicted - band, 2),
-            "upper_bound":     round(predicted + band, 2),
+            "region":              region,
+            "forecast_time":       current.isoformat(),
+            "horizon_minutes":     int(minutes_ahead),
+            "predicted_rrp":       predicted,
+            "lower_bound":         round(predicted - band, 2),
+            "upper_bound":         round(predicted + band, 2),
+            "price_p10":           price_p10,
+            "price_p90":           price_p90,
+            "demand_p10":          demand_p10,
+            "demand_p90":          demand_p90,
+            "forecast_confidence": forecast_confidence,
         })
         current += timedelta(minutes=interval_minutes)
     return rows

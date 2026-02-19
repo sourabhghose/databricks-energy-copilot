@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useForecasts } from '../hooks/useMarketData'
 import { api, exportToCSV } from '../api/client'
-import type { RegionComparisonPoint } from '../api/client'
+import type { RegionComparisonPoint, ForecastSummary } from '../api/client'
 import {
   ComposedChart,
   LineChart,
@@ -142,7 +142,7 @@ function AccuracyBadge({ mape }: AccuracyBadgeProps) {
 // ---------------------------------------------------------------------------
 
 function buildChartData(
-  forecasts: { timestamp: string; predicted: number; lower: number; upper: number }[],
+  forecasts: { timestamp: string; predicted: number; lower: number; upper: number; price_p10?: number; price_p90?: number; forecast_confidence?: number }[],
   mae: number,
 ) {
   return forecasts.map((f, i) => ({
@@ -154,6 +154,8 @@ function buildChartData(
     predicted:  f.predicted,
     lower:      f.lower,
     upper:      f.upper,
+    price_p10:  f.price_p10,
+    price_p90:  f.price_p90,
     // MAE confidence band: predicted +/- 1 MAE
     maeLower:   f.predicted - mae,
     maeUpper:   f.predicted + mae,
@@ -397,6 +399,20 @@ export default function Forecasts() {
 
   const [horizon, setHorizon] = useState<Horizon>('4hr')
 
+  // CI band toggle
+  const [showCI, setShowCI] = useState(true)
+
+  // Forecast summary (MAPE / model performance)
+  const [forecastSummary, setForecastSummary] = useState<ForecastSummary | null>(null)
+
+  useEffect(() => {
+    api.getForecastSummary()
+      .then(s => setForecastSummary(s))
+      .catch(() => {
+        // Silently fall back — Model Performance section will just not show
+      })
+  }, [])
+
   const { data: forecasts, loading: forecastLoading, error } = useForecasts(region, horizon)
   const { data: accuracy, loading: accuracyLoading } = useAccuracy(region)
 
@@ -414,6 +430,13 @@ export default function Forecasts() {
 
   // X-axis tick interval: show ~8 ticks across the chart width
   const tickInterval = Math.max(1, Math.floor(chartData.length / 8))
+
+  // Confidence score: use average forecast_confidence from last data point (or summary avg)
+  const confidenceScore = useMemo(() => {
+    if (forecastSummary) return forecastSummary.avg_confidence
+    const last = forecasts[forecasts.length - 1] as (typeof forecasts[number] & { forecast_confidence?: number }) | undefined
+    return (last as { forecast_confidence?: number } | undefined)?.forecast_confidence ?? null
+  }, [forecasts, forecastSummary])
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -512,11 +535,47 @@ export default function Forecasts() {
               {!accuracyLoading && currentAccuracy && (
                 <AccuracyBadge mape={currentAccuracy.mape} />
               )}
+              {/* CI toggle */}
+              <label className="ml-auto flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showCI}
+                  onChange={e => setShowCI(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded accent-blue-600"
+                />
+                <span className="text-xs text-gray-500">Show confidence interval</span>
+              </label>
             </div>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-400 mb-2">
               Actual vs Predicted &middot; shaded bands: 90% confidence interval (blue) and
               &plusmn;1 MAE (grey)
             </p>
+
+            {/* Confidence score bar */}
+            {confidenceScore !== null && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500">Model confidence</span>
+                  <span className={[
+                    'text-xs font-semibold tabular-nums',
+                    confidenceScore > 0.75 ? 'text-emerald-600' :
+                    confidenceScore >= 0.5 ? 'text-amber-600' : 'text-red-600',
+                  ].join(' ')}>
+                    {(confidenceScore * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={[
+                      'h-full rounded-full transition-all',
+                      confidenceScore > 0.75 ? 'bg-emerald-500' :
+                      confidenceScore >= 0.5 ? 'bg-amber-500' : 'bg-red-500',
+                    ].join(' ')}
+                    style={{ width: `${(confidenceScore * 100).toFixed(0)}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {forecastLoading ? (
               <ChartSkeleton />
@@ -543,6 +602,8 @@ export default function Forecasts() {
                         lower:     'Lower 90%',
                         maeUpper:  '+1 MAE',
                         maeLower:  '-1 MAE',
+                        price_p90: 'P90 (upper CI)',
+                        price_p10: 'P10 (lower CI)',
                       }
                       return [`$${v.toFixed(2)}/MWh`, labels[name] ?? name]
                     }}
@@ -557,8 +618,34 @@ export default function Forecasts() {
                     }}
                   />
 
+                  {/* P10/P90 CI band (Sprint 12c) — shown when showCI is true */}
+                  {showCI && (
+                    <Area
+                      type="monotone"
+                      dataKey="price_p90"
+                      stroke="none"
+                      fill="#3b82f6"
+                      fillOpacity={0.1}
+                      legendType="none"
+                      name="price_p90"
+                      isAnimationActive={false}
+                    />
+                  )}
+                  {showCI && (
+                    <Area
+                      type="monotone"
+                      dataKey="price_p10"
+                      stroke="none"
+                      fill="#ffffff"
+                      fillOpacity={1}
+                      legendType="none"
+                      name="price_p10"
+                      isAnimationActive={false}
+                    />
+                  )}
+
                   {/*
-                   * 90% confidence band: upper fills blue down; lower covers
+                   * Legacy 90% confidence band: upper fills blue down; lower covers
                    * below the band with white, creating a sandwiched fill.
                    */}
                   <Area
@@ -629,6 +716,61 @@ export default function Forecasts() {
               </ResponsiveContainer>
             )}
           </section>
+
+          {/* Model Performance — MAPE table (Sprint 12c) */}
+          {forecastSummary && (
+            <section className="bg-white rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Model Performance
+              </h3>
+              <p className="text-xs text-gray-400 mb-4">
+                MAPE (Mean Absolute Percentage Error) by forecast horizon &middot;
+                {forecastSummary.models_loaded} models loaded &middot;
+                avg confidence {(forecastSummary.avg_confidence * 100).toFixed(0)}%
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs font-medium text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                      <th className="text-left pb-2 pr-6">Metric</th>
+                      <th className="text-right pb-2 pr-6">1 hr</th>
+                      <th className="text-right pb-2 pr-6">4 hr</th>
+                      <th className="text-right pb-2">24 hr</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-gray-50">
+                      <td className="py-2.5 pr-6 font-medium text-gray-700">Price Forecast</td>
+                      <td className={`py-2.5 pr-6 text-right font-mono font-semibold tabular-nums ${forecastSummary.price_mape_1hr < 5 ? 'text-emerald-600' : forecastSummary.price_mape_1hr < 10 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {forecastSummary.price_mape_1hr.toFixed(1)}%
+                      </td>
+                      <td className={`py-2.5 pr-6 text-right font-mono font-semibold tabular-nums ${forecastSummary.price_mape_4hr < 8 ? 'text-emerald-600' : forecastSummary.price_mape_4hr < 15 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {forecastSummary.price_mape_4hr.toFixed(1)}%
+                      </td>
+                      <td className={`py-2.5 text-right font-mono font-semibold tabular-nums ${forecastSummary.price_mape_24hr < 12 ? 'text-emerald-600' : forecastSummary.price_mape_24hr < 20 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {forecastSummary.price_mape_24hr.toFixed(1)}%
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-2.5 pr-6 font-medium text-gray-700">Demand Forecast</td>
+                      <td className={`py-2.5 pr-6 text-right font-mono font-semibold tabular-nums ${forecastSummary.demand_mape_1hr < 3 ? 'text-emerald-600' : forecastSummary.demand_mape_1hr < 6 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {forecastSummary.demand_mape_1hr.toFixed(1)}%
+                      </td>
+                      <td className={`py-2.5 pr-6 text-right font-mono font-semibold tabular-nums ${forecastSummary.demand_mape_4hr < 5 ? 'text-emerald-600' : forecastSummary.demand_mape_4hr < 8 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {forecastSummary.demand_mape_4hr.toFixed(1)}%
+                      </td>
+                      <td className={`py-2.5 text-right font-mono font-semibold tabular-nums ${forecastSummary.demand_mape_24hr < 7 ? 'text-emerald-600' : forecastSummary.demand_mape_24hr < 12 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {forecastSummary.demand_mape_24hr.toFixed(1)}%
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="text-xs text-gray-400 mt-3">
+                  Last evaluated: {new Date(forecastSummary.last_evaluation).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'short', timeStyle: 'short' })} AEST
+                </p>
+              </div>
+            </section>
+          )}
 
           {/* Model accuracy panel */}
           <section className="bg-white rounded-lg border border-gray-200 p-4">

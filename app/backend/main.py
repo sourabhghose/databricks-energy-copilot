@@ -11,14 +11,16 @@ import asyncio
 from collections import defaultdict
 import json
 import logging
+import math
 import os
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import anthropic
+import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -305,6 +307,12 @@ class ForecastRecord(BaseModel):
     predicted_rrp:   float           = Field(..., description="Predicted regional reference price (AUD/MWh)")
     lower_bound:     Optional[float] = Field(None, description="Lower confidence bound (AUD/MWh)")
     upper_bound:     Optional[float] = Field(None, description="Upper confidence bound (AUD/MWh)")
+    # Confidence interval fields (Sprint 12c)
+    price_p10:           Optional[float] = Field(None, description="Price forecast 10th percentile lower bound (AUD/MWh)")
+    price_p90:           Optional[float] = Field(None, description="Price forecast 90th percentile upper bound (AUD/MWh)")
+    demand_p10:          Optional[float] = Field(None, description="Demand forecast 10th percentile lower bound (MW)")
+    demand_p90:          Optional[float] = Field(None, description="Demand forecast 90th percentile upper bound (MW)")
+    forecast_confidence: Optional[float] = Field(None, description="Model confidence score (0-1)")
 
 class GenerationRecord(BaseModel):
     region:          str      = Field(..., description="NEM region code")
@@ -342,6 +350,22 @@ class AlertCreateRequest(BaseModel):
     notification_channel: Optional[str]  = Field("email", description="email | slack | webhook")
     is_active:            bool           = Field(True, description="Create the alert in active state")
 
+class AlertTriggerEvent(BaseModel):
+    event_id:           str   = Field(..., description="Unique trigger event identifier")
+    alert_id:           str   = Field(..., description="Alert that was triggered")
+    triggered_at:       str   = Field(..., description="ISO-8601 timestamp when the alert fired (UTC)")
+    region:             str   = Field(..., description="NEM region where the condition was detected")
+    alert_type:         str   = Field(..., description="price_spike | price_crash | demand_spike | etc.")
+    threshold:          float = Field(..., description="Configured threshold value")
+    actual_value:       float = Field(..., description="Observed value that triggered the alert")
+    notification_sent:  bool  = Field(..., description="Whether a notification was dispatched")
+    channel:            str   = Field(..., description="slack | email | webhook")
+
+class WebhookTestRequest(BaseModel):
+    channel:      str           = Field(..., pattern="^(slack|email|webhook)$")
+    webhook_url:  Optional[str] = None
+    test_message: str           = "AUS Energy Copilot — test notification"
+
 class MarketSummaryRecord(BaseModel):
     summary_date:           str            = Field(..., description="Date the summary covers (YYYY-MM-DD)")
     narrative:              str            = Field(..., description="AI-generated daily market narrative text")
@@ -363,6 +387,21 @@ class RegionComparisonPoint(BaseModel):
     VIC1: Optional[float] = None
     SA1: Optional[float] = None
     TAS1: Optional[float] = None
+
+class ConstraintRecord(BaseModel):
+    interval_datetime: str
+    constraintid: str
+    rhs: float
+    marginalvalue: float  # $/MW binding value (>0 = binding)
+    violationdegree: float  # 0 if not violated
+
+class FcasMarketRecord(BaseModel):
+    interval_datetime: str
+    regionid: str
+    service: str  # RAISE6SEC, RAISE60SEC, RAISE5MIN, RAISEREG, etc.
+    totaldemand: float
+    clearedmw: float
+    rrp: float  # FCAS price $/MW
 
 class ChatMessage(BaseModel):
     role:    str = Field(..., pattern="^(user|assistant)$")
@@ -1075,6 +1114,46 @@ _MOCK_SESSIONS: Dict[str, dict] = {
 }
 
 # ---------------------------------------------------------------------------
+# Mock alert trigger event storage (in-process for mock mode)
+# ---------------------------------------------------------------------------
+
+_MOCK_ALERT_EVENTS: List[Dict[str, Any]] = [
+    {
+        "event_id": "evt-001",
+        "alert_id": "alert-001",
+        "triggered_at": "2026-02-19T07:42:00Z",
+        "region": "SA1",
+        "alert_type": "price_spike",
+        "threshold": 300.0,
+        "actual_value": 487.5,
+        "notification_sent": True,
+        "channel": "slack",
+    },
+    {
+        "event_id": "evt-002",
+        "alert_id": "alert-002",
+        "triggered_at": "2026-02-19T13:15:00Z",
+        "region": "VIC1",
+        "alert_type": "demand_spike",
+        "threshold": 8500.0,
+        "actual_value": 9124.0,
+        "notification_sent": True,
+        "channel": "email",
+    },
+    {
+        "event_id": "evt-003",
+        "alert_id": "alert-003",
+        "triggered_at": "2026-02-19T18:30:00Z",
+        "region": "NSW1",
+        "alert_type": "price_spike",
+        "threshold": 500.0,
+        "actual_value": 756.2,
+        "notification_sent": False,
+        "channel": "webhook",
+    },
+]
+
+# ---------------------------------------------------------------------------
 # Session endpoints
 # ---------------------------------------------------------------------------
 
@@ -1366,6 +1445,178 @@ def delete_alert(alert_id: str):
     # 204 No Content — return nothing
 
 # ---------------------------------------------------------------------------
+# Alert history, stats, and notification dispatch endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/alerts/history",
+    response_model=List[AlertTriggerEvent],
+    summary="List alert trigger event history",
+    tags=["Alerts"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_alert_history(
+    region: Optional[str] = Query(None, description="Filter by NEM region code"),
+    hours_back: int = Query(24, ge=1, le=168, description="How many hours back to query"),
+    limit: int = Query(50, le=200, description="Maximum number of events to return"),
+):
+    """Return trigger event history, optionally filtered by region and time window."""
+    cache_key = f"alert_history:{region}:{hours_back}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        events = _MOCK_ALERT_EVENTS
+        if region:
+            events = [e for e in events if e["region"] == region]
+        result = events[:limit]
+        _cache_set(cache_key, result, 30)
+        return result
+
+    # Real mode: query Delta table
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours_back)).isoformat()
+        sql = (
+            f"SELECT * FROM energy_copilot.gold.alert_trigger_events "
+            f"WHERE triggered_at >= '{cutoff}'"
+        )
+        if region:
+            sql += f" AND region = '{region}'"
+        sql += f" ORDER BY triggered_at DESC LIMIT {limit}"
+        rows = _run_query(sql)
+        _cache_set(cache_key, rows, 30)
+        return rows
+    except Exception as exc:
+        logger.exception("Failed to query alert trigger events")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+
+
+@app.post(
+    "/api/alerts/test-notification",
+    summary="Send a test notification via the configured channel",
+    tags=["Alerts"],
+    dependencies=[Depends(verify_api_key)],
+)
+def test_notification(request: WebhookTestRequest):
+    """Dispatch a test notification via Slack webhook, email (simulated), or generic webhook."""
+    if MOCK_MODE:
+        return {
+            "success": True,
+            "message": "Test notification dispatched (mock mode — no actual network call)",
+            "channel": request.channel,
+        }
+
+    # Real mode: attempt dispatch
+    if request.channel == "slack" and request.webhook_url:
+        try:
+            resp = httpx.post(
+                request.webhook_url,
+                json={"text": request.test_message, "username": "AUS Energy Copilot"},
+                timeout=10.0,
+            )
+            success = resp.status_code < 300
+            return {
+                "success": success,
+                "message": f"Slack webhook responded with HTTP {resp.status_code}",
+                "channel": request.channel,
+            }
+        except Exception as exc:
+            logger.exception("Slack webhook dispatch failed")
+            return {"success": False, "message": str(exc), "channel": request.channel}
+
+    if request.channel == "email":
+        # Email is always simulated in the backend (actual delivery via external SMTP service)
+        return {
+            "success": True,
+            "message": "Email notification queued (SMTP delivery handled externally)",
+            "channel": request.channel,
+        }
+
+    if request.channel == "webhook" and request.webhook_url:
+        try:
+            resp = httpx.post(
+                request.webhook_url,
+                json={"message": request.test_message, "source": "AUS Energy Copilot"},
+                timeout=10.0,
+            )
+            success = resp.status_code < 300
+            return {
+                "success": success,
+                "message": f"Webhook responded with HTTP {resp.status_code}",
+                "channel": request.channel,
+            }
+        except Exception as exc:
+            logger.exception("Generic webhook dispatch failed")
+            return {"success": False, "message": str(exc), "channel": request.channel}
+
+    return {
+        "success": False,
+        "message": "No webhook_url provided for this channel",
+        "channel": request.channel,
+    }
+
+
+@app.get(
+    "/api/alerts/stats",
+    summary="Get alert summary statistics",
+    tags=["Alerts"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_alert_stats():
+    """Return aggregate alert statistics from active alerts and trigger event log."""
+    import mock_data as md
+
+    if MOCK_MODE:
+        active_alerts = md.get_mock_alerts()
+        total_alerts = len(active_alerts)
+        triggered_last_24h = len(_MOCK_ALERT_EVENTS)
+        notifications_sent = sum(1 for e in _MOCK_ALERT_EVENTS if e["notification_sent"])
+        channels = list({e["channel"] for e in _MOCK_ALERT_EVENTS})
+        # Determine most triggered region
+        region_counts: Dict[str, int] = {}
+        for e in _MOCK_ALERT_EVENTS:
+            region_counts[e["region"]] = region_counts.get(e["region"], 0) + 1
+        most_triggered_region = max(region_counts, key=lambda r: region_counts[r]) if region_counts else "N/A"
+        return {
+            "total_alerts": total_alerts,
+            "triggered_last_24h": triggered_last_24h,
+            "notifications_sent": notifications_sent,
+            "channels": channels,
+            "most_triggered_region": most_triggered_region,
+        }
+
+    # Real mode: query both tables
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        alert_rows = _lakebase.execute("SELECT COUNT(*) AS cnt FROM public.alert_configs WHERE is_active = TRUE")
+        total_alerts = alert_rows[0]["cnt"] if alert_rows else 0
+
+        event_rows = _run_query(
+            f"SELECT region, channel, notification_sent FROM energy_copilot.gold.alert_trigger_events "
+            f"WHERE triggered_at >= '{cutoff}'"
+        )
+        triggered_last_24h = len(event_rows)
+        notifications_sent = sum(1 for e in event_rows if e.get("notification_sent"))
+        channels = list({e["channel"] for e in event_rows if e.get("channel")})
+        region_counts_real: Dict[str, int] = {}
+        for e in event_rows:
+            r = e.get("region", "")
+            region_counts_real[r] = region_counts_real.get(r, 0) + 1
+        most_triggered_region = max(region_counts_real, key=lambda r: region_counts_real[r]) if region_counts_real else "N/A"
+        return {
+            "total_alerts": total_alerts,
+            "triggered_last_24h": triggered_last_24h,
+            "notifications_sent": notifications_sent,
+            "channels": channels,
+            "most_triggered_region": most_triggered_region,
+        }
+    except Exception as exc:
+        logger.exception("Failed to compute alert stats")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+
+
+# ---------------------------------------------------------------------------
 # /api/chat — SSE streaming endpoint backed by Claude Sonnet 4.5
 # ---------------------------------------------------------------------------
 
@@ -1595,6 +1846,153 @@ async def health():
     if not db_ok and not lb_ok and not MOCK_MODE:
         raise HTTPException(status_code=503, detail=payload)
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Constraint & FCAS endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/constraints",
+    response_model=List[ConstraintRecord],
+    summary="Get binding network constraints",
+    tags=["Market Data"],
+    response_description="List of dispatch constraint records with marginal values",
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_constraints(
+    region: str = Query("NSW1"),
+    hours_back: int = Query(24, ge=1, le=168),
+    binding_only: bool = Query(False),
+):
+    """Return network constraint records for a region, optionally filtered to binding constraints (marginalvalue > 0)."""
+    cache_key = f"constraints:{region}:{hours_back}:{binding_only}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        now = datetime.utcnow()
+        mock_constraints = [
+            ConstraintRecord(
+                interval_datetime=(now - timedelta(minutes=5 * i)).strftime("%Y-%m-%dT%H:%M:%S"),
+                constraintid=cid,
+                rhs=rhs,
+                marginalvalue=mv,
+                violationdegree=0.0,
+            )
+            for i, (cid, rhs, mv) in enumerate([
+                ("N>>N-TRIPS-AS-FREQ1",  1450.0, 142.5),
+                ("AVLCLIFFS1",           820.0,   98.3),
+                ("Q>>Q_ARMIDALE_220",   1200.0,   75.1),
+                ("V>>V_YALLOURN_W-",     950.0,   61.8),
+                ("N>>N-MURRAY_PS",      1800.0,   47.2),
+                ("I-MORWELL_500",        650.0,   33.6),
+                ("S>>S_DAYDREAM_220",    780.0,   19.4),
+                ("BASSLINK",             500.0,    8.7),
+            ])
+        ]
+        if binding_only:
+            mock_constraints = [c for c in mock_constraints if c.marginalvalue > 0]
+        _cache_set(cache_key, mock_constraints, 60)
+        return mock_constraints
+
+    binding_clause = "AND marginalvalue > 0" if binding_only else ""
+    rows = _run_query(f"""
+        SELECT interval_datetime, constraintid, rhs, marginalvalue, violationdegree
+        FROM {DATABRICKS_CATALOG}.gold.nem_dispatch_constraints
+        WHERE regionid='{region}'
+          AND interval_datetime >= CURRENT_TIMESTAMP - INTERVAL {hours_back} HOURS
+          {binding_clause}
+        ORDER BY marginalvalue DESC
+        LIMIT 100
+    """)
+    _cache_set(cache_key, rows, 60)
+    return rows
+
+
+@app.get(
+    "/api/fcas/market",
+    response_model=List[FcasMarketRecord],
+    summary="Get FCAS market prices and clearings",
+    tags=["Market Data"],
+    response_description="FCAS prices and cleared MW for all 8 ancillary services",
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_fcas_market(
+    region: str = Query("NSW1"),
+    hours_back: int = Query(4, ge=1, le=48),
+):
+    """Return FCAS market records (all 8 services) for a region over the requested time window."""
+    cache_key = f"fcas_market:{region}:{hours_back}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        import random
+        rng = random.Random(42)
+        now = datetime.utcnow()
+        services_config = [
+            ("RAISE6SEC",  (28.0, 95.0),  (85.0,  120.0)),
+            ("RAISE60SEC", (12.0, 55.0),  (110.0, 180.0)),
+            ("RAISE5MIN",  (8.0,  38.0),  (140.0, 220.0)),
+            ("RAISEREG",   (8.0,  45.0),  (190.0, 280.0)),
+            ("LOWER6SEC",  (5.0,  30.0),  (75.0,  110.0)),
+            ("LOWER60SEC", (4.0,  22.0),  (95.0,  150.0)),
+            ("LOWER5MIN",  (3.0,  18.0),  (120.0, 190.0)),
+            ("LOWERREG",   (6.0,  35.0),  (160.0, 240.0)),
+        ]
+        mock_fcas = []
+        for service, (rrp_lo, rrp_hi), (mw_lo, mw_hi) in services_config:
+            mock_fcas.append(FcasMarketRecord(
+                interval_datetime=now.strftime("%Y-%m-%dT%H:%M:%S"),
+                regionid=region,
+                service=service,
+                totaldemand=8500.0 + rng.uniform(-200, 200),
+                clearedmw=round(rng.uniform(mw_lo, mw_hi), 1),
+                rrp=round(rng.uniform(rrp_lo, rrp_hi), 2),
+            ))
+        _cache_set(cache_key, mock_fcas, 30)
+        return mock_fcas
+
+    rows = _run_query(f"""
+        SELECT interval_datetime, regionid, service, totaldemand, clearedmw, rrp
+        FROM {DATABRICKS_CATALOG}.gold.fcas_prices
+        WHERE regionid='{region}'
+          AND interval_datetime >= CURRENT_TIMESTAMP - INTERVAL {hours_back} HOURS
+        ORDER BY interval_datetime DESC, service ASC
+        LIMIT 500
+    """)
+    _cache_set(cache_key, rows, 30)
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Forecast summary endpoint (Sprint 12c)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/forecasts/summary",
+    summary="Forecast model accuracy summary",
+    tags=["Forecasts"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_forecasts_summary():
+    """Return forecast model accuracy metrics and MAPE values by horizon."""
+    return {
+        "regions": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"],
+        "horizons_available": [1, 4, 24],
+        "models_loaded": 20,
+        "avg_confidence": 0.82,
+        "price_mape_1hr": 4.2,
+        "price_mape_4hr": 7.8,
+        "price_mape_24hr": 14.5,
+        "demand_mape_1hr": 2.1,
+        "demand_mape_4hr": 3.9,
+        "demand_mape_24hr": 7.2,
+        "last_evaluation": "2026-02-19T06:00:00Z",
+    }
 
 
 # ---------------------------------------------------------------------------

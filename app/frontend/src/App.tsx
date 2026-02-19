@@ -18,16 +18,18 @@ import Copilot from './pages/Copilot'
 import Genie from './pages/Genie'
 import Alerts from './pages/Alerts'
 import Monitoring from './pages/Monitoring'
+import MarketDepth from './pages/MarketDepth'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
-  { to: '/',           label: 'Home',        Icon: LayoutDashboard },
-  { to: '/live',       label: 'Live Market', Icon: Zap             },
-  { to: '/forecasts',  label: 'Forecasts',   Icon: TrendingUp      },
-  { to: '/copilot',    label: 'Copilot',     Icon: MessageSquare   },
-  { to: '/genie',      label: 'Genie',       Icon: Sparkles        },
-  { to: '/alerts',     label: 'Alerts',      Icon: Bell            },
-  { to: '/monitoring', label: 'Monitoring',  Icon: Activity        },
+  { to: '/',             label: 'Home',         Icon: LayoutDashboard },
+  { to: '/live',         label: 'Live Market',  Icon: Zap             },
+  { to: '/forecasts',    label: 'Forecasts',    Icon: TrendingUp      },
+  { to: '/market-depth', label: 'Market Depth', Icon: TrendingUp      },
+  { to: '/copilot',      label: 'Copilot',      Icon: MessageSquare   },
+  { to: '/genie',        label: 'Genie',        Icon: Sparkles        },
+  { to: '/alerts',       label: 'Alerts',       Icon: Bell            },
+  { to: '/monitoring',   label: 'Monitoring',   Icon: Activity        },
 ]
 
 function Sidebar() {
@@ -110,8 +112,9 @@ export default function App() {
               <Route path="/forecasts" element={<Forecasts />}  />
               <Route path="/copilot"   element={<Copilot />}    />
               <Route path="/genie"     element={<Genie />}      />
-              <Route path="/alerts"      element={<Alerts />}      />
-              <Route path="/monitoring"  element={<Monitoring />}  />
+              <Route path="/alerts"        element={<Alerts />}       />
+              <Route path="/monitoring"    element={<Monitoring />}   />
+              <Route path="/market-depth"  element={<MarketDepth />}  />
             </Routes>
           </main>
         </div>

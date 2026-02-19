@@ -3,6 +3,17 @@
 All notable changes to AUS Energy Copilot are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Sprint 12c] - 2026-02-19
+
+### Added
+- Forecast confidence intervals (p10/p90) on price and demand forecasts
+- New `GET /api/forecasts/summary` endpoint with model MAPE metrics
+- Confidence interval shaded area band on Forecasts page chart
+- Model Performance table showing 1hr/4hr/24hr MAPE for price and demand
+- Forecast confidence score bar with color-coded health indicator
+- "Show confidence interval" toggle on forecast chart
+- `ForecastSummary` TypeScript interface and `getForecastSummary()` API method
+
 ## [Unreleased] — Sprint 10 (2026-02-19)
 
 ### Added

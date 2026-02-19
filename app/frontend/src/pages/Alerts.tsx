@@ -8,9 +8,11 @@ import {
   Plus,
   Trash2,
   X,
+  History,
+  Send,
 } from 'lucide-react'
 import { api } from '../api/client'
-import type { Alert, AlertCreateRequest } from '../api/client'
+import type { Alert, AlertCreateRequest, AlertTriggerEvent, AlertStats } from '../api/client'
 
 // ---------------------------------------------------------------------------
 // Mock data — shown when real API is unavailable
@@ -257,27 +259,200 @@ function AlertRow({ alert, onDelete, onToggle }: AlertRowProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Stats bar
+// Stats bar — fetched from /api/alerts/stats
 // ---------------------------------------------------------------------------
 
-function AlertStats({ alerts }: { alerts: Alert[] }) {
-  const triggered = alerts.filter(a => a.status === 'triggered').length
-  const active    = alerts.filter(a => a.status === 'active').length
-  const resolved  = alerts.filter(a => a.status === 'resolved').length
+function AlertStatsBar({ stats, loading }: { stats: AlertStats | null; loading: boolean }) {
+  const cards = [
+    {
+      label: 'Total Active Alerts',
+      value: stats?.total_alerts ?? '—',
+      color: 'bg-blue-50 border-blue-100 text-blue-600',
+    },
+    {
+      label: 'Triggered (24h)',
+      value: stats?.triggered_last_24h ?? '—',
+      color: 'bg-red-50 border-red-100 text-red-600',
+    },
+    {
+      label: 'Notifications Sent',
+      value: stats?.notifications_sent ?? '—',
+      color: 'bg-green-50 border-green-100 text-green-600',
+    },
+    {
+      label: 'Most Active Region',
+      value: stats?.most_triggered_region ?? '—',
+      color: 'bg-amber-50 border-amber-100 text-amber-600',
+    },
+  ]
 
   return (
-    <div className="grid grid-cols-3 gap-4">
-      <div className="bg-red-50 border border-red-100 rounded-lg p-4 text-center">
-        <div className="text-2xl font-bold text-red-600">{triggered}</div>
-        <div className="text-xs text-red-500 mt-0.5">Triggered</div>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {cards.map(card => (
+        <div key={card.label} className={`border rounded-lg p-4 text-center ${card.color}`}>
+          {loading ? (
+            <div className="h-7 bg-current opacity-10 rounded animate-pulse mb-1" />
+          ) : (
+            <div className="text-2xl font-bold">{card.value}</div>
+          )}
+          <div className="text-xs mt-0.5 opacity-70">{card.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Alert history table
+// ---------------------------------------------------------------------------
+
+const HISTORY_REGIONS = ['All', 'NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'] as const
+const HISTORY_TIME_OPTIONS = [
+  { label: 'Last 24h', value: 24 },
+  { label: 'Last 48h', value: 48 },
+  { label: 'Last 7d',  value: 168 },
+] as const
+
+function AlertHistoryTab() {
+  const [region, setRegion]         = useState<string>('All')
+  const [hoursBack, setHoursBack]   = useState<number>(24)
+  const [events, setEvents]         = useState<AlertTriggerEvent[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
+
+  const loadHistory = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await api.getAlertHistory(
+        region === 'All' ? undefined : region,
+        hoursBack,
+      )
+      setEvents(data)
+    } catch (err) {
+      setError(`Could not load alert history. (${(err as Error).message})`)
+    } finally {
+      setLoading(false)
+    }
+  }, [region, hoursBack])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-gray-600">Region</label>
+          <select
+            value={region}
+            onChange={e => setRegion(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            {HISTORY_REGIONS.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-gray-600">Time Range</label>
+          <select
+            value={hoursBack}
+            onChange={e => setHoursBack(Number(e.target.value))}
+            className="border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            {HISTORY_TIME_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={() => void loadHistory()}
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+        >
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
       </div>
-      <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 text-center">
-        <div className="text-2xl font-bold text-amber-600">{active}</div>
-        <div className="text-xs text-amber-500 mt-0.5">Active</div>
-      </div>
-      <div className="bg-green-50 border border-green-100 rounded-lg p-4 text-center">
-        <div className="text-2xl font-bold text-green-600">{resolved}</div>
-        <div className="text-xs text-green-500 mt-0.5">Resolved</div>
+
+      {error && (
+        <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
+          {error}
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
+            <tr>
+              <th className="px-4 py-2 text-left">Time (UTC)</th>
+              <th className="px-4 py-2 text-left">Region</th>
+              <th className="px-4 py-2 text-left">Type</th>
+              <th className="px-4 py-2 text-right">Threshold</th>
+              <th className="px-4 py-2 text-right">Actual Value</th>
+              <th className="px-4 py-2 text-center">Notification</th>
+              <th className="px-4 py-2 text-left">Channel</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
+              Array.from({ length: 3 }, (_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 7 }, (__, j) => (
+                    <td key={j} className="px-4 py-3">
+                      <div className="h-3 bg-gray-100 rounded animate-pulse" />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : events.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                  No trigger events found for the selected filters.
+                </td>
+              </tr>
+            ) : (
+              events.map(evt => (
+                <tr key={evt.event_id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-xs text-gray-500 font-mono">
+                    {new Date(evt.triggered_at).toLocaleString('en-AU', {
+                      timeZone: 'Australia/Sydney',
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-800">{evt.region}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {evt.alert_type.replace(/_/g, ' ')}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-gray-600">
+                    {evt.threshold.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-semibold text-gray-800">
+                    {evt.actual_value.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {evt.notification_sent ? (
+                      <CheckCircle size={16} className="inline text-green-500" />
+                    ) : (
+                      <X size={16} className="inline text-red-400" />
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 uppercase">
+                      {evt.channel}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   )
@@ -307,6 +482,99 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Test Notification inline form
+// ---------------------------------------------------------------------------
+
+type TestChannel = 'slack' | 'email' | 'webhook'
+
+interface TestNotificationFormProps {
+  onClose: () => void
+}
+
+function TestNotificationForm({ onClose }: TestNotificationFormProps) {
+  const [channel, setChannel]     = useState<TestChannel>('slack')
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [sending, setSending]     = useState(false)
+  const [toast, setToast]         = useState<{ success: boolean; message: string } | null>(null)
+
+  const handleTest = async () => {
+    setSending(true)
+    setToast(null)
+    try {
+      const result = await api.testNotification(channel, webhookUrl || undefined)
+      setToast({ success: result.success, message: result.message })
+    } catch (err) {
+      setToast({ success: false, message: (err as Error).message })
+    } finally {
+      setSending(false)
+      // Auto-dismiss toast after 3s
+      setTimeout(() => setToast(null), 3000)
+    }
+  }
+
+  return (
+    <div className="mt-4 border border-blue-200 rounded-lg bg-blue-50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-blue-700 flex items-center gap-1.5">
+          <Send size={14} />
+          Test Notification
+        </span>
+        <button
+          onClick={onClose}
+          className="p-0.5 rounded text-blue-400 hover:text-blue-600 transition-colors"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-blue-700">Channel</label>
+          <select
+            value={channel}
+            onChange={e => setChannel(e.target.value as TestChannel)}
+            className="border border-blue-200 rounded px-2 py-1 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="slack">Slack</option>
+            <option value="email">Email</option>
+            <option value="webhook">Webhook</option>
+          </select>
+        </div>
+        {(channel === 'slack' || channel === 'webhook') && (
+          <input
+            type="url"
+            placeholder="Webhook URL (optional in mock mode)"
+            value={webhookUrl}
+            onChange={e => setWebhookUrl(e.target.value)}
+            className="flex-1 min-w-[200px] border border-blue-200 rounded px-2 py-1 text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        )}
+        <button
+          onClick={() => { void handleTest() }}
+          disabled={sending}
+          className="flex items-center gap-1.5 px-3 py-1 rounded bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {sending ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />}
+          {sending ? 'Sending…' : 'Send Test'}
+        </button>
+      </div>
+
+      {toast && (
+        <div
+          className={`text-xs rounded px-3 py-2 transition-opacity ${
+            toast.success
+              ? 'bg-green-100 text-green-700 border border-green-200'
+              : 'bg-red-100 text-red-700 border border-red-200'
+          }`}
+        >
+          {toast.success ? 'Sent: ' : 'Failed: '}{toast.message}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Create Alert modal
 // ---------------------------------------------------------------------------
 
@@ -322,6 +590,7 @@ function CreateAlertModal({ onClose, onCreated }: CreateAlertModalProps) {
   const [channel, setChannel]         = useState<NotificationChannel>('IN_APP')
   const [submitting, setSubmitting]   = useState(false)
   const [error, setError]             = useState<string | null>(null)
+  const [showTestForm, setShowTestForm] = useState(false)
 
   const unit = alertType === 'PRICE_THRESHOLD' || alertType === 'FCAS_PRICE'
     ? '$/MWh'
@@ -388,102 +657,118 @@ function CreateAlertModal({ onClose, onCreated }: CreateAlertModalProps) {
           </button>
         </div>
 
-        <form onSubmit={e => { void handleSubmit(e) }} className="px-5 py-5 space-y-4">
-          {/* Region */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Region
-            </label>
-            <select
-              value={region}
-              onChange={e => setRegion(e.target.value as NemRegion)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              {NEM_REGIONS.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Alert type */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Alert Type
-            </label>
-            <select
-              value={alertType}
-              onChange={e => setAlertType(e.target.value as AlertTypeKey)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              {ALERT_TYPES.map(t => (
-                <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Threshold */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Threshold
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={threshold}
-                onChange={e => setThreshold(e.target.value)}
-                placeholder={alertType === 'PRICE_THRESHOLD' ? '300' : '12000'}
-                required
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <span className="text-sm text-gray-500 font-mono shrink-0">{unit}</span>
+        <div className="px-5 py-5 space-y-4">
+          <form onSubmit={e => { void handleSubmit(e) }} className="space-y-4">
+            {/* Region */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Region
+              </label>
+              <select
+                value={region}
+                onChange={e => setRegion(e.target.value as NemRegion)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                {NEM_REGIONS.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Notification channel */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Notification Channel
-            </label>
-            <div className="flex items-center gap-4">
-              {NOTIFICATION_CHANNELS.map(ch => (
-                <label key={ch} className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="channel"
-                    value={ch}
-                    checked={channel === ch}
-                    onChange={() => setChannel(ch)}
-                    className="accent-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">{ch.replace('_', ' ')}</span>
-                </label>
-              ))}
+            {/* Alert type */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Alert Type
+              </label>
+              <select
+                value={alertType}
+                onChange={e => setAlertType(e.target.value as AlertTypeKey)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                {ALERT_TYPES.map(t => (
+                  <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 rounded px-3 py-2">{error}</p>
+            {/* Threshold */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Threshold
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={threshold}
+                  onChange={e => setThreshold(e.target.value)}
+                  placeholder={alertType === 'PRICE_THRESHOLD' ? '300' : '12000'}
+                  required
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <span className="text-sm text-gray-500 font-mono shrink-0">{unit}</span>
+              </div>
+            </div>
+
+            {/* Notification channel */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Notification Channel
+              </label>
+              <div className="flex items-center gap-4">
+                {NOTIFICATION_CHANNELS.map(ch => (
+                  <label key={ch} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="channel"
+                      value={ch}
+                      checked={channel === ch}
+                      onChange={() => setChannel(ch)}
+                      className="accent-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">{ch.replace('_', ' ')}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 rounded px-3 py-2">{error}</p>
+            )}
+
+            <div className="flex justify-between items-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowTestForm(v => !v)}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <Send size={12} />
+                {showTestForm ? 'Hide test form' : 'Test notification'}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Creating…' : 'Create Alert'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {showTestForm && (
+            <TestNotificationForm onClose={() => setShowTestForm(false)} />
           )}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? 'Creating…' : 'Create Alert'}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   )
@@ -493,11 +778,16 @@ function CreateAlertModal({ onClose, onCreated }: CreateAlertModalProps) {
 // Main Alerts page
 // ---------------------------------------------------------------------------
 
+type ActiveTab = 'active' | 'history'
+
 export default function Alerts() {
   const [alerts, setAlerts]         = useState<Alert[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
   const [showModal, setShowModal]   = useState(false)
+  const [activeTab, setActiveTab]   = useState<ActiveTab>('active')
+  const [stats, setStats]           = useState<AlertStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(true)
 
   // Load alerts from real API, fall back to mock data
   const loadAlerts = useCallback(async () => {
@@ -515,9 +805,23 @@ export default function Alerts() {
     }
   }, [])
 
+  // Load stats
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      const data = await api.getAlertStats()
+      setStats(data)
+    } catch {
+      // Stats are non-critical; silently fail
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadAlerts()
-  }, [loadAlerts])
+    void loadStats()
+  }, [loadAlerts, loadStats])
 
   const handleDelete = useCallback(async (id: string) => {
     // Optimistic remove
@@ -574,88 +878,128 @@ export default function Alerts() {
         </div>
       )}
 
-      {/* Stats */}
-      {!loading && alerts.length > 0 && <AlertStats alerts={alerts} />}
+      {/* Stats bar — fetched from /api/alerts/stats */}
+      <AlertStatsBar stats={stats} loading={statsLoading} />
 
-      {/* Alerts table */}
-      <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">All Alerts</h3>
-          <span className="text-xs text-gray-400">{alerts.length} total</span>
-        </div>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={[
+            'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            activeTab === 'active'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700',
+          ].join(' ')}
+        >
+          <Bell size={14} />
+          Active Alerts
+          {alerts.length > 0 && (
+            <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">
+              {alerts.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={[
+            'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+            activeTab === 'history'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700',
+          ].join(' ')}
+        >
+          <History size={14} />
+          Alert History
+        </button>
+      </div>
 
-        {loading && alerts.length === 0 ? (
-          <div className="divide-y divide-gray-50">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="h-12 px-4 flex items-center gap-4">
-                <div className="h-3 bg-gray-100 rounded animate-pulse w-16" />
-                <div className="h-3 bg-gray-100 rounded animate-pulse w-24" />
-                <div className="h-3 bg-gray-100 rounded animate-pulse w-20" />
-                <div className="h-5 bg-gray-100 rounded-full animate-pulse w-20" />
+      {/* Tab content */}
+      {activeTab === 'active' ? (
+        <>
+          {/* Alerts table */}
+          <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-700">All Alerts</h3>
+              <span className="text-xs text-gray-400">{alerts.length} total</span>
+            </div>
+
+            {loading && alerts.length === 0 ? (
+              <div className="divide-y divide-gray-50">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="h-12 px-4 flex items-center gap-4">
+                    <div className="h-3 bg-gray-100 rounded animate-pulse w-16" />
+                    <div className="h-3 bg-gray-100 rounded animate-pulse w-24" />
+                    <div className="h-3 bg-gray-100 rounded animate-pulse w-20" />
+                    <div className="h-5 bg-gray-100 rounded-full animate-pulse w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : alerts.length === 0 ? (
+              <EmptyState onAdd={() => setShowModal(true)} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Severity</th>
+                      <th className="px-4 py-2 text-left">Region</th>
+                      <th className="px-4 py-2 text-left">Type</th>
+                      <th className="px-4 py-2 text-left">Threshold</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                      <th className="px-4 py-2 text-left">Triggered (AEST)</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {alerts.map(alert => (
+                      <AlertRow
+                        key={alert.id}
+                        alert={alert}
+                        onDelete={id => { void handleDelete(id) }}
+                        onToggle={handleToggle}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* Alert type info cards */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              {
+                label: 'Price Threshold',
+                desc: '>$100 (medium), >$300 (high), >$5,000/MWh (critical) per region',
+                color: 'border-red-200 bg-red-50',
+              },
+              {
+                label: 'Demand Surge',
+                desc: 'Rapid demand increase above forecast',
+                color: 'border-orange-200 bg-orange-50',
+              },
+              {
+                label: 'FCAS Price',
+                desc: 'Frequency regulation market price spikes',
+                color: 'border-blue-200 bg-blue-50',
+              },
+              {
+                label: 'Forecast Spike',
+                desc: 'ML model predicts >70% probability of price spike',
+                color: 'border-purple-200 bg-purple-50',
+              },
+            ].map(item => (
+              <div key={item.label} className={`rounded-lg border p-3 ${item.color}`}>
+                <div className="text-xs font-semibold text-gray-700">{item.label}</div>
+                <div className="text-xs text-gray-500 mt-1">{item.desc}</div>
               </div>
             ))}
-          </div>
-        ) : alerts.length === 0 ? (
-          <EmptyState onAdd={() => setShowModal(true)} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-2 text-left">Severity</th>
-                  <th className="px-4 py-2 text-left">Region</th>
-                  <th className="px-4 py-2 text-left">Type</th>
-                  <th className="px-4 py-2 text-left">Threshold</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Triggered (AEST)</th>
-                  <th className="px-4 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {alerts.map(alert => (
-                  <AlertRow
-                    key={alert.id}
-                    alert={alert}
-                    onDelete={id => { void handleDelete(id) }}
-                    onToggle={handleToggle}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* Alert type info cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          {
-            label: 'Price Threshold',
-            desc: '>$100 (medium), >$300 (high), >$5,000/MWh (critical) per region',
-            color: 'border-red-200 bg-red-50',
-          },
-          {
-            label: 'Demand Surge',
-            desc: 'Rapid demand increase above forecast',
-            color: 'border-orange-200 bg-orange-50',
-          },
-          {
-            label: 'FCAS Price',
-            desc: 'Frequency regulation market price spikes',
-            color: 'border-blue-200 bg-blue-50',
-          },
-          {
-            label: 'Forecast Spike',
-            desc: 'ML model predicts >70% probability of price spike',
-            color: 'border-purple-200 bg-purple-50',
-          },
-        ].map(item => (
-          <div key={item.label} className={`rounded-lg border p-3 ${item.color}`}>
-            <div className="text-xs font-semibold text-gray-700">{item.label}</div>
-            <div className="text-xs text-gray-500 mt-1">{item.desc}</div>
-          </div>
-        ))}
-      </section>
+          </section>
+        </>
+      ) : (
+        <AlertHistoryTab />
+      )}
 
       {/* Create Alert modal */}
       {showModal && (
