@@ -511,6 +511,52 @@ export interface MlDashboardData {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 17c — Historical Trend & Long-Run Analysis interfaces
+// ---------------------------------------------------------------------------
+
+export interface AnnualSummary {
+  year: number
+  region: string
+  avg_price_aud_mwh: number
+  max_price_aud_mwh: number
+  min_price_aud_mwh: number
+  price_volatility: number
+  avg_demand_mw: number
+  peak_demand_mw: number
+  total_generation_gwh: number
+  renewable_pct: number
+  carbon_intensity: number
+  spike_events_count: number
+  negative_price_hours: number
+  cpi_adjusted_price: number
+}
+
+export interface YearOverYearChange {
+  region: string
+  metric: string
+  year: number
+  value: number
+  prior_year_value: number
+  change_pct: number
+  trend: string
+}
+
+export interface LongRunTrendSummary {
+  region: string
+  years_analyzed: number
+  start_year: number
+  end_year: number
+  price_cagr_pct: number
+  demand_cagr_pct: number
+  renewable_pct_start: number
+  renewable_pct_end: number
+  carbon_intensity_start: number
+  carbon_intensity_end: number
+  annual_data: AnnualSummary[]
+  yoy_changes: YearOverYearChange[]
+}
+
+// ---------------------------------------------------------------------------
 // Sprint 16c — Data Catalog & Pipeline Health interfaces
 // ---------------------------------------------------------------------------
 
@@ -601,6 +647,105 @@ export interface ScenarioComparison {
   inputs: ScenarioInput
   result: ScenarioResult
   sensitivity_table: Record<string, number>[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 17a — Load Duration Curve & Statistical Analysis interfaces
+// ---------------------------------------------------------------------------
+
+export interface DurationCurvePoint {
+  percentile: number
+  demand_mw: number
+  price_aud_mwh: number
+  hours_per_year: number
+}
+
+export interface StatisticalSummary {
+  region: string
+  period_label: string
+  demand_mean: number
+  demand_p10: number
+  demand_p25: number
+  demand_p50: number
+  demand_p75: number
+  demand_p90: number
+  demand_p99: number
+  demand_max: number
+  demand_min: number
+  price_mean: number
+  price_p10: number
+  price_p25: number
+  price_p50: number
+  price_p75: number
+  price_p90: number
+  price_p95: number
+  price_p99: number
+  price_max: number
+  price_min: number
+  demand_stddev: number
+  price_stddev: number
+  correlation_demand_price: number
+  peak_demand_hour: number
+  peak_price_hour: number
+}
+
+export interface SeasonalPattern {
+  region: string
+  month: number
+  month_name: string
+  avg_demand_mw: number
+  avg_price_aud_mwh: number
+  peak_demand_mw: number
+  renewable_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 17b — Frequency & System Strength Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface FrequencyRecord {
+  timestamp: string
+  frequency_hz: number
+  rocof_hz_per_s: number
+  region: string
+  deviation_hz: number
+  band: string
+}
+
+export interface InertiaRecord {
+  timestamp: string
+  region: string
+  total_inertia_mws: number
+  synchronous_mws: number
+  synthetic_mws: number
+  min_inertia_requirement_mws: number
+  inertia_adequate: boolean
+  rocof_risk: string
+}
+
+export interface FrequencyEventRecord {
+  event_id: string
+  event_type: string
+  start_time: string
+  end_time: string
+  duration_seconds: number
+  min_frequency: number
+  max_rocof: number
+  region: string
+  cause: string
+  ufls_activated: boolean
+  mw_shed: number
+}
+
+export interface FrequencyDashboard {
+  timestamp: string
+  current_frequency_hz: number
+  current_rocof: number
+  current_band: string
+  total_synchronous_inertia_mws: number
+  recent_frequency: FrequencyRecord[]
+  inertia_by_region: InertiaRecord[]
+  recent_events: FrequencyEventRecord[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1140,6 +1285,92 @@ export const api = {
   getScenarioPresets: async (): Promise<Record<string, unknown>[]> => {
     const res = await fetch(`${BASE_URL}/api/scenario/presets`, { headers })
     if (!res.ok) throw new Error('Failed to fetch scenario presets')
+    return res.json()
+  },
+
+  /**
+   * Get 101-point load and price duration curves for a NEM region.
+   * Each point represents a percentile (0=minimum, 100=peak).
+   * Both demand and price are monotonically decreasing with percentile.
+   * @param region      NEM region code (default: NSW1)
+   * @param periodDays  Look-back period in days (default: 365)
+   */
+  getDurationCurve: async (region = 'NSW1', periodDays = 365): Promise<DurationCurvePoint[]> => {
+    const res = await fetch(`${BASE_URL}/api/stats/duration_curve?region=${region}&period_days=${periodDays}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch duration curve')
+    return res.json()
+  },
+
+  /**
+   * Get box-plot statistics for demand and price for a NEM region.
+   * Includes percentile breakdown, mean, stddev, and demand-price correlation.
+   * @param region  NEM region code (default: NSW1)
+   * @param period  Period string: "30d" | "90d" | "365d" (default: "365d")
+   */
+  getStatsSummary: async (region = 'NSW1', period = '365d'): Promise<StatisticalSummary> => {
+    const res = await fetch(`${BASE_URL}/api/stats/summary?region=${region}&period=${period}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch stats summary')
+    return res.json()
+  },
+
+  /**
+   * Get 12 monthly seasonal pattern records (Jan–Dec) for a NEM region.
+   * Shows average demand, average price, peak demand, and renewable share per month.
+   * @param region  NEM region code (default: NSW1)
+   */
+  getSeasonalPattern: async (region = 'NSW1'): Promise<SeasonalPattern[]> => {
+    const res = await fetch(`${BASE_URL}/api/stats/seasonal?region=${region}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch seasonal pattern')
+    return res.json()
+  },
+
+  /**
+   * Get multi-year NEM market trend data with CAGR calculations and energy transition metrics.
+   * Covers price milestones: 2017 gas constraints (~$100/MWh), 2020 COVID low (~$45),
+   * 2022 gas crisis (~$180), 2024 renewables normalising (~$75).
+   * @param region     NEM region code (default: NSW1)
+   * @param startYear  First year of the analysis range (default: 2015)
+   * @param endYear    Last year of the analysis range (default: 2025)
+   */
+  getAnnualTrends: async (region = 'NSW1', startYear = 2015, endYear = 2025): Promise<LongRunTrendSummary> => {
+    const res = await fetch(`${BASE_URL}/api/trends/annual?region=${region}&start_year=${startYear}&end_year=${endYear}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch annual trends')
+    return res.json()
+  },
+
+  /**
+   * Get year-over-year metric changes for a NEM region comparing the specified year vs prior year.
+   * Metrics: avg_price, peak_demand, renewable_pct, carbon_intensity, spike_events, negative_hours.
+   * Trend values: "improving" | "worsening" | "neutral"
+   * @param region  NEM region code (default: NSW1)
+   * @param year    Year to compare against the prior year (default: 2024)
+   */
+  getYoyChanges: async (region = 'NSW1', year = 2024): Promise<YearOverYearChange[]> => {
+    const res = await fetch(`${BASE_URL}/api/trends/yoy?region=${region}&year=${year}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch YoY changes')
+    return res.json()
+  },
+
+  /**
+   * Get the real-time system frequency and inertia dashboard.
+   * Returns current frequency Hz, ROCOF, last 5 minutes of 5-second frequency
+   * history, inertia by region, and recent frequency events from the past 24h.
+   * Cache TTL: 5 seconds (very fresh).
+   */
+  getFrequencyDashboard: async (): Promise<FrequencyDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/frequency/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch frequency dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get per-minute frequency history for a NEM region.
+   * @param region   NEM region code (default: NSW1)
+   * @param minutes  Number of minutes of history to return (default: 60)
+   */
+  getFrequencyHistory: async (region = 'NSW1', minutes = 60): Promise<FrequencyRecord[]> => {
+    const res = await fetch(`${BASE_URL}/api/frequency/history?region=${region}&minutes=${minutes}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch frequency history')
     return res.json()
   },
 }

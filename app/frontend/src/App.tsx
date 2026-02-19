@@ -17,6 +17,8 @@ import {
   Leaf,
   Brain,
   Database,
+  Clock,
+  Radio,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -39,6 +41,9 @@ import MeritOrder from './pages/MeritOrder'
 import MlDashboardPage from './pages/MlDashboard'
 import DataCatalog from './pages/DataCatalog'
 import ScenarioAnalysis from './pages/ScenarioAnalysis'
+import LoadDuration from './pages/LoadDuration'
+import HistoricalTrends from './pages/HistoricalTrends'
+import FrequencyAnalytics from './pages/FrequencyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -61,7 +66,10 @@ const NAV_ITEMS = [
   { to: '/merit-order',     label: 'Merit Order',      Icon: TrendingUp      },
   { to: '/ml-dashboard',   label: 'ML Models',        Icon: Brain           },
   { to: '/data-catalog',  label: 'Data Catalog',     Icon: Database        },
-  { to: '/scenario',      label: 'Scenario Analysis', Icon: Activity       },
+  { to: '/scenario',        label: 'Scenario Analysis', Icon: Activity       },
+  { to: '/load-duration',  label: 'Load Statistics',  Icon: BarChart2      },
+  { to: '/trends',         label: 'Historical Trends', Icon: Clock          },
+  { to: '/frequency',      label: 'Frequency',         Icon: Radio          },
 ]
 
 function Sidebar() {
@@ -158,7 +166,10 @@ export default function App() {
               <Route path="/merit-order"   element={<MeritOrder />}       />
               <Route path="/ml-dashboard" element={<MlDashboardPage />}  />
               <Route path="/data-catalog" element={<DataCatalog />}       />
-              <Route path="/scenario"    element={<ScenarioAnalysis />}  />
+              <Route path="/scenario"       element={<ScenarioAnalysis />}  />
+              <Route path="/load-duration" element={<LoadDuration />}      />
+              <Route path="/trends"       element={<HistoricalTrends />}  />
+              <Route path="/frequency"    element={<FrequencyAnalytics />} />
             </Routes>
           </main>
         </div>

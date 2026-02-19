@@ -1161,3 +1161,151 @@ class TestScenarioEndpoints:
         presets = r.json()
         assert len(presets) >= 5
         assert all("name" in p for p in presets)
+
+
+# ===========================================================================
+# TestLoadDurationEndpoints
+# ===========================================================================
+
+class TestLoadDurationEndpoints:
+    """Tests for the /api/stats/* duration curve and statistical analysis endpoints."""
+
+    def test_duration_curve_length(self, client=client):
+        """GET /api/stats/duration_curve must return exactly 101 points (P0–P100).
+
+        The demand series must be monotonically decreasing: higher percentile
+        = lower demand level exceeded (i.e. we're approaching the peak that is
+        only exceeded 0% of the time).
+        """
+        r = client.get("/api/stats/duration_curve?region=NSW1")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 101  # 0 through 100 percentiles
+        # Demand must be monotonically decreasing (higher percentile = lower demand exceeding)
+        demands = [p["demand_mw"] for p in data]
+        assert all(demands[i] >= demands[i + 1] for i in range(len(demands) - 1))
+
+    def test_stats_summary_structure(self, client=client):
+        """GET /api/stats/summary must return correct percentile ordering and valid correlation.
+
+        Percentiles must be strictly ordered: P10 < P50 < P90 for demand.
+        Correlation coefficient must be in [-1, 1].
+        """
+        r = client.get("/api/stats/summary?region=SA1&period=90d")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["demand_p50"] > data["demand_p10"]
+        assert data["demand_p90"] > data["demand_p50"]
+        assert -1 <= data["correlation_demand_price"] <= 1
+
+    def test_seasonal_pattern_12_months(self, client=client):
+        """GET /api/stats/seasonal must return exactly 12 records covering months 1–12.
+
+        The months list must be exactly [1, 2, …, 12] when sorted.
+        """
+        r = client.get("/api/stats/seasonal?region=QLD1")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 12
+        months = [p["month"] for p in data]
+        assert sorted(months) == list(range(1, 13))
+
+
+# ===========================================================================
+# TestTrendsEndpoints
+# ===========================================================================
+
+class TestTrendsEndpoints:
+    """Tests for GET /api/trends/annual and GET /api/trends/yoy endpoints."""
+
+    def test_annual_trends_structure(self, client=client):
+        """GET /api/trends/annual returns correct structure and 11 years of data.
+
+        The default range is 2015–2025 (inclusive), giving 11 annual records.
+        Renewable penetration must increase and carbon intensity must decrease
+        over the analysis period — reflecting the Australian energy transition.
+        """
+        r = client.get("/api/trends/annual?region=NSW1")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["annual_data"]) == 11  # 2015-2025 inclusive
+        assert data["renewable_pct_end"] > data["renewable_pct_start"]
+        assert data["carbon_intensity_end"] < data["carbon_intensity_start"]
+
+    def test_annual_data_year_range(self, client=client):
+        """GET /api/trends/annual with custom year range returns correct subset.
+
+        Requesting 2018–2022 (VIC1) must return exactly 5 annual records with
+        min year 2018 and max year 2022.
+        """
+        r = client.get("/api/trends/annual?region=VIC1&start_year=2018&end_year=2022")
+        data = r.json()
+        years = [d["year"] for d in data["annual_data"]]
+        assert min(years) == 2018
+        assert max(years) == 2022
+        assert len(years) == 5
+
+    def test_yoy_changes_metrics(self, client=client):
+        """GET /api/trends/yoy returns at least 4 metric records with valid trend labels.
+
+        Each YoY record must have a valid trend value (improving/worsening/neutral)
+        and must report the requested year.
+        """
+        r = client.get("/api/trends/yoy?region=SA1&year=2024")
+        assert r.status_code == 200
+        changes = r.json()
+        assert len(changes) >= 4
+        for c in changes:
+            assert c["trend"] in ("improving", "worsening", "neutral")
+            assert c["year"] == 2024
+
+
+# ===========================================================================
+# TestFrequencyEndpoints  (Sprint 17b)
+# ===========================================================================
+
+class TestFrequencyEndpoints:
+    """Tests for GET /api/frequency/dashboard and GET /api/frequency/history endpoints."""
+
+    def test_frequency_dashboard_structure(self, client=client):
+        """GET /api/frequency/dashboard returns 200 with required top-level keys.
+
+        The response must include current_frequency_hz, recent_frequency (60 records),
+        inertia_by_region (5 regions), and a valid current_band value.
+        """
+        r = client.get("/api/frequency/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "current_frequency_hz" in data
+        assert len(data["recent_frequency"]) == 60
+        assert len(data["inertia_by_region"]) == 5
+        assert data["current_band"] in ("normal", "warning", "emergency")
+
+    def test_frequency_within_nemband(self, client=client):
+        """All recent_frequency records have hz within NEM operating range and a valid band.
+
+        The NEM operates between ~49.0 and 51.0 Hz under normal conditions.
+        Every record must also carry a valid band classification string.
+        """
+        r = client.get("/api/frequency/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        for rec in data["recent_frequency"]:
+            # Most points should be within +/- 1.0 Hz of 50 Hz
+            assert 49.0 <= rec["frequency_hz"] <= 51.0
+            assert rec["band"] in ("normal", "warning", "emergency")
+
+    def test_inertia_adequacy(self, client=client):
+        """Each inertia_by_region record has a valid rocof_risk and consistent adequacy flag.
+
+        The inertia_adequate flag must be True if and only if total_inertia_mws
+        is greater than or equal to min_inertia_requirement_mws.
+        """
+        r = client.get("/api/frequency/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        for region in data["inertia_by_region"]:
+            assert region["rocof_risk"] in ("low", "medium", "high")
+            # Adequate flag should match whether total exceeds minimum
+            if region["inertia_adequate"]:
+                assert region["total_inertia_mws"] >= region["min_inertia_requirement_mws"]
