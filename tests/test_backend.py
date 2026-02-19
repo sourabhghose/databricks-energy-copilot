@@ -4241,3 +4241,89 @@ class TestSystemOperatorEndpoints:
         r = client.get("/api/system-operator/constraint-relaxations", headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestOWPEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/offshore-wind-pipeline/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "declared_areas" in d
+        assert len(d["declared_areas"]) > 0
+
+    def test_declared_areas(self, client):
+        r = client.get("/api/offshore-wind-pipeline/declared-areas", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_licences(self, client):
+        r = client.get("/api/offshore-wind-pipeline/licences", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_supply_chain(self, client):
+        r = client.get("/api/offshore-wind-pipeline/supply-chain", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_capacity_outlook(self, client):
+        r = client.get("/api/offshore-wind-pipeline/capacity-outlook", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestNetworkTariffReformEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/network-tariff-reform/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "dnsp_tariffs" in d
+        assert len(d["dnsp_tariffs"]) > 0
+
+    def test_tariffs(self, client):
+        r = client.get("/api/network-tariff-reform/tariffs", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_revenue(self, client):
+        r = client.get("/api/network-tariff-reform/revenue", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_reforms(self, client):
+        r = client.get("/api/network-tariff-reform/reforms", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_der_impacts(self, client):
+        r = client.get("/api/network-tariff-reform/der-impacts", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+class TestSpikeAnalysisEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/spike-analysis/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "spike_events" in d
+        assert len(d["spike_events"]) > 0
+
+    def test_events(self, client):
+        r = client.get("/api/spike-analysis/events", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_contributors(self, client):
+        r = client.get("/api/spike-analysis/contributors", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_consumer_impacts(self, client):
+        r = client.get("/api/spike-analysis/consumer-impacts", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_regional_timeline(self, client):
+        r = client.get("/api/spike-analysis/regional-timeline", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)

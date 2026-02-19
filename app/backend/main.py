@@ -32828,3 +32828,1093 @@ def get_sysop_load_shedding():
 )
 def get_sysop_constraint_relaxations():
     return _SYSOP_CONSTRAINT_RELAXATIONS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 48a — Offshore Wind Development Pipeline Analytics
+# ---------------------------------------------------------------------------
+
+class OWPDeclaredArea(BaseModel):
+    area_id: str
+    area_name: str
+    state: str
+    water_depth_range_m: str
+    area_km2: float
+    wind_resource_gw: float
+    declaration_date: str
+    licence_round: str
+    licence_applications: int
+    approved_licences: int
+    grid_connection_point: str
+    onshore_distance_km: float
+
+
+class OWPLicenceRecord(BaseModel):
+    licence_id: str
+    declared_area_id: str
+    area_name: str
+    project_name: str
+    developer: str
+    consortium_members: list[str]
+    capacity_mw: float
+    turbine_technology: str
+    turbine_mw: float
+    num_turbines: int
+    water_depth_avg_m: float
+    distance_shore_km: float
+    licence_status: str
+    licence_granted_date: str | None
+    first_power_year: int | None
+    capex_b_aud: float
+    lcoe_mwh: float
+    export_cable_kv: float
+
+
+class OWPSupplyChainRecord(BaseModel):
+    component: str
+    australian_content_pct: float
+    global_supply_constraint: str
+    lead_time_months: int
+    key_suppliers: list[str]
+    port_requirements: str
+
+
+class OWPCapacityOutlook(BaseModel):
+    year: int
+    scenario: str
+    cumulative_capacity_gw: float
+    annual_additions_gw: float
+    jobs_supported: int
+    export_potential_gw: float
+
+
+class OWPDashboard(BaseModel):
+    timestamp: str
+    declared_areas: list[OWPDeclaredArea]
+    licence_records: list[OWPLicenceRecord]
+    supply_chain: list[OWPSupplyChainRecord]
+    capacity_outlook: list[OWPCapacityOutlook]
+    total_declared_area_gw: float
+    total_licenced_pipeline_gw: float
+    operating_capacity_mw: float
+    total_jobs_2030: int
+
+
+_OWP_DECLARED_AREAS: list[OWPDeclaredArea] = [
+    OWPDeclaredArea(
+        area_id="OA-001",
+        area_name="Star of the South",
+        state="VIC",
+        water_depth_range_m="20-50m",
+        area_km2=1850.0,
+        wind_resource_gw=10.0,
+        declaration_date="2023-06-30",
+        licence_round="Round 1 2023",
+        licence_applications=3,
+        approved_licences=1,
+        grid_connection_point="Latrobe Valley 500 kV",
+        onshore_distance_km=8.0,
+    ),
+    OWPDeclaredArea(
+        area_id="OA-002",
+        area_name="Hunter",
+        state="NSW",
+        water_depth_range_m="25-60m",
+        area_km2=1520.0,
+        wind_resource_gw=6.0,
+        declaration_date="2023-06-30",
+        licence_round="Round 1 2023",
+        licence_applications=2,
+        approved_licences=0,
+        grid_connection_point="Muswellbrook 330 kV",
+        onshore_distance_km=18.0,
+    ),
+    OWPDeclaredArea(
+        area_id="OA-003",
+        area_name="Illawarra",
+        state="NSW",
+        water_depth_range_m="30-70m",
+        area_km2=980.0,
+        wind_resource_gw=3.0,
+        declaration_date="2023-06-30",
+        licence_round="Round 1 2023",
+        licence_applications=2,
+        approved_licences=0,
+        grid_connection_point="Dapto 132 kV",
+        onshore_distance_km=12.0,
+    ),
+    OWPDeclaredArea(
+        area_id="OA-004",
+        area_name="Gippsland",
+        state="VIC",
+        water_depth_range_m="20-45m",
+        area_km2=2100.0,
+        wind_resource_gw=8.0,
+        declaration_date="2023-06-30",
+        licence_round="Round 1 2023",
+        licence_applications=4,
+        approved_licences=1,
+        grid_connection_point="Loy Yang 500 kV",
+        onshore_distance_km=5.0,
+    ),
+    OWPDeclaredArea(
+        area_id="OA-005",
+        area_name="Portland",
+        state="VIC",
+        water_depth_range_m="15-40m",
+        area_km2=730.0,
+        wind_resource_gw=1.5,
+        declaration_date="2024-03-15",
+        licence_round="Round 2 2024",
+        licence_applications=1,
+        approved_licences=0,
+        grid_connection_point="Portland 220 kV",
+        onshore_distance_km=6.0,
+    ),
+    OWPDeclaredArea(
+        area_id="OA-006",
+        area_name="South Coast NSW",
+        state="NSW",
+        water_depth_range_m="40-80m",
+        area_km2=1200.0,
+        wind_resource_gw=4.0,
+        declaration_date="2024-03-15",
+        licence_round="Round 2 2024",
+        licence_applications=2,
+        approved_licences=0,
+        grid_connection_point="Nowra 132 kV",
+        onshore_distance_km=50.0,
+    ),
+]
+
+_OWP_LICENCE_RECORDS: list[OWPLicenceRecord] = [
+    OWPLicenceRecord(
+        licence_id="LIC-001",
+        declared_area_id="OA-001",
+        area_name="Star of the South",
+        project_name="Star of the South Phase 1",
+        developer="Star of the South Pty Ltd",
+        consortium_members=["Copenhagen Infrastructure Partners", "Cbus Super"],
+        capacity_mw=2200.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=15.0,
+        num_turbines=147,
+        water_depth_avg_m=35.0,
+        distance_shore_km=8.0,
+        licence_status="FEASIBILITY",
+        licence_granted_date="2024-01-15",
+        first_power_year=2032,
+        capex_b_aud=8.5,
+        lcoe_mwh=120.0,
+        export_cable_kv=220.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-002",
+        declared_area_id="OA-004",
+        area_name="Gippsland",
+        project_name="Gippsland Offshore Wind",
+        developer="Macquarie/BlueFloat",
+        consortium_members=["Macquarie Green Investment Group", "BlueFloat Energy"],
+        capacity_mw=1500.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=15.0,
+        num_turbines=100,
+        water_depth_avg_m=30.0,
+        distance_shore_km=10.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2034,
+        capex_b_aud=6.0,
+        lcoe_mwh=130.0,
+        export_cable_kv=220.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-003",
+        declared_area_id="OA-002",
+        area_name="Hunter",
+        project_name="Hunter Offshore Wind",
+        developer="BP/Macquarie",
+        consortium_members=["bp Australia", "Macquarie Asset Management"],
+        capacity_mw=1200.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=12.0,
+        num_turbines=100,
+        water_depth_avg_m=42.0,
+        distance_shore_km=18.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2035,
+        capex_b_aud=5.2,
+        lcoe_mwh=140.0,
+        export_cable_kv=132.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-004",
+        declared_area_id="OA-006",
+        area_name="South Coast NSW",
+        project_name="Equinor South Coast",
+        developer="Equinor/bp",
+        consortium_members=["Equinor ASA", "bp Australia"],
+        capacity_mw=1000.0,
+        turbine_technology="FLOATING",
+        turbine_mw=15.0,
+        num_turbines=67,
+        water_depth_avg_m=65.0,
+        distance_shore_km=50.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2036,
+        capex_b_aud=6.5,
+        lcoe_mwh=155.0,
+        export_cable_kv=220.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-005",
+        declared_area_id="OA-004",
+        area_name="Gippsland",
+        project_name="Corio Gippsland",
+        developer="Corio Generation",
+        consortium_members=["Corio Generation", "Tilt Renewables"],
+        capacity_mw=1300.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=15.0,
+        num_turbines=87,
+        water_depth_avg_m=28.0,
+        distance_shore_km=9.0,
+        licence_status="FEASIBILITY",
+        licence_granted_date="2024-06-01",
+        first_power_year=2033,
+        capex_b_aud=5.6,
+        lcoe_mwh=125.0,
+        export_cable_kv=220.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-006",
+        declared_area_id="OA-003",
+        area_name="Illawarra",
+        project_name="Amp Illawarra Offshore",
+        developer="Amp Energy",
+        consortium_members=["Amp Energy Australia"],
+        capacity_mw=800.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=12.0,
+        num_turbines=67,
+        water_depth_avg_m=50.0,
+        distance_shore_km=15.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2037,
+        capex_b_aud=3.8,
+        lcoe_mwh=145.0,
+        export_cable_kv=132.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-007",
+        declared_area_id="OA-006",
+        area_name="South Coast NSW",
+        project_name="Doris South Coast Floating",
+        developer="Doris Group",
+        consortium_members=["Doris Group", "Partners Group"],
+        capacity_mw=700.0,
+        turbine_technology="FLOATING",
+        turbine_mw=15.0,
+        num_turbines=47,
+        water_depth_avg_m=70.0,
+        distance_shore_km=55.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2038,
+        capex_b_aud=5.0,
+        lcoe_mwh=160.0,
+        export_cable_kv=220.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-008",
+        declared_area_id="OA-002",
+        area_name="Hunter",
+        project_name="Vena Hunter Wind",
+        developer="Vena Energy",
+        consortium_members=["Vena Energy"],
+        capacity_mw=900.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=12.0,
+        num_turbines=75,
+        water_depth_avg_m=38.0,
+        distance_shore_km=20.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2036,
+        capex_b_aud=4.0,
+        lcoe_mwh=138.0,
+        export_cable_kv=132.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-009",
+        declared_area_id="OA-005",
+        area_name="Portland",
+        project_name="Shell Portland Offshore",
+        developer="Shell",
+        consortium_members=["Shell Energy Australia"],
+        capacity_mw=500.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=10.0,
+        num_turbines=50,
+        water_depth_avg_m=28.0,
+        distance_shore_km=6.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2035,
+        capex_b_aud=2.2,
+        lcoe_mwh=115.0,
+        export_cable_kv=132.0,
+    ),
+    OWPLicenceRecord(
+        licence_id="LIC-010",
+        declared_area_id="OA-001",
+        area_name="Star of the South",
+        project_name="EDP Star South Extension",
+        developer="EDP Renewables",
+        consortium_members=["EDP Renewables", "Engie"],
+        capacity_mw=600.0,
+        turbine_technology="FIXED_BOTTOM",
+        turbine_mw=12.0,
+        num_turbines=50,
+        water_depth_avg_m=40.0,
+        distance_shore_km=12.0,
+        licence_status="APPLICATION",
+        licence_granted_date=None,
+        first_power_year=2033,
+        capex_b_aud=2.6,
+        lcoe_mwh=118.0,
+        export_cable_kv=132.0,
+    ),
+]
+
+_OWP_SUPPLY_CHAIN: list[OWPSupplyChainRecord] = [
+    OWPSupplyChainRecord(
+        component="TURBINE",
+        australian_content_pct=5.0,
+        global_supply_constraint="CRITICAL",
+        lead_time_months=36,
+        key_suppliers=["Vestas", "Siemens Gamesa", "GE Vernova", "MHI Vestas"],
+        port_requirements="Heavy-lift wharf, 500 m² laydown, water depth >12 m",
+    ),
+    OWPSupplyChainRecord(
+        component="MONOPILE",
+        australian_content_pct=10.0,
+        global_supply_constraint="HIGH",
+        lead_time_months=24,
+        key_suppliers=["EEW Group", "Steelwind Nordenham", "Bladt Industries"],
+        port_requirements="Roll-on roll-off berth, crane capacity >1200 T",
+    ),
+    OWPSupplyChainRecord(
+        component="JACKET",
+        australian_content_pct=20.0,
+        global_supply_constraint="MEDIUM",
+        lead_time_months=18,
+        key_suppliers=["Smulders", "Harland & Wolff", "Australian local fabricators"],
+        port_requirements="Fabrication yard access, 300 T crane, load-out quay",
+    ),
+    OWPSupplyChainRecord(
+        component="FLOATING_PLATFORM",
+        australian_content_pct=15.0,
+        global_supply_constraint="CRITICAL",
+        lead_time_months=42,
+        key_suppliers=["Technip Energies", "SBM Offshore", "BW Ideol"],
+        port_requirements="Deep-water port >15 m, wet storage area, tow-out route",
+    ),
+    OWPSupplyChainRecord(
+        component="EXPORT_CABLE",
+        australian_content_pct=25.0,
+        global_supply_constraint="HIGH",
+        lead_time_months=30,
+        key_suppliers=["Prysmian", "Nexans", "NKT Cables"],
+        port_requirements="Cable lay vessel berth, cable drum storage 5000 m²",
+    ),
+    OWPSupplyChainRecord(
+        component="ARRAY_CABLE",
+        australian_content_pct=30.0,
+        global_supply_constraint="MEDIUM",
+        lead_time_months=18,
+        key_suppliers=["Prysmian", "JDR Cable Systems", "Belden"],
+        port_requirements="Standard wharf, 2000 m² laydown area",
+    ),
+    OWPSupplyChainRecord(
+        component="INSTALLATION_VESSEL",
+        australian_content_pct=40.0,
+        global_supply_constraint="CRITICAL",
+        lead_time_months=48,
+        key_suppliers=["Heerema Marine Contractors", "DEME Offshore", "Van Oord"],
+        port_requirements="Deep berth >12 m, 1 km mobilisation channel",
+    ),
+    OWPSupplyChainRecord(
+        component="SUBSTATION",
+        australian_content_pct=35.0,
+        global_supply_constraint="LOW",
+        lead_time_months=24,
+        key_suppliers=["ABB", "Siemens Energy", "GE Grid Solutions", "Worley"],
+        port_requirements="Standard heavy industrial wharf, 400 T crane",
+    ),
+]
+
+_OWP_CAPACITY_OUTLOOK: list[OWPCapacityOutlook] = [
+    # STEP_CHANGE scenario
+    OWPCapacityOutlook(year=2025, scenario="STEP_CHANGE", cumulative_capacity_gw=0.0, annual_additions_gw=0.0, jobs_supported=500, export_potential_gw=0.0),
+    OWPCapacityOutlook(year=2027, scenario="STEP_CHANGE", cumulative_capacity_gw=0.2, annual_additions_gw=0.1, jobs_supported=2000, export_potential_gw=0.0),
+    OWPCapacityOutlook(year=2029, scenario="STEP_CHANGE", cumulative_capacity_gw=0.8, annual_additions_gw=0.3, jobs_supported=6000, export_potential_gw=0.0),
+    OWPCapacityOutlook(year=2030, scenario="STEP_CHANGE", cumulative_capacity_gw=2.0, annual_additions_gw=1.2, jobs_supported=15000, export_potential_gw=0.5),
+    OWPCapacityOutlook(year=2032, scenario="STEP_CHANGE", cumulative_capacity_gw=5.5, annual_additions_gw=1.8, jobs_supported=28000, export_potential_gw=2.0),
+    OWPCapacityOutlook(year=2035, scenario="STEP_CHANGE", cumulative_capacity_gw=10.0, annual_additions_gw=2.5, jobs_supported=45000, export_potential_gw=5.0),
+    OWPCapacityOutlook(year=2038, scenario="STEP_CHANGE", cumulative_capacity_gw=16.0, annual_additions_gw=2.0, jobs_supported=58000, export_potential_gw=8.0),
+    OWPCapacityOutlook(year=2040, scenario="STEP_CHANGE", cumulative_capacity_gw=20.0, annual_additions_gw=2.0, jobs_supported=65000, export_potential_gw=10.0),
+    # CENTRAL scenario
+    OWPCapacityOutlook(year=2025, scenario="CENTRAL", cumulative_capacity_gw=0.0, annual_additions_gw=0.0, jobs_supported=300, export_potential_gw=0.0),
+    OWPCapacityOutlook(year=2027, scenario="CENTRAL", cumulative_capacity_gw=0.1, annual_additions_gw=0.05, jobs_supported=1200, export_potential_gw=0.0),
+    OWPCapacityOutlook(year=2029, scenario="CENTRAL", cumulative_capacity_gw=0.4, annual_additions_gw=0.15, jobs_supported=3500, export_potential_gw=0.0),
+    OWPCapacityOutlook(year=2030, scenario="CENTRAL", cumulative_capacity_gw=1.0, annual_additions_gw=0.6, jobs_supported=8000, export_potential_gw=0.2),
+    OWPCapacityOutlook(year=2032, scenario="CENTRAL", cumulative_capacity_gw=3.0, annual_additions_gw=1.0, jobs_supported=18000, export_potential_gw=1.0),
+    OWPCapacityOutlook(year=2035, scenario="CENTRAL", cumulative_capacity_gw=6.5, annual_additions_gw=1.5, jobs_supported=30000, export_potential_gw=3.0),
+    OWPCapacityOutlook(year=2038, scenario="CENTRAL", cumulative_capacity_gw=10.0, annual_additions_gw=1.2, jobs_supported=40000, export_potential_gw=5.0),
+    OWPCapacityOutlook(year=2040, scenario="CENTRAL", cumulative_capacity_gw=12.5, annual_additions_gw=1.25, jobs_supported=45000, export_potential_gw=6.0),
+]
+
+
+def _make_owp_dashboard() -> OWPDashboard:
+    total_declared_gw = sum(a.wind_resource_gw for a in _OWP_DECLARED_AREAS)
+    total_licenced_gw = sum(r.capacity_mw for r in _OWP_LICENCE_RECORDS) / 1000.0
+    operating_mw = sum(
+        r.capacity_mw for r in _OWP_LICENCE_RECORDS if r.licence_status == "OPERATING"
+    )
+    jobs_2030 = max(
+        (o.jobs_supported for o in _OWP_CAPACITY_OUTLOOK if o.year == 2030 and o.scenario == "STEP_CHANGE"),
+        default=0,
+    )
+    return OWPDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        declared_areas=_OWP_DECLARED_AREAS,
+        licence_records=_OWP_LICENCE_RECORDS,
+        supply_chain=_OWP_SUPPLY_CHAIN,
+        capacity_outlook=_OWP_CAPACITY_OUTLOOK,
+        total_declared_area_gw=total_declared_gw,
+        total_licenced_pipeline_gw=total_licenced_gw,
+        operating_capacity_mw=operating_mw,
+        total_jobs_2030=jobs_2030,
+    )
+
+
+@app.get(
+    "/api/offshore-wind-pipeline/dashboard",
+    response_model=OWPDashboard,
+    tags=["Offshore Wind Pipeline"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_owp_dashboard():
+    return _make_owp_dashboard()
+
+
+@app.get(
+    "/api/offshore-wind-pipeline/declared-areas",
+    response_model=list[OWPDeclaredArea],
+    tags=["Offshore Wind Pipeline"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_owp_declared_areas():
+    return _OWP_DECLARED_AREAS
+
+
+@app.get(
+    "/api/offshore-wind-pipeline/licences",
+    response_model=list[OWPLicenceRecord],
+    tags=["Offshore Wind Pipeline"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_owp_licences():
+    return _OWP_LICENCE_RECORDS
+
+
+@app.get(
+    "/api/offshore-wind-pipeline/supply-chain",
+    response_model=list[OWPSupplyChainRecord],
+    tags=["Offshore Wind Pipeline"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_owp_supply_chain():
+    return _OWP_SUPPLY_CHAIN
+
+
+@app.get(
+    "/api/offshore-wind-pipeline/capacity-outlook",
+    response_model=list[OWPCapacityOutlook],
+    tags=["Offshore Wind Pipeline"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_owp_capacity_outlook():
+    return _OWP_CAPACITY_OUTLOOK
+
+# ---------------------------------------------------------------------------
+# Sprint 48c — Network Tariff Reform & DNSP Analytics
+# ---------------------------------------------------------------------------
+
+class DnspTariffRecord(BaseModel):
+    dnsp_id: str
+    dnsp_name: str
+    state: str
+    tariff_name: str
+    tariff_category: str        # RESIDENTIAL, SME, LARGE_BUSINESS, EV, SOLAR_EXPORT
+    structure_type: str         # FLAT, TOU, DEMAND, CAPACITY, INCLINING_BLOCK
+    daily_supply_charge: float
+    peak_rate_kw_or_kwh: float  # $/kW or c/kWh depending on structure_type
+    off_peak_rate: float | None
+    shoulder_rate: float | None
+    demand_charge_kw_month: float | None
+    solar_export_rate: float | None     # c/kWh for export
+    customer_count: int
+    reform_status: str          # LEGACY, TRANSITIONING, REFORMED
+
+class DnspRevenueRecord(BaseModel):
+    dnsp_name: str
+    state: str
+    regulatory_period: str      # e.g. "2024-2029"
+    total_revenue_allowance_b_aud: float
+    capex_allowance_b_aud: float
+    opex_allowance_b_aud: float
+    wacc_pct: float
+    regulatory_asset_base_b_aud: float
+    customer_numbers: int
+    avg_revenue_per_customer_aud: float
+    aer_approved: bool
+
+class TariffReformRecord(BaseModel):
+    reform_id: str
+    reform_name: str
+    dnsp_name: str
+    state: str
+    reform_type: str            # COST_REFLECTIVE, DER_INTEGRATION, EV_TARIFF, SOLAR_EXPORT, CAPACITY_BASED
+    implementation_date: str
+    customers_affected: int
+    avg_bill_change_pct: float  # positive = increase, negative = decrease
+    peak_demand_reduction_mw: float
+    der_integration_benefit_m_aud: float
+    status: str                 # PROPOSED, APPROVED, TRANSITIONING, COMPLETE
+    aer_position: str           # SUPPORTED, CONDITIONAL, OPPOSED, REVIEWING
+
+class DerNetworkImpactRecord(BaseModel):
+    dnsp_name: str
+    state: str
+    year: int
+    rooftop_solar_gw: float
+    home_battery_gw: float
+    ev_charger_gw: float
+    reverse_power_flow_events: int
+    voltage_violations: int
+    network_augmentation_avoided_m_aud: float
+    hosting_capacity_constraint_pct: float  # % of feeders at hosting capacity limit
+
+class NetworkTariffReformDashboard(BaseModel):
+    timestamp: str
+    dnsp_tariffs: list[DnspTariffRecord]
+    dnsp_revenue: list[DnspRevenueRecord]
+    tariff_reforms: list[TariffReformRecord]
+    der_network_impacts: list[DerNetworkImpactRecord]
+    total_network_revenue_b_aud: float
+    reformed_customers_pct: float
+    avg_peak_demand_reduction_mw: float
+    network_augmentation_avoided_b_aud: float
+
+
+_DNSP_TARIFF_RECORDS: list[DnspTariffRecord] = [
+    DnspTariffRecord(dnsp_id="AGL-R1", dnsp_name="Ausgrid", state="NSW", tariff_name="EA025 Residential TOU", tariff_category="RESIDENTIAL", structure_type="TOU", daily_supply_charge=1.12, peak_rate_kw_or_kwh=8.72, off_peak_rate=3.21, shoulder_rate=5.44, demand_charge_kw_month=None, solar_export_rate=None, customer_count=980000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="AGL-R2", dnsp_name="Ausgrid", state="NSW", tariff_name="EA305 EV Tariff", tariff_category="EV", structure_type="TOU", daily_supply_charge=1.12, peak_rate_kw_or_kwh=9.45, off_peak_rate=1.85, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=34000, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="AGL-R3", dnsp_name="Ausgrid", state="NSW", tariff_name="EA116 Solar Export", tariff_category="SOLAR_EXPORT", structure_type="TOU", daily_supply_charge=1.12, peak_rate_kw_or_kwh=8.72, off_peak_rate=3.21, shoulder_rate=5.44, demand_charge_kw_month=None, solar_export_rate=6.50, customer_count=210000, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="END-R1", dnsp_name="Endeavour Energy", state="NSW", tariff_name="EA030 Residential Flat", tariff_category="RESIDENTIAL", structure_type="FLAT", daily_supply_charge=0.98, peak_rate_kw_or_kwh=9.28, off_peak_rate=None, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=740000, reform_status="LEGACY"),
+    DnspTariffRecord(dnsp_id="END-R2", dnsp_name="Endeavour Energy", state="NSW", tariff_name="EA400 Demand Tariff SME", tariff_category="SME", structure_type="DEMAND", daily_supply_charge=2.15, peak_rate_kw_or_kwh=7.83, off_peak_rate=2.95, shoulder_rate=None, demand_charge_kw_month=18.50, solar_export_rate=None, customer_count=89000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="IEL-R1", dnsp_name="Integral Energy", state="NSW", tariff_name="IE100 Residential Inclining Block", tariff_category="RESIDENTIAL", structure_type="INCLINING_BLOCK", daily_supply_charge=0.95, peak_rate_kw_or_kwh=7.95, off_peak_rate=None, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=320000, reform_status="LEGACY"),
+    DnspTariffRecord(dnsp_id="ESS-R1", dnsp_name="Essential Energy", state="NSW", tariff_name="EE200 Residential Flat", tariff_category="RESIDENTIAL", structure_type="FLAT", daily_supply_charge=1.05, peak_rate_kw_or_kwh=10.55, off_peak_rate=None, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=185000, reform_status="LEGACY"),
+    DnspTariffRecord(dnsp_id="CIT-R1", dnsp_name="CitiPower", state="VIC", tariff_name="CP100 Residential TOU", tariff_category="RESIDENTIAL", structure_type="TOU", daily_supply_charge=1.08, peak_rate_kw_or_kwh=8.14, off_peak_rate=2.88, shoulder_rate=4.60, demand_charge_kw_month=None, solar_export_rate=None, customer_count=350000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="CIT-R2", dnsp_name="CitiPower", state="VIC", tariff_name="CP300 Capacity Tariff LB", tariff_category="LARGE_BUSINESS", structure_type="CAPACITY", daily_supply_charge=3.85, peak_rate_kw_or_kwh=12.40, off_peak_rate=3.10, shoulder_rate=None, demand_charge_kw_month=22.75, solar_export_rate=None, customer_count=12000, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="POW-R1", dnsp_name="Powercor", state="VIC", tariff_name="PC100 Residential TOU", tariff_category="RESIDENTIAL", structure_type="TOU", daily_supply_charge=1.02, peak_rate_kw_or_kwh=8.55, off_peak_rate=2.74, shoulder_rate=4.30, demand_charge_kw_month=None, solar_export_rate=None, customer_count=620000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="UE-R1", dnsp_name="United Energy", state="VIC", tariff_name="UE200 Solar Export TOU", tariff_category="SOLAR_EXPORT", structure_type="TOU", daily_supply_charge=1.10, peak_rate_kw_or_kwh=8.22, off_peak_rate=2.90, shoulder_rate=4.80, demand_charge_kw_month=None, solar_export_rate=7.20, customer_count=290000, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="JEM-R1", dnsp_name="Jemena", state="VIC", tariff_name="JE150 EV Smart Tariff", tariff_category="EV", structure_type="TOU", daily_supply_charge=1.15, peak_rate_kw_or_kwh=9.88, off_peak_rate=1.62, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=18500, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="SAP-R1", dnsp_name="SA Power Networks", state="SA", tariff_name="SAPN100 Residential Demand", tariff_category="RESIDENTIAL", structure_type="DEMAND", daily_supply_charge=1.22, peak_rate_kw_or_kwh=7.44, off_peak_rate=2.55, shoulder_rate=None, demand_charge_kw_month=14.20, solar_export_rate=None, customer_count=450000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="SAP-R2", dnsp_name="SA Power Networks", state="SA", tariff_name="SAPN200 Solar Export Flexible", tariff_category="SOLAR_EXPORT", structure_type="TOU", daily_supply_charge=1.22, peak_rate_kw_or_kwh=7.44, off_peak_rate=2.55, shoulder_rate=4.10, demand_charge_kw_month=None, solar_export_rate=5.80, customer_count=195000, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="WPW-R1", dnsp_name="Western Power", state="WA", tariff_name="WP50 Residential Flat", tariff_category="RESIDENTIAL", structure_type="FLAT", daily_supply_charge=1.35, peak_rate_kw_or_kwh=11.20, off_peak_rate=None, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=540000, reform_status="LEGACY"),
+    DnspTariffRecord(dnsp_id="EGX-R1", dnsp_name="Energex", state="QLD", tariff_name="EGX11 Residential TOU", tariff_category="RESIDENTIAL", structure_type="TOU", daily_supply_charge=1.00, peak_rate_kw_or_kwh=8.38, off_peak_rate=3.08, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=870000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="ERG-R1", dnsp_name="Ergon Energy", state="QLD", tariff_name="EG100 Regional Residential Flat", tariff_category="RESIDENTIAL", structure_type="FLAT", daily_supply_charge=1.18, peak_rate_kw_or_kwh=9.75, off_peak_rate=None, shoulder_rate=None, demand_charge_kw_month=None, solar_export_rate=None, customer_count=310000, reform_status="LEGACY"),
+    DnspTariffRecord(dnsp_id="ERG-R2", dnsp_name="Ergon Energy", state="QLD", tariff_name="EG300 SME Demand Tariff", tariff_category="SME", structure_type="DEMAND", daily_supply_charge=2.40, peak_rate_kw_or_kwh=8.92, off_peak_rate=3.15, shoulder_rate=None, demand_charge_kw_month=16.80, solar_export_rate=None, customer_count=62000, reform_status="TRANSITIONING"),
+    DnspTariffRecord(dnsp_id="CIT-R3", dnsp_name="CitiPower", state="VIC", tariff_name="CP400 DER Capacity Tariff", tariff_category="SOLAR_EXPORT", structure_type="CAPACITY", daily_supply_charge=1.08, peak_rate_kw_or_kwh=6.95, off_peak_rate=2.10, shoulder_rate=None, demand_charge_kw_month=9.50, solar_export_rate=8.40, customer_count=45000, reform_status="REFORMED"),
+    DnspTariffRecord(dnsp_id="AGL-R4", dnsp_name="Ausgrid", state="NSW", tariff_name="EA450 Large Business Demand", tariff_category="LARGE_BUSINESS", structure_type="DEMAND", daily_supply_charge=4.20, peak_rate_kw_or_kwh=7.15, off_peak_rate=2.40, shoulder_rate=None, demand_charge_kw_month=25.60, solar_export_rate=None, customer_count=8500, reform_status="REFORMED"),
+]
+
+_DNSP_REVENUE_RECORDS: list[DnspRevenueRecord] = [
+    DnspRevenueRecord(dnsp_name="Ausgrid", state="NSW", regulatory_period="2024-2029", total_revenue_allowance_b_aud=1.85, capex_allowance_b_aud=0.72, opex_allowance_b_aud=0.48, wacc_pct=6.10, regulatory_asset_base_b_aud=14.20, customer_numbers=1780000, avg_revenue_per_customer_aud=1039.0, aer_approved=True),
+    DnspRevenueRecord(dnsp_name="Endeavour Energy", state="NSW", regulatory_period="2024-2029", total_revenue_allowance_b_aud=0.98, capex_allowance_b_aud=0.38, opex_allowance_b_aud=0.26, wacc_pct=6.10, regulatory_asset_base_b_aud=7.85, customer_numbers=980000, avg_revenue_per_customer_aud=1000.0, aer_approved=True),
+    DnspRevenueRecord(dnsp_name="Essential Energy", state="NSW", regulatory_period="2024-2029", total_revenue_allowance_b_aud=0.54, capex_allowance_b_aud=0.21, opex_allowance_b_aud=0.18, wacc_pct=6.10, regulatory_asset_base_b_aud=4.30, customer_numbers=335000, avg_revenue_per_customer_aud=1612.0, aer_approved=True),
+    DnspRevenueRecord(dnsp_name="CitiPower", state="VIC", regulatory_period="2026-2031", total_revenue_allowance_b_aud=0.42, capex_allowance_b_aud=0.16, opex_allowance_b_aud=0.14, wacc_pct=5.80, regulatory_asset_base_b_aud=3.20, customer_numbers=420000, avg_revenue_per_customer_aud=1000.0, aer_approved=False),
+    DnspRevenueRecord(dnsp_name="Powercor", state="VIC", regulatory_period="2026-2031", total_revenue_allowance_b_aud=0.78, capex_allowance_b_aud=0.30, opex_allowance_b_aud=0.24, wacc_pct=5.80, regulatory_asset_base_b_aud=6.10, customer_numbers=760000, avg_revenue_per_customer_aud=1026.0, aer_approved=False),
+    DnspRevenueRecord(dnsp_name="SA Power Networks", state="SA", regulatory_period="2025-2030", total_revenue_allowance_b_aud=0.72, capex_allowance_b_aud=0.28, opex_allowance_b_aud=0.22, wacc_pct=6.30, regulatory_asset_base_b_aud=5.40, customer_numbers=890000, avg_revenue_per_customer_aud=809.0, aer_approved=True),
+    DnspRevenueRecord(dnsp_name="Energex", state="QLD", regulatory_period="2025-2030", total_revenue_allowance_b_aud=1.22, capex_allowance_b_aud=0.48, opex_allowance_b_aud=0.36, wacc_pct=6.05, regulatory_asset_base_b_aud=9.80, customer_numbers=1450000, avg_revenue_per_customer_aud=841.0, aer_approved=True),
+    DnspRevenueRecord(dnsp_name="Western Power", state="WA", regulatory_period="2022-2027", total_revenue_allowance_b_aud=0.88, capex_allowance_b_aud=0.34, opex_allowance_b_aud=0.28, wacc_pct=6.50, regulatory_asset_base_b_aud=6.95, customer_numbers=1100000, avg_revenue_per_customer_aud=800.0, aer_approved=True),
+]
+
+_TARIFF_REFORM_RECORDS: list[TariffReformRecord] = [
+    TariffReformRecord(reform_id="TR001", reform_name="Ausgrid Cost-Reflective Tariff Transition", dnsp_name="Ausgrid", state="NSW", reform_type="COST_REFLECTIVE", implementation_date="2024-07-01", customers_affected=980000, avg_bill_change_pct=-2.3, peak_demand_reduction_mw=185.0, der_integration_benefit_m_aud=42.5, status="TRANSITIONING", aer_position="SUPPORTED"),
+    TariffReformRecord(reform_id="TR002", reform_name="Ausgrid EV Smart Charging Tariff", dnsp_name="Ausgrid", state="NSW", reform_type="EV_TARIFF", implementation_date="2024-01-01", customers_affected=34000, avg_bill_change_pct=-8.5, peak_demand_reduction_mw=28.0, der_integration_benefit_m_aud=12.8, status="COMPLETE", aer_position="SUPPORTED"),
+    TariffReformRecord(reform_id="TR003", reform_name="Endeavour Demand Tariff Rollout SME", dnsp_name="Endeavour Energy", state="NSW", reform_type="COST_REFLECTIVE", implementation_date="2025-01-01", customers_affected=89000, avg_bill_change_pct=1.8, peak_demand_reduction_mw=42.0, der_integration_benefit_m_aud=18.2, status="APPROVED", aer_position="CONDITIONAL"),
+    TariffReformRecord(reform_id="TR004", reform_name="CitiPower DER Integration Capacity Tariff", dnsp_name="CitiPower", state="VIC", reform_type="DER_INTEGRATION", implementation_date="2024-04-01", customers_affected=45000, avg_bill_change_pct=-4.2, peak_demand_reduction_mw=38.5, der_integration_benefit_m_aud=22.4, status="COMPLETE", aer_position="SUPPORTED"),
+    TariffReformRecord(reform_id="TR005", reform_name="SA Power Networks Solar Export Reform", dnsp_name="SA Power Networks", state="SA", reform_type="SOLAR_EXPORT", implementation_date="2024-10-01", customers_affected=195000, avg_bill_change_pct=-1.5, peak_demand_reduction_mw=55.0, der_integration_benefit_m_aud=35.6, status="TRANSITIONING", aer_position="SUPPORTED"),
+    TariffReformRecord(reform_id="TR006", reform_name="Energex TOU Residential Transition", dnsp_name="Energex", state="QLD", reform_type="COST_REFLECTIVE", implementation_date="2025-07-01", customers_affected=450000, avg_bill_change_pct=-3.1, peak_demand_reduction_mw=120.0, der_integration_benefit_m_aud=55.0, status="APPROVED", aer_position="SUPPORTED"),
+    TariffReformRecord(reform_id="TR007", reform_name="Jemena EV Overnight Charging Tariff", dnsp_name="Jemena", state="VIC", reform_type="EV_TARIFF", implementation_date="2023-11-01", customers_affected=18500, avg_bill_change_pct=-11.2, peak_demand_reduction_mw=15.0, der_integration_benefit_m_aud=8.5, status="COMPLETE", aer_position="SUPPORTED"),
+    TariffReformRecord(reform_id="TR008", reform_name="Powercor Capacity-Based Tariff Pilot", dnsp_name="Powercor", state="VIC", reform_type="CAPACITY_BASED", implementation_date="2025-10-01", customers_affected=25000, avg_bill_change_pct=2.5, peak_demand_reduction_mw=22.0, der_integration_benefit_m_aud=14.2, status="PROPOSED", aer_position="REVIEWING"),
+    TariffReformRecord(reform_id="TR009", reform_name="Essential Energy Remote Area DER Integration", dnsp_name="Essential Energy", state="NSW", reform_type="DER_INTEGRATION", implementation_date="2025-04-01", customers_affected=48000, avg_bill_change_pct=-0.8, peak_demand_reduction_mw=18.5, der_integration_benefit_m_aud=28.0, status="APPROVED", aer_position="CONDITIONAL"),
+    TariffReformRecord(reform_id="TR010", reform_name="Western Power Solar Export Flexible Pricing", dnsp_name="Western Power", state="WA", reform_type="SOLAR_EXPORT", implementation_date="2026-01-01", customers_affected=280000, avg_bill_change_pct=-2.0, peak_demand_reduction_mw=88.0, der_integration_benefit_m_aud=48.5, status="PROPOSED", aer_position="REVIEWING"),
+]
+
+_DER_NETWORK_IMPACT_RECORDS: list[DerNetworkImpactRecord] = [
+    DerNetworkImpactRecord(dnsp_name="Ausgrid", state="NSW", year=2022, rooftop_solar_gw=1.85, home_battery_gw=0.12, ev_charger_gw=0.08, reverse_power_flow_events=4820, voltage_violations=1240, network_augmentation_avoided_m_aud=85.0, hosting_capacity_constraint_pct=18.5),
+    DerNetworkImpactRecord(dnsp_name="Ausgrid", state="NSW", year=2023, rooftop_solar_gw=2.15, home_battery_gw=0.22, ev_charger_gw=0.18, reverse_power_flow_events=6340, voltage_violations=1580, network_augmentation_avoided_m_aud=112.0, hosting_capacity_constraint_pct=24.2),
+    DerNetworkImpactRecord(dnsp_name="Ausgrid", state="NSW", year=2024, rooftop_solar_gw=2.52, home_battery_gw=0.38, ev_charger_gw=0.32, reverse_power_flow_events=8120, voltage_violations=1920, network_augmentation_avoided_m_aud=148.0, hosting_capacity_constraint_pct=31.8),
+    DerNetworkImpactRecord(dnsp_name="SA Power Networks", state="SA", year=2022, rooftop_solar_gw=1.42, home_battery_gw=0.18, ev_charger_gw=0.05, reverse_power_flow_events=5680, voltage_violations=1850, network_augmentation_avoided_m_aud=65.0, hosting_capacity_constraint_pct=28.4),
+    DerNetworkImpactRecord(dnsp_name="SA Power Networks", state="SA", year=2023, rooftop_solar_gw=1.62, home_battery_gw=0.30, ev_charger_gw=0.10, reverse_power_flow_events=7240, voltage_violations=2180, network_augmentation_avoided_m_aud=88.0, hosting_capacity_constraint_pct=34.6),
+    DerNetworkImpactRecord(dnsp_name="SA Power Networks", state="SA", year=2024, rooftop_solar_gw=1.88, home_battery_gw=0.48, ev_charger_gw=0.18, reverse_power_flow_events=9560, voltage_violations=2640, network_augmentation_avoided_m_aud=118.0, hosting_capacity_constraint_pct=42.1),
+    DerNetworkImpactRecord(dnsp_name="Energex", state="QLD", year=2022, rooftop_solar_gw=2.20, home_battery_gw=0.15, ev_charger_gw=0.06, reverse_power_flow_events=5120, voltage_violations=1420, network_augmentation_avoided_m_aud=98.0, hosting_capacity_constraint_pct=22.3),
+    DerNetworkImpactRecord(dnsp_name="Energex", state="QLD", year=2023, rooftop_solar_gw=2.55, home_battery_gw=0.28, ev_charger_gw=0.14, reverse_power_flow_events=6890, voltage_violations=1780, network_augmentation_avoided_m_aud=132.0, hosting_capacity_constraint_pct=28.7),
+    DerNetworkImpactRecord(dnsp_name="Energex", state="QLD", year=2024, rooftop_solar_gw=2.95, home_battery_gw=0.45, ev_charger_gw=0.25, reverse_power_flow_events=8840, voltage_violations=2150, network_augmentation_avoided_m_aud=172.0, hosting_capacity_constraint_pct=35.4),
+    DerNetworkImpactRecord(dnsp_name="CitiPower", state="VIC", year=2022, rooftop_solar_gw=0.62, home_battery_gw=0.08, ev_charger_gw=0.04, reverse_power_flow_events=2180, voltage_violations=580, network_augmentation_avoided_m_aud=28.0, hosting_capacity_constraint_pct=12.8),
+    DerNetworkImpactRecord(dnsp_name="CitiPower", state="VIC", year=2023, rooftop_solar_gw=0.74, home_battery_gw=0.14, ev_charger_gw=0.09, reverse_power_flow_events=2940, voltage_violations=720, network_augmentation_avoided_m_aud=38.0, hosting_capacity_constraint_pct=16.5),
+    DerNetworkImpactRecord(dnsp_name="CitiPower", state="VIC", year=2024, rooftop_solar_gw=0.88, home_battery_gw=0.22, ev_charger_gw=0.16, reverse_power_flow_events=3780, voltage_violations=885, network_augmentation_avoided_m_aud=52.0, hosting_capacity_constraint_pct=21.2),
+    DerNetworkImpactRecord(dnsp_name="Western Power", state="WA", year=2022, rooftop_solar_gw=1.65, home_battery_gw=0.10, ev_charger_gw=0.04, reverse_power_flow_events=4250, voltage_violations=1380, network_augmentation_avoided_m_aud=72.0, hosting_capacity_constraint_pct=26.8),
+    DerNetworkImpactRecord(dnsp_name="Western Power", state="WA", year=2023, rooftop_solar_gw=1.95, home_battery_gw=0.20, ev_charger_gw=0.10, reverse_power_flow_events=5680, voltage_violations=1720, network_augmentation_avoided_m_aud=98.0, hosting_capacity_constraint_pct=33.4),
+    DerNetworkImpactRecord(dnsp_name="Western Power", state="WA", year=2024, rooftop_solar_gw=2.30, home_battery_gw=0.34, ev_charger_gw=0.18, reverse_power_flow_events=7340, voltage_violations=2120, network_augmentation_avoided_m_aud=128.0, hosting_capacity_constraint_pct=40.5),
+]
+
+
+def _make_network_tariff_reform_dashboard() -> NetworkTariffReformDashboard:
+    total_revenue = sum(r.total_revenue_allowance_b_aud for r in _DNSP_REVENUE_RECORDS)
+    reformed_count = sum(1 for t in _DNSP_TARIFF_RECORDS if t.reform_status == "REFORMED")
+    reformed_pct = round(reformed_count / len(_DNSP_TARIFF_RECORDS) * 100, 1)
+    avg_peak_reduction = round(sum(r.peak_demand_reduction_mw for r in _TARIFF_REFORM_RECORDS) / len(_TARIFF_REFORM_RECORDS), 1)
+    aug_avoided = round(sum(d.network_augmentation_avoided_m_aud for d in _DER_NETWORK_IMPACT_RECORDS if d.year == 2024) / 1000, 3)
+    return NetworkTariffReformDashboard(
+        timestamp="2025-02-20T10:00:00",
+        dnsp_tariffs=_DNSP_TARIFF_RECORDS,
+        dnsp_revenue=_DNSP_REVENUE_RECORDS,
+        tariff_reforms=_TARIFF_REFORM_RECORDS,
+        der_network_impacts=_DER_NETWORK_IMPACT_RECORDS,
+        total_network_revenue_b_aud=round(total_revenue, 2),
+        reformed_customers_pct=reformed_pct,
+        avg_peak_demand_reduction_mw=avg_peak_reduction,
+        network_augmentation_avoided_b_aud=aug_avoided,
+    )
+
+
+@app.get(
+    "/api/network-tariff-reform/dashboard",
+    response_model=NetworkTariffReformDashboard,
+    tags=["Network Tariff Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_network_tariff_reform_dashboard():
+    return _make_network_tariff_reform_dashboard()
+
+
+@app.get(
+    "/api/network-tariff-reform/tariffs",
+    response_model=list[DnspTariffRecord],
+    tags=["Network Tariff Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_network_tariff_reform_tariffs():
+    return _DNSP_TARIFF_RECORDS
+
+
+@app.get(
+    "/api/network-tariff-reform/revenue",
+    response_model=list[DnspRevenueRecord],
+    tags=["Network Tariff Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_network_tariff_reform_revenue():
+    return _DNSP_REVENUE_RECORDS
+
+
+@app.get(
+    "/api/network-tariff-reform/reforms",
+    response_model=list[TariffReformRecord],
+    tags=["Network Tariff Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_network_tariff_reform_reforms():
+    return _TARIFF_REFORM_RECORDS
+
+
+@app.get(
+    "/api/network-tariff-reform/der-impacts",
+    response_model=list[DerNetworkImpactRecord],
+    tags=["Network Tariff Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_network_tariff_reform_der_impacts():
+    return _DER_NETWORK_IMPACT_RECORDS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 48b — NEM Price Spike Post-Event Analysis
+# ---------------------------------------------------------------------------
+
+class PSAEventRecord(BaseModel):
+    spike_id: str
+    event_name: str
+    region: str
+    event_date: str
+    start_time: str
+    end_time: str
+    duration_minutes: int
+    peak_price_aud_mwh: float
+    avg_price_during_spike: float
+    pre_spike_avg_price: float
+    price_multiple: float
+    total_revenue_m_aud: float
+    consumer_cost_m_aud: float
+    hedged_consumer_cost_m_aud: float
+    root_cause: str
+    severity: str
+
+
+class PSAContributorRecord(BaseModel):
+    spike_id: str
+    participant_name: str
+    technology: str
+    contribution_type: str
+    mw_impact: float
+    price_contribution_aud_mwh: float
+    revenue_gained_m_aud: float
+    regulatory_action: str | None
+
+
+class PSAConsumerImpact(BaseModel):
+    spike_id: str
+    consumer_segment: str
+    region: str
+    hedged_exposure_pct: float
+    unhedged_cost_m_aud: float
+    demand_response_mw: float
+    air_con_curtailment_mw: float
+    price_signal_response_pct: float
+
+
+class PSARegionalTimeline(BaseModel):
+    spike_id: str
+    region: str
+    interval: str
+    spot_price: float
+    generation_mw: float
+    demand_mw: float
+    interconnector_flow_mw: float
+    reserve_margin_pct: float
+
+
+class PSADashboard(BaseModel):
+    timestamp: str
+    spike_events: list[PSAEventRecord]
+    contributors: list[PSAContributorRecord]
+    consumer_impacts: list[PSAConsumerImpact]
+    regional_timelines: list[PSARegionalTimeline]
+    total_spike_events_2024: int
+    total_consumer_cost_m_aud: float
+    avg_spike_duration_min: float
+    most_affected_region: str
+
+
+# ---------------------------------------------------------------------------
+# Sprint 48b — Mock data
+# ---------------------------------------------------------------------------
+
+_PSA_EVENTS: list[PSAEventRecord] = [
+    PSAEventRecord(
+        spike_id="SPK-2022-001",
+        event_name="NEM Market Suspension – QLD/NSW/VIC/SA",
+        region="NEM-WIDE",
+        event_date="2022-06-15",
+        start_time="2022-06-15T16:00:00",
+        end_time="2022-06-22T08:00:00",
+        duration_minutes=10080,
+        peak_price_aud_mwh=15300.0,
+        avg_price_during_spike=11250.0,
+        pre_spike_avg_price=142.0,
+        price_multiple=107.7,
+        total_revenue_m_aud=1840.5,
+        consumer_cost_m_aud=1420.3,
+        hedged_consumer_cost_m_aud=680.1,
+        root_cause="GENERATION_SHORTFALL",
+        severity="MARKET_SUSPENSION",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2022-002",
+        event_name="NSW Summer Peak – Heatwave Demand Surge",
+        region="NSW1",
+        event_date="2022-01-28",
+        start_time="2022-01-28T16:30:00",
+        end_time="2022-01-28T20:00:00",
+        duration_minutes=210,
+        peak_price_aud_mwh=14500.0,
+        avg_price_during_spike=9800.0,
+        pre_spike_avg_price=88.0,
+        price_multiple=164.8,
+        total_revenue_m_aud=210.4,
+        consumer_cost_m_aud=158.2,
+        hedged_consumer_cost_m_aud=71.3,
+        root_cause="DEMAND_SPIKE",
+        severity="EXTREME",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2023-001",
+        event_name="SA Heatwave Spike – Record January Demand",
+        region="SA1",
+        event_date="2023-01-24",
+        start_time="2023-01-24T14:00:00",
+        end_time="2023-01-24T21:30:00",
+        duration_minutes=450,
+        peak_price_aud_mwh=14200.0,
+        avg_price_during_spike=8650.0,
+        pre_spike_avg_price=112.0,
+        price_multiple=126.8,
+        total_revenue_m_aud=145.7,
+        consumer_cost_m_aud=98.4,
+        hedged_consumer_cost_m_aud=38.6,
+        root_cause="WEATHER",
+        severity="EXTREME",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2023-002",
+        event_name="VIC Gas Shortage – Strategic Rebidding Event",
+        region="VIC1",
+        event_date="2023-07-12",
+        start_time="2023-07-12T17:00:00",
+        end_time="2023-07-12T19:30:00",
+        duration_minutes=150,
+        peak_price_aud_mwh=12400.0,
+        avg_price_during_spike=7200.0,
+        pre_spike_avg_price=95.0,
+        price_multiple=130.5,
+        total_revenue_m_aud=87.3,
+        consumer_cost_m_aud=62.1,
+        hedged_consumer_cost_m_aud=28.9,
+        root_cause="STRATEGIC_BIDDING",
+        severity="HIGH",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2023-003",
+        event_name="QLD Network Constraint – Bowen Basin Outage",
+        region="QLD1",
+        event_date="2023-11-08",
+        start_time="2023-11-08T15:30:00",
+        end_time="2023-11-08T18:00:00",
+        duration_minutes=150,
+        peak_price_aud_mwh=8900.0,
+        avg_price_during_spike=5600.0,
+        pre_spike_avg_price=78.0,
+        price_multiple=114.1,
+        total_revenue_m_aud=54.8,
+        consumer_cost_m_aud=39.2,
+        hedged_consumer_cost_m_aud=21.4,
+        root_cause="NETWORK_CONSTRAINT",
+        severity="HIGH",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2024-001",
+        event_name="NSW Summer Peak 2024 – Air Con Demand Record",
+        region="NSW1",
+        event_date="2024-01-16",
+        start_time="2024-01-16T16:00:00",
+        end_time="2024-01-16T21:00:00",
+        duration_minutes=300,
+        peak_price_aud_mwh=13800.0,
+        avg_price_during_spike=8900.0,
+        pre_spike_avg_price=95.0,
+        price_multiple=145.3,
+        total_revenue_m_aud=178.6,
+        consumer_cost_m_aud=131.4,
+        hedged_consumer_cost_m_aud=58.2,
+        root_cause="DEMAND_SPIKE",
+        severity="EXTREME",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2024-002",
+        event_name="VIC Winter Peak 2024 – Cold Snap Generator Trip",
+        region="VIC1",
+        event_date="2024-07-09",
+        start_time="2024-07-09T17:30:00",
+        end_time="2024-07-09T20:00:00",
+        duration_minutes=150,
+        peak_price_aud_mwh=10200.0,
+        avg_price_during_spike=6400.0,
+        pre_spike_avg_price=105.0,
+        price_multiple=97.1,
+        total_revenue_m_aud=96.3,
+        consumer_cost_m_aud=71.8,
+        hedged_consumer_cost_m_aud=34.5,
+        root_cause="GENERATION_SHORTFALL",
+        severity="HIGH",
+    ),
+    PSAEventRecord(
+        spike_id="SPK-2024-003",
+        event_name="QLD Cycling Event – Low Inertia Frequency Excursion",
+        region="QLD1",
+        event_date="2024-09-22",
+        start_time="2024-09-22T13:00:00",
+        end_time="2024-09-22T13:30:00",
+        duration_minutes=30,
+        peak_price_aud_mwh=5200.0,
+        avg_price_during_spike=3800.0,
+        pre_spike_avg_price=62.0,
+        price_multiple=83.9,
+        total_revenue_m_aud=18.4,
+        consumer_cost_m_aud=12.7,
+        hedged_consumer_cost_m_aud=7.8,
+        root_cause="NETWORK_CONSTRAINT",
+        severity="MODERATE",
+    ),
+]
+
+_PSA_CONTRIBUTORS: list[PSAContributorRecord] = [
+    PSAContributorRecord(spike_id="SPK-2022-001", participant_name="Origin Energy (Eraring)", technology="Coal", contribution_type="WITHDREW_CAPACITY", mw_impact=720.0, price_contribution_aud_mwh=2400.0, revenue_gained_m_aud=312.8, regulatory_action="INVESTIGATED"),
+    PSAContributorRecord(spike_id="SPK-2022-001", participant_name="AGL (Loy Yang A)", technology="Coal", contribution_type="WITHDREW_CAPACITY", mw_impact=560.0, price_contribution_aud_mwh=1850.0, revenue_gained_m_aud=248.4, regulatory_action="INVESTIGATED"),
+    PSAContributorRecord(spike_id="SPK-2022-001", participant_name="EnergyAustralia (Mt Piper)", technology="Coal", contribution_type="WITHDREW_CAPACITY", mw_impact=380.0, price_contribution_aud_mwh=1200.0, revenue_gained_m_aud=156.2, regulatory_action="CLEARED"),
+    PSAContributorRecord(spike_id="SPK-2022-002", participant_name="Snowy Hydro (Tumut 3)", technology="Hydro", contribution_type="FCAS_RESPONSE", mw_impact=1500.0, price_contribution_aud_mwh=-800.0, revenue_gained_m_aud=42.1, regulatory_action=None),
+    PSAContributorRecord(spike_id="SPK-2022-002", participant_name="Meridian Energy (Macarthur Wind)", technology="Wind", contribution_type="DEMAND_REDUCTION", mw_impact=-280.0, price_contribution_aud_mwh=420.0, revenue_gained_m_aud=18.6, regulatory_action=None),
+    PSAContributorRecord(spike_id="SPK-2023-001", participant_name="AGL (Torrens Island)", technology="Gas OCGT", contribution_type="REBID_HIGH", mw_impact=480.0, price_contribution_aud_mwh=3200.0, revenue_gained_m_aud=48.7, regulatory_action="CAUTIONED"),
+    PSAContributorRecord(spike_id="SPK-2023-001", participant_name="ElectraNet (Heywood Interconnect)", technology="Transmission", contribution_type="CONSTRAINT_BINDING", mw_impact=650.0, price_contribution_aud_mwh=1800.0, revenue_gained_m_aud=0.0, regulatory_action=None),
+    PSAContributorRecord(spike_id="SPK-2023-002", participant_name="Origin Energy (Mortlake OCGT)", technology="Gas OCGT", contribution_type="REBID_HIGH", mw_impact=550.0, price_contribution_aud_mwh=4100.0, revenue_gained_m_aud=38.2, regulatory_action="FINED"),
+    PSAContributorRecord(spike_id="SPK-2023-002", participant_name="AGL (Somerton OCGT)", technology="Gas OCGT", contribution_type="REBID_HIGH", mw_impact=210.0, price_contribution_aud_mwh=2600.0, revenue_gained_m_aud=16.4, regulatory_action="INVESTIGATED"),
+    PSAContributorRecord(spike_id="SPK-2024-001", participant_name="Origin Energy (Eraring)", technology="Coal", contribution_type="WITHDREW_CAPACITY", mw_impact=660.0, price_contribution_aud_mwh=2200.0, revenue_gained_m_aud=89.4, regulatory_action="INVESTIGATED"),
+    PSAContributorRecord(spike_id="SPK-2024-002", participant_name="EnergyAustralia (Jeeralang)", technology="Gas OCGT", contribution_type="FCAS_RESPONSE", mw_impact=320.0, price_contribution_aud_mwh=1600.0, revenue_gained_m_aud=24.8, regulatory_action=None),
+    PSAContributorRecord(spike_id="SPK-2024-003", participant_name="CS Energy (Callide C)", technology="Coal", contribution_type="WITHDREW_CAPACITY", mw_impact=420.0, price_contribution_aud_mwh=900.0, revenue_gained_m_aud=8.2, regulatory_action="CLEARED"),
+]
+
+_PSA_CONSUMER_IMPACTS: list[PSAConsumerImpact] = [
+    PSAConsumerImpact(spike_id="SPK-2022-001", consumer_segment="RESIDENTIAL", region="NEM-WIDE", hedged_exposure_pct=82.0, unhedged_cost_m_aud=255.7, demand_response_mw=180.0, air_con_curtailment_mw=145.0, price_signal_response_pct=12.4),
+    PSAConsumerImpact(spike_id="SPK-2022-001", consumer_segment="INDUSTRIAL", region="NEM-WIDE", hedged_exposure_pct=95.0, unhedged_cost_m_aud=85.2, demand_response_mw=620.0, air_con_curtailment_mw=0.0, price_signal_response_pct=38.6),
+    PSAConsumerImpact(spike_id="SPK-2022-002", consumer_segment="RESIDENTIAL", region="NSW1", hedged_exposure_pct=79.0, unhedged_cost_m_aud=33.2, demand_response_mw=65.0, air_con_curtailment_mw=55.0, price_signal_response_pct=8.2),
+    PSAConsumerImpact(spike_id="SPK-2022-002", consumer_segment="C_AND_I", region="NSW1", hedged_exposure_pct=88.0, unhedged_cost_m_aud=18.9, demand_response_mw=210.0, air_con_curtailment_mw=12.0, price_signal_response_pct=24.8),
+    PSAConsumerImpact(spike_id="SPK-2023-001", consumer_segment="RESIDENTIAL", region="SA1", hedged_exposure_pct=61.0, unhedged_cost_m_aud=38.3, demand_response_mw=42.0, air_con_curtailment_mw=38.0, price_signal_response_pct=6.8),
+    PSAConsumerImpact(spike_id="SPK-2023-001", consumer_segment="SME", region="SA1", hedged_exposure_pct=72.0, unhedged_cost_m_aud=15.6, demand_response_mw=95.0, air_con_curtailment_mw=8.0, price_signal_response_pct=18.4),
+    PSAConsumerImpact(spike_id="SPK-2023-002", consumer_segment="RESIDENTIAL", region="VIC1", hedged_exposure_pct=83.0, unhedged_cost_m_aud=10.6, demand_response_mw=28.0, air_con_curtailment_mw=4.0, price_signal_response_pct=5.2),
+    PSAConsumerImpact(spike_id="SPK-2023-002", consumer_segment="INDUSTRIAL", region="VIC1", hedged_exposure_pct=97.0, unhedged_cost_m_aud=1.9, demand_response_mw=185.0, air_con_curtailment_mw=0.0, price_signal_response_pct=42.1),
+    PSAConsumerImpact(spike_id="SPK-2023-003", consumer_segment="RESIDENTIAL", region="QLD1", hedged_exposure_pct=77.0, unhedged_cost_m_aud=9.0, demand_response_mw=34.0, air_con_curtailment_mw=28.0, price_signal_response_pct=7.6),
+    PSAConsumerImpact(spike_id="SPK-2023-003", consumer_segment="C_AND_I", region="QLD1", hedged_exposure_pct=91.0, unhedged_cost_m_aud=3.5, demand_response_mw=112.0, air_con_curtailment_mw=0.0, price_signal_response_pct=28.3),
+    PSAConsumerImpact(spike_id="SPK-2024-001", consumer_segment="RESIDENTIAL", region="NSW1", hedged_exposure_pct=80.0, unhedged_cost_m_aud=26.3, demand_response_mw=75.0, air_con_curtailment_mw=68.0, price_signal_response_pct=9.4),
+    PSAConsumerImpact(spike_id="SPK-2024-001", consumer_segment="INDUSTRIAL", region="NSW1", hedged_exposure_pct=94.0, unhedged_cost_m_aud=7.9, demand_response_mw=245.0, air_con_curtailment_mw=0.0, price_signal_response_pct=35.7),
+    PSAConsumerImpact(spike_id="SPK-2024-002", consumer_segment="RESIDENTIAL", region="VIC1", hedged_exposure_pct=85.0, unhedged_cost_m_aud=10.8, demand_response_mw=38.0, air_con_curtailment_mw=2.0, price_signal_response_pct=6.1),
+    PSAConsumerImpact(spike_id="SPK-2024-002", consumer_segment="SME", region="VIC1", hedged_exposure_pct=78.0, unhedged_cost_m_aud=15.8, demand_response_mw=88.0, air_con_curtailment_mw=0.0, price_signal_response_pct=20.4),
+    PSAConsumerImpact(spike_id="SPK-2024-003", consumer_segment="RESIDENTIAL", region="QLD1", hedged_exposure_pct=74.0, unhedged_cost_m_aud=3.3, demand_response_mw=18.0, air_con_curtailment_mw=14.0, price_signal_response_pct=4.8),
+    PSAConsumerImpact(spike_id="SPK-2024-003", consumer_segment="C_AND_I", region="QLD1", hedged_exposure_pct=89.0, unhedged_cost_m_aud=1.4, demand_response_mw=56.0, air_con_curtailment_mw=0.0, price_signal_response_pct=22.9),
+]
+
+_PSA_TIMELINES: list[PSARegionalTimeline] = [
+    PSARegionalTimeline(spike_id="SPK-2022-001", region="NEM-WIDE", interval="2022-06-15T14:00", spot_price=320.0, generation_mw=32800.0, demand_mw=33500.0, interconnector_flow_mw=-250.0, reserve_margin_pct=8.4),
+    PSARegionalTimeline(spike_id="SPK-2022-001", region="NEM-WIDE", interval="2022-06-15T15:30", spot_price=4200.0, generation_mw=31600.0, demand_mw=33900.0, interconnector_flow_mw=-480.0, reserve_margin_pct=3.2),
+    PSARegionalTimeline(spike_id="SPK-2022-001", region="NEM-WIDE", interval="2022-06-15T16:00", spot_price=15300.0, generation_mw=30800.0, demand_mw=34100.0, interconnector_flow_mw=-620.0, reserve_margin_pct=1.1),
+    PSARegionalTimeline(spike_id="SPK-2022-001", region="NEM-WIDE", interval="2022-06-15T18:00", spot_price=11000.0, generation_mw=31200.0, demand_mw=33800.0, interconnector_flow_mw=-540.0, reserve_margin_pct=2.4),
+    PSARegionalTimeline(spike_id="SPK-2022-001", region="NEM-WIDE", interval="2022-06-15T20:00", spot_price=6800.0, generation_mw=32000.0, demand_mw=33200.0, interconnector_flow_mw=-380.0, reserve_margin_pct=4.8),
+    PSARegionalTimeline(spike_id="SPK-2022-002", region="NSW1", interval="2022-01-28T15:00", spot_price=180.0, generation_mw=13200.0, demand_mw=13400.0, interconnector_flow_mw=120.0, reserve_margin_pct=7.6),
+    PSARegionalTimeline(spike_id="SPK-2022-002", region="NSW1", interval="2022-01-28T16:00", spot_price=3600.0, generation_mw=13600.0, demand_mw=14200.0, interconnector_flow_mw=80.0, reserve_margin_pct=4.2),
+    PSARegionalTimeline(spike_id="SPK-2022-002", region="NSW1", interval="2022-01-28T16:30", spot_price=14500.0, generation_mw=13800.0, demand_mw=14500.0, interconnector_flow_mw=40.0, reserve_margin_pct=1.8),
+    PSARegionalTimeline(spike_id="SPK-2022-002", region="NSW1", interval="2022-01-28T18:00", spot_price=8200.0, generation_mw=14100.0, demand_mw=14300.0, interconnector_flow_mw=60.0, reserve_margin_pct=3.1),
+    PSARegionalTimeline(spike_id="SPK-2022-002", region="NSW1", interval="2022-01-28T20:00", spot_price=1200.0, generation_mw=13500.0, demand_mw=13600.0, interconnector_flow_mw=90.0, reserve_margin_pct=6.4),
+    PSARegionalTimeline(spike_id="SPK-2023-001", region="SA1", interval="2023-01-24T12:00", spot_price=240.0, generation_mw=2800.0, demand_mw=2750.0, interconnector_flow_mw=-80.0, reserve_margin_pct=9.2),
+    PSARegionalTimeline(spike_id="SPK-2023-001", region="SA1", interval="2023-01-24T13:30", spot_price=2800.0, generation_mw=2650.0, demand_mw=2920.0, interconnector_flow_mw=-180.0, reserve_margin_pct=4.8),
+    PSARegionalTimeline(spike_id="SPK-2023-001", region="SA1", interval="2023-01-24T14:00", spot_price=14200.0, generation_mw=2500.0, demand_mw=3050.0, interconnector_flow_mw=-300.0, reserve_margin_pct=1.4),
+    PSARegionalTimeline(spike_id="SPK-2023-001", region="SA1", interval="2023-01-24T17:00", spot_price=9400.0, generation_mw=2600.0, demand_mw=2980.0, interconnector_flow_mw=-240.0, reserve_margin_pct=2.8),
+    PSARegionalTimeline(spike_id="SPK-2023-001", region="SA1", interval="2023-01-24T21:30", spot_price=1600.0, generation_mw=2750.0, demand_mw=2700.0, interconnector_flow_mw=-100.0, reserve_margin_pct=7.1),
+    PSARegionalTimeline(spike_id="SPK-2023-002", region="VIC1", interval="2023-07-12T16:00", spot_price=210.0, generation_mw=8400.0, demand_mw=8500.0, interconnector_flow_mw=320.0, reserve_margin_pct=6.8),
+    PSARegionalTimeline(spike_id="SPK-2023-002", region="VIC1", interval="2023-07-12T16:30", spot_price=3800.0, generation_mw=8200.0, demand_mw=8700.0, interconnector_flow_mw=280.0, reserve_margin_pct=3.4),
+    PSARegionalTimeline(spike_id="SPK-2023-002", region="VIC1", interval="2023-07-12T17:00", spot_price=12400.0, generation_mw=8000.0, demand_mw=8800.0, interconnector_flow_mw=240.0, reserve_margin_pct=1.6),
+    PSARegionalTimeline(spike_id="SPK-2023-002", region="VIC1", interval="2023-07-12T18:00", spot_price=6200.0, generation_mw=8300.0, demand_mw=8600.0, interconnector_flow_mw=260.0, reserve_margin_pct=3.9),
+    PSARegionalTimeline(spike_id="SPK-2023-002", region="VIC1", interval="2023-07-12T19:30", spot_price=980.0, generation_mw=8600.0, demand_mw=8400.0, interconnector_flow_mw=300.0, reserve_margin_pct=7.2),
+    PSARegionalTimeline(spike_id="SPK-2023-003", region="QLD1", interval="2023-11-08T14:30", spot_price=150.0, generation_mw=9600.0, demand_mw=9500.0, interconnector_flow_mw=-120.0, reserve_margin_pct=8.1),
+    PSARegionalTimeline(spike_id="SPK-2023-003", region="QLD1", interval="2023-11-08T15:00", spot_price=2200.0, generation_mw=9400.0, demand_mw=9700.0, interconnector_flow_mw=-200.0, reserve_margin_pct=4.6),
+    PSARegionalTimeline(spike_id="SPK-2023-003", region="QLD1", interval="2023-11-08T15:30", spot_price=8900.0, generation_mw=9200.0, demand_mw=9800.0, interconnector_flow_mw=-280.0, reserve_margin_pct=2.1),
+    PSARegionalTimeline(spike_id="SPK-2023-003", region="QLD1", interval="2023-11-08T16:30", spot_price=4800.0, generation_mw=9500.0, demand_mw=9650.0, interconnector_flow_mw=-220.0, reserve_margin_pct=3.8),
+    PSARegionalTimeline(spike_id="SPK-2023-003", region="QLD1", interval="2023-11-08T18:00", spot_price=620.0, generation_mw=9700.0, demand_mw=9400.0, interconnector_flow_mw=-140.0, reserve_margin_pct=6.4),
+    PSARegionalTimeline(spike_id="SPK-2024-001", region="NSW1", interval="2024-01-16T14:00", spot_price=200.0, generation_mw=13800.0, demand_mw=13600.0, interconnector_flow_mw=100.0, reserve_margin_pct=8.6),
+    PSARegionalTimeline(spike_id="SPK-2024-001", region="NSW1", interval="2024-01-16T15:30", spot_price=4500.0, generation_mw=14200.0, demand_mw=14800.0, interconnector_flow_mw=60.0, reserve_margin_pct=4.4),
+    PSARegionalTimeline(spike_id="SPK-2024-001", region="NSW1", interval="2024-01-16T16:00", spot_price=13800.0, generation_mw=14400.0, demand_mw=15100.0, interconnector_flow_mw=30.0, reserve_margin_pct=1.9),
+    PSARegionalTimeline(spike_id="SPK-2024-001", region="NSW1", interval="2024-01-16T18:30", spot_price=7200.0, generation_mw=14600.0, demand_mw=14900.0, interconnector_flow_mw=50.0, reserve_margin_pct=3.2),
+    PSARegionalTimeline(spike_id="SPK-2024-001", region="NSW1", interval="2024-01-16T21:00", spot_price=1400.0, generation_mw=13900.0, demand_mw=13700.0, interconnector_flow_mw=80.0, reserve_margin_pct=6.8),
+    PSARegionalTimeline(spike_id="SPK-2024-002", region="VIC1", interval="2024-07-09T16:00", spot_price=280.0, generation_mw=8800.0, demand_mw=8700.0, interconnector_flow_mw=310.0, reserve_margin_pct=7.4),
+    PSARegionalTimeline(spike_id="SPK-2024-002", region="VIC1", interval="2024-07-09T17:00", spot_price=3200.0, generation_mw=8600.0, demand_mw=9000.0, interconnector_flow_mw=260.0, reserve_margin_pct=4.1),
+    PSARegionalTimeline(spike_id="SPK-2024-002", region="VIC1", interval="2024-07-09T17:30", spot_price=10200.0, generation_mw=8400.0, demand_mw=9200.0, interconnector_flow_mw=220.0, reserve_margin_pct=2.2),
+    PSARegionalTimeline(spike_id="SPK-2024-002", region="VIC1", interval="2024-07-09T18:30", spot_price=5600.0, generation_mw=8700.0, demand_mw=9000.0, interconnector_flow_mw=240.0, reserve_margin_pct=4.0),
+    PSARegionalTimeline(spike_id="SPK-2024-002", region="VIC1", interval="2024-07-09T20:00", spot_price=840.0, generation_mw=9000.0, demand_mw=8800.0, interconnector_flow_mw=280.0, reserve_margin_pct=6.2),
+    PSARegionalTimeline(spike_id="SPK-2024-003", region="QLD1", interval="2024-09-22T12:30", spot_price=85.0, generation_mw=7200.0, demand_mw=7000.0, interconnector_flow_mw=-60.0, reserve_margin_pct=10.2),
+    PSARegionalTimeline(spike_id="SPK-2024-003", region="QLD1", interval="2024-09-22T12:45", spot_price=1800.0, generation_mw=7000.0, demand_mw=7100.0, interconnector_flow_mw=-90.0, reserve_margin_pct=6.8),
+    PSARegionalTimeline(spike_id="SPK-2024-003", region="QLD1", interval="2024-09-22T13:00", spot_price=5200.0, generation_mw=6800.0, demand_mw=7200.0, interconnector_flow_mw=-120.0, reserve_margin_pct=4.2),
+    PSARegionalTimeline(spike_id="SPK-2024-003", region="QLD1", interval="2024-09-22T13:15", spot_price=3400.0, generation_mw=7000.0, demand_mw=7150.0, interconnector_flow_mw=-100.0, reserve_margin_pct=5.6),
+    PSARegionalTimeline(spike_id="SPK-2024-003", region="QLD1", interval="2024-09-22T13:30", spot_price=480.0, generation_mw=7300.0, demand_mw=7050.0, interconnector_flow_mw=-70.0, reserve_margin_pct=8.8),
+]
+
+_PSA_DASHBOARD = PSADashboard(
+    timestamp="2024-10-01T00:00:00",
+    spike_events=_PSA_EVENTS,
+    contributors=_PSA_CONTRIBUTORS,
+    consumer_impacts=_PSA_CONSUMER_IMPACTS,
+    regional_timelines=_PSA_TIMELINES,
+    total_spike_events_2024=3,
+    total_consumer_cost_m_aud=round(sum(e.consumer_cost_m_aud for e in _PSA_EVENTS), 2),
+    avg_spike_duration_min=round(sum(e.duration_minutes for e in _PSA_EVENTS) / len(_PSA_EVENTS), 1),
+    most_affected_region="NSW1",
+)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 48b — NEM Price Spike Post-Event Analysis endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/spike-analysis/dashboard",
+    response_model=PSADashboard,
+    tags=["Spike Analysis"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_spike_analysis_dashboard():
+    return _PSA_DASHBOARD
+
+
+@app.get(
+    "/api/spike-analysis/events",
+    response_model=list[PSAEventRecord],
+    tags=["Spike Analysis"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_spike_analysis_events():
+    return _PSA_EVENTS
+
+
+@app.get(
+    "/api/spike-analysis/contributors",
+    response_model=list[PSAContributorRecord],
+    tags=["Spike Analysis"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_spike_analysis_contributors():
+    return _PSA_CONTRIBUTORS
+
+
+@app.get(
+    "/api/spike-analysis/consumer-impacts",
+    response_model=list[PSAConsumerImpact],
+    tags=["Spike Analysis"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_spike_analysis_consumer_impacts():
+    return _PSA_CONSUMER_IMPACTS
+
+
+@app.get(
+    "/api/spike-analysis/regional-timeline",
+    response_model=list[PSARegionalTimeline],
+    tags=["Spike Analysis"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_spike_analysis_regional_timeline():
+    return _PSA_TIMELINES

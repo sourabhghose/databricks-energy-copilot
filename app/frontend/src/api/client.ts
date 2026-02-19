@@ -5067,6 +5067,42 @@ export const api = {
     get<LoadSheddingEvent[]>('/api/system-operator/load-shedding'),
   getSystemOperatorConstraintRelaxations: (): Promise<ConstraintRelaxation[]> =>
     get<ConstraintRelaxation[]>('/api/system-operator/constraint-relaxations'),
+
+  // Sprint 48a — Offshore Wind Development Pipeline Analytics
+  getOWPDashboard: (): Promise<OWPDashboard> =>
+    get<OWPDashboard>('/api/offshore-wind-pipeline/dashboard'),
+  getOWPDeclaredAreas: (): Promise<OWPDeclaredArea[]> =>
+    get<OWPDeclaredArea[]>('/api/offshore-wind-pipeline/declared-areas'),
+  getOWPLicences: (): Promise<OWPLicenceRecord[]> =>
+    get<OWPLicenceRecord[]>('/api/offshore-wind-pipeline/licences'),
+  getOWPSupplyChain: (): Promise<OWPSupplyChainRecord[]> =>
+    get<OWPSupplyChainRecord[]>('/api/offshore-wind-pipeline/supply-chain'),
+  getOWPCapacityOutlook: (): Promise<OWPCapacityOutlook[]> =>
+    get<OWPCapacityOutlook[]>('/api/offshore-wind-pipeline/capacity-outlook'),
+
+  // Sprint 48c — Network Tariff Reform & DNSP Analytics
+  getNetworkTariffReformDashboard: (): Promise<NetworkTariffReformDashboard> =>
+    get<NetworkTariffReformDashboard>('/api/network-tariff-reform/dashboard'),
+  getNetworkTariffReformTariffs: (): Promise<DnspTariffRecord48c[]> =>
+    get<DnspTariffRecord48c[]>('/api/network-tariff-reform/tariffs'),
+  getNetworkTariffReformRevenue: (): Promise<DnspRevenueRecord[]> =>
+    get<DnspRevenueRecord[]>('/api/network-tariff-reform/revenue'),
+  getNetworkTariffReformReforms: (): Promise<TariffReformRecord[]> =>
+    get<TariffReformRecord[]>('/api/network-tariff-reform/reforms'),
+  getNetworkTariffReformDerImpacts: (): Promise<DerNetworkImpactRecord[]> =>
+    get<DerNetworkImpactRecord[]>('/api/network-tariff-reform/der-impacts'),
+
+  // Sprint 48b — NEM Price Spike Post-Event Analysis
+  getSpikeAnalysisDashboard: (): Promise<PSADashboard> =>
+    get<PSADashboard>('/api/spike-analysis/dashboard'),
+  getSpikeAnalysisEvents: (): Promise<PSAEventRecord[]> =>
+    get<PSAEventRecord[]>('/api/spike-analysis/events'),
+  getSpikeAnalysisContributors: (): Promise<PSAContributorRecord[]> =>
+    get<PSAContributorRecord[]>('/api/spike-analysis/contributors'),
+  getSpikeAnalysisConsumerImpacts: (): Promise<PSAConsumerImpact[]> =>
+    get<PSAConsumerImpact[]>('/api/spike-analysis/consumer-impacts'),
+  getSpikeAnalysisRegionalTimeline: (): Promise<PSARegionalTimeline[]> =>
+    get<PSARegionalTimeline[]>('/api/spike-analysis/regional-timeline'),
 }
 
 // ---------------------------------------------------------------------------
@@ -5707,4 +5743,217 @@ export interface SystemOperatorDashboard {
   total_rert_activations_2024: number
   total_load_shed_mwh: number
   total_direction_cost_m_aud: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 48a — Offshore Wind Development Pipeline Analytics
+// ---------------------------------------------------------------------------
+
+export interface OWPDeclaredArea {
+  area_id: string
+  area_name: string
+  state: string
+  water_depth_range_m: string
+  area_km2: number
+  wind_resource_gw: number
+  declaration_date: string
+  licence_round: string
+  licence_applications: number
+  approved_licences: number
+  grid_connection_point: string
+  onshore_distance_km: number
+}
+
+export interface OWPLicenceRecord {
+  licence_id: string
+  declared_area_id: string
+  area_name: string
+  project_name: string
+  developer: string
+  consortium_members: string[]
+  capacity_mw: number
+  turbine_technology: string       // FIXED_BOTTOM, FLOATING
+  turbine_mw: number
+  num_turbines: number
+  water_depth_avg_m: number
+  distance_shore_km: number
+  licence_status: string           // APPLICATION, FEASIBILITY, COMMERCIAL, CONSTRUCTION, OPERATING
+  licence_granted_date: string | null
+  first_power_year: number | null
+  capex_b_aud: number
+  lcoe_mwh: number
+  export_cable_kv: number
+}
+
+export interface OWPSupplyChainRecord {
+  component: string                // TURBINE, MONOPILE, JACKET, FLOATING_PLATFORM, CABLE, INSTALLATION_VESSEL
+  australian_content_pct: number
+  global_supply_constraint: string // LOW, MEDIUM, HIGH, CRITICAL
+  lead_time_months: number
+  key_suppliers: string[]
+  port_requirements: string
+}
+
+export interface OWPCapacityOutlook {
+  year: number
+  scenario: string                 // STEP_CHANGE, CENTRAL
+  cumulative_capacity_gw: number
+  annual_additions_gw: number
+  jobs_supported: number
+  export_potential_gw: number
+}
+
+export interface OWPDashboard {
+  timestamp: string
+  declared_areas: OWPDeclaredArea[]
+  licence_records: OWPLicenceRecord[]
+  supply_chain: OWPSupplyChainRecord[]
+  capacity_outlook: OWPCapacityOutlook[]
+  total_declared_area_gw: number
+  total_licenced_pipeline_gw: number
+  operating_capacity_mw: number
+  total_jobs_2030: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 48c — Network Tariff Reform & DNSP Analytics
+// ---------------------------------------------------------------------------
+
+export interface DnspTariffRecord48c {
+  dnsp_id: string
+  dnsp_name: string
+  state: string
+  tariff_name: string
+  tariff_category: string        // RESIDENTIAL, SME, LARGE_BUSINESS, EV, SOLAR_EXPORT
+  structure_type: string         // FLAT, TOU, DEMAND, CAPACITY, INCLINING_BLOCK
+  daily_supply_charge: number
+  peak_rate_kw_or_kwh: number    // $/kW or c/kWh depending on structure_type
+  off_peak_rate: number | null
+  shoulder_rate: number | null
+  demand_charge_kw_month: number | null
+  solar_export_rate: number | null   // c/kWh for export
+  customer_count: number
+  reform_status: string          // LEGACY, TRANSITIONING, REFORMED
+}
+
+export interface DnspRevenueRecord {
+  dnsp_name: string
+  state: string
+  regulatory_period: string      // e.g. "2024-2029"
+  total_revenue_allowance_b_aud: number
+  capex_allowance_b_aud: number
+  opex_allowance_b_aud: number
+  wacc_pct: number
+  regulatory_asset_base_b_aud: number
+  customer_numbers: number
+  avg_revenue_per_customer_aud: number
+  aer_approved: boolean
+}
+
+export interface TariffReformRecord {
+  reform_id: string
+  reform_name: string
+  dnsp_name: string
+  state: string
+  reform_type: string            // COST_REFLECTIVE, DER_INTEGRATION, EV_TARIFF, SOLAR_EXPORT, CAPACITY_BASED
+  implementation_date: string
+  customers_affected: number
+  avg_bill_change_pct: number    // positive = increase, negative = decrease
+  peak_demand_reduction_mw: number
+  der_integration_benefit_m_aud: number
+  status: string                 // PROPOSED, APPROVED, TRANSITIONING, COMPLETE
+  aer_position: string           // SUPPORTED, CONDITIONAL, OPPOSED, REVIEWING
+}
+
+export interface DerNetworkImpactRecord {
+  dnsp_name: string
+  state: string
+  year: number
+  rooftop_solar_gw: number
+  home_battery_gw: number
+  ev_charger_gw: number
+  reverse_power_flow_events: number
+  voltage_violations: number
+  network_augmentation_avoided_m_aud: number
+  hosting_capacity_constraint_pct: number  // % of feeders at hosting capacity limit
+}
+
+export interface NetworkTariffReformDashboard {
+  timestamp: string
+  dnsp_tariffs: DnspTariffRecord48c[]
+  dnsp_revenue: DnspRevenueRecord[]
+  tariff_reforms: TariffReformRecord[]
+  der_network_impacts: DerNetworkImpactRecord[]
+  total_network_revenue_b_aud: number
+  reformed_customers_pct: number
+  avg_peak_demand_reduction_mw: number
+  network_augmentation_avoided_b_aud: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 48b — NEM Price Spike Post-Event Analysis
+// ---------------------------------------------------------------------------
+
+export interface PSAEventRecord {
+  spike_id: string
+  event_name: string
+  region: string
+  event_date: string
+  start_time: string
+  end_time: string
+  duration_minutes: number
+  peak_price_aud_mwh: number
+  avg_price_during_spike: number
+  pre_spike_avg_price: number
+  price_multiple: number
+  total_revenue_m_aud: number
+  consumer_cost_m_aud: number
+  hedged_consumer_cost_m_aud: number
+  root_cause: string
+  severity: string
+}
+
+export interface PSAContributorRecord {
+  spike_id: string
+  participant_name: string
+  technology: string
+  contribution_type: string
+  mw_impact: number
+  price_contribution_aud_mwh: number
+  revenue_gained_m_aud: number
+  regulatory_action: string | null
+}
+
+export interface PSAConsumerImpact {
+  spike_id: string
+  consumer_segment: string
+  region: string
+  hedged_exposure_pct: number
+  unhedged_cost_m_aud: number
+  demand_response_mw: number
+  air_con_curtailment_mw: number
+  price_signal_response_pct: number
+}
+
+export interface PSARegionalTimeline {
+  spike_id: string
+  region: string
+  interval: string
+  spot_price: number
+  generation_mw: number
+  demand_mw: number
+  interconnector_flow_mw: number
+  reserve_margin_pct: number
+}
+
+export interface PSADashboard {
+  timestamp: string
+  spike_events: PSAEventRecord[]
+  contributors: PSAContributorRecord[]
+  consumer_impacts: PSAConsumerImpact[]
+  regional_timelines: PSARegionalTimeline[]
+  total_spike_events_2024: number
+  total_consumer_cost_m_aud: number
+  avg_spike_duration_min: number
+  most_affected_region: string
 }

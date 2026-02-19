@@ -53,6 +53,8 @@ import {
   Layers,
   BookOpen,
   Tag,
+  Waves,
+  CircuitBoard,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -167,6 +169,9 @@ import MarketDesignReform from './pages/MarketDesignReform'
 import RezCapacityTracking from './pages/RezCapacityTracking'
 import RetailOfferComparison from './pages/RetailOfferComparison'
 import SystemOperatorActions from './pages/SystemOperatorActions'
+import OffshoreWindPipeline from './pages/OffshoreWindPipeline'
+import NetworkTariffReform from './pages/NetworkTariffReform'
+import PriceSpikeAnalysis from './pages/PriceSpikeAnalysis'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -232,7 +237,8 @@ const NAV_ITEMS = [
   { to: '/tnsp',           label: 'TNSP & AER',        Icon: Network        },
   { to: '/surveillance',  label: 'Market Surveillance', Icon: Shield         },
   { to: '/hydrogen',       label: 'Green Hydrogen',    Icon: Flame          },
-  { to: '/offshore-wind',  label: 'Offshore Wind',     Icon: Wind           },
+  { to: '/offshore-wind',          label: 'Offshore Wind',     Icon: Wind           },
+  { to: '/offshore-wind-pipeline', label: 'Offshore Wind Pipeline', Icon: Waves       },
   { to: '/cer',          label: 'CER & RET',       Icon: Leaf           },
   { to: '/phes',          label: 'Pumped Hydro (PHES)', Icon: Droplets       },
   { to: '/safeguard',     label: 'Safeguard & ERF',   Icon: Leaf           },
@@ -281,6 +287,8 @@ const NAV_ITEMS = [
   { to: '/rez-capacity',      label: 'REZ Capacity',       Icon: MapPin         },
   { to: '/retail-offer-comparison', label: 'Retail Offer Compare', Icon: Tag    },
   { to: '/system-operator',   label: 'System Operator',    Icon: AlertOctagon   },
+  { to: '/network-tariff-reform', label: 'Network Tariff Reform', Icon: CircuitBoard },
+  { to: '/spike-analysis',    label: 'Price Spike Analysis', Icon: Flame          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -422,6 +430,7 @@ export default function App() {
               <Route path="/surveillance" element={<MarketSurveillance />} />
               <Route path="/hydrogen"     element={<HydrogenAnalytics />} />
               <Route path="/offshore-wind" element={<OffshoreWind />}      />
+              <Route path="/offshore-wind-pipeline" element={<OffshoreWindPipeline />} />
               <Route path="/cer"          element={<CerDashboard />}  />
               <Route path="/phes"         element={<PhesAnalytics />}      />
               <Route path="/safeguard"    element={<SafeguardAnalytics />} />
@@ -470,6 +479,8 @@ export default function App() {
               <Route path="/rez-capacity"      element={<RezCapacityTracking />} />
               <Route path="/retail-offer-comparison" element={<RetailOfferComparison />} />
               <Route path="/system-operator"   element={<SystemOperatorActions />} />
+              <Route path="/network-tariff-reform" element={<NetworkTariffReform />} />
+              <Route path="/spike-analysis"    element={<PriceSpikeAnalysis />}  />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

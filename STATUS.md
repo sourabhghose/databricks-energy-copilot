@@ -1010,3 +1010,25 @@
 - api methods: getRezCapacityDashboard, getRezCapacityZones, getRezCapacityProjects, getRezCapacityNetworkAugmentations, getRezCapacityBuildOut added to api object in client.ts
 - App.tsx: RezCapacityTracking imported; MapPin already present in lucide-react imports; /rez-capacity route added; "REZ Capacity" nav item (MapPin icon) added before Settings
 - 5 TestRezCapacityEndpoints tests appended to tests/test_backend.py
+
+## Sprint 48b — NEM Price Spike Post-Event Analysis [COMPLETE]
+- PriceSpikeAnalysis.tsx: TrendingUp icon header (Flame already used by Gas/Hydrogen/Coal Retirement), title "NEM Price Spike Post-Event Analysis", subtitle about root cause analysis, market participant behaviour, consumer impact, and regulatory response
+  - 4 KPI cards: Spike Events 2024 (AlertTriangle red), Total Consumer Cost $M (DollarSign amber), Avg Spike Duration min (Clock blue), Most Affected Region (MapPin teal)
+  - Spike Severity Timeline: ScatterChart with custom bubble shapes; X=event date (epoch ms), Y=peak price $/MWh; bubble size proportional to sqrt(duration_minutes)*4 capped at 60; color by severity (MODERATE amber, HIGH orange, EXTREME red, MARKET_SUSPENSION purple); custom tooltip showing event name, region, peak price, date
+  - Spike Events table: event name, RegionBadge, date, duration (min), peak price ($/MWh, orange), price multiple (amber), consumer cost ($M, red), RootCauseBadge, SeverityBadge (MARKET_SUSPENSION pulses); clickable rows to filter detail panels
+  - Top Contributors detail panel (filters to selected spike): participant, technology, ContributionTypeBadge, MW impact (+/- formatted), price contribution ($/MWh), revenue gained ($M), RegulatoryActionBadge (FINED red / CAUTIONED orange / INVESTIGATED yellow / CLEARED green)
+  - Consumer Impact detail panel: stacked BarChart (hedged blue, unhedged red per segment); supplement table with hedged%, unhedged cost, demand response MW, A/C curtailment MW, price signal response%
+  - Notes section: explains root cause taxonomy, hedging exposure definitions, regulatory action statuses
+- Naming collision check: Sprint 13b uses PriceSpikeEvent and SpikeAnalysisSummary; Sprint 48b uses PSA-prefix (PSAEventRecord, PSAContributorRecord, PSAConsumerImpact, PSARegionalTimeline, PSADashboard) to avoid any conflict; endpoints use /api/spike-analysis/ (not /api/price-spike/)
+- Backend Pydantic models: PSAEventRecord, PSAContributorRecord, PSAConsumerImpact, PSARegionalTimeline, PSADashboard
+- Mock data:
+  - 8 spike events: SPK-2022-001 (NEM Market Suspension Jun 2022 MARKET_SUSPENSION), SPK-2022-002 (NSW Summer Heatwave Jan 2022 EXTREME), SPK-2023-001 (SA Heatwave Jan 2023 EXTREME), SPK-2023-002 (VIC Gas Shortage Jul 2023 HIGH), SPK-2023-003 (QLD Network Constraint Nov 2023 HIGH), SPK-2024-001 (NSW Summer Peak Jan 2024 EXTREME), SPK-2024-002 (VIC Winter Peak Jul 2024 HIGH), SPK-2024-003 (QLD Cycling Sep 2024 MODERATE); peak prices $5200-$15300; durations 30-10080 min; root causes: GENERATION_SHORTFALL/DEMAND_SPIKE/WEATHER/STRATEGIC_BIDDING/NETWORK_CONSTRAINT
+  - 12 contributor records: 3 for NEM Suspension (Origin/AGL/EnergyAustralia coal), 2 for NSW heatwave (Snowy Hydro/Meridian), 2 for SA heatwave (AGL OCGT/ElectraNet), 2 for VIC gas (Origin/AGL OCGT — one FINED), 1 for NSW 2024 (Origin), 1 for VIC 2024 (EnergyAustralia), 1 for QLD 2024 (CS Energy)
+  - 16 consumer impact records: 2 segments × 8 spikes (RESIDENTIAL/INDUSTRIAL/C_AND_I/SME across NEM-WIDE/NSW1/SA1/VIC1/QLD1)
+  - 40 regional timeline records: 5 intervals × 8 spikes; showing pre-spike, ramp-up, peak, decline, recovery
+- Dashboard KPIs: total_spike_events_2024=3, total_consumer_cost_m_aud=sum of all 8 events, avg_spike_duration_min=avg across 8 events, most_affected_region="NSW1"
+- Endpoints: GET /api/spike-analysis/dashboard, /events, /contributors, /consumer-impacts, /regional-timeline (all with Depends(verify_api_key), tag="Spike Analysis")
+- TypeScript interfaces: PSAEventRecord, PSAContributorRecord, PSAConsumerImpact, PSARegionalTimeline, PSADashboard appended to client.ts
+- api methods: getSpikeAnalysisDashboard, getSpikeAnalysisEvents, getSpikeAnalysisContributors, getSpikeAnalysisConsumerImpacts, getSpikeAnalysisRegionalTimeline added to api object in client.ts
+- App.tsx: PriceSpikeAnalysis imported; Flame already present (used by Gas Market, Green Hydrogen, Coal Retirement); /spike-analysis route added; "Price Spike Analysis" nav item (Flame icon) added after Network Tariff Reform, before Settings
+- 5 TestSpikeAnalysisEndpoints tests appended to tests/test_backend.py
