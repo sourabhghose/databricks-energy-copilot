@@ -80,6 +80,9 @@ import CarbonAnalytics from './pages/CarbonAnalytics'
 import HedgingAnalytics from './pages/HedgingAnalytics'
 import HydroStorage from './pages/HydroStorage'
 import MarketPower from './pages/MarketPower'
+import PasaAnalytics from './pages/PasaAnalytics'
+import SraAuction from './pages/SraAuction'
+import PpaMarket from './pages/PpaMarket'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -126,6 +129,9 @@ const NAV_ITEMS = [
   { to: '/hedging',       label: 'OTC Hedging',        Icon: TrendingUp     },
   { to: '/hydro',         label: 'Hydro Storage',      Icon: Droplets       },
   { to: '/market-power',  label: 'Market Power',       Icon: AlertTriangle  },
+  { to: '/pasa',          label: 'PASA & Adequacy',    Icon: Activity       },
+  { to: '/sra',           label: 'SRA Auctions',       Icon: ArrowRightLeft },
+  { to: '/ppa',           label: 'PPA Market',         Icon: Sun            },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -247,6 +253,9 @@ export default function App() {
               <Route path="/hedging"      element={<HedgingAnalytics />}  />
               <Route path="/hydro"        element={<HydroStorage />}       />
               <Route path="/market-power" element={<MarketPower />}        />
+              <Route path="/pasa"         element={<PasaAnalytics />}      />
+              <Route path="/sra"          element={<SraAuction />}         />
+              <Route path="/ppa"          element={<PpaMarket />}          />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

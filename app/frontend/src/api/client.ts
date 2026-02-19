@@ -1540,6 +1540,28 @@ export interface MarketShareTrend { participant_name: string; participant_type: 
 export interface MarketPowerDashboard { timestamp: string; nem_overall_hhi: number; sa1_hhi: number; concentration_trend: string; pivotal_suppliers_count: number; quasi_pivotal_count: number; market_review_status: string; hhi_records: HhiRecord[]; pivotal_suppliers: PivotalSupplierRecord[]; share_trends: MarketShareTrend[] }
 
 // ---------------------------------------------------------------------------
+// Sprint 25a — PASA interfaces
+// ---------------------------------------------------------------------------
+export interface PasaPeriod { period: string; start_date: string; end_date: string; region: string; peak_demand_mw: number; scheduled_generation_mw: number; semi_scheduled_mw: number; non_scheduled_mw: number; total_available_mw: number; reserve_margin_mw: number; reserve_margin_pct: number; lor_risk: string; probability_shortage_pct: number }
+export interface ForcedOutageRecord { duid: string; station_name: string; fuel_type: string; region: string; unit_capacity_mw: number; outage_start: string; outage_end: string | null; duration_hours: number | null; outage_type: string; cause: string; mw_lost: number; status: string; return_to_service: string | null }
+export interface GeneratorReliabilityStats { duid: string; station_name: string; fuel_type: string; region: string; capacity_mw: number; equivalent_forced_outage_rate_pct: number; planned_outage_rate_pct: number; availability_pct: number; forced_outages_last_12m: number; avg_outage_duration_hrs: number; unplanned_energy_unavailability_pct: number }
+export interface PasaAdequacyDashboard { timestamp: string; assessment_horizon_weeks: number; regions_with_lor_risk: string[]; min_reserve_margin_mw: number; min_reserve_margin_region: string; total_forced_outages_active: number; total_mw_forced_out: number; high_efor_generators: number; pasa_periods: PasaPeriod[]; forced_outages: ForcedOutageRecord[]; reliability_stats: GeneratorReliabilityStats[] }
+
+// Sprint 25b — SRA Auction interfaces
+export interface SraUnit { unit_id: string; interconnector_id: string; direction: string; quarter: string; allocated_mw: number; auction_price_aud_mwh: number; holder_participant: string; utilisation_pct: number; residue_revenue_aud: number; net_value_aud: number; status: string }
+export interface SraAuctionResult { auction_id: string; auction_date: string; quarter: string; interconnector_id: string; direction: string; total_units_offered_mw: number; total_bids_received_mw: number; clearing_price_aud_mwh: number; units_allocated_mw: number; over_subscription_ratio: number; total_revenue_aud: number; num_participants: number; weighted_avg_bid: number }
+export interface InterconnectorRevenueSummary { interconnector_id: string; from_region: string; to_region: string; quarter: string; total_flow_twh: number; avg_price_differential: number; total_settlement_residue_aud: number; sra_revenue_allocated_pct: number; congestion_hours_pct: number; thermal_limit_mw: number; avg_utilisation_pct: number }
+export interface SraDashboard { timestamp: string; current_quarter: string; total_sra_units_active: number; total_sra_revenue_this_quarter: number; best_performing_interconnector: string; total_residues_distributed_aud: number; auction_results: SraAuctionResult[]; active_units: SraUnit[]; interconnector_revenue: InterconnectorRevenueSummary[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 25c — Corporate PPA interfaces
+// ---------------------------------------------------------------------------
+export interface CorporatePpa { ppa_id: string; project_name: string; technology: string; region: string; capacity_mw: number; offtaker: string; offtaker_sector: string; ppa_price_aud_mwh: number; contract_start: string; contract_end: string; term_years: number; annual_energy_gwh: number; lgc_included: boolean; structure: string; status: string }
+export interface LgcMarket { calendar_year: number; lgc_spot_price_aud: number; lgc_forward_price_aud: number; lgcs_created_this_year_m: number; lgcs_surrendered_this_year_m: number; lgcs_banked_m: number; voluntary_surrender_pct: number; shortfall_charge_risk: string }
+export interface BehindMeterAsset { asset_id: string; asset_type: string; state: string; capacity_kw: number; installed_count: number; total_installed_mw: number; avg_capacity_factor_pct: number; annual_generation_gwh: number; avoided_grid_cost_m_aud: number; certificates_eligible: string }
+export interface PpaDashboard { timestamp: string; total_ppa_capacity_gw: number; active_ppas: number; pipeline_ppas: number; avg_ppa_price_aud_mwh: number; tech_mix: Array<{technology: string; capacity_gw: number; pct: number}>; lgc_spot_price: number; rooftop_solar_total_gw: number; ppas: CorporatePpa[]; lgc_market: LgcMarket[]; behind_meter_assets: BehindMeterAsset[] }
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2627,6 +2649,69 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch pivotal suppliers')
     return res.json()
   },
+
+  getPasaDashboard: async (): Promise<PasaAdequacyDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/pasa/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch PASA dashboard')
+    return res.json()
+  },
+
+  getPasaPeriods: async (params?: { region?: string; lor_risk?: string }): Promise<PasaPeriod[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.lor_risk) qs.append('lor_risk', params.lor_risk)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/pasa/periods${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch PASA periods')
+    return res.json()
+  },
+
+  getForcedOutages: async (params?: { region?: string; status?: string; fuel_type?: string }): Promise<ForcedOutageRecord[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.status) qs.append('status', params.status)
+    if (params?.fuel_type) qs.append('fuel_type', params.fuel_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/pasa/forced-outages${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch forced outages')
+    return res.json()
+  },
+
+  // Sprint 25b — SRA Auction & Interconnector Firm Transfer Rights
+  getSraDashboard: () => get<SraDashboard>('/api/sra/dashboard'),
+
+  getSraUnits: async (params?: { interconnector_id?: string; quarter?: string }): Promise<SraUnit[]> => {
+    const qs = new URLSearchParams()
+    if (params?.interconnector_id) qs.append('interconnector_id', params.interconnector_id)
+    if (params?.quarter) qs.append('quarter', params.quarter)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/sra/units${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch SRA units')
+    return res.json()
+  },
+
+  getSraAuctionResults: async (params?: { interconnector_id?: string }): Promise<SraAuctionResult[]> => {
+    const qs = new URLSearchParams()
+    if (params?.interconnector_id) qs.append('interconnector_id', params.interconnector_id)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/sra/auction-results${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch SRA auction results')
+    return res.json()
+  },
+
+  // Sprint 25c — Corporate PPA Market & Green Energy Procurement
+  getPpaDashboard: () => get<PpaDashboard>('/api/ppa/dashboard'),
+
+  getPpaContracts: (params?: { technology?: string; status?: string; region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.technology) qs.append('technology', params.technology)
+    if (params?.status) qs.append('status', params.status)
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<CorporatePpa[]>(`/api/ppa/contracts${query}`)
+  },
+
+  getLgcMarket: () => get<LgcMarket[]>('/api/ppa/lgc-market'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

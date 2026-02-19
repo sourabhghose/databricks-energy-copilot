@@ -14038,3 +14038,1440 @@ def get_water_value_curve(season: Optional[str] = None, regime: Optional[str] = 
         points = [p for p in points if p.regime == regime]
     _cache_set(cache_key, points, _TTL_HYDRO)
     return points
+
+
+# ===========================================================================
+# Sprint 25a — PASA Availability & Generator Forced Outage Statistics
+# ===========================================================================
+
+_TTL_PASA = 600
+_TTL_FORCED_OUTAGES = 300
+
+
+class PasaPeriod(BaseModel):
+    period: str
+    start_date: str
+    end_date: str
+    region: str
+    peak_demand_mw: float
+    scheduled_generation_mw: float
+    semi_scheduled_mw: float
+    non_scheduled_mw: float
+    total_available_mw: float
+    reserve_margin_mw: float
+    reserve_margin_pct: float
+    lor_risk: str
+    probability_shortage_pct: float
+
+
+class ForcedOutageRecord(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str
+    region: str
+    unit_capacity_mw: float
+    outage_start: str
+    outage_end: Optional[str]
+    duration_hours: Optional[float]
+    outage_type: str
+    cause: str
+    mw_lost: float
+    status: str
+    return_to_service: Optional[str]
+
+
+class GeneratorReliabilityStats(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str
+    region: str
+    capacity_mw: float
+    equivalent_forced_outage_rate_pct: float
+    planned_outage_rate_pct: float
+    availability_pct: float
+    forced_outages_last_12m: int
+    avg_outage_duration_hrs: float
+    unplanned_energy_unavailability_pct: float
+
+
+class PasaAdequacyDashboard(BaseModel):
+    timestamp: str
+    assessment_horizon_weeks: int
+    regions_with_lor_risk: List[str]
+    min_reserve_margin_mw: float
+    min_reserve_margin_region: str
+    total_forced_outages_active: int
+    total_mw_forced_out: float
+    high_efor_generators: int
+    pasa_periods: List[PasaPeriod]
+    forced_outages: List[ForcedOutageRecord]
+    reliability_stats: List[GeneratorReliabilityStats]
+
+
+def _make_pasa_periods() -> List[PasaPeriod]:
+    """Generate 20 PASA periods: 4 regions × 5 weeks."""
+    from datetime import datetime, timedelta
+    base_date = datetime(2026, 2, 23)  # Monday start
+
+    # (region, week_idx) -> (peak_demand, sched_gen, semi_sched, non_sched, lor_risk, prob_shortage)
+    region_configs = {
+        "NSW1": [
+            (9800, 9200, 850, 320, "NONE", 0.2),
+            (9900, 9300, 870, 330, "NONE", 0.3),
+            (9700, 9100, 860, 325, "NONE", 0.3),
+            (9600, 9000, 840, 310, "NONE", 0.2),
+            (9500, 8900, 830, 305, "NONE", 0.1),
+        ],
+        "QLD1": [
+            (7200, 7600, 620, 280, "NONE", 0.5),
+            (7400, 7500, 600, 270, "NONE", 0.8),
+            (7600, 7200, 580, 260, "LOR1", 3.2),
+            (7500, 7100, 590, 255, "LOR1", 2.8),
+            (7300, 7400, 610, 265, "NONE", 1.0),
+        ],
+        "SA1": [
+            (2800, 2500, 680, 140, "NONE", 1.5),
+            (2950, 2400, 640, 135, "LOR1", 4.1),
+            (3000, 2350, 620, 130, "LOR1", 5.2),
+            (2900, 2450, 660, 138, "NONE", 2.1),
+            (2750, 2550, 700, 145, "NONE", 0.9),
+        ],
+        "VIC1": [
+            (7100, 7800, 540, 230, "NONE", 0.3),
+            (7200, 7700, 535, 225, "NONE", 0.4),
+            (7000, 7600, 530, 220, "NONE", 0.4),
+            (6900, 7500, 525, 218, "NONE", 0.3),
+            (6800, 7400, 520, 215, "NONE", 0.2),
+        ],
+    }
+
+    periods: List[PasaPeriod] = []
+    for region, weekly_data in region_configs.items():
+        for week_idx, (peak, sched, semi, non_sched, lor_risk, prob) in enumerate(weekly_data):
+            start_dt = base_date + timedelta(weeks=week_idx)
+            end_dt = start_dt + timedelta(days=6)
+            total_available = sched + semi + non_sched
+            reserve_mw = total_available - peak
+            reserve_pct = round((reserve_mw / peak) * 100, 1)
+            periods.append(PasaPeriod(
+                period=f"Week {week_idx + 1}",
+                start_date=start_dt.strftime("%Y-%m-%d"),
+                end_date=end_dt.strftime("%Y-%m-%d"),
+                region=region,
+                peak_demand_mw=float(peak),
+                scheduled_generation_mw=float(sched),
+                semi_scheduled_mw=float(semi),
+                non_scheduled_mw=float(non_sched),
+                total_available_mw=float(total_available),
+                reserve_margin_mw=float(reserve_mw),
+                reserve_margin_pct=reserve_pct,
+                lor_risk=lor_risk,
+                probability_shortage_pct=prob,
+            ))
+    return periods
+
+
+def _make_forced_outages() -> List[ForcedOutageRecord]:
+    """Generate 8 active/recent forced outage records."""
+    return [
+        ForcedOutageRecord(
+            duid="BAYSW3",
+            station_name="Bayswater U3",
+            fuel_type="BLACK_COAL",
+            region="NSW1",
+            unit_capacity_mw=660.0,
+            outage_start="2026-02-17T14:30:00",
+            outage_end=None,
+            duration_hours=None,
+            outage_type="FORCED",
+            cause="TURBINE",
+            mw_lost=310.0,
+            status="ACTIVE",
+            return_to_service="2026-02-26T06:00:00",
+        ),
+        ForcedOutageRecord(
+            duid="CALLB1",
+            station_name="Callide B",
+            fuel_type="BLACK_COAL",
+            region="QLD1",
+            unit_capacity_mw=350.0,
+            outage_start="2026-02-14T08:00:00",
+            outage_end="2026-02-18T20:00:00",
+            duration_hours=108.0,
+            outage_type="FORCED",
+            cause="BOILER",
+            mw_lost=350.0,
+            status="CLEARED",
+            return_to_service=None,
+        ),
+        ForcedOutageRecord(
+            duid="MORTLK1",
+            station_name="Mortlake U1",
+            fuel_type="GAS_CCGT",
+            region="VIC1",
+            unit_capacity_mw=282.0,
+            outage_start="2026-02-18T22:15:00",
+            outage_end=None,
+            duration_hours=None,
+            outage_type="PARTIAL",
+            cause="ELECTRICAL",
+            mw_lost=80.0,
+            status="ACTIVE",
+            return_to_service="2026-02-22T12:00:00",
+        ),
+        ForcedOutageRecord(
+            duid="QUARAOCGT",
+            station_name="Quarantine OCGT",
+            fuel_type="GAS_OCGT",
+            region="SA1",
+            unit_capacity_mw=280.0,
+            outage_start="2026-02-19T03:00:00",
+            outage_end=None,
+            duration_hours=None,
+            outage_type="FORCED",
+            cause="MECHANICAL",
+            mw_lost=260.0,
+            status="ACTIVE",
+            return_to_service="2026-02-25T18:00:00",
+        ),
+        ForcedOutageRecord(
+            duid="PPCCGT1",
+            station_name="Pelican Point",
+            fuel_type="GAS_CCGT",
+            region="SA1",
+            unit_capacity_mw=478.0,
+            outage_start="2026-02-20T06:00:00",
+            outage_end="2026-03-05T06:00:00",
+            duration_hours=360.0,
+            outage_type="PLANNED",
+            cause="MECHANICAL",
+            mw_lost=200.0,
+            status="EXTENDED",
+            return_to_service="2026-03-07T06:00:00",
+        ),
+        ForcedOutageRecord(
+            duid="LIDDV1",
+            station_name="Liddell V1",
+            fuel_type="BLACK_COAL",
+            region="NSW1",
+            unit_capacity_mw=500.0,
+            outage_start="2026-02-16T12:00:00",
+            outage_end="2026-02-19T08:00:00",
+            duration_hours=68.0,
+            outage_type="FORCED",
+            cause="BOILER",
+            mw_lost=500.0,
+            status="CLEARED",
+            return_to_service=None,
+        ),
+        ForcedOutageRecord(
+            duid="TARONG1",
+            station_name="Tarong U1",
+            fuel_type="BLACK_COAL",
+            region="QLD1",
+            unit_capacity_mw=350.0,
+            outage_start="2026-02-19T10:00:00",
+            outage_end=None,
+            duration_hours=None,
+            outage_type="FORCED",
+            cause="ELECTRICAL",
+            mw_lost=175.0,
+            status="ACTIVE",
+            return_to_service="2026-02-28T00:00:00",
+        ),
+        ForcedOutageRecord(
+            duid="ERGTPP1",
+            station_name="Eraring U1",
+            fuel_type="BLACK_COAL",
+            region="NSW1",
+            unit_capacity_mw=720.0,
+            outage_start="2026-02-18T00:00:00",
+            outage_end=None,
+            duration_hours=None,
+            outage_type="PARTIAL",
+            cause="FUEL",
+            mw_lost=120.0,
+            status="ACTIVE",
+            return_to_service="2026-02-24T06:00:00",
+        ),
+    ]
+
+
+def _make_reliability_stats() -> List[GeneratorReliabilityStats]:
+    """Generate reliability stats for 8 generators."""
+    return [
+        GeneratorReliabilityStats(
+            duid="BAYSW_ALL",
+            station_name="Bayswater",
+            fuel_type="BLACK_COAL",
+            region="NSW1",
+            capacity_mw=2640.0,
+            equivalent_forced_outage_rate_pct=10.5,
+            planned_outage_rate_pct=5.2,
+            availability_pct=84.3,
+            forced_outages_last_12m=8,
+            avg_outage_duration_hrs=52.4,
+            unplanned_energy_unavailability_pct=9.8,
+        ),
+        GeneratorReliabilityStats(
+            duid="CALLB_ALL",
+            station_name="Callide B",
+            fuel_type="BLACK_COAL",
+            region="QLD1",
+            capacity_mw=700.0,
+            equivalent_forced_outage_rate_pct=18.2,
+            planned_outage_rate_pct=7.1,
+            availability_pct=74.7,
+            forced_outages_last_12m=11,
+            avg_outage_duration_hrs=78.6,
+            unplanned_energy_unavailability_pct=16.9,
+        ),
+        GeneratorReliabilityStats(
+            duid="MORTLK_ALL",
+            station_name="Mortlake",
+            fuel_type="GAS_CCGT",
+            region="VIC1",
+            capacity_mw=564.0,
+            equivalent_forced_outage_rate_pct=3.8,
+            planned_outage_rate_pct=4.5,
+            availability_pct=91.7,
+            forced_outages_last_12m=3,
+            avg_outage_duration_hrs=22.1,
+            unplanned_energy_unavailability_pct=3.2,
+        ),
+        GeneratorReliabilityStats(
+            duid="QUARA_ALL",
+            station_name="Quarantine OCGT",
+            fuel_type="GAS_OCGT",
+            region="SA1",
+            capacity_mw=280.0,
+            equivalent_forced_outage_rate_pct=4.9,
+            planned_outage_rate_pct=3.2,
+            availability_pct=91.9,
+            forced_outages_last_12m=4,
+            avg_outage_duration_hrs=18.5,
+            unplanned_energy_unavailability_pct=4.1,
+        ),
+        GeneratorReliabilityStats(
+            duid="PPCCGT_ALL",
+            station_name="Pelican Point",
+            fuel_type="GAS_CCGT",
+            region="SA1",
+            capacity_mw=478.0,
+            equivalent_forced_outage_rate_pct=5.1,
+            planned_outage_rate_pct=6.8,
+            availability_pct=88.1,
+            forced_outages_last_12m=4,
+            avg_outage_duration_hrs=31.2,
+            unplanned_energy_unavailability_pct=4.7,
+        ),
+        GeneratorReliabilityStats(
+            duid="TARONG_ALL",
+            station_name="Tarong",
+            fuel_type="BLACK_COAL",
+            region="QLD1",
+            capacity_mw=1400.0,
+            equivalent_forced_outage_rate_pct=8.7,
+            planned_outage_rate_pct=5.9,
+            availability_pct=85.4,
+            forced_outages_last_12m=7,
+            avg_outage_duration_hrs=44.8,
+            unplanned_energy_unavailability_pct=8.1,
+        ),
+        GeneratorReliabilityStats(
+            duid="CAPTL_WF",
+            station_name="Capital Wind Farm",
+            fuel_type="WIND",
+            region="NSW1",
+            capacity_mw=140.7,
+            equivalent_forced_outage_rate_pct=0.8,
+            planned_outage_rate_pct=1.2,
+            availability_pct=98.0,
+            forced_outages_last_12m=1,
+            avg_outage_duration_hrs=6.5,
+            unplanned_energy_unavailability_pct=0.7,
+        ),
+        GeneratorReliabilityStats(
+            duid="LBBG1",
+            station_name="Ladbroke Grove",
+            fuel_type="GAS_OCGT",
+            region="SA1",
+            capacity_mw=80.0,
+            equivalent_forced_outage_rate_pct=2.9,
+            planned_outage_rate_pct=2.5,
+            availability_pct=94.6,
+            forced_outages_last_12m=2,
+            avg_outage_duration_hrs=14.3,
+            unplanned_energy_unavailability_pct=2.5,
+        ),
+    ]
+
+
+def _make_pasa_dashboard() -> PasaAdequacyDashboard:
+    """Aggregate PASA dashboard."""
+    from datetime import datetime, timezone
+    periods = _make_pasa_periods()
+    outages = _make_forced_outages()
+    stats = _make_reliability_stats()
+
+    regions_with_lor = sorted({p.region for p in periods if p.lor_risk != "NONE"})
+    active_outages = [o for o in outages if o.status == "ACTIVE"]
+    total_mw_out = sum(o.mw_lost for o in active_outages)
+
+    min_reserve_period = min(periods, key=lambda p: p.reserve_margin_mw)
+    high_efor = sum(1 for s in stats if s.equivalent_forced_outage_rate_pct > 15.0)
+
+    return PasaAdequacyDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        assessment_horizon_weeks=5,
+        regions_with_lor_risk=regions_with_lor,
+        min_reserve_margin_mw=min_reserve_period.reserve_margin_mw,
+        min_reserve_margin_region=min_reserve_period.region,
+        total_forced_outages_active=len(active_outages),
+        total_mw_forced_out=total_mw_out,
+        high_efor_generators=high_efor,
+        pasa_periods=periods,
+        forced_outages=outages,
+        reliability_stats=stats,
+    )
+
+
+@app.get(
+    "/api/pasa/dashboard",
+    response_model=PasaAdequacyDashboard,
+    tags=["PASA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_pasa_dashboard():
+    """Return full PASA dashboard with reserve margins, forced outages and reliability stats. Cached 600 s."""
+    cache_key = "pasa:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    dashboard = _make_pasa_dashboard()
+    _cache_set(cache_key, dashboard, _TTL_PASA)
+    return dashboard
+
+
+@app.get(
+    "/api/pasa/periods",
+    response_model=List[PasaPeriod],
+    tags=["PASA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_pasa_periods(region: Optional[str] = None, lor_risk: Optional[str] = None):
+    """Return PASA assessment periods, optionally filtered by region or LOR risk level. Cached 600 s."""
+    cache_key = f"pasa:periods:{region}:{lor_risk}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    periods = _make_pasa_periods()
+    if region:
+        periods = [p for p in periods if p.region == region]
+    if lor_risk:
+        periods = [p for p in periods if p.lor_risk == lor_risk]
+    _cache_set(cache_key, periods, _TTL_PASA)
+    return periods
+
+
+@app.get(
+    "/api/pasa/forced-outages",
+    response_model=List[ForcedOutageRecord],
+    tags=["PASA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_forced_outages(
+    region: Optional[str] = None,
+    status: Optional[str] = None,
+    fuel_type: Optional[str] = None,
+):
+    """Return generator forced outage log, optionally filtered by region, status or fuel type. Cached 300 s."""
+    cache_key = f"pasa:forced-outages:{region}:{status}:{fuel_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    outages = _make_forced_outages()
+    if region:
+        outages = [o for o in outages if o.region == region]
+    if status:
+        outages = [o for o in outages if o.status == status]
+    if fuel_type:
+        outages = [o for o in outages if o.fuel_type == fuel_type]
+    _cache_set(cache_key, outages, _TTL_FORCED_OUTAGES)
+    return outages
+
+
+# =============================================================================
+# Sprint 25b — SRA Auction & Interconnector Firm Transfer Rights
+# =============================================================================
+
+_TTL_SRA = 3600
+
+
+class SraUnit(BaseModel):
+    unit_id: str
+    interconnector_id: str
+    direction: str
+    quarter: str
+    allocated_mw: float
+    auction_price_aud_mwh: float
+    holder_participant: str
+    utilisation_pct: float
+    residue_revenue_aud: float
+    net_value_aud: float
+    status: str
+
+
+class SraAuctionResult(BaseModel):
+    auction_id: str
+    auction_date: str
+    quarter: str
+    interconnector_id: str
+    direction: str
+    total_units_offered_mw: float
+    total_bids_received_mw: float
+    clearing_price_aud_mwh: float
+    units_allocated_mw: float
+    over_subscription_ratio: float
+    total_revenue_aud: float
+    num_participants: int
+    weighted_avg_bid: float
+
+
+class InterconnectorRevenueSummary(BaseModel):
+    interconnector_id: str
+    from_region: str
+    to_region: str
+    quarter: str
+    total_flow_twh: float
+    avg_price_differential: float
+    total_settlement_residue_aud: float
+    sra_revenue_allocated_pct: float
+    congestion_hours_pct: float
+    thermal_limit_mw: float
+    avg_utilisation_pct: float
+
+
+class SraDashboard(BaseModel):
+    timestamp: str
+    current_quarter: str
+    total_sra_units_active: int
+    total_sra_revenue_this_quarter: float
+    best_performing_interconnector: str
+    total_residues_distributed_aud: float
+    auction_results: List[SraAuctionResult]
+    active_units: List[SraUnit]
+    interconnector_revenue: List[InterconnectorRevenueSummary]
+
+
+def _make_sra_auction_results() -> List[SraAuctionResult]:
+    """8 auction results — 4 interconnectors x 2 directions, Q1 2026.
+    SA1-VIC1 import has highest clearing price ($18/MWh) due to SA price
+    volatility. VIC1-TAS1 has low clearing price ($2/MWh).
+    Over-subscription ratios 1.2x-3.1x."""
+    return [
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-SA1VIC1-IMP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="SA1-VIC1",
+            direction="IMPORT",
+            total_units_offered_mw=650.0,
+            total_bids_received_mw=2015.0,
+            clearing_price_aud_mwh=18.40,
+            units_allocated_mw=650.0,
+            over_subscription_ratio=3.1,
+            total_revenue_aud=21_817_200.0,
+            num_participants=14,
+            weighted_avg_bid=22.60,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-SA1VIC1-EXP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="SA1-VIC1",
+            direction="EXPORT",
+            total_units_offered_mw=500.0,
+            total_bids_received_mw=1100.0,
+            clearing_price_aud_mwh=12.80,
+            units_allocated_mw=500.0,
+            over_subscription_ratio=2.2,
+            total_revenue_aud=11_673_600.0,
+            num_participants=11,
+            weighted_avg_bid=15.30,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-VIC1NSW1-EXP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="VIC1-NSW1",
+            direction="EXPORT",
+            total_units_offered_mw=1800.0,
+            total_bids_received_mw=3060.0,
+            clearing_price_aud_mwh=9.20,
+            units_allocated_mw=1800.0,
+            over_subscription_ratio=1.7,
+            total_revenue_aud=30_326_400.0,
+            num_participants=18,
+            weighted_avg_bid=11.10,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-VIC1NSW1-IMP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="VIC1-NSW1",
+            direction="IMPORT",
+            total_units_offered_mw=1400.0,
+            total_bids_received_mw=2380.0,
+            clearing_price_aud_mwh=8.50,
+            units_allocated_mw=1400.0,
+            over_subscription_ratio=1.7,
+            total_revenue_aud=21_924_000.0,
+            num_participants=16,
+            weighted_avg_bid=10.20,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-QLD1NSW1-EXP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="QLD1-NSW1",
+            direction="EXPORT",
+            total_units_offered_mw=1078.0,
+            total_bids_received_mw=1832.6,
+            clearing_price_aud_mwh=7.60,
+            units_allocated_mw=1078.0,
+            over_subscription_ratio=1.7,
+            total_revenue_aud=15_086_016.0,
+            num_participants=13,
+            weighted_avg_bid=9.20,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-QLD1NSW1-IMP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="QLD1-NSW1",
+            direction="IMPORT",
+            total_units_offered_mw=900.0,
+            total_bids_received_mw=1080.0,
+            clearing_price_aud_mwh=6.40,
+            units_allocated_mw=900.0,
+            over_subscription_ratio=1.2,
+            total_revenue_aud=10_598_400.0,
+            num_participants=10,
+            weighted_avg_bid=7.80,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-VIC1TAS1-IMP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="VIC1-TAS1",
+            direction="IMPORT",
+            total_units_offered_mw=470.0,
+            total_bids_received_mw=1363.0,
+            clearing_price_aud_mwh=2.10,
+            units_allocated_mw=470.0,
+            over_subscription_ratio=2.9,
+            total_revenue_aud=1_821_456.0,
+            num_participants=9,
+            weighted_avg_bid=3.50,
+        ),
+        SraAuctionResult(
+            auction_id="SRA-2026Q1-VIC1TAS1-EXP",
+            auction_date="2025-12-15",
+            quarter="Q1 2026",
+            interconnector_id="VIC1-TAS1",
+            direction="EXPORT",
+            total_units_offered_mw=470.0,
+            total_bids_received_mw=799.0,
+            clearing_price_aud_mwh=1.80,
+            units_allocated_mw=470.0,
+            over_subscription_ratio=1.7,
+            total_revenue_aud=1_561_248.0,
+            num_participants=8,
+            weighted_avg_bid=2.40,
+        ),
+    ]
+
+
+def _make_sra_units() -> List[SraUnit]:
+    """10 active SRA units across 4 interconnectors, held by major retailers."""
+    hours_in_quarter = 2184.0  # 91 days x 24 hours
+    return [
+        # SA1-VIC1 IMPORT — highest utilisation 94%
+        SraUnit(
+            unit_id="SRA-U001",
+            interconnector_id="SA1-VIC1",
+            direction="IMPORT",
+            quarter="Q1 2026",
+            allocated_mw=200.0,
+            auction_price_aud_mwh=18.40,
+            holder_participant="AGL Energy",
+            utilisation_pct=94.0,
+            residue_revenue_aud=9_856_000.0,
+            net_value_aud=9_856_000.0 - (18.40 * 200.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        SraUnit(
+            unit_id="SRA-U002",
+            interconnector_id="SA1-VIC1",
+            direction="IMPORT",
+            quarter="Q1 2026",
+            allocated_mw=150.0,
+            auction_price_aud_mwh=18.40,
+            holder_participant="Origin Energy",
+            utilisation_pct=91.0,
+            residue_revenue_aud=7_038_000.0,
+            net_value_aud=7_038_000.0 - (18.40 * 150.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        # SA1-VIC1 EXPORT
+        SraUnit(
+            unit_id="SRA-U003",
+            interconnector_id="SA1-VIC1",
+            direction="EXPORT",
+            quarter="Q1 2026",
+            allocated_mw=180.0,
+            auction_price_aud_mwh=12.80,
+            holder_participant="EnergyAustralia",
+            utilisation_pct=72.0,
+            residue_revenue_aud=4_320_000.0,
+            net_value_aud=4_320_000.0 - (12.80 * 180.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        # VIC1-NSW1 EXPORT — 85% utilised
+        SraUnit(
+            unit_id="SRA-U004",
+            interconnector_id="VIC1-NSW1",
+            direction="EXPORT",
+            quarter="Q1 2026",
+            allocated_mw=500.0,
+            auction_price_aud_mwh=9.20,
+            holder_participant="AGL Energy",
+            utilisation_pct=85.0,
+            residue_revenue_aud=12_760_000.0,
+            net_value_aud=12_760_000.0 - (9.20 * 500.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        SraUnit(
+            unit_id="SRA-U005",
+            interconnector_id="VIC1-NSW1",
+            direction="EXPORT",
+            quarter="Q1 2026",
+            allocated_mw=400.0,
+            auction_price_aud_mwh=9.20,
+            holder_participant="Macquarie Energy",
+            utilisation_pct=82.0,
+            residue_revenue_aud=9_840_000.0,
+            net_value_aud=9_840_000.0 - (9.20 * 400.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        # VIC1-NSW1 IMPORT
+        SraUnit(
+            unit_id="SRA-U006",
+            interconnector_id="VIC1-NSW1",
+            direction="IMPORT",
+            quarter="Q1 2026",
+            allocated_mw=350.0,
+            auction_price_aud_mwh=8.50,
+            holder_participant="Origin Energy",
+            utilisation_pct=78.0,
+            residue_revenue_aud=7_840_000.0,
+            net_value_aud=7_840_000.0 - (8.50 * 350.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        # QLD1-NSW1 EXPORT
+        SraUnit(
+            unit_id="SRA-U007",
+            interconnector_id="QLD1-NSW1",
+            direction="EXPORT",
+            quarter="Q1 2026",
+            allocated_mw=320.0,
+            auction_price_aud_mwh=7.60,
+            holder_participant="EnergyAustralia",
+            utilisation_pct=68.0,
+            residue_revenue_aud=5_120_000.0,
+            net_value_aud=5_120_000.0 - (7.60 * 320.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        # QLD1-NSW1 IMPORT
+        SraUnit(
+            unit_id="SRA-U008",
+            interconnector_id="QLD1-NSW1",
+            direction="IMPORT",
+            quarter="Q1 2026",
+            allocated_mw=280.0,
+            auction_price_aud_mwh=6.40,
+            holder_participant="Alinta Energy",
+            utilisation_pct=55.0,
+            residue_revenue_aud=3_360_000.0,
+            net_value_aud=3_360_000.0 - (6.40 * 280.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        # VIC1-TAS1
+        SraUnit(
+            unit_id="SRA-U009",
+            interconnector_id="VIC1-TAS1",
+            direction="IMPORT",
+            quarter="Q1 2026",
+            allocated_mw=150.0,
+            auction_price_aud_mwh=2.10,
+            holder_participant="Macquarie Energy",
+            utilisation_pct=63.0,
+            residue_revenue_aud=1_260_000.0,
+            net_value_aud=1_260_000.0 - (2.10 * 150.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+        SraUnit(
+            unit_id="SRA-U010",
+            interconnector_id="VIC1-TAS1",
+            direction="EXPORT",
+            quarter="Q1 2026",
+            allocated_mw=120.0,
+            auction_price_aud_mwh=1.80,
+            holder_participant="Alinta Energy",
+            utilisation_pct=58.0,
+            residue_revenue_aud=980_000.0,
+            net_value_aud=980_000.0 - (1.80 * 120.0 * hours_in_quarter),
+            status="ACTIVE",
+        ),
+    ]
+
+
+def _make_interconnector_revenue() -> List[InterconnectorRevenueSummary]:
+    """4 interconnectors with quarterly revenue summaries.
+    SA1-VIC1 highest congestion (62% hours) and highest settlement residues."""
+    return [
+        InterconnectorRevenueSummary(
+            interconnector_id="SA1-VIC1",
+            from_region="SA1",
+            to_region="VIC1",
+            quarter="Q1 2026",
+            total_flow_twh=3.81,
+            avg_price_differential=22.50,
+            total_settlement_residue_aud=58_420_000.0,
+            sra_revenue_allocated_pct=57.6,
+            congestion_hours_pct=62.0,
+            thermal_limit_mw=650.0,
+            avg_utilisation_pct=88.0,
+        ),
+        InterconnectorRevenueSummary(
+            interconnector_id="VIC1-NSW1",
+            from_region="VIC1",
+            to_region="NSW1",
+            quarter="Q1 2026",
+            total_flow_twh=12.14,
+            avg_price_differential=14.20,
+            total_settlement_residue_aud=96_840_000.0,
+            sra_revenue_allocated_pct=54.0,
+            congestion_hours_pct=41.0,
+            thermal_limit_mw=1800.0,
+            avg_utilisation_pct=76.0,
+        ),
+        InterconnectorRevenueSummary(
+            interconnector_id="QLD1-NSW1",
+            from_region="QLD1",
+            to_region="NSW1",
+            quarter="Q1 2026",
+            total_flow_twh=8.73,
+            avg_price_differential=10.80,
+            total_settlement_residue_aud=52_360_000.0,
+            sra_revenue_allocated_pct=49.5,
+            congestion_hours_pct=35.0,
+            thermal_limit_mw=1078.0,
+            avg_utilisation_pct=72.0,
+        ),
+        InterconnectorRevenueSummary(
+            interconnector_id="VIC1-TAS1",
+            from_region="VIC1",
+            to_region="TAS1",
+            quarter="Q1 2026",
+            total_flow_twh=2.05,
+            avg_price_differential=4.30,
+            total_settlement_residue_aud=9_870_000.0,
+            sra_revenue_allocated_pct=34.2,
+            congestion_hours_pct=28.0,
+            thermal_limit_mw=478.0,
+            avg_utilisation_pct=61.0,
+        ),
+    ]
+
+
+def _make_sra_dashboard() -> SraDashboard:
+    """Aggregate SRA dashboard."""
+    from datetime import datetime, timezone
+    now_str = datetime.now(timezone.utc).isoformat()
+    auction_results = _make_sra_auction_results()
+    active_units = _make_sra_units()
+    interconnector_revenue = _make_interconnector_revenue()
+    total_revenue = sum(u.residue_revenue_aud for u in active_units)
+    total_residues = sum(r.total_settlement_residue_aud for r in interconnector_revenue)
+    best_ic = max(interconnector_revenue, key=lambda r: r.total_settlement_residue_aud)
+    return SraDashboard(
+        timestamp=now_str,
+        current_quarter="Q1 2026",
+        total_sra_units_active=len(active_units),
+        total_sra_revenue_this_quarter=total_revenue,
+        best_performing_interconnector=best_ic.interconnector_id,
+        total_residues_distributed_aud=total_residues,
+        auction_results=auction_results,
+        active_units=active_units,
+        interconnector_revenue=interconnector_revenue,
+    )
+
+
+@app.get(
+    "/api/sra/dashboard",
+    response_model=SraDashboard,
+    summary="SRA & Interconnector Firm Transfer Rights dashboard",
+    tags=["SRA Auctions"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sra_dashboard():
+    """Return full SRA dashboard with auction results, active units and
+    interconnector revenue summaries. Cached 3600 s."""
+    cache_key = "sra:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    data = _make_sra_dashboard()
+    _cache_set(cache_key, data, _TTL_SRA)
+    return data
+
+
+@app.get(
+    "/api/sra/units",
+    response_model=List[SraUnit],
+    summary="Active SRA units (filterable by interconnector_id, quarter)",
+    tags=["SRA Auctions"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sra_units(
+    interconnector_id: Optional[str] = None,
+    quarter: Optional[str] = None,
+):
+    """Return list of active SRA units, optionally filtered by
+    interconnector_id or quarter. Cached 3600 s."""
+    cache_key = f"sra:units:{interconnector_id}:{quarter}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    units = _make_sra_units()
+    if interconnector_id:
+        units = [u for u in units if u.interconnector_id == interconnector_id]
+    if quarter:
+        units = [u for u in units if u.quarter == quarter]
+    _cache_set(cache_key, units, _TTL_SRA)
+    return units
+
+
+@app.get(
+    "/api/sra/auction-results",
+    response_model=List[SraAuctionResult],
+    summary="SRA auction clearing results (filterable by interconnector_id)",
+    tags=["SRA Auctions"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sra_auction_results(interconnector_id: Optional[str] = None):
+    """Return SRA auction clearing results, optionally filtered by
+    interconnector_id. Cached 3600 s."""
+    cache_key = f"sra:auction-results:{interconnector_id}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    results = _make_sra_auction_results()
+    if interconnector_id:
+        results = [r for r in results if r.interconnector_id == interconnector_id]
+    _cache_set(cache_key, results, _TTL_SRA)
+    return results
+
+
+# ===========================================================================
+# Sprint 25c — Corporate PPA Market & Green Energy Procurement Analytics
+# ===========================================================================
+
+_TTL_PPA = 3600
+
+
+class CorporatePpa(BaseModel):
+    ppa_id: str
+    project_name: str
+    technology: str              # "Wind", "Solar PV", "Hydro"
+    region: str
+    capacity_mw: float
+    offtaker: str                # corporate buyer name
+    offtaker_sector: str         # "Tech", "Mining", "Retail", "Manufacturing", "Government"
+    ppa_price_aud_mwh: float
+    contract_start: str
+    contract_end: str
+    term_years: int
+    annual_energy_gwh: float
+    lgc_included: bool           # Large-scale Generation Certificates included
+    structure: str               # "FIXED_PRICE", "FLOOR_CAP", "INDEXED", "PROXY_REVENUE_SWAP"
+    status: str                  # "ACTIVE", "SIGNED", "ANNOUNCED", "EXPIRED"
+
+
+class LgcMarket(BaseModel):
+    calendar_year: int
+    lgc_spot_price_aud: float
+    lgc_forward_price_aud: float    # next year forward price
+    lgcs_created_this_year_m: float  # millions
+    lgcs_surrendered_this_year_m: float
+    lgcs_banked_m: float
+    voluntary_surrender_pct: float  # % surrendered voluntarily (above renewable target)
+    shortfall_charge_risk: str      # "NONE", "LOW", "MEDIUM", "HIGH"
+
+
+class BehindMeterAsset(BaseModel):
+    asset_id: str
+    asset_type: str              # "ROOFTOP_SOLAR", "COMMERCIAL_SOLAR", "BATTERY", "CHP", "WIND_SMALL"
+    state: str
+    capacity_kw: float
+    installed_count: int         # number of systems
+    total_installed_mw: float
+    avg_capacity_factor_pct: float
+    annual_generation_gwh: float
+    avoided_grid_cost_m_aud: float
+    certificates_eligible: str  # "STCs", "VEECs", "ESCs", "None"
+
+
+class PpaDashboard(BaseModel):
+    timestamp: str
+    total_ppa_capacity_gw: float
+    active_ppas: int
+    pipeline_ppas: int
+    avg_ppa_price_aud_mwh: float
+    tech_mix: List[dict]         # [{"technology": str, "capacity_gw": float, "pct": float}]
+    lgc_spot_price: float
+    rooftop_solar_total_gw: float
+    ppas: List[CorporatePpa]
+    lgc_market: List[LgcMarket]
+    behind_meter_assets: List[BehindMeterAsset]
+
+
+def _make_corporate_ppas() -> List[CorporatePpa]:
+    """Generate 10 corporate PPA records — mix of Wind/Solar/Hydro across NEM regions."""
+    return [
+        CorporatePpa(
+            ppa_id="PPA-001",
+            project_name="MacIntyre Wind Farm",
+            technology="Wind",
+            region="QLD",
+            capacity_mw=300.0,
+            offtaker="Microsoft",
+            offtaker_sector="Tech",
+            ppa_price_aud_mwh=62.0,
+            contract_start="2024-01-01",
+            contract_end="2039-12-31",
+            term_years=15,
+            annual_energy_gwh=1050.0,
+            lgc_included=True,
+            structure="FIXED_PRICE",
+            status="ACTIVE",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-002",
+            project_name="Olympic Dam Solar Farm",
+            technology="Solar PV",
+            region="SA",
+            capacity_mw=150.0,
+            offtaker="BHP",
+            offtaker_sector="Mining",
+            ppa_price_aud_mwh=58.0,
+            contract_start="2023-07-01",
+            contract_end="2038-06-30",
+            term_years=15,
+            annual_energy_gwh=310.0,
+            lgc_included=True,
+            structure="FLOOR_CAP",
+            status="ACTIVE",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-003",
+            project_name="Gannawarra Solar Farm",
+            technology="Solar PV",
+            region="VIC",
+            capacity_mw=120.0,
+            offtaker="Woolworths",
+            offtaker_sector="Retail",
+            ppa_price_aud_mwh=55.0,
+            contract_start="2022-04-01",
+            contract_end="2037-03-31",
+            term_years=15,
+            annual_energy_gwh=242.0,
+            lgc_included=True,
+            structure="FIXED_PRICE",
+            status="ACTIVE",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-004",
+            project_name="Goldwind Gullen Range Wind",
+            technology="Wind",
+            region="NSW",
+            capacity_mw=280.0,
+            offtaker="Amazon",
+            offtaker_sector="Tech",
+            ppa_price_aud_mwh=67.0,
+            contract_start="2025-01-01",
+            contract_end="2040-12-31",
+            term_years=15,
+            annual_energy_gwh=876.0,
+            lgc_included=True,
+            structure="PROXY_REVENUE_SWAP",
+            status="ACTIVE",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-005",
+            project_name="Snapper Point Solar",
+            technology="Solar PV",
+            region="NSW",
+            capacity_mw=90.0,
+            offtaker="Wesfarmers",
+            offtaker_sector="Retail",
+            ppa_price_aud_mwh=60.0,
+            contract_start="2025-06-01",
+            contract_end="2040-05-31",
+            term_years=15,
+            annual_energy_gwh=185.0,
+            lgc_included=False,
+            structure="INDEXED",
+            status="SIGNED",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-006",
+            project_name="Murra Warra II Wind Farm",
+            technology="Wind",
+            region="VIC",
+            capacity_mw=210.0,
+            offtaker="Telstra",
+            offtaker_sector="Tech",
+            ppa_price_aud_mwh=65.0,
+            contract_start="2024-10-01",
+            contract_end="2039-09-30",
+            term_years=15,
+            annual_energy_gwh=660.0,
+            lgc_included=True,
+            structure="FIXED_PRICE",
+            status="ACTIVE",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-007",
+            project_name="Kidston Pumped Hydro",
+            technology="Hydro",
+            region="QLD",
+            capacity_mw=250.0,
+            offtaker="Rio Tinto",
+            offtaker_sector="Mining",
+            ppa_price_aud_mwh=72.0,
+            contract_start="2026-01-01",
+            contract_end="2046-12-31",
+            term_years=20,
+            annual_energy_gwh=730.0,
+            lgc_included=False,
+            structure="FLOOR_CAP",
+            status="ANNOUNCED",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-008",
+            project_name="Neoen Crystal Brook Energy Park",
+            technology="Wind",
+            region="SA",
+            capacity_mw=220.0,
+            offtaker="Coles Group",
+            offtaker_sector="Retail",
+            ppa_price_aud_mwh=70.0,
+            contract_start="2026-03-01",
+            contract_end="2041-02-28",
+            term_years=15,
+            annual_energy_gwh=625.0,
+            lgc_included=True,
+            structure="FIXED_PRICE",
+            status="ANNOUNCED",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-009",
+            project_name="Ararat Wind Farm",
+            technology="Wind",
+            region="VIC",
+            capacity_mw=240.0,
+            offtaker="Alcoa",
+            offtaker_sector="Manufacturing",
+            ppa_price_aud_mwh=85.0,
+            contract_start="2015-01-01",
+            contract_end="2025-12-31",
+            term_years=10,
+            annual_energy_gwh=720.0,
+            lgc_included=True,
+            structure="FIXED_PRICE",
+            status="EXPIRED",
+        ),
+        CorporatePpa(
+            ppa_id="PPA-010",
+            project_name="Darlington Point Solar",
+            technology="Solar PV",
+            region="NSW",
+            capacity_mw=275.0,
+            offtaker="NSW Government",
+            offtaker_sector="Government",
+            ppa_price_aud_mwh=63.0,
+            contract_start="2023-01-01",
+            contract_end="2038-12-31",
+            term_years=15,
+            annual_energy_gwh=545.0,
+            lgc_included=True,
+            structure="INDEXED",
+            status="ACTIVE",
+        ),
+    ]
+
+
+def _make_lgc_market() -> List[LgcMarket]:
+    """Generate 6 years of LGC market data (2022-2027) showing declining spot prices."""
+    return [
+        LgcMarket(
+            calendar_year=2022,
+            lgc_spot_price_aud=58.0,
+            lgc_forward_price_aud=48.0,
+            lgcs_created_this_year_m=38.2,
+            lgcs_surrendered_this_year_m=35.8,
+            lgcs_banked_m=12.4,
+            voluntary_surrender_pct=8.5,
+            shortfall_charge_risk="LOW",
+        ),
+        LgcMarket(
+            calendar_year=2023,
+            lgc_spot_price_aud=48.0,
+            lgc_forward_price_aud=38.0,
+            lgcs_created_this_year_m=44.6,
+            lgcs_surrendered_this_year_m=40.1,
+            lgcs_banked_m=16.9,
+            voluntary_surrender_pct=11.2,
+            shortfall_charge_risk="LOW",
+        ),
+        LgcMarket(
+            calendar_year=2024,
+            lgc_spot_price_aud=38.0,
+            lgc_forward_price_aud=30.0,
+            lgcs_created_this_year_m=52.1,
+            lgcs_surrendered_this_year_m=46.3,
+            lgcs_banked_m=22.7,
+            voluntary_surrender_pct=14.8,
+            shortfall_charge_risk="NONE",
+        ),
+        LgcMarket(
+            calendar_year=2025,
+            lgc_spot_price_aud=32.0,
+            lgc_forward_price_aud=28.0,
+            lgcs_created_this_year_m=58.4,
+            lgcs_surrendered_this_year_m=51.0,
+            lgcs_banked_m=30.1,
+            voluntary_surrender_pct=18.2,
+            shortfall_charge_risk="NONE",
+        ),
+        LgcMarket(
+            calendar_year=2026,
+            lgc_spot_price_aud=28.5,
+            lgc_forward_price_aud=25.0,
+            lgcs_created_this_year_m=63.2,
+            lgcs_surrendered_this_year_m=55.8,
+            lgcs_banked_m=37.5,
+            voluntary_surrender_pct=21.0,
+            shortfall_charge_risk="NONE",
+        ),
+        LgcMarket(
+            calendar_year=2027,
+            lgc_spot_price_aud=28.0,
+            lgc_forward_price_aud=24.0,
+            lgcs_created_this_year_m=67.0,
+            lgcs_surrendered_this_year_m=58.5,
+            lgcs_banked_m=46.0,
+            voluntary_surrender_pct=23.5,
+            shortfall_charge_risk="LOW",
+        ),
+    ]
+
+
+def _make_behind_meter_assets() -> List[BehindMeterAsset]:
+    """Generate 5 behind-the-meter asset class records."""
+    return [
+        BehindMeterAsset(
+            asset_id="BTM-001",
+            asset_type="ROOFTOP_SOLAR",
+            state="NEM-wide",
+            capacity_kw=6.7,
+            installed_count=3_400_000,
+            total_installed_mw=22800.0,
+            avg_capacity_factor_pct=17.2,
+            annual_generation_gwh=34360.0,
+            avoided_grid_cost_m_aud=5840.0,
+            certificates_eligible="STCs",
+        ),
+        BehindMeterAsset(
+            asset_id="BTM-002",
+            asset_type="COMMERCIAL_SOLAR",
+            state="NEM-wide",
+            capacity_kw=100.0,
+            installed_count=42_000,
+            total_installed_mw=4200.0,
+            avg_capacity_factor_pct=18.5,
+            annual_generation_gwh=6801.0,
+            avoided_grid_cost_m_aud=1156.0,
+            certificates_eligible="VEECs/ESCs",
+        ),
+        BehindMeterAsset(
+            asset_id="BTM-003",
+            asset_type="BATTERY",
+            state="NEM-wide",
+            capacity_kw=10.0,
+            installed_count=480_000,
+            total_installed_mw=2100.0,
+            avg_capacity_factor_pct=12.0,
+            annual_generation_gwh=2203.0,
+            avoided_grid_cost_m_aud=374.0,
+            certificates_eligible="None",
+        ),
+        BehindMeterAsset(
+            asset_id="BTM-004",
+            asset_type="COMMERCIAL_BATTERY",
+            state="NEM-wide",
+            capacity_kw=500.0,
+            installed_count=8_200,
+            total_installed_mw=850.0,
+            avg_capacity_factor_pct=14.0,
+            annual_generation_gwh=1042.0,
+            avoided_grid_cost_m_aud=177.0,
+            certificates_eligible="None",
+        ),
+        BehindMeterAsset(
+            asset_id="BTM-005",
+            asset_type="CHP",
+            state="NEM-wide",
+            capacity_kw=267.0,
+            installed_count=1_200,
+            total_installed_mw=320.0,
+            avg_capacity_factor_pct=62.0,
+            annual_generation_gwh=1737.0,
+            avoided_grid_cost_m_aud=295.0,
+            certificates_eligible="None",
+        ),
+    ]
+
+
+def _make_ppa_dashboard() -> PpaDashboard:
+    """Aggregate PPA dashboard summary."""
+    from datetime import datetime, timezone
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ppas = _make_corporate_ppas()
+    lgc_market = _make_lgc_market()
+    behind_meter = _make_behind_meter_assets()
+
+    active_ppas = [p for p in ppas if p.status == "ACTIVE"]
+    pipeline_ppas = [p for p in ppas if p.status in ("SIGNED", "ANNOUNCED")]
+
+    total_capacity_gw = sum(p.capacity_mw for p in ppas) / 1000.0
+    avg_price = round(
+        sum(p.ppa_price_aud_mwh for p in active_ppas) / max(len(active_ppas), 1), 2
+    )
+
+    # Technology mix
+    tech_totals: dict = {}
+    for p in ppas:
+        tech_totals[p.technology] = tech_totals.get(p.technology, 0) + p.capacity_mw
+    total_cap = sum(tech_totals.values())
+    tech_mix = [
+        {
+            "technology": tech,
+            "capacity_gw": round(cap / 1000.0, 3),
+            "pct": round((cap / total_cap) * 100, 1),
+        }
+        for tech, cap in sorted(tech_totals.items(), key=lambda x: -x[1])
+    ]
+
+    # LGC spot from 2026
+    lgc_2026 = next((lm for lm in lgc_market if lm.calendar_year == 2026), lgc_market[-1])
+
+    # Rooftop solar
+    rooftop = next((a for a in behind_meter if a.asset_type == "ROOFTOP_SOLAR"), None)
+    rooftop_gw = round(rooftop.total_installed_mw / 1000.0, 1) if rooftop else 0.0
+
+    return PpaDashboard(
+        timestamp=now_str,
+        total_ppa_capacity_gw=round(total_capacity_gw, 3),
+        active_ppas=len(active_ppas),
+        pipeline_ppas=len(pipeline_ppas),
+        avg_ppa_price_aud_mwh=avg_price,
+        tech_mix=tech_mix,
+        lgc_spot_price=lgc_2026.lgc_spot_price_aud,
+        rooftop_solar_total_gw=rooftop_gw,
+        ppas=ppas,
+        lgc_market=lgc_market,
+        behind_meter_assets=behind_meter,
+    )
+
+
+# ---------------------------------------------------------------------------
+# PPA Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/ppa/dashboard",
+    response_model=PpaDashboard,
+    summary="Corporate PPA & Green Energy Procurement dashboard",
+    tags=["Corporate PPA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ppa_dashboard():
+    """Return the full PPA dashboard including contracts, LGC market, and behind-meter assets.
+    Cached 3600 s."""
+    cached = _cache_get("ppa:dashboard")
+    if cached:
+        return cached
+    data = _make_ppa_dashboard()
+    _cache_set("ppa:dashboard", data, _TTL_PPA)
+    return data
+
+
+@app.get(
+    "/api/ppa/contracts",
+    response_model=List[CorporatePpa],
+    summary="Corporate PPA contracts, filterable by technology, status, region",
+    tags=["Corporate PPA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ppa_contracts(
+    technology: Optional[str] = None,
+    status: Optional[str] = None,
+    region: Optional[str] = None,
+):
+    """Return corporate PPA contracts, optionally filtered by technology, status, or region.
+    Cached 3600 s."""
+    cache_key = f"ppa:contracts:{technology}:{status}:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    contracts = _make_corporate_ppas()
+    if technology:
+        contracts = [c for c in contracts if c.technology == technology]
+    if status:
+        contracts = [c for c in contracts if c.status == status]
+    if region:
+        contracts = [c for c in contracts if c.region == region]
+    _cache_set(cache_key, contracts, _TTL_PPA)
+    return contracts
+
+
+@app.get(
+    "/api/ppa/lgc-market",
+    response_model=List[LgcMarket],
+    summary="LGC (Large-scale Generation Certificate) market data 2022-2027",
+    tags=["Corporate PPA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_lgc_market():
+    """Return LGC market data with spot/forward prices and surrender statistics.
+    Cached 3600 s."""
+    cached = _cache_get("ppa:lgc-market")
+    if cached:
+        return cached
+    data = _make_lgc_market()
+    _cache_set("ppa:lgc-market", data, _TTL_PPA)
+    return data

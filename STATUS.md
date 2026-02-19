@@ -487,3 +487,24 @@
 - GET /api/market-power/dashboard, /hhi, /pivotal
 - MarketPower.tsx (~500 lines): HHI BarChart, share trend LineChart, pivotal supplier table, HHI details
 - 4 tests in TestMarketPowerEndpoints
+
+## Sprint 25a — PASA Availability & Generator Forced Outage Statistics (2026-02-19)
+**Status**: COMPLETE
+- PasaPeriod, ForcedOutageRecord, GeneratorReliabilityStats, PasaDashboard models
+- GET /api/pasa/dashboard, /periods, /forced-outages
+- PasaAnalytics.tsx (~510 lines): reserve margin BarChart, PASA periods table, forced outage log, reliability stats
+- 4 tests in TestPasaEndpoints
+
+## Sprint 25b — SRA Auction & Interconnector Firm Transfer Rights (2026-02-19)
+**Status**: COMPLETE
+- SraUnit, SraAuctionResult, InterconnectorRevenueSummary, SraDashboard models
+- GET /api/sra/dashboard, /units, /auction-results
+- SraAuction.tsx (~500 lines): auction results table, revenue BarChart, active SRA units, interconnector cards
+- 4 tests in TestSraEndpoints
+
+## Sprint 25c — Corporate PPA Market & Green Energy Procurement (2026-02-19)
+**Status**: COMPLETE
+- CorporatePpa, LgcMarket, BehindMeterAsset, PpaDashboard models
+- GET /api/ppa/dashboard, /contracts, /lgc-market
+- PpaMarket.tsx (~520 lines): tech mix PieChart, LGC trend AreaChart, PPA table, behind-meter assets
+- 4 tests in TestPpaEndpoints

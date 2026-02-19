@@ -2141,3 +2141,106 @@ class TestHydroStorageEndpoints:
         for pt in points:
             assert 0 <= pt["usable_storage_pct"] <= 100
             assert pt["water_value_aud_ml"] > 0
+
+
+class TestPasaEndpoints:
+    def test_pasa_dashboard_returns_200(self, client=client):
+        r = client.get("/api/pasa/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "pasa_periods" in d
+        assert "forced_outages" in d
+        assert "reliability_stats" in d
+        assert d["assessment_horizon_weeks"] > 0
+
+    def test_pasa_periods_multiple_regions(self, client=client):
+        r = client.get("/api/pasa/periods")
+        assert r.status_code == 200
+        periods = r.json()
+        regions = {p["region"] for p in periods}
+        assert len(regions) >= 3
+        for p in periods:
+            assert p["reserve_margin_pct"] >= 0
+
+    def test_forced_outages_list(self, client=client):
+        r = client.get("/api/pasa/forced-outages")
+        assert r.status_code == 200
+        outages = r.json()
+        assert len(outages) >= 5
+        types = {o["outage_type"] for o in outages}
+        assert "FORCED" in types
+
+    def test_forced_outages_status_filter(self, client=client):
+        r = client.get("/api/pasa/forced-outages?status=ACTIVE")
+        assert r.status_code == 200
+        for o in r.json():
+            assert o["status"] == "ACTIVE"
+
+
+class TestSraEndpoints:
+    def test_sra_dashboard_returns_200(self, client=client):
+        r = client.get("/api/sra/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "auction_results" in d
+        assert "active_units" in d
+        assert "interconnector_revenue" in d
+        assert d["total_sra_units_active"] > 0
+
+    def test_sra_units_list(self, client=client):
+        r = client.get("/api/sra/units")
+        assert r.status_code == 200
+        units = r.json()
+        assert len(units) >= 6
+        interconnectors = {u["interconnector_id"] for u in units}
+        assert len(interconnectors) >= 2
+
+    def test_sra_auction_results_list(self, client=client):
+        r = client.get("/api/sra/auction-results")
+        assert r.status_code == 200
+        results = r.json()
+        assert len(results) >= 4
+        for res in results:
+            assert res["clearing_price_aud_mwh"] >= 0
+            assert res["over_subscription_ratio"] > 0
+
+    def test_sra_units_interconnector_filter(self, client=client):
+        r = client.get("/api/sra/units?interconnector_id=SA1-VIC1")
+        assert r.status_code == 200
+        for u in r.json():
+            assert u["interconnector_id"] == "SA1-VIC1"
+
+
+class TestPpaEndpoints:
+    def test_ppa_dashboard_returns_200(self, client=client):
+        r = client.get("/api/ppa/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "ppas" in d
+        assert "lgc_market" in d
+        assert "behind_meter_assets" in d
+        assert d["total_ppa_capacity_gw"] > 0
+
+    def test_ppa_contracts_list(self, client=client):
+        r = client.get("/api/ppa/contracts")
+        assert r.status_code == 200
+        ppas = r.json()
+        assert len(ppas) >= 6
+        technologies = {p["technology"] for p in ppas}
+        assert "Wind" in technologies
+        assert "Solar PV" in technologies
+
+    def test_ppa_contracts_technology_filter(self, client=client):
+        r = client.get("/api/ppa/contracts?technology=Wind")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["technology"] == "Wind"
+
+    def test_lgc_market_trend(self, client=client):
+        r = client.get("/api/ppa/lgc-market")
+        assert r.status_code == 200
+        lgc_data = r.json()
+        assert len(lgc_data) >= 4
+        years = [d["calendar_year"] for d in lgc_data]
+        assert 2025 in years
+        assert all(d["lgc_spot_price_aud"] > 0 for d in lgc_data)
