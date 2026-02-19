@@ -102,12 +102,12 @@ function DemandCard({ region, avgDemandMw, peakDemandMw }: DemandCardProps) {
   const color = pct > 85 ? 'bg-red-500' : pct > 65 ? 'bg-amber-400' : 'bg-emerald-500'
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
       <div className="flex justify-between items-baseline mb-2">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           {region}
         </span>
-        <span className="text-base font-bold text-gray-800 tabular-nums">
+        <span className="text-base font-bold text-gray-800 dark:text-gray-100 tabular-nums">
           {avgDemandMw.toLocaleString()} MW
         </span>
       </div>
@@ -156,12 +156,12 @@ function MarketSummaryWidget() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-56 mb-3" />
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-pulse">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-56 mb-3" />
         <div className="space-y-2">
-          <div className="h-3 bg-gray-200 rounded w-full" />
-          <div className="h-3 bg-gray-200 rounded w-5/6" />
-          <div className="h-3 bg-gray-200 rounded w-4/6" />
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6" />
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6" />
         </div>
       </div>
     )
@@ -169,7 +169,7 @@ function MarketSummaryWidget() {
 
   if (error || !summary) {
     return (
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+      <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
         <p className="text-sm text-gray-400 italic">Summary unavailable</p>
       </div>
     )
@@ -185,11 +185,11 @@ function MarketSummaryWidget() {
   })
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
       {/* Widget header */}
       <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Daily AI Market Summary</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Daily AI Market Summary</h3>
           <p className="text-xs text-gray-400 mt-0.5">{formattedDate}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -210,7 +210,7 @@ function MarketSummaryWidget() {
       </div>
 
       {/* Attribution footer */}
-      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-1.5">
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-1.5">
         <Zap size={12} className="text-amber-500" />
         <span className="text-xs text-gray-400">Powered by Claude Sonnet 4.5</span>
       </div>
@@ -265,12 +265,12 @@ export default function Home() {
   }, [regionData])
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-full">
       {/* Page header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Executive Overview</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Executive Overview</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             National Electricity Market — real-time snapshot
           </p>
         </div>
@@ -308,7 +308,7 @@ export default function Home() {
         {loading && apiPrices.length === 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {REGIONS.map(r => (
-              <div key={r} className="h-28 bg-gray-100 rounded-lg animate-pulse" />
+              <div key={r} className="h-28 bg-gray-100 dark:bg-gray-700 rounded-lg animate-pulse" />
             ))}
           </div>
         ) : (
@@ -361,8 +361,8 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {REGIONS.map(region => (
-            <div key={region} className="bg-white rounded-lg border border-gray-200 p-3">
-              <div className="text-xs font-medium text-gray-600 mb-1">{region}</div>
+            <div key={region} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{region}</div>
               <RegionSparkline region={region} />
               <div className="text-xs text-gray-400 mt-1">Last 24 hrs</div>
             </div>

@@ -7,6 +7,8 @@ import {
   Sparkles,
   Bell,
   Activity,
+  Moon,
+  Sun,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -16,6 +18,7 @@ import Copilot from './pages/Copilot'
 import Genie from './pages/Genie'
 import Alerts from './pages/Alerts'
 import Monitoring from './pages/Monitoring'
+import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
   { to: '/',           label: 'Home',        Icon: LayoutDashboard },
@@ -29,7 +32,7 @@ const NAV_ITEMS = [
 
 function Sidebar() {
   return (
-    <aside className="flex flex-col w-56 min-h-screen bg-gray-900 text-gray-100 shrink-0">
+    <aside className="flex flex-col w-56 min-h-screen bg-gray-900 dark:bg-gray-950 text-gray-100 shrink-0">
       {/* Brand */}
       <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-700">
         <Zap className="text-amber-400" size={22} />
@@ -69,17 +72,25 @@ function Sidebar() {
 }
 
 function TopBar() {
+  const [isDark, toggleDark] = useDarkMode()
   return (
-    <header className="h-12 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0">
-      <h1 className="text-base font-semibold text-gray-800">
+    <header className="h-12 flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shrink-0">
+      <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
         AUS Energy Copilot
       </h1>
-      <div className="flex items-center gap-3 text-xs text-gray-500">
+      <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
           NEM Live
         </span>
         <span>{new Date().toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short' })} AEST</span>
+        <button
+          onClick={toggleDark}
+          className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-gray-500" />}
+        </button>
       </div>
     </header>
   )
@@ -88,7 +99,7 @@ function TopBar() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
         <Sidebar />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <TopBar />

@@ -69,15 +69,15 @@ interface InfraCardProps {
 }
 
 const InfraCard: React.FC<InfraCardProps> = ({ icon: Icon, label, detail, ok }) => (
-  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
     <div className="flex items-start justify-between">
       <div className="flex items-center gap-3">
         <div className={`p-2 rounded-lg ${ok ? 'bg-green-50' : 'bg-red-50'}`}>
           <Icon size={18} className={ok ? 'text-green-600' : 'text-red-600'} />
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-900">{label}</p>
-          <p className="text-xs text-gray-500">{detail}</p>
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{detail}</p>
         </div>
       </div>
       <StatusBadge status={ok} />
@@ -168,13 +168,13 @@ export default function Monitoring() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">System Monitoring</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">System Monitoring</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Last updated: {lastRefresh.toLocaleTimeString('en-AU')}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -195,7 +195,7 @@ export default function Monitoring() {
       </div>
 
       {error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800 text-sm">
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 rounded-lg p-4 text-amber-800 dark:text-amber-300 text-sm">
           Could not reach the monitoring endpoint — showing last known state.
         </div>
       )}
@@ -208,7 +208,7 @@ export default function Monitoring() {
       </div>
 
       {/* Model Summary Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-4">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 rounded-xl p-4 flex items-center gap-4">
         <Brain size={20} className="text-blue-600 shrink-0" />
         <div className="flex-1">
           <p className="text-sm font-semibold text-blue-900">
@@ -225,24 +225,24 @@ export default function Monitoring() {
       </div>
 
       {/* Model Registry Grid */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
         <div className="flex items-center gap-2 mb-4">
           <Brain size={18} className="text-purple-600" />
-          <h2 className="text-base font-semibold text-gray-900">ML Model Registry</h2>
-          <span className="ml-auto text-xs text-gray-400">@production alias</span>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">ML Model Registry</h2>
+          <span className="ml-auto text-xs text-gray-400 dark:text-gray-400">@production alias</span>
         </div>
 
         {loading && !health ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+              <div key={i} className="h-8 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" />
             ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+                <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
                   <th className="pb-2 font-medium">Model Type</th>
                   {REGIONS.map(r => (
                     <th key={r} className="pb-2 font-medium text-center">
@@ -259,8 +259,8 @@ export default function Monitoring() {
                   const version = models[0]?.model_version ?? '—'
                   const alias = models[0]?.alias ?? '—'
                   return (
-                    <tr key={key} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-2.5 font-medium text-gray-800">{label}</td>
+                    <tr key={key} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="py-2.5 font-medium text-gray-800 dark:text-gray-100">{label}</td>
                       {REGIONS.map(region => {
                         const m = models.find(x => x.region === region)
                         return (
@@ -273,8 +273,8 @@ export default function Monitoring() {
                           </td>
                         )
                       })}
-                      <td className="py-2.5 text-center text-gray-500 text-xs">{version}</td>
-                      <td className="py-2.5 text-center text-xs text-gray-500">{alias}</td>
+                      <td className="py-2.5 text-center text-gray-500 dark:text-gray-400 text-xs">{version}</td>
+                      <td className="py-2.5 text-center text-xs text-gray-500 dark:text-gray-400">{alias}</td>
                     </tr>
                   )
                 })}
@@ -285,7 +285,7 @@ export default function Monitoring() {
       </div>
 
       {health && (
-        <p className="text-xs text-gray-400 text-right">
+        <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
           Backend timestamp:{' '}
           {new Date(health.timestamp).toLocaleString('en-AU', {
             timeZone: 'Australia/Sydney',

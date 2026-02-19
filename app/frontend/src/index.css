@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   *, *::before, *::after {
     box-sizing: border-box;
@@ -17,4 +19,16 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* Dark mode base overrides */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+.dark body {
+  background-color: rgb(17 24 39); /* gray-900 */
+  color: rgb(243 244 246); /* gray-100 */
 }
