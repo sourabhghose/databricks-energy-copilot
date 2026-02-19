@@ -26250,3 +26250,488 @@ async def get_battery_tech_lcos():
 async def get_battery_tech_supply_chain():
     dash = await get_battery_tech_dashboard()
     return dash.supply_chain
+
+# ── Sprint 42a: Community Energy & Microgrids Analytics ───────────────────
+
+class CommunityBatteryRecord(BaseModel):
+    battery_id: str
+    name: str
+    operator: str
+    state: str
+    region: str
+    program: str                     # VPP_SA | DNSP_COMM | RETAILER_COMM | GOVERNMENT_GRANT
+    capacity_kwh: float
+    power_kw: float
+    participants: int
+    avg_bill_savings_pct: float
+    grid_services_revenue_aud_yr: float
+    utilisation_pct: float
+    status: str                      # OPERATING | CONSTRUCTION | APPROVED | PROPOSED
+    commissioning_year: int
+
+class SolarGardenRecord(BaseModel):
+    garden_id: str
+    name: str
+    operator: str
+    state: str
+    capacity_kw: float
+    subscribers: int
+    annual_generation_mwh: float
+    subscription_cost_aud_kw: float
+    savings_per_subscriber_aud_yr: float
+    waitlist_count: int
+    low_income_reserved_pct: float
+    status: str
+
+class StandalonePowerRecord(BaseModel):
+    sps_id: str
+    network_area: str
+    dnsp: str
+    state: str
+    technology: str                  # SOLAR_DIESEL | SOLAR_BATTERY | SOLAR_BATTERY_DIESEL | WIND_BATTERY
+    capacity_kw: float
+    storage_kwh: float
+    customers_served: int
+    reliability_pct: float
+    annual_fuel_saved_litres: float
+    carbon_saved_tco2_yr: float
+    capex_m_aud: float
+    opex_aud_yr: float
+    network_deferral_m_aud: float    # cost of network alternative
+    commissioning_year: int
+
+class CommunityEnergyDashboard(BaseModel):
+    timestamp: str
+    total_community_batteries: int
+    total_community_battery_capacity_mwh: float
+    total_solar_garden_capacity_mw: float
+    total_solar_garden_subscribers: int
+    total_sps_systems: int
+    total_sps_customers: int
+    community_batteries: list[CommunityBatteryRecord]
+    solar_gardens: list[SolarGardenRecord]
+    sps_systems: list[StandalonePowerRecord]
+
+_community_energy_cache: dict = {}
+
+def _build_community_energy_dashboard() -> CommunityEnergyDashboard:
+    import random
+    rng = random.Random(5544)
+    now = "2025-07-15T08:00:00"
+
+    community_batteries = [
+        CommunityBatteryRecord("CB-SA-001", "Glenelg Community Battery", "SA Power Networks", "SA", "SA1", "VPP_SA", 1500.0, 500.0, 850, 22.5, 85000.0, 78.0, "OPERATING", 2021),
+        CommunityBatteryRecord("CB-SA-002", "Prospect Community Battery", "SA Power Networks", "SA", "SA1", "VPP_SA", 1000.0, 350.0, 620, 19.8, 62000.0, 72.0, "OPERATING", 2022),
+        CommunityBatteryRecord("CB-VIC-001", "Yackandandah Community Battery", "Jemena", "VIC", "VIC1", "DNSP_COMM", 400.0, 100.0, 180, 18.5, 28000.0, 68.0, "OPERATING", 2023),
+        CommunityBatteryRecord("CB-VIC-002", "Ballan Community Battery", "Powercor", "VIC", "VIC1", "GOVERNMENT_GRANT", 600.0, 200.0, 280, 20.2, 38000.0, 71.0, "OPERATING", 2023),
+        CommunityBatteryRecord("CB-NSW-001", "Newington Community Battery", "Ausgrid", "NSW", "NSW1", "DNSP_COMM", 800.0, 250.0, 380, 17.8, 48500.0, 65.0, "OPERATING", 2023),
+        CommunityBatteryRecord("CB-NSW-002", "Dulwich Hill Community Battery", "Ausgrid", "NSW", "NSW1", "RETAILER_COMM", 500.0, 150.0, 245, 16.5, 32000.0, 62.0, "CONSTRUCTION", 2024),
+        CommunityBatteryRecord("CB-QLD-001", "Sunshine Coast Community Battery", "Energex", "QLD", "QLD1", "GOVERNMENT_GRANT", 1200.0, 400.0, 580, 21.2, 72000.0, 75.0, "OPERATING", 2022),
+        CommunityBatteryRecord("CB-QLD-002", "Cairns Solar Community Battery", "Ergon Energy", "QLD", "QLD1", "DNSP_COMM", 800.0, 250.0, 320, 18.8, 45000.0, 68.0, "CONSTRUCTION", 2024),
+        CommunityBatteryRecord("CB-WA-001", "Fremantle Community Battery", "Western Power", "WA", "WA", "GOVERNMENT_GRANT", 600.0, 200.0, 285, 19.5, 38000.0, 70.0, "OPERATING", 2023),
+        CommunityBatteryRecord("CB-VIC-003", "Hepburn Community Battery", "Powercor", "VIC", "VIC1", "GOVERNMENT_GRANT", 300.0, 100.0, 140, 21.8, 22000.0, 74.0, "APPROVED", 2025),
+    ]
+
+    solar_gardens = [
+        SolarGardenRecord("SG-VIC-001", "Traralgon Solar Garden", "Solar Citizens", "VIC", 2000.0, 580, 3280.0, 480.0, 285.0, 215, 30.0, "OPERATING"),
+        SolarGardenRecord("SG-VIC-002", "Latrobe Valley Solar Garden", "Community Power Agency", "VIC", 3500.0, 920, 5740.0, 465.0, 295.0, 380, 25.0, "OPERATING"),
+        SolarGardenRecord("SG-NSW-001", "Western Sydney Solar Garden", "Brighte", "NSW", 4000.0, 1150, 6200.0, 490.0, 310.0, 445, 20.0, "OPERATING"),
+        SolarGardenRecord("SG-NSW-002", "Hunter Valley Solar Garden", "Origin Energy", "NSW", 5000.0, 1420, 7850.0, 475.0, 320.0, 580, 22.0, "CONSTRUCTION"),
+        SolarGardenRecord("SG-QLD-001", "SEQ Solar Garden", "Ergon Energy", "QLD", 3000.0, 850, 5550.0, 445.0, 335.0, 320, 28.0, "OPERATING"),
+        SolarGardenRecord("SG-SA-001", "Port Adelaide Solar Garden", "SA Power Networks", "SA", 1500.0, 420, 2730.0, 460.0, 295.0, 180, 35.0, "OPERATING"),
+        SolarGardenRecord("SG-ACT-001", "Canberra North Solar Garden", "ACT Government", "ACT", 2500.0, 720, 4125.0, 510.0, 285.0, 295, 40.0, "OPERATING"),
+        SolarGardenRecord("SG-WA-001", "Fremantle Solar Garden", "Synergy", "WA", 1800.0, 520, 3150.0, 495.0, 275.0, 225, 30.0, "OPERATING"),
+    ]
+
+    sps_systems = [
+        StandalonePowerRecord("SPS-NSW-001", "Enfield Remote Area", "Essential Energy", "NSW", "SOLAR_BATTERY_DIESEL", 25.0, 75.0, 12, 99.2, 18500.0, 44.2, 0.85, 28500.0, 2.4, 2020),
+        StandalonePowerRecord("SPS-NSW-002", "Brindaba Station Area", "Essential Energy", "NSW", "SOLAR_BATTERY", 18.0, 54.0, 8, 99.5, 12000.0, 28.8, 0.62, 18000.0, 1.8, 2021),
+        StandalonePowerRecord("SPS-QLD-001", "Einasleigh Remote Area", "Ergon Energy", "QLD", "SOLAR_DIESEL", 35.0, 105.0, 18, 98.8, 28500.0, 68.1, 1.25, 38500.0, 3.5, 2019),
+        StandalonePowerRecord("SPS-QLD-002", "Croydon Area SPS", "Ergon Energy", "QLD", "SOLAR_BATTERY_DIESEL", 28.0, 84.0, 15, 99.1, 22000.0, 52.6, 0.95, 30000.0, 2.8, 2021),
+        StandalonePowerRecord("SPS-QLD-003", "Camooweal Remote SPS", "Ergon Energy", "QLD", "SOLAR_BATTERY_DIESEL", 42.0, 126.0, 22, 98.6, 35000.0, 83.7, 1.45, 52000.0, 4.2, 2020),
+        StandalonePowerRecord("SPS-WA-001", "Nullarbor Remote Area", "Western Power", "WA", "SOLAR_BATTERY_DIESEL", 32.0, 96.0, 16, 99.0, 25000.0, 59.8, 1.12, 38000.0, 3.2, 2021),
+        StandalonePowerRecord("SPS-WA-002", "Kalgoorlie Outstation SPS", "Western Power", "WA", "SOLAR_BATTERY", 22.0, 66.0, 11, 99.4, 16500.0, 39.5, 0.78, 24000.0, 2.2, 2022),
+        StandalonePowerRecord("SPS-SA-001", "Far North SA Remote Area", "Essential Energy SA", "SA", "SOLAR_BATTERY_DIESEL", 20.0, 60.0, 10, 99.1, 15500.0, 37.1, 0.72, 22000.0, 2.0, 2022),
+        StandalonePowerRecord("SPS-NT-001", "Remote NT Aboriginal Community", "Power Water Corp", "NT", "SOLAR_BATTERY_DIESEL", 55.0, 165.0, 28, 98.5, 45000.0, 107.6, 1.85, 75000.0, 5.8, 2020),
+        StandalonePowerRecord("SPS-NT-002", "Barkly Region SPS", "Power Water Corp", "NT", "SOLAR_DIESEL", 45.0, 135.0, 22, 98.2, 38000.0, 90.9, 1.65, 62000.0, 4.8, 2019),
+        StandalonePowerRecord("SPS-TAS-001", "Flinders Island SPS", "TasNetworks", "TAS", "WIND_BATTERY", 850.0, 2550.0, 850, 99.8, 0.0, 0.0, 12.5, 380000.0, 28.0, 2023),
+    ]
+
+    total_comm_batt = len([b for b in community_batteries if b.status in ("OPERATING","CONSTRUCTION")])
+    total_cap_mwh   = sum(b.capacity_kwh for b in community_batteries if b.status == "OPERATING") / 1000
+    total_sg_kw     = sum(g.capacity_kw for g in solar_gardens) / 1000
+    total_sg_subs   = sum(g.subscribers for g in solar_gardens)
+    total_sps       = len(sps_systems)
+    total_sps_cust  = sum(s.customers_served for s in sps_systems)
+
+    return CommunityEnergyDashboard(
+        timestamp=now,
+        total_community_batteries=total_comm_batt,
+        total_community_battery_capacity_mwh=round(total_cap_mwh, 1),
+        total_solar_garden_capacity_mw=round(total_sg_kw, 1),
+        total_solar_garden_subscribers=total_sg_subs,
+        total_sps_systems=total_sps,
+        total_sps_customers=total_sps_cust,
+        community_batteries=community_batteries,
+        solar_gardens=solar_gardens,
+        sps_systems=sps_systems,
+    )
+
+@app.get("/api/community-energy/dashboard", response_model=CommunityEnergyDashboard, dependencies=[Depends(verify_api_key)])
+async def get_community_energy_dashboard():
+    cached = _cache_get(_community_energy_cache, "community_energy")
+    if cached: return cached
+    result = _build_community_energy_dashboard()
+    _cache_set(_community_energy_cache, "community_energy", result)
+    return result
+
+@app.get("/api/community-energy/batteries", response_model=list[CommunityBatteryRecord], dependencies=[Depends(verify_api_key)])
+async def get_community_batteries():
+    dash = await get_community_energy_dashboard()
+    return dash.community_batteries
+
+@app.get("/api/community-energy/solar-gardens", response_model=list[SolarGardenRecord], dependencies=[Depends(verify_api_key)])
+async def get_solar_gardens():
+    dash = await get_community_energy_dashboard()
+    return dash.solar_gardens
+
+@app.get("/api/community-energy/sps", response_model=list[StandalonePowerRecord], dependencies=[Depends(verify_api_key)])
+async def get_sps_systems():
+    dash = await get_community_energy_dashboard()
+    return dash.sps_systems
+
+# ── Sprint 42b: Transmission Asset Management & Inspection Analytics ───────
+
+class TransmissionAssetRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_type: str                  # TRANSFORMER | LINE_SEGMENT | SUBSTATION | CIRCUIT_BREAKER | CABLE | CAPACITOR_BANK
+    owner: str
+    region: str
+    voltage_kv: float
+    installation_year: int
+    age_years: int
+    design_life_years: int
+    remaining_life_years: int
+    condition_score: float           # 0-10 (10=new, 0=critical)
+    condition_category: str          # GOOD | FAIR | POOR | CRITICAL
+    last_inspection_date: str
+    next_inspection_date: str
+    inspection_frequency_years: float
+    maintenance_status: str          # ON_SCHEDULE | DEFERRED | OVERDUE | COMPLETED_EARLY
+    replacement_priority: str        # LOW | MEDIUM | HIGH | URGENT
+    replacement_capex_m_aud: float
+    replacement_year_planned: int
+
+class InspectionEventRecord(BaseModel):
+    inspection_id: str
+    asset_id: str
+    inspection_date: str
+    inspector: str
+    inspection_type: str             # ROUTINE | CONDITION_MONITORING | EMERGENCY | POST_EVENT | DRONE
+    findings: str
+    defects_found: int
+    severity: str                    # NONE | MINOR | MODERATE | MAJOR | CRITICAL
+    action_required: str
+    action_status: str               # NONE | SCHEDULED | IN_PROGRESS | COMPLETE
+    inspection_cost_aud: float
+
+class MaintenanceProgramRecord(BaseModel):
+    program_id: str
+    owner: str
+    asset_type: str
+    year: int
+    scheduled_inspections: int
+    completed_inspections: int
+    compliance_pct: float
+    deferred_maintenance_pct: float
+    maintenance_backlog_m_aud: float
+    maintenance_capex_m_aud: float
+    maintenance_opex_m_aud: float
+    defects_found: int
+    defects_resolved_pct: float
+
+class AssetManagementDashboard(BaseModel):
+    timestamp: str
+    total_assets: int
+    poor_critical_assets: int
+    avg_asset_age_years: float
+    maintenance_compliance_pct: float
+    total_replacement_capex_5yr_m_aud: float
+    urgent_replacement_count: int
+    assets: list[TransmissionAssetRecord]
+    inspections: list[InspectionEventRecord]
+    maintenance_programs: list[MaintenanceProgramRecord]
+
+_asset_mgmt_cache: dict = {}
+
+def _build_asset_mgmt_dashboard() -> AssetManagementDashboard:
+    import random
+    rng = random.Random(3311)
+    now = "2025-07-15T08:00:00"
+
+    def condition_cat(score):
+        if score >= 7.0: return "GOOD"
+        if score >= 5.0: return "FAIR"
+        if score >= 3.0: return "POOR"
+        return "CRITICAL"
+
+    def replacement_priority(score, rem_life):
+        if score < 3.0 or rem_life < 2: return "URGENT"
+        if score < 5.0 or rem_life < 5: return "HIGH"
+        if score < 7.0 or rem_life < 10: return "MEDIUM"
+        return "LOW"
+
+    assets = [
+        # TransGrid assets
+        TransmissionAssetRecord("TA-TG-001", "Sydney North 330kV Transformer T1", "TRANSFORMER", "TransGrid", "NSW1", 330.0, 1978, 47, 40, 0, 3.8, "CRITICAL", "2024-11-15", "2025-03-01", 0.5, "OVERDUE", "URGENT", 18.5, 2025),
+        TransmissionAssetRecord("TA-TG-002", "Hunter Valley 330kV Line Section L1", "LINE_SEGMENT", "TransGrid", "NSW1", 330.0, 1985, 40, 45, 5, 5.2, "FAIR", "2024-08-22", "2026-08-22", 2.0, "ON_SCHEDULE", "MEDIUM", 12.0, 2030),
+        TransmissionAssetRecord("TA-TG-003", "Wagga Wagga 132kV Substation Main CB", "CIRCUIT_BREAKER", "TransGrid", "NSW1", 132.0, 1990, 35, 35, 0, 4.1, "POOR", "2025-01-10", "2026-01-10", 1.0, "ON_SCHEDULE", "HIGH", 2.8, 2026),
+        TransmissionAssetRecord("TA-TG-004", "Central West REZ 500kV Line New", "LINE_SEGMENT", "TransGrid", "NSW1", 500.0, 2024, 1, 50, 49, 9.8, "GOOD", "2025-06-01", "2027-06-01", 2.0, "ON_SCHEDULE", "LOW", 0.0, 2074),
+        TransmissionAssetRecord("TA-TG-005", "Tomago 330kV Transformer T3", "TRANSFORMER", "TransGrid", "NSW1", 330.0, 1982, 43, 40, 0, 4.5, "POOR", "2024-05-20", "2025-05-20", 1.0, "ON_SCHEDULE", "HIGH", 16.5, 2026),
+        # AusNet assets
+        TransmissionAssetRecord("TA-AN-001", "Kew 220kV Substation Busbars", "SUBSTATION", "AusNet Transmission", "VIC1", 220.0, 1965, 60, 50, 0, 2.8, "CRITICAL", "2025-02-10", "2025-08-10", 0.5, "ON_SCHEDULE", "URGENT", 24.5, 2026),
+        TransmissionAssetRecord("TA-AN-002", "Moorabool-Heywood 500kV Line", "LINE_SEGMENT", "AusNet Transmission", "VIC1", 500.0, 2000, 25, 50, 25, 7.5, "GOOD", "2024-11-01", "2026-11-01", 2.0, "ON_SCHEDULE", "LOW", 0.0, 2050),
+        TransmissionAssetRecord("TA-AN-003", "Morwell 220kV Transformer T1", "TRANSFORMER", "AusNet Transmission", "VIC1", 220.0, 1974, 51, 40, 0, 3.2, "CRITICAL", "2025-03-15", "2025-09-15", 0.5, "ON_SCHEDULE", "URGENT", 14.0, 2025),
+        TransmissionAssetRecord("TA-AN-004", "Dederang 500kV Cable Section", "CABLE", "AusNet Transmission", "VIC1", 500.0, 1995, 30, 40, 10, 6.2, "FAIR", "2024-06-15", "2026-06-15", 2.0, "ON_SCHEDULE", "MEDIUM", 8.5, 2035),
+        # Powerlink assets
+        TransmissionAssetRecord("TA-PL-001", "Calvale 275kV Substation Main T/F", "TRANSFORMER", "Powerlink Queensland", "QLD1", 275.0, 1980, 45, 40, 0, 4.0, "POOR", "2024-09-08", "2025-09-08", 1.0, "ON_SCHEDULE", "HIGH", 15.0, 2027),
+        TransmissionAssetRecord("TA-PL-002", "North QLD CopperString 500kV New", "LINE_SEGMENT", "Powerlink Queensland", "QLD1", 500.0, 2025, 0, 50, 50, 10.0, "GOOD", "2026-01-01", "2028-01-01", 2.0, "ON_SCHEDULE", "LOW", 0.0, 2075),
+        TransmissionAssetRecord("TA-PL-003", "Tarong 275kV Circuit Breaker CB01", "CIRCUIT_BREAKER", "Powerlink Queensland", "QLD1", 275.0, 1988, 37, 35, 0, 3.5, "POOR", "2025-04-12", "2026-04-12", 1.0, "ON_SCHEDULE", "HIGH", 1.8, 2026),
+        # ElectraNet assets
+        TransmissionAssetRecord("TA-EN-001", "Torrens Island 275kV Transformer", "TRANSFORMER", "ElectraNet", "SA1", 275.0, 1972, 53, 40, 0, 2.5, "CRITICAL", "2025-01-20", "2025-07-20", 0.5, "ON_SCHEDULE", "URGENT", 12.8, 2025),
+        TransmissionAssetRecord("TA-EN-002", "EnergyConnect 330kV Line New", "LINE_SEGMENT", "ElectraNet", "SA1", 330.0, 2025, 0, 50, 50, 10.0, "GOOD", "2026-06-01", "2028-06-01", 2.0, "ON_SCHEDULE", "LOW", 0.0, 2075),
+        # TasNetworks assets
+        TransmissionAssetRecord("TA-TN-001", "Basslink Terminal Equipment", "SUBSTATION", "TasNetworks", "TAS1", 400.0, 2005, 20, 30, 10, 6.8, "FAIR", "2024-10-15", "2026-10-15", 2.0, "DEFERRED", "MEDIUM", 5.5, 2035),
+        TransmissionAssetRecord("TA-TN-002", "Gordon 220kV Switchgear", "CIRCUIT_BREAKER", "TasNetworks", "TAS1", 220.0, 1985, 40, 35, 0, 4.8, "FAIR", "2025-02-28", "2026-02-28", 1.0, "ON_SCHEDULE", "MEDIUM", 2.2, 2028),
+    ]
+
+    inspections = [
+        InspectionEventRecord("INS-001", "TA-TG-001", "2024-11-15", "TransGrid Engineering", "CONDITION_MONITORING", "Thermal imaging shows hotspot in winding insulation. Partial discharge detected.", 3, "MAJOR", "Immediate refurbishment or replacement required", "IN_PROGRESS", 45000.0),
+        InspectionEventRecord("INS-002", "TA-AN-001", "2025-02-10", "AusNet Inspection Team", "ROUTINE", "Severe corrosion on busbar connections. Insulator cracking observed.", 5, "CRITICAL", "Emergency replacement required within 6 months", "SCHEDULED", 28000.0),
+        InspectionEventRecord("INS-003", "TA-TG-005", "2024-05-20", "TransGrid Engineering", "ROUTINE", "DGA oil analysis shows elevated methane levels. Bushing degradation.", 2, "MODERATE", "Replacement within 2 years recommended", "SCHEDULED", 32000.0),
+        InspectionEventRecord("INS-004", "TA-AN-003", "2025-03-15", "AusNet Inspection Team", "EMERGENCY", "Post-storm inspection. No storm damage but pre-existing corrosion confirmed critical.", 4, "CRITICAL", "Include in 2025 replacement programme", "SCHEDULED", 18000.0),
+        InspectionEventRecord("INS-005", "TA-PL-001", "2024-09-08", "Powerlink Operations", "ROUTINE", "Oil sample DGA normal. External corrosion minor. Oil leak from radiator.", 1, "MINOR", "Monitor, minor leak repair at next maintenance window", "SCHEDULED", 22000.0),
+        InspectionEventRecord("INS-006", "TA-TG-002", "2024-08-22", "TransGrid Engineering", "DRONE", "Drone patrol completed. Minor conductor sag increase noted on span 14. No critical defects.", 1, "MINOR", "Re-tension conductor at next major maintenance", "SCHEDULED", 8500.0),
+        InspectionEventRecord("INS-007", "TA-EN-001", "2025-01-20", "ElectraNet Engineering", "CONDITION_MONITORING", "Critical - oil insulation deterioration, SFRA test abnormal results. Imminent failure risk.", 4, "CRITICAL", "Emergency replacement approved for 2025", "IN_PROGRESS", 38000.0),
+        InspectionEventRecord("INS-008", "TA-TG-003", "2025-01-10", "TransGrid Engineering", "ROUTINE", "Circuit breaker SF6 pressure low. Mechanical timing test out of specification.", 2, "MODERATE", "SF6 refill and timing adjustment required", "COMPLETE", 15000.0),
+        InspectionEventRecord("INS-009", "TA-PL-003", "2025-04-12", "Powerlink Operations", "ROUTINE", "Circuit breaker contacts worn beyond limits. Operating mechanism stiff.", 2, "MAJOR", "Replacement within 12 months required", "SCHEDULED", 12000.0),
+        InspectionEventRecord("INS-010", "TA-AN-004", "2024-06-15", "AusNet Inspection Team", "ROUTINE", "Cable partial discharge test shows increasing trend. Thermal profile normal.", 1, "MODERATE", "Increase monitoring frequency to 6-monthly", "COMPLETE", 42000.0),
+    ]
+
+    maintenance_programs = [
+        MaintenanceProgramRecord("MP-TG-2024", "TransGrid", "TRANSFORMER", 2024, 28, 26, 92.8, 3.2, 18.5, 42.0, 28.5, 48, 88.5),
+        MaintenanceProgramRecord("MP-TG-2023", "TransGrid", "TRANSFORMER", 2023, 26, 25, 96.1, 1.8, 12.0, 38.5, 26.0, 42, 91.2),
+        MaintenanceProgramRecord("MP-AN-2024", "AusNet Transmission", "TRANSFORMER", 2024, 22, 19, 86.4, 8.5, 28.0, 35.0, 24.5, 52, 82.3),
+        MaintenanceProgramRecord("MP-AN-2023", "AusNet Transmission", "TRANSFORMER", 2023, 20, 20, 100.0, 0.0, 15.0, 32.0, 22.0, 38, 94.7),
+        MaintenanceProgramRecord("MP-PL-2024", "Powerlink Queensland", "LINE_SEGMENT", 2024, 85, 82, 96.4, 2.1, 8.5, 28.5, 18.5, 128, 94.5),
+        MaintenanceProgramRecord("MP-EN-2024", "ElectraNet", "TRANSFORMER", 2024, 15, 13, 86.7, 10.2, 22.0, 28.0, 18.0, 28, 78.6),
+        MaintenanceProgramRecord("MP-TN-2024", "TasNetworks", "SUBSTATION", 2024, 42, 38, 90.4, 5.8, 6.5, 15.5, 12.0, 62, 88.7),
+    ]
+
+    poor_crit    = sum(1 for a in assets if a.condition_category in ("POOR","CRITICAL"))
+    avg_age      = sum(a.age_years for a in assets) / len(assets)
+    avg_comp     = sum(p.compliance_pct for p in maintenance_programs) / len(maintenance_programs)
+    replace_5yr  = sum(a.replacement_capex_m_aud for a in assets if a.replacement_year_planned <= 2030)
+    urgent_cnt   = sum(1 for a in assets if a.replacement_priority == "URGENT")
+
+    return AssetManagementDashboard(
+        timestamp=now,
+        total_assets=len(assets),
+        poor_critical_assets=poor_crit,
+        avg_asset_age_years=round(avg_age, 1),
+        maintenance_compliance_pct=round(avg_comp, 1),
+        total_replacement_capex_5yr_m_aud=round(replace_5yr, 1),
+        urgent_replacement_count=urgent_cnt,
+        assets=assets,
+        inspections=inspections,
+        maintenance_programs=maintenance_programs,
+    )
+
+@app.get("/api/asset-management/dashboard", response_model=AssetManagementDashboard, dependencies=[Depends(verify_api_key)])
+async def get_asset_mgmt_dashboard():
+    cached = _cache_get(_asset_mgmt_cache, "asset_mgmt")
+    if cached: return cached
+    result = _build_asset_mgmt_dashboard()
+    _cache_set(_asset_mgmt_cache, "asset_mgmt", result)
+    return result
+
+@app.get("/api/asset-management/assets", response_model=list[TransmissionAssetRecord], dependencies=[Depends(verify_api_key)])
+async def get_transmission_assets():
+    dash = await get_asset_mgmt_dashboard()
+    return dash.assets
+
+@app.get("/api/asset-management/inspections", response_model=list[InspectionEventRecord], dependencies=[Depends(verify_api_key)])
+async def get_asset_inspections():
+    dash = await get_asset_mgmt_dashboard()
+    return dash.inspections
+
+@app.get("/api/asset-management/maintenance", response_model=list[MaintenanceProgramRecord], dependencies=[Depends(verify_api_key)])
+async def get_maintenance_programs():
+    dash = await get_asset_mgmt_dashboard()
+    return dash.maintenance_programs
+
+# ── Sprint 42c: Energy Transition & Decarbonization Pathway Analytics ─────
+
+class SectoralEmissionsRecord(BaseModel):
+    record_id: str
+    sector: str                       # ELECTRICITY | TRANSPORT | INDUSTRY | BUILDINGS | AGRICULTURE | LAND_USE
+    year: int
+    emissions_mt_co2e: float
+    target_mt_co2e: float             # 2030 target
+    reduction_vs_2005_pct: float
+    reduction_on_track: bool
+    carbon_intensity: float           # t CO2e per unit output
+    technology_readiness: str         # DEPLOYED | SCALING | EMERGING | RESEARCH
+    key_abatement_technologies: list[str]
+
+class NetZeroMilestoneRecord(BaseModel):
+    milestone_id: str
+    milestone_name: str
+    sector: str
+    target_year: int
+    status: str                       # ACHIEVED | ON_TRACK | AT_RISK | BEHIND | NOT_STARTED
+    progress_pct: float
+    policy_framework: str
+    investment_committed_b_aud: float
+    investment_required_b_aud: float
+    funding_gap_b_aud: float
+    description: str
+
+class TechnologyDeploymentRecord(BaseModel):
+    record_id: str
+    technology: str                   # SOLAR | WIND_ONSHORE | WIND_OFFSHORE | BESS | GREEN_HYDROGEN | EV | HEAT_PUMP | CCS | DIRECT_AIR_CAPTURE
+    year: int
+    deployed_capacity_gw: float       # or GWh for storage / Mt/yr for hydrogen
+    unit: str                         # GW | GWh | Mt/yr | million_units
+    annual_addition: float
+    cost_usd_per_unit: float
+    cost_reduction_pct_vs_2020: float
+    australia_share_pct: float
+    cumulative_co2_avoided_mt: float
+
+class DecarbonizationDashboard(BaseModel):
+    timestamp: str
+    total_emissions_2024_mt_co2e: float
+    emissions_vs_2005_pct: float
+    electricity_decarbonization_pct: float
+    on_track_milestones: int
+    total_milestones: int
+    investment_gap_b_aud: float
+    sectoral_emissions: list[SectoralEmissionsRecord]
+    milestones: list[NetZeroMilestoneRecord]
+    technology_deployment: list[TechnologyDeploymentRecord]
+
+_decarbonization_cache: dict = {}
+
+def _build_decarbonization_dashboard() -> DecarbonizationDashboard:
+    import random
+    rng = random.Random(8877)
+    now = "2025-07-15T08:00:00"
+
+    # Australia sectoral emissions (Mt CO2-e, based on 2024 inventory-style data)
+    sectoral_emissions = [
+        SectoralEmissionsRecord("SEC-ELEC-2024", "ELECTRICITY", 2024, 138.5, 85.0, -38.2, True, 0.52,
+                                "SCALING", ["Utility Solar", "Onshore Wind", "Offshore Wind", "BESS"]),
+        SectoralEmissionsRecord("SEC-ELEC-2020", "ELECTRICITY", 2020, 162.0, 85.0, -27.7, True, 0.68,
+                                "DEPLOYED", ["Utility Solar", "Onshore Wind", "Pumped Hydro"]),
+        SectoralEmissionsRecord("SEC-ELEC-2015", "ELECTRICITY", 2015, 185.0, 85.0, -17.4, True, 0.82,
+                                "DEPLOYED", ["Solar", "Wind"]),
+        SectoralEmissionsRecord("SEC-TRANSP-2024", "TRANSPORT", 2024, 98.2, 68.0, -5.2, False, 0.145,
+                                "EMERGING", ["EV Passenger Vehicles", "Electric Buses", "Hydrogen Trucks"]),
+        SectoralEmissionsRecord("SEC-TRANSP-2020", "TRANSPORT", 2020, 99.8, 68.0, -3.7, False, 0.152,
+                                "EMERGING", ["EV Adoption"]),
+        SectoralEmissionsRecord("SEC-INDUSTRY-2024", "INDUSTRY", 2024, 112.4, 80.0, -8.8, False, 0.28,
+                                "EMERGING", ["Green Hydrogen", "Electrification", "CCS", "Green Steel"]),
+        SectoralEmissionsRecord("SEC-INDUSTRY-2020", "INDUSTRY", 2020, 118.5, 80.0, -3.8, False, 0.30,
+                                "RESEARCH", ["Hydrogen", "CCS"]),
+        SectoralEmissionsRecord("SEC-BUILDINGS-2024", "BUILDINGS", 2024, 52.8, 38.0, -12.5, True, 0.18,
+                                "SCALING", ["Heat Pumps", "Solar Rooftop", "Building Efficiency"]),
+        SectoralEmissionsRecord("SEC-AGRI-2024", "AGRICULTURE", 2024, 65.2, 55.0, -3.8, False, 0.42,
+                                "EMERGING", ["Methane Vaccines", "Feed Additives", "Carbon Farming"]),
+        SectoralEmissionsRecord("SEC-LAND-2024", "LAND_USE", 2024, -18.5, -25.0, 12.5, False, -0.08,
+                                "DEPLOYED", ["Plantation Forestry", "Environmental Plantings", "Avoided Clearing"]),
+    ]
+
+    milestones = [
+        NetZeroMilestoneRecord("MS-001", "82% Renewables in NEM by 2030", "ELECTRICITY", 2030, "ON_TRACK", 58.0, "AUS Climate Act 2022", 28.5, 45.0, 16.5, "NEM renewable share tracking toward 82% target via ISP projects and REZs"),
+        NetZeroMilestoneRecord("MS-002", "Net Zero Electricity by 2035", "ELECTRICITY", 2035, "AT_RISK", 38.0, "State Policies (VIC/QLD/SA)", 18.5, 65.0, 46.5, "Requires accelerated coal retirement, new storage, and transmission investment"),
+        NetZeroMilestoneRecord("MS-003", "43% Economy-Wide Emissions by 2030", "ALL", 2030, "ON_TRACK", 52.0, "AUS Climate Act 2022", 52.0, 85.0, 33.0, "Economy-wide 43% reduction vs 2005. Electricity sector driving most reductions"),
+        NetZeroMilestoneRecord("MS-004", "Net Zero Economy by 2050", "ALL", 2050, "AT_RISK", 28.0, "AUS Climate Act 2022", 85.0, 425.0, 340.0, "Requires full decarbonization across all sectors including hard-to-abate"),
+        NetZeroMilestoneRecord("MS-005", "EV Sales >50% by 2030", "TRANSPORT", 2030, "AT_RISK", 22.0, "AUS Fuel Efficiency Standard 2024", 8.5, 25.0, 16.5, "EV market share at 8% in 2024. Requires massive charging infrastructure expansion"),
+        NetZeroMilestoneRecord("MS-006", "Green Hydrogen Export 500kt/yr by 2030", "INDUSTRY", 2030, "BEHIND", 8.0, "NIGH Strategy 2019", 4.5, 28.0, 23.5, "Only 15kt/yr in production. Most projects in development, costs remain high"),
+        NetZeroMilestoneRecord("MS-007", "5GW Offshore Wind by 2032", "ELECTRICITY", 2032, "BEHIND", 12.0, "Offshore Electricity Infrastructure Act", 2.5, 18.0, 15.5, "First project (Star of the South) still in development. Slow regulatory progress"),
+        NetZeroMilestoneRecord("MS-008", "SA 100% Renewable by 2030", "ELECTRICITY", 2030, "ON_TRACK", 85.0, "SA Govt Renewable Energy Target", 6.5, 8.5, 2.0, "SA already exceeds 70% renewable. Battery storage and interconnector investment ongoing"),
+        NetZeroMilestoneRecord("MS-009", "VIC 95% Renewable by 2035", "ELECTRICITY", 2035, "ON_TRACK", 42.0, "Victorian VRET 95% 2035", 12.5, 22.0, 9.5, "VIC at ~42% renewable. Offshore wind pipeline and BESS investment tracking well"),
+        NetZeroMilestoneRecord("MS-010", "Retire Last Coal Unit by 2038", "ELECTRICITY", 2038, "ON_TRACK", 65.0, "Multiple State Announcements", 0.0, 0.0, 0.0, "Multiple coal retirement announcements align with 2038 target. Eraring critical."),
+        NetZeroMilestoneRecord("MS-011", "20M Electric Vehicles by 2030", "TRANSPORT", 2030, "BEHIND", 8.0, "National EV Strategy 2022", 5.5, 38.0, 32.5, "~200k EVs registered in 2024. Requires dramatic acceleration in uptake rate"),
+        NetZeroMilestoneRecord("MS-012", "Green Steel Production Facility Online", "INDUSTRY", 2028, "AT_RISK", 18.0, "ARENA + Net Zero Industry Fund", 1.2, 4.8, 3.6, "BlueScope and H2-DRI pilots underway. Commercial scale by 2028 challenging"),
+    ]
+
+    # Technology deployment trends 2020-2024
+    tech_data = [
+        ("SOLAR", [22.0, 28.5, 36.0, 44.5, 52.0], "GW", [8.2, 6.5, 7.5, 8.5, 7.5], [0.28, 0.26, 0.24, 0.22, 0.21], 1.2),
+        ("WIND_ONSHORE", [9.0, 10.5, 11.8, 13.2, 14.8], "GW", [1.5, 1.5, 1.3, 1.4, 1.6], [0.68, 0.65, 0.62, 0.60, 0.57], 0.8),
+        ("BESS", [2.0, 3.5, 5.8, 9.5, 14.5], "GWh", [1.5, 1.5, 2.3, 3.7, 5.0], [0.42, 0.38, 0.32, 0.26, 0.22], 0.2),
+        ("EV", [0.18, 0.38, 0.65, 1.0, 1.8], "million_units", [0.2, 0.2, 0.27, 0.35, 0.8], [0.055, 0.048, 0.042, 0.038, 0.032], 0.05),
+        ("GREEN_HYDROGEN", [0.002, 0.008, 0.018, 0.035, 0.060], "Mt/yr", [0.006, 0.006, 0.01, 0.017, 0.025], [8.5, 6.5, 5.2, 4.0, 3.2], 0.001),
+    ]
+    technology_deployment = []
+    years = [2020, 2021, 2022, 2023, 2024]
+    for tech, caps, unit, adds, costs, aus_share in tech_data:
+        cost_2020 = costs[0]
+        for i, year in enumerate(years):
+            cap_gwh = caps[i]
+            cr_pct  = (1 - costs[i] / cost_2020) * 100
+            co2_avoided = cap_gwh * rng.uniform(0.3, 0.6) * (i + 1)
+            technology_deployment.append(TechnologyDeploymentRecord(
+                f"TECH-{tech[:5]}-{year}", tech, year, cap_gwh, unit,
+                adds[i], costs[i], round(cr_pct, 1), aus_share * 100,
+                round(co2_avoided, 1),
+            ))
+
+    elec_records_2024 = [r for r in sectoral_emissions if r.sector == "ELECTRICITY" and r.year == 2024]
+    elec_em_2024 = elec_records_2024[0].emissions_mt_co2e if elec_records_2024 else 138.5
+    all_2024 = [r for r in sectoral_emissions if r.year == 2024]
+    total_2024 = sum(r.emissions_mt_co2e for r in all_2024)
+    baseline_2005 = 586.0  # Mt CO2-e approximate 2005 baseline
+    vs_2005_pct   = (baseline_2005 - total_2024) / baseline_2005 * 100
+    elec_decarb   = (200.0 - elec_em_2024) / 200.0 * 100  # vs ~200 peak
+    on_track      = sum(1 for m in milestones if m.status in ("ON_TRACK", "ACHIEVED"))
+    inv_gap       = sum(m.funding_gap_b_aud for m in milestones)
+
+    return DecarbonizationDashboard(
+        timestamp=now,
+        total_emissions_2024_mt_co2e=round(total_2024, 1),
+        emissions_vs_2005_pct=round(vs_2005_pct, 1),
+        electricity_decarbonization_pct=round(elec_decarb, 1),
+        on_track_milestones=on_track,
+        total_milestones=len(milestones),
+        investment_gap_b_aud=round(inv_gap, 1),
+        sectoral_emissions=sectoral_emissions,
+        milestones=milestones,
+        technology_deployment=technology_deployment,
+    )
+
+@app.get("/api/decarbonization/dashboard", response_model=DecarbonizationDashboard, dependencies=[Depends(verify_api_key)])
+async def get_decarbonization_dashboard():
+    cached = _cache_get(_decarbonization_cache, "decarbonization")
+    if cached: return cached
+    result = _build_decarbonization_dashboard()
+    _cache_set(_decarbonization_cache, "decarbonization", result)
+    return result
+
+@app.get("/api/decarbonization/sectors", response_model=list[SectoralEmissionsRecord], dependencies=[Depends(verify_api_key)])
+async def get_decarbonization_sectors():
+    dash = await get_decarbonization_dashboard()
+    return dash.sectoral_emissions
+
+@app.get("/api/decarbonization/milestones", response_model=list[NetZeroMilestoneRecord], dependencies=[Depends(verify_api_key)])
+async def get_decarbonization_milestones():
+    dash = await get_decarbonization_dashboard()
+    return dash.milestones
+
+@app.get("/api/decarbonization/technology", response_model=list[TechnologyDeploymentRecord], dependencies=[Depends(verify_api_key)])
+async def get_decarbonization_technology():
+    dash = await get_decarbonization_dashboard()
+    return dash.technology_deployment

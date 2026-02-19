@@ -3737,3 +3737,78 @@ class TestBatteryTechEndpoints:
         r = client.get("/api/battery-tech/supply-chain", headers=AUTH)
         assert r.status_code == 200
         assert len(r.json()) >= 5
+
+class TestCommunityEnergyEndpoints:
+    def test_community_energy_dashboard(self, client):
+        r = client.get("/api/community-energy/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_community_batteries"] >= 8
+        assert len(d["community_batteries"]) >= 8
+        assert len(d["solar_gardens"]) >= 6
+        assert len(d["sps_systems"]) >= 8
+
+    def test_community_batteries(self, client):
+        r = client.get("/api/community-energy/batteries", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_solar_gardens(self, client):
+        r = client.get("/api/community-energy/solar-gardens", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 6
+
+    def test_sps_systems(self, client):
+        r = client.get("/api/community-energy/sps", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+class TestAssetManagementEndpoints:
+    def test_asset_mgmt_dashboard(self, client):
+        r = client.get("/api/asset-management/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_assets"] >= 14
+        assert len(d["assets"]) >= 14
+        assert len(d["inspections"]) >= 8
+        assert len(d["maintenance_programs"]) >= 5
+
+    def test_transmission_assets(self, client):
+        r = client.get("/api/asset-management/assets", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 14
+
+    def test_asset_inspections(self, client):
+        r = client.get("/api/asset-management/inspections", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_maintenance_programs(self, client):
+        r = client.get("/api/asset-management/maintenance", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 5
+
+class TestDecarbonizationEndpoints:
+    def test_decarbonization_dashboard(self, client):
+        r = client.get("/api/decarbonization/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_emissions_2024_mt_co2e"] > 0
+        assert len(d["sectoral_emissions"]) >= 8
+        assert len(d["milestones"]) >= 10
+        assert len(d["technology_deployment"]) >= 20
+
+    def test_decarbonization_sectors(self, client):
+        r = client.get("/api/decarbonization/sectors", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_decarbonization_milestones(self, client):
+        r = client.get("/api/decarbonization/milestones", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_decarbonization_technology(self, client):
+        r = client.get("/api/decarbonization/technology", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20

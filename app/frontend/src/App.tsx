@@ -140,6 +140,9 @@ import SmartGridAnalytics from './pages/SmartGridAnalytics'
 import MinimumDemandAnalytics from './pages/MinimumDemandAnalytics'
 import MarketEventsAnalysis from './pages/MarketEventsAnalysis'
 import BatteryTechAnalytics from './pages/BatteryTechAnalytics'
+import CommunityEnergy from './pages/CommunityEnergy'
+import AssetManagement from './pages/AssetManagement'
+import DecarbonizationPathway from './pages/DecarbonizationPathway'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -236,6 +239,9 @@ const NAV_ITEMS = [
   { to: '/minimum-demand',  label: 'Min Demand',       Icon: TrendingDown   },
   { to: '/market-events',  label: 'Market Events',    Icon: AlertTriangle  },
   { to: '/battery-tech',   label: 'Battery Tech',     Icon: Battery        },
+  { to: '/community-energy', label: 'Community Energy', Icon: Users         },
+  { to: '/asset-management', label: 'Asset Management', Icon: Wrench        },
+  { to: '/decarbonization', label: 'Net Zero Pathway', Icon: Leaf           },
   { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
 ]
 
@@ -407,6 +413,9 @@ export default function App() {
               <Route path="/minimum-demand"  element={<MinimumDemandAnalytics />} />
               <Route path="/market-events"  element={<MarketEventsAnalysis />}  />
               <Route path="/battery-tech"   element={<BatteryTechAnalytics />}  />
+              <Route path="/community-energy" element={<CommunityEnergy />}     />
+              <Route path="/asset-management" element={<AssetManagement />}    />
+              <Route path="/decarbonization" element={<DecarbonizationPathway />} />
               <Route path="/settings"        element={<Settings />}              />
             </Routes>
           </main>

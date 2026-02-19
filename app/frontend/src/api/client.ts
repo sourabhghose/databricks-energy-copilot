@@ -2599,6 +2599,190 @@ export interface BatteryTechDashboard {
   supply_chain: SupplyChainRecord[]
 }
 
+// ── Sprint 42a: Community Energy & Microgrids ──
+export interface CommunityBatteryRecord {
+  battery_id: string
+  name: string
+  operator: string
+  state: string
+  region: string
+  program: string
+  capacity_kwh: number
+  power_kw: number
+  participants: number
+  avg_bill_savings_pct: number
+  grid_services_revenue_aud_yr: number
+  utilisation_pct: number
+  status: string
+  commissioning_year: number
+}
+
+export interface SolarGardenRecord {
+  garden_id: string
+  name: string
+  operator: string
+  state: string
+  capacity_kw: number
+  subscribers: number
+  annual_generation_mwh: number
+  subscription_cost_aud_kw: number
+  savings_per_subscriber_aud_yr: number
+  waitlist_count: number
+  low_income_reserved_pct: number
+  status: string
+}
+
+export interface StandalonePowerRecord {
+  sps_id: string
+  network_area: string
+  dnsp: string
+  state: string
+  technology: string
+  capacity_kw: number
+  storage_kwh: number
+  customers_served: number
+  reliability_pct: number
+  annual_fuel_saved_litres: number
+  carbon_saved_tco2_yr: number
+  capex_m_aud: number
+  opex_aud_yr: number
+  network_deferral_m_aud: number
+  commissioning_year: number
+}
+
+export interface CommunityEnergyDashboard {
+  timestamp: string
+  total_community_batteries: number
+  total_community_battery_capacity_mwh: number
+  total_solar_garden_capacity_mw: number
+  total_solar_garden_subscribers: number
+  total_sps_systems: number
+  total_sps_customers: number
+  community_batteries: CommunityBatteryRecord[]
+  solar_gardens: SolarGardenRecord[]
+  sps_systems: StandalonePowerRecord[]
+}
+
+// ── Sprint 42b: Transmission Asset Management ──
+export interface TransmissionAssetRecord {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  owner: string
+  region: string
+  voltage_kv: number
+  installation_year: number
+  age_years: number
+  design_life_years: number
+  remaining_life_years: number
+  condition_score: number
+  condition_category: string
+  last_inspection_date: string
+  next_inspection_date: string
+  inspection_frequency_years: number
+  maintenance_status: string
+  replacement_priority: string
+  replacement_capex_m_aud: number
+  replacement_year_planned: number
+}
+
+export interface InspectionEventRecord {
+  inspection_id: string
+  asset_id: string
+  inspection_date: string
+  inspector: string
+  inspection_type: string
+  findings: string
+  defects_found: number
+  severity: string
+  action_required: string
+  action_status: string
+  inspection_cost_aud: number
+}
+
+export interface MaintenanceProgramRecord {
+  program_id: string
+  owner: string
+  asset_type: string
+  year: number
+  scheduled_inspections: number
+  completed_inspections: number
+  compliance_pct: number
+  deferred_maintenance_pct: number
+  maintenance_backlog_m_aud: number
+  maintenance_capex_m_aud: number
+  maintenance_opex_m_aud: number
+  defects_found: number
+  defects_resolved_pct: number
+}
+
+export interface AssetManagementDashboard {
+  timestamp: string
+  total_assets: number
+  poor_critical_assets: number
+  avg_asset_age_years: number
+  maintenance_compliance_pct: number
+  total_replacement_capex_5yr_m_aud: number
+  urgent_replacement_count: number
+  assets: TransmissionAssetRecord[]
+  inspections: InspectionEventRecord[]
+  maintenance_programs: MaintenanceProgramRecord[]
+}
+
+// ── Sprint 42c: Decarbonization Pathway ──
+export interface SectoralEmissionsRecord {
+  record_id: string
+  sector: string
+  year: number
+  emissions_mt_co2e: number
+  target_mt_co2e: number
+  reduction_vs_2005_pct: number
+  reduction_on_track: boolean
+  carbon_intensity: number
+  technology_readiness: string
+  key_abatement_technologies: string[]
+}
+
+export interface NetZeroMilestoneRecord {
+  milestone_id: string
+  milestone_name: string
+  sector: string
+  target_year: number
+  status: string
+  progress_pct: number
+  policy_framework: string
+  investment_committed_b_aud: number
+  investment_required_b_aud: number
+  funding_gap_b_aud: number
+  description: string
+}
+
+export interface TechnologyDeploymentRecord {
+  record_id: string
+  technology: string
+  year: number
+  deployed_capacity_gw: number
+  unit: string
+  annual_addition: number
+  cost_usd_per_unit: number
+  cost_reduction_pct_vs_2020: number
+  australia_share_pct: number
+  cumulative_co2_avoided_mt: number
+}
+
+export interface DecarbonizationDashboard {
+  timestamp: string
+  total_emissions_2024_mt_co2e: number
+  emissions_vs_2005_pct: number
+  electricity_decarbonization_pct: number
+  on_track_milestones: number
+  total_milestones: number
+  investment_gap_b_aud: number
+  sectoral_emissions: SectoralEmissionsRecord[]
+  milestones: NetZeroMilestoneRecord[]
+  technology_deployment: TechnologyDeploymentRecord[]
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -4327,6 +4511,30 @@ export const api = {
     get<LcosRecord[]>('/api/battery-tech/lcos'),
   getBatteryTechSupplyChain: (): Promise<SupplyChainRecord[]> =>
     get<SupplyChainRecord[]>('/api/battery-tech/supply-chain'),
+  getCommunityEnergyDashboard: (): Promise<CommunityEnergyDashboard> =>
+    get<CommunityEnergyDashboard>('/api/community-energy/dashboard'),
+  getCommunityBatteries: (): Promise<CommunityBatteryRecord[]> =>
+    get<CommunityBatteryRecord[]>('/api/community-energy/batteries'),
+  getSolarGardens: (): Promise<SolarGardenRecord[]> =>
+    get<SolarGardenRecord[]>('/api/community-energy/solar-gardens'),
+  getSpsSystems: (): Promise<StandalonePowerRecord[]> =>
+    get<StandalonePowerRecord[]>('/api/community-energy/sps'),
+  getAssetMgmtDashboard: (): Promise<AssetManagementDashboard> =>
+    get<AssetManagementDashboard>('/api/asset-management/dashboard'),
+  getTransmissionAssets: (): Promise<TransmissionAssetRecord[]> =>
+    get<TransmissionAssetRecord[]>('/api/asset-management/assets'),
+  getAssetInspections: (): Promise<InspectionEventRecord[]> =>
+    get<InspectionEventRecord[]>('/api/asset-management/inspections'),
+  getMaintenancePrograms: (): Promise<MaintenanceProgramRecord[]> =>
+    get<MaintenanceProgramRecord[]>('/api/asset-management/maintenance'),
+  getDecarbonizationDashboard: (): Promise<DecarbonizationDashboard> =>
+    get<DecarbonizationDashboard>('/api/decarbonization/dashboard'),
+  getDecarbonizationSectors: (): Promise<SectoralEmissionsRecord[]> =>
+    get<SectoralEmissionsRecord[]>('/api/decarbonization/sectors'),
+  getDecarbonizationMilestones: (): Promise<NetZeroMilestoneRecord[]> =>
+    get<NetZeroMilestoneRecord[]>('/api/decarbonization/milestones'),
+  getDecarbonizationTechnology: (): Promise<TechnologyDeploymentRecord[]> =>
+    get<TechnologyDeploymentRecord[]>('/api/decarbonization/technology'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

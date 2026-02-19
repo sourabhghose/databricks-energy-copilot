@@ -766,3 +766,18 @@
 - BatteryTechAnalytics.tsx: 10-year pack cost trend line chart by technology, LCOS comparison bar chart (2024), technology spec comparison table, critical mineral supply chain risk table
 - /api/battery-tech/dashboard, /costs, /lcos, /supply-chain (34 cost records 2015-2024, 12 LCOS records, 6 supply chain records)
 - 4 TestBatteryTechEndpoints tests
+
+## Sprint 42a — Community Energy & Microgrids Analytics [COMPLETE]
+- CommunityEnergy.tsx: community batteries table with program/status badges, solar gardens table (waitlist + low-income allocation), standalone power systems (SPS) table with network deferral value
+- /api/community-energy/dashboard, /batteries, /solar-gardens, /sps (10 community batteries, 8 solar gardens, 11 SPS systems incl. NT Aboriginal communities)
+- 4 TestCommunityEnergyEndpoints tests
+
+## Sprint 42b — Transmission Asset Management & Inspection Analytics [COMPLETE]
+- AssetManagement.tsx: condition score horizontal bar chart, assets table with priority/condition badges, inspections table with severity badges
+- /api/asset-management/dashboard, /assets, /inspections, /maintenance (16 assets across 5 TNSPs, 10 inspection events, 7 maintenance program records)
+- 4 TestAssetManagementEndpoints tests
+
+## Sprint 42c — Energy Transition & Decarbonization Pathway Analytics [COMPLETE]
+- DecarbonizationPathway.tsx: sectoral emissions vs target bar chart, technology deployment trend line chart, net zero milestones table with progress bars and funding gap
+- /api/decarbonization/dashboard, /sectors, /milestones, /technology (10 sectoral records, 12 milestones, 25 technology deployment records)
+- 4 TestDecarbonizationEndpoints tests
