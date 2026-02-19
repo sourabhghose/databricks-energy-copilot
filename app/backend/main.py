@@ -31555,3 +31555,1276 @@ def get_market_design_market_comparison():
     result = _make_market_design_comparison()
     _cache_set(cache_key, result, _TTL_MARKET_DESIGN)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 47a — REZ Capacity & Development Tracking
+# ---------------------------------------------------------------------------
+
+class RezZoneRecord(BaseModel):
+    rez_id: str
+    rez_name: str
+    state: str
+    region: str
+    zone_type: str              # WIND, SOLAR, HYBRID
+    isp_priority: str           # STEP_CHANGE, CENTRAL, SLOW_CHANGE
+    target_capacity_mw: float
+    connected_capacity_mw: float
+    under_construction_mw: float
+    approved_mw: float
+    proposed_mw: float
+    network_limit_mw: float
+    augmentation_required_mw: float
+    augmentation_cost_m_aud: float
+
+class RezProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    rez_id: str
+    rez_name: str
+    technology: str             # WIND, SOLAR_FARM, HYBRID, STORAGE
+    developer: str
+    state: str
+    capacity_mw: float
+    status: str                 # OPERATING, CONSTRUCTION, APPROVED, PROPOSED
+    connection_year: int | None
+    annual_generation_gwh: float | None
+    ppa_signed: bool
+    offtake_type: str           # MERCHANT, PPA_CORPORATE, PPA_RETAILER, GOVERNMENT
+
+class RezNetworkAugRecord(BaseModel):
+    project_id: str
+    project_name: str
+    rez_id: str
+    asset_owner: str
+    augmentation_type: str      # NEW_LINE, UPGRADE, SUBSTATION, TRANSFORMER, REACTIVE_SUPPORT
+    voltage_kv: float
+    capacity_increase_mw: float
+    capex_m_aud: float
+    status: str
+    completion_year: int | None
+    tnsp: str
+
+class RezBuildOutRecord(BaseModel):
+    year: int
+    rez_id: str
+    rez_name: str
+    cumulative_capacity_mw: float
+    annual_additions_mw: float
+    curtailment_pct: float
+    capacity_factor_pct: float
+
+class RezCapacityDashboard(BaseModel):
+    timestamp: str
+    rez_zones: list[RezZoneRecord]
+    rez_projects: list[RezProjectRecord]
+    network_augmentations: list[RezNetworkAugRecord]
+    build_out_records: list[RezBuildOutRecord]
+    total_target_capacity_gw: float
+    total_connected_gw: float
+    total_pipeline_gw: float
+    network_augmentation_cost_b_aud: float
+
+
+_REZ_ZONES_DATA: list[dict] = [
+    {
+        "rez_id": "REZ_N1", "rez_name": "New England NSW", "state": "NSW",
+        "region": "New England Tablelands", "zone_type": "HYBRID",
+        "isp_priority": "STEP_CHANGE", "target_capacity_mw": 8000.0,
+        "connected_capacity_mw": 1200.0, "under_construction_mw": 900.0,
+        "approved_mw": 1800.0, "proposed_mw": 4100.0,
+        "network_limit_mw": 2800.0, "augmentation_required_mw": 5200.0,
+        "augmentation_cost_m_aud": 2100.0,
+    },
+    {
+        "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW", "state": "NSW",
+        "region": "Central West", "zone_type": "HYBRID",
+        "isp_priority": "STEP_CHANGE", "target_capacity_mw": 7200.0,
+        "connected_capacity_mw": 800.0, "under_construction_mw": 1200.0,
+        "approved_mw": 2000.0, "proposed_mw": 3200.0,
+        "network_limit_mw": 2400.0, "augmentation_required_mw": 4800.0,
+        "augmentation_cost_m_aud": 1850.0,
+    },
+    {
+        "rez_id": "REZ_N3", "rez_name": "South West NSW", "state": "NSW",
+        "region": "South West", "zone_type": "SOLAR",
+        "isp_priority": "CENTRAL", "target_capacity_mw": 5800.0,
+        "connected_capacity_mw": 600.0, "under_construction_mw": 700.0,
+        "approved_mw": 1400.0, "proposed_mw": 3100.0,
+        "network_limit_mw": 1900.0, "augmentation_required_mw": 3900.0,
+        "augmentation_cost_m_aud": 1200.0,
+    },
+    {
+        "rez_id": "REZ_V1", "rez_name": "Western Victoria", "state": "VIC",
+        "region": "Western Victoria", "zone_type": "WIND",
+        "isp_priority": "STEP_CHANGE", "target_capacity_mw": 6500.0,
+        "connected_capacity_mw": 2100.0, "under_construction_mw": 800.0,
+        "approved_mw": 1700.0, "proposed_mw": 1900.0,
+        "network_limit_mw": 3200.0, "augmentation_required_mw": 3300.0,
+        "augmentation_cost_m_aud": 980.0,
+    },
+    {
+        "rez_id": "REZ_V2", "rez_name": "North East Victoria", "state": "VIC",
+        "region": "North East Victoria", "zone_type": "HYBRID",
+        "isp_priority": "CENTRAL", "target_capacity_mw": 3500.0,
+        "connected_capacity_mw": 500.0, "under_construction_mw": 350.0,
+        "approved_mw": 800.0, "proposed_mw": 1850.0,
+        "network_limit_mw": 1200.0, "augmentation_required_mw": 2300.0,
+        "augmentation_cost_m_aud": 620.0,
+    },
+    {
+        "rez_id": "REZ_S1", "rez_name": "South Australia REZ", "state": "SA",
+        "region": "Spencer Gulf / Mid-North", "zone_type": "WIND",
+        "isp_priority": "STEP_CHANGE", "target_capacity_mw": 6000.0,
+        "connected_capacity_mw": 3000.0, "under_construction_mw": 600.0,
+        "approved_mw": 900.0, "proposed_mw": 1500.0,
+        "network_limit_mw": 3800.0, "augmentation_required_mw": 2200.0,
+        "augmentation_cost_m_aud": 750.0,
+    },
+    {
+        "rez_id": "REZ_Q1", "rez_name": "Queensland Central", "state": "QLD",
+        "region": "Central Queensland", "zone_type": "SOLAR",
+        "isp_priority": "CENTRAL", "target_capacity_mw": 5000.0,
+        "connected_capacity_mw": 1800.0, "under_construction_mw": 500.0,
+        "approved_mw": 1100.0, "proposed_mw": 1600.0,
+        "network_limit_mw": 2600.0, "augmentation_required_mw": 2400.0,
+        "augmentation_cost_m_aud": 680.0,
+    },
+    {
+        "rez_id": "REZ_T1", "rez_name": "NW Tasmania", "state": "TAS",
+        "region": "North West Tasmania", "zone_type": "WIND",
+        "isp_priority": "SLOW_CHANGE", "target_capacity_mw": 2000.0,
+        "connected_capacity_mw": 200.0, "under_construction_mw": 200.0,
+        "approved_mw": 400.0, "proposed_mw": 1200.0,
+        "network_limit_mw": 800.0, "augmentation_required_mw": 1200.0,
+        "augmentation_cost_m_aud": 320.0,
+    },
+    {
+        "rez_id": "REZ_N4", "rez_name": "Hunter Valley NSW", "state": "NSW",
+        "region": "Hunter Valley", "zone_type": "HYBRID",
+        "isp_priority": "SLOW_CHANGE", "target_capacity_mw": 2500.0,
+        "connected_capacity_mw": 400.0, "under_construction_mw": 250.0,
+        "approved_mw": 500.0, "proposed_mw": 1350.0,
+        "network_limit_mw": 900.0, "augmentation_required_mw": 1600.0,
+        "augmentation_cost_m_aud": 480.0,
+    },
+    {
+        "rez_id": "REZ_Q2", "rez_name": "Darling Downs QLD", "state": "QLD",
+        "region": "Darling Downs", "zone_type": "SOLAR",
+        "isp_priority": "CENTRAL", "target_capacity_mw": 4500.0,
+        "connected_capacity_mw": 1400.0, "under_construction_mw": 600.0,
+        "approved_mw": 900.0, "proposed_mw": 1600.0,
+        "network_limit_mw": 2200.0, "augmentation_required_mw": 2300.0,
+        "augmentation_cost_m_aud": 590.0,
+    },
+]
+
+_REZ_PROJECTS_DATA: list[dict] = [
+    {
+        "project_id": "PRJ001", "project_name": "New England Solar Farm",
+        "rez_id": "REZ_N1", "rez_name": "New England NSW",
+        "technology": "SOLAR_FARM", "developer": "Neoen", "state": "NSW",
+        "capacity_mw": 720.0, "status": "CONSTRUCTION", "connection_year": 2026,
+        "annual_generation_gwh": 1440.0, "ppa_signed": True, "offtake_type": "PPA_CORPORATE",
+    },
+    {
+        "project_id": "PRJ002", "project_name": "Thunderbolts Wind Farm",
+        "rez_id": "REZ_N1", "rez_name": "New England NSW",
+        "technology": "WIND", "developer": "CWP Energy", "state": "NSW",
+        "capacity_mw": 480.0, "status": "APPROVED", "connection_year": 2027,
+        "annual_generation_gwh": 1680.0, "ppa_signed": True, "offtake_type": "PPA_RETAILER",
+    },
+    {
+        "project_id": "PRJ003", "project_name": "Orana Wind Hub Stage 1",
+        "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+        "technology": "WIND", "developer": "Origin Energy", "state": "NSW",
+        "capacity_mw": 1200.0, "status": "CONSTRUCTION", "connection_year": 2026,
+        "annual_generation_gwh": 3600.0, "ppa_signed": True, "offtake_type": "GOVERNMENT",
+    },
+    {
+        "project_id": "PRJ004", "project_name": "Orana Solar Array",
+        "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+        "technology": "SOLAR_FARM", "developer": "AGL", "state": "NSW",
+        "capacity_mw": 800.0, "status": "APPROVED", "connection_year": 2027,
+        "annual_generation_gwh": 1600.0, "ppa_signed": False, "offtake_type": "MERCHANT",
+    },
+    {
+        "project_id": "PRJ005", "project_name": "Broken Hill Solar Project",
+        "rez_id": "REZ_N3", "rez_name": "South West NSW",
+        "technology": "SOLAR_FARM", "developer": "EDF Renewables", "state": "NSW",
+        "capacity_mw": 600.0, "status": "OPERATING", "connection_year": 2024,
+        "annual_generation_gwh": 1380.0, "ppa_signed": True, "offtake_type": "PPA_CORPORATE",
+    },
+    {
+        "project_id": "PRJ006", "project_name": "Western Vic Wind Farm",
+        "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+        "technology": "WIND", "developer": "Tilt Renewables", "state": "VIC",
+        "capacity_mw": 900.0, "status": "OPERATING", "connection_year": 2023,
+        "annual_generation_gwh": 2700.0, "ppa_signed": True, "offtake_type": "PPA_RETAILER",
+    },
+    {
+        "project_id": "PRJ007", "project_name": "Grampians Wind Expansion",
+        "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+        "technology": "WIND", "developer": "AGL", "state": "VIC",
+        "capacity_mw": 800.0, "status": "CONSTRUCTION", "connection_year": 2026,
+        "annual_generation_gwh": 2400.0, "ppa_signed": True, "offtake_type": "PPA_CORPORATE",
+    },
+    {
+        "project_id": "PRJ008", "project_name": "Snowtown North Extension",
+        "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+        "technology": "WIND", "developer": "Neoen", "state": "SA",
+        "capacity_mw": 600.0, "status": "OPERATING", "connection_year": 2022,
+        "annual_generation_gwh": 2100.0, "ppa_signed": True, "offtake_type": "PPA_CORPORATE",
+    },
+    {
+        "project_id": "PRJ009", "project_name": "Goyder Renewables Stage 1",
+        "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+        "technology": "HYBRID", "developer": "EDF Renewables", "state": "SA",
+        "capacity_mw": 900.0, "status": "APPROVED", "connection_year": 2027,
+        "annual_generation_gwh": 2700.0, "ppa_signed": True, "offtake_type": "GOVERNMENT",
+    },
+    {
+        "project_id": "PRJ010", "project_name": "Callide Solar Farm",
+        "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+        "technology": "SOLAR_FARM", "developer": "Origin Energy", "state": "QLD",
+        "capacity_mw": 800.0, "status": "OPERATING", "connection_year": 2023,
+        "annual_generation_gwh": 1600.0, "ppa_signed": True, "offtake_type": "PPA_CORPORATE",
+    },
+    {
+        "project_id": "PRJ011", "project_name": "Columboola Solar Project",
+        "rez_id": "REZ_Q2", "rez_name": "Darling Downs QLD",
+        "technology": "SOLAR_FARM", "developer": "CWP Energy", "state": "QLD",
+        "capacity_mw": 700.0, "status": "APPROVED", "connection_year": 2027,
+        "annual_generation_gwh": 1400.0, "ppa_signed": False, "offtake_type": "MERCHANT",
+    },
+    {
+        "project_id": "PRJ012", "project_name": "Coopers Gap Wind Farm Stage 2",
+        "rez_id": "REZ_Q2", "rez_name": "Darling Downs QLD",
+        "technology": "WIND", "developer": "AGL", "state": "QLD",
+        "capacity_mw": 700.0, "status": "OPERATING", "connection_year": 2023,
+        "annual_generation_gwh": 2100.0, "ppa_signed": True, "offtake_type": "PPA_RETAILER",
+    },
+    {
+        "project_id": "PRJ013", "project_name": "Robbins Island Wind Farm",
+        "rez_id": "REZ_T1", "rez_name": "NW Tasmania",
+        "technology": "WIND", "developer": "Tilt Renewables", "state": "TAS",
+        "capacity_mw": 200.0, "status": "CONSTRUCTION", "connection_year": 2026,
+        "annual_generation_gwh": 800.0, "ppa_signed": True, "offtake_type": "PPA_CORPORATE",
+    },
+    {
+        "project_id": "PRJ014", "project_name": "North East Vic Hybrid Hub",
+        "rez_id": "REZ_V2", "rez_name": "North East Victoria",
+        "technology": "HYBRID", "developer": "Origin Energy", "state": "VIC",
+        "capacity_mw": 500.0, "status": "PROPOSED", "connection_year": 2029,
+        "annual_generation_gwh": None, "ppa_signed": False, "offtake_type": "MERCHANT",
+    },
+    {
+        "project_id": "PRJ015", "project_name": "Hunter Hydrogen Hub",
+        "rez_id": "REZ_N4", "rez_name": "Hunter Valley NSW",
+        "technology": "HYBRID", "developer": "AGL", "state": "NSW",
+        "capacity_mw": 400.0, "status": "PROPOSED", "connection_year": 2029,
+        "annual_generation_gwh": None, "ppa_signed": False, "offtake_type": "GOVERNMENT",
+    },
+]
+
+_REZ_NETWORK_AUG_DATA: list[dict] = [
+    {
+        "project_id": "AUG001",
+        "project_name": "New England 500kV Transmission Line",
+        "rez_id": "REZ_N1", "asset_owner": "TransGrid",
+        "augmentation_type": "NEW_LINE", "voltage_kv": 500.0,
+        "capacity_increase_mw": 2400.0, "capex_m_aud": 1200.0,
+        "status": "APPROVED", "completion_year": 2028, "tnsp": "TransGrid",
+    },
+    {
+        "project_id": "AUG002",
+        "project_name": "Orana REZ HumeLink Connection",
+        "rez_id": "REZ_N2", "asset_owner": "TransGrid",
+        "augmentation_type": "NEW_LINE", "voltage_kv": 500.0,
+        "capacity_increase_mw": 3000.0, "capex_m_aud": 1650.0,
+        "status": "CONSTRUCTION", "completion_year": 2027, "tnsp": "TransGrid",
+    },
+    {
+        "project_id": "AUG003",
+        "project_name": "Western Vic 500kV Upgrade",
+        "rez_id": "REZ_V1", "asset_owner": "AusNet Services",
+        "augmentation_type": "UPGRADE", "voltage_kv": 500.0,
+        "capacity_increase_mw": 1800.0, "capex_m_aud": 780.0,
+        "status": "OPERATING", "completion_year": 2024, "tnsp": "AusNet Services",
+    },
+    {
+        "project_id": "AUG004",
+        "project_name": "Heywood Interconnector Upgrade",
+        "rez_id": "REZ_V1", "asset_owner": "AusNet Services",
+        "augmentation_type": "UPGRADE", "voltage_kv": 500.0,
+        "capacity_increase_mw": 400.0, "capex_m_aud": 220.0,
+        "status": "APPROVED", "completion_year": 2026, "tnsp": "AusNet Services",
+    },
+    {
+        "project_id": "AUG005",
+        "project_name": "SA REZ Substation at Robertstown",
+        "rez_id": "REZ_S1", "asset_owner": "ElectraNet",
+        "augmentation_type": "SUBSTATION", "voltage_kv": 275.0,
+        "capacity_increase_mw": 1200.0, "capex_m_aud": 380.0,
+        "status": "OPERATING", "completion_year": 2023, "tnsp": "ElectraNet",
+    },
+    {
+        "project_id": "AUG006",
+        "project_name": "Project EnergyConnect NSW Segment",
+        "rez_id": "REZ_N3", "asset_owner": "TransGrid",
+        "augmentation_type": "NEW_LINE", "voltage_kv": 330.0,
+        "capacity_increase_mw": 800.0, "capex_m_aud": 870.0,
+        "status": "CONSTRUCTION", "completion_year": 2026, "tnsp": "TransGrid",
+    },
+    {
+        "project_id": "AUG007",
+        "project_name": "QLD Central Transformer Upgrade",
+        "rez_id": "REZ_Q1", "asset_owner": "Powerlink",
+        "augmentation_type": "TRANSFORMER", "voltage_kv": 275.0,
+        "capacity_increase_mw": 600.0, "capex_m_aud": 145.0,
+        "status": "APPROVED", "completion_year": 2026, "tnsp": "Powerlink",
+    },
+    {
+        "project_id": "AUG008",
+        "project_name": "Marinus Link Stage 1 (TAS)",
+        "rez_id": "REZ_T1", "asset_owner": "TasNetworks",
+        "augmentation_type": "NEW_LINE", "voltage_kv": 500.0,
+        "capacity_increase_mw": 750.0, "capex_m_aud": 3500.0,
+        "status": "APPROVED", "completion_year": 2029, "tnsp": "TasNetworks",
+    },
+]
+
+_REZ_BUILD_OUT_DATA: list[dict] = [
+    # New England NSW
+    {"year": 2024, "rez_id": "REZ_N1", "rez_name": "New England NSW",
+     "cumulative_capacity_mw": 1200.0, "annual_additions_mw": 300.0, "curtailment_pct": 8.2, "capacity_factor_pct": 38.5},
+    {"year": 2025, "rez_id": "REZ_N1", "rez_name": "New England NSW",
+     "cumulative_capacity_mw": 1800.0, "annual_additions_mw": 600.0, "curtailment_pct": 9.5, "capacity_factor_pct": 37.8},
+    {"year": 2026, "rez_id": "REZ_N1", "rez_name": "New England NSW",
+     "cumulative_capacity_mw": 2700.0, "annual_additions_mw": 900.0, "curtailment_pct": 11.2, "capacity_factor_pct": 36.9},
+    {"year": 2027, "rez_id": "REZ_N1", "rez_name": "New England NSW",
+     "cumulative_capacity_mw": 4500.0, "annual_additions_mw": 1800.0, "curtailment_pct": 13.8, "capacity_factor_pct": 35.4},
+    {"year": 2028, "rez_id": "REZ_N1", "rez_name": "New England NSW",
+     "cumulative_capacity_mw": 6300.0, "annual_additions_mw": 1800.0, "curtailment_pct": 15.5, "capacity_factor_pct": 34.2},
+    {"year": 2029, "rez_id": "REZ_N1", "rez_name": "New England NSW",
+     "cumulative_capacity_mw": 8000.0, "annual_additions_mw": 1700.0, "curtailment_pct": 17.2, "capacity_factor_pct": 33.1},
+    # Central-West Orana NSW
+    {"year": 2024, "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+     "cumulative_capacity_mw": 800.0, "annual_additions_mw": 200.0, "curtailment_pct": 7.5, "capacity_factor_pct": 40.1},
+    {"year": 2025, "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+     "cumulative_capacity_mw": 1600.0, "annual_additions_mw": 800.0, "curtailment_pct": 9.2, "capacity_factor_pct": 39.4},
+    {"year": 2026, "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+     "cumulative_capacity_mw": 2800.0, "annual_additions_mw": 1200.0, "curtailment_pct": 11.8, "capacity_factor_pct": 38.2},
+    {"year": 2027, "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+     "cumulative_capacity_mw": 4800.0, "annual_additions_mw": 2000.0, "curtailment_pct": 14.1, "capacity_factor_pct": 37.0},
+    {"year": 2028, "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+     "cumulative_capacity_mw": 6200.0, "annual_additions_mw": 1400.0, "curtailment_pct": 15.9, "capacity_factor_pct": 35.8},
+    {"year": 2029, "rez_id": "REZ_N2", "rez_name": "Central-West Orana NSW",
+     "cumulative_capacity_mw": 7200.0, "annual_additions_mw": 1000.0, "curtailment_pct": 16.8, "capacity_factor_pct": 34.9},
+    # Western Victoria
+    {"year": 2024, "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+     "cumulative_capacity_mw": 2100.0, "annual_additions_mw": 400.0, "curtailment_pct": 10.5, "capacity_factor_pct": 42.3},
+    {"year": 2025, "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+     "cumulative_capacity_mw": 2700.0, "annual_additions_mw": 600.0, "curtailment_pct": 12.1, "capacity_factor_pct": 41.5},
+    {"year": 2026, "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+     "cumulative_capacity_mw": 3500.0, "annual_additions_mw": 800.0, "curtailment_pct": 13.9, "capacity_factor_pct": 40.2},
+    {"year": 2027, "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+     "cumulative_capacity_mw": 4800.0, "annual_additions_mw": 1300.0, "curtailment_pct": 16.0, "capacity_factor_pct": 38.7},
+    {"year": 2028, "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+     "cumulative_capacity_mw": 5700.0, "annual_additions_mw": 900.0, "curtailment_pct": 17.5, "capacity_factor_pct": 37.4},
+    {"year": 2029, "rez_id": "REZ_V1", "rez_name": "Western Victoria",
+     "cumulative_capacity_mw": 6500.0, "annual_additions_mw": 800.0, "curtailment_pct": 18.2, "capacity_factor_pct": 36.8},
+    # South Australia REZ
+    {"year": 2024, "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+     "cumulative_capacity_mw": 3000.0, "annual_additions_mw": 350.0, "curtailment_pct": 14.8, "capacity_factor_pct": 39.2},
+    {"year": 2025, "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+     "cumulative_capacity_mw": 3600.0, "annual_additions_mw": 600.0, "curtailment_pct": 16.2, "capacity_factor_pct": 38.1},
+    {"year": 2026, "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+     "cumulative_capacity_mw": 4200.0, "annual_additions_mw": 600.0, "curtailment_pct": 17.5, "capacity_factor_pct": 37.2},
+    {"year": 2027, "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+     "cumulative_capacity_mw": 5100.0, "annual_additions_mw": 900.0, "curtailment_pct": 19.1, "capacity_factor_pct": 36.0},
+    {"year": 2028, "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+     "cumulative_capacity_mw": 5700.0, "annual_additions_mw": 600.0, "curtailment_pct": 20.3, "capacity_factor_pct": 35.1},
+    {"year": 2029, "rez_id": "REZ_S1", "rez_name": "South Australia REZ",
+     "cumulative_capacity_mw": 6000.0, "annual_additions_mw": 300.0, "curtailment_pct": 21.0, "capacity_factor_pct": 34.5},
+    # Queensland Central
+    {"year": 2024, "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+     "cumulative_capacity_mw": 1800.0, "annual_additions_mw": 400.0, "curtailment_pct": 6.5, "capacity_factor_pct": 32.8},
+    {"year": 2025, "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+     "cumulative_capacity_mw": 2400.0, "annual_additions_mw": 600.0, "curtailment_pct": 8.2, "capacity_factor_pct": 31.9},
+    {"year": 2026, "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+     "cumulative_capacity_mw": 3100.0, "annual_additions_mw": 700.0, "curtailment_pct": 9.8, "capacity_factor_pct": 31.2},
+    {"year": 2027, "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+     "cumulative_capacity_mw": 4000.0, "annual_additions_mw": 900.0, "curtailment_pct": 11.5, "capacity_factor_pct": 30.5},
+    {"year": 2028, "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+     "cumulative_capacity_mw": 4600.0, "annual_additions_mw": 600.0, "curtailment_pct": 12.8, "capacity_factor_pct": 29.8},
+    {"year": 2029, "rez_id": "REZ_Q1", "rez_name": "Queensland Central",
+     "cumulative_capacity_mw": 5000.0, "annual_additions_mw": 400.0, "curtailment_pct": 13.5, "capacity_factor_pct": 29.2},
+]
+
+
+def _make_rez_capacity_dashboard() -> RezCapacityDashboard:
+    zones = [RezZoneRecord(**z) for z in _REZ_ZONES_DATA]
+    projects = [RezProjectRecord(**p) for p in _REZ_PROJECTS_DATA]
+    augmentations = [RezNetworkAugRecord(**a) for a in _REZ_NETWORK_AUG_DATA]
+    build_out = [RezBuildOutRecord(**b) for b in _REZ_BUILD_OUT_DATA]
+
+    total_target_gw = sum(z.target_capacity_mw for z in zones) / 1000.0
+    total_connected_gw = sum(z.connected_capacity_mw for z in zones) / 1000.0
+    total_pipeline_gw = sum(
+        z.under_construction_mw + z.approved_mw + z.proposed_mw for z in zones
+    ) / 1000.0
+    aug_cost_b = sum(a.capex_m_aud for a in augmentations) / 1000.0
+
+    return RezCapacityDashboard(
+        timestamp=datetime.utcnow().isoformat(),
+        rez_zones=zones,
+        rez_projects=projects,
+        network_augmentations=augmentations,
+        build_out_records=build_out,
+        total_target_capacity_gw=round(total_target_gw, 2),
+        total_connected_gw=round(total_connected_gw, 2),
+        total_pipeline_gw=round(total_pipeline_gw, 2),
+        network_augmentation_cost_b_aud=round(aug_cost_b, 3),
+    )
+
+
+_TTL_REZ_CAPACITY = 300
+
+
+@app.get(
+    "/api/rez-capacity/dashboard",
+    response_model=RezCapacityDashboard,
+    tags=["REZ Capacity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_capacity_dashboard() -> RezCapacityDashboard:
+    cache_key = "rez_capacity:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_rez_capacity_dashboard()
+    _cache_set(cache_key, result, _TTL_REZ_CAPACITY)
+    return result
+
+
+@app.get(
+    "/api/rez-capacity/zones",
+    response_model=list[RezZoneRecord],
+    tags=["REZ Capacity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_capacity_zones() -> list[RezZoneRecord]:
+    cache_key = "rez_capacity:zones"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [RezZoneRecord(**z) for z in _REZ_ZONES_DATA]
+    _cache_set(cache_key, result, _TTL_REZ_CAPACITY)
+    return result
+
+
+@app.get(
+    "/api/rez-capacity/projects",
+    response_model=list[RezProjectRecord],
+    tags=["REZ Capacity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_capacity_projects() -> list[RezProjectRecord]:
+    cache_key = "rez_capacity:projects"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [RezProjectRecord(**p) for p in _REZ_PROJECTS_DATA]
+    _cache_set(cache_key, result, _TTL_REZ_CAPACITY)
+    return result
+
+
+@app.get(
+    "/api/rez-capacity/network-augmentations",
+    response_model=list[RezNetworkAugRecord],
+    tags=["REZ Capacity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_capacity_network_augmentations() -> list[RezNetworkAugRecord]:
+    cache_key = "rez_capacity:network_augmentations"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [RezNetworkAugRecord(**a) for a in _REZ_NETWORK_AUG_DATA]
+    _cache_set(cache_key, result, _TTL_REZ_CAPACITY)
+    return result
+
+
+@app.get(
+    "/api/rez-capacity/build-out",
+    response_model=list[RezBuildOutRecord],
+    tags=["REZ Capacity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_capacity_build_out() -> list[RezBuildOutRecord]:
+    cache_key = "rez_capacity:build_out"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [RezBuildOutRecord(**b) for b in _REZ_BUILD_OUT_DATA]
+    _cache_set(cache_key, result, _TTL_REZ_CAPACITY)
+    return result
+
+# ---------------------------------------------------------------------------
+# Sprint 47b — Retail Offer Comparison & Tariff Analytics
+# ---------------------------------------------------------------------------
+
+class MarketOfferRecord(BaseModel):
+    offer_id: str
+    retailer: str
+    state: str
+    offer_name: str
+    offer_type: str             # FLAT_RATE, TOU, DEMAND, FLEXIBLE, EV_OPTIMISED
+    daily_supply_charge: float  # $/day
+    peak_rate: float            # c/kWh
+    off_peak_rate: float | None
+    shoulder_rate: float | None
+    solar_fit_rate: float | None  # c/kWh
+    controlled_load_rate: float | None
+    annual_bill_1500kwh: float  # estimated annual bill
+    annual_bill_5000kwh: float
+    green_power_pct: float
+    contract_term_months: int
+    exit_fee_aud: float
+    conditional_discount_pct: float
+
+class DmoVsMarketRecord(BaseModel):
+    state: str
+    distributor: str
+    year: int
+    dmo_annual_bill: float       # Default Market Offer reference bill
+    avg_market_offer_bill: float
+    cheapest_offer_bill: float
+    market_discount_pct: float   # cheapest vs DMO
+    consumers_on_dmo_pct: float
+
+class SolarFitRecord(BaseModel):
+    state: str
+    retailer: str
+    fit_type: str               # GROSS, NET, BATTERY_FEED_IN
+    fit_rate_c_kwh: float
+    minimum_rate: bool          # is this the regulated minimum?
+    time_varying: bool
+    peak_fit_c_kwh: float | None
+    off_peak_fit_c_kwh: float | None
+    max_capacity_kw: float | None
+
+class TariffStructureRecord(BaseModel):
+    state: str
+    retailer: str
+    tariff_type: str
+    peak_hours: str             # e.g. "7am-11pm weekdays"
+    peak_rate: float
+    off_peak_rate: float
+    shoulder_rate: float | None
+    demand_charge_kw_month: float | None
+    battery_optimisation: bool
+    ev_charging_discount_pct: float | None
+
+class RetailOfferComparisonDashboard(BaseModel):
+    timestamp: str
+    market_offers: list[MarketOfferRecord]
+    dmo_vs_market: list[DmoVsMarketRecord]
+    solar_fit_records: list[SolarFitRecord]
+    tariff_structures: list[TariffStructureRecord]
+    avg_market_discount_pct: float
+    cheapest_offer_state: str
+    avg_solar_fit_rate: float
+    tou_adoption_pct: float
+
+_MARKET_OFFERS_47B: list[dict] = [
+    {"offer_id": "AGL-NSW-001", "retailer": "AGL", "state": "NSW", "offer_name": "AGL Essentials Plus", "offer_type": "FLAT_RATE", "daily_supply_charge": 0.92, "peak_rate": 31.5, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 7.0, "controlled_load_rate": 15.2, "annual_bill_1500kwh": 980.0, "annual_bill_5000kwh": 1850.0, "green_power_pct": 0.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 12.0},
+    {"offer_id": "AGL-NSW-002", "retailer": "AGL", "state": "NSW", "offer_name": "AGL Savers Time-of-Use", "offer_type": "TOU", "daily_supply_charge": 0.95, "peak_rate": 44.2, "off_peak_rate": 14.8, "shoulder_rate": 22.5, "solar_fit_rate": 9.0, "controlled_load_rate": 13.5, "annual_bill_1500kwh": 920.0, "annual_bill_5000kwh": 1720.0, "green_power_pct": 0.0, "contract_term_months": 12, "exit_fee_aud": 0.0, "conditional_discount_pct": 10.0},
+    {"offer_id": "ORIGIN-VIC-001", "retailer": "Origin", "state": "VIC", "offer_name": "Origin Everyday Rewards", "offer_type": "FLAT_RATE", "daily_supply_charge": 1.05, "peak_rate": 28.8, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 6.7, "controlled_load_rate": None, "annual_bill_1500kwh": 870.0, "annual_bill_5000kwh": 1680.0, "green_power_pct": 10.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 15.0},
+    {"offer_id": "ORIGIN-VIC-002", "retailer": "Origin", "state": "VIC", "offer_name": "Origin Solar Boost TOU", "offer_type": "TOU", "daily_supply_charge": 1.08, "peak_rate": 42.1, "off_peak_rate": 13.2, "shoulder_rate": 20.8, "solar_fit_rate": 12.5, "controlled_load_rate": 12.0, "annual_bill_1500kwh": 840.0, "annual_bill_5000kwh": 1590.0, "green_power_pct": 5.0, "contract_term_months": 12, "exit_fee_aud": 0.0, "conditional_discount_pct": 8.0},
+    {"offer_id": "EA-QLD-001", "retailer": "EnergyAustralia", "state": "QLD", "offer_name": "EA Market Offer Basic", "offer_type": "FLAT_RATE", "daily_supply_charge": 0.88, "peak_rate": 29.5, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 8.0, "controlled_load_rate": 14.0, "annual_bill_1500kwh": 900.0, "annual_bill_5000kwh": 1750.0, "green_power_pct": 0.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 10.0},
+    {"offer_id": "EA-QLD-002", "retailer": "EnergyAustralia", "state": "QLD", "offer_name": "EA Flex Demand", "offer_type": "DEMAND", "daily_supply_charge": 1.10, "peak_rate": 35.0, "off_peak_rate": 12.0, "shoulder_rate": None, "solar_fit_rate": 10.0, "controlled_load_rate": 11.5, "annual_bill_1500kwh": 870.0, "annual_bill_5000kwh": 1700.0, "green_power_pct": 0.0, "contract_term_months": 12, "exit_fee_aud": 50.0, "conditional_discount_pct": 5.0},
+    {"offer_id": "ALINTA-SA-001", "retailer": "Alinta", "state": "SA", "offer_name": "Alinta Super Saver", "offer_type": "FLAT_RATE", "daily_supply_charge": 1.15, "peak_rate": 38.5, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 7.5, "controlled_load_rate": 18.0, "annual_bill_1500kwh": 1050.0, "annual_bill_5000kwh": 2150.0, "green_power_pct": 0.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 18.0},
+    {"offer_id": "ALINTA-SA-002", "retailer": "Alinta", "state": "SA", "offer_name": "Alinta EV Optimised", "offer_type": "EV_OPTIMISED", "daily_supply_charge": 1.18, "peak_rate": 42.0, "off_peak_rate": 10.5, "shoulder_rate": 22.0, "solar_fit_rate": 11.0, "controlled_load_rate": 8.0, "annual_bill_1500kwh": 980.0, "annual_bill_5000kwh": 1920.0, "green_power_pct": 0.0, "contract_term_months": 24, "exit_fee_aud": 100.0, "conditional_discount_pct": 5.0},
+    {"offer_id": "SIMPLY-NSW-001", "retailer": "Simply Energy", "state": "NSW", "offer_name": "Simply Low Rate", "offer_type": "FLAT_RATE", "daily_supply_charge": 0.85, "peak_rate": 27.2, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 6.0, "controlled_load_rate": 13.0, "annual_bill_1500kwh": 850.0, "annual_bill_5000kwh": 1600.0, "green_power_pct": 0.0, "contract_term_months": 12, "exit_fee_aud": 75.0, "conditional_discount_pct": 20.0},
+    {"offer_id": "SIMPLY-VIC-001", "retailer": "Simply Energy", "state": "VIC", "offer_name": "Simply TOU Value", "offer_type": "TOU", "daily_supply_charge": 0.90, "peak_rate": 38.5, "off_peak_rate": 12.5, "shoulder_rate": 19.5, "solar_fit_rate": 8.5, "controlled_load_rate": 11.0, "annual_bill_1500kwh": 820.0, "annual_bill_5000kwh": 1560.0, "green_power_pct": 0.0, "contract_term_months": 12, "exit_fee_aud": 75.0, "conditional_discount_pct": 12.0},
+    {"offer_id": "AMBER-VIC-001", "retailer": "Amber", "state": "VIC", "offer_name": "Amber Wholesale Passthrough", "offer_type": "FLEXIBLE", "daily_supply_charge": 1.00, "peak_rate": 32.0, "off_peak_rate": 10.0, "shoulder_rate": None, "solar_fit_rate": 18.0, "controlled_load_rate": None, "annual_bill_1500kwh": 800.0, "annual_bill_5000kwh": 1480.0, "green_power_pct": 100.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 0.0},
+    {"offer_id": "AMBER-NSW-001", "retailer": "Amber", "state": "NSW", "offer_name": "Amber Smart Battery", "offer_type": "EV_OPTIMISED", "daily_supply_charge": 1.00, "peak_rate": 33.0, "off_peak_rate": 9.5, "shoulder_rate": None, "solar_fit_rate": 17.0, "controlled_load_rate": None, "annual_bill_1500kwh": 810.0, "annual_bill_5000kwh": 1500.0, "green_power_pct": 100.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 0.0},
+    {"offer_id": "POWERSHOP-VIC-001", "retailer": "Powershop", "state": "VIC", "offer_name": "Powershop Green Packs", "offer_type": "FLAT_RATE", "daily_supply_charge": 0.98, "peak_rate": 29.8, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 8.0, "controlled_load_rate": None, "annual_bill_1500kwh": 910.0, "annual_bill_5000kwh": 1720.0, "green_power_pct": 100.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 0.0},
+    {"offer_id": "AGL-QLD-001", "retailer": "AGL", "state": "QLD", "offer_name": "AGL Essentials QLD", "offer_type": "FLAT_RATE", "daily_supply_charge": 0.90, "peak_rate": 30.5, "off_peak_rate": None, "shoulder_rate": None, "solar_fit_rate": 9.5, "controlled_load_rate": 14.8, "annual_bill_1500kwh": 960.0, "annual_bill_5000kwh": 1820.0, "green_power_pct": 0.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 11.0},
+    {"offer_id": "ORIGIN-SA-001", "retailer": "Origin", "state": "SA", "offer_name": "Origin SA TOU", "offer_type": "TOU", "daily_supply_charge": 1.20, "peak_rate": 46.5, "off_peak_rate": 15.2, "shoulder_rate": 24.0, "solar_fit_rate": 10.5, "controlled_load_rate": 16.0, "annual_bill_1500kwh": 1100.0, "annual_bill_5000kwh": 2200.0, "green_power_pct": 5.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 8.0},
+    {"offer_id": "EA-NSW-001", "retailer": "EnergyAustralia", "state": "NSW", "offer_name": "EA Flexi Plan", "offer_type": "FLEXIBLE", "daily_supply_charge": 0.95, "peak_rate": 32.8, "off_peak_rate": 11.5, "shoulder_rate": None, "solar_fit_rate": 11.0, "controlled_load_rate": 14.0, "annual_bill_1500kwh": 940.0, "annual_bill_5000kwh": 1780.0, "green_power_pct": 20.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 7.0},
+    {"offer_id": "ALINTA-VIC-001", "retailer": "Alinta", "state": "VIC", "offer_name": "Alinta VIC Demand", "offer_type": "DEMAND", "daily_supply_charge": 1.12, "peak_rate": 36.0, "off_peak_rate": 13.5, "shoulder_rate": None, "solar_fit_rate": 9.0, "controlled_load_rate": None, "annual_bill_1500kwh": 890.0, "annual_bill_5000kwh": 1740.0, "green_power_pct": 0.0, "contract_term_months": 12, "exit_fee_aud": 50.0, "conditional_discount_pct": 6.0},
+    {"offer_id": "SIMPLY-QLD-001", "retailer": "Simply Energy", "state": "QLD", "offer_name": "Simply QLD Solar", "offer_type": "TOU", "daily_supply_charge": 0.88, "peak_rate": 35.5, "off_peak_rate": 13.0, "shoulder_rate": 20.0, "solar_fit_rate": 14.0, "controlled_load_rate": 12.5, "annual_bill_1500kwh": 870.0, "annual_bill_5000kwh": 1640.0, "green_power_pct": 0.0, "contract_term_months": 12, "exit_fee_aud": 60.0, "conditional_discount_pct": 13.0},
+    {"offer_id": "AMBER-SA-001", "retailer": "Amber", "state": "SA", "offer_name": "Amber SA Wholesale", "offer_type": "FLEXIBLE", "daily_supply_charge": 1.05, "peak_rate": 38.0, "off_peak_rate": 12.0, "shoulder_rate": None, "solar_fit_rate": 15.5, "controlled_load_rate": None, "annual_bill_1500kwh": 1000.0, "annual_bill_5000kwh": 1950.0, "green_power_pct": 100.0, "contract_term_months": 0, "exit_fee_aud": 0.0, "conditional_discount_pct": 0.0},
+    {"offer_id": "AGL-VIC-EV", "retailer": "AGL", "state": "VIC", "offer_name": "AGL EV Night Rider", "offer_type": "EV_OPTIMISED", "daily_supply_charge": 1.02, "peak_rate": 40.5, "off_peak_rate": 8.5, "shoulder_rate": 21.0, "solar_fit_rate": 10.0, "controlled_load_rate": 7.5, "annual_bill_1500kwh": 860.0, "annual_bill_5000kwh": 1620.0, "green_power_pct": 0.0, "contract_term_months": 24, "exit_fee_aud": 80.0, "conditional_discount_pct": 5.0},
+]
+
+_DMO_VS_MARKET_47B: list[dict] = [
+    {"state": "NSW", "distributor": "Ausgrid", "year": 2023, "dmo_annual_bill": 1828.0, "avg_market_offer_bill": 1620.0, "cheapest_offer_bill": 1480.0, "market_discount_pct": 19.0, "consumers_on_dmo_pct": 25.0},
+    {"state": "NSW", "distributor": "Ausgrid", "year": 2024, "dmo_annual_bill": 1900.0, "avg_market_offer_bill": 1680.0, "cheapest_offer_bill": 1520.0, "market_discount_pct": 20.0, "consumers_on_dmo_pct": 22.0},
+    {"state": "VIC", "distributor": "CitiPower", "year": 2023, "dmo_annual_bill": 1650.0, "avg_market_offer_bill": 1450.0, "cheapest_offer_bill": 1320.0, "market_discount_pct": 20.0, "consumers_on_dmo_pct": 30.0},
+    {"state": "VIC", "distributor": "CitiPower", "year": 2024, "dmo_annual_bill": 1720.0, "avg_market_offer_bill": 1500.0, "cheapest_offer_bill": 1360.0, "market_discount_pct": 21.0, "consumers_on_dmo_pct": 28.0},
+    {"state": "QLD", "distributor": "Energex", "year": 2023, "dmo_annual_bill": 1780.0, "avg_market_offer_bill": 1580.0, "cheapest_offer_bill": 1490.0, "market_discount_pct": 16.3, "consumers_on_dmo_pct": 40.0},
+    {"state": "QLD", "distributor": "Energex", "year": 2024, "dmo_annual_bill": 1850.0, "avg_market_offer_bill": 1640.0, "cheapest_offer_bill": 1540.0, "market_discount_pct": 16.8, "consumers_on_dmo_pct": 38.0},
+    {"state": "SA", "distributor": "SA Power Networks", "year": 2023, "dmo_annual_bill": 2200.0, "avg_market_offer_bill": 1900.0, "cheapest_offer_bill": 1650.0, "market_discount_pct": 25.0, "consumers_on_dmo_pct": 20.0},
+    {"state": "SA", "distributor": "SA Power Networks", "year": 2024, "dmo_annual_bill": 2350.0, "avg_market_offer_bill": 2020.0, "cheapest_offer_bill": 1750.0, "market_discount_pct": 25.5, "consumers_on_dmo_pct": 18.0},
+]
+
+_SOLAR_FIT_47B: list[dict] = [
+    {"state": "NSW", "retailer": "AGL", "fit_type": "NET", "fit_rate_c_kwh": 7.0, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": None},
+    {"state": "NSW", "retailer": "Origin", "fit_type": "NET", "fit_rate_c_kwh": 8.5, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": 5.0},
+    {"state": "NSW", "retailer": "Amber", "fit_type": "NET", "fit_rate_c_kwh": 17.0, "minimum_rate": False, "time_varying": True, "peak_fit_c_kwh": 22.0, "off_peak_fit_c_kwh": 8.0, "max_capacity_kw": None},
+    {"state": "VIC", "retailer": "Origin", "fit_type": "NET", "fit_rate_c_kwh": 6.7, "minimum_rate": True, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": None},
+    {"state": "VIC", "retailer": "Amber", "fit_type": "NET", "fit_rate_c_kwh": 18.0, "minimum_rate": False, "time_varying": True, "peak_fit_c_kwh": 24.0, "off_peak_fit_c_kwh": 7.0, "max_capacity_kw": None},
+    {"state": "VIC", "retailer": "Powershop", "fit_type": "GROSS", "fit_rate_c_kwh": 11.0, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": 10.0},
+    {"state": "QLD", "retailer": "AGL", "fit_type": "NET", "fit_rate_c_kwh": 9.5, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": 5.0},
+    {"state": "QLD", "retailer": "EnergyAustralia", "fit_type": "NET", "fit_rate_c_kwh": 10.0, "minimum_rate": False, "time_varying": True, "peak_fit_c_kwh": 14.0, "off_peak_fit_c_kwh": 5.0, "max_capacity_kw": 10.0},
+    {"state": "QLD", "retailer": "Simply Energy", "fit_type": "NET", "fit_rate_c_kwh": 14.0, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": None},
+    {"state": "SA", "retailer": "Alinta", "fit_type": "NET", "fit_rate_c_kwh": 7.5, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": 5.0},
+    {"state": "SA", "retailer": "Amber", "fit_type": "BATTERY_FEED_IN", "fit_rate_c_kwh": 15.5, "minimum_rate": False, "time_varying": True, "peak_fit_c_kwh": 20.0, "off_peak_fit_c_kwh": 6.0, "max_capacity_kw": None},
+    {"state": "SA", "retailer": "Origin", "fit_type": "NET", "fit_rate_c_kwh": 10.5, "minimum_rate": False, "time_varying": False, "peak_fit_c_kwh": None, "off_peak_fit_c_kwh": None, "max_capacity_kw": 10.0},
+]
+
+_TARIFF_STRUCTURES_47B: list[dict] = [
+    {"state": "NSW", "retailer": "AGL", "tariff_type": "FLAT_RATE", "peak_hours": "All hours (flat)", "peak_rate": 31.5, "off_peak_rate": 31.5, "shoulder_rate": None, "demand_charge_kw_month": None, "battery_optimisation": False, "ev_charging_discount_pct": None},
+    {"state": "NSW", "retailer": "AGL", "tariff_type": "TOU", "peak_hours": "7am-11pm weekdays", "peak_rate": 44.2, "off_peak_rate": 14.8, "shoulder_rate": 22.5, "demand_charge_kw_month": None, "battery_optimisation": False, "ev_charging_discount_pct": None},
+    {"state": "VIC", "retailer": "Origin", "tariff_type": "TOU", "peak_hours": "3pm-9pm weekdays", "peak_rate": 42.1, "off_peak_rate": 13.2, "shoulder_rate": 20.8, "demand_charge_kw_month": None, "battery_optimisation": True, "ev_charging_discount_pct": None},
+    {"state": "VIC", "retailer": "Amber", "tariff_type": "FLEXIBLE", "peak_hours": "Wholesale price driven", "peak_rate": 32.0, "off_peak_rate": 10.0, "shoulder_rate": None, "demand_charge_kw_month": None, "battery_optimisation": True, "ev_charging_discount_pct": 15.0},
+    {"state": "QLD", "retailer": "EnergyAustralia", "tariff_type": "DEMAND", "peak_hours": "3pm-9pm weekdays", "peak_rate": 35.0, "off_peak_rate": 12.0, "shoulder_rate": None, "demand_charge_kw_month": 15.5, "battery_optimisation": False, "ev_charging_discount_pct": None},
+    {"state": "SA", "retailer": "Alinta", "tariff_type": "EV_OPTIMISED", "peak_hours": "6am-10pm weekdays", "peak_rate": 42.0, "off_peak_rate": 10.5, "shoulder_rate": 22.0, "demand_charge_kw_month": None, "battery_optimisation": True, "ev_charging_discount_pct": 20.0},
+    {"state": "SA", "retailer": "Origin", "tariff_type": "TOU", "peak_hours": "6am-10pm weekdays", "peak_rate": 46.5, "off_peak_rate": 15.2, "shoulder_rate": 24.0, "demand_charge_kw_month": None, "battery_optimisation": False, "ev_charging_discount_pct": None},
+    {"state": "NSW", "retailer": "EnergyAustralia", "tariff_type": "DEMAND", "peak_hours": "7am-10pm all days", "peak_rate": 32.8, "off_peak_rate": 11.5, "shoulder_rate": None, "demand_charge_kw_month": 12.0, "battery_optimisation": True, "ev_charging_discount_pct": 10.0},
+]
+
+def _make_retail_offer_comparison_dashboard() -> RetailOfferComparisonDashboard:
+    market_offers = [MarketOfferRecord(**r) for r in _MARKET_OFFERS_47B]
+    dmo_vs_market = [DmoVsMarketRecord(**r) for r in _DMO_VS_MARKET_47B]
+    solar_fit_records = [SolarFitRecord(**r) for r in _SOLAR_FIT_47B]
+    tariff_structures = [TariffStructureRecord(**r) for r in _TARIFF_STRUCTURES_47B]
+    avg_market_discount = round(sum(r["market_discount_pct"] for r in _DMO_VS_MARKET_47B) / len(_DMO_VS_MARKET_47B), 1)
+    cheapest_state = min(_DMO_VS_MARKET_47B, key=lambda r: r["cheapest_offer_bill"])["state"]
+    avg_fit = round(sum(r["fit_rate_c_kwh"] for r in _SOLAR_FIT_47B) / len(_SOLAR_FIT_47B), 2)
+    tou_count = sum(1 for r in _MARKET_OFFERS_47B if r["offer_type"] == "TOU")
+    tou_pct = round(tou_count / len(_MARKET_OFFERS_47B) * 100, 1)
+    from datetime import datetime
+    return RetailOfferComparisonDashboard(
+        timestamp=datetime.utcnow().isoformat(),
+        market_offers=market_offers,
+        dmo_vs_market=dmo_vs_market,
+        solar_fit_records=solar_fit_records,
+        tariff_structures=tariff_structures,
+        avg_market_discount_pct=avg_market_discount,
+        cheapest_offer_state=cheapest_state,
+        avg_solar_fit_rate=avg_fit,
+        tou_adoption_pct=tou_pct,
+    )
+
+_TTL_RETAIL_OFFER = 300
+
+@app.get("/api/retail-offer-comparison/dashboard", response_model=RetailOfferComparisonDashboard, dependencies=[Depends(verify_api_key)])
+def get_retail_offer_comparison_dashboard():
+    cache_key = "retail_offer_comparison_dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_retail_offer_comparison_dashboard()
+    _cache_set(cache_key, result, _TTL_RETAIL_OFFER)
+    return result
+
+@app.get("/api/retail-offer-comparison/offers", response_model=list[MarketOfferRecord], dependencies=[Depends(verify_api_key)])
+def get_retail_offer_comparison_offers():
+    cache_key = "retail_offer_comparison_offers"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [MarketOfferRecord(**r) for r in _MARKET_OFFERS_47B]
+    _cache_set(cache_key, result, _TTL_RETAIL_OFFER)
+    return result
+
+@app.get("/api/retail-offer-comparison/dmo-comparison", response_model=list[DmoVsMarketRecord], dependencies=[Depends(verify_api_key)])
+def get_retail_offer_comparison_dmo():
+    cache_key = "retail_offer_comparison_dmo"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [DmoVsMarketRecord(**r) for r in _DMO_VS_MARKET_47B]
+    _cache_set(cache_key, result, _TTL_RETAIL_OFFER)
+    return result
+
+@app.get("/api/retail-offer-comparison/solar-fit", response_model=list[SolarFitRecord], dependencies=[Depends(verify_api_key)])
+def get_retail_offer_comparison_solar_fit():
+    cache_key = "retail_offer_comparison_solar_fit"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [SolarFitRecord(**r) for r in _SOLAR_FIT_47B]
+    _cache_set(cache_key, result, _TTL_RETAIL_OFFER)
+    return result
+
+@app.get("/api/retail-offer-comparison/tariff-structures", response_model=list[TariffStructureRecord], dependencies=[Depends(verify_api_key)])
+def get_retail_offer_comparison_tariff_structures():
+    cache_key = "retail_offer_comparison_tariff_structures"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = [TariffStructureRecord(**r) for r in _TARIFF_STRUCTURES_47B]
+    _cache_set(cache_key, result, _TTL_RETAIL_OFFER)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 47c — AEMO System Operator Actions Dashboard
+# ---------------------------------------------------------------------------
+
+class SysOpDirectionRecord(BaseModel):
+    direction_id: str
+    issued_datetime: str
+    region: str
+    participant_id: str
+    participant_name: str
+    direction_type: str         # GENERATE, REDUCE_OUTPUT, INCREASE_LOAD, REDUCE_LOAD, MAINTAIN
+    mw_directed: float
+    reason: str                 # LOW_RESERVE, FREQUENCY, VOLTAGE, NETWORK, SECURITY
+    duration_minutes: int
+    actual_compliance_pct: float
+    cost_aud: float
+    outcome: str                # SUCCESSFUL, PARTIAL, FAILED
+
+class SysOpRertActivation(BaseModel):
+    activation_id: str
+    activation_date: str
+    region: str
+    trigger: str                # LACK_OF_RESERVE_1, LACK_OF_RESERVE_2, LACK_OF_RESERVE_3
+    contracted_mw: float
+    activated_mw: float
+    duration_hours: float
+    providers: list[str]
+    total_cost_m_aud: float
+    reserve_margin_pre_pct: float
+    reserve_margin_post_pct: float
+
+class LoadSheddingEvent(BaseModel):
+    event_id: str
+    event_date: str
+    region: str
+    state: str
+    cause: str                  # GENERATION_SHORTFALL, NETWORK_FAILURE, EXTREME_DEMAND, CASCADING
+    peak_shedding_mw: float
+    duration_minutes: int
+    affected_customers: int
+    unserved_energy_mwh: float
+    financial_cost_m_aud: float
+    voll_cost_m_aud: float      # Value of Lost Load
+
+class ConstraintRelaxation(BaseModel):
+    relaxation_id: str
+    constraint_id: str
+    constraint_name: str
+    region: str
+    relaxation_date: str
+    original_limit_mw: float
+    relaxed_limit_mw: float
+    relaxation_mw: float
+    reason: str
+    approval_authority: str
+    duration_hours: float
+    risk_assessment: str        # LOW, MEDIUM, HIGH
+
+class SystemOperatorDashboard(BaseModel):
+    timestamp: str
+    directions: list[SysOpDirectionRecord]
+    rert_activations: list[SysOpRertActivation]
+    load_shedding: list[LoadSheddingEvent]
+    constraint_relaxations: list[ConstraintRelaxation]
+    total_directions_2024: int
+    total_rert_activations_2024: int
+    total_load_shed_mwh: float
+    total_direction_cost_m_aud: float
+
+
+_SYSOP_DIRECTIONS: list[dict] = [
+    {
+        "direction_id": "DIR-2024-001",
+        "issued_datetime": "2024-01-15T14:32:00",
+        "region": "SA1",
+        "participant_id": "AGLSA",
+        "participant_name": "AGL Energy (SA)",
+        "direction_type": "GENERATE",
+        "mw_directed": 180.0,
+        "reason": "LOW_RESERVE",
+        "duration_minutes": 120,
+        "actual_compliance_pct": 98.5,
+        "cost_aud": 1_250_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-002",
+        "issued_datetime": "2024-02-08T09:15:00",
+        "region": "NSW1",
+        "participant_id": "ORIGINNS",
+        "participant_name": "Origin Energy (NSW)",
+        "direction_type": "GENERATE",
+        "mw_directed": 320.0,
+        "reason": "FREQUENCY",
+        "duration_minutes": 90,
+        "actual_compliance_pct": 100.0,
+        "cost_aud": 2_800_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-003",
+        "issued_datetime": "2024-03-21T18:05:00",
+        "region": "VIC1",
+        "participant_id": "ENGYAUST",
+        "participant_name": "EnergyAustralia (VIC)",
+        "direction_type": "REDUCE_OUTPUT",
+        "mw_directed": 200.0,
+        "reason": "NETWORK",
+        "duration_minutes": 60,
+        "actual_compliance_pct": 95.0,
+        "cost_aud": 480_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-004",
+        "issued_datetime": "2024-04-03T11:45:00",
+        "region": "QLD1",
+        "participant_id": "CSENERQLD",
+        "participant_name": "CS Energy (QLD)",
+        "direction_type": "GENERATE",
+        "mw_directed": 400.0,
+        "reason": "LOW_RESERVE",
+        "duration_minutes": 180,
+        "actual_compliance_pct": 87.5,
+        "cost_aud": 4_600_000.0,
+        "outcome": "PARTIAL",
+    },
+    {
+        "direction_id": "DIR-2024-005",
+        "issued_datetime": "2024-05-14T16:20:00",
+        "region": "SA1",
+        "participant_id": "SNOWYHYD",
+        "participant_name": "Snowy Hydro (SA interconnect)",
+        "direction_type": "GENERATE",
+        "mw_directed": 250.0,
+        "reason": "SECURITY",
+        "duration_minutes": 150,
+        "actual_compliance_pct": 100.0,
+        "cost_aud": 3_100_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-006",
+        "issued_datetime": "2024-06-02T08:30:00",
+        "region": "NSW1",
+        "participant_id": "AGLNSW",
+        "participant_name": "AGL Energy (NSW)",
+        "direction_type": "MAINTAIN",
+        "mw_directed": 150.0,
+        "reason": "VOLTAGE",
+        "duration_minutes": 45,
+        "actual_compliance_pct": 100.0,
+        "cost_aud": 120_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-007",
+        "issued_datetime": "2024-07-18T19:55:00",
+        "region": "VIC1",
+        "participant_id": "ORIGINVIC",
+        "participant_name": "Origin Energy (VIC)",
+        "direction_type": "GENERATE",
+        "mw_directed": 500.0,
+        "reason": "LOW_RESERVE",
+        "duration_minutes": 240,
+        "actual_compliance_pct": 82.0,
+        "cost_aud": 4_900_000.0,
+        "outcome": "PARTIAL",
+    },
+    {
+        "direction_id": "DIR-2024-008",
+        "issued_datetime": "2024-08-07T13:10:00",
+        "region": "QLD1",
+        "participant_id": "STANWELL",
+        "participant_name": "Stanwell Corporation",
+        "direction_type": "GENERATE",
+        "mw_directed": 370.0,
+        "reason": "FREQUENCY",
+        "duration_minutes": 75,
+        "actual_compliance_pct": 99.2,
+        "cost_aud": 2_200_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-009",
+        "issued_datetime": "2024-09-25T07:40:00",
+        "region": "SA1",
+        "participant_id": "ENGYAUSTSA",
+        "participant_name": "EnergyAustralia (SA)",
+        "direction_type": "REDUCE_OUTPUT",
+        "mw_directed": 130.0,
+        "reason": "NETWORK",
+        "duration_minutes": 30,
+        "actual_compliance_pct": 100.0,
+        "cost_aud": 95_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-010",
+        "issued_datetime": "2024-10-11T20:15:00",
+        "region": "NSW1",
+        "participant_id": "SNOWYHYD",
+        "participant_name": "Snowy Hydro",
+        "direction_type": "GENERATE",
+        "mw_directed": 600.0,
+        "reason": "SECURITY",
+        "duration_minutes": 300,
+        "actual_compliance_pct": 96.8,
+        "cost_aud": 4_200_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-011",
+        "issued_datetime": "2024-11-19T15:50:00",
+        "region": "VIC1",
+        "participant_id": "AGLVIC",
+        "participant_name": "AGL Energy (VIC)",
+        "direction_type": "INCREASE_LOAD",
+        "mw_directed": 80.0,
+        "reason": "FREQUENCY",
+        "duration_minutes": 20,
+        "actual_compliance_pct": 100.0,
+        "cost_aud": 210_000.0,
+        "outcome": "SUCCESSFUL",
+    },
+    {
+        "direction_id": "DIR-2024-012",
+        "issued_datetime": "2024-12-05T22:30:00",
+        "region": "QLD1",
+        "participant_id": "ORIGINQLD",
+        "participant_name": "Origin Energy (QLD)",
+        "direction_type": "GENERATE",
+        "mw_directed": 280.0,
+        "reason": "LOW_RESERVE",
+        "duration_minutes": 120,
+        "actual_compliance_pct": 55.0,
+        "cost_aud": 1_800_000.0,
+        "outcome": "FAILED",
+    },
+]
+
+_SYSOP_RERT_ACTIVATIONS: list[dict] = [
+    {
+        "activation_id": "RERT-2023-001",
+        "activation_date": "2023-01-18",
+        "region": "SA1",
+        "trigger": "LACK_OF_RESERVE_3",
+        "contracted_mw": 400.0,
+        "activated_mw": 380.0,
+        "duration_hours": 3.5,
+        "providers": ["AGL Demand Response", "Enel X", "Simply Energy"],
+        "total_cost_m_aud": 28.4,
+        "reserve_margin_pre_pct": 4.2,
+        "reserve_margin_post_pct": 12.8,
+    },
+    {
+        "activation_id": "RERT-2023-002",
+        "activation_date": "2023-06-30",
+        "region": "NSW1",
+        "trigger": "LACK_OF_RESERVE_2",
+        "contracted_mw": 700.0,
+        "activated_mw": 650.0,
+        "duration_hours": 2.0,
+        "providers": ["Engie Demand", "Origin Flex", "Demand Manager"],
+        "total_cost_m_aud": 15.2,
+        "reserve_margin_pre_pct": 6.8,
+        "reserve_margin_post_pct": 14.5,
+    },
+    {
+        "activation_id": "RERT-2023-003",
+        "activation_date": "2023-08-15",
+        "region": "VIC1",
+        "trigger": "LACK_OF_RESERVE_1",
+        "contracted_mw": 200.0,
+        "activated_mw": 195.0,
+        "duration_hours": 1.0,
+        "providers": ["Enel X Victoria", "Powerdown"],
+        "total_cost_m_aud": 1.8,
+        "reserve_margin_pre_pct": 8.5,
+        "reserve_margin_post_pct": 11.2,
+    },
+    {
+        "activation_id": "RERT-2024-001",
+        "activation_date": "2024-02-14",
+        "region": "QLD1",
+        "trigger": "LACK_OF_RESERVE_2",
+        "contracted_mw": 1000.0,
+        "activated_mw": 920.0,
+        "duration_hours": 4.0,
+        "providers": ["CS Energy Response", "Stanwell Flex", "Origin QLD", "Enel X QLD"],
+        "total_cost_m_aud": 21.6,
+        "reserve_margin_pre_pct": 5.1,
+        "reserve_margin_post_pct": 16.3,
+    },
+    {
+        "activation_id": "RERT-2024-002",
+        "activation_date": "2024-07-23",
+        "region": "SA1",
+        "trigger": "LACK_OF_RESERVE_3",
+        "contracted_mw": 500.0,
+        "activated_mw": 480.0,
+        "duration_hours": 5.5,
+        "providers": ["AGL Demand SA", "Enel X SA", "Zen Energy Response"],
+        "total_cost_m_aud": 30.1,
+        "reserve_margin_pre_pct": 3.6,
+        "reserve_margin_post_pct": 13.9,
+    },
+]
+
+_SYSOP_LOAD_SHEDDING: list[dict] = [
+    {
+        "event_id": "LS-2019-001",
+        "event_date": "2019-05-25",
+        "region": "QLD1",
+        "state": "QLD",
+        "cause": "GENERATION_SHORTFALL",
+        "peak_shedding_mw": 500.0,
+        "duration_minutes": 80,
+        "affected_customers": 120_000,
+        "unserved_energy_mwh": 200.0,
+        "financial_cost_m_aud": 95.0,
+        "voll_cost_m_aud": 280.0,
+    },
+    {
+        "event_id": "LS-2022-001",
+        "event_date": "2022-06-15",
+        "region": "NEM",
+        "state": "MULTI",
+        "cause": "CASCADING",
+        "peak_shedding_mw": 3_000.0,
+        "duration_minutes": 360,
+        "affected_customers": 850_000,
+        "unserved_energy_mwh": 5_000.0,
+        "financial_cost_m_aud": 1_200.0,
+        "voll_cost_m_aud": 3_500.0,
+    },
+    {
+        "event_id": "LS-2023-001",
+        "event_date": "2023-01-19",
+        "region": "SA1",
+        "state": "SA",
+        "cause": "EXTREME_DEMAND",
+        "peak_shedding_mw": 420.0,
+        "duration_minutes": 55,
+        "affected_customers": 90_000,
+        "unserved_energy_mwh": 50.0,
+        "financial_cost_m_aud": 48.0,
+        "voll_cost_m_aud": 140.0,
+    },
+    {
+        "event_id": "LS-2024-001",
+        "event_date": "2024-07-24",
+        "region": "VIC1",
+        "state": "VIC",
+        "cause": "NETWORK_FAILURE",
+        "peak_shedding_mw": 750.0,
+        "duration_minutes": 95,
+        "affected_customers": 200_000,
+        "unserved_energy_mwh": 380.0,
+        "financial_cost_m_aud": 220.0,
+        "voll_cost_m_aud": 630.0,
+    },
+]
+
+_SYSOP_CONSTRAINT_RELAXATIONS: list[dict] = [
+    {
+        "relaxation_id": "CR-2024-001",
+        "constraint_id": "N>>NIL_TP_1",
+        "constraint_name": "Nil Import Limit - Terranora",
+        "region": "NSW1",
+        "relaxation_date": "2024-01-22",
+        "original_limit_mw": 150.0,
+        "relaxed_limit_mw": 300.0,
+        "relaxation_mw": 150.0,
+        "reason": "Low reserve conditions in NSW requiring additional import capacity",
+        "approval_authority": "AEMO System Operator",
+        "duration_hours": 4.0,
+        "risk_assessment": "MEDIUM",
+    },
+    {
+        "relaxation_id": "CR-2024-002",
+        "constraint_id": "V>>NIL_TP_2",
+        "constraint_name": "Vic-SA Heywood Thermal Limit",
+        "region": "VIC1",
+        "relaxation_date": "2024-02-19",
+        "original_limit_mw": 460.0,
+        "relaxed_limit_mw": 560.0,
+        "relaxation_mw": 100.0,
+        "reason": "Emergency export to SA during LOR2 conditions",
+        "approval_authority": "AEMO Emergency Control",
+        "duration_hours": 2.5,
+        "risk_assessment": "HIGH",
+    },
+    {
+        "relaxation_id": "CR-2024-003",
+        "constraint_id": "Q>>NIL_CAN",
+        "constraint_name": "QLD North-South Interconnect Cantaur",
+        "region": "QLD1",
+        "relaxation_date": "2024-03-08",
+        "original_limit_mw": 800.0,
+        "relaxed_limit_mw": 1_000.0,
+        "relaxation_mw": 200.0,
+        "reason": "Generator outage requiring increased flow to maintain reserve",
+        "approval_authority": "AEMO System Operator",
+        "duration_hours": 3.0,
+        "risk_assessment": "MEDIUM",
+    },
+    {
+        "relaxation_id": "CR-2024-004",
+        "constraint_id": "S>>NIL_ROWSE",
+        "constraint_name": "SA Rowse Line Thermal Rating",
+        "region": "SA1",
+        "relaxation_date": "2024-04-17",
+        "original_limit_mw": 220.0,
+        "relaxed_limit_mw": 270.0,
+        "relaxation_mw": 50.0,
+        "reason": "Increased renewable output requiring constraint relaxation",
+        "approval_authority": "ElectraNet (TNO)",
+        "duration_hours": 6.0,
+        "risk_assessment": "LOW",
+    },
+    {
+        "relaxation_id": "CR-2024-005",
+        "constraint_id": "N>>NIL_CANN",
+        "constraint_name": "NSW Canberra Region Loop Impedance",
+        "region": "NSW1",
+        "relaxation_date": "2024-05-30",
+        "original_limit_mw": 500.0,
+        "relaxed_limit_mw": 700.0,
+        "relaxation_mw": 200.0,
+        "reason": "Transmission maintenance diversion requiring higher rating",
+        "approval_authority": "TransGrid",
+        "duration_hours": 8.0,
+        "risk_assessment": "MEDIUM",
+    },
+    {
+        "relaxation_id": "CR-2024-006",
+        "constraint_id": "V>>NIL_LLOO",
+        "constraint_name": "Vic Loy-Loy 500kV Line Rating",
+        "region": "VIC1",
+        "relaxation_date": "2024-07-25",
+        "original_limit_mw": 600.0,
+        "relaxed_limit_mw": 1_000.0,
+        "relaxation_mw": 400.0,
+        "reason": "Emergency load shedding avoidance — critical grid security",
+        "approval_authority": "AEMO Emergency Control",
+        "duration_hours": 1.5,
+        "risk_assessment": "HIGH",
+    },
+    {
+        "relaxation_id": "CR-2024-007",
+        "constraint_id": "Q>>NIL_GOLD",
+        "constraint_name": "QLD Gold Coast 275kV Corridor",
+        "region": "QLD1",
+        "relaxation_date": "2024-09-12",
+        "original_limit_mw": 350.0,
+        "relaxed_limit_mw": 600.0,
+        "relaxation_mw": 250.0,
+        "reason": "Peak summer demand relief for Gold Coast region",
+        "approval_authority": "Powerlink",
+        "duration_hours": 5.0,
+        "risk_assessment": "MEDIUM",
+    },
+    {
+        "relaxation_id": "CR-2024-008",
+        "constraint_id": "S>>NIL_PARU",
+        "constraint_name": "SA Para-Rowse 275kV Import",
+        "region": "SA1",
+        "relaxation_date": "2024-11-04",
+        "original_limit_mw": 300.0,
+        "relaxed_limit_mw": 800.0,
+        "relaxation_mw": 500.0,
+        "reason": "SA islanding prevention — Heywood interconnect fault",
+        "approval_authority": "AEMO Emergency Control",
+        "duration_hours": 2.0,
+        "risk_assessment": "HIGH",
+    },
+]
+
+_TTL_SYSOP = 300
+
+
+def _make_sysop_dashboard() -> dict:
+    total_cost = sum(d["cost_aud"] for d in _SYSOP_DIRECTIONS) / 1_000_000
+    total_load_shed = sum(e["unserved_energy_mwh"] for e in _SYSOP_LOAD_SHEDDING)
+    return {
+        "timestamp": _utcnow(),
+        "directions": _SYSOP_DIRECTIONS,
+        "rert_activations": _SYSOP_RERT_ACTIVATIONS,
+        "load_shedding": _SYSOP_LOAD_SHEDDING,
+        "constraint_relaxations": _SYSOP_CONSTRAINT_RELAXATIONS,
+        "total_directions_2024": len(_SYSOP_DIRECTIONS),
+        "total_rert_activations_2024": sum(
+            1 for r in _SYSOP_RERT_ACTIVATIONS if r["activation_date"].startswith("2024")
+        ),
+        "total_load_shed_mwh": round(total_load_shed, 2),
+        "total_direction_cost_m_aud": round(total_cost, 3),
+    }
+
+
+@app.get(
+    "/api/system-operator/dashboard",
+    response_model=SystemOperatorDashboard,
+    tags=["System Operator"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sysop_dashboard():
+    cache_key = "sysop:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_sysop_dashboard()
+    _cache_set(cache_key, result, _TTL_SYSOP)
+    return result
+
+
+@app.get(
+    "/api/system-operator/directions",
+    response_model=list[SysOpDirectionRecord],
+    tags=["System Operator"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sysop_directions():
+    return _SYSOP_DIRECTIONS
+
+
+@app.get(
+    "/api/system-operator/rert-activations",
+    response_model=list[SysOpRertActivation],
+    tags=["System Operator"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sysop_rert_activations():
+    return _SYSOP_RERT_ACTIVATIONS
+
+
+@app.get(
+    "/api/system-operator/load-shedding",
+    response_model=list[LoadSheddingEvent],
+    tags=["System Operator"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sysop_load_shedding():
+    return _SYSOP_LOAD_SHEDDING
+
+
+@app.get(
+    "/api/system-operator/constraint-relaxations",
+    response_model=list[ConstraintRelaxation],
+    tags=["System Operator"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sysop_constraint_relaxations():
+    return _SYSOP_CONSTRAINT_RELAXATIONS

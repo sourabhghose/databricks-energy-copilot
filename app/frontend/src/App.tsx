@@ -52,6 +52,7 @@ import {
   Award,
   Layers,
   BookOpen,
+  Tag,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -163,6 +164,9 @@ import RecMarket from './pages/RecMarket'
 import TransmissionCongestion from './pages/TransmissionCongestion'
 import DermsOrchestration from './pages/DermsOrchestration'
 import MarketDesignReform from './pages/MarketDesignReform'
+import RezCapacityTracking from './pages/RezCapacityTracking'
+import RetailOfferComparison from './pages/RetailOfferComparison'
+import SystemOperatorActions from './pages/SystemOperatorActions'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -274,6 +278,9 @@ const NAV_ITEMS = [
   { to: '/transmission-congestion', label: 'Transmission Congestion', Icon: Network    },
   { to: '/derms-orchestration', label: 'DERMS & VPP',          Icon: Layers         },
   { to: '/market-design',     label: 'Market Design',      Icon: BookOpen       },
+  { to: '/rez-capacity',      label: 'REZ Capacity',       Icon: MapPin         },
+  { to: '/retail-offer-comparison', label: 'Retail Offer Compare', Icon: Tag    },
+  { to: '/system-operator',   label: 'System Operator',    Icon: AlertOctagon   },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -460,6 +467,9 @@ export default function App() {
               <Route path="/transmission-congestion" element={<TransmissionCongestion />} />
               <Route path="/derms-orchestration" element={<DermsOrchestration />}   />
               <Route path="/market-design"     element={<MarketDesignReform />}  />
+              <Route path="/rez-capacity"      element={<RezCapacityTracking />} />
+              <Route path="/retail-offer-comparison" element={<RetailOfferComparison />} />
+              <Route path="/system-operator"   element={<SystemOperatorActions />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

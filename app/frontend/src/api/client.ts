@@ -5031,6 +5031,42 @@ export const api = {
     get<SettlementReformRecord[]>('/api/market-design/settlement-reforms'),
   getMarketDesignMarketComparison: (): Promise<MarketDesignComparisonRecord[]> =>
     get<MarketDesignComparisonRecord[]>('/api/market-design/market-comparison'),
+
+  // Sprint 47a — REZ Capacity & Development Tracking
+  getRezCapacityDashboard: (): Promise<RezCapacityDashboard> =>
+    get<RezCapacityDashboard>('/api/rez-capacity/dashboard'),
+  getRezCapacityZones: (): Promise<RezZoneRecord[]> =>
+    get<RezZoneRecord[]>('/api/rez-capacity/zones'),
+  getRezCapacityProjects: (): Promise<RezProjectRecord[]> =>
+    get<RezProjectRecord[]>('/api/rez-capacity/projects'),
+  getRezCapacityNetworkAugmentations: (): Promise<RezNetworkAugRecord[]> =>
+    get<RezNetworkAugRecord[]>('/api/rez-capacity/network-augmentations'),
+  getRezCapacityBuildOut: (): Promise<RezBuildOutRecord[]> =>
+    get<RezBuildOutRecord[]>('/api/rez-capacity/build-out'),
+
+  // Sprint 47b — Retail Offer Comparison & Tariff Analytics
+  getRetailOfferComparisonDashboard: (): Promise<RetailOfferComparisonDashboard> =>
+    get<RetailOfferComparisonDashboard>('/api/retail-offer-comparison/dashboard'),
+  getRetailOfferComparisonOffers: (): Promise<MarketOfferRecord[]> =>
+    get<MarketOfferRecord[]>('/api/retail-offer-comparison/offers'),
+  getRetailOfferComparisonDmo: (): Promise<DmoVsMarketRecord[]> =>
+    get<DmoVsMarketRecord[]>('/api/retail-offer-comparison/dmo-comparison'),
+  getRetailOfferComparisonSolarFit: (): Promise<SolarFitRecord[]> =>
+    get<SolarFitRecord[]>('/api/retail-offer-comparison/solar-fit'),
+  getRetailOfferComparisonTariffStructures: (): Promise<TariffStructureRecord[]> =>
+    get<TariffStructureRecord[]>('/api/retail-offer-comparison/tariff-structures'),
+
+  // Sprint 47c — AEMO System Operator Actions Dashboard
+  getSystemOperatorDashboard: (): Promise<SystemOperatorDashboard> =>
+    get<SystemOperatorDashboard>('/api/system-operator/dashboard'),
+  getSystemOperatorDirections: (): Promise<SysOpDirectionRecord[]> =>
+    get<SysOpDirectionRecord[]>('/api/system-operator/directions'),
+  getSystemOperatorRertActivations: (): Promise<SysOpRertActivation[]> =>
+    get<SysOpRertActivation[]>('/api/system-operator/rert-activations'),
+  getSystemOperatorLoadShedding: (): Promise<LoadSheddingEvent[]> =>
+    get<LoadSheddingEvent[]>('/api/system-operator/load-shedding'),
+  getSystemOperatorConstraintRelaxations: (): Promise<ConstraintRelaxation[]> =>
+    get<ConstraintRelaxation[]>('/api/system-operator/constraint-relaxations'),
 }
 
 // ---------------------------------------------------------------------------
@@ -5452,4 +5488,223 @@ export interface MarketDesignDashboard {
   implemented_reforms: number
   total_reform_benefit_b_aud: number
   capacity_mechanism_pipeline_gw: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 47a — REZ Capacity & Development Tracking
+// ---------------------------------------------------------------------------
+
+export interface RezZoneRecord {
+  rez_id: string
+  rez_name: string
+  state: string
+  region: string
+  zone_type: string              // WIND, SOLAR, HYBRID
+  isp_priority: string           // STEP_CHANGE, CENTRAL, SLOW_CHANGE
+  target_capacity_mw: number
+  connected_capacity_mw: number
+  under_construction_mw: number
+  approved_mw: number
+  proposed_mw: number
+  network_limit_mw: number
+  augmentation_required_mw: number
+  augmentation_cost_m_aud: number
+}
+
+export interface RezProjectRecord {
+  project_id: string
+  project_name: string
+  rez_id: string
+  rez_name: string
+  technology: string             // WIND, SOLAR_FARM, HYBRID, STORAGE
+  developer: string
+  state: string
+  capacity_mw: number
+  status: string                 // OPERATING, CONSTRUCTION, APPROVED, PROPOSED
+  connection_year: number | null
+  annual_generation_gwh: number | null
+  ppa_signed: boolean
+  offtake_type: string           // MERCHANT, PPA_CORPORATE, PPA_RETAILER, GOVERNMENT
+}
+
+export interface RezNetworkAugRecord {
+  project_id: string
+  project_name: string
+  rez_id: string
+  asset_owner: string
+  augmentation_type: string      // NEW_LINE, UPGRADE, SUBSTATION, TRANSFORMER, REACTIVE_SUPPORT
+  voltage_kv: number
+  capacity_increase_mw: number
+  capex_m_aud: number
+  status: string
+  completion_year: number | null
+  tnsp: string
+}
+
+export interface RezBuildOutRecord {
+  year: number
+  rez_id: string
+  rez_name: string
+  cumulative_capacity_mw: number
+  annual_additions_mw: number
+  curtailment_pct: number
+  capacity_factor_pct: number
+}
+
+export interface RezCapacityDashboard {
+  timestamp: string
+  rez_zones: RezZoneRecord[]
+  rez_projects: RezProjectRecord[]
+  network_augmentations: RezNetworkAugRecord[]
+  build_out_records: RezBuildOutRecord[]
+  total_target_capacity_gw: number
+  total_connected_gw: number
+  total_pipeline_gw: number
+  network_augmentation_cost_b_aud: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 47b — Retail Offer Comparison & Tariff Analytics
+// ---------------------------------------------------------------------------
+
+export interface MarketOfferRecord {
+  offer_id: string
+  retailer: string
+  state: string
+  offer_name: string
+  offer_type: string
+  daily_supply_charge: number
+  peak_rate: number
+  off_peak_rate: number | null
+  shoulder_rate: number | null
+  solar_fit_rate: number | null
+  controlled_load_rate: number | null
+  annual_bill_1500kwh: number
+  annual_bill_5000kwh: number
+  green_power_pct: number
+  contract_term_months: number
+  exit_fee_aud: number
+  conditional_discount_pct: number
+}
+
+export interface DmoVsMarketRecord {
+  state: string
+  distributor: string
+  year: number
+  dmo_annual_bill: number
+  avg_market_offer_bill: number
+  cheapest_offer_bill: number
+  market_discount_pct: number
+  consumers_on_dmo_pct: number
+}
+
+export interface SolarFitRecord {
+  state: string
+  retailer: string
+  fit_type: string
+  fit_rate_c_kwh: number
+  minimum_rate: boolean
+  time_varying: boolean
+  peak_fit_c_kwh: number | null
+  off_peak_fit_c_kwh: number | null
+  max_capacity_kw: number | null
+}
+
+export interface TariffStructureRecord {
+  state: string
+  retailer: string
+  tariff_type: string
+  peak_hours: string
+  peak_rate: number
+  off_peak_rate: number
+  shoulder_rate: number | null
+  demand_charge_kw_month: number | null
+  battery_optimisation: boolean
+  ev_charging_discount_pct: number | null
+}
+
+export interface RetailOfferComparisonDashboard {
+  timestamp: string
+  market_offers: MarketOfferRecord[]
+  dmo_vs_market: DmoVsMarketRecord[]
+  solar_fit_records: SolarFitRecord[]
+  tariff_structures: TariffStructureRecord[]
+  avg_market_discount_pct: number
+  cheapest_offer_state: string
+  avg_solar_fit_rate: number
+  tou_adoption_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 47c — AEMO System Operator Actions Dashboard
+// ---------------------------------------------------------------------------
+
+export interface SysOpDirectionRecord {
+  direction_id: string
+  issued_datetime: string
+  region: string
+  participant_id: string
+  participant_name: string
+  direction_type: string         // GENERATE, REDUCE_OUTPUT, INCREASE_LOAD, REDUCE_LOAD, MAINTAIN
+  mw_directed: number
+  reason: string                 // LOW_RESERVE, FREQUENCY, VOLTAGE, NETWORK, SECURITY
+  duration_minutes: number
+  actual_compliance_pct: number
+  cost_aud: number
+  outcome: string                // SUCCESSFUL, PARTIAL, FAILED
+}
+
+export interface SysOpRertActivation {
+  activation_id: string
+  activation_date: string
+  region: string
+  trigger: string                // LACK_OF_RESERVE_1, LACK_OF_RESERVE_2, LACK_OF_RESERVE_3
+  contracted_mw: number
+  activated_mw: number
+  duration_hours: number
+  providers: string[]
+  total_cost_m_aud: number
+  reserve_margin_pre_pct: number
+  reserve_margin_post_pct: number
+}
+
+export interface LoadSheddingEvent {
+  event_id: string
+  event_date: string
+  region: string
+  state: string
+  cause: string                  // GENERATION_SHORTFALL, NETWORK_FAILURE, EXTREME_DEMAND, CASCADING
+  peak_shedding_mw: number
+  duration_minutes: number
+  affected_customers: number
+  unserved_energy_mwh: number
+  financial_cost_m_aud: number
+  voll_cost_m_aud: number        // Value of Lost Load
+}
+
+export interface ConstraintRelaxation {
+  relaxation_id: string
+  constraint_id: string
+  constraint_name: string
+  region: string
+  relaxation_date: string
+  original_limit_mw: number
+  relaxed_limit_mw: number
+  relaxation_mw: number
+  reason: string
+  approval_authority: string
+  duration_hours: number
+  risk_assessment: string        // LOW, MEDIUM, HIGH
+}
+
+export interface SystemOperatorDashboard {
+  timestamp: string
+  directions: SysOpDirectionRecord[]
+  rert_activations: SysOpRertActivation[]
+  load_shedding: LoadSheddingEvent[]
+  constraint_relaxations: ConstraintRelaxation[]
+  total_directions_2024: number
+  total_rert_activations_2024: number
+  total_load_shed_mwh: number
+  total_direction_cost_m_aud: number
 }

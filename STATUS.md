@@ -952,3 +952,61 @@
 - api methods: getDermsOrchestrationDashboard, getDermsOrchestrationAggregators, getDermsOrchestrationDispatchEvents, getDermsOrchestrationDerPortfolio, getDermsOrchestrationKpis added to api object in client.ts
 - App.tsx: DermsOrchestration imported; Layers icon added to lucide-react imports; /derms-orchestration route added; "DERMS & VPP" nav item (Layers icon) added before Settings
 - 5 TestDermsOrchestrationEndpoints tests appended to tests/test_backend.py
+
+## Sprint 47b — Retail Offer Comparison & Tariff Analytics [COMPLETE]
+- RetailOfferComparison.tsx: Tag icon header, title "Electricity Retail Offer Comparison", subtitle about DMO vs market offers, solar FIT, tariff structures
+  - 4 KPI cards: Avg Market Discount vs DMO %, Cheapest Offer State, Avg Solar FIT Rate (c/kWh), TOU Adoption %
+  - DMO vs Market ComposedChart: grouped bars for dmo_annual_bill (red), avg_market_offer_bill (blue), cheapest_offer_bill (green) by state/year; line for consumers_on_dmo_pct (amber, right axis)
+  - Market Offers table: retailer, state, offer name, offer type badge (FLAT_RATE gray, TOU blue, DEMAND purple, FLEXIBLE amber, EV_OPTIMISED green), supply charge, peak rate, solar FIT, est. annual bill 5000 kWh — filterable by state and type dropdowns
+  - Solar FIT Comparison table: state, retailer, FIT type badge (GROSS yellow, NET teal, BATTERY_FEED_IN indigo), rate, minimum rate flag, time-varying, peak/off-peak rates
+  - Tariff Structure grid of cards: peak hours, peak/off-peak/shoulder rates, demand charge, battery optimisation badge, EV discount badge
+- Backend Pydantic models: MarketOfferRecord, DmoVsMarketRecord, SolarFitRecord, TariffStructureRecord, RetailOfferComparisonDashboard
+- Endpoints: /api/retail-offer-comparison/dashboard, /offers, /dmo-comparison, /solar-fit, /tariff-structures (all with verify_api_key)
+  - 20 market offer records: AGL/Origin/EnergyAustralia/Alinta/Simply Energy/Amber/Powershop across NSW/VIC/QLD/SA; FLAT_RATE/TOU/DEMAND/FLEXIBLE/EV_OPTIMISED types; bills $800–$2400; solar FIT 6–18c
+  - 8 DMO vs market records: NSW/VIC/QLD/SA × 2023/2024; market discount 16–25.5%; consumers on DMO 18–40%
+  - 12 solar FIT records: major retailers across 4 states; NET/GROSS/BATTERY_FEED_IN; rates 6.7–18c; time-varying options with peak/off-peak rates
+  - 8 tariff structure records: FLAT_RATE/TOU/DEMAND/FLEXIBLE/EV_OPTIMISED across states; peak hours descriptions; battery optimisation and EV discount flags
+- Dashboard KPIs: avg_market_discount_pct (mean across DMO records), cheapest_offer_state (state with lowest cheapest_offer_bill), avg_solar_fit_rate (mean FIT rates), tou_adoption_pct (TOU offers / total offers × 100)
+- Cache TTL: 300s (5 minutes)
+- TypeScript interfaces: MarketOfferRecord, DmoVsMarketRecord, SolarFitRecord, TariffStructureRecord, RetailOfferComparisonDashboard appended to client.ts
+- api methods: getRetailOfferComparisonDashboard, getRetailOfferComparisonOffers, getRetailOfferComparisonDmo, getRetailOfferComparisonSolarFit, getRetailOfferComparisonTariffStructures added to api object in client.ts
+- App.tsx: RetailOfferComparison imported; Tag icon added to lucide-react imports; /retail-offer-comparison route added; "Retail Offer Compare" nav item (Tag icon) added before Settings
+- 5 TestRetailOfferComparisonEndpoints tests appended to tests/test_backend.py
+
+## Sprint 47c — AEMO System Operator Actions & Instructions Dashboard [COMPLETE]
+- SystemOperatorActions.tsx: AlertOctagon icon header, title "AEMO System Operator Actions & Instructions", subtitle about emergency interventions, directions, RERT activations, load shedding
+  - 4 KPI cards: Total Directions (2024), RERT Activations (2024), Total Load Shed (MWh), Direction Cost ($M AUD)
+  - Directions table: direction ID, datetime, region badge, participant, type badge (GENERATE green/REDUCE_OUTPUT red/INCREASE_LOAD blue/REDUCE_LOAD orange/MAINTAIN gray), MW directed, reason badge (LOW_RESERVE amber/FREQUENCY purple/VOLTAGE indigo/NETWORK cyan/SECURITY rose), duration, compliance %, cost ($AUD), outcome badge
+  - RERT Activations cards: activation ID, trigger badge (LOR1 green/LOR2 amber/LOR3 red), region, date, contracted/activated MW, duration, cost, reserve margin before/after arrow, provider chips
+  - Load Shedding Events table: date, region badge, state, cause badge (GENERATION_SHORTFALL red/NETWORK_FAILURE orange/EXTREME_DEMAND amber/CASCADING purple), peak MW, duration, customers affected, unserved energy MWh, financial cost, VoLL cost
+  - Constraint Relaxations table: constraint name + ID, region badge, date, original/relaxed/delta MW, approval authority, duration, risk badge (LOW green/MEDIUM amber/HIGH red)
+- Backend Pydantic models: SysOpDirectionRecord, SysOpRertActivation, LoadSheddingEvent, ConstraintRelaxation, SystemOperatorDashboard
+- Endpoints: /api/system-operator/dashboard, /directions, /rert-activations, /load-shedding, /constraint-relaxations (all with verify_api_key)
+  - 12 direction records: 2024 events; SA1/NSW1/VIC1/QLD1; AGL/Origin/EnergyAustralia/Snowy/CS Energy/Stanwell; GENERATE/REDUCE_OUTPUT/INCREASE_LOAD/MAINTAIN types; LOW_RESERVE/FREQUENCY/VOLTAGE/NETWORK/SECURITY reasons; costs $95K-$4.9M; mostly SUCCESSFUL (2 PARTIAL, 1 FAILED)
+  - 5 RERT activations: SA1 (Jan 2023 LOR3, Jul 2024 LOR3), NSW1 (Jun 2023 LOR2), VIC1 (Aug 2023 LOR1), QLD1 (Feb 2024 LOR2); contracted 200-1000 MW; costs $1.8M-$30.1M
+  - 4 load shedding events: 2019 QLD GENERATION_SHORTFALL (200 MWh), 2022 NEM CASCADING (5000 MWh), 2023 SA EXTREME_DEMAND (50 MWh), 2024 VIC NETWORK_FAILURE (380 MWh)
+  - 8 constraint relaxations: SA1/NSW1/VIC1/QLD1 constraints; relaxation 50-500 MW; LOW/MEDIUM/HIGH risk; approved by AEMO/TNSPs
+- Dashboard KPIs: total_directions_2024 (len directions), total_rert_activations_2024 (2024 RERT count), total_load_shed_mwh (sum unserved_energy_mwh), total_direction_cost_m_aud (sum cost_aud / 1M)
+- Cache TTL: 300s (5 minutes)
+- TypeScript interfaces: SysOpDirectionRecord, SysOpRertActivation, LoadSheddingEvent, ConstraintRelaxation, SystemOperatorDashboard appended to client.ts
+- api methods: getSystemOperatorDashboard, getSystemOperatorDirections, getSystemOperatorRertActivations, getSystemOperatorLoadShedding, getSystemOperatorConstraintRelaxations added to api object in client.ts
+- App.tsx: SystemOperatorActions imported; AlertOctagon already present in lucide-react imports; /system-operator route added; "System Operator" nav item (AlertOctagon icon) added before Settings
+- 5 TestSystemOperatorEndpoints tests appended to tests/test_backend.py
+
+## Sprint 47a — REZ Capacity & Development Tracking [COMPLETE]
+- RezCapacityTracking.tsx: MapPin icon header, title "Renewable Energy Zone (REZ) Capacity Tracker", subtitle about ISP REZ pipeline, network augmentation, generation build-out
+  - 4 KPI cards: Total REZ Target (GW), Connected Capacity (GW), Total Pipeline (GW), Network Augmentation Cost ($B)
+  - REZ Capacity Progress chart: horizontal stacked bar per zone (Connected green, Construction blue, Approved amber, Proposed gray) vs target; sorted by target MW descending
+  - Build-out Forecast chart: stacked area 2024–2029 cumulative MW for 5 REZs (New England, Central-West Orana, Western Victoria, South Australia, Queensland Central); 5 distinct colours
+  - REZ Zones table: REZ name, state, zone type badge (WIND blue / SOLAR amber / HYBRID green), ISP priority badge (STEP_CHANGE green / CENTRAL amber / SLOW_CHANGE gray), target/connected/pipeline MW, network limit, augmentation required, cost ($M); sorted by target MW desc
+  - Projects table: project name, REZ, technology badge (WIND/SOLAR/HYBRID/STORAGE), developer, state, capacity MW, status badge (OPERATING/CONSTRUCTION/APPROVED/PROPOSED), connection year, PPA signed, offtake badge (MERCHANT gray/PPA_CORPORATE blue/PPA_RETAILER green/GOVERNMENT purple) — filterable by zone and status dropdowns
+  - Network Augmentations table: project name, REZ ID, TNSP, augmentation type badge (NEW_LINE blue/UPGRADE green/SUBSTATION amber/TRANSFORMER purple/REACTIVE_SUPPORT gray), voltage kV, capacity increase MW, CAPEX $M, status badge, completion year
+- Backend Pydantic models (with RezGen prefix to avoid collisions with Sprint 20c): RezZoneRecord, RezProjectRecord, RezNetworkAugRecord, RezBuildOutRecord, RezCapacityDashboard
+- Naming collision check: existing RezProject, RezDashboard (Sprint 20c), RezRecord confirmed; new models use distinct names; existing /api/rez/ routes unaffected
+- Mock data: 10 REZ zone records (real ISP REZs: New England NSW, Central-West Orana NSW, South West NSW, Western Victoria, North East Victoria, SA REZ, Queensland Central, NW Tasmania, Hunter Valley NSW, Darling Downs QLD), 15 project records (Neoen/Origin/AGL/EDF/Tilt/CWP; WIND/SOLAR/HYBRID; OPERATING through PROPOSED), 8 network augmentation projects (TransGrid/AusNet/ElectraNet/Powerlink/TasNetworks; 500kV and 275kV), 30 build-out records (2024–2029 × 5 REZs)
+- Dashboard KPIs computed: total_target_capacity_gw (sum target / 1000), total_connected_gw (sum connected / 1000), total_pipeline_gw (sum construction+approved+proposed / 1000), network_augmentation_cost_b_aud (sum capex / 1000)
+- Endpoints: /api/rez-capacity/dashboard, /api/rez-capacity/zones, /api/rez-capacity/projects, /api/rez-capacity/network-augmentations, /api/rez-capacity/build-out (all with verify_api_key, TTL 300s cache)
+- TypeScript interfaces: RezZoneRecord, RezProjectRecord, RezNetworkAugRecord, RezBuildOutRecord, RezCapacityDashboard appended to client.ts
+- api methods: getRezCapacityDashboard, getRezCapacityZones, getRezCapacityProjects, getRezCapacityNetworkAugmentations, getRezCapacityBuildOut added to api object in client.ts
+- App.tsx: RezCapacityTracking imported; MapPin already present in lucide-react imports; /rez-capacity route added; "REZ Capacity" nav item (MapPin icon) added before Settings
+- 5 TestRezCapacityEndpoints tests appended to tests/test_backend.py

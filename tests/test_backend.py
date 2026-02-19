@@ -4154,3 +4154,90 @@ class TestMarketDesignEndpoints:
         data = r.json()
         assert isinstance(data, list)
         assert len(data) >= 5
+
+
+class TestRezCapacityEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/rez-capacity/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "rez_zones" in d
+        assert len(d["rez_zones"]) > 0
+
+    def test_zones(self, client):
+        r = client.get("/api/rez-capacity/zones", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_projects(self, client):
+        r = client.get("/api/rez-capacity/projects", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_network_augmentations(self, client):
+        r = client.get("/api/rez-capacity/network-augmentations", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_build_out(self, client):
+        r = client.get("/api/rez-capacity/build-out", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestRetailOfferComparisonEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/retail-offer-comparison/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "market_offers" in d
+        assert len(d["market_offers"]) > 0
+
+    def test_offers(self, client):
+        r = client.get("/api/retail-offer-comparison/offers", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_dmo_comparison(self, client):
+        r = client.get("/api/retail-offer-comparison/dmo-comparison", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_solar_fit(self, client):
+        r = client.get("/api/retail-offer-comparison/solar-fit", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_tariff_structures(self, client):
+        r = client.get("/api/retail-offer-comparison/tariff-structures", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestSystemOperatorEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/system-operator/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "directions" in d
+        assert len(d["directions"]) > 0
+
+    def test_directions(self, client):
+        r = client.get("/api/system-operator/directions", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_rert_activations(self, client):
+        r = client.get("/api/system-operator/rert-activations", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_load_shedding(self, client):
+        r = client.get("/api/system-operator/load-shedding", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_constraint_relaxations(self, client):
+        r = client.get("/api/system-operator/constraint-relaxations", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
