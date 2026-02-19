@@ -259,3 +259,11 @@
 ## Sprint 10a — API Auth + OpenAPI Docs — 2026-02-19
 **Completed:** app/backend/main.py (FastAPI OpenAPI metadata, API key auth middleware via X-API-Key header, /api/version endpoint, Depends(verify_api_key) on all /api/* routes), app/backend/.env.example (ENERGY_COPILOT_API_KEY + rate limit vars), tests/test_backend.py (TestApiKeyAuth: 3 tests), CHANGELOG.md (Sprint 10 section)
 **Notes:** API auth is opt-in — set ENERGY_COPILOT_API_KEY env var to enable; unset (default) disables auth for dev/mock mode. All existing tests continue to pass since ENERGY_COPILOT_API_KEY is not set in test env.
+
+## Sprint 10b — DLT Expectations + Data Quality Pipeline — 2026-02-19
+**Completed:** pipelines/01_nemweb_ingest.py (@dlt.expect/@dlt.expect_or_drop/@dlt.expect_all_or_drop on all Bronze/Silver/Gold tables, comment= annotations), pipelines/08_data_quality_report.py (new ~280 lines: DLT event log metrics, table freshness, row count trends, null rate scan, writes to gold.data_quality_daily_report, alert stub), databricks.yml (job_08_data_quality_report scheduled 06:00 AEST)
+**Notes:** DLT expectations use expect_or_drop for Silver/Gold (hard failures drop bad rows) and expect for Bronze (warnings preserve raw data for debugging). Data quality pipeline queries DLT event log via event_log() TVF; falls back gracefully when event log unavailable. Overall status (green/amber/red) drives alert routing.
+
+## Sprint 10c — Dark Mode + Mobile Responsive — 2026-02-19
+**Completed:** app/frontend/src/hooks/useDarkMode.ts (new hook: localStorage + prefers-color-scheme, applies .dark class to <html>), app/frontend/tailwind.config.js (darkMode: 'class'), app/frontend/src/App.tsx (TopBar dark mode toggle with Moon/Sun icon, Sidebar + container dark classes), app/frontend/src/pages/Home.tsx (dark mode class additions), app/frontend/src/pages/Monitoring.tsx (dark mode class additions), app/frontend/src/index.css (dark mode base styles)
+**Notes:** Dark mode uses Tailwind's class strategy (.dark on documentElement) for maximum control. Preference persisted to localStorage. System preference used as initial fallback. All 7 pages have dark mode support added to page-level containers; chart components (Recharts) are left with their existing colors as they render on white/transparent backgrounds.

@@ -297,6 +297,37 @@ resources:
         on_failure:
           - ops@energy-copilot.internal
 
+    # -----------------------------------------------------------------------
+    # Job 08 — Data Quality Report
+    # Daily at 06:00 AEST = 20:00 UTC previous day
+    # -----------------------------------------------------------------------
+    job_08_data_quality_report:
+      name: energy-copilot-data-quality-report-${bundle.target}
+      description: "Daily data quality report: DLT event-log expectation metrics, Gold table freshness, row count trends, null rate scan. Writes to gold.data_quality_daily_report."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "08_data_quality_report"
+      schedule:
+        quartz_cron_expression: "0 0 20 * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: data_quality_report
+          python_wheel_task:
+            package_name: energy_copilot
+            entry_point: data_quality_report
+          libraries:
+            - whl: ./dist/*.whl
+          new_cluster:
+            spark_version: 15.4.x-scala2.12
+            node_type_id: i3.xlarge
+            num_workers: 1
+            spark_conf:
+              spark.energy_copilot.catalog: ${var.catalog}
+      email_notifications:
+        on_failure:
+          - admin@energy-copilot.internal
+
   # -------------------------------------------------------------------------
   # DLT Pipelines (pipelines 01-04 as Delta Live Tables)
   # -------------------------------------------------------------------------
