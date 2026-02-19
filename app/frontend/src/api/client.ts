@@ -1812,6 +1812,157 @@ export interface EnergyHardshipRecord { state: string; year: number; residential
 export interface AffordabilityIndicator { indicator_id: string; region: string; demographic: string; energy_burden_pct: number; digital_exclusion_pct: number; summer_bill_aud: number; winter_bill_aud: number; avg_concession_aud: number; hardship_debt_avg_aud: number; payment_plan_uptake_pct: number }
 export interface EquityDashboard { timestamp: string; national_avg_hardship_rate_pct: number; national_disconnection_rate: number; total_concession_value_m_aud: number; hardship_customers: number; hardship_records: EnergyHardshipRecord[]; affordability_indicators: AffordabilityIndicator[] }
 
+// ── Sprint 37a: Demand Response & RERT ──
+export interface RertContract {
+  contract_id: string
+  provider: string
+  region: string
+  contract_type: string
+  contracted_mw: number
+  available_mw: number
+  strike_price_aud_mwh: number
+  contract_start: string
+  contract_end: string
+  activations_ytd: number
+  total_activation_mw: number
+  contract_cost_m_aud: number
+}
+
+export interface DemandResponseActivation {
+  activation_id: string
+  trading_interval: string
+  region: string
+  provider: string
+  activation_type: string
+  activated_mw: number
+  duration_min: number
+  trigger: string
+  spot_price_aud_mwh: number
+  avoided_voll_m_aud: number
+  cost_aud: number
+}
+
+export interface DemandResponseProvider {
+  provider_id: string
+  provider_name: string
+  provider_type: string
+  registered_mw: number
+  regions: string[]
+  technologies: string[]
+  reliability_pct: number
+  avg_response_time_min: number
+}
+
+export interface DemandResponseDashboard {
+  timestamp: string
+  total_contracted_mw: number
+  total_available_mw: number
+  activations_ytd: number
+  total_activation_cost_m_aud: number
+  avoided_voll_m_aud: number
+  avg_activation_duration_min: number
+  contracts: RertContract[]
+  activations: DemandResponseActivation[]
+  providers: DemandResponseProvider[]
+}
+
+// ── Sprint 37b: Behind-the-Meter ──
+export interface RooftopPvRecord {
+  record_id: string
+  month: string
+  state: string
+  installations_cumulative: number
+  installed_capacity_mw: number
+  generation_gwh: number
+  avg_system_size_kw: number
+  capacity_factor_pct: number
+  export_gwh: number
+  self_consumption_pct: number
+  new_installations: number
+}
+
+export interface HomeBatteryRecord {
+  record_id: string
+  month: string
+  state: string
+  cumulative_installations: number
+  total_capacity_mwh: number
+  avg_capacity_kwh: number
+  paired_with_solar_pct: number
+  arbitrage_revenue_m_aud: number
+  grid_injection_gwh: number
+}
+
+export interface BtmEvRecord {
+  record_id: string
+  month: string
+  state: string
+  ev_registrations_cumulative: number
+  home_chargers_installed: number
+  managed_charging_enrolled: number
+  v2g_capable_units: number
+  avg_charge_kwh_day: number
+  peak_demand_offset_mw: number
+}
+
+export interface BtmDashboard {
+  timestamp: string
+  total_rooftop_capacity_mw: number
+  total_generation_twh: number
+  total_home_batteries: number
+  total_battery_capacity_mwh: number
+  ev_registrations: number
+  managed_charging_enrolled: number
+  rooftop_pv: RooftopPvRecord[]
+  home_batteries: HomeBatteryRecord[]
+  ev_records: BtmEvRecord[]
+}
+
+// ── Sprint 37c: Regulatory Asset Base ──
+export interface RegulatoryDetermination {
+  determination_id: string
+  network: string
+  network_type: string
+  state: string
+  regulatory_period: string
+  rab_start_m_aud: number
+  rab_end_m_aud: number
+  allowed_revenue_m_aud: number
+  capex_allowance_m_aud: number
+  opex_allowance_m_aud: number
+  wacc_nominal_pct: number
+  depreciation_m_aud: number
+  return_on_rab_m_aud: number
+  aer_decision: string
+  decision_date: string
+}
+
+export interface RabYearlyRecord {
+  record_id: string
+  network: string
+  year: number
+  rab_value_m_aud: number
+  capex_actual_m_aud: number
+  capex_allowance_m_aud: number
+  capex_variance_pct: number
+  opex_actual_m_aud: number
+  opex_allowance_m_aud: number
+  opex_variance_pct: number
+  allowed_revenue_m_aud: number
+  actual_revenue_m_aud: number
+  under_over_recovery_m_aud: number
+}
+
+export interface RabDashboard {
+  timestamp: string
+  total_tnsp_rab_m_aud: number
+  total_dnsp_rab_m_aud: number
+  total_allowed_revenue_m_aud: number
+  avg_wacc_pct: number
+  determinations: RegulatoryDetermination[]
+  yearly_records: RabYearlyRecord[]
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3428,6 +3579,28 @@ export const api = {
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<AffordabilityIndicator[]>(`/api/equity/affordability${query}`)
   },
+  getDrDashboard: (): Promise<DemandResponseDashboard> =>
+    get<DemandResponseDashboard>('/api/demand-response/dashboard'),
+  getDrContracts: (): Promise<RertContract[]> =>
+    get<RertContract[]>('/api/demand-response/contracts'),
+  getDrActivations: (): Promise<DemandResponseActivation[]> =>
+    get<DemandResponseActivation[]>('/api/demand-response/activations'),
+  getDrProviders: (): Promise<DemandResponseProvider[]> =>
+    get<DemandResponseProvider[]>('/api/demand-response/providers'),
+  getBtmDashboard: (): Promise<BtmDashboard> =>
+    get<BtmDashboard>('/api/btm/dashboard'),
+  getBtmRooftopPv: (): Promise<RooftopPvRecord[]> =>
+    get<RooftopPvRecord[]>('/api/btm/rooftop-pv'),
+  getBtmBatteries: (): Promise<HomeBatteryRecord[]> =>
+    get<HomeBatteryRecord[]>('/api/btm/home-batteries'),
+  getBtmEv: (): Promise<BtmEvRecord[]> =>
+    get<BtmEvRecord[]>('/api/btm/ev'),
+  getRabDashboard: (): Promise<RabDashboard> =>
+    get<RabDashboard>('/api/rab/dashboard'),
+  getRabDeterminations: (): Promise<RegulatoryDetermination[]> =>
+    get<RegulatoryDetermination[]>('/api/rab/determinations'),
+  getRabYearly: (): Promise<RabYearlyRecord[]> =>
+    get<RabYearlyRecord[]>('/api/rab/yearly'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

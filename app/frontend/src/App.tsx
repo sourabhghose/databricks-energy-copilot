@@ -123,6 +123,9 @@ import DemandForecastAnalytics from './pages/DemandForecastAnalytics'
 import RezDevelopment from './pages/RezDevelopment'
 import CongestionAnalytics from './pages/CongestionAnalytics'
 import EnergyEquity from './pages/EnergyEquity'
+import DemandResponseAnalytics from './pages/DemandResponseAnalytics'
+import BehindTheMeter from './pages/BehindTheMeter'
+import RabAnalytics from './pages/RabAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -203,8 +206,11 @@ const NAV_ITEMS = [
   { to: '/demand-forecast', label: 'Demand Forecast', Icon: TrendingUp    },
   { to: '/rez-development', label: 'REZ Development',   Icon: MapPin         },
   { to: '/congestion',     label: 'Congestion',        Icon: AlertOctagon   },
-  { to: '/equity',         label: 'Energy Equity',     Icon: Heart          },
-  { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
+  { to: '/equity',          label: 'Energy Equity',     Icon: Heart          },
+  { to: '/demand-response', label: 'Demand Response',  Icon: Activity       },
+  { to: '/btm',             label: 'Behind-the-Meter', Icon: Sun            },
+  { to: '/rab',             label: 'Network RAB',      Icon: Building2      },
+  { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
 ]
 
 function Sidebar() {
@@ -359,8 +365,11 @@ export default function App() {
               <Route path="/demand-forecast" element={<DemandForecastAnalytics />} />
               <Route path="/rez-development" element={<RezDevelopment />}      />
               <Route path="/congestion"   element={<CongestionAnalytics />} />
-              <Route path="/equity"       element={<EnergyEquity />}        />
-              <Route path="/settings"     element={<Settings />}           />
+              <Route path="/equity"           element={<EnergyEquity />}              />
+              <Route path="/demand-response" element={<DemandResponseAnalytics />} />
+              <Route path="/btm"            element={<BehindTheMeter />}         />
+              <Route path="/rab"            element={<RabAnalytics />}           />
+              <Route path="/settings"        element={<Settings />}              />
             </Routes>
           </main>
         </div>

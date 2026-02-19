@@ -23610,3 +23610,480 @@ def get_trading_spreads():
     spreads = _make_region_spreads()
     _cache_set("trading:spreads", spreads, _TTL_TRADING)
     return spreads
+
+# ── Sprint 37a: Demand Response & RERT Analytics ──────────────────────────
+
+class RertContract(BaseModel):
+    contract_id: str
+    provider: str
+    region: str
+    contract_type: str          # RERT | SRAS | NSCAS
+    contracted_mw: float
+    available_mw: float
+    strike_price_aud_mwh: float
+    contract_start: str
+    contract_end: str
+    activations_ytd: int
+    total_activation_mw: float
+    contract_cost_m_aud: float
+
+class DemandResponseActivation(BaseModel):
+    activation_id: str
+    trading_interval: str
+    region: str
+    provider: str
+    activation_type: str        # RERT | SRAS | VOLUNTARY
+    activated_mw: float
+    duration_min: int
+    trigger: str                # PRICE_SPIKE | RESERVE_LOW | SYSTEM_EMERGENCY
+    spot_price_aud_mwh: float
+    avoided_voll_m_aud: float
+    cost_aud: float
+
+class DemandResponseProvider(BaseModel):
+    provider_id: str
+    provider_name: str
+    provider_type: str          # AGGREGATOR | INDUSTRIAL | C&I | RETAILER
+    registered_mw: float
+    regions: list[str]
+    technologies: list[str]
+    reliability_pct: float
+    avg_response_time_min: float
+
+class DemandResponseDashboard(BaseModel):
+    timestamp: str
+    total_contracted_mw: float
+    total_available_mw: float
+    activations_ytd: int
+    total_activation_cost_m_aud: float
+    avoided_voll_m_aud: float
+    avg_activation_duration_min: float
+    contracts: list[RertContract]
+    activations: list[DemandResponseActivation]
+    providers: list[DemandResponseProvider]
+
+_TTL_DR = 3600  # 1 hour for demand response data
+
+def _build_dr_dashboard() -> DemandResponseDashboard:
+    import random, math
+    rng = random.Random(9901)
+    now = "2025-07-15T14:30:00"
+
+    contracts = [
+        RertContract(contract_id="RERT-NSW-01", provider="Energy Australia DR", region="NSW1", contract_type="RERT", contracted_mw=150.0, available_mw=140.0, strike_price_aud_mwh=285.0, contract_start="2025-04-01", contract_end="2025-10-31", activations_ytd=3, total_activation_mw=420.0, contract_cost_m_aud=4.2),
+        RertContract(contract_id="RERT-VIC-01", provider="AGL Energy DR", region="VIC1", contract_type="RERT", contracted_mw=120.0, available_mw=115.0, strike_price_aud_mwh=295.0, contract_start="2025-04-01", contract_end="2025-10-31", activations_ytd=5, total_activation_mw=580.0, contract_cost_m_aud=3.5),
+        RertContract(contract_id="RERT-QLD-01", provider="Origin Energy DR", region="QLD1", contract_type="RERT", contracted_mw=100.0, available_mw=95.0, strike_price_aud_mwh=275.0, contract_start="2025-04-01", contract_end="2025-10-31", activations_ytd=2, total_activation_mw=190.0, contract_cost_m_aud=2.8),
+        RertContract(contract_id="RERT-SA-01", provider="Tesla VPP DR", region="SA1", contract_type="RERT", contracted_mw=80.0, available_mw=75.0, strike_price_aud_mwh=310.0, contract_start="2025-04-01", contract_end="2025-10-31", activations_ytd=7, total_activation_mw=540.0, contract_cost_m_aud=2.5),
+        RertContract(contract_id="SRAS-NSW-01", provider="Schneider Electric", region="NSW1", contract_type="SRAS", contracted_mw=60.0, available_mw=58.0, strike_price_aud_mwh=450.0, contract_start="2025-01-01", contract_end="2025-12-31", activations_ytd=1, total_activation_mw=55.0, contract_cost_m_aud=2.7),
+        RertContract(contract_id="SRAS-VIC-01", provider="Enel X Australia", region="VIC1", contract_type="SRAS", contracted_mw=50.0, available_mw=48.0, strike_price_aud_mwh=460.0, contract_start="2025-01-01", contract_end="2025-12-31", activations_ytd=2, total_activation_mw=96.0, contract_cost_m_aud=2.3),
+        RertContract(contract_id="NSCAS-NSW-01", provider="Glencore Coal DR", region="NSW1", contract_type="NSCAS", contracted_mw=200.0, available_mw=185.0, strike_price_aud_mwh=150.0, contract_start="2025-01-01", contract_end="2025-12-31", activations_ytd=0, total_activation_mw=0.0, contract_cost_m_aud=3.0),
+        RertContract(contract_id="NSCAS-QLD-01", provider="Rio Tinto DR", region="QLD1", contract_type="NSCAS", contracted_mw=180.0, available_mw=170.0, strike_price_aud_mwh=145.0, contract_start="2025-01-01", contract_end="2025-12-31", activations_ytd=1, total_activation_mw=170.0, contract_cost_m_aud=2.6),
+        RertContract(contract_id="RERT-TAS-01", provider="Hydro Tasmania DR", region="TAS1", contract_type="RERT", contracted_mw=90.0, available_mw=90.0, strike_price_aud_mwh=265.0, contract_start="2025-04-01", contract_end="2025-10-31", activations_ytd=4, total_activation_mw=350.0, contract_cost_m_aud=2.4),
+        RertContract(contract_id="SRAS-SA-01", provider="Neoen DR (HPR)", region="SA1", contract_type="SRAS", contracted_mw=70.0, available_mw=70.0, strike_price_aud_mwh=420.0, contract_start="2025-01-01", contract_end="2025-12-31", activations_ytd=8, total_activation_mw=540.0, contract_cost_m_aud=2.9),
+        RertContract(contract_id="RERT-VIC-02", provider="Lumo Energy VPP", region="VIC1", contract_type="RERT", contracted_mw=40.0, available_mw=38.0, strike_price_aud_mwh=300.0, contract_start="2025-04-01", contract_end="2025-10-31", activations_ytd=2, total_activation_mw=76.0, contract_cost_m_aud=1.2),
+        RertContract(contract_id="NSCAS-VIC-01", provider="Bluescope Steel DR", region="VIC1", contract_type="NSCAS", contracted_mw=160.0, available_mw=155.0, strike_price_aud_mwh=155.0, contract_start="2025-01-01", contract_end="2025-12-31", activations_ytd=0, total_activation_mw=0.0, contract_cost_m_aud=2.5),
+    ]
+
+    triggers = ["PRICE_SPIKE", "RESERVE_LOW", "SYSTEM_EMERGENCY"]
+    act_types = ["RERT", "SRAS", "VOLUNTARY"]
+    providers_list = ["Energy Australia DR", "AGL Energy DR", "Neoen DR (HPR)", "Tesla VPP DR", "Enel X Australia", "Origin Energy DR"]
+    regions_list = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+
+    activations = []
+    base_dates = [
+        "2025-06-10T14:", "2025-06-15T16:", "2025-06-20T09:", "2025-06-28T15:",
+        "2025-07-02T17:", "2025-07-08T13:", "2025-07-10T18:", "2025-07-11T14:",
+        "2025-07-12T16:", "2025-07-14T15:", "2025-07-14T17:", "2025-07-15T13:",
+        "2025-06-05T11:", "2025-06-22T10:", "2025-07-03T19:",
+    ]
+    for i, bd in enumerate(base_dates):
+        mins = rng.choice(["00", "05", "10", "15", "30"])
+        trig = triggers[i % 3]
+        atype = act_types[i % 3]
+        reg = regions_list[i % 5]
+        prov = providers_list[i % 6]
+        dur = rng.choice([30, 60, 90, 120, 180])
+        mw = rng.uniform(30, 180)
+        price = rng.uniform(5000, 14500)
+        avoided = mw * dur / 60 * 14500 / 1e6
+        cost = mw * dur / 60 * rng.uniform(280, 460)
+        activations.append(DemandResponseActivation(
+            activation_id=f"ACT-{i+1:03d}",
+            trading_interval=f"{bd}{mins}:00",
+            region=reg,
+            provider=prov,
+            activation_type=atype,
+            activated_mw=round(mw, 1),
+            duration_min=dur,
+            trigger=trig,
+            spot_price_aud_mwh=round(price, 0),
+            avoided_voll_m_aud=round(avoided, 3),
+            cost_aud=round(cost, 0),
+        ))
+
+    providers = [
+        DemandResponseProvider(provider_id="PROV-001", provider_name="Enel X Australia", provider_type="AGGREGATOR", registered_mw=210.0, regions=["NSW1","VIC1","SA1"], technologies=["HVAC","Lighting","Industrial Process"], reliability_pct=96.5, avg_response_time_min=8.2),
+        DemandResponseProvider(provider_id="PROV-002", provider_name="Tesla VPP", provider_type="AGGREGATOR", registered_mw=185.0, regions=["SA1","VIC1","NSW1"], technologies=["Residential Battery","EV","Solar"], reliability_pct=94.8, avg_response_time_min=3.1),
+        DemandResponseProvider(provider_id="PROV-003", provider_name="Energy Australia DR", provider_type="RETAILER", registered_mw=320.0, regions=["NSW1","QLD1","VIC1"], technologies=["C&I Load","Pumps","Refrigeration"], reliability_pct=97.2, avg_response_time_min=12.5),
+        DemandResponseProvider(provider_id="PROV-004", provider_name="AGL Energy DR", provider_type="RETAILER", registered_mw=275.0, regions=["VIC1","NSW1","SA1"], technologies=["C&I Load","HVAC","Pumping"], reliability_pct=95.9, avg_response_time_min=11.8),
+        DemandResponseProvider(provider_id="PROV-005", provider_name="Origin Energy DR", provider_type="RETAILER", registered_mw=240.0, regions=["QLD1","NSW1","VIC1"], technologies=["C&I Load","Industrial"], reliability_pct=96.1, avg_response_time_min=13.2),
+        DemandResponseProvider(provider_id="PROV-006", provider_name="Neoen DR (HPR)", provider_type="INDUSTRIAL", registered_mw=150.0, regions=["SA1"], technologies=["Grid-Scale Battery"], reliability_pct=99.2, avg_response_time_min=0.5),
+        DemandResponseProvider(provider_id="PROV-007", provider_name="Schneider Electric", provider_type="AGGREGATOR", registered_mw=125.0, regions=["NSW1","VIC1"], technologies=["BMS Automation","HVAC","Lighting"], reliability_pct=93.7, avg_response_time_min=9.4),
+        DemandResponseProvider(provider_id="PROV-008", provider_name="Glencore Coal DR", provider_type="INDUSTRIAL", registered_mw=200.0, regions=["NSW1"], technologies=["Mine Processing","Pumps"], reliability_pct=98.5, avg_response_time_min=15.0),
+        DemandResponseProvider(provider_id="PROV-009", provider_name="Rio Tinto DR", provider_type="INDUSTRIAL", registered_mw=180.0, regions=["QLD1"], technologies=["Aluminium Smelter"], reliability_pct=99.1, avg_response_time_min=5.0),
+        DemandResponseProvider(provider_id="PROV-010", provider_name="Lumo Energy VPP", provider_type="AGGREGATOR", registered_mw=75.0, regions=["VIC1","SA1"], technologies=["Residential Battery","Solar"], reliability_pct=91.4, avg_response_time_min=4.2),
+    ]
+
+    total_contracted = sum(c.contracted_mw for c in contracts)
+    total_available  = sum(c.available_mw for c in contracts)
+    total_acts       = sum(c.activations_ytd for c in contracts)
+    total_cost       = sum(c.contract_cost_m_aud for c in contracts)
+    avoided_voll     = sum(a.avoided_voll_m_aud for a in activations)
+    avg_dur          = sum(a.duration_min for a in activations) / len(activations)
+
+    return DemandResponseDashboard(
+        timestamp=now,
+        total_contracted_mw=round(total_contracted, 1),
+        total_available_mw=round(total_available, 1),
+        activations_ytd=total_acts,
+        total_activation_cost_m_aud=round(total_cost, 2),
+        avoided_voll_m_aud=round(avoided_voll, 3),
+        avg_activation_duration_min=round(avg_dur, 1),
+        contracts=contracts,
+        activations=activations,
+        providers=providers,
+    )
+
+@app.get("/api/demand-response/dashboard", response_model=DemandResponseDashboard, dependencies=[Depends(verify_api_key)])
+async def get_dr_dashboard():
+    cached = _cache_get("dr:dashboard")
+    if cached:
+        return cached
+    result = _build_dr_dashboard()
+    _cache_set("dr:dashboard", result, _TTL_DR)
+    return result
+
+@app.get("/api/demand-response/contracts", response_model=list[RertContract], dependencies=[Depends(verify_api_key)])
+async def get_dr_contracts():
+    dash = await get_dr_dashboard()
+    return dash.contracts
+
+@app.get("/api/demand-response/activations", response_model=list[DemandResponseActivation], dependencies=[Depends(verify_api_key)])
+async def get_dr_activations():
+    dash = await get_dr_dashboard()
+    return dash.activations
+
+@app.get("/api/demand-response/providers", response_model=list[DemandResponseProvider], dependencies=[Depends(verify_api_key)])
+async def get_dr_providers():
+    dash = await get_dr_dashboard()
+    return dash.providers
+
+# ── Sprint 37b: Behind-the-Meter (BTM) Analytics ────────────────────────
+
+class RooftopPvRecord(BaseModel):
+    record_id: str
+    month: str                       # YYYY-MM
+    state: str
+    installations_cumulative: int
+    installed_capacity_mw: float
+    generation_gwh: float
+    avg_system_size_kw: float
+    capacity_factor_pct: float
+    export_gwh: float
+    self_consumption_pct: float
+    new_installations: int
+
+class HomeBatteryRecord(BaseModel):
+    record_id: str
+    month: str
+    state: str
+    cumulative_installations: int
+    total_capacity_mwh: float
+    avg_capacity_kwh: float
+    paired_with_solar_pct: float
+    arbitrage_revenue_m_aud: float
+    grid_injection_gwh: float
+
+class BtmEvRecord(BaseModel):
+    record_id: str
+    month: str
+    state: str
+    ev_registrations_cumulative: int
+    home_chargers_installed: int
+    managed_charging_enrolled: int
+    v2g_capable_units: int
+    avg_charge_kwh_day: float
+    peak_demand_offset_mw: float
+
+class BtmDashboard(BaseModel):
+    timestamp: str
+    total_rooftop_capacity_mw: float
+    total_generation_twh: float
+    total_home_batteries: int
+    total_battery_capacity_mwh: float
+    ev_registrations: int
+    managed_charging_enrolled: int
+    rooftop_pv: list[RooftopPvRecord]
+    home_batteries: list[HomeBatteryRecord]
+    ev_records: list[BtmEvRecord]
+
+_TTL_BTM = 3600  # 1 hour
+
+def _build_btm_dashboard() -> BtmDashboard:
+    import random
+    rng = random.Random(3772)
+    now = "2025-07-15T08:00:00"
+
+    states = ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT", "NT"]
+    # Cumulative rooftop solar by state (MWp) as of 2025 - realistic NEM values
+    state_mw_base = {"NSW": 8200, "VIC": 6800, "QLD": 9100, "SA": 3200, "WA": 4500, "TAS": 340, "ACT": 380, "NT": 180}
+    state_installs_base = {"NSW": 650000, "VIC": 540000, "QLD": 780000, "SA": 290000, "WA": 380000, "TAS": 28000, "ACT": 30000, "NT": 14000}
+
+    # 12 months of rooftop PV data (Jul 2024 - Jun 2025)
+    months = [f"2024-{m:02d}" if m >= 7 else f"2025-{m:02d}" for m in list(range(7, 13)) + list(range(1, 7))]
+
+    rooftop_pv = []
+    for s in states:
+        base_mw    = state_mw_base[s]
+        base_inst  = state_installs_base[s]
+        for i, month in enumerate(months):
+            frac   = 1 + i * 0.012  # ~1.2% monthly growth
+            cap    = round(base_mw * frac, 1)
+            inst   = int(base_inst * frac)
+            new_i  = int(base_inst * 0.012 * rng.uniform(0.8, 1.2))
+            cf     = rng.uniform(16.5, 22.5)
+            gen    = round(cap * cf / 100 * 8760 / 12 / 1000, 2)   # GWh/month
+            export = round(gen * rng.uniform(0.30, 0.50), 2)
+            sc_pct = round(100 - export / gen * 100, 1)
+            avg_sz = round(base_mw * 1000 / base_inst, 1)
+            rooftop_pv.append(RooftopPvRecord(
+                record_id=f"PV-{s}-{month}", month=month, state=s,
+                installations_cumulative=inst, installed_capacity_mw=cap,
+                generation_gwh=gen, avg_system_size_kw=avg_sz,
+                capacity_factor_pct=round(cf, 1), export_gwh=export,
+                self_consumption_pct=sc_pct, new_installations=new_i,
+            ))
+
+    # Home battery records (same 12 months, 5 states that have VPP programs)
+    batt_states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    batt_base = {"NSW": 45000, "VIC": 38000, "QLD": 52000, "SA": 28000, "WA": 18000}
+    home_batteries = []
+    for s in batt_states:
+        base_cnt = batt_base[s]
+        for i, month in enumerate(months):
+            cnt     = int(base_cnt * (1 + i * 0.018))
+            avg_kwh = rng.uniform(10.5, 14.5)
+            cap_mwh = round(cnt * avg_kwh / 1000, 1)
+            arb_rev = round(cnt * rng.uniform(0.0008, 0.0015), 3)  # $M
+            inj_gwh = round(cap_mwh * rng.uniform(0.06, 0.12), 2)
+            paired  = round(rng.uniform(72.0, 88.0), 1)
+            home_batteries.append(HomeBatteryRecord(
+                record_id=f"BAT-{s}-{month}", month=month, state=s,
+                cumulative_installations=cnt, total_capacity_mwh=cap_mwh,
+                avg_capacity_kwh=round(avg_kwh, 1), paired_with_solar_pct=paired,
+                arbitrage_revenue_m_aud=arb_rev, grid_injection_gwh=inj_gwh,
+            ))
+
+    # EV records
+    ev_states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    ev_base = {"NSW": 72000, "VIC": 58000, "QLD": 44000, "SA": 18000, "WA": 22000}
+    ev_records = []
+    for s in ev_states:
+        base_ev = ev_base[s]
+        for i, month in enumerate(months):
+            ev_cnt   = int(base_ev * (1 + i * 0.025))
+            chargers = int(ev_cnt * rng.uniform(0.62, 0.72))
+            managed  = int(ev_cnt * rng.uniform(0.08, 0.18))
+            v2g      = int(ev_cnt * rng.uniform(0.02, 0.06))
+            avg_chg  = round(rng.uniform(8.5, 14.5), 1)
+            peak_off = round(ev_cnt * avg_chg / 1000 * rng.uniform(0.15, 0.25), 1)
+            ev_records.append(BtmEvRecord(
+                record_id=f"EV-{s}-{month}", month=month, state=s,
+                ev_registrations_cumulative=ev_cnt, home_chargers_installed=chargers,
+                managed_charging_enrolled=managed, v2g_capable_units=v2g,
+                avg_charge_kwh_day=avg_chg, peak_demand_offset_mw=peak_off,
+            ))
+
+    # Latest snapshot aggregates
+    latest_pv  = [r for r in rooftop_pv if r.month == "2025-06"]
+    latest_bat = [r for r in home_batteries if r.month == "2025-06"]
+    latest_ev  = [r for r in ev_records if r.month == "2025-06"]
+
+    total_cap  = sum(r.installed_capacity_mw for r in latest_pv)
+    total_gen  = sum(r.generation_gwh for r in rooftop_pv) / 1000  # TWh
+    total_bat  = sum(r.cumulative_installations for r in latest_bat)
+    total_mwh  = sum(r.total_capacity_mwh for r in latest_bat)
+    total_ev   = sum(r.ev_registrations_cumulative for r in latest_ev)
+    total_mgd  = sum(r.managed_charging_enrolled for r in latest_ev)
+
+    return BtmDashboard(
+        timestamp=now,
+        total_rooftop_capacity_mw=round(total_cap, 1),
+        total_generation_twh=round(total_gen, 2),
+        total_home_batteries=total_bat,
+        total_battery_capacity_mwh=round(total_mwh, 1),
+        ev_registrations=total_ev,
+        managed_charging_enrolled=total_mgd,
+        rooftop_pv=rooftop_pv,
+        home_batteries=home_batteries,
+        ev_records=ev_records,
+    )
+
+@app.get("/api/btm/dashboard", response_model=BtmDashboard, dependencies=[Depends(verify_api_key)])
+async def get_btm_dashboard():
+    cached = _cache_get("btm:dashboard")
+    if cached:
+        return cached
+    result = _build_btm_dashboard()
+    _cache_set("btm:dashboard", result, _TTL_BTM)
+    return result
+
+@app.get("/api/btm/rooftop-pv", response_model=list[RooftopPvRecord], dependencies=[Depends(verify_api_key)])
+async def get_btm_rooftop():
+    dash = await get_btm_dashboard()
+    return dash.rooftop_pv
+
+@app.get("/api/btm/home-batteries", response_model=list[HomeBatteryRecord], dependencies=[Depends(verify_api_key)])
+async def get_btm_batteries():
+    dash = await get_btm_dashboard()
+    return dash.home_batteries
+
+@app.get("/api/btm/ev", response_model=list[BtmEvRecord], dependencies=[Depends(verify_api_key)])
+async def get_btm_ev():
+    dash = await get_btm_dashboard()
+    return dash.ev_records
+
+# ── Sprint 37c: Regulatory Asset Base (RAB) & Network Revenue Analytics ─
+
+class RegulatoryDetermination(BaseModel):
+    determination_id: str
+    network: str                      # TNSP or DNSP name
+    network_type: str                 # TNSP | DNSP
+    state: str
+    regulatory_period: str            # e.g. "2024-2029"
+    rab_start_m_aud: float            # RAB at start of period $M
+    rab_end_m_aud: float              # RAB at end of period (forecast) $M
+    allowed_revenue_m_aud: float      # Total 5-year allowed revenue $M
+    capex_allowance_m_aud: float
+    opex_allowance_m_aud: float
+    wacc_nominal_pct: float
+    depreciation_m_aud: float
+    return_on_rab_m_aud: float
+    aer_decision: str                 # FINAL | DRAFT | UNDER_REVIEW
+    decision_date: str
+
+class RabYearlyRecord(BaseModel):
+    record_id: str
+    network: str
+    year: int
+    rab_value_m_aud: float
+    capex_actual_m_aud: float
+    capex_allowance_m_aud: float
+    capex_variance_pct: float
+    opex_actual_m_aud: float
+    opex_allowance_m_aud: float
+    opex_variance_pct: float
+    allowed_revenue_m_aud: float
+    actual_revenue_m_aud: float
+    under_over_recovery_m_aud: float
+
+class RabDashboard(BaseModel):
+    timestamp: str
+    total_tnsp_rab_m_aud: float
+    total_dnsp_rab_m_aud: float
+    total_allowed_revenue_m_aud: float
+    avg_wacc_pct: float
+    determinations: list[RegulatoryDetermination]
+    yearly_records: list[RabYearlyRecord]
+
+_rab_cache: dict = {}
+
+def _build_rab_dashboard() -> RabDashboard:
+    import random
+    rng = random.Random(4488)
+    now = "2025-07-15T08:00:00"
+
+    determinations = [
+        # TNSPs
+        RegulatoryDetermination("DET-TRANSGRID-2024", "TransGrid", "TNSP", "NSW", "2024-2029", 7420.0, 9850.0, 3870.0, 2850.0, 1020.0, 5.24, 620.0, 1400.0, "FINAL", "2023-11-30"),
+        RegulatoryDetermination("DET-AUSNET-T-2024", "AusNet Transmission", "TNSP", "VIC", "2024-2029", 4280.0, 5940.0, 2210.0, 1720.0, 490.0, 5.18, 380.0, 820.0, "FINAL", "2023-10-31"),
+        RegulatoryDetermination("DET-POWERLINK-2023", "Powerlink Queensland", "TNSP", "QLD", "2023-2028", 5610.0, 7340.0, 2680.0, 1980.0, 700.0, 5.31, 480.0, 1060.0, "FINAL", "2022-11-29"),
+        RegulatoryDetermination("DET-ELECTRANET-2023", "ElectraNet", "TNSP", "SA", "2023-2028", 1840.0, 2620.0, 920.0, 700.0, 220.0, 5.42, 165.0, 370.0, "FINAL", "2022-10-31"),
+        RegulatoryDetermination("DET-TRANSEND-2024", "TasNetworks Transmission", "TNSP", "TAS", "2024-2029", 1250.0, 1680.0, 640.0, 480.0, 160.0, 5.15, 115.0, 250.0, "FINAL", "2023-12-15"),
+        # DNSPs
+        RegulatoryDetermination("DET-AUSGRID-2024", "Ausgrid", "DNSP", "NSW", "2024-2029", 12400.0, 15200.0, 6820.0, 4900.0, 1920.0, 5.20, 1080.0, 2420.0, "FINAL", "2024-04-30"),
+        RegulatoryDetermination("DET-ENDEAVOUR-2024", "Endeavour Energy", "DNSP", "NSW", "2024-2029", 8600.0, 10800.0, 4750.0, 3450.0, 1300.0, 5.20, 750.0, 1680.0, "FINAL", "2024-04-30"),
+        RegulatoryDetermination("DET-ESSENTIAL-2024", "Essential Energy", "DNSP", "NSW", "2024-2029", 6200.0, 7800.0, 3420.0, 2480.0, 940.0, 5.20, 560.0, 1220.0, "FINAL", "2024-04-30"),
+        RegulatoryDetermination("DET-JEMENA-2026", "Jemena Electricity", "DNSP", "VIC", "2026-2031", 2840.0, 3650.0, 1820.0, 1280.0, 540.0, 5.35, 260.0, 580.0, "DRAFT", "2025-07-01"),
+        RegulatoryDetermination("DET-POWERCOR-2026", "Powercor", "DNSP", "VIC", "2026-2031", 4600.0, 5800.0, 2620.0, 1860.0, 760.0, 5.35, 415.0, 935.0, "DRAFT", "2025-07-01"),
+        RegulatoryDetermination("DET-CITIPOWER-2026", "CitiPower", "DNSP", "VIC", "2026-2031", 1480.0, 1840.0, 840.0, 580.0, 260.0, 5.35, 135.0, 300.0, "DRAFT", "2025-07-01"),
+        RegulatoryDetermination("DET-ENERGEX-2025", "Energex", "DNSP", "QLD", "2025-2030", 9200.0, 11500.0, 5150.0, 3700.0, 1450.0, 5.28, 820.0, 1850.0, "FINAL", "2025-04-15"),
+        RegulatoryDetermination("DET-ERGON-2025", "Ergon Energy", "DNSP", "QLD", "2025-2030", 11500.0, 14200.0, 6280.0, 4520.0, 1760.0, 5.28, 1010.0, 2240.0, "FINAL", "2025-04-15"),
+        RegulatoryDetermination("DET-SAPN-2025", "SA Power Networks", "DNSP", "SA", "2025-2030", 5100.0, 6400.0, 2850.0, 2050.0, 800.0, 5.38, 460.0, 1040.0, "FINAL", "2024-11-30"),
+        RegulatoryDetermination("DET-WESTERN-POWER-2022", "Western Power", "DNSP", "WA", "2022-2027", 8400.0, 10200.0, 4520.0, 3280.0, 1240.0, 5.45, 750.0, 1680.0, "UNDER_REVIEW", "2021-10-31"),
+    ]
+
+    # Yearly RAB records for 5 major networks over 5 years (2020-2024)
+    networks_yearly = [
+        ("TransGrid",       "TNSP", [6200, 6480, 6820, 7100, 7420], 520, 210),
+        ("Ausgrid",         "DNSP", [9800, 10400, 11200, 11800, 12400], 580, 390),
+        ("Energex",         "DNSP", [7400, 7900, 8400, 8800, 9200], 410, 290),
+        ("Ergon Energy",    "DNSP", [9200, 9800, 10400, 10900, 11500], 520, 360),
+        ("SA Power Networks","DNSP",[3900, 4200, 4600, 4900, 5100], 225, 165),
+    ]
+
+    yearly_records = []
+    for net, ntype, rab_series, capex_allow, opex_allow in networks_yearly:
+        for yi, year in enumerate(range(2020, 2025)):
+            rab_val    = rab_series[yi]
+            cap_act    = round(capex_allow * rng.uniform(0.88, 1.14), 1)
+            cap_var    = round((cap_act - capex_allow) / capex_allow * 100, 1)
+            op_act     = round(opex_allow * rng.uniform(0.90, 1.06), 1)
+            op_var     = round((op_act - opex_allow) / opex_allow * 100, 1)
+            wacc       = rng.uniform(4.8, 5.6)
+            dep        = round(rab_val * 0.034, 1)
+            ret_on_rab = round(rab_val * wacc / 100, 1)
+            allow_rev  = round((dep + ret_on_rab + opex_allow) / 5 * 12 / 12, 1)
+            act_rev    = round(allow_rev * rng.uniform(0.97, 1.03), 1)
+            under_over = round(act_rev - allow_rev, 1)
+            yearly_records.append(RabYearlyRecord(
+                f"RAB-{net[:6].replace(' ', '')}-{year}", net, year, rab_val,
+                cap_act, capex_allow, cap_var,
+                op_act, opex_allow, op_var,
+                allow_rev, act_rev, under_over,
+            ))
+
+    tnsp_dets = [d for d in determinations if d.network_type == "TNSP"]
+    dnsp_dets = [d for d in determinations if d.network_type == "DNSP"]
+    total_tnsp_rab = sum(d.rab_start_m_aud for d in tnsp_dets)
+    total_dnsp_rab = sum(d.rab_start_m_aud for d in dnsp_dets)
+    total_rev      = sum(d.allowed_revenue_m_aud for d in determinations)
+    avg_wacc       = sum(d.wacc_nominal_pct for d in determinations) / len(determinations)
+
+    return RabDashboard(
+        timestamp=now,
+        total_tnsp_rab_m_aud=round(total_tnsp_rab, 1),
+        total_dnsp_rab_m_aud=round(total_dnsp_rab, 1),
+        total_allowed_revenue_m_aud=round(total_rev, 1),
+        avg_wacc_pct=round(avg_wacc, 2),
+        determinations=determinations,
+        yearly_records=yearly_records,
+    )
+
+@app.get("/api/rab/dashboard", response_model=RabDashboard, dependencies=[Depends(verify_api_key)])
+async def get_rab_dashboard():
+    cached = _cache_get(_rab_cache, "rab_dashboard")
+    if cached: return cached
+    result = _build_rab_dashboard()
+    _cache_set(_rab_cache, "rab_dashboard", result)
+    return result
+
+@app.get("/api/rab/determinations", response_model=list[RegulatoryDetermination], dependencies=[Depends(verify_api_key)])
+async def get_rab_determinations():
+    dash = await get_rab_dashboard()
+    return dash.determinations
+
+@app.get("/api/rab/yearly", response_model=list[RabYearlyRecord], dependencies=[Depends(verify_api_key)])
+async def get_rab_yearly():
+    dash = await get_rab_dashboard()
+    return dash.yearly_records

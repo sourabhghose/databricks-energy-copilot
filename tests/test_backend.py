@@ -3374,3 +3374,80 @@ class TestCongestionEndpoints:
         assert r.status_code == 200
         for e in r.json():
             assert e["cause"] == "THERMAL"
+
+# ---------------------------------------------------------------------------
+# Sprint 37a — Demand Response & RERT Analytics
+# ---------------------------------------------------------------------------
+
+class TestDemandResponseEndpoints:
+    def test_dr_dashboard(self, client=client):
+        r = client.get("/api/demand-response/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_contracted_mw"] > 0
+        assert len(d["contracts"]) >= 10
+        assert len(d["activations"]) >= 10
+        assert len(d["providers"]) >= 8
+
+    def test_dr_contracts(self, client=client):
+        r = client.get("/api/demand-response/contracts")
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_dr_activations(self, client=client):
+        r = client.get("/api/demand-response/activations")
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_dr_providers(self, client=client):
+        r = client.get("/api/demand-response/providers")
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+# ---------------------------------------------------------------------------
+# Sprint 37b — Behind-the-Meter (BTM) Analytics
+# ---------------------------------------------------------------------------
+
+class TestBtmEndpoints:
+    def test_btm_dashboard(self, client=client):
+        r = client.get("/api/btm/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_rooftop_capacity_mw"] > 0
+        assert len(d["rooftop_pv"]) >= 50
+        assert len(d["home_batteries"]) >= 20
+        assert len(d["ev_records"]) >= 20
+
+    def test_btm_rooftop(self, client=client):
+        r = client.get("/api/btm/rooftop-pv")
+        assert r.status_code == 200
+        assert len(r.json()) >= 50
+
+    def test_btm_batteries(self, client=client):
+        r = client.get("/api/btm/home-batteries")
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+    def test_btm_ev(self, client=client):
+        r = client.get("/api/btm/ev")
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+class TestRabEndpoints:
+    def test_rab_dashboard(self, client=client):
+        r = client.get("/api/rab/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_tnsp_rab_m_aud"] > 0
+        assert len(d["determinations"]) >= 10
+        assert len(d["yearly_records"]) >= 20
+
+    def test_rab_determinations(self, client=client):
+        r = client.get("/api/rab/determinations")
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_rab_yearly(self, client=client):
+        r = client.get("/api/rab/yearly")
+        assert r.status_code == 200
+        assert len(r.json()) >= 20

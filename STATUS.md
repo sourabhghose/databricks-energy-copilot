@@ -691,3 +691,18 @@
 - EnergyEquity.tsx: hardship rate bar chart with disconnection rate line, state hardship table, demographic affordability table
 - /api/equity/dashboard, /hardship, /affordability (8-state hardship records, 14 demographic affordability indicators)
 - 4 TestEquityEndpoints tests
+
+## Sprint 37a — Demand Response & RERT Analytics [COMPLETE]
+- DemandResponseAnalytics.tsx: contracted vs available MW bar chart, activations table with trigger/type badges, providers table
+- /api/demand-response/dashboard, /contracts, /activations, /providers (12 RERT/SRAS/NSCAS contracts, 15 activations, 10 providers)
+- 4 TestDemandResponseEndpoints tests
+
+## Sprint 37b — Behind-the-Meter (BTM) Analytics [COMPLETE]
+- BehindTheMeter.tsx: rooftop PV capacity trend by state (12 months), home battery table, EV managed charging table
+- /api/btm/dashboard, /rooftop-pv, /home-batteries, /ev (8-state PV records, 5-state battery+EV records, 12-month trend)
+- 4 TestBtmEndpoints tests
+
+## Sprint 37c — Regulatory Asset Base (RAB) & Network Revenue Analytics [COMPLETE]
+- RabAnalytics.tsx: allowed revenue bar chart (top 10 networks), determinations table with AER decision badges, yearly CAPEX/OPEX variance table
+- /api/rab/dashboard, /determinations, /yearly (15 TNSP+DNSP determinations, 25 yearly records)
+- 3 TestRabEndpoints tests
