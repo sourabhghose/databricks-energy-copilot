@@ -3088,3 +3088,102 @@ class TestReformEndpoints:
         r = client.get("/api/reform/milestones")
         assert r.status_code == 200
         assert len(r.json()) >= 5
+
+
+# ---------------------------------------------------------------------------
+# Sprint 34c — EV Charging Infrastructure & Grid Impact
+# ---------------------------------------------------------------------------
+
+class TestEvEndpoints:
+    def test_ev_dashboard_returns_200(self, client=client):
+        r = client.get("/api/ev/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "chargers" in d
+        assert "grid_impacts" in d
+        assert d["total_ev_vehicles"] > 0
+
+    def test_ev_chargers_list(self, client=client):
+        r = client.get("/api/ev/chargers")
+        assert r.status_code == 200
+        chargers = r.json()
+        assert len(chargers) >= 8
+
+    def test_ev_grid_impact_list(self, client=client):
+        r = client.get("/api/ev/grid-impact")
+        assert r.status_code == 200
+        assert len(r.json()) >= 5
+
+    def test_ev_charger_type_filter(self, client=client):
+        r = client.get("/api/ev/chargers?charger_type=DC_FAST")
+        assert r.status_code == 200
+        for c in r.json():
+            assert c["charger_type"] == "DC_FAST"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 34a — TNSP TUoS Network Pricing Analytics
+# ---------------------------------------------------------------------------
+
+class TestTuosEndpoints:
+    def test_tuos_dashboard_returns_200(self, client=client):
+        r = client.get("/api/tuos/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "zones" in d
+        assert "mlf_records" in d
+        assert d["total_tuos_revenue_m_aud"] > 0
+
+    def test_tuos_zones_list(self, client=client):
+        r = client.get("/api/tuos/zones")
+        assert r.status_code == 200
+        zones = r.json()
+        assert len(zones) >= 8
+        for z in zones:
+            assert z["tuos_rate_kwh"] > 0
+
+    def test_tuos_mlf_list(self, client=client):
+        r = client.get("/api/tuos/mlf")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 10
+
+    def test_tuos_state_filter(self, client=client):
+        r = client.get("/api/tuos/zones?state=SA")
+        assert r.status_code == 200
+        for z in r.json():
+            assert z["state"] == "SA"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 34b — Carbon Credit & ACCU Registry Analytics
+# ---------------------------------------------------------------------------
+
+class TestCarbonEndpoints:
+    def test_carbon_dashboard_returns_200(self, client=client):
+        r = client.get("/api/carbon/registry/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "projects" in d
+        assert "market_records" in d
+        assert d["current_spot_price_aud"] > 0
+
+    def test_carbon_projects_list(self, client=client):
+        r = client.get("/api/carbon/registry/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 8
+        for p in projects:
+            assert p["accu_issued"] >= 0
+
+    def test_carbon_market_list(self, client=client):
+        r = client.get("/api/carbon/registry/market")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 12
+
+    def test_carbon_state_filter(self, client=client):
+        r = client.get("/api/carbon/registry/projects?state=QLD")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["state"] == "QLD"

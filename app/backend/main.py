@@ -21947,3 +21947,548 @@ def get_reform_milestones(reform_id: Optional[str] = None):
         milestones = [m for m in milestones if m.reform_id == reform_id]
     _cache_set(cache_key, milestones, _TTL_REFORM)
     return milestones
+
+# ---------------------------------------------------------------------------
+# Sprint 34b — Carbon Credit & ACCU Registry Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_CARBON = 1800
+
+
+class AccuRegistryProject(BaseModel):
+    project_id: str
+    project_name: str
+    proponent: str
+    state: str
+    method: str                  # e.g. SAVANNA_FIRE, HUMAN_INDUCED_REGEN, AVOIDED_DEFORESTATION
+    status: str                  # REGISTERED / ACTIVE / COMPLETED
+    area_ha: int
+    registered_year: int
+    accu_issued: int
+    accu_pending: int
+    price_per_accu_aud: float
+    safeguard_eligible: bool
+
+class AccuRegistryMarketRecord(BaseModel):
+    month: str
+    spot_price_aud: float
+    futures_12m_aud: float
+    volume_traded: int
+    new_projects_registered: int
+    accus_issued: int
+    corporate_demand_pct: float  # % from corporate buyers vs govt
+
+class CarbonCreditDashboard(BaseModel):
+    timestamp: str
+    total_registered_projects: int
+    total_accu_issued: int
+    current_spot_price_aud: float
+    ytd_trading_volume: int
+    projects: List[AccuRegistryProject]
+    market_records: List[AccuRegistryMarketRecord]
+
+
+def _make_registry_accu_projects() -> List[AccuRegistryProject]:
+    import random as r
+    projects_data = [
+        ("PROJ001", "Savanna Fire Mgmt NT", "NT Land Council", "NT", "SAVANNA_FIRE", "ACTIVE", 1_250_000, 2019, 485000, 42000, 34.80, True),
+        ("PROJ002", "Reforestation QLD East", "Carbon Farmers Pty", "QLD", "HUMAN_INDUCED_REGEN", "ACTIVE", 48000, 2020, 128000, 18000, 36.20, True),
+        ("PROJ003", "Avoided Deforestation WA", "WA Pastoral Co", "WA", "AVOIDED_DEFORESTATION", "ACTIVE", 320000, 2018, 312000, 55000, 33.50, True),
+        ("PROJ004", "Soil Carbon NSW", "AgriCarbon NSW", "NSW", "SOIL_CARBON", "ACTIVE", 85000, 2021, 64000, 12000, 38.40, True),
+        ("PROJ005", "Blue Carbon SA Coast", "SA Wetlands Trust", "SA", "BLUE_CARBON", "REGISTERED", 12000, 2023, 0, 8500, 42.00, False),
+        ("PROJ006", "Mallee Restoration VIC", "VIC Landcare Net", "VIC", "HUMAN_INDUCED_REGEN", "ACTIVE", 72000, 2020, 95000, 15000, 35.80, True),
+        ("PROJ007", "Landfill Gas QLD", "Waste Management Co", "QLD", "LANDFILL_GAS", "ACTIVE", 180, 2017, 620000, 8000, 32.10, True),
+        ("PROJ008", "Industrial Efficiency SA", "Santos Ltd", "SA", "INDUSTRIAL_EFFICIENCY", "COMPLETED", 50, 2015, 280000, 0, 31.50, False),
+        ("PROJ009", "Livestock Methane NSW", "NSW Grazing Co", "NSW", "LIVESTOCK_METHANE", "ACTIVE", 95000, 2022, 22000, 9000, 40.20, True),
+        ("PROJ010", "Savanna Fire QLD", "Firesticks Alliance", "QLD", "SAVANNA_FIRE", "ACTIVE", 890000, 2019, 380000, 38000, 34.50, True),
+        ("PROJ011", "Native Forest VIC", "VIC Forest Alliance", "VIC", "NATIVE_FOREST", "REGISTERED", 35000, 2024, 0, 4500, 44.00, False),
+        ("PROJ012", "Carbon Farming WA", "Grains Industry WA", "WA", "SOIL_CARBON", "ACTIVE", 210000, 2021, 75000, 22000, 37.80, True),
+    ]
+    records = []
+    for pid, name, prop, state, method, status, area, year, issued, pending, price, safe in projects_data:
+        records.append(AccuRegistryProject(
+            project_id=pid,
+            project_name=name,
+            proponent=prop,
+            state=state,
+            method=method,
+            status=status,
+            area_ha=area,
+            registered_year=year,
+            accu_issued=issued + r.randint(-5000, 5000),
+            accu_pending=pending,
+            price_per_accu_aud=round(price + r.uniform(-1.5, 1.5), 2),
+            safeguard_eligible=safe,
+        ))
+    return records
+
+
+def _make_registry_market_records() -> List[AccuRegistryMarketRecord]:
+    import random as r
+    records = []
+    base_price = 28.0
+    for i in range(24):
+        month = f"2024-{(i % 12) + 1:02d}" if i < 12 else f"2025-{(i % 12) + 1:02d}"
+        spot = round(base_price + i * 0.35 + r.uniform(-1.0, 1.0), 2)
+        futures = round(spot * 1.12 + r.uniform(-1.5, 1.5), 2)
+        records.append(AccuRegistryMarketRecord(
+            month=month,
+            spot_price_aud=spot,
+            futures_12m_aud=futures,
+            volume_traded=r.randint(80000, 350000),
+            new_projects_registered=r.randint(2, 8),
+            accus_issued=r.randint(50000, 180000),
+            corporate_demand_pct=round(r.uniform(38, 62), 1),
+        ))
+    return records
+
+
+def _make_carbon_credit_dashboard() -> CarbonCreditDashboard:
+    import random as r
+    projects = _make_registry_accu_projects()
+    market = _make_registry_market_records()
+    total_issued = sum(p.accu_issued for p in projects)
+    spot_price = market[-1].spot_price_aud if market else 35.0
+    ytd_vol = sum(m.volume_traded for m in market[-12:])
+    return CarbonCreditDashboard(
+        timestamp=_now_aest(),
+        total_registered_projects=len(projects),
+        total_accu_issued=total_issued,
+        current_spot_price_aud=spot_price,
+        ytd_trading_volume=ytd_vol,
+        projects=projects,
+        market_records=market,
+    )
+
+
+@app.get(
+    "/api/carbon/registry/dashboard",
+    response_model=CarbonCreditDashboard,
+    summary="Carbon Credit & ACCU Registry dashboard",
+    tags=["Carbon"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_accu_registry_dashboard():
+    cached = _cache_get("carbon:registry:dashboard")
+    if cached:
+        return cached
+    data = _make_carbon_credit_dashboard()
+    _cache_set("carbon:registry:dashboard", data, _TTL_CARBON)
+    return data
+
+
+@app.get(
+    "/api/carbon/registry/projects",
+    response_model=List[AccuRegistryProject],
+    summary="ACCU registered carbon projects",
+    tags=["Carbon"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_accu_registry_projects(state: Optional[str] = None, method: Optional[str] = None, safeguard: Optional[bool] = None):
+    cache_key = f"carbon:registry:projects:{state}:{method}:{safeguard}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_registry_accu_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if method:
+        projects = [p for p in projects if p.method == method]
+    if safeguard is not None:
+        projects = [p for p in projects if p.safeguard_eligible == safeguard]
+    _cache_set(cache_key, projects, _TTL_CARBON)
+    return projects
+
+
+@app.get(
+    "/api/carbon/registry/market",
+    response_model=List[AccuRegistryMarketRecord],
+    summary="ACCU spot and futures market records",
+    tags=["Carbon"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_accu_registry_market():
+    cached = _cache_get("carbon:registry:market")
+    if cached:
+        return cached
+    records = _make_registry_market_records()
+    _cache_set("carbon:registry:market", records, _TTL_CARBON)
+    return records
+
+# ---------------------------------------------------------------------------
+# Sprint 34a — TNSP Network Pricing & TUoS Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_TUOS = 3600
+
+
+class TuosZone(BaseModel):
+    zone_id: str
+    zone_name: str
+    tnsp: str
+    state: str
+    tuos_rate_kwh: float          # $/kWh
+    annual_charge_m_aud: float
+    customer_count: int
+    peak_demand_mw: float
+    network_length_km: float
+    loss_factor_type: str         # TRANSMISSION / DISTRIBUTION
+
+class MlfRecord(BaseModel):
+    connection_point: str
+    duid: str
+    generator_name: str
+    state: str
+    fuel_type: str
+    mlf_value: float              # e.g. 0.98
+    mlf_category: str             # HIGH / AVERAGE / LOW
+    financial_year: str
+    revenue_impact_m_aud: float
+
+class TuosDashboard(BaseModel):
+    timestamp: str
+    total_tuos_revenue_m_aud: float
+    avg_tuos_rate_kwh: float
+    zones_count: int
+    avg_mlf: float
+    zones: List[TuosZone]
+    mlf_records: List[MlfRecord]
+
+
+def _make_tuos_zones() -> List[TuosZone]:
+    import random as r
+    zones_data = [
+        ("ZONE_NSW_NORTH", "NSW North", "TransGrid", "NSW", 0.0083, 412.5, 320000, 2100, 4800),
+        ("ZONE_NSW_SOUTH", "NSW South", "TransGrid", "NSW", 0.0079, 387.2, 285000, 1850, 4200),
+        ("ZONE_NSW_METRO", "NSW Metro", "TransGrid", "NSW", 0.0071, 521.8, 890000, 4200, 2100),
+        ("ZONE_VIC_METRO", "VIC Metro", "AusNet", "VIC", 0.0076, 498.3, 780000, 3800, 1900),
+        ("ZONE_VIC_NORTH", "VIC North", "AusNet", "VIC", 0.0088, 298.6, 210000, 1600, 3400),
+        ("ZONE_VIC_WEST", "VIC West", "AusNet", "VIC", 0.0092, 187.4, 145000, 1200, 2800),
+        ("ZONE_QLD_NORTH", "QLD North", "Powerlink", "QLD", 0.0094, 342.1, 280000, 1950, 5600),
+        ("ZONE_QLD_SOUTH", "QLD South", "Powerlink", "QLD", 0.0081, 456.7, 620000, 3400, 3200),
+        ("ZONE_SA_METRO", "SA Metro", "ElectraNet", "SA", 0.0112, 267.8, 340000, 1800, 1800),
+        ("ZONE_SA_REMOTE", "SA Remote", "ElectraNet", "SA", 0.0148, 98.3, 62000, 580, 2400),
+        ("ZONE_TAS_NORTH", "TAS North", "TasNetworks", "TAS", 0.0089, 142.5, 145000, 850, 2100),
+        ("ZONE_TAS_SOUTH", "TAS South", "TasNetworks", "TAS", 0.0095, 98.7, 102000, 680, 1600),
+    ]
+    records = []
+    for zone_id, zone_name, tnsp, state, rate, revenue, customers, peak, net_km in zones_data:
+        records.append(TuosZone(
+            zone_id=zone_id,
+            zone_name=zone_name,
+            tnsp=tnsp,
+            state=state,
+            tuos_rate_kwh=round(rate + r.uniform(-0.0005, 0.0005), 4),
+            annual_charge_m_aud=round(revenue + r.uniform(-20, 20), 1),
+            customer_count=customers,
+            peak_demand_mw=float(peak),
+            network_length_km=float(net_km),
+            loss_factor_type="TRANSMISSION",
+        ))
+    return records
+
+
+def _make_mlf_records() -> List[MlfRecord]:
+    import random as r
+    generators = [
+        ("BAYSW", "Bayswater PS", "NSW", "BLACK_COAL", 0.9921, "AVERAGE"),
+        ("ERGT01", "Eraring GT", "NSW", "GAS_CCGT", 0.9876, "AVERAGE"),
+        ("LIDDELL", "Liddell PS", "NSW", "BLACK_COAL", 0.9945, "AVERAGE"),
+        ("SNOWY1", "Snowy Hydro 1", "NSW", "HYDRO", 0.9987, "HIGH"),
+        ("LOYYB1", "Loy Yang B", "VIC", "BROWN_COAL", 0.9912, "AVERAGE"),
+        ("LOYYB2", "Loy Yang B 2", "VIC", "BROWN_COAL", 0.9889, "AVERAGE"),
+        ("YWPS1", "Yallourn W PS", "VIC", "BROWN_COAL", 0.9934, "AVERAGE"),
+        ("HEYWOOD1", "Heywood Wind Farm", "VIC", "WIND", 1.0124, "HIGH"),
+        ("LKBONNY1", "Lake Bonney Wind", "SA", "WIND", 0.9432, "LOW"),
+        ("HDWF1", "Hornsdale Wind", "SA", "WIND", 0.9567, "LOW"),
+        ("SNOWYPH", "Snowy 2.0 (proj)", "NSW", "HYDRO", 0.9991, "HIGH"),
+        ("CSPVF1", "Clermont Solar", "QLD", "SOLAR", 1.0234, "HIGH"),
+        ("MOREELS1", "Moreland Solar", "VIC", "SOLAR", 0.9812, "AVERAGE"),
+        ("LILYVALE", "Lilyvale Coal", "NSW", "BLACK_COAL", 0.9876, "AVERAGE"),
+        ("DALBAST1", "Dalby Solar", "QLD", "SOLAR", 1.0187, "HIGH"),
+    ]
+    records = []
+    for duid, name, state, fuel, mlf_base, category in generators:
+        mlf = round(mlf_base + r.uniform(-0.005, 0.005), 4)
+        if mlf > 1.01:
+            cat = "HIGH"
+        elif mlf < 0.97:
+            cat = "LOW"
+        else:
+            cat = "AVERAGE"
+        records.append(MlfRecord(
+            connection_point=f"NMP_{duid}",
+            duid=duid,
+            generator_name=name,
+            state=state,
+            fuel_type=fuel,
+            mlf_value=mlf,
+            mlf_category=cat,
+            financial_year="2024-25",
+            revenue_impact_m_aud=round(r.uniform(-12, 18), 2),
+        ))
+    return records
+
+
+def _make_tuos_dashboard() -> TuosDashboard:
+    import random as r
+    zones = _make_tuos_zones()
+    mlf_records = _make_mlf_records()
+    total_rev = round(sum(z.annual_charge_m_aud for z in zones), 1)
+    avg_rate = round(sum(z.tuos_rate_kwh for z in zones) / len(zones), 4)
+    avg_mlf = round(sum(m.mlf_value for m in mlf_records) / len(mlf_records), 4)
+    return TuosDashboard(
+        timestamp=_now_aest(),
+        total_tuos_revenue_m_aud=total_rev,
+        avg_tuos_rate_kwh=avg_rate,
+        zones_count=len(zones),
+        avg_mlf=avg_mlf,
+        zones=zones,
+        mlf_records=mlf_records,
+    )
+
+
+@app.get(
+    "/api/tuos/dashboard",
+    response_model=TuosDashboard,
+    summary="TNSP TUoS Network Pricing dashboard",
+    tags=["TUOS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tuos_dashboard():
+    cached = _cache_get("tuos:dashboard")
+    if cached:
+        return cached
+    data = _make_tuos_dashboard()
+    _cache_set("tuos:dashboard", data, _TTL_TUOS)
+    return data
+
+
+@app.get(
+    "/api/tuos/zones",
+    response_model=List[TuosZone],
+    summary="TNSP TUoS pricing zones",
+    tags=["TUOS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tuos_zones(state: Optional[str] = None, tnsp: Optional[str] = None):
+    cache_key = f"tuos:zones:{state}:{tnsp}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    zones = _make_tuos_zones()
+    if state:
+        zones = [z for z in zones if z.state == state]
+    if tnsp:
+        zones = [z for z in zones if z.tnsp == tnsp]
+    _cache_set(cache_key, zones, _TTL_TUOS)
+    return zones
+
+
+@app.get(
+    "/api/tuos/mlf",
+    response_model=List[MlfRecord],
+    summary="Generator Marginal Loss Factors",
+    tags=["TUOS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_mlf_records(state: Optional[str] = None, fuel_type: Optional[str] = None):
+    cache_key = f"tuos:mlf:{state}:{fuel_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_mlf_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    if fuel_type:
+        records = [r for r in records if r.fuel_type == fuel_type]
+    _cache_set(cache_key, records, _TTL_TUOS)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 34c — EV Charging Infrastructure & Grid Impact Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_EV = 1800
+
+
+class EvCharger(BaseModel):
+    charger_id: str
+    site_name: str
+    operator: str
+    state: str
+    charger_type: str            # AC_L2 / DC_FAST / ULTRA_RAPID
+    power_kw: float
+    num_connectors: int
+    utilisation_pct: float
+    avg_session_kwh: float
+    sessions_per_day: float
+    revenue_aud_per_day: float
+    managed_charging: bool
+    grid_upgrade_required: bool
+    installation_year: int
+
+class EvGridImpact(BaseModel):
+    state: str
+    ev_vehicles_registered: int
+    charging_load_mw_peak: float
+    charging_load_mw_offpeak: float
+    managed_charging_participation_pct: float
+    grid_upgrade_cost_m_aud: float
+    renewable_charging_pct: float
+    v2g_capable_vehicles: int
+
+class EvDashboard(BaseModel):
+    timestamp: str
+    total_chargers: int
+    total_ev_vehicles: int
+    total_charging_capacity_mw: float
+    avg_utilisation_pct: float
+    managed_charging_pct: float
+    chargers: List[EvCharger]
+    grid_impacts: List[EvGridImpact]
+
+
+def _make_ev_chargers() -> List[EvCharger]:
+    import random as r
+    chargers_data = [
+        ("CHG001", "Sydney CBD Hub", "Chargefox", "NSW", "DC_FAST", 50.0, 4, 68.2, 18.4, 45.2),
+        ("CHG002", "Melbourne Central", "BP Pulse", "VIC", "ULTRA_RAPID", 150.0, 6, 72.8, 42.1, 124.5),
+        ("CHG003", "Brisbane Gateway", "NRMA Energy", "QLD", "DC_FAST", 75.0, 4, 58.4, 22.3, 64.2),
+        ("CHG004", "Adelaide Oval", "SA Power Networks", "SA", "DC_FAST", 50.0, 2, 45.6, 19.8, 38.7),
+        ("CHG005", "Perth Waterfront", "Jolt Charge", "WA", "AC_L2", 22.0, 8, 38.2, 8.4, 18.9),
+        ("CHG006", "Canberra Parliament", "ActewAGL", "ACT", "DC_FAST", 100.0, 4, 62.1, 28.7, 82.4),
+        ("CHG007", "Gold Coast Airport", "Evie Networks", "QLD", "ULTRA_RAPID", 350.0, 8, 81.3, 65.4, 312.8),
+        ("CHG008", "Newcastle Motorway", "NRMA Energy", "NSW", "DC_FAST", 150.0, 6, 74.6, 38.2, 168.4),
+        ("CHG009", "Geelong Station", "Chargefox", "VIC", "AC_L2", 7.4, 12, 31.4, 5.2, 11.8),
+        ("CHG010", "Darwin Shopping", "NT Government", "NT", "DC_FAST", 50.0, 2, 28.6, 16.8, 28.3),
+        ("CHG011", "Albury Highway Stop", "BP Pulse", "NSW", "ULTRA_RAPID", 350.0, 4, 76.4, 72.8, 245.6),
+        ("CHG012", "Hobart Ferry", "TasNetworks", "TAS", "DC_FAST", 50.0, 2, 42.3, 18.9, 38.2),
+    ]
+    records = []
+    managed = [True, True, False, True, True, False, True, True, False, True, False, True]
+    upgrade = [False, True, False, False, False, False, True, True, False, False, True, False]
+    year = [2022, 2021, 2023, 2022, 2023, 2022, 2023, 2022, 2021, 2024, 2023, 2022]
+    for i, (cid, site, op, state, ctype, power, conns, util, avg_kwh, sess) in enumerate(chargers_data):
+        rev = round(sess * avg_kwh * r.uniform(0.30, 0.45), 2)
+        records.append(EvCharger(
+            charger_id=cid,
+            site_name=site,
+            operator=op,
+            state=state,
+            charger_type=ctype,
+            power_kw=power,
+            num_connectors=conns,
+            utilisation_pct=round(util + r.uniform(-3, 3), 1),
+            avg_session_kwh=round(avg_kwh + r.uniform(-2, 2), 1),
+            sessions_per_day=round(sess + r.uniform(-2, 2), 1),
+            revenue_aud_per_day=rev,
+            managed_charging=managed[i],
+            grid_upgrade_required=upgrade[i],
+            installation_year=year[i],
+        ))
+    return records
+
+
+def _make_ev_grid_impacts() -> List[EvGridImpact]:
+    import random as r
+    impacts_data = [
+        ("NSW", 52800, 285.4, 148.6, 42.3, 780.5, 38.2, 1200),
+        ("VIC", 48200, 261.8, 138.4, 38.7, 695.3, 45.8, 980),
+        ("QLD", 35600, 192.4, 102.8, 35.1, 512.8, 32.4, 720),
+        ("SA", 18400, 99.6, 54.2, 48.6, 285.4, 68.4, 380),
+        ("WA", 24800, 134.2, 71.8, 31.8, 398.2, 28.6, 480),
+        ("TAS", 6200, 33.6, 18.4, 52.3, 98.5, 82.4, 120),
+        ("ACT", 8400, 45.4, 24.8, 55.8, 142.6, 72.8, 180),
+        ("NT", 3800, 20.6, 11.2, 22.4, 68.4, 18.6, 60),
+    ]
+    records = []
+    for state, evs, peak, offpeak, mc_pct, upgrade, ren_pct, v2g in impacts_data:
+        records.append(EvGridImpact(
+            state=state,
+            ev_vehicles_registered=evs + r.randint(-1000, 1000),
+            charging_load_mw_peak=round(peak + r.uniform(-10, 10), 1),
+            charging_load_mw_offpeak=round(offpeak + r.uniform(-5, 5), 1),
+            managed_charging_participation_pct=round(mc_pct + r.uniform(-2, 2), 1),
+            grid_upgrade_cost_m_aud=round(upgrade + r.uniform(-20, 20), 1),
+            renewable_charging_pct=round(ren_pct + r.uniform(-3, 3), 1),
+            v2g_capable_vehicles=v2g + r.randint(-20, 20),
+        ))
+    return records
+
+
+def _make_ev_dashboard() -> EvDashboard:
+    import random as r
+    chargers = _make_ev_chargers()
+    grid_impacts = _make_ev_grid_impacts()
+    total_cap = round(sum(c.power_kw * c.num_connectors / 1000 for c in chargers), 2)
+    avg_util = round(sum(c.utilisation_pct for c in chargers) / len(chargers), 1)
+    total_ev = sum(g.ev_vehicles_registered for g in grid_impacts)
+    mc_pct = round(sum(1 for c in chargers if c.managed_charging) / len(chargers) * 100, 1)
+    return EvDashboard(
+        timestamp=_now_aest(),
+        total_chargers=len(chargers),
+        total_ev_vehicles=total_ev,
+        total_charging_capacity_mw=total_cap,
+        avg_utilisation_pct=avg_util,
+        managed_charging_pct=mc_pct,
+        chargers=chargers,
+        grid_impacts=grid_impacts,
+    )
+
+
+@app.get(
+    "/api/ev/dashboard",
+    response_model=EvDashboard,
+    summary="EV Charging Infrastructure & Grid Impact dashboard",
+    tags=["EV"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_dashboard():
+    cached = _cache_get("ev:dashboard")
+    if cached:
+        return cached
+    data = _make_ev_dashboard()
+    _cache_set("ev:dashboard", data, _TTL_EV)
+    return data
+
+
+@app.get(
+    "/api/ev/chargers",
+    response_model=List[EvCharger],
+    summary="EV charging infrastructure records",
+    tags=["EV"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_chargers(state: Optional[str] = None, charger_type: Optional[str] = None):
+    cache_key = f"ev:chargers:{state}:{charger_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    chargers = _make_ev_chargers()
+    if state:
+        chargers = [c for c in chargers if c.state == state]
+    if charger_type:
+        chargers = [c for c in chargers if c.charger_type == charger_type]
+    _cache_set(cache_key, chargers, _TTL_EV)
+    return chargers
+
+
+@app.get(
+    "/api/ev/grid-impact",
+    response_model=List[EvGridImpact],
+    summary="EV grid impact by state",
+    tags=["EV"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_grid_impact(state: Optional[str] = None):
+    cache_key = f"ev:grid:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    impacts = _make_ev_grid_impacts()
+    if state:
+        impacts = [g for g in impacts if g.state == state]
+    _cache_set(cache_key, impacts, _TTL_EV)
+    return impacts

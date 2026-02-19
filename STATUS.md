@@ -646,3 +646,18 @@
 - MarketReformTracker.tsx: reforms table with status/category/agency filters, milestone timeline, financial impact table
 - /api/reform/dashboard, /list, /milestones (10 reforms: 5MS, GSL, DER Integration, Two-Sided Markets, Capacity Mechanism)
 - 4 TestReformEndpoints tests
+
+## Sprint 34c — EV Charging Infrastructure & Grid Impact Analytics [COMPLETE]
+- EvCharging.tsx: state/type filter charger table, peak vs offpeak grid impact bar chart, grid impact state table
+- /api/ev/dashboard, /chargers, /grid-impact (12 chargers: Chargefox/BP Pulse/NRMA/Evie, 8-state grid impact)
+- 4 TestEvEndpoints tests
+
+## Sprint 34a — TNSP Network Pricing (TUoS) Analytics [COMPLETE]
+- TuosAnalytics.tsx: TUoS rate bar chart by zone/TNSP, zones pricing table, MLF table with HIGH/LOW/AVG filters
+- /api/tuos/dashboard, /zones, /mlf (12 TUoS zones: TransGrid/AusNet/Powerlink/ElectraNet/TasNetworks, 15 MLF records)
+- 4 TestTuosEndpoints tests
+
+## Sprint 34b — Carbon Credit & ACCU Registry Analytics [COMPLETE]
+- CarbonRegistry.tsx: 24-month ACCU spot/futures price chart, projects table with method filters, method breakdown bar chart
+- /api/carbon/dashboard, /projects, /market (12 ACCU projects: Savanna Fire, HIR, Soil Carbon; 24-month market data)
+- 4 TestCarbonEndpoints tests

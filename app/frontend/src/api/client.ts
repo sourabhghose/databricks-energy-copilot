@@ -1749,6 +1749,27 @@ export interface ReformMilestoneRecord { reform_id: string; reform_name: string;
 export interface ReformImpactRecord { reform_id: string; reform_name: string; stakeholder_type: string; impact_description: string; financial_impact_m_aud: number; benefit_type: string }
 export interface ReformDashboard { timestamp: string; implemented_reforms: number; in_progress_reforms: number; proposed_reforms: number; high_impact_reforms: number; reforms: MarketReform[]; milestones: ReformMilestoneRecord[]; impacts: ReformImpactRecord[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 34a — TNSP TUoS Network Pricing interfaces
+// ---------------------------------------------------------------------------
+export interface TuosZone { zone_id: string; zone_name: string; tnsp: string; state: string; tuos_rate_kwh: number; annual_charge_m_aud: number; customer_count: number; peak_demand_mw: number; network_length_km: number; loss_factor_type: string }
+export interface MlfRecord { connection_point: string; duid: string; generator_name: string; state: string; fuel_type: string; mlf_value: number; mlf_category: string; financial_year: string; revenue_impact_m_aud: number }
+export interface TuosDashboard { timestamp: string; total_tuos_revenue_m_aud: number; avg_tuos_rate_kwh: number; zones_count: number; avg_mlf: number; zones: TuosZone[]; mlf_records: MlfRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 34b — Carbon Credit & ACCU Registry interfaces
+// ---------------------------------------------------------------------------
+export interface AccuProject { project_id: string; project_name: string; proponent: string; state: string; method: string; status: string; area_ha: number; registered_year: number; accu_issued: number; accu_pending: number; price_per_accu_aud: number; safeguard_eligible: boolean }
+export interface CarbonAccuMarketRecord { month: string; spot_price_aud: number; futures_12m_aud: number; volume_traded: number; new_projects_registered: number; accus_issued: number; corporate_demand_pct: number }
+export interface CarbonCreditDashboard { timestamp: string; total_registered_projects: number; total_accu_issued: number; current_spot_price_aud: number; ytd_trading_volume: number; projects: AccuProject[]; market_records: CarbonAccuMarketRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 34c — EV Charging Infrastructure interfaces
+// ---------------------------------------------------------------------------
+export interface EvCharger { charger_id: string; site_name: string; operator: string; state: string; charger_type: string; power_kw: number; num_connectors: number; utilisation_pct: number; avg_session_kwh: number; sessions_per_day: number; revenue_aud_per_day: number; managed_charging: boolean; grid_upgrade_required: boolean; installation_year: number }
+export interface EvGridImpact { state: string; ev_vehicles_registered: number; charging_load_mw_peak: number; charging_load_mw_offpeak: number; managed_charging_participation_pct: number; grid_upgrade_cost_m_aud: number; renewable_charging_pct: number; v2g_capable_vehicles: number }
+export interface EvDashboard { timestamp: string; total_chargers: number; total_ev_vehicles: number; total_charging_capacity_mw: number; avg_utilisation_pct: number; managed_charging_pct: number; chargers: EvCharger[]; grid_impacts: EvGridImpact[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3245,6 +3266,44 @@ export const api = {
     if (params?.reform_id) qs.append('reform_id', params.reform_id)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<ReformMilestoneRecord[]>(`/api/reform/milestones${query}`)
+  },
+  getTuosDashboard: () => get<TuosDashboard>('/api/tuos/dashboard'),
+  getTuosZones: (params?: { state?: string; tnsp?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.tnsp) qs.append('tnsp', params.tnsp)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TuosZone[]>(`/api/tuos/zones${query}`)
+  },
+  getMlfRecords: (params?: { state?: string; fuel_type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.fuel_type) qs.append('fuel_type', params.fuel_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<MlfRecord[]>(`/api/tuos/mlf${query}`)
+  },
+  getAccuRegistryDashboard: () => get<CarbonCreditDashboard>('/api/carbon/registry/dashboard'),
+  getAccuProjects: (params?: { state?: string; method?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.method) qs.append('method', params.method)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<AccuProject[]>(`/api/carbon/registry/projects${query}`)
+  },
+  getCarbonAccuMarket: () => get<CarbonAccuMarketRecord[]>('/api/carbon/registry/market'),
+  getEvDashboard: () => get<EvDashboard>('/api/ev/dashboard'),
+  getEvChargers: (params?: { state?: string; charger_type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.charger_type) qs.append('charger_type', params.charger_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<EvCharger[]>(`/api/ev/chargers${query}`)
+  },
+  getEvGridImpact: (params?: { state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<EvGridImpact[]>(`/api/ev/grid-impact${query}`)
   },
 }
 

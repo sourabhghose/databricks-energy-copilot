@@ -113,6 +113,9 @@ import TransmissionProjects from './pages/TransmissionProjects'
 import DnspAnalytics from './pages/DnspAnalytics'
 import VppDashboard from './pages/VppDashboard'
 import MarketReformTracker from './pages/MarketReformTracker'
+import TuosAnalytics from './pages/TuosAnalytics'
+import CarbonRegistry from './pages/CarbonRegistry'
+import EvCharging from './pages/EvCharging'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -186,6 +189,9 @@ const NAV_ITEMS = [
   { to: '/dnsp',           label: 'DNSP Analytics',    Icon: Network        },
   { to: '/vpp',            label: 'VPP Performance',   Icon: BatteryCharging },
   { to: '/reform',         label: 'Market Reform',     Icon: FileText       },
+  { to: '/tuos',          label: 'Network Pricing',   Icon: DollarSign     },
+  { to: '/carbon-registry', label: 'Carbon Registry',  Icon: Leaf           },
+  { to: '/ev',            label: 'EV Charging',       Icon: Zap            },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -334,6 +340,9 @@ export default function App() {
               <Route path="/dnsp"         element={<DnspAnalytics />}      />
               <Route path="/vpp"          element={<VppDashboard />}       />
               <Route path="/reform"       element={<MarketReformTracker />} />
+              <Route path="/tuos"         element={<TuosAnalytics />}      />
+              <Route path="/carbon-registry" element={<CarbonRegistry />}  />
+              <Route path="/ev"           element={<EvCharging />}          />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>
