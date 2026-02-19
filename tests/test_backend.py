@@ -586,3 +586,144 @@ class TestForecastEndpoints:
             if record.get("price_p10") and record.get("price_p90"):
                 assert record["price_p10"] <= record["predicted_rrp"]
                 assert record["predicted_rrp"] <= record["price_p90"]
+
+
+# ===========================================================================
+# TestPriceSpikeEndpoints
+# ===========================================================================
+
+class TestPriceSpikeEndpoints:
+    """Tests for the GET /api/prices/spikes and GET /api/prices/volatility endpoints."""
+
+    def test_price_spikes_list(self):
+        """GET /api/prices/spikes?region=SA1 returns 200 with a non-empty list of spike events.
+
+        Each event must contain the required fields: event_id, rrp_aud_mwh, and
+        spike_type. SA1 is modelled as the most volatile region and must always
+        return at least one event.
+        """
+        r = client.get("/api/prices/spikes?region=SA1")
+        assert r.status_code == 200
+        spikes = r.json()
+        assert isinstance(spikes, list)
+        assert len(spikes) > 0
+        spike = spikes[0]
+        assert "event_id" in spike
+        assert "rrp_aud_mwh" in spike
+        assert "spike_type" in spike
+
+    def test_volatility_stats_all_regions(self):
+        """GET /api/prices/volatility returns 200 with stats for all 5 NEM regions.
+
+        The response must contain a 'regions' list with exactly 5 entries, one per
+        NEM region. Each region entry must have a valid cpt_utilised_pct in the range
+        [0, 100] and a non-negative std_dev.
+        """
+        r = client.get("/api/prices/volatility")
+        assert r.status_code == 200
+        data = r.json()
+        assert "regions" in data
+        assert len(data["regions"]) == 5
+        for reg in data["regions"]:
+            assert 0 <= reg["cpt_utilised_pct"] <= 100
+            assert reg["std_dev"] >= 0
+
+    def test_spike_type_filter(self):
+        """GET /api/prices/spikes?region=NSW1&spike_type=high returns only high spikes.
+
+        When spike_type is provided as a query parameter the endpoint must filter
+        the result set so that every returned event has the matching spike_type value.
+        """
+        r = client.get("/api/prices/spikes?region=NSW1&spike_type=high")
+        assert r.status_code == 200
+        spikes = r.json()
+        for s in spikes:
+            assert s["spike_type"] == "high"
+
+
+# ===========================================================================
+# TestInterconnectorEndpoints
+# ===========================================================================
+
+class TestInterconnectorEndpoints:
+    """Tests for the GET /api/interconnectors and GET /api/settlement/summary endpoints."""
+
+    def test_interconnectors_summary(self, client=client):
+        """GET /api/interconnectors returns 200 with InterconnectorSummary containing 5 ICs.
+
+        The response must include the 'interconnectors' list with exactly 5 entries
+        (one per NEM interconnector), plus the 'most_loaded' string identifying the
+        highest-utilisation interconnector.
+        """
+        r = client.get("/api/interconnectors")
+        assert r.status_code == 200
+        data = r.json()
+        assert "interconnectors" in data
+        assert len(data["interconnectors"]) == 5
+        assert "most_loaded" in data
+        assert isinstance(data["most_loaded"], str)
+        assert len(data["most_loaded"]) > 0
+
+    def test_settlement_summary_all_regions(self, client=client):
+        """GET /api/settlement/summary returns 200 with one record per NEM region.
+
+        Must return exactly 5 records covering all five NEM regions:
+        NSW1, QLD1, VIC1, SA1, TAS1.
+        """
+        r = client.get("/api/settlement/summary")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) == 5
+        regions = {rec["region"] for rec in records}
+        assert regions == {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}
+
+    def test_interconnector_congestion_flag(self, client=client):
+        """congested=True implies abs(mw_flow) / mw_flow_limit >= 0.95.
+
+        For every interconnector record, if the congested flag is True then
+        the utilisation ratio must be at least 0.95 (95%). This validates that
+        the congestion detection logic is applied correctly.
+        """
+        r = client.get("/api/interconnectors")
+        assert r.status_code == 200
+        for ic in r.json()["interconnectors"]:
+            utilisation = abs(ic["mw_flow"]) / ic["mw_flow_limit"]
+            if ic["congested"]:
+                assert utilisation >= 0.95, (
+                    f"{ic['interconnectorid']}: congested=True but utilisation={utilisation:.3f} < 0.95"
+                )
+
+
+# ===========================================================================
+# TestGenerationEndpoints
+# ===========================================================================
+
+class TestGenerationEndpoints:
+    """Tests for GET /api/generation/units and GET /api/generation/mix endpoints."""
+
+    def test_generation_units_default(self, client=client):
+        r = client.get("/api/generation/units")
+        assert r.status_code == 200
+        units = r.json()
+        assert isinstance(units, list)
+        assert len(units) > 0
+        assert "duid" in units[0]
+        assert "fuel_type" in units[0]
+        assert "capacity_factor" in units[0]
+
+    def test_generation_mix_structure(self, client=client):
+        r = client.get("/api/generation/mix?region=VIC1")
+        assert r.status_code == 200
+        data = r.json()
+        assert "total_generation_mw" in data
+        assert "renewable_percentage" in data
+        assert "fuel_mix" in data
+        assert isinstance(data["fuel_mix"], list)
+        assert data["renewable_percentage"] >= 0
+        assert data["renewable_percentage"] <= 100
+
+    def test_generation_capacity_factors_valid(self, client=client):
+        r = client.get("/api/generation/units?region=QLD1")
+        assert r.status_code == 200
+        for unit in r.json():
+            assert 0 <= unit["capacity_factor"] <= 1

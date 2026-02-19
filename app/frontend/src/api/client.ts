@@ -88,6 +88,37 @@ export interface InterconnectorFlow {
   limitMw: number
 }
 
+export interface InterconnectorRecord {
+  interval_datetime: string
+  interconnectorid: string
+  from_region: string
+  to_region: string
+  mw_flow: number
+  mw_flow_limit: number
+  export_limit: number
+  import_limit: number
+  congested: boolean
+}
+
+export interface InterconnectorSummary {
+  timestamp: string
+  interconnectors: InterconnectorRecord[]
+  most_loaded: string
+  total_interstate_mw: number
+}
+
+export interface SettlementRecord {
+  trading_interval: string
+  region: string
+  totaldemand_mw: number
+  net_interchange_mw: number
+  rrp_aud_mwh: number
+  raise_reg_rrp: number
+  lower_reg_rrp: number
+  raise6sec_rrp: number
+  lower6sec_rrp: number
+}
+
 export interface ModelHealthRecord {
   model_name: string;
   region: string;
@@ -169,6 +200,71 @@ export interface AlertStats {
   notifications_sent: number;
   channels: string[];
   most_triggered_region: string;
+}
+
+export interface PriceSpikeEvent {
+  event_id: string
+  interval_datetime: string
+  region: string
+  rrp_aud_mwh: number
+  spike_type: string
+  duration_minutes: number
+  cause: string
+  resolved: boolean
+}
+
+export interface VolatilityStats {
+  region: string
+  period_days: number
+  mean_price: number
+  std_dev: number
+  p5_price: number
+  p95_price: number
+  spike_count: number
+  negative_count: number
+  voll_count: number
+  max_price: number
+  min_price: number
+  cumulative_price_threshold: number
+  cumulative_price_current: number
+  cpt_utilised_pct: number
+}
+
+export interface SpikeAnalysisSummary {
+  timestamp: string
+  regions: VolatilityStats[]
+  total_spike_events_24h: number
+  most_volatile_region: string
+}
+
+export interface GeneratorRecord {
+  duid: string
+  station_name: string
+  fuel_type: string
+  region: string
+  registered_capacity_mw: number
+  current_output_mw: number
+  availability_mw: number
+  capacity_factor: number
+  is_renewable: boolean
+}
+
+export interface GenerationMixRecord {
+  fuel_type: string
+  total_mw: number
+  percentage: number
+  unit_count: number
+  is_renewable: boolean
+}
+
+export interface GenerationSummary {
+  timestamp: string
+  total_generation_mw: number
+  renewable_mw: number
+  renewable_percentage: number
+  carbon_intensity_kg_co2_mwh: number
+  region: string
+  fuel_mix: GenerationMixRecord[]
 }
 
 // ---------------------------------------------------------------------------
@@ -256,10 +352,36 @@ export const api = {
   },
 
   /**
-   * Get current interconnector flows across the NEM.
+   * Get current interconnector flows across the NEM (legacy flat list).
+   * @deprecated Use getInterconnectorsSummary for the full summary with congestion data.
    */
   getInterconnectors(): Promise<InterconnectorFlow[]> {
     return get<InterconnectorFlow[]>('/api/interconnectors')
+  },
+
+  /**
+   * Get NEM interconnector power flows with congestion detection.
+   * Returns InterconnectorSummary containing all 5 NEM interconnectors.
+   * @param intervals  Number of 5-min intervals of history (default 12)
+   */
+  async getInterconnectorsSummary(intervals = 12): Promise<InterconnectorSummary> {
+    const res = await fetch(`/api/interconnectors?intervals=${intervals}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error('Failed to fetch interconnector data')
+    return res.json()
+  },
+
+  /**
+   * Get NEM settlement summary — one record per region for the current trading interval.
+   * Includes demand, net interchange, spot price, and FCAS ancillary service prices.
+   */
+  async getSettlementSummary(): Promise<SettlementRecord[]> {
+    const res = await fetch('/api/settlement/summary', {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error('Failed to fetch settlement summary')
+    return res.json()
   },
 
   /**
@@ -445,6 +567,45 @@ export const api = {
    */
   getAlertStats(): Promise<AlertStats> {
     return get<AlertStats>('/api/alerts/stats')
+  },
+
+  /**
+   * Get price spike events for a region over the requested look-back window.
+   * @param region     NEM region code (default: NSW1)
+   * @param hoursBack  Look-back window in hours (default: 24)
+   * @param spikeType  Optional filter: "high" | "voll" | "negative"
+   */
+  getPriceSpikes(region = 'NSW1', hoursBack = 24, spikeType?: string): Promise<PriceSpikeEvent[]> {
+    const params = new URLSearchParams({ region, hours_back: String(hoursBack) })
+    if (spikeType) params.set('spike_type', spikeType)
+    return get<PriceSpikeEvent[]>(`/api/prices/spikes?${params}`)
+  },
+
+  /**
+   * Get volatility statistics and CPT utilisation for all 5 NEM regions.
+   */
+  getVolatilityStats(): Promise<SpikeAnalysisSummary> {
+    return get<SpikeAnalysisSummary>('/api/prices/volatility')
+  },
+
+  /**
+   * Get individual generator units for a region with optional fuel type and output filters.
+   * @param region      NEM region code (default: NSW1)
+   * @param fuelType    Optional fuel type filter e.g. "Coal", "Wind"
+   * @param minOutput   Minimum current output in MW (default: 0)
+   */
+  getGenerationUnits(region = 'NSW1', fuelType?: string, minOutput = 0): Promise<GeneratorRecord[]> {
+    const params = new URLSearchParams({ region, min_output_mw: String(minOutput) })
+    if (fuelType) params.set('fuel_type', fuelType)
+    return get<GeneratorRecord[]>(`/api/generation/units?${params}`)
+  },
+
+  /**
+   * Get aggregated generation fuel mix summary with renewable penetration and carbon intensity.
+   * @param region  NEM region code (default: NSW1)
+   */
+  getGenerationMix(region = 'NSW1'): Promise<GenerationSummary> {
+    return get<GenerationSummary>(`/api/generation/mix?region=${region}`)
   },
 }
 

@@ -7,6 +7,8 @@ import {
   Sparkles,
   Bell,
   Activity,
+  ArrowRightLeft,
+  BarChart2,
   Moon,
   Sun,
 } from 'lucide-react'
@@ -19,6 +21,9 @@ import Genie from './pages/Genie'
 import Alerts from './pages/Alerts'
 import Monitoring from './pages/Monitoring'
 import MarketDepth from './pages/MarketDepth'
+import PriceAnalysis from './pages/PriceAnalysis'
+import Interconnectors from './pages/Interconnectors'
+import GeneratorFleet from './pages/GeneratorFleet'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -29,7 +34,10 @@ const NAV_ITEMS = [
   { to: '/copilot',      label: 'Copilot',      Icon: MessageSquare   },
   { to: '/genie',        label: 'Genie',        Icon: Sparkles        },
   { to: '/alerts',       label: 'Alerts',       Icon: Bell            },
-  { to: '/monitoring',   label: 'Monitoring',   Icon: Activity        },
+  { to: '/monitoring',        label: 'Monitoring',     Icon: Activity        },
+  { to: '/price-analysis',    label: 'Price Analysis', Icon: BarChart2       },
+  { to: '/interconnectors',   label: 'Interconnectors', Icon: ArrowRightLeft },
+  { to: '/generator-fleet',  label: 'Generator Fleet', Icon: Zap            },
 ]
 
 function Sidebar() {
@@ -115,6 +123,9 @@ export default function App() {
               <Route path="/alerts"        element={<Alerts />}       />
               <Route path="/monitoring"    element={<Monitoring />}   />
               <Route path="/market-depth"  element={<MarketDepth />}  />
+              <Route path="/price-analysis"    element={<PriceAnalysis />}    />
+              <Route path="/interconnectors"   element={<Interconnectors />}  />
+              <Route path="/generator-fleet"  element={<GeneratorFleet />}   />
             </Routes>
           </main>
         </div>
