@@ -126,6 +126,9 @@ import EnergyEquity from './pages/EnergyEquity'
 import DemandResponseAnalytics from './pages/DemandResponseAnalytics'
 import BehindTheMeter from './pages/BehindTheMeter'
 import RabAnalytics from './pages/RabAnalytics'
+import NemRealTimeDashboard from './pages/NemRealTimeDashboard'
+import RitAnalytics from './pages/RitAnalytics'
+import ForwardCurveAnalytics from './pages/ForwardCurveAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -210,6 +213,9 @@ const NAV_ITEMS = [
   { to: '/demand-response', label: 'Demand Response',  Icon: Activity       },
   { to: '/btm',             label: 'Behind-the-Meter', Icon: Sun            },
   { to: '/rab',             label: 'Network RAB',      Icon: Building2      },
+  { to: '/realtime',        label: 'NEM Live',         Icon: Radio          },
+  { to: '/rit',             label: 'Network RIT',      Icon: GitBranch      },
+  { to: '/forward-curve',   label: 'Forward Curve',    Icon: TrendingUp     },
   { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
 ]
 
@@ -369,6 +375,9 @@ export default function App() {
               <Route path="/demand-response" element={<DemandResponseAnalytics />} />
               <Route path="/btm"            element={<BehindTheMeter />}         />
               <Route path="/rab"            element={<RabAnalytics />}           />
+              <Route path="/realtime"       element={<NemRealTimeDashboard />}  />
+              <Route path="/rit"            element={<RitAnalytics />}          />
+              <Route path="/forward-curve"  element={<ForwardCurveAnalytics />} />
               <Route path="/settings"        element={<Settings />}              />
             </Routes>
           </main>

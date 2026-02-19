@@ -706,3 +706,18 @@
 - RabAnalytics.tsx: allowed revenue bar chart (top 10 networks), determinations table with AER decision badges, yearly CAPEX/OPEX variance table
 - /api/rab/dashboard, /determinations, /yearly (15 TNSP+DNSP determinations, 25 yearly records)
 - 3 TestRabEndpoints tests
+
+## Sprint 38a — NEM Real-Time Overview Dashboard [COMPLETE]
+- NemRealTimeDashboard.tsx: 5-region KPI price cards (colour-coded by band), generation mix stacked bar chart by fuel type, interconnector loading table
+- /api/realtime/dashboard, /dispatch, /generation-mix, /interconnectors (5 regions, 28+ gen mix records, 6 interconnectors)
+- 4 TestRealtimeEndpoints tests
+
+## Sprint 38b — Network Investment Test (RIT-T/RIT-D) Analytics [COMPLETE]
+- RitAnalytics.tsx: cost vs benefit scatter chart, projects table with BCR highlighting, options comparison table
+- /api/rit/dashboard, /projects, /cost-benefits, /options (12 projects: 8 RIT-T + 4 RIT-D, 30+ cost-benefit records, 30+ option records)
+- 4 TestRitEndpoints tests
+
+## Sprint 38c — Electricity Derivatives & Forward Curve Analytics [COMPLETE]
+- ForwardCurveAnalytics.tsx: forward curve line chart (CAL25/26/27 by region), cap/floor options table, seasonal premium heatmap
+- /api/forward-curve/dashboard, /prices, /options, /seasonal (4-region curve, 27 cap/floor options, 80 seasonal premium records)
+- 4 TestForwardCurveEndpoints tests

@@ -1963,6 +1963,163 @@ export interface RabDashboard {
   yearly_records: RabYearlyRecord[]
 }
 
+// ── Sprint 38a: Real-Time NEM Dashboard ──
+export interface RegionalDispatch {
+  region: string
+  dispatch_price_aud_mwh: number
+  predispatch_price_aud_mwh: number
+  demand_mw: number
+  generation_mw: number
+  net_interchange_mw: number
+  rrp_band: string
+  renewable_pct: number
+  scheduled_gen_mw: number
+  semi_sched_gen_mw: number
+}
+
+export interface NemGenMixRecord {
+  region: string
+  fuel_type: string
+  registered_capacity_mw: number
+  available_mw: number
+  dispatch_mw: number
+  capacity_factor_pct: number
+  marginal_cost_aud_mwh: number
+}
+
+export interface InterconnectorFlowRecord {
+  interconnector_id: string
+  from_region: string
+  to_region: string
+  mw_flow: number
+  mw_limit: number
+  loading_pct: number
+  losses_mw: number
+  direction: string
+}
+
+export interface NemRealTimeDashboard {
+  dispatch_interval: string
+  timestamp: string
+  nem_total_demand_mw: number
+  nem_total_generation_mw: number
+  nem_avg_price_aud_mwh: number
+  nem_renewable_pct: number
+  max_price_region: string
+  min_price_region: string
+  regional_dispatch: RegionalDispatch[]
+  generation_mix: NemGenMixRecord[]
+  interconnector_flows: InterconnectorFlowRecord[]
+}
+
+// ── Sprint 38b: Network RIT Analytics ──
+export interface RitProject {
+  project_id: string
+  project_name: string
+  proponent: string
+  project_type: string
+  state: string
+  status: string
+  preferred_option: string
+  capital_cost_m_aud: number
+  net_market_benefit_m_aud: number
+  benefit_cost_ratio: number
+  npv_m_aud: number
+  commencement_year: number
+  completion_year: number
+  key_drivers: string[]
+}
+
+export interface RitCostBenefitRecord {
+  record_id: string
+  project_id: string
+  benefit_category: string
+  benefit_m_aud: number
+  confidence: string
+  discount_rate_pct: number
+  analysis_period_years: number
+}
+
+export interface RitOptionRecord {
+  option_id: string
+  project_id: string
+  option_name: string
+  option_type: string
+  capex_m_aud: number
+  opex_m_aud_pa: number
+  net_benefit_m_aud: number
+  is_preferred: boolean
+  feasibility: string
+}
+
+export interface RitDashboard {
+  timestamp: string
+  total_projects: number
+  total_capex_m_aud: number
+  total_net_benefit_m_aud: number
+  avg_bcr: number
+  rit_t_projects: number
+  rit_d_projects: number
+  projects: RitProject[]
+  cost_benefits: RitCostBenefitRecord[]
+  options: RitOptionRecord[]
+}
+
+// ── Sprint 38c: Forward Curve & Derivatives ──
+export interface Fwd38cCurvePoint {
+  point_id: string
+  region: string
+  product: string
+  product_type: string
+  delivery_start: string
+  delivery_end: string
+  settlement_price_aud_mwh: number
+  daily_volume_mw: number
+  open_interest_mw: number
+  spot_to_forward_premium_pct: number
+  implied_volatility_pct: number
+  last_trade_date: string
+}
+
+export interface Fwd38cCapOptionRecord {
+  option_id: string
+  region: string
+  contract_type: string
+  strike_price_aud_mwh: number
+  settlement_period: string
+  premium_aud_mwh: number
+  delta: number
+  gamma: number
+  vega: number
+  implied_vol_pct: number
+  open_interest_mw: number
+  in_the_money: boolean
+}
+
+export interface Fwd38cSeasonalPremiumRecord {
+  record_id: string
+  region: string
+  season: string
+  year: number
+  avg_spot_aud_mwh: number
+  avg_forward_aud_mwh: number
+  forward_premium_aud_mwh: number
+  realised_volatility_pct: number
+  max_spike_aud_mwh: number
+  spike_hours: number
+}
+
+export interface Fwd38cDashboard {
+  timestamp: string
+  base_spot_nsw_aud_mwh: number
+  curve_steepness_nsw: number
+  avg_implied_vol_pct: number
+  total_open_interest_mw: number
+  forward_curve: Fwd38cCurvePoint[]
+  cap_options: Fwd38cCapOptionRecord[]
+  seasonal_premiums: Fwd38cSeasonalPremiumRecord[]
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3601,6 +3758,30 @@ export const api = {
     get<RegulatoryDetermination[]>('/api/rab/determinations'),
   getRabYearly: (): Promise<RabYearlyRecord[]> =>
     get<RabYearlyRecord[]>('/api/rab/yearly'),
+  getRealtimeDashboard: (): Promise<NemRealTimeDashboard> =>
+    get<NemRealTimeDashboard>('/api/realtime/dashboard'),
+  getRealtimeDispatch: (): Promise<RegionalDispatch[]> =>
+    get<RegionalDispatch[]>('/api/realtime/dispatch'),
+  getRealtimeGenerationMix: (): Promise<NemGenMixRecord[]> =>
+    get<NemGenMixRecord[]>('/api/realtime/generation-mix'),
+  getRealtimeInterconnectors: (): Promise<InterconnectorFlowRecord[]> =>
+    get<InterconnectorFlowRecord[]>('/api/realtime/interconnectors'),
+  getRitDashboard: (): Promise<RitDashboard> =>
+    get<RitDashboard>('/api/rit/dashboard'),
+  getRitProjects: (): Promise<RitProject[]> =>
+    get<RitProject[]>('/api/rit/projects'),
+  getRitCostBenefits: (): Promise<RitCostBenefitRecord[]> =>
+    get<RitCostBenefitRecord[]>('/api/rit/cost-benefits'),
+  getRitOptions: (): Promise<RitOptionRecord[]> =>
+    get<RitOptionRecord[]>('/api/rit/options'),
+  getForwardCurveDashboard: (): Promise<Fwd38cDashboard> =>
+    get<Fwd38cDashboard>('/api/forward-curve/dashboard'),
+  getForwardCurvePrices: (): Promise<Fwd38cCurvePoint[]> =>
+    get<Fwd38cCurvePoint[]>('/api/forward-curve/prices'),
+  getForwardCurveOptions: (): Promise<Fwd38cCapOptionRecord[]> =>
+    get<Fwd38cCapOptionRecord[]>('/api/forward-curve/options'),
+  getForwardCurveSeasonal: (): Promise<Fwd38cSeasonalPremiumRecord[]> =>
+    get<Fwd38cSeasonalPremiumRecord[]>('/api/forward-curve/seasonal'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

@@ -24087,3 +24087,581 @@ async def get_rab_determinations():
 async def get_rab_yearly():
     dash = await get_rab_dashboard()
     return dash.yearly_records
+
+# ── Sprint 38a: Real-Time NEM Overview Dashboard ─────────────────────────
+
+class RegionalDispatch(BaseModel):
+    region: str
+    dispatch_price_aud_mwh: float
+    predispatch_price_aud_mwh: float
+    demand_mw: float
+    generation_mw: float
+    net_interchange_mw: float      # positive = exporting
+    rrp_band: str                  # NEGATIVE | LOW | NORMAL | HIGH | VHIGH | SPIKE
+    renewable_pct: float
+    scheduled_gen_mw: float
+    semi_sched_gen_mw: float
+
+class NemGenMixRecord(BaseModel):
+    region: str
+    fuel_type: str                 # BLACK_COAL | BROWN_COAL | GAS | HYDRO | WIND | SOLAR | BATTERY | OTHER
+    registered_capacity_mw: float
+    available_mw: float
+    dispatch_mw: float
+    capacity_factor_pct: float
+    marginal_cost_aud_mwh: float
+
+class NemIcFlowRecord(BaseModel):
+    interconnector_id: str
+    from_region: str
+    to_region: str
+    mw_flow: float                 # positive = forward direction
+    mw_limit: float
+    loading_pct: float
+    losses_mw: float
+    direction: str                 # FORWARD | REVERSE | CONSTRAINED
+
+class NemRealTimeDashboard(BaseModel):
+    dispatch_interval: str         # current 5-min interval
+    timestamp: str
+    nem_total_demand_mw: float
+    nem_total_generation_mw: float
+    nem_avg_price_aud_mwh: float
+    nem_renewable_pct: float
+    max_price_region: str
+    min_price_region: str
+    regional_dispatch: list[RegionalDispatch]
+    generation_mix: list[NemGenMixRecord]
+    interconnector_flows: list[NemIcFlowRecord]
+
+def _build_realtime_dashboard() -> NemRealTimeDashboard:
+    import random, math
+    rng = random.Random(7731)
+    now_ts = "2025-07-15T14:35:00"
+    interval = "2025-07-15T14:35:00"
+
+    # Realistic winter afternoon NEM prices by region
+    base_prices = {"NSW1": 87.5, "QLD1": 92.3, "VIC1": 74.8, "SA1": 118.4, "TAS1": 61.2}
+    base_demand = {"NSW1": 8420.0, "QLD1": 7180.0, "VIC1": 5840.0, "SA1": 1720.0, "TAS1": 1080.0}
+    base_renewable_pct = {"NSW1": 28.4, "QLD1": 22.1, "VIC1": 32.7, "SA1": 61.5, "TAS1": 87.3}
+    net_interchange = {"NSW1": -320.0, "QLD1": 280.0, "VIC1": 95.0, "SA1": -142.0, "TAS1": 87.0}
+
+    def price_band(p):
+        if p < 0:       return "NEGATIVE"
+        if p < 100:     return "LOW"
+        if p < 300:     return "NORMAL"
+        if p < 1000:    return "HIGH"
+        if p < 5000:    return "VHIGH"
+        return "SPIKE"
+
+    regional_dispatch = []
+    for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+        dp = base_prices[region] * rng.uniform(0.95, 1.05)
+        pd = dp * rng.uniform(0.97, 1.03)
+        dem = base_demand[region] * rng.uniform(0.98, 1.02)
+        gen = dem - net_interchange[region] * rng.uniform(0.95, 1.05)
+        ren = base_renewable_pct[region] * rng.uniform(0.92, 1.08)
+        sched = gen * rng.uniform(0.58, 0.72)
+        semi  = gen * rng.uniform(0.18, 0.28)
+        regional_dispatch.append(RegionalDispatch(
+            region=region,
+            dispatch_price_aud_mwh=round(dp, 2),
+            predispatch_price_aud_mwh=round(pd, 2),
+            demand_mw=round(dem, 1),
+            generation_mw=round(gen, 1),
+            net_interchange_mw=round(net_interchange[region], 1),
+            rrp_band=price_band(dp),
+            renewable_pct=round(ren, 1),
+            scheduled_gen_mw=round(sched, 1),
+            semi_sched_gen_mw=round(semi, 1),
+        ))
+
+    # Generation mix (MW by fuel type per region)
+    fuel_mix = {
+        "NSW1": [
+            ("BLACK_COAL", 8500, 7200, 5800, 0.68, 42.0),
+            ("GAS",         2800, 1200,  820, 0.29, 85.0),
+            ("HYDRO",        900,  850,  680, 0.76, 18.0),
+            ("WIND",        1400, 1200,  780, 0.56, 0.0),
+            ("SOLAR",       2200,  980,  720, 0.33, 0.0),
+            ("BATTERY",      400,  380,  120, 0.30, 95.0),
+        ],
+        "QLD1": [
+            ("BLACK_COAL", 9200, 7800, 6200, 0.67, 38.0),
+            ("GAS",         4200, 1800, 1100, 0.26, 82.0),
+            ("HYDRO",        700,  650,  420, 0.60, 15.0),
+            ("WIND",         800,  720,  480, 0.60, 0.0),
+            ("SOLAR",       3800, 1500,  980, 0.26, 0.0),
+            ("BATTERY",      200,  190,   60, 0.30, 95.0),
+        ],
+        "VIC1": [
+            ("BROWN_COAL",  4500, 3900, 3200, 0.71, 28.0),
+            ("GAS",          2200, 1100,  720, 0.33, 88.0),
+            ("HYDRO",         600,  570,  380, 0.63, 16.0),
+            ("WIND",         3200, 2900, 1980, 0.62, 0.0),
+            ("SOLAR",        1400,  680,  420, 0.30, 0.0),
+            ("BATTERY",       320,  310,   98, 0.31, 92.0),
+        ],
+        "SA1": [
+            ("GAS",          2600, 1400,  620, 0.24, 92.0),
+            ("WIND",         2800, 2600, 1820, 0.65, 0.0),
+            ("SOLAR",        1200,  580,  360, 0.30, 0.0),
+            ("BATTERY",       300,  280,  210, 0.70, 90.0),
+            ("HYDRO",         180,  170,   90, 0.50, 15.0),
+        ],
+        "TAS1": [
+            ("HYDRO",        2700, 2600, 1950, 0.72, 12.0),
+            ("WIND",          480,  450,  310, 0.65, 0.0),
+            ("GAS",           200,  100,   40, 0.20, 95.0),
+        ],
+    }
+    generation_mix = []
+    for region, fuels in fuel_mix.items():
+        for fuel, cap, avail, disp, cf, mc in fuels:
+            generation_mix.append(NemGenMixRecord(
+                region=region, fuel_type=fuel,
+                registered_capacity_mw=float(cap),
+                available_mw=float(avail),
+                dispatch_mw=float(disp),
+                capacity_factor_pct=round(cf * 100, 1),
+                marginal_cost_aud_mwh=float(mc),
+            ))
+
+    interconnector_flows = [
+        NemIcFlowRecord(interconnector_id="QNI",        from_region="QLD1", to_region="NSW1", mw_flow=-280.0, mw_limit=1078.0, loading_pct=26.0, losses_mw=8.2,  direction="REVERSE"),
+        NemIcFlowRecord(interconnector_id="VIC1-NSW1",  from_region="VIC1", to_region="NSW1", mw_flow=320.0,  mw_limit=1600.0, loading_pct=20.0, losses_mw=12.4, direction="FORWARD"),
+        NemIcFlowRecord(interconnector_id="V-SA",       from_region="VIC1", to_region="SA1",  mw_flow=142.0,  mw_limit=650.0,  loading_pct=21.8, losses_mw=5.8,  direction="FORWARD"),
+        NemIcFlowRecord(interconnector_id="V-S-MNSP",   from_region="VIC1", to_region="SA1",  mw_flow=20.0,   mw_limit=220.0,  loading_pct=9.1,  losses_mw=1.2,  direction="FORWARD"),
+        NemIcFlowRecord(interconnector_id="T-V-MNSP",   from_region="TAS1", to_region="VIC1", mw_flow=-87.0,  mw_limit=594.0,  loading_pct=14.6, losses_mw=3.4,  direction="REVERSE"),
+        NemIcFlowRecord(interconnector_id="TERRANORA",  from_region="NSW1", to_region="QLD1", mw_flow=40.0,   mw_limit=210.0,  loading_pct=19.0, losses_mw=1.1,  direction="FORWARD"),
+    ]
+
+    total_demand = sum(r.demand_mw for r in regional_dispatch)
+    total_gen    = sum(r.generation_mw for r in regional_dispatch)
+    avg_price    = sum(r.dispatch_price_aud_mwh * r.demand_mw for r in regional_dispatch) / total_demand
+    total_ren    = sum(r.demand_mw * r.renewable_pct / 100 for r in regional_dispatch)
+    ren_pct      = total_ren / total_demand * 100
+    max_reg      = max(regional_dispatch, key=lambda r: r.dispatch_price_aud_mwh).region
+    min_reg      = min(regional_dispatch, key=lambda r: r.dispatch_price_aud_mwh).region
+
+    return NemRealTimeDashboard(
+        dispatch_interval=interval,
+        timestamp=now_ts,
+        nem_total_demand_mw=round(total_demand, 1),
+        nem_total_generation_mw=round(total_gen, 1),
+        nem_avg_price_aud_mwh=round(avg_price, 2),
+        nem_renewable_pct=round(ren_pct, 1),
+        max_price_region=max_reg,
+        min_price_region=min_reg,
+        regional_dispatch=regional_dispatch,
+        generation_mix=generation_mix,
+        interconnector_flows=interconnector_flows,
+    )
+
+@app.get("/api/realtime/dashboard", response_model=NemRealTimeDashboard, dependencies=[Depends(verify_api_key)])
+async def get_realtime_dashboard():
+    cached = _cache_get("realtime_dashboard")
+    if cached: return cached
+    result = _build_realtime_dashboard()
+    _cache_set("realtime_dashboard", result, 300)
+    return result
+
+@app.get("/api/realtime/dispatch", response_model=list[RegionalDispatch], dependencies=[Depends(verify_api_key)])
+async def get_realtime_dispatch():
+    dash = await get_realtime_dashboard()
+    return dash.regional_dispatch
+
+@app.get("/api/realtime/generation-mix", response_model=list[NemGenMixRecord], dependencies=[Depends(verify_api_key)])
+async def get_realtime_generation_mix():
+    dash = await get_realtime_dashboard()
+    return dash.generation_mix
+
+@app.get("/api/realtime/interconnectors", response_model=list[NemIcFlowRecord], dependencies=[Depends(verify_api_key)])
+async def get_realtime_interconnectors():
+    dash = await get_realtime_dashboard()
+    return dash.interconnector_flows
+
+# ── Sprint 38b: Network Investment Test (RIT-T/RIT-D) Analytics ──────────
+
+class RitProject(BaseModel):
+    project_id: str
+    project_name: str
+    proponent: str                  # TNSP or DNSP name
+    project_type: str               # RIT_T | RIT_D
+    state: str
+    status: str                     # ASSESSMENT | DRAFT | FINAL | APPROVED | CONSTRUCTION | COMPLETE
+    preferred_option: str
+    capital_cost_m_aud: float
+    net_market_benefit_m_aud: float  # NPV of benefits
+    benefit_cost_ratio: float
+    npv_m_aud: float
+    commencement_year: int
+    completion_year: int
+    key_drivers: list[str]
+
+class RitCostBenefitRecord(BaseModel):
+    record_id: str
+    project_id: str
+    benefit_category: str           # REDUCED_CONGESTION | IMPROVED_RELIABILITY | REDUCED_LOSSES | RENEWABLE_INTEGRATION | MARKET_EFFICIENCY
+    benefit_m_aud: float
+    confidence: str                 # HIGH | MEDIUM | LOW
+    discount_rate_pct: float
+    analysis_period_years: int
+
+class RitOptionRecord(BaseModel):
+    option_id: str
+    project_id: str
+    option_name: str
+    option_type: str                # NETWORK | NON_NETWORK | HYBRID
+    capex_m_aud: float
+    opex_m_aud_pa: float
+    net_benefit_m_aud: float
+    is_preferred: bool
+    feasibility: str                # HIGH | MEDIUM | LOW
+
+class RitDashboard(BaseModel):
+    timestamp: str
+    total_projects: int
+    total_capex_m_aud: float
+    total_net_benefit_m_aud: float
+    avg_bcr: float
+    rit_t_projects: int
+    rit_d_projects: int
+    projects: list[RitProject]
+    cost_benefits: list[RitCostBenefitRecord]
+    options: list[RitOptionRecord]
+
+_rit_cache: dict = {}
+
+def _build_rit_dashboard() -> RitDashboard:
+    import random
+    rng = random.Random(5521)
+    now = "2025-07-15T08:00:00"
+
+    projects = [
+        RitProject("RIT-T-NSW-001", "Sydney Ring Augmentation", "TransGrid", "RIT_T", "NSW", "CONSTRUCTION",
+                   "New 330kV cable route via Parramatta", 1850.0, 2640.0, 1.43, 790.0, 2023, 2028,
+                   ["Load Growth", "N-1 Security", "REZ Integration"]),
+        RitProject("RIT-T-NSW-002", "New England REZ Transmission", "TransGrid", "RIT_T", "NSW", "APPROVED",
+                   "New 500kV double circuit transmission line", 3200.0, 4850.0, 1.52, 1650.0, 2025, 2030,
+                   ["Renewable Integration", "REZ Enablement", "Reduced Curtailment"]),
+        RitProject("RIT-T-VIC-001", "Western Victoria Transmission", "AusNet Transmission", "RIT_T", "VIC", "CONSTRUCTION",
+                   "New 500kV Western Victoria line stage 2", 2900.0, 4100.0, 1.41, 1200.0, 2024, 2029,
+                   ["Wind Integration", "Congestion Relief", "REZ Enablement"]),
+        RitProject("RIT-T-VIC-002", "South West Victoria RIT", "AusNet Transmission", "RIT_T", "VIC", "DRAFT",
+                   "New 220kV substation and lines", 480.0, 620.0, 1.29, 140.0, 2026, 2029,
+                   ["Solar Integration", "Reliability"]),
+        RitProject("RIT-T-QLD-001", "CopperString 2.0", "Powerlink Queensland", "RIT_T", "QLD", "CONSTRUCTION",
+                   "732km 500kV HVDC link North QLD", 5200.0, 7800.0, 1.50, 2600.0, 2023, 2029,
+                   ["North QLD Renewable Integration", "Mining Load", "Congestion Relief"]),
+        RitProject("RIT-T-QLD-002", "South East QLD Augmentation", "Powerlink Queensland", "RIT_T", "QLD", "APPROVED",
+                   "New 275kV transformer augmentation", 340.0, 445.0, 1.31, 105.0, 2025, 2027,
+                   ["Load Growth", "N-1 Security"]),
+        RitProject("RIT-T-SA-001", "SA-NSW Interconnector (EnergyConnect)", "ElectraNet", "RIT_T", "SA", "CONSTRUCTION",
+                   "New 800km 330kV AC interconnector", 2400.0, 3840.0, 1.60, 1440.0, 2022, 2026,
+                   ["Renewable Export", "System Security", "Market Efficiency"]),
+        RitProject("RIT-T-TAS-001", "Marinus Link Stage 1", "TasNetworks", "RIT_T", "TAS", "ASSESSMENT",
+                   "New 1500MW HVDC Bass Strait cable", 4800.0, 7200.0, 1.50, 2400.0, 2027, 2032,
+                   ["Hydro Export", "NEM Firming", "Renewable Integration"]),
+        RitProject("RIT-D-NSW-001", "Ausgrid Inner Sydney Cables", "Ausgrid", "RIT_D", "NSW", "COMPLETE",
+                   "Inner CBD underground cable replacement", 620.0, 840.0, 1.35, 220.0, 2019, 2024,
+                   ["Ageing Assets", "Load Growth", "Reliability"]),
+        RitProject("RIT-D-VIC-001", "Jemena BESS + Network Deferral", "Jemena", "RIT_D", "VIC", "APPROVED",
+                   "Non-network BESS solution for demand growth", 85.0, 118.0, 1.39, 33.0, 2024, 2025,
+                   ["Non-Network Alternative", "Demand Growth", "Cost Deferral"]),
+        RitProject("RIT-D-QLD-001", "Energex SEQ Augmentation", "Energex", "RIT_D", "QLD", "CONSTRUCTION",
+                   "132kV substation and feeder upgrades", 380.0, 510.0, 1.34, 130.0, 2023, 2026,
+                   ["Load Growth", "Solar Backfeed", "Reliability"]),
+        RitProject("RIT-D-SA-001", "SAPN Renewable Integration", "SA Power Networks", "RIT_D", "SA", "FINAL",
+                   "Network reconfiguration for high VRE penetration", 220.0, 308.0, 1.40, 88.0, 2025, 2027,
+                   ["Rooftop Solar", "BESS Integration", "Voltage Management"]),
+    ]
+
+    benefit_categories = ["REDUCED_CONGESTION", "IMPROVED_RELIABILITY", "REDUCED_LOSSES", "RENEWABLE_INTEGRATION", "MARKET_EFFICIENCY"]
+    cost_benefits = []
+    for p in projects:
+        cats_used = rng.sample(benefit_categories, k=min(3, len(benefit_categories)))
+        total = p.net_market_benefit_m_aud
+        splits = sorted([rng.uniform(0.1, 0.9) for _ in range(len(cats_used) - 1)] + [0, 1])
+        shares = [splits[i+1] - splits[i] for i in range(len(cats_used))]
+        for cat, share in zip(cats_used, shares):
+            conf = rng.choice(["HIGH", "MEDIUM", "LOW"])
+            cost_benefits.append(RitCostBenefitRecord(
+                f"CB-{p.project_id}-{cat[:4]}", p.project_id, cat,
+                round(total * share, 1), conf, 7.0, 25,
+            ))
+
+    options = []
+    option_types = ["NETWORK", "NON_NETWORK", "HYBRID"]
+    for p in projects:
+        n_options = rng.randint(2, 3)
+        for oi in range(n_options):
+            is_pref = (oi == 0)
+            otype   = option_types[oi % 3]
+            feas    = ["HIGH", "MEDIUM", "LOW"][oi]
+            factor  = rng.uniform(0.85, 1.20)
+            capex   = round(p.capital_cost_m_aud * factor, 1)
+            opex    = round(capex * rng.uniform(0.008, 0.015), 2)
+            benefit = round(p.net_market_benefit_m_aud * (1.0 if is_pref else rng.uniform(0.5, 0.9)), 1)
+            options.append(RitOptionRecord(
+                f"OPT-{p.project_id}-{oi+1}", p.project_id,
+                f"Option {oi+1}: {'Preferred' if is_pref else otype.title()} Solution",
+                otype, capex, opex, benefit, is_pref, feas,
+            ))
+
+    total_capex = sum(p.capital_cost_m_aud for p in projects)
+    total_benef = sum(p.net_market_benefit_m_aud for p in projects)
+    avg_bcr     = sum(p.benefit_cost_ratio for p in projects) / len(projects)
+    rit_t_cnt   = sum(1 for p in projects if p.project_type == "RIT_T")
+    rit_d_cnt   = sum(1 for p in projects if p.project_type == "RIT_D")
+
+    return RitDashboard(
+        timestamp=now, total_projects=len(projects),
+        total_capex_m_aud=round(total_capex, 1),
+        total_net_benefit_m_aud=round(total_benef, 1),
+        avg_bcr=round(avg_bcr, 2),
+        rit_t_projects=rit_t_cnt, rit_d_projects=rit_d_cnt,
+        projects=projects, cost_benefits=cost_benefits, options=options,
+    )
+
+@app.get("/api/rit/dashboard", response_model=RitDashboard, dependencies=[Depends(verify_api_key)])
+async def get_rit_dashboard():
+    cached = _cache_get(_rit_cache, "rit_dashboard")
+    if cached: return cached
+    result = _build_rit_dashboard()
+    _cache_set(_rit_cache, "rit_dashboard", result)
+    return result
+
+@app.get("/api/rit/projects", response_model=list[RitProject], dependencies=[Depends(verify_api_key)])
+async def get_rit_projects():
+    dash = await get_rit_dashboard()
+    return dash.projects
+
+@app.get("/api/rit/cost-benefits", response_model=list[RitCostBenefitRecord], dependencies=[Depends(verify_api_key)])
+async def get_rit_cost_benefits():
+    dash = await get_rit_dashboard()
+    return dash.cost_benefits
+
+@app.get("/api/rit/options", response_model=list[RitOptionRecord], dependencies=[Depends(verify_api_key)])
+async def get_rit_options():
+    dash = await get_rit_dashboard()
+    return dash.options
+
+# ── Sprint 38c: Electricity Derivatives & Forward Curve Analytics ─────────
+
+class Fwd38cCurvePoint(BaseModel):
+    point_id: str
+    region: str
+    product: str                    # CAL25 | CAL26 | CAL27 | Q3-2025 | Q4-2025 | ...
+    product_type: str               # CALENDAR | QUARTERLY | MONTHLY
+    delivery_start: str
+    delivery_end: str
+    settlement_price_aud_mwh: float
+    daily_volume_mw: float
+    open_interest_mw: float
+    spot_to_forward_premium_pct: float
+    implied_volatility_pct: float
+    last_trade_date: str
+
+class Fwd38cCapOptionRecord(BaseModel):
+    option_id: str
+    region: str
+    contract_type: str              # CAP | FLOOR | SWAP
+    strike_price_aud_mwh: float
+    settlement_period: str
+    premium_aud_mwh: float
+    delta: float
+    gamma: float
+    vega: float
+    implied_vol_pct: float
+    open_interest_mw: float
+    in_the_money: bool
+
+class Fwd38cSeasonalPremiumRecord(BaseModel):
+    record_id: str
+    region: str
+    season: str                     # SUMMER | AUTUMN | WINTER | SPRING
+    year: int
+    avg_spot_aud_mwh: float
+    avg_forward_aud_mwh: float
+    forward_premium_aud_mwh: float
+    realised_volatility_pct: float
+    max_spike_aud_mwh: float
+    spike_hours: int
+
+class Fwd38cDashboard(BaseModel):
+    timestamp: str
+    base_spot_nsw_aud_mwh: float
+    curve_steepness_nsw: float      # CAL26 minus CAL25
+    avg_implied_vol_pct: float
+    total_open_interest_mw: float
+    forward_curve: list[Fwd38cCurvePoint]
+    cap_options: list[Fwd38cCapOptionRecord]
+    seasonal_premiums: list[Fwd38cSeasonalPremiumRecord]
+
+_forward_cache: dict = {}
+
+def _build_forward_dashboard() -> Fwd38cDashboard:
+    import random, math
+    rng = random.Random(6614)
+    now = "2025-07-15T17:00:00"
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+
+    # Base forward prices by region for CAL25 (annual base)
+    cal25_base = {"NSW1": 92.5, "QLD1": 88.0, "VIC1": 79.0, "SA1": 105.0}
+    cal26_base = {"NSW1": 98.0, "QLD1": 93.0, "VIC1": 84.0, "SA1": 112.0}
+    cal27_base = {"NSW1": 105.0, "QLD1": 99.0, "VIC1": 90.0, "SA1": 121.0}
+
+    products_def = [
+        # (product, product_type, start, end, base_key)
+        ("CAL25", "CALENDAR", "2025-01-01", "2025-12-31", "cal25"),
+        ("CAL26", "CALENDAR", "2026-01-01", "2026-12-31", "cal26"),
+        ("CAL27", "CALENDAR", "2027-01-01", "2027-12-31", "cal27"),
+        ("Q3-2025", "QUARTERLY", "2025-07-01", "2025-09-30", "cal25"),
+        ("Q4-2025", "QUARTERLY", "2025-10-01", "2025-12-31", "cal25"),
+        ("Q1-2026", "QUARTERLY", "2026-01-01", "2026-03-31", "cal26"),
+        ("Q2-2026", "QUARTERLY", "2026-04-01", "2026-06-30", "cal26"),
+        ("Q3-2026", "QUARTERLY", "2026-07-01", "2026-09-30", "cal26"),
+        ("Q4-2026", "QUARTERLY", "2026-10-01", "2026-12-31", "cal26"),
+        ("AUG-2025", "MONTHLY", "2025-08-01", "2025-08-31", "cal25"),
+        ("SEP-2025", "MONTHLY", "2025-09-01", "2025-09-30", "cal25"),
+        ("OCT-2025", "MONTHLY", "2025-10-01", "2025-10-31", "cal25"),
+    ]
+    base_map = {"cal25": cal25_base, "cal26": cal26_base, "cal27": cal27_base}
+
+    forward_curve = []
+    for region in regions:
+        spot_base = cal25_base[region] * rng.uniform(0.88, 1.12)
+        for prod, ptype, dstart, dend, bkey in products_def:
+            base = base_map[bkey][region]
+            price = base * rng.uniform(0.96, 1.04)
+            spot_prem = (price - spot_base) / spot_base * 100
+            vol = base * 0.015 + rng.uniform(8.0, 20.0)   # implied vol %
+            vol_mw = rng.uniform(200, 1400)
+            oi_mw  = rng.uniform(500, 3000)
+            forward_curve.append(Fwd38cCurvePoint(
+                point_id=f"FC-{region}-{prod}",
+                region=region,
+                product=prod,
+                product_type=ptype,
+                delivery_start=dstart,
+                delivery_end=dend,
+                settlement_price_aud_mwh=round(price, 2),
+                daily_volume_mw=round(vol_mw, 0),
+                open_interest_mw=round(oi_mw, 0),
+                spot_to_forward_premium_pct=round(spot_prem, 1),
+                implied_volatility_pct=round(vol, 1),
+                last_trade_date="2025-07-14",
+            ))
+
+    # Cap/Floor options
+    strikes = [200.0, 300.0, 500.0, 1000.0, 5000.0, 10000.0]
+    floor_strikes = [30.0, 50.0, 75.0]
+    cap_options = []
+    for region in ["NSW1", "VIC1", "SA1"]:
+        base_fwd = cal25_base[region]
+        for sk in strikes:
+            prem = max(0.1, (base_fwd / sk) * rng.uniform(2.0, 8.0))
+            delta_ = min(0.5, max(0.02, 1.0 - sk / (base_fwd * 15)))
+            iv = 25.0 + rng.uniform(-5, 10)
+            itm = base_fwd > sk * 0.8
+            cap_options.append(Fwd38cCapOptionRecord(
+                option_id=f"CAP-{region}-{sk:.0f}",
+                region=region,
+                contract_type="CAP",
+                strike_price_aud_mwh=sk,
+                settlement_period="CAL26",
+                premium_aud_mwh=round(prem, 2),
+                delta=round(delta_, 3),
+                gamma=round(rng.uniform(0.001, 0.005), 4),
+                vega=round(rng.uniform(0.5, 2.5), 2),
+                implied_vol_pct=round(iv, 1),
+                open_interest_mw=round(rng.uniform(100, 800), 0),
+                in_the_money=itm,
+            ))
+        for sk in floor_strikes:
+            prem = max(0.1, rng.uniform(0.5, 3.0))
+            cap_options.append(Fwd38cCapOptionRecord(
+                option_id=f"FLOOR-{region}-{sk:.0f}",
+                region=region,
+                contract_type="FLOOR",
+                strike_price_aud_mwh=sk,
+                settlement_period="CAL26",
+                premium_aud_mwh=round(prem, 2),
+                delta=round(-rng.uniform(0.02, 0.15), 3),
+                gamma=round(rng.uniform(0.0005, 0.003), 4),
+                vega=round(rng.uniform(0.4, 1.8), 2),
+                implied_vol_pct=round(25.0 + rng.uniform(-3, 8), 1),
+                open_interest_mw=round(rng.uniform(50, 400), 0),
+                in_the_money=False,
+            ))
+
+    # Seasonal premiums (2020–2024, 4 regions, 4 seasons)
+    season_spot = {
+        "SUMMER": {"NSW1":105, "QLD1":112, "VIC1": 98, "SA1":145},
+        "WINTER": {"NSW1":120, "QLD1": 95, "VIC1":110, "SA1":130},
+        "AUTUMN": {"NSW1": 72, "QLD1": 68, "VIC1": 65, "SA1": 82},
+        "SPRING": {"NSW1": 65, "QLD1": 60, "VIC1": 58, "SA1": 78},
+    }
+    seasonal_premiums = []
+    for region in regions:
+        for season in ["SUMMER", "AUTUMN", "WINTER", "SPRING"]:
+            for year in range(2020, 2025):
+                avg_spot = season_spot[season][region] * rng.uniform(0.85, 1.20)
+                fwd_prem = rng.uniform(-5, 18)
+                avg_fwd  = avg_spot + fwd_prem
+                rvol     = rng.uniform(25.0, 75.0)
+                max_spk  = avg_spot * rng.uniform(3, 25) if season in ("SUMMER","WINTER") else avg_spot * rng.uniform(1.5, 6)
+                spk_hrs  = rng.randint(2, 35) if season in ("SUMMER","WINTER") else rng.randint(0, 8)
+                seasonal_premiums.append(Fwd38cSeasonalPremiumRecord(
+                    record_id=f"SEAS-{region}-{season[:3]}-{year}",
+                    region=region,
+                    season=season,
+                    year=year,
+                    avg_spot_aud_mwh=round(avg_spot, 1),
+                    avg_forward_aud_mwh=round(avg_fwd, 1),
+                    forward_premium_aud_mwh=round(fwd_prem, 1),
+                    realised_volatility_pct=round(rvol, 1),
+                    max_spike_aud_mwh=round(max_spk, 0),
+                    spike_hours=spk_hrs,
+                ))
+
+    base_spot = cal25_base["NSW1"]
+    steepness = cal26_base["NSW1"] - cal25_base["NSW1"]
+    avg_iv    = sum(p.implied_volatility_pct for p in forward_curve) / len(forward_curve)
+    total_oi  = sum(p.open_interest_mw for p in forward_curve)
+
+    return Fwd38cDashboard(
+        timestamp=now,
+        base_spot_nsw_aud_mwh=round(base_spot, 2),
+        curve_steepness_nsw=round(steepness, 2),
+        avg_implied_vol_pct=round(avg_iv, 1),
+        total_open_interest_mw=round(total_oi, 0),
+        forward_curve=forward_curve,
+        cap_options=cap_options,
+        seasonal_premiums=seasonal_premiums,
+    )
+
+@app.get("/api/forward-curve/dashboard", response_model=Fwd38cDashboard, dependencies=[Depends(verify_api_key)])
+async def get_forward_curve_dashboard():
+    cached = _cache_get(_forward_cache, "forward_dashboard")
+    if cached: return cached
+    result = _build_forward_dashboard()
+    _cache_set(_forward_cache, "forward_dashboard", result)
+    return result
+
+@app.get("/api/forward-curve/prices", response_model=list[Fwd38cCurvePoint], dependencies=[Depends(verify_api_key)])
+async def get_forward_curve_prices():
+    dash = await get_forward_curve_dashboard()
+    return dash.forward_curve
+
+@app.get("/api/forward-curve/options", response_model=list[Fwd38cCapOptionRecord], dependencies=[Depends(verify_api_key)])
+async def get_forward_curve_options():
+    dash = await get_forward_curve_dashboard()
+    return dash.cap_options
+
+@app.get("/api/forward-curve/seasonal", response_model=list[Fwd38cSeasonalPremiumRecord], dependencies=[Depends(verify_api_key)])
+async def get_forward_curve_seasonal():
+    dash = await get_forward_curve_dashboard()
+    return dash.seasonal_premiums

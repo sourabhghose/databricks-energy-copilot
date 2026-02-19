@@ -3451,3 +3451,79 @@ class TestRabEndpoints:
         r = client.get("/api/rab/yearly")
         assert r.status_code == 200
         assert len(r.json()) >= 20
+
+
+class TestRealtimeEndpoints:
+    def test_realtime_dashboard(self):
+        r = client.get("/api/realtime/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["nem_total_demand_mw"] > 0
+        assert len(d["regional_dispatch"]) == 5
+        assert len(d["generation_mix"]) >= 15
+        assert len(d["interconnector_flows"]) >= 5
+
+    def test_realtime_dispatch(self):
+        r = client.get("/api/realtime/dispatch")
+        assert r.status_code == 200
+        assert len(r.json()) == 5
+
+    def test_realtime_gen_mix(self):
+        r = client.get("/api/realtime/generation-mix")
+        assert r.status_code == 200
+        assert len(r.json()) >= 15
+
+    def test_realtime_interconnectors(self):
+        r = client.get("/api/realtime/interconnectors")
+        assert r.status_code == 200
+        assert len(r.json()) >= 5
+
+class TestRitEndpoints:
+    def test_rit_dashboard(self, client):
+        r = client.get("/api/rit/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_projects"] >= 10
+        assert len(d["projects"]) >= 10
+        assert len(d["cost_benefits"]) >= 20
+        assert len(d["options"]) >= 20
+
+    def test_rit_projects(self, client):
+        r = client.get("/api/rit/projects", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_rit_cost_benefits(self, client):
+        r = client.get("/api/rit/cost-benefits", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+    def test_rit_options(self, client):
+        r = client.get("/api/rit/options", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+class TestForwardCurveEndpoints:
+    def test_forward_dashboard(self, client):
+        r = client.get("/api/forward-curve/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["base_spot_nsw_aud_mwh"] > 0
+        assert len(d["forward_curve"]) >= 20
+        assert len(d["cap_options"]) >= 20
+        assert len(d["seasonal_premiums"]) >= 50
+
+    def test_forward_prices(self, client):
+        r = client.get("/api/forward-curve/prices", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+    def test_forward_options(self, client):
+        r = client.get("/api/forward-curve/options", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 20
+
+    def test_forward_seasonal(self, client):
+        r = client.get("/api/forward-curve/seasonal", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 50
