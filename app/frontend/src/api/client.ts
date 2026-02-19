@@ -5103,6 +5103,42 @@ export const api = {
     get<PSAConsumerImpact[]>('/api/spike-analysis/consumer-impacts'),
   getSpikeAnalysisRegionalTimeline: (): Promise<PSARegionalTimeline[]> =>
     get<PSARegionalTimeline[]>('/api/spike-analysis/regional-timeline'),
+
+  // Sprint 49c — Solar Irradiance & Resource Assessment Analytics
+  getSolarResourceDashboard: (): Promise<SolarResourceDashboard> =>
+    get<SolarResourceDashboard>('/api/solar-resource/dashboard'),
+  getSolarResourceSites: (): Promise<IrradianceSiteRecord[]> =>
+    get<IrradianceSiteRecord[]>('/api/solar-resource/sites'),
+  getSolarResourceFarmYields: (): Promise<SolarFarmYieldRecord[]> =>
+    get<SolarFarmYieldRecord[]>('/api/solar-resource/farm-yields'),
+  getSolarResourceMonthlyIrradiance: (): Promise<MonthlyIrradianceRecord[]> =>
+    get<MonthlyIrradianceRecord[]>('/api/solar-resource/monthly-irradiance'),
+  getSolarResourceDegradation: (): Promise<SolarDegradationRecord[]> =>
+    get<SolarDegradationRecord[]>('/api/solar-resource/degradation'),
+
+  // Sprint 49a — Energy Storage Revenue Stacking & Optimisation
+  getStorageRevenueStackDashboard: (): Promise<StorageRevenueStackDashboard> =>
+    get<StorageRevenueStackDashboard>('/api/storage-revenue-stack/dashboard'),
+  getStorageRevenueStackWaterfall: (): Promise<StorageRevenueWaterfall[]> =>
+    get<StorageRevenueWaterfall[]>('/api/storage-revenue-stack/waterfall'),
+  getStorageRevenueStackDispatchOptimisation: (): Promise<StorageDispatchOptRecord[]> =>
+    get<StorageDispatchOptRecord[]>('/api/storage-revenue-stack/dispatch-optimisation'),
+  getStorageRevenueStackMultiServiceBids: (): Promise<MultiServiceBidRecord[]> =>
+    get<MultiServiceBidRecord[]>('/api/storage-revenue-stack/multi-service-bids'),
+  getStorageRevenueStackScenarios: (): Promise<StorageScenarioRecord[]> =>
+    get<StorageScenarioRecord[]>('/api/storage-revenue-stack/scenarios'),
+
+  // Sprint 49b — Electricity Futures Market Risk Analytics
+  getFuturesMarketRiskDashboard: (): Promise<FuturesMarketRiskDashboard> =>
+    get<FuturesMarketRiskDashboard>('/api/futures-market-risk/dashboard'),
+  getFuturesMarketRiskVar: (): Promise<VaRRecord[]> =>
+    get<VaRRecord[]>('/api/futures-market-risk/var'),
+  getFuturesMarketRiskHedgeEffectiveness: (): Promise<FMRHedgeEffectivenessRecord[]> =>
+    get<FMRHedgeEffectivenessRecord[]>('/api/futures-market-risk/hedge-effectiveness'),
+  getFuturesMarketRiskBasisRisk: (): Promise<BasisRiskRecord[]> =>
+    get<BasisRiskRecord[]>('/api/futures-market-risk/basis-risk'),
+  getFuturesMarketRiskPositions: (): Promise<FuturesPositionRecord[]> =>
+    get<FuturesPositionRecord[]>('/api/futures-market-risk/positions'),
 }
 
 // ---------------------------------------------------------------------------
@@ -5956,4 +5992,221 @@ export interface PSADashboard {
   total_consumer_cost_m_aud: number
   avg_spike_duration_min: number
   most_affected_region: string
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 49c — Solar Irradiance & Resource Assessment Analytics
+// ---------------------------------------------------------------------------
+
+export interface IrradianceSiteRecord {
+  site_id: string
+  site_name: string
+  state: string
+  latitude: number
+  longitude: number
+  annual_ghi_kwh_m2: number
+  annual_dni_kwh_m2: number
+  annual_dhi_kwh_m2: number
+  peak_sun_hours: number
+  cloud_cover_pct: number
+  temperature_annual_avg_c: number
+  dust_soiling_loss_pct: number
+  resource_class: string
+}
+
+export interface SolarFarmYieldRecord {
+  farm_id: string
+  farm_name: string
+  state: string
+  technology: string
+  installed_capacity_mw: number
+  panel_brand: string
+  panel_efficiency_pct: number
+  inverter_efficiency_pct: number
+  performance_ratio_pct: number
+  annual_yield_gwh: number
+  specific_yield_kwh_kwp: number
+  capacity_factor_pct: number
+  degradation_year1_pct: number
+  degradation_annual_pct: number
+  p90_yield_gwh: number
+  pr_degradation_5yr: number
+}
+
+export interface MonthlyIrradianceRecord {
+  site_id: string
+  site_name: string
+  month: number
+  month_name: string
+  ghi_kwh_m2_day: number
+  dni_kwh_m2_day: number
+  dhi_kwh_m2_day: number
+  sunshine_hours: number
+  avg_temp_c: number
+  irradiance_variability_pct: number
+}
+
+export interface SolarDegradationRecord {
+  technology: string
+  panel_type: string
+  year: number
+  avg_efficiency_pct: number
+  performance_ratio_pct: number
+  cumulative_degradation_pct: number
+  failure_rate_pct: number
+}
+
+export interface SolarResourceDashboard {
+  timestamp: string
+  irradiance_sites: IrradianceSiteRecord[]
+  farm_yields: SolarFarmYieldRecord[]
+  monthly_irradiance: MonthlyIrradianceRecord[]
+  degradation_records: SolarDegradationRecord[]
+  best_solar_resource_site: string
+  avg_capacity_factor_pct: number
+  total_assessed_capacity_mw: number
+  avg_specific_yield_kwh_kwp: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 49a — Energy Storage Revenue Stacking & Optimisation
+// ---------------------------------------------------------------------------
+
+export interface StorageRevenueWaterfall {
+  project_id: string
+  project_name: string
+  state: string
+  capacity_mwh: number
+  power_mw: number
+  energy_arbitrage_m_aud: number
+  fcas_raise_m_aud: number
+  fcas_lower_m_aud: number
+  capacity_market_m_aud: number
+  network_services_m_aud: number
+  ancillary_services_m_aud: number
+  total_revenue_m_aud: number
+  lcoe_mwh: number
+  simple_payback_years: number
+  irr_pct: number
+}
+
+export interface StorageDispatchOptRecord {
+  hour: number
+  month: string
+  optimal_action: string
+  energy_price: number
+  fcas_contingency_price: number
+  fcas_regulation_price: number
+  soc_start_pct: number
+  soc_end_pct: number
+  energy_mwh: number
+  revenue_aud: number
+  service_priority: string
+}
+
+export interface MultiServiceBidRecord {
+  project_id: string
+  project_name: string
+  trading_date: string
+  energy_bid_mw: number
+  fcas_contingency_raise_mw: number
+  fcas_contingency_lower_mw: number
+  fcas_regulation_raise_mw: number
+  fcas_regulation_lower_mw: number
+  energy_price_bid: number
+  total_fcas_revenue_aud: number
+  total_energy_revenue_aud: number
+  co_optimisation_benefit_pct: number
+}
+
+export interface StorageScenarioRecord {
+  scenario: string
+  capacity_mwh: number
+  annual_revenue_m_aud: number
+  annual_cost_m_aud: number
+  annual_profit_m_aud: number
+  roi_pct: number
+  payback_years: number
+  project_npv_m_aud: number
+}
+
+export interface StorageRevenueStackDashboard {
+  timestamp: string
+  revenue_waterfall: StorageRevenueWaterfall[]
+  dispatch_optimisation: StorageDispatchOptRecord[]
+  multi_service_bids: MultiServiceBidRecord[]
+  scenario_comparison: StorageScenarioRecord[]
+  avg_total_revenue_m_aud: number
+  best_revenue_project: string
+  energy_vs_fcas_split_pct: number
+  co_optimisation_benefit_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 49b — Electricity Futures Market Risk Analytics
+// ---------------------------------------------------------------------------
+
+export interface VaRRecord {
+  date: string
+  region: string
+  portfolio_type: string
+  notional_position_m_aud: number
+  var_95_m_aud: number
+  var_99_m_aud: number
+  cvar_95_m_aud: number
+  delta_mwh: number
+  gamma: number
+  vega: number
+  theta_daily_aud: number
+}
+
+export interface FMRHedgeEffectivenessRecord {
+  quarter: string
+  region: string
+  participant: string
+  hedge_ratio_pct: number
+  hedge_instrument: string
+  avg_hedge_price: number
+  avg_spot_price: number
+  hedge_gain_loss_m_aud: number
+  effectiveness_score_pct: number
+  basis_risk_m_aud: number
+}
+
+export interface BasisRiskRecord {
+  region: string
+  year: number
+  quarter: string
+  futures_settlement_price: number
+  spot_price_avg: number
+  basis_aud_mwh: number
+  basis_volatility: number
+  max_basis_aud_mwh: number
+  min_basis_aud_mwh: number
+  risk_exposure_m_aud: number
+}
+
+export interface FuturesPositionRecord {
+  participant: string
+  participant_type: string
+  region: string
+  contract_quarter: string
+  long_position_mw: number
+  short_position_mw: number
+  net_position_mw: number
+  avg_entry_price: number
+  mark_to_market_m_aud: number
+  margin_posted_m_aud: number
+}
+
+export interface FuturesMarketRiskDashboard {
+  timestamp: string
+  var_records: VaRRecord[]
+  hedge_effectiveness: FMRHedgeEffectivenessRecord[]
+  basis_risk: BasisRiskRecord[]
+  futures_positions: FuturesPositionRecord[]
+  portfolio_var_95_m_aud: number
+  avg_hedge_ratio_pct: number
+  total_open_interest_mw: number
+  avg_basis_risk_aud_mwh: number
 }

@@ -1032,3 +1032,89 @@
 - api methods: getSpikeAnalysisDashboard, getSpikeAnalysisEvents, getSpikeAnalysisContributors, getSpikeAnalysisConsumerImpacts, getSpikeAnalysisRegionalTimeline added to api object in client.ts
 - App.tsx: PriceSpikeAnalysis imported; Flame already present (used by Gas Market, Green Hydrogen, Coal Retirement); /spike-analysis route added; "Price Spike Analysis" nav item (Flame icon) added after Network Tariff Reform, before Settings
 - 5 TestSpikeAnalysisEndpoints tests appended to tests/test_backend.py
+
+## Sprint 49a — Energy Storage Revenue Stacking & Optimisation Analytics [COMPLETE]
+- StorageRevenueStack.tsx: BarChart3 icon header, title "Energy Storage Revenue Stacking & Optimisation", subtitle about multi-service co-optimisation, FCAS + energy + capacity stacking
+  - 4 KPI cards: Avg Total Revenue ($M/yr) blue, Best Revenue Project green, Energy vs FCAS Split % amber, Co-optimisation Benefit % purple
+  - Revenue Waterfall stacked bar chart: 8 BESS projects sorted by total revenue descending; 6 revenue streams (energy arbitrage blue, FCAS raise green, FCAS lower cyan, capacity amber, network purple, ancillary gray); detail table with LCOE, IRR%, payback years
+  - Scenario Comparison grouped bar chart: ENERGY_ONLY/FCAS_ONLY/FULL_STACK/NETWORK_CONTRACT showing Revenue/Cost/Profit per scenario; ROI%, payback, NPV table demonstrating clear revenue uplift from full stacking
+  - Dispatch Optimisation: action heatmap row (24 hourly cells coloured CHARGE blue/DISCHARGE red/IDLE gray/FCAS_STANDBY amber with hover tooltip); dual-axis LineChart showing SOC trajectory + hourly revenue ($K); scrollable hourly table with SOC transition, action badge, energy MWh, P/L
+  - Multi-Service Bids table: 10 records across 8 BESS projects; columns for energy bid MW, FCAS contingency raise/lower, FCAS regulation raise/lower, FCAS revenue, energy revenue, co-optimisation uplift % (amber)
+- Naming collision check: Sprint 14b used /api/storage/ (BessUnit/BessDispatchInterval/BessFleetSummary); Sprint 23a used /api/battery-economics/ (BatteryArbitrageSlot); Sprint 35a used /api/storage/ again (StorageArbitrage); Sprint 44b added StorageArbitrage at /api/storage/; Sprint 49a uses /api/storage-revenue-stack/ prefix and SRV- prefixed data variables; no collisions
+- Backend Pydantic models: StorageRevenueWaterfall, StorageDispatchOptRecord, MultiServiceBidRecord, StorageScenarioRecord, StorageRevenueStackDashboard
+- Mock data:
+  - 8 revenue waterfall records: Hornsdale PR (150MW/194MWh SA, $21.6M total, IRR 16.5%), Victorian Big Battery (300MW VIC, $28.2M, IRR 18%), Waratah Super Battery (850MW NSW, $31.7M, IRR 17.8%), Torrens Island BESS (250MW SA, $19.2M), Moorabool (200MW VIC), Kwinana (100MW WA), Gannawarra (25MW VIC), Lake Bonney (100MW SA); FCAS $4.9-12.3M, energy $2-8.1M, capacity $0.5-3M, total $7.9-31.7M
+  - 24 dispatch optimisation records: representative Jan peak summer day; actions: CHARGE (8 intervals off-peak), DISCHARGE (6 intervals peak/morning peak), FCAS_STANDBY (7 intervals, including evening peak), IDLE (1 interval); SOC 10%→95%→10%; peak DISCHARGE revenue $42.8K-73.2K at hours 12,19; FCAS regulation priority at hours 10,14,17; revenue-negative CHARGE intervals -$0.8K to -4.9K
+  - 10 multi-service bid records: HPR/VBB/WSB/TIB/MBB/KBB/GBB/LBB across Jan-Aug 2024 trading dates; co-optimisation uplift 15.2%-31.7%; FCAS contingency raise 14-350 MW; energy bids 18-420 MW
+  - 4 scenario comparison records: ENERGY_ONLY ($8.2M rev, $2.8M profit, ROI 9.3%, 12.5yr payback, NPV $18.4M) → FCAS_ONLY ($14.6M rev, $9.2M profit, ROI 15.8%) → FULL_STACK ($26.8M rev, $21M profit, ROI 24.5%, 4.9yr payback, NPV $142.7M) → NETWORK_CONTRACT ($31.4M rev, $25.3M profit, ROI 28.2%, 4.2yr payback, NPV $175.3M)
+- Dashboard KPIs: avg_total_revenue_m_aud=18.7, best_revenue_project="Waratah Super Battery", energy_vs_fcas_split_pct=38.5 (energy share), co_optimisation_benefit_pct=23.2
+- Endpoints: GET /api/storage-revenue-stack/dashboard, /waterfall, /dispatch-optimisation, /multi-service-bids, /scenarios (all with Depends(verify_api_key), tag="Storage Revenue Stack")
+- TypeScript interfaces: StorageRevenueWaterfall, StorageDispatchOptRecord, MultiServiceBidRecord, StorageScenarioRecord, StorageRevenueStackDashboard appended to client.ts
+- api methods: getStorageRevenueStackDashboard, getStorageRevenueStackWaterfall, getStorageRevenueStackDispatchOptimisation, getStorageRevenueStackMultiServiceBids, getStorageRevenueStackScenarios added to api object in client.ts
+- App.tsx: StorageRevenueStack imported; BarChart3 added to lucide-react imports (new icon, not previously imported); /storage-revenue-stack route added; "Storage Revenue Stack" nav item (BarChart3 icon) added after Price Spike Analysis, before Settings
+- 5 TestStorageRevenueStackEndpoints tests appended to tests/test_backend.py
+
+## Sprint 49c — Solar Irradiance & Resource Assessment Analytics — 2026-02-20T00:00:00+11:00 (AEDT)
+
+**Completed:**
+- Naming collision check: No collisions found for IrradianceSiteRecord, SolarFarmYieldRecord, MonthlyIrradianceRecord, SolarDegradationRecord, SolarResourceDashboard, /api/solar-resource/* endpoints
+- Backend Pydantic models: IrradianceSiteRecord, SolarFarmYieldRecord, MonthlyIrradianceRecord, SolarDegradationRecord, SolarResourceDashboard appended to app/backend/main.py
+- Mock data:
+  - 10 irradiance sites: Broken Hill NSW (GHI 2310), Longreach QLD (2380), Port Augusta SA (2240), Carnarvon WA (2420), Alice Springs NT (2400), Mildura VIC (2050), Dubbo NSW (1980), Toowoomba QLD (1860), Geraldton WA (2200), Roxby Downs SA (2280); resource classes EXCELLENT/VERY_GOOD/GOOD; peak sun hours 5.1-6.6; dust soiling 2.1-3.5%
+  - 12 solar farms: Bungala SA (220MW SAT, CF 21.0%), Darlington Point NSW (275MW fixed, CF 19.8%), Limondale NSW (249MW SAT, CF 20.7%), Finley NSW (133MW fixed, CF 19.3%), Rugby Run NSW (110MW SAT, CF 20.8%), Ouyen VIC (180MW fixed), Sunlands SA (100MW SAT, CF 21.9%), DeGrussa WA (10.6MW fixed, CF 23.6%), Molong NSW (93MW bifacial), Merredin WA (120MW dual-axis, CF 24.6%), Hornsdale Solar Reserve SA (315MW SAT), Kalgoorlie WA (85MW fixed); specific yield 1680-2157 kWh/kWp
+  - 120 monthly irradiance records (10 sites × 12 months): sinusoidal seasonal GHI pattern, southern hemisphere summer peak Jan/Dec; GHI 3.4-9.8 kWh/m²/day; DNI/DHI computed from GHI ratios
+  - 25 degradation records (5 panel types × 5 year milestones 0/5/10/15/20yr): MONO_PERC (0.50%+0.55%/yr), POLY (0.70%+0.65%/yr — fastest degrader), BIFACIAL_MONO (0.45%+0.50%/yr), HJT (0.25%+0.40%/yr — lowest), TOPCon (0.30%+0.42%/yr); includes efficiency, PR, cumulative degradation, failure rate
+- Endpoints: GET /api/solar-resource/dashboard, /sites, /farm-yields, /monthly-irradiance, /degradation (all with Depends(verify_api_key), tags=["Solar Resource"])
+- TypeScript interfaces: IrradianceSiteRecord, SolarFarmYieldRecord, MonthlyIrradianceRecord, SolarDegradationRecord, SolarResourceDashboard appended to app/frontend/src/api/client.ts
+- api methods: getSolarResourceDashboard, getSolarResourceSites, getSolarResourceFarmYields, getSolarResourceMonthlyIrradiance, getSolarResourceDegradation added to api object in client.ts
+- New page: app/frontend/src/pages/SolarResourceAnalytics.tsx — 468 lines; dark theme; 4 KPI cards (Best Solar Resource Site, Avg CF%, Total MW, Avg Specific Yield); Monthly GHI multi-line chart (5 high-resource sites, 12 months, seasonal curves); Solar Farm Yields table with TechnologyBadge (FIXED_TILT gray/SAT amber/DUAL_AXIS green/BIFACIAL blue); Irradiance Sites table with ResourceClassBadge (EXCELLENT gold/VERY_GOOD green/GOOD blue/MODERATE gray); Panel Degradation line chart (5 panel types, years 0-20, showing HJT/TOPCon vs POLY degradation delta)
+- App.tsx: SolarResourceAnalytics imported; SunMedium added to lucide-react imports (new icon); /solar-resource route added; "Solar Resource" nav item (SunMedium icon) added after Storage Revenue Stack, before Settings
+- 5 TestSolarResourceEndpoints tests appended to tests/test_backend.py
+
+## Sprint 49b — Electricity Futures Market Risk Analytics — 2026-02-20T00:00:00+11:00 (AEDT)
+
+**Files modified:**
+- `app/backend/main.py` — appended Sprint 49b models, mock data, and endpoints
+- `app/frontend/src/api/client.ts` — appended TS interfaces + api methods
+- `app/frontend/src/App.tsx` — added import, nav item, route
+- `tests/test_backend.py` — appended TestFuturesMarketRiskEndpoints
+
+**New file:**
+- `app/frontend/src/pages/FuturesMarketRisk.tsx` — full page component
+
+**Backend models (appended to main.py):**
+- `VaRRecord` — 1-day 95%/99% VaR, CVaR, Greeks (delta, gamma, vega, theta) per region/portfolio type
+- `FMR_HedgeEffectivenessRecord` — named with FMR_ prefix to avoid collision with Sprint 18a's `HedgeEffectivenessRecord`; hedge ratio %, instrument, gain/loss, effectiveness %, basis risk
+- `BasisRiskRecord` — futures settlement vs spot, basis $/MWh, volatility, min/max basis, exposure $M
+- `FuturesPositionRecord` — long/short/net MW, avg entry price, MTM $M, margin $M
+- `FuturesMarketRiskDashboard` — aggregated KPIs + all sub-lists
+
+**Mock data volumes:**
+- 10 VaR records: 5 regions x 2 portfolio types (NSW1/QLD1/VIC1 → RETAILER+GENERATOR, SA1 → GENERATOR+TRADER, TAS1 → GENERATOR+RETAILER); VaR 95% range $0.9M–$11.2M; delta -1200 to +1850 MWh; full Greeks
+- 15 hedge effectiveness records: AGL (3×NSW1), Origin (3×QLD1), EnergyAustralia (3×VIC1), Snowy Hydro (2×NSW1+1×QLD1), ERM Power (3×SA1); Q1–Q3 2024; hedge ratios 62–92%; effectiveness 71–94%; instruments FUTURES/SWAP/CAP/FLOOR/COLLAR/PPA
+- 20 basis risk records: 5 regions × 4 quarters 2024; basis range -$17.5 to +$27.0/MWh; volatility 5.8–30.1; risk exposure $0.5M–$8.8M
+- 12 futures position records: AGL (×2), Origin (×2), EnergyAustralia, Snowy Hydro, ERM Power, Macquarie Energy (×2), CS Energy, Trafigura, Alinta Energy; mix GENERATOR/RETAILER/GENTAILER/FINANCIAL; mark-to-market -$4.1M to +$7.4M
+
+**Endpoints (all with Depends(verify_api_key), tag="Futures Market Risk"):**
+- GET /api/futures-market-risk/dashboard → FuturesMarketRiskDashboard
+- GET /api/futures-market-risk/var → list[VaRRecord]
+- GET /api/futures-market-risk/hedge-effectiveness → list[FMR_HedgeEffectivenessRecord]
+- GET /api/futures-market-risk/basis-risk → list[BasisRiskRecord]
+- GET /api/futures-market-risk/positions → list[FuturesPositionRecord]
+
+**Frontend page (FuturesMarketRisk.tsx):**
+- Header: Activity icon (TrendingDown already used by Curtailment/LRMC/Min Demand; Activity re-used as nav icon), title + subtitle
+- 4 KPI cards: Portfolio VaR 95% ($M, red), Avg Hedge Ratio % (blue), Total Open Interest (MW, green), Avg Basis Risk ($/MWh, amber)
+- VaR chart: grouped bars (VaR 95% blue, VaR 99% red) per region + CVaR 95% line on right axis (orange); aggregated by region
+- Hedge Effectiveness scatter: X=hedge ratio %, Y=effectiveness %; bubble size proportional to |gain/loss|; one scatter series per instrument; custom tooltip showing participant + quarter
+- Basis Risk heatmap: table — rows=regions, cols=Q1–Q4 2024; cells color-coded red (negative) → gray (near-zero) → green (positive) with legend
+- Futures Positions table: 10 columns including type badge, net MW (green/red sign), MTM (green/red), margin
+- Hedge Effectiveness detail table: 10 columns including instrument badge, effectiveness % color-coded by threshold (>=85% green, >=75% amber, <75% red), basis risk color-coded by severity
+
+**Instrument badges:** FUTURES blue, SWAP cyan, CAP amber, FLOOR teal, COLLAR purple, PPA green
+**Participant type badges:** GENERATOR red, RETAILER blue, GENTAILER purple, FINANCIAL gray
+
+**TypeScript interfaces appended to client.ts:** VaRRecord, FMRHedgeEffectivenessRecord, BasisRiskRecord, FuturesPositionRecord, FuturesMarketRiskDashboard
+**api methods added to api object:** getFuturesMarketRiskDashboard, getFuturesMarketRiskVar, getFuturesMarketRiskHedgeEffectiveness, getFuturesMarketRiskBasisRisk, getFuturesMarketRiskPositions
+**App.tsx:** FuturesMarketRisk imported; Activity already imported (used by Monitoring, Scenario, PASA, Demand Response, etc.); /futures-market-risk route added; "Futures Market Risk" nav item (Activity icon) added after Solar Resource, before Settings
+**Tests:** 5 TestFuturesMarketRiskEndpoints tests appended to tests/test_backend.py

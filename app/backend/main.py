@@ -33918,3 +33918,1196 @@ def get_spike_analysis_consumer_impacts():
 )
 def get_spike_analysis_regional_timeline():
     return _PSA_TIMELINES
+
+
+# ---------------------------------------------------------------------------
+# Sprint 49a — Energy Storage Revenue Stacking & Optimisation
+# ---------------------------------------------------------------------------
+
+class StorageRevenueWaterfall(BaseModel):
+    project_id: str
+    project_name: str
+    state: str
+    capacity_mwh: float
+    power_mw: float
+    energy_arbitrage_m_aud: float
+    fcas_raise_m_aud: float
+    fcas_lower_m_aud: float
+    capacity_market_m_aud: float
+    network_services_m_aud: float
+    ancillary_services_m_aud: float
+    total_revenue_m_aud: float
+    lcoe_mwh: float
+    simple_payback_years: float
+    irr_pct: float
+
+class StorageDispatchOptRecord(BaseModel):
+    hour: int                   # 0-23
+    month: str                  # e.g. "Jan"
+    optimal_action: str         # CHARGE, DISCHARGE, IDLE, FCAS_STANDBY
+    energy_price: float
+    fcas_contingency_price: float
+    fcas_regulation_price: float
+    soc_start_pct: float
+    soc_end_pct: float
+    energy_mwh: float
+    revenue_aud: float
+    service_priority: str       # ENERGY, FCAS_CONTINGENCY, FCAS_REGULATION, NETWORK
+
+class MultiServiceBidRecord(BaseModel):
+    project_id: str
+    project_name: str
+    trading_date: str
+    energy_bid_mw: float
+    fcas_contingency_raise_mw: float
+    fcas_contingency_lower_mw: float
+    fcas_regulation_raise_mw: float
+    fcas_regulation_lower_mw: float
+    energy_price_bid: float
+    total_fcas_revenue_aud: float
+    total_energy_revenue_aud: float
+    co_optimisation_benefit_pct: float  # % revenue gain from co-optimisation
+
+class StorageScenarioRecord(BaseModel):
+    scenario: str               # ENERGY_ONLY, FCAS_ONLY, FULL_STACK, NETWORK_CONTRACT
+    capacity_mwh: float
+    annual_revenue_m_aud: float
+    annual_cost_m_aud: float
+    annual_profit_m_aud: float
+    roi_pct: float
+    payback_years: float
+    project_npv_m_aud: float
+
+class StorageRevenueStackDashboard(BaseModel):
+    timestamp: str
+    revenue_waterfall: list[StorageRevenueWaterfall]
+    dispatch_optimisation: list[StorageDispatchOptRecord]
+    multi_service_bids: list[MultiServiceBidRecord]
+    scenario_comparison: list[StorageScenarioRecord]
+    avg_total_revenue_m_aud: float
+    best_revenue_project: str
+    energy_vs_fcas_split_pct: float
+    co_optimisation_benefit_pct: float
+
+
+_SRV_WATERFALL: list[StorageRevenueWaterfall] = [
+    StorageRevenueWaterfall(
+        project_id="HPR",
+        project_name="Hornsdale Power Reserve",
+        state="SA",
+        capacity_mwh=194.0,
+        power_mw=150.0,
+        energy_arbitrage_m_aud=4.8,
+        fcas_raise_m_aud=10.2,
+        fcas_lower_m_aud=3.4,
+        capacity_market_m_aud=1.8,
+        network_services_m_aud=0.9,
+        ancillary_services_m_aud=0.5,
+        total_revenue_m_aud=21.6,
+        lcoe_mwh=95.0,
+        simple_payback_years=7.2,
+        irr_pct=16.5,
+    ),
+    StorageRevenueWaterfall(
+        project_id="VBB",
+        project_name="Victorian Big Battery",
+        state="VIC",
+        capacity_mwh=300.0,
+        power_mw=300.0,
+        energy_arbitrage_m_aud=7.5,
+        fcas_raise_m_aud=11.8,
+        fcas_lower_m_aud=4.1,
+        capacity_market_m_aud=2.6,
+        network_services_m_aud=1.4,
+        ancillary_services_m_aud=0.8,
+        total_revenue_m_aud=28.2,
+        lcoe_mwh=88.0,
+        simple_payback_years=6.5,
+        irr_pct=18.0,
+    ),
+    StorageRevenueWaterfall(
+        project_id="WSB",
+        project_name="Waratah Super Battery",
+        state="NSW",
+        capacity_mwh=850.0,
+        power_mw=850.0,
+        energy_arbitrage_m_aud=8.1,
+        fcas_raise_m_aud=12.3,
+        fcas_lower_m_aud=5.2,
+        capacity_market_m_aud=3.0,
+        network_services_m_aud=2.1,
+        ancillary_services_m_aud=1.0,
+        total_revenue_m_aud=31.7,
+        lcoe_mwh=82.0,
+        simple_payback_years=5.9,
+        irr_pct=17.8,
+    ),
+    StorageRevenueWaterfall(
+        project_id="TIB",
+        project_name="Torrens Island BESS",
+        state="SA",
+        capacity_mwh=250.0,
+        power_mw=250.0,
+        energy_arbitrage_m_aud=5.2,
+        fcas_raise_m_aud=8.4,
+        fcas_lower_m_aud=3.1,
+        capacity_market_m_aud=1.5,
+        network_services_m_aud=0.7,
+        ancillary_services_m_aud=0.3,
+        total_revenue_m_aud=19.2,
+        lcoe_mwh=98.0,
+        simple_payback_years=8.1,
+        irr_pct=13.5,
+    ),
+    StorageRevenueWaterfall(
+        project_id="MBB",
+        project_name="Moorabool Battery",
+        state="VIC",
+        capacity_mwh=200.0,
+        power_mw=200.0,
+        energy_arbitrage_m_aud=4.1,
+        fcas_raise_m_aud=7.6,
+        fcas_lower_m_aud=2.8,
+        capacity_market_m_aud=1.2,
+        network_services_m_aud=0.5,
+        ancillary_services_m_aud=0.3,
+        total_revenue_m_aud=16.5,
+        lcoe_mwh=102.0,
+        simple_payback_years=8.8,
+        irr_pct=12.1,
+    ),
+    StorageRevenueWaterfall(
+        project_id="KBB",
+        project_name="Kwinana BESS",
+        state="WA",
+        capacity_mwh=100.0,
+        power_mw=100.0,
+        energy_arbitrage_m_aud=2.4,
+        fcas_raise_m_aud=4.9,
+        fcas_lower_m_aud=1.7,
+        capacity_market_m_aud=0.8,
+        network_services_m_aud=0.4,
+        ancillary_services_m_aud=0.2,
+        total_revenue_m_aud=10.4,
+        lcoe_mwh=108.0,
+        simple_payback_years=9.4,
+        irr_pct=10.3,
+    ),
+    StorageRevenueWaterfall(
+        project_id="GBB",
+        project_name="Gannawarra BESS",
+        state="VIC",
+        capacity_mwh=25.0,
+        power_mw=25.0,
+        energy_arbitrage_m_aud=2.0,
+        fcas_raise_m_aud=3.8,
+        fcas_lower_m_aud=1.2,
+        capacity_market_m_aud=0.5,
+        network_services_m_aud=0.3,
+        ancillary_services_m_aud=0.1,
+        total_revenue_m_aud=7.9,
+        lcoe_mwh=115.0,
+        simple_payback_years=10.2,
+        irr_pct=9.1,
+    ),
+    StorageRevenueWaterfall(
+        project_id="LBB",
+        project_name="Lake Bonney BESS",
+        state="SA",
+        capacity_mwh=100.0,
+        power_mw=100.0,
+        energy_arbitrage_m_aud=3.6,
+        fcas_raise_m_aud=6.5,
+        fcas_lower_m_aud=2.3,
+        capacity_market_m_aud=1.0,
+        network_services_m_aud=0.6,
+        ancillary_services_m_aud=0.2,
+        total_revenue_m_aud=14.2,
+        lcoe_mwh=100.0,
+        simple_payback_years=8.5,
+        irr_pct=11.4,
+    ),
+]
+
+
+def _build_dispatch_records() -> list[StorageDispatchOptRecord]:
+    """Generate 24 hourly dispatch optimisation records for a representative peak summer day."""
+    hours = [
+        (0,  "Jan", "CHARGE",       45.0, 12.0,  8.0, 20.0, 32.0, 22.0,   -1200.0, "ENERGY"),
+        (1,  "Jan", "CHARGE",       42.0, 11.5,  7.5, 32.0, 44.0, 22.0,   -1100.0, "ENERGY"),
+        (2,  "Jan", "CHARGE",       38.0, 10.5,  7.0, 44.0, 56.0, 22.0,    -950.0, "ENERGY"),
+        (3,  "Jan", "FCAS_STANDBY", 40.0, 18.0, 12.0, 56.0, 56.0,  0.0,    3200.0, "FCAS_CONTINGENCY"),
+        (4,  "Jan", "FCAS_STANDBY", 38.0, 17.5, 11.5, 56.0, 56.0,  0.0,    3100.0, "FCAS_CONTINGENCY"),
+        (5,  "Jan", "CHARGE",       36.0, 10.0,  6.5, 56.0, 68.0, 22.0,    -800.0, "ENERGY"),
+        (6,  "Jan", "CHARGE",       55.0, 11.0,  7.5, 68.0, 80.0, 22.0,   -1300.0, "ENERGY"),
+        (7,  "Jan", "FCAS_STANDBY", 85.0, 22.0, 14.0, 80.0, 80.0,  0.0,    5800.0, "FCAS_CONTINGENCY"),
+        (8,  "Jan", "DISCHARGE",   145.0, 20.0, 13.0, 80.0, 68.0, 22.0,   18200.0, "ENERGY"),
+        (9,  "Jan", "DISCHARGE",   185.0, 21.0, 13.5, 68.0, 56.0, 22.0,   24600.0, "ENERGY"),
+        (10, "Jan", "FCAS_STANDBY",220.0, 35.0, 22.0, 56.0, 56.0,  0.0,   11800.0, "FCAS_REGULATION"),
+        (11, "Jan", "DISCHARGE",   280.0, 30.0, 20.0, 56.0, 44.0, 22.0,   38400.0, "ENERGY"),
+        (12, "Jan", "DISCHARGE",   310.0, 32.0, 21.0, 44.0, 32.0, 22.0,   42800.0, "ENERGY"),
+        (13, "Jan", "DISCHARGE",   295.0, 31.0, 20.5, 32.0, 22.0, 22.0,   40100.0, "ENERGY"),
+        (14, "Jan", "FCAS_STANDBY",240.0, 38.0, 25.0, 22.0, 22.0,  0.0,   13900.0, "FCAS_REGULATION"),
+        (15, "Jan", "CHARGE",      180.0, 28.0, 18.0, 22.0, 34.0, 22.0,   -4200.0, "ENERGY"),
+        (16, "Jan", "CHARGE",      210.0, 25.0, 16.0, 34.0, 46.0, 22.0,   -4900.0, "ENERGY"),
+        (17, "Jan", "FCAS_STANDBY",320.0, 42.0, 28.0, 46.0, 46.0,  0.0,   20400.0, "FCAS_REGULATION"),
+        (18, "Jan", "DISCHARGE",   485.0, 40.0, 26.0, 46.0, 34.0, 22.0,   68100.0, "ENERGY"),
+        (19, "Jan", "DISCHARGE",   520.0, 38.0, 25.0, 34.0, 22.0, 22.0,   73200.0, "ENERGY"),
+        (20, "Jan", "DISCHARGE",   440.0, 36.0, 24.0, 22.0, 12.0, 22.0,   58800.0, "ENERGY"),
+        (21, "Jan", "IDLE",        180.0, 15.0, 10.0, 12.0, 12.0,  0.0,       0.0, "NETWORK"),
+        (22, "Jan", "CHARGE",       95.0, 12.0,  8.0, 12.0, 24.0, 22.0,   -2100.0, "ENERGY"),
+        (23, "Jan", "CHARGE",       55.0, 11.5,  7.5, 24.0, 36.0, 22.0,   -1250.0, "ENERGY"),
+    ]
+    records = []
+    for h, month, action, ep, fcp, frp, soc_s, soc_e, emwh, rev, prio in hours:
+        records.append(StorageDispatchOptRecord(
+            hour=h,
+            month=month,
+            optimal_action=action,
+            energy_price=ep,
+            fcas_contingency_price=fcp,
+            fcas_regulation_price=frp,
+            soc_start_pct=soc_s,
+            soc_end_pct=soc_e,
+            energy_mwh=emwh,
+            revenue_aud=rev,
+            service_priority=prio,
+        ))
+    return records
+
+
+_SRV_DISPATCH: list[StorageDispatchOptRecord] = _build_dispatch_records()
+
+
+_SRV_MULTI_BIDS: list[MultiServiceBidRecord] = [
+    MultiServiceBidRecord(
+        project_id="HPR", project_name="Hornsdale Power Reserve",
+        trading_date="2024-01-15",
+        energy_bid_mw=80.0, fcas_contingency_raise_mw=60.0, fcas_contingency_lower_mw=40.0,
+        fcas_regulation_raise_mw=30.0, fcas_regulation_lower_mw=25.0,
+        energy_price_bid=185.0, total_fcas_revenue_aud=28400.0, total_energy_revenue_aud=14800.0,
+        co_optimisation_benefit_pct=22.5,
+    ),
+    MultiServiceBidRecord(
+        project_id="VBB", project_name="Victorian Big Battery",
+        trading_date="2024-01-15",
+        energy_bid_mw=150.0, fcas_contingency_raise_mw=120.0, fcas_contingency_lower_mw=80.0,
+        fcas_regulation_raise_mw=60.0, fcas_regulation_lower_mw=50.0,
+        energy_price_bid=210.0, total_fcas_revenue_aud=51200.0, total_energy_revenue_aud=31500.0,
+        co_optimisation_benefit_pct=28.3,
+    ),
+    MultiServiceBidRecord(
+        project_id="WSB", project_name="Waratah Super Battery",
+        trading_date="2024-02-08",
+        energy_bid_mw=420.0, fcas_contingency_raise_mw=350.0, fcas_contingency_lower_mw=220.0,
+        fcas_regulation_raise_mw=180.0, fcas_regulation_lower_mw=140.0,
+        energy_price_bid=245.0, total_fcas_revenue_aud=142800.0, total_energy_revenue_aud=102900.0,
+        co_optimisation_benefit_pct=31.7,
+    ),
+    MultiServiceBidRecord(
+        project_id="TIB", project_name="Torrens Island BESS",
+        trading_date="2024-02-08",
+        energy_bid_mw=110.0, fcas_contingency_raise_mw=90.0, fcas_contingency_lower_mw=60.0,
+        fcas_regulation_raise_mw=45.0, fcas_regulation_lower_mw=35.0,
+        energy_price_bid=198.0, total_fcas_revenue_aud=32100.0, total_energy_revenue_aud=21780.0,
+        co_optimisation_benefit_pct=19.4,
+    ),
+    MultiServiceBidRecord(
+        project_id="MBB", project_name="Moorabool Battery",
+        trading_date="2024-03-12",
+        energy_bid_mw=95.0, fcas_contingency_raise_mw=75.0, fcas_contingency_lower_mw=50.0,
+        fcas_regulation_raise_mw=38.0, fcas_regulation_lower_mw=28.0,
+        energy_price_bid=172.0, total_fcas_revenue_aud=24600.0, total_energy_revenue_aud=16340.0,
+        co_optimisation_benefit_pct=17.8,
+    ),
+    MultiServiceBidRecord(
+        project_id="KBB", project_name="Kwinana BESS",
+        trading_date="2024-03-12",
+        energy_bid_mw=48.0, fcas_contingency_raise_mw=38.0, fcas_contingency_lower_mw=28.0,
+        fcas_regulation_raise_mw=20.0, fcas_regulation_lower_mw=15.0,
+        energy_price_bid=156.0, total_fcas_revenue_aud=12800.0, total_energy_revenue_aud=7488.0,
+        co_optimisation_benefit_pct=15.2,
+    ),
+    MultiServiceBidRecord(
+        project_id="HPR", project_name="Hornsdale Power Reserve",
+        trading_date="2024-06-21",
+        energy_bid_mw=100.0, fcas_contingency_raise_mw=70.0, fcas_contingency_lower_mw=45.0,
+        fcas_regulation_raise_mw=35.0, fcas_regulation_lower_mw=28.0,
+        energy_price_bid=165.0, total_fcas_revenue_aud=31200.0, total_energy_revenue_aud=16500.0,
+        co_optimisation_benefit_pct=25.1,
+    ),
+    MultiServiceBidRecord(
+        project_id="VBB", project_name="Victorian Big Battery",
+        trading_date="2024-06-21",
+        energy_bid_mw=180.0, fcas_contingency_raise_mw=140.0, fcas_contingency_lower_mw=95.0,
+        fcas_regulation_raise_mw=70.0, fcas_regulation_lower_mw=58.0,
+        energy_price_bid=195.0, total_fcas_revenue_aud=58600.0, total_energy_revenue_aud=35100.0,
+        co_optimisation_benefit_pct=29.8,
+    ),
+    MultiServiceBidRecord(
+        project_id="GBB", project_name="Gannawarra BESS",
+        trading_date="2024-08-14",
+        energy_bid_mw=18.0, fcas_contingency_raise_mw=14.0, fcas_contingency_lower_mw=10.0,
+        fcas_regulation_raise_mw=8.0, fcas_regulation_lower_mw=6.0,
+        energy_price_bid=148.0, total_fcas_revenue_aud=6200.0, total_energy_revenue_aud=2664.0,
+        co_optimisation_benefit_pct=16.4,
+    ),
+    MultiServiceBidRecord(
+        project_id="LBB", project_name="Lake Bonney BESS",
+        trading_date="2024-08-14",
+        energy_bid_mw=55.0, fcas_contingency_raise_mw=42.0, fcas_contingency_lower_mw=30.0,
+        fcas_regulation_raise_mw=22.0, fcas_regulation_lower_mw=18.0,
+        energy_price_bid=162.0, total_fcas_revenue_aud=17800.0, total_energy_revenue_aud=8910.0,
+        co_optimisation_benefit_pct=21.6,
+    ),
+]
+
+
+_SRV_SCENARIOS: list[StorageScenarioRecord] = [
+    StorageScenarioRecord(
+        scenario="ENERGY_ONLY",
+        capacity_mwh=300.0,
+        annual_revenue_m_aud=8.2,
+        annual_cost_m_aud=5.4,
+        annual_profit_m_aud=2.8,
+        roi_pct=9.3,
+        payback_years=12.5,
+        project_npv_m_aud=18.4,
+    ),
+    StorageScenarioRecord(
+        scenario="FCAS_ONLY",
+        capacity_mwh=300.0,
+        annual_revenue_m_aud=14.6,
+        annual_cost_m_aud=5.4,
+        annual_profit_m_aud=9.2,
+        roi_pct=15.8,
+        payback_years=7.8,
+        project_npv_m_aud=62.1,
+    ),
+    StorageScenarioRecord(
+        scenario="FULL_STACK",
+        capacity_mwh=300.0,
+        annual_revenue_m_aud=26.8,
+        annual_cost_m_aud=5.8,
+        annual_profit_m_aud=21.0,
+        roi_pct=24.5,
+        payback_years=4.9,
+        project_npv_m_aud=142.7,
+    ),
+    StorageScenarioRecord(
+        scenario="NETWORK_CONTRACT",
+        capacity_mwh=300.0,
+        annual_revenue_m_aud=31.4,
+        annual_cost_m_aud=6.1,
+        annual_profit_m_aud=25.3,
+        roi_pct=28.2,
+        payback_years=4.2,
+        project_npv_m_aud=175.3,
+    ),
+]
+
+
+_SRV_DASHBOARD = StorageRevenueStackDashboard(
+    timestamp="2024-10-01T00:00:00+10:00",
+    revenue_waterfall=_SRV_WATERFALL,
+    dispatch_optimisation=_SRV_DISPATCH,
+    multi_service_bids=_SRV_MULTI_BIDS,
+    scenario_comparison=_SRV_SCENARIOS,
+    avg_total_revenue_m_aud=18.7,
+    best_revenue_project="Waratah Super Battery",
+    energy_vs_fcas_split_pct=38.5,
+    co_optimisation_benefit_pct=23.2,
+)
+
+
+@app.get(
+    "/api/storage-revenue-stack/dashboard",
+    response_model=StorageRevenueStackDashboard,
+    tags=["Storage Revenue Stack"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_revenue_stack_dashboard():
+    return _SRV_DASHBOARD
+
+
+@app.get(
+    "/api/storage-revenue-stack/waterfall",
+    response_model=list[StorageRevenueWaterfall],
+    tags=["Storage Revenue Stack"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_revenue_stack_waterfall():
+    return _SRV_WATERFALL
+
+
+@app.get(
+    "/api/storage-revenue-stack/dispatch-optimisation",
+    response_model=list[StorageDispatchOptRecord],
+    tags=["Storage Revenue Stack"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_revenue_stack_dispatch_optimisation():
+    return _SRV_DISPATCH
+
+
+@app.get(
+    "/api/storage-revenue-stack/multi-service-bids",
+    response_model=list[MultiServiceBidRecord],
+    tags=["Storage Revenue Stack"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_revenue_stack_multi_service_bids():
+    return _SRV_MULTI_BIDS
+
+
+@app.get(
+    "/api/storage-revenue-stack/scenarios",
+    response_model=list[StorageScenarioRecord],
+    tags=["Storage Revenue Stack"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_revenue_stack_scenarios():
+    return _SRV_SCENARIOS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 49c — Solar Irradiance & Resource Assessment Analytics
+# ---------------------------------------------------------------------------
+
+class IrradianceSiteRecord(BaseModel):
+    site_id: str
+    site_name: str
+    state: str
+    latitude: float
+    longitude: float
+    annual_ghi_kwh_m2: float
+    annual_dni_kwh_m2: float
+    annual_dhi_kwh_m2: float
+    peak_sun_hours: float
+    cloud_cover_pct: float
+    temperature_annual_avg_c: float
+    dust_soiling_loss_pct: float
+    resource_class: str  # EXCELLENT, VERY_GOOD, GOOD, MODERATE
+
+class SolarFarmYieldRecord(BaseModel):
+    farm_id: str
+    farm_name: str
+    state: str
+    technology: str  # FIXED_TILT, SINGLE_AXIS_TRACKER, DUAL_AXIS_TRACKER, BIFACIAL
+    installed_capacity_mw: float
+    panel_brand: str
+    panel_efficiency_pct: float
+    inverter_efficiency_pct: float
+    performance_ratio_pct: float
+    annual_yield_gwh: float
+    specific_yield_kwh_kwp: float
+    capacity_factor_pct: float
+    degradation_year1_pct: float
+    degradation_annual_pct: float
+    p90_yield_gwh: float
+    pr_degradation_5yr: float
+
+class MonthlyIrradianceRecord(BaseModel):
+    site_id: str
+    site_name: str
+    month: int
+    month_name: str
+    ghi_kwh_m2_day: float
+    dni_kwh_m2_day: float
+    dhi_kwh_m2_day: float
+    sunshine_hours: float
+    avg_temp_c: float
+    irradiance_variability_pct: float
+
+class SolarDegradationRecord(BaseModel):
+    technology: str
+    panel_type: str  # MONO_PERC, POLY, BIFACIAL_MONO, HJT, TOPCon
+    year: int
+    avg_efficiency_pct: float
+    performance_ratio_pct: float
+    cumulative_degradation_pct: float
+    failure_rate_pct: float
+
+class SolarResourceDashboard(BaseModel):
+    timestamp: str
+    irradiance_sites: list[IrradianceSiteRecord]
+    farm_yields: list[SolarFarmYieldRecord]
+    monthly_irradiance: list[MonthlyIrradianceRecord]
+    degradation_records: list[SolarDegradationRecord]
+    best_solar_resource_site: str
+    avg_capacity_factor_pct: float
+    total_assessed_capacity_mw: float
+    avg_specific_yield_kwh_kwp: float
+
+
+# --- Mock data ---
+
+_SR49C_SITES: list[IrradianceSiteRecord] = [
+    IrradianceSiteRecord(
+        site_id="BH-NSW", site_name="Broken Hill", state="NSW",
+        latitude=-31.97, longitude=141.45,
+        annual_ghi_kwh_m2=2310.0, annual_dni_kwh_m2=2050.0, annual_dhi_kwh_m2=510.0,
+        peak_sun_hours=6.3, cloud_cover_pct=18.0, temperature_annual_avg_c=19.8,
+        dust_soiling_loss_pct=3.2, resource_class="EXCELLENT",
+    ),
+    IrradianceSiteRecord(
+        site_id="LR-QLD", site_name="Longreach", state="QLD",
+        latitude=-23.44, longitude=144.25,
+        annual_ghi_kwh_m2=2380.0, annual_dni_kwh_m2=2180.0, annual_dhi_kwh_m2=490.0,
+        peak_sun_hours=6.5, cloud_cover_pct=15.0, temperature_annual_avg_c=23.5,
+        dust_soiling_loss_pct=2.8, resource_class="EXCELLENT",
+    ),
+    IrradianceSiteRecord(
+        site_id="PA-SA", site_name="Port Augusta", state="SA",
+        latitude=-32.49, longitude=137.77,
+        annual_ghi_kwh_m2=2240.0, annual_dni_kwh_m2=2010.0, annual_dhi_kwh_m2=480.0,
+        peak_sun_hours=6.1, cloud_cover_pct=20.0, temperature_annual_avg_c=18.5,
+        dust_soiling_loss_pct=2.5, resource_class="EXCELLENT",
+    ),
+    IrradianceSiteRecord(
+        site_id="CA-WA", site_name="Carnarvon", state="WA",
+        latitude=-24.88, longitude=113.67,
+        annual_ghi_kwh_m2=2420.0, annual_dni_kwh_m2=2280.0, annual_dhi_kwh_m2=440.0,
+        peak_sun_hours=6.6, cloud_cover_pct=12.0, temperature_annual_avg_c=22.0,
+        dust_soiling_loss_pct=2.2, resource_class="EXCELLENT",
+    ),
+    IrradianceSiteRecord(
+        site_id="AS-NT", site_name="Alice Springs", state="NT",
+        latitude=-23.70, longitude=133.88,
+        annual_ghi_kwh_m2=2400.0, annual_dni_kwh_m2=2250.0, annual_dhi_kwh_m2=460.0,
+        peak_sun_hours=6.6, cloud_cover_pct=14.0, temperature_annual_avg_c=21.8,
+        dust_soiling_loss_pct=3.5, resource_class="EXCELLENT",
+    ),
+    IrradianceSiteRecord(
+        site_id="ML-VIC", site_name="Mildura", state="VIC",
+        latitude=-34.18, longitude=142.15,
+        annual_ghi_kwh_m2=2050.0, annual_dni_kwh_m2=1780.0, annual_dhi_kwh_m2=520.0,
+        peak_sun_hours=5.6, cloud_cover_pct=25.0, temperature_annual_avg_c=17.2,
+        dust_soiling_loss_pct=2.9, resource_class="VERY_GOOD",
+    ),
+    IrradianceSiteRecord(
+        site_id="DB-NSW", site_name="Dubbo", state="NSW",
+        latitude=-32.24, longitude=148.60,
+        annual_ghi_kwh_m2=1980.0, annual_dni_kwh_m2=1680.0, annual_dhi_kwh_m2=540.0,
+        peak_sun_hours=5.4, cloud_cover_pct=28.0, temperature_annual_avg_c=17.8,
+        dust_soiling_loss_pct=2.4, resource_class="VERY_GOOD",
+    ),
+    IrradianceSiteRecord(
+        site_id="TW-QLD", site_name="Toowoomba", state="QLD",
+        latitude=-27.56, longitude=151.95,
+        annual_ghi_kwh_m2=1860.0, annual_dni_kwh_m2=1550.0, annual_dhi_kwh_m2=560.0,
+        peak_sun_hours=5.1, cloud_cover_pct=32.0, temperature_annual_avg_c=15.5,
+        dust_soiling_loss_pct=2.1, resource_class="GOOD",
+    ),
+    IrradianceSiteRecord(
+        site_id="GE-WA", site_name="Geraldton", state="WA",
+        latitude=-28.78, longitude=114.61,
+        annual_ghi_kwh_m2=2200.0, annual_dni_kwh_m2=1980.0, annual_dhi_kwh_m2=470.0,
+        peak_sun_hours=6.0, cloud_cover_pct=17.0, temperature_annual_avg_c=19.5,
+        dust_soiling_loss_pct=2.6, resource_class="EXCELLENT",
+    ),
+    IrradianceSiteRecord(
+        site_id="RD-SA", site_name="Roxby Downs", state="SA",
+        latitude=-30.55, longitude=136.90,
+        annual_ghi_kwh_m2=2280.0, annual_dni_kwh_m2=2050.0, annual_dhi_kwh_m2=490.0,
+        peak_sun_hours=6.2, cloud_cover_pct=16.0, temperature_annual_avg_c=20.5,
+        dust_soiling_loss_pct=3.0, resource_class="EXCELLENT",
+    ),
+]
+
+_SR49C_FARMS: list[SolarFarmYieldRecord] = [
+    SolarFarmYieldRecord(
+        farm_id="BUNG-SA", farm_name="Bungala Solar Farm", state="SA",
+        technology="SINGLE_AXIS_TRACKER", installed_capacity_mw=220.0,
+        panel_brand="JinkoSolar", panel_efficiency_pct=20.5,
+        inverter_efficiency_pct=98.0, performance_ratio_pct=81.5,
+        annual_yield_gwh=404.8, specific_yield_kwh_kwp=1840.0,
+        capacity_factor_pct=21.0, degradation_year1_pct=2.5, degradation_annual_pct=0.45,
+        p90_yield_gwh=380.0, pr_degradation_5yr=79.2,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="DARL-NSW", farm_name="Darlington Point Solar Farm", state="NSW",
+        technology="FIXED_TILT", installed_capacity_mw=275.0,
+        panel_brand="Canadian Solar", panel_efficiency_pct=20.2,
+        inverter_efficiency_pct=97.8, performance_ratio_pct=80.0,
+        annual_yield_gwh=476.1, specific_yield_kwh_kwp=1731.0,
+        capacity_factor_pct=19.8, degradation_year1_pct=2.8, degradation_annual_pct=0.50,
+        p90_yield_gwh=448.0, pr_degradation_5yr=77.8,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="LIMO-NSW", farm_name="Limondale Sun Farm", state="NSW",
+        technology="SINGLE_AXIS_TRACKER", installed_capacity_mw=249.0,
+        panel_brand="Longi Solar", panel_efficiency_pct=21.0,
+        inverter_efficiency_pct=98.2, performance_ratio_pct=82.1,
+        annual_yield_gwh=451.6, specific_yield_kwh_kwp=1813.0,
+        capacity_factor_pct=20.7, degradation_year1_pct=2.3, degradation_annual_pct=0.42,
+        p90_yield_gwh=425.0, pr_degradation_5yr=80.0,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="FINL-NSW", farm_name="Finley Solar Farm", state="NSW",
+        technology="FIXED_TILT", installed_capacity_mw=133.0,
+        panel_brand="JA Solar", panel_efficiency_pct=19.8,
+        inverter_efficiency_pct=97.5, performance_ratio_pct=79.5,
+        annual_yield_gwh=225.6, specific_yield_kwh_kwp=1696.0,
+        capacity_factor_pct=19.3, degradation_year1_pct=2.9, degradation_annual_pct=0.52,
+        p90_yield_gwh=212.0, pr_degradation_5yr=77.2,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="RUGB-NSW", farm_name="Rugby Run Solar Farm", state="NSW",
+        technology="SINGLE_AXIS_TRACKER", installed_capacity_mw=110.0,
+        panel_brand="Longi Solar", panel_efficiency_pct=20.8,
+        inverter_efficiency_pct=98.0, performance_ratio_pct=81.8,
+        annual_yield_gwh=200.4, specific_yield_kwh_kwp=1822.0,
+        capacity_factor_pct=20.8, degradation_year1_pct=2.4, degradation_annual_pct=0.44,
+        p90_yield_gwh=188.0, pr_degradation_5yr=79.6,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="OUYEN-VIC", farm_name="Ouyen Solar Project", state="VIC",
+        technology="FIXED_TILT", installed_capacity_mw=180.0,
+        panel_brand="Canadian Solar", panel_efficiency_pct=20.0,
+        inverter_efficiency_pct=97.6, performance_ratio_pct=80.2,
+        annual_yield_gwh=302.4, specific_yield_kwh_kwp=1680.0,
+        capacity_factor_pct=19.2, degradation_year1_pct=2.8, degradation_annual_pct=0.50,
+        p90_yield_gwh=284.0, pr_degradation_5yr=78.0,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="SUNL-QLD", farm_name="Sunlands Solar Farm", state="SA",
+        technology="SINGLE_AXIS_TRACKER", installed_capacity_mw=100.0,
+        panel_brand="JinkoSolar", panel_efficiency_pct=20.6,
+        inverter_efficiency_pct=98.1, performance_ratio_pct=82.0,
+        annual_yield_gwh=192.0, specific_yield_kwh_kwp=1920.0,
+        capacity_factor_pct=21.9, degradation_year1_pct=2.4, degradation_annual_pct=0.43,
+        p90_yield_gwh=181.0, pr_degradation_5yr=79.8,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="DEGH-QLD", farm_name="Degrussa Copper Mine Solar", state="WA",
+        technology="FIXED_TILT", installed_capacity_mw=10.6,
+        panel_brand="SunPower", panel_efficiency_pct=22.5,
+        inverter_efficiency_pct=98.5, performance_ratio_pct=83.0,
+        annual_yield_gwh=21.9, specific_yield_kwh_kwp=2066.0,
+        capacity_factor_pct=23.6, degradation_year1_pct=2.0, degradation_annual_pct=0.38,
+        p90_yield_gwh=20.5, pr_degradation_5yr=80.8,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="MOLONG-NSW", farm_name="Molong Solar Farm", state="NSW",
+        technology="BIFACIAL", installed_capacity_mw=93.0,
+        panel_brand="Longi Solar", panel_efficiency_pct=21.5,
+        inverter_efficiency_pct=98.3, performance_ratio_pct=82.5,
+        annual_yield_gwh=173.2, specific_yield_kwh_kwp=1862.0,
+        capacity_factor_pct=21.3, degradation_year1_pct=2.2, degradation_annual_pct=0.40,
+        p90_yield_gwh=162.0, pr_degradation_5yr=80.4,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="MERR-VIC", farm_name="Merredin Solar Project", state="WA",
+        technology="DUAL_AXIS_TRACKER", installed_capacity_mw=120.0,
+        panel_brand="SunPower", panel_efficiency_pct=22.0,
+        inverter_efficiency_pct=98.2, performance_ratio_pct=83.5,
+        annual_yield_gwh=258.8, specific_yield_kwh_kwp=2157.0,
+        capacity_factor_pct=24.6, degradation_year1_pct=2.1, degradation_annual_pct=0.39,
+        p90_yield_gwh=243.0, pr_degradation_5yr=81.4,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="HORT-NSW", farm_name="Hornsdale Solar Reserve", state="SA",
+        technology="SINGLE_AXIS_TRACKER", installed_capacity_mw=315.0,
+        panel_brand="JinkoSolar", panel_efficiency_pct=20.7,
+        inverter_efficiency_pct=98.0, performance_ratio_pct=81.2,
+        annual_yield_gwh=575.4, specific_yield_kwh_kwp=1827.0,
+        capacity_factor_pct=20.9, degradation_year1_pct=2.4, degradation_annual_pct=0.44,
+        p90_yield_gwh=540.0, pr_degradation_5yr=79.0,
+    ),
+    SolarFarmYieldRecord(
+        farm_id="KANH-WA", farm_name="Kalgoorlie Solar Farm", state="WA",
+        technology="FIXED_TILT", installed_capacity_mw=85.0,
+        panel_brand="Canadian Solar", panel_efficiency_pct=20.3,
+        inverter_efficiency_pct=97.7, performance_ratio_pct=80.8,
+        annual_yield_gwh=163.3, specific_yield_kwh_kwp=1921.0,
+        capacity_factor_pct=21.9, degradation_year1_pct=2.6, degradation_annual_pct=0.47,
+        p90_yield_gwh=153.0, pr_degradation_5yr=78.6,
+    ),
+]
+
+# 10 sites x 12 months monthly irradiance
+import math as _math
+
+_MONTHS = [
+    (1, "January"), (2, "February"), (3, "March"), (4, "April"),
+    (5, "May"), (6, "June"), (7, "July"), (8, "August"),
+    (9, "September"), (10, "October"), (11, "November"), (12, "December"),
+]
+
+# Seasonal peak GHI day values per site (summer peak, winter trough)
+_SITE_GHI_PARAMS = {
+    "BH-NSW":  (9.4, 4.8),
+    "LR-QLD":  (9.8, 5.2),
+    "PA-SA":   (9.2, 4.5),
+    "CA-WA":   (9.8, 5.0),
+    "AS-NT":   (9.6, 5.4),
+    "ML-VIC":  (8.5, 3.8),
+    "DB-NSW":  (8.2, 3.6),
+    "TW-QLD":  (7.8, 3.4),
+    "GE-WA":   (9.0, 4.6),
+    "RD-SA":   (9.3, 4.7),
+}
+
+_SR49C_MONTHLY: list[MonthlyIrradianceRecord] = []
+for _site in _SR49C_SITES:
+    _pk, _tr = _SITE_GHI_PARAMS.get(_site.site_id, (8.5, 4.0))
+    for _m, _mn in _MONTHS:
+        # Southern hemisphere: summer Dec-Jan, winter Jun-Jul
+        # Phase shift: peak at month 1/12, trough at month 6/7
+        _angle = 2 * _math.pi * (_m - 1) / 12
+        _ghi = round(_tr + (_pk - _tr) * 0.5 * (1 + _math.cos(_angle)), 2)
+        _dni = round(_ghi * 0.87 + 0.3, 2)
+        _dhi = round(_ghi * 0.22, 2)
+        _sun = round(_ghi * 0.93 + 0.8, 2)
+        _temp = round(_site.temperature_annual_avg_c + 6 * _math.cos(_angle), 1)
+        _var = round(8.0 + 4.0 * _math.sin(_angle + _math.pi / 4), 1)
+        _SR49C_MONTHLY.append(MonthlyIrradianceRecord(
+            site_id=_site.site_id,
+            site_name=_site.site_name,
+            month=_m,
+            month_name=_mn,
+            ghi_kwh_m2_day=_ghi,
+            dni_kwh_m2_day=_dni,
+            dhi_kwh_m2_day=_dhi,
+            sunshine_hours=_sun,
+            avg_temp_c=_temp,
+            irradiance_variability_pct=_var,
+        ))
+
+# 5 panel types x 5 year intervals (0, 5, 10, 15, 20 years)
+_PANEL_TYPES = [
+    ("MONO_PERC",     "Mono PERC",         21.5, 0.50, 0.55),
+    ("POLY",          "Polycrystalline",   19.5, 0.70, 0.65),
+    ("BIFACIAL_MONO", "Bifacial Mono",     22.0, 0.45, 0.50),
+    ("HJT",           "HJT",               23.0, 0.25, 0.40),
+    ("TOPCon",        "TOPCon",            23.5, 0.30, 0.42),
+]
+_SR49C_DEGRADATION: list[SolarDegradationRecord] = []
+for _pt, _pn, _eff0, _deg1, _dega in _PANEL_TYPES:
+    for _yr in [0, 5, 10, 15, 20]:
+        if _yr == 0:
+            _cum_deg = 0.0
+            _eff = _eff0
+            _pr = 83.0 if _pt in ("HJT", "TOPCon") else 81.5 if _pt == "BIFACIAL_MONO" else 80.5
+            _fail = 0.0
+        else:
+            _cum_deg = round(_deg1 + _dega * (_yr - 1), 2)
+            _eff = round(_eff0 * (1 - _cum_deg / 100), 2)
+            _pr = round((83.0 if _pt in ("HJT", "TOPCon") else 81.5 if _pt == "BIFACIAL_MONO" else 80.5) * (1 - _cum_deg / 100 * 0.6), 2)
+            _fail = round(0.02 * _yr + (0.015 if _pt == "POLY" else 0.005), 2)
+        _SR49C_DEGRADATION.append(SolarDegradationRecord(
+            technology=_pn,
+            panel_type=_pt,
+            year=_yr,
+            avg_efficiency_pct=_eff,
+            performance_ratio_pct=_pr,
+            cumulative_degradation_pct=_cum_deg,
+            failure_rate_pct=_fail,
+        ))
+
+
+def _build_sr49c_dashboard() -> SolarResourceDashboard:
+    best_site = max(_SR49C_SITES, key=lambda s: s.annual_ghi_kwh_m2).site_name
+    avg_cf = round(sum(f.capacity_factor_pct for f in _SR49C_FARMS) / len(_SR49C_FARMS), 2)
+    total_mw = round(sum(f.installed_capacity_mw for f in _SR49C_FARMS), 1)
+    avg_sy = round(sum(f.specific_yield_kwh_kwp for f in _SR49C_FARMS) / len(_SR49C_FARMS), 1)
+    return SolarResourceDashboard(
+        timestamp="2025-07-01T00:00:00Z",
+        irradiance_sites=_SR49C_SITES,
+        farm_yields=_SR49C_FARMS,
+        monthly_irradiance=_SR49C_MONTHLY,
+        degradation_records=_SR49C_DEGRADATION,
+        best_solar_resource_site=best_site,
+        avg_capacity_factor_pct=avg_cf,
+        total_assessed_capacity_mw=total_mw,
+        avg_specific_yield_kwh_kwp=avg_sy,
+    )
+
+
+@app.get(
+    "/api/solar-resource/dashboard",
+    response_model=SolarResourceDashboard,
+    tags=["Solar Resource"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_resource_dashboard():
+    return _build_sr49c_dashboard()
+
+
+@app.get(
+    "/api/solar-resource/sites",
+    response_model=list[IrradianceSiteRecord],
+    tags=["Solar Resource"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_resource_sites():
+    return _SR49C_SITES
+
+
+@app.get(
+    "/api/solar-resource/farm-yields",
+    response_model=list[SolarFarmYieldRecord],
+    tags=["Solar Resource"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_resource_farm_yields():
+    return _SR49C_FARMS
+
+
+@app.get(
+    "/api/solar-resource/monthly-irradiance",
+    response_model=list[MonthlyIrradianceRecord],
+    tags=["Solar Resource"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_resource_monthly_irradiance():
+    return _SR49C_MONTHLY
+
+
+@app.get(
+    "/api/solar-resource/degradation",
+    response_model=list[SolarDegradationRecord],
+    tags=["Solar Resource"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_solar_resource_degradation():
+    return _SR49C_DEGRADATION
+
+
+# ---------------------------------------------------------------------------
+# Sprint 49b — Electricity Futures Market Risk Analytics
+# ---------------------------------------------------------------------------
+
+class VaRRecord(BaseModel):
+    date: str
+    region: str
+    portfolio_type: str         # GENERATOR, RETAILER, GENTAILER, TRADER
+    notional_position_m_aud: float
+    var_95_m_aud: float         # 1-day 95% VaR
+    var_99_m_aud: float
+    cvar_95_m_aud: float        # Conditional VaR (Expected Shortfall)
+    delta_mwh: float            # net position in MWh
+    gamma: float                # rate of change of delta
+    vega: float                 # sensitivity to volatility
+    theta_daily_aud: float      # time decay per day
+
+
+class FMR_HedgeEffectivenessRecord(BaseModel):
+    quarter: str
+    region: str
+    participant: str
+    hedge_ratio_pct: float       # % of load/generation hedged
+    hedge_instrument: str        # FUTURES, SWAP, CAP, FLOOR, COLLAR, PPA
+    avg_hedge_price: float
+    avg_spot_price: float
+    hedge_gain_loss_m_aud: float
+    effectiveness_score_pct: float  # % variance reduction
+    basis_risk_m_aud: float      # cost of spot vs hedge divergence
+
+
+class BasisRiskRecord(BaseModel):
+    region: str
+    year: int
+    quarter: str
+    futures_settlement_price: float
+    spot_price_avg: float
+    basis_aud_mwh: float        # futures - spot
+    basis_volatility: float
+    max_basis_aud_mwh: float
+    min_basis_aud_mwh: float
+    risk_exposure_m_aud: float
+
+
+class FuturesPositionRecord(BaseModel):
+    participant: str
+    participant_type: str       # GENERATOR, RETAILER, FINANCIAL
+    region: str
+    contract_quarter: str
+    long_position_mw: float
+    short_position_mw: float
+    net_position_mw: float
+    avg_entry_price: float
+    mark_to_market_m_aud: float
+    margin_posted_m_aud: float
+
+
+class FuturesMarketRiskDashboard(BaseModel):
+    timestamp: str
+    var_records: list[VaRRecord]
+    hedge_effectiveness: list[FMR_HedgeEffectivenessRecord]
+    basis_risk: list[BasisRiskRecord]
+    futures_positions: list[FuturesPositionRecord]
+    portfolio_var_95_m_aud: float
+    avg_hedge_ratio_pct: float
+    total_open_interest_mw: float
+    avg_basis_risk_aud_mwh: float
+
+
+# ---------------------------------------------------------------------------
+# Sprint 49b — Mock Data
+# ---------------------------------------------------------------------------
+
+_FMR_VAR_RECORDS: list[VaRRecord] = [
+    VaRRecord(date="2024-10-01", region="NSW1", portfolio_type="RETAILER",
+              notional_position_m_aud=180.0, var_95_m_aud=4.5, var_99_m_aud=7.2,
+              cvar_95_m_aud=6.1, delta_mwh=-1200.0, gamma=0.012, vega=0.08, theta_daily_aud=-1800.0),
+    VaRRecord(date="2024-10-01", region="NSW1", portfolio_type="GENERATOR",
+              notional_position_m_aud=250.0, var_95_m_aud=8.1, var_99_m_aud=12.4,
+              cvar_95_m_aud=10.3, delta_mwh=1850.0, gamma=0.009, vega=0.11, theta_daily_aud=-2200.0),
+    VaRRecord(date="2024-10-01", region="QLD1", portfolio_type="RETAILER",
+              notional_position_m_aud=140.0, var_95_m_aud=3.8, var_99_m_aud=5.9,
+              cvar_95_m_aud=4.9, delta_mwh=-900.0, gamma=0.010, vega=0.07, theta_daily_aud=-1500.0),
+    VaRRecord(date="2024-10-01", region="QLD1", portfolio_type="GENERATOR",
+              notional_position_m_aud=210.0, var_95_m_aud=6.3, var_99_m_aud=9.8,
+              cvar_95_m_aud=8.2, delta_mwh=1600.0, gamma=0.008, vega=0.09, theta_daily_aud=-1900.0),
+    VaRRecord(date="2024-10-01", region="VIC1", portfolio_type="RETAILER",
+              notional_position_m_aud=160.0, var_95_m_aud=5.2, var_99_m_aud=8.1,
+              cvar_95_m_aud=6.8, delta_mwh=-1100.0, gamma=0.013, vega=0.09, theta_daily_aud=-1650.0),
+    VaRRecord(date="2024-10-01", region="VIC1", portfolio_type="GENTAILER",
+              notional_position_m_aud=320.0, var_95_m_aud=11.2, var_99_m_aud=15.0,
+              cvar_95_m_aud=13.4, delta_mwh=500.0, gamma=0.007, vega=0.14, theta_daily_aud=-2800.0),
+    VaRRecord(date="2024-10-01", region="SA1", portfolio_type="GENERATOR",
+              notional_position_m_aud=95.0, var_95_m_aud=4.1, var_99_m_aud=6.5,
+              cvar_95_m_aud=5.4, delta_mwh=800.0, gamma=0.015, vega=0.12, theta_daily_aud=-1200.0),
+    VaRRecord(date="2024-10-01", region="SA1", portfolio_type="TRADER",
+              notional_position_m_aud=55.0, var_95_m_aud=2.8, var_99_m_aud=4.3,
+              cvar_95_m_aud=3.6, delta_mwh=-300.0, gamma=0.018, vega=0.06, theta_daily_aud=-800.0),
+    VaRRecord(date="2024-10-01", region="TAS1", portfolio_type="GENERATOR",
+              notional_position_m_aud=70.0, var_95_m_aud=1.8, var_99_m_aud=2.9,
+              cvar_95_m_aud=2.3, delta_mwh=620.0, gamma=0.006, vega=0.05, theta_daily_aud=-900.0),
+    VaRRecord(date="2024-10-01", region="TAS1", portfolio_type="RETAILER",
+              notional_position_m_aud=42.0, var_95_m_aud=0.9, var_99_m_aud=1.5,
+              cvar_95_m_aud=1.2, delta_mwh=-380.0, gamma=0.005, vega=0.03, theta_daily_aud=-550.0),
+]
+
+_FMR_HEDGE_EFFECTIVENESS: list[FMR_HedgeEffectivenessRecord] = [
+    FMR_HedgeEffectivenessRecord(quarter="Q1-2024", region="NSW1", participant="AGL",
+                                  hedge_ratio_pct=85.0, hedge_instrument="FUTURES",
+                                  avg_hedge_price=112.5, avg_spot_price=118.3,
+                                  hedge_gain_loss_m_aud=4.2, effectiveness_score_pct=88.0, basis_risk_m_aud=1.1),
+    FMR_HedgeEffectivenessRecord(quarter="Q2-2024", region="NSW1", participant="AGL",
+                                  hedge_ratio_pct=82.0, hedge_instrument="SWAP",
+                                  avg_hedge_price=108.0, avg_spot_price=95.2,
+                                  hedge_gain_loss_m_aud=-2.8, effectiveness_score_pct=84.0, basis_risk_m_aud=0.9),
+    FMR_HedgeEffectivenessRecord(quarter="Q3-2024", region="NSW1", participant="AGL",
+                                  hedge_ratio_pct=88.0, hedge_instrument="CAP",
+                                  avg_hedge_price=300.0, avg_spot_price=145.0,
+                                  hedge_gain_loss_m_aud=7.5, effectiveness_score_pct=91.0, basis_risk_m_aud=1.8),
+    FMR_HedgeEffectivenessRecord(quarter="Q1-2024", region="QLD1", participant="Origin",
+                                  hedge_ratio_pct=78.0, hedge_instrument="FUTURES",
+                                  avg_hedge_price=105.0, avg_spot_price=110.5,
+                                  hedge_gain_loss_m_aud=3.1, effectiveness_score_pct=82.0, basis_risk_m_aud=1.4),
+    FMR_HedgeEffectivenessRecord(quarter="Q2-2024", region="QLD1", participant="Origin",
+                                  hedge_ratio_pct=80.0, hedge_instrument="COLLAR",
+                                  avg_hedge_price=100.0, avg_spot_price=92.0,
+                                  hedge_gain_loss_m_aud=-1.5, effectiveness_score_pct=79.0, basis_risk_m_aud=0.6),
+    FMR_HedgeEffectivenessRecord(quarter="Q3-2024", region="QLD1", participant="Origin",
+                                  hedge_ratio_pct=75.0, hedge_instrument="SWAP",
+                                  avg_hedge_price=98.0, avg_spot_price=122.0,
+                                  hedge_gain_loss_m_aud=5.8, effectiveness_score_pct=85.0, basis_risk_m_aud=2.1),
+    FMR_HedgeEffectivenessRecord(quarter="Q1-2024", region="VIC1", participant="EnergyAustralia",
+                                  hedge_ratio_pct=90.0, hedge_instrument="FUTURES",
+                                  avg_hedge_price=115.0, avg_spot_price=120.8,
+                                  hedge_gain_loss_m_aud=5.3, effectiveness_score_pct=92.0, basis_risk_m_aud=0.8),
+    FMR_HedgeEffectivenessRecord(quarter="Q2-2024", region="VIC1", participant="EnergyAustralia",
+                                  hedge_ratio_pct=87.0, hedge_instrument="PPA",
+                                  avg_hedge_price=65.0, avg_spot_price=90.0,
+                                  hedge_gain_loss_m_aud=8.9, effectiveness_score_pct=93.0, basis_risk_m_aud=0.5),
+    FMR_HedgeEffectivenessRecord(quarter="Q3-2024", region="VIC1", participant="EnergyAustralia",
+                                  hedge_ratio_pct=88.0, hedge_instrument="CAP",
+                                  avg_hedge_price=300.0, avg_spot_price=185.0,
+                                  hedge_gain_loss_m_aud=11.2, effectiveness_score_pct=94.0, basis_risk_m_aud=2.3),
+    FMR_HedgeEffectivenessRecord(quarter="Q1-2024", region="NSW1", participant="Snowy Hydro",
+                                  hedge_ratio_pct=70.0, hedge_instrument="SWAP",
+                                  avg_hedge_price=118.0, avg_spot_price=115.5,
+                                  hedge_gain_loss_m_aud=-1.2, effectiveness_score_pct=75.0, basis_risk_m_aud=1.9),
+    FMR_HedgeEffectivenessRecord(quarter="Q2-2024", region="NSW1", participant="Snowy Hydro",
+                                  hedge_ratio_pct=65.0, hedge_instrument="FUTURES",
+                                  avg_hedge_price=102.0, avg_spot_price=98.5,
+                                  hedge_gain_loss_m_aud=-0.9, effectiveness_score_pct=72.0, basis_risk_m_aud=0.7),
+    FMR_HedgeEffectivenessRecord(quarter="Q1-2024", region="SA1", participant="ERM Power",
+                                  hedge_ratio_pct=92.0, hedge_instrument="FLOOR",
+                                  avg_hedge_price=80.0, avg_spot_price=108.0,
+                                  hedge_gain_loss_m_aud=6.1, effectiveness_score_pct=89.0, basis_risk_m_aud=1.3),
+    FMR_HedgeEffectivenessRecord(quarter="Q2-2024", region="SA1", participant="ERM Power",
+                                  hedge_ratio_pct=88.0, hedge_instrument="CAP",
+                                  avg_hedge_price=300.0, avg_spot_price=142.0,
+                                  hedge_gain_loss_m_aud=9.4, effectiveness_score_pct=90.0, basis_risk_m_aud=2.8),
+    FMR_HedgeEffectivenessRecord(quarter="Q3-2024", region="SA1", participant="ERM Power",
+                                  hedge_ratio_pct=85.0, hedge_instrument="COLLAR",
+                                  avg_hedge_price=110.0, avg_spot_price=98.0,
+                                  hedge_gain_loss_m_aud=-2.1, effectiveness_score_pct=83.0, basis_risk_m_aud=0.4),
+    FMR_HedgeEffectivenessRecord(quarter="Q3-2024", region="QLD1", participant="Snowy Hydro",
+                                  hedge_ratio_pct=62.0, hedge_instrument="PPA",
+                                  avg_hedge_price=60.0, avg_spot_price=88.0,
+                                  hedge_gain_loss_m_aud=4.5, effectiveness_score_pct=71.0, basis_risk_m_aud=3.2),
+]
+
+_FMR_BASIS_RISK: list[BasisRiskRecord] = [
+    BasisRiskRecord(region="NSW1", year=2024, quarter="Q1",
+                    futures_settlement_price=118.3, spot_price_avg=112.5,
+                    basis_aud_mwh=5.8, basis_volatility=12.3, max_basis_aud_mwh=28.5, min_basis_aud_mwh=-5.2, risk_exposure_m_aud=2.1),
+    BasisRiskRecord(region="NSW1", year=2024, quarter="Q2",
+                    futures_settlement_price=95.2, spot_price_avg=108.0,
+                    basis_aud_mwh=-12.8, basis_volatility=18.5, max_basis_aud_mwh=8.2, min_basis_aud_mwh=-32.1, risk_exposure_m_aud=4.8),
+    BasisRiskRecord(region="NSW1", year=2024, quarter="Q3",
+                    futures_settlement_price=145.0, spot_price_avg=128.5,
+                    basis_aud_mwh=16.5, basis_volatility=24.7, max_basis_aud_mwh=42.3, min_basis_aud_mwh=-8.1, risk_exposure_m_aud=6.2),
+    BasisRiskRecord(region="NSW1", year=2024, quarter="Q4",
+                    futures_settlement_price=105.0, spot_price_avg=99.3,
+                    basis_aud_mwh=5.7, basis_volatility=9.2, max_basis_aud_mwh=22.0, min_basis_aud_mwh=-3.8, risk_exposure_m_aud=1.9),
+    BasisRiskRecord(region="QLD1", year=2024, quarter="Q1",
+                    futures_settlement_price=110.5, spot_price_avg=105.0,
+                    basis_aud_mwh=5.5, basis_volatility=14.1, max_basis_aud_mwh=31.0, min_basis_aud_mwh=-6.5, risk_exposure_m_aud=2.4),
+    BasisRiskRecord(region="QLD1", year=2024, quarter="Q2",
+                    futures_settlement_price=92.0, spot_price_avg=98.0,
+                    basis_aud_mwh=-6.0, basis_volatility=11.8, max_basis_aud_mwh=5.5, min_basis_aud_mwh=-18.5, risk_exposure_m_aud=2.0),
+    BasisRiskRecord(region="QLD1", year=2024, quarter="Q3",
+                    futures_settlement_price=122.0, spot_price_avg=108.5,
+                    basis_aud_mwh=13.5, basis_volatility=20.3, max_basis_aud_mwh=38.2, min_basis_aud_mwh=-4.2, risk_exposure_m_aud=4.9),
+    BasisRiskRecord(region="QLD1", year=2024, quarter="Q4",
+                    futures_settlement_price=98.5, spot_price_avg=95.0,
+                    basis_aud_mwh=3.5, basis_volatility=8.6, max_basis_aud_mwh=18.0, min_basis_aud_mwh=-2.5, risk_exposure_m_aud=1.2),
+    BasisRiskRecord(region="VIC1", year=2024, quarter="Q1",
+                    futures_settlement_price=120.8, spot_price_avg=115.0,
+                    basis_aud_mwh=5.8, basis_volatility=16.0, max_basis_aud_mwh=35.5, min_basis_aud_mwh=-9.0, risk_exposure_m_aud=3.1),
+    BasisRiskRecord(region="VIC1", year=2024, quarter="Q2",
+                    futures_settlement_price=90.0, spot_price_avg=101.0,
+                    basis_aud_mwh=-11.0, basis_volatility=22.4, max_basis_aud_mwh=12.0, min_basis_aud_mwh=-35.8, risk_exposure_m_aud=5.5),
+    BasisRiskRecord(region="VIC1", year=2024, quarter="Q3",
+                    futures_settlement_price=185.0, spot_price_avg=158.0,
+                    basis_aud_mwh=27.0, basis_volatility=30.1, max_basis_aud_mwh=52.0, min_basis_aud_mwh=-12.0, risk_exposure_m_aud=8.8),
+    BasisRiskRecord(region="VIC1", year=2024, quarter="Q4",
+                    futures_settlement_price=112.0, spot_price_avg=108.5,
+                    basis_aud_mwh=3.5, basis_volatility=10.5, max_basis_aud_mwh=25.0, min_basis_aud_mwh=-7.5, risk_exposure_m_aud=2.3),
+    BasisRiskRecord(region="SA1", year=2024, quarter="Q1",
+                    futures_settlement_price=108.0, spot_price_avg=102.5,
+                    basis_aud_mwh=5.5, basis_volatility=19.8, max_basis_aud_mwh=40.0, min_basis_aud_mwh=-15.0, risk_exposure_m_aud=3.8),
+    BasisRiskRecord(region="SA1", year=2024, quarter="Q2",
+                    futures_settlement_price=142.0, spot_price_avg=118.0,
+                    basis_aud_mwh=24.0, basis_volatility=28.5, max_basis_aud_mwh=55.0, min_basis_aud_mwh=-10.0, risk_exposure_m_aud=7.2),
+    BasisRiskRecord(region="SA1", year=2024, quarter="Q3",
+                    futures_settlement_price=98.0, spot_price_avg=115.5,
+                    basis_aud_mwh=-17.5, basis_volatility=25.2, max_basis_aud_mwh=8.5, min_basis_aud_mwh=-42.0, risk_exposure_m_aud=5.9),
+    BasisRiskRecord(region="SA1", year=2024, quarter="Q4",
+                    futures_settlement_price=125.0, spot_price_avg=118.0,
+                    basis_aud_mwh=7.0, basis_volatility=13.4, max_basis_aud_mwh=28.0, min_basis_aud_mwh=-5.0, risk_exposure_m_aud=2.7),
+    BasisRiskRecord(region="TAS1", year=2024, quarter="Q1",
+                    futures_settlement_price=98.0, spot_price_avg=95.5,
+                    basis_aud_mwh=2.5, basis_volatility=7.2, max_basis_aud_mwh=15.0, min_basis_aud_mwh=-3.0, risk_exposure_m_aud=0.8),
+    BasisRiskRecord(region="TAS1", year=2024, quarter="Q2",
+                    futures_settlement_price=88.0, spot_price_avg=92.0,
+                    basis_aud_mwh=-4.0, basis_volatility=9.1, max_basis_aud_mwh=6.5, min_basis_aud_mwh=-14.0, risk_exposure_m_aud=1.1),
+    BasisRiskRecord(region="TAS1", year=2024, quarter="Q3",
+                    futures_settlement_price=105.0, spot_price_avg=98.0,
+                    basis_aud_mwh=7.0, basis_volatility=11.0, max_basis_aud_mwh=22.0, min_basis_aud_mwh=-2.0, risk_exposure_m_aud=1.4),
+    BasisRiskRecord(region="TAS1", year=2024, quarter="Q4",
+                    futures_settlement_price=95.0, spot_price_avg=93.0,
+                    basis_aud_mwh=2.0, basis_volatility=5.8, max_basis_aud_mwh=12.0, min_basis_aud_mwh=-1.5, risk_exposure_m_aud=0.5),
+]
+
+_FMR_FUTURES_POSITIONS: list[FuturesPositionRecord] = [
+    FuturesPositionRecord(participant="AGL Energy", participant_type="GENTAILER", region="NSW1",
+                          contract_quarter="Q1-2025", long_position_mw=1200.0, short_position_mw=400.0,
+                          net_position_mw=800.0, avg_entry_price=112.5, mark_to_market_m_aud=3.2, margin_posted_m_aud=8.5),
+    FuturesPositionRecord(participant="AGL Energy", participant_type="GENTAILER", region="VIC1",
+                          contract_quarter="Q1-2025", long_position_mw=800.0, short_position_mw=600.0,
+                          net_position_mw=200.0, avg_entry_price=115.0, mark_to_market_m_aud=0.8, margin_posted_m_aud=5.2),
+    FuturesPositionRecord(participant="Origin Energy", participant_type="RETAILER", region="QLD1",
+                          contract_quarter="Q1-2025", long_position_mw=0.0, short_position_mw=950.0,
+                          net_position_mw=-950.0, avg_entry_price=105.0, mark_to_market_m_aud=-4.1, margin_posted_m_aud=7.8),
+    FuturesPositionRecord(participant="Origin Energy", participant_type="RETAILER", region="NSW1",
+                          contract_quarter="Q2-2025", long_position_mw=0.0, short_position_mw=750.0,
+                          net_position_mw=-750.0, avg_entry_price=108.0, mark_to_market_m_aud=-1.9, margin_posted_m_aud=6.1),
+    FuturesPositionRecord(participant="EnergyAustralia", participant_type="GENTAILER", region="VIC1",
+                          contract_quarter="Q1-2025", long_position_mw=1500.0, short_position_mw=300.0,
+                          net_position_mw=1200.0, avg_entry_price=118.0, mark_to_market_m_aud=5.6, margin_posted_m_aud=10.2),
+    FuturesPositionRecord(participant="Snowy Hydro", participant_type="GENERATOR", region="NSW1",
+                          contract_quarter="Q1-2025", long_position_mw=2000.0, short_position_mw=500.0,
+                          net_position_mw=1500.0, avg_entry_price=110.0, mark_to_market_m_aud=6.8, margin_posted_m_aud=12.5),
+    FuturesPositionRecord(participant="ERM Power", participant_type="RETAILER", region="SA1",
+                          contract_quarter="Q1-2025", long_position_mw=0.0, short_position_mw=450.0,
+                          net_position_mw=-450.0, avg_entry_price=102.0, mark_to_market_m_aud=-2.5, margin_posted_m_aud=3.8),
+    FuturesPositionRecord(participant="Macquarie Energy", participant_type="FINANCIAL", region="NSW1",
+                          contract_quarter="Q1-2025", long_position_mw=600.0, short_position_mw=600.0,
+                          net_position_mw=0.0, avg_entry_price=114.0, mark_to_market_m_aud=0.1, margin_posted_m_aud=4.5),
+    FuturesPositionRecord(participant="Macquarie Energy", participant_type="FINANCIAL", region="QLD1",
+                          contract_quarter="Q2-2025", long_position_mw=400.0, short_position_mw=700.0,
+                          net_position_mw=-300.0, avg_entry_price=98.0, mark_to_market_m_aud=-1.2, margin_posted_m_aud=3.2),
+    FuturesPositionRecord(participant="CS Energy", participant_type="GENERATOR", region="QLD1",
+                          contract_quarter="Q1-2025", long_position_mw=1800.0, short_position_mw=200.0,
+                          net_position_mw=1600.0, avg_entry_price=107.0, mark_to_market_m_aud=7.4, margin_posted_m_aud=11.8),
+    FuturesPositionRecord(participant="Trafigura", participant_type="FINANCIAL", region="VIC1",
+                          contract_quarter="Q2-2025", long_position_mw=500.0, short_position_mw=300.0,
+                          net_position_mw=200.0, avg_entry_price=120.0, mark_to_market_m_aud=0.9, margin_posted_m_aud=2.8),
+    FuturesPositionRecord(participant="Alinta Energy", participant_type="GENTAILER", region="SA1",
+                          contract_quarter="Q1-2025", long_position_mw=700.0, short_position_mw=350.0,
+                          net_position_mw=350.0, avg_entry_price=125.0, mark_to_market_m_aud=2.1, margin_posted_m_aud=5.5),
+]
+
+_FMR_DASHBOARD = FuturesMarketRiskDashboard(
+    timestamp="2024-10-01T09:00:00+10:00",
+    var_records=_FMR_VAR_RECORDS,
+    hedge_effectiveness=_FMR_HEDGE_EFFECTIVENESS,
+    basis_risk=_FMR_BASIS_RISK,
+    futures_positions=_FMR_FUTURES_POSITIONS,
+    portfolio_var_95_m_aud=sum(r.var_95_m_aud for r in _FMR_VAR_RECORDS),
+    avg_hedge_ratio_pct=round(sum(r.hedge_ratio_pct for r in _FMR_HEDGE_EFFECTIVENESS) / len(_FMR_HEDGE_EFFECTIVENESS), 1),
+    total_open_interest_mw=sum(r.long_position_mw + r.short_position_mw for r in _FMR_FUTURES_POSITIONS),
+    avg_basis_risk_aud_mwh=round(sum(abs(r.basis_aud_mwh) for r in _FMR_BASIS_RISK) / len(_FMR_BASIS_RISK), 1),
+)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 49b — Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/futures-market-risk/dashboard",
+    response_model=FuturesMarketRiskDashboard,
+    tags=["Futures Market Risk"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_market_risk_dashboard():
+    return _FMR_DASHBOARD
+
+
+@app.get(
+    "/api/futures-market-risk/var",
+    response_model=list[VaRRecord],
+    tags=["Futures Market Risk"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_market_risk_var():
+    return _FMR_VAR_RECORDS
+
+
+@app.get(
+    "/api/futures-market-risk/hedge-effectiveness",
+    response_model=list[FMR_HedgeEffectivenessRecord],
+    tags=["Futures Market Risk"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_market_risk_hedge_effectiveness():
+    return _FMR_HEDGE_EFFECTIVENESS
+
+
+@app.get(
+    "/api/futures-market-risk/basis-risk",
+    response_model=list[BasisRiskRecord],
+    tags=["Futures Market Risk"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_market_risk_basis_risk():
+    return _FMR_BASIS_RISK
+
+
+@app.get(
+    "/api/futures-market-risk/positions",
+    response_model=list[FuturesPositionRecord],
+    tags=["Futures Market Risk"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_market_risk_positions():
+    return _FMR_FUTURES_POSITIONS

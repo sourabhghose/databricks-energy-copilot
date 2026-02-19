@@ -4327,3 +4327,90 @@ class TestSpikeAnalysisEndpoints:
         r = client.get("/api/spike-analysis/regional-timeline", headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestStorageRevenueStackEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/storage-revenue-stack/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "revenue_waterfall" in d
+        assert len(d["revenue_waterfall"]) > 0
+
+    def test_waterfall(self, client):
+        r = client.get("/api/storage-revenue-stack/waterfall", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_dispatch_optimisation(self, client):
+        r = client.get("/api/storage-revenue-stack/dispatch-optimisation", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_multi_service_bids(self, client):
+        r = client.get("/api/storage-revenue-stack/multi-service-bids", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_scenarios(self, client):
+        r = client.get("/api/storage-revenue-stack/scenarios", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestSolarResourceEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/solar-resource/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "irradiance_sites" in d
+        assert len(d["irradiance_sites"]) > 0
+
+    def test_sites(self, client):
+        r = client.get("/api/solar-resource/sites", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_farm_yields(self, client):
+        r = client.get("/api/solar-resource/farm-yields", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_monthly_irradiance(self, client):
+        r = client.get("/api/solar-resource/monthly-irradiance", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_degradation(self, client):
+        r = client.get("/api/solar-resource/degradation", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestFuturesMarketRiskEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/futures-market-risk/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "var_records" in d
+        assert len(d["var_records"]) > 0
+
+    def test_var(self, client):
+        r = client.get("/api/futures-market-risk/var", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_hedge_effectiveness(self, client):
+        r = client.get("/api/futures-market-risk/hedge-effectiveness", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_basis_risk(self, client):
+        r = client.get("/api/futures-market-risk/basis-risk", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_positions(self, client):
+        r = client.get("/api/futures-market-risk/positions", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)

@@ -55,6 +55,8 @@ import {
   Tag,
   Waves,
   CircuitBoard,
+  BarChart3,
+  SunMedium,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -172,6 +174,9 @@ import SystemOperatorActions from './pages/SystemOperatorActions'
 import OffshoreWindPipeline from './pages/OffshoreWindPipeline'
 import NetworkTariffReform from './pages/NetworkTariffReform'
 import PriceSpikeAnalysis from './pages/PriceSpikeAnalysis'
+import StorageRevenueStack from './pages/StorageRevenueStack'
+import SolarResourceAnalytics from './pages/SolarResourceAnalytics'
+import FuturesMarketRisk from './pages/FuturesMarketRisk'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -289,6 +294,9 @@ const NAV_ITEMS = [
   { to: '/system-operator',   label: 'System Operator',    Icon: AlertOctagon   },
   { to: '/network-tariff-reform', label: 'Network Tariff Reform', Icon: CircuitBoard },
   { to: '/spike-analysis',    label: 'Price Spike Analysis', Icon: Flame          },
+  { to: '/storage-revenue-stack', label: 'Storage Revenue Stack', Icon: BarChart3  },
+  { to: '/solar-resource',    label: 'Solar Resource',     Icon: SunMedium      },
+  { to: '/futures-market-risk', label: 'Futures Market Risk', Icon: Activity     },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -481,6 +489,9 @@ export default function App() {
               <Route path="/system-operator"   element={<SystemOperatorActions />} />
               <Route path="/network-tariff-reform" element={<NetworkTariffReform />} />
               <Route path="/spike-analysis"    element={<PriceSpikeAnalysis />}  />
+              <Route path="/storage-revenue-stack" element={<StorageRevenueStack />} />
+              <Route path="/solar-resource"    element={<SolarResourceAnalytics />} />
+              <Route path="/futures-market-risk" element={<FuturesMarketRisk />}  />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
