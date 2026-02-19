@@ -1,0 +1,49 @@
+# ============================================================
+# Databricks Apps configuration — AUS Energy Copilot
+# ============================================================
+# Deploy with: databricks apps deploy energy-copilot --source-code-path /app
+# ============================================================
+
+command:
+  - uvicorn
+  - main:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8000"
+
+# Environment variables are injected by Databricks Apps from the
+# secret scope configured at deploy time.
+env:
+  - name: DATABRICKS_HOST
+    valueFrom:
+      secretKeyRef:
+        scope: energy-copilot-secrets
+        key: databricks-host
+  - name: DATABRICKS_TOKEN
+    valueFrom:
+      secretKeyRef:
+        scope: energy-copilot-secrets
+        key: databricks-token
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom:
+      secretKeyRef:
+        scope: energy-copilot-secrets
+        key: warehouse-id
+  - name: DATABRICKS_CATALOG
+    value: energy_copilot
+  - name: ANTHROPIC_API_KEY
+    valueFrom:
+      secretKeyRef:
+        scope: energy-copilot-secrets
+        key: anthropic-api-key
+  - name: LAKEBASE_HOST
+    valueFrom:
+      secretKeyRef:
+        scope: energy-copilot-secrets
+        key: lakebase-host
+  - name: LAKEBASE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        scope: energy-copilot-secrets
+        key: lakebase-password

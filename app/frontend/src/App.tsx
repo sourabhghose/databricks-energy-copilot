@@ -1,0 +1,106 @@
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import {
+  LayoutDashboard,
+  Zap,
+  TrendingUp,
+  MessageSquare,
+  Sparkles,
+  Bell,
+} from 'lucide-react'
+
+import Home from './pages/Home'
+import LiveMarket from './pages/LiveMarket'
+import Forecasts from './pages/Forecasts'
+import Copilot from './pages/Copilot'
+import Genie from './pages/Genie'
+import Alerts from './pages/Alerts'
+
+const NAV_ITEMS = [
+  { to: '/',         label: 'Home',        Icon: LayoutDashboard },
+  { to: '/live',     label: 'Live Market', Icon: Zap             },
+  { to: '/forecasts',label: 'Forecasts',   Icon: TrendingUp      },
+  { to: '/copilot',  label: 'Copilot',     Icon: MessageSquare   },
+  { to: '/genie',    label: 'Genie',       Icon: Sparkles        },
+  { to: '/alerts',   label: 'Alerts',      Icon: Bell            },
+]
+
+function Sidebar() {
+  return (
+    <aside className="flex flex-col w-56 min-h-screen bg-gray-900 text-gray-100 shrink-0">
+      {/* Brand */}
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-700">
+        <Zap className="text-amber-400" size={22} />
+        <span className="text-sm font-bold leading-tight tracking-tight">
+          AUS Energy<br />Copilot
+        </span>
+      </div>
+
+      {/* Nav links */}
+      <nav className="flex flex-col gap-1 px-3 py-4 flex-1">
+        {NAV_ITEMS.map(({ to, label, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) =>
+              [
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-gray-700 text-white'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white',
+              ].join(' ')
+            }
+          >
+            <Icon size={18} />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-gray-700 text-xs text-gray-500">
+        NEM data via NEMWEB
+      </div>
+    </aside>
+  )
+}
+
+function TopBar() {
+  return (
+    <header className="h-12 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0">
+      <h1 className="text-base font-semibold text-gray-800">
+        AUS Energy Copilot
+      </h1>
+      <div className="flex items-center gap-3 text-xs text-gray-500">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+          NEM Live
+        </span>
+        <span>{new Date().toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short' })} AEST</span>
+      </div>
+    </header>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <TopBar />
+          <main className="flex-1 overflow-auto">
+            <Routes>
+              <Route path="/"          element={<Home />}       />
+              <Route path="/live"      element={<LiveMarket />} />
+              <Route path="/forecasts" element={<Forecasts />}  />
+              <Route path="/copilot"   element={<Copilot />}    />
+              <Route path="/genie"     element={<Genie />}      />
+              <Route path="/alerts"    element={<Alerts />}     />
+            </Routes>
+          </main>
+        </div>
+      </div>
+    </BrowserRouter>
+  )
+}
