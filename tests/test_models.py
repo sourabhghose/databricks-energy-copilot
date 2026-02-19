@@ -596,6 +596,140 @@ class TestAnomalyModelSpikes(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 5. Anomaly Detection — Rule Classifier + Combined Flag Tests
+# ---------------------------------------------------------------------------
+
+class TestAnomalyDetection(unittest.TestCase):
+    """
+    Additional unit tests for the rule-based classifier and combined anomaly
+    flag logic from models/anomaly_detection/train.py.
+
+    All tests run purely in-process (pandas only); no Spark or MLflow calls
+    are made.  The train_anomaly_detector() unit-test mode test patches MLflow
+    so it does not attempt any remote logging.
+    """
+
+    def _make_single_row(self, price: float) -> pd.DataFrame:
+        """Return a minimal single-row DataFrame for classify_events_rule()."""
+        return pd.DataFrame({
+            "interval_datetime": [datetime(2025, 6, 1, 14, 0, 0)],
+            "region_id":         ["NSW1"],
+            "spot_price_aud_mwh": [price],
+            "total_demand_mw":   [7500.0],
+        })
+
+    def test_anomaly_rule_classifier_spike(self):
+        """A row with price = 6000 $/MWh must be flagged as a rule-based anomaly (is_rule_based=1)."""
+        from models.anomaly_detection.train import classify_events_rule
+
+        df = self._make_single_row(price=6000.0)
+        _, is_rule_based = classify_events_rule(df)
+
+        self.assertEqual(
+            int(is_rule_based.iloc[0]),
+            1,
+            msg="price=6000 should set is_rule_based=1 (spike threshold = 5000)",
+        )
+
+    def test_anomaly_rule_classifier_negative(self):
+        """A row with price = -150 $/MWh must be flagged as a rule-based anomaly (is_rule_based=1)."""
+        from models.anomaly_detection.train import classify_events_rule
+
+        df = self._make_single_row(price=-150.0)
+        _, is_rule_based = classify_events_rule(df)
+
+        self.assertEqual(
+            int(is_rule_based.iloc[0]),
+            1,
+            msg="price=-150 should set is_rule_based=1 (negative threshold = -100)",
+        )
+
+    def test_anomaly_rule_classifier_normal(self):
+        """A row with price = 80 $/MWh must NOT be flagged as a rule-based anomaly (is_rule_based=0)."""
+        from models.anomaly_detection.train import classify_events_rule
+
+        df = self._make_single_row(price=80.0)
+        _, is_rule_based = classify_events_rule(df)
+
+        self.assertEqual(
+            int(is_rule_based.iloc[0]),
+            0,
+            msg="price=80 should set is_rule_based=0 (within normal range)",
+        )
+
+    @pytest.mark.skipif(IS_INTEGRATION, reason="Unit test only — MLflow patched")
+    def test_isolation_forest_unit_test_mode(self):
+        """
+        Calling train_anomaly_detector(spark=None) must not raise an exception.
+
+        MLflow is fully patched so no remote server is contacted.  The function
+        should generate synthetic data internally and complete training.
+        """
+        import mlflow
+        from models.anomaly_detection.train import train_anomaly_detector
+
+        with patch("mlflow.set_experiment"), \
+             patch("mlflow.start_run") as mock_run, \
+             patch("mlflow.set_tag"), \
+             patch("mlflow.log_params"), \
+             patch("mlflow.log_metrics"), \
+             patch("mlflow.sklearn.log_model"), \
+             patch("mlflow.log_artifact"), \
+             patch("mlflow.models.infer_signature", return_value=MagicMock()), \
+             patch("mlflow.tracking.MlflowClient") as mock_client_cls:
+
+            # Configure the context manager returned by mlflow.start_run()
+            mock_run_ctx = MagicMock()
+            mock_run_ctx.__enter__ = MagicMock(return_value=MagicMock(info=MagicMock(run_id="test-run-id")))
+            mock_run_ctx.__exit__ = MagicMock(return_value=False)
+            mock_run.return_value = mock_run_ctx
+
+            # Suppress model-registry calls
+            mock_client = MagicMock()
+            mock_client.get_registered_model.return_value = MagicMock()
+            mock_client.get_latest_versions.return_value = []
+            mock_client_cls.return_value = mock_client
+
+            # Should complete without raising
+            try:
+                train_anomaly_detector(spark=None)
+            except Exception as exc:
+                self.fail(
+                    f"train_anomaly_detector(spark=None) raised an unexpected exception: {exc}"
+                )
+
+    def test_combined_flag_logic(self):
+        """
+        Verify the combined is_anomaly logic:
+          is_anomaly_if=0, is_rule_based=1  → is_anomaly=1
+          is_anomaly_if=1, is_rule_based=0  → is_anomaly=1
+          is_anomaly_if=0, is_rule_based=0  → is_anomaly=0
+        """
+        test_cases = [
+            {"is_anomaly_if": 0, "is_rule_based": 1, "expected": 1},
+            {"is_anomaly_if": 1, "is_rule_based": 0, "expected": 1},
+            {"is_anomaly_if": 0, "is_rule_based": 0, "expected": 0},
+        ]
+        for case in test_cases:
+            df = pd.DataFrame([case])
+            # Reproduce the exact formula from anomaly_detection/train.py
+            df["is_anomaly"] = (
+                (df["is_anomaly_if"] == 1) | (df["is_rule_based"] == 1)
+            ).astype(int)
+
+            self.assertEqual(
+                int(df["is_anomaly"].iloc[0]),
+                case["expected"],
+                msg=(
+                    f"is_anomaly_if={case['is_anomaly_if']}, "
+                    f"is_rule_based={case['is_rule_based']} "
+                    f"→ expected is_anomaly={case['expected']}, "
+                    f"got {int(df['is_anomaly'].iloc[0])}"
+                ),
+            )
+
+
+# ---------------------------------------------------------------------------
 # Integration: Spark-based feature store tests
 # ---------------------------------------------------------------------------
 

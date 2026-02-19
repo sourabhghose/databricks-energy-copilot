@@ -1,4 +1,12 @@
-import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useImperativeHandle,
+  forwardRef,
+  KeyboardEvent,
+} from 'react'
 import { Send, Loader2, MessageSquare } from 'lucide-react'
 
 interface Message {
@@ -6,6 +14,35 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+}
+
+// ---------------------------------------------------------------------------
+// Public imperative handle — consumed by Copilot.tsx via ref
+// ---------------------------------------------------------------------------
+
+export interface ChatInterfaceHandle {
+  /** Clear all messages and reset streaming state */
+  clearChat(): void
+  /** Programmatically send a question (e.g. from example-question chips) */
+  sendQuestion(q: string): void
+  /** Focus the textarea input */
+  focusInput(): void
+}
+
+// ---------------------------------------------------------------------------
+// Props — callbacks from the parent page for telemetry/UI state
+// ---------------------------------------------------------------------------
+
+interface ChatInterfaceProps {
+  /**
+   * Called when the SSE stream sends `event: done` with token usage info.
+   * @param inputTokens   tokens consumed in the prompt
+   * @param outputTokens  tokens generated in the response
+   * @param responseMs    elapsed milliseconds for the full round-trip
+   */
+  onDoneEvent?: (inputTokens: number, outputTokens: number, responseMs: number) => void
+  /** Called when a network/API error occurs so the parent can update the status indicator */
+  onApiError?: () => void
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -95,192 +132,259 @@ function nextId() {
   return String(++msgIdCounter)
 }
 
-export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput]       = useState('')
-  const [streaming, setStreaming] = useState(false)
-  const [streamContent, setStreamContent] = useState('')
+// ---------------------------------------------------------------------------
+// SSE done-event payload shape
+// ---------------------------------------------------------------------------
 
-  const bottomRef    = useRef<HTMLDivElement>(null)
-  const textareaRef  = useRef<HTMLTextAreaElement>(null)
-  const abortRef     = useRef<AbortController | null>(null)
+interface DoneEventData {
+  input_tokens?: number
+  output_tokens?: number
+}
 
-  // Auto-scroll to bottom whenever messages or stream content changes
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamContent])
+// ---------------------------------------------------------------------------
+// ChatInterface — exported as a forwardRef component
+// ---------------------------------------------------------------------------
 
-  const sendMessage = useCallback(async (text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed || streaming) return
+const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(
+  function ChatInterface({ onDoneEvent, onApiError }, ref) {
+    const [messages, setMessages]         = useState<Message[]>([])
+    const [input, setInput]               = useState('')
+    const [streaming, setStreaming]       = useState(false)
+    const [streamContent, setStreamContent] = useState('')
 
-    const userMsg: Message = {
-      id: nextId(),
-      role: 'user',
-      content: trimmed,
-      timestamp: new Date(),
-    }
+    const bottomRef   = useRef<HTMLDivElement>(null)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const abortRef    = useRef<AbortController | null>(null)
 
-    setMessages(prev => [...prev, userMsg])
-    setInput('')
-    setStreaming(true)
-    setStreamContent('')
+    // Auto-scroll to bottom whenever messages or stream content changes
+    useEffect(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, [messages, streamContent])
 
-    // Build history for API (all prior messages)
-    const history = messages.map(m => ({ role: m.role, content: m.content }))
+    // -----------------------------------------------------------------------
+    // Imperative handle — exposes clearChat / sendQuestion / focusInput
+    // -----------------------------------------------------------------------
+    useImperativeHandle(ref, () => ({
+      clearChat() {
+        // Abort any in-flight request
+        abortRef.current?.abort()
+        setMessages([])
+        setInput('')
+        setStreaming(false)
+        setStreamContent('')
+      },
+      sendQuestion(q: string) {
+        void sendMessage(q)
+      },
+      focusInput() {
+        textareaRef.current?.focus()
+      },
+    }))
 
-    abortRef.current = new AbortController()
+    const sendMessage = useCallback(async (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed || streaming) return
 
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, history }),
-        signal: abortRef.current.signal,
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      const userMsg: Message = {
+        id: nextId(),
+        role: 'user',
+        content: trimmed,
+        timestamp: new Date(),
       }
 
-      const contentType = response.headers.get('content-type') ?? ''
+      setMessages(prev => [...prev, userMsg])
+      setInput('')
+      setStreaming(true)
+      setStreamContent('')
 
-      if (contentType.includes('text/event-stream')) {
-        // SSE streaming response
-        const reader = response.body?.getReader()
-        if (!reader) throw new Error('No response body')
+      // Build history for API (all prior messages)
+      const history = messages.map(m => ({ role: m.role, content: m.content }))
 
-        const decoder = new TextDecoder()
-        let accumulated = ''
-        let buffer = ''
+      abortRef.current = new AbortController()
+      const startMs = performance.now()
 
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: trimmed, history }),
+          signal: abortRef.current.signal,
+        })
 
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() ?? ''   // keep incomplete last line
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+        }
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim()
-              if (data === '[DONE]') break
-              try {
-                const parsed = JSON.parse(data) as { content?: string; delta?: string }
-                const chunk = parsed.content ?? parsed.delta ?? ''
-                accumulated += chunk
-                setStreamContent(accumulated)
-              } catch {
-                // Non-JSON data chunk — append raw
-                accumulated += data
-                setStreamContent(accumulated)
+        const contentType = response.headers.get('content-type') ?? ''
+
+        if (contentType.includes('text/event-stream')) {
+          // SSE streaming response
+          const reader = response.body?.getReader()
+          if (!reader) throw new Error('No response body')
+
+          const decoder = new TextDecoder()
+          let accumulated = ''
+          let buffer = ''
+          let pendingEventName = ''
+          let inputTokens = 0
+          let outputTokens = 0
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() ?? ''   // keep incomplete last line
+
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                pendingEventName = line.slice(7).trim()
+              } else if (line.startsWith('data: ')) {
+                const data = line.slice(6).trim()
+                if (data === '[DONE]') break
+
+                if (pendingEventName === 'done') {
+                  // Parse token usage from the done event
+                  try {
+                    const parsed = JSON.parse(data) as DoneEventData
+                    inputTokens  = parsed.input_tokens  ?? 0
+                    outputTokens = parsed.output_tokens ?? 0
+                  } catch {
+                    // ignore malformed done payload
+                  }
+                  pendingEventName = ''
+                } else {
+                  // Regular text/delta chunk
+                  try {
+                    const parsed = JSON.parse(data) as { content?: string; delta?: string }
+                    const chunk = parsed.content ?? parsed.delta ?? ''
+                    accumulated += chunk
+                    setStreamContent(accumulated)
+                  } catch {
+                    // Non-JSON data chunk — append raw
+                    accumulated += data
+                    setStreamContent(accumulated)
+                  }
+                  pendingEventName = ''
+                }
               }
             }
           }
-        }
 
-        // Commit streamed message
-        const assistantMsg: Message = {
+          // Commit streamed message
+          const assistantMsg: Message = {
+            id: nextId(),
+            role: 'assistant',
+            content: accumulated || '(no response)',
+            timestamp: new Date(),
+          }
+          setMessages(prev => [...prev, assistantMsg])
+
+          // Notify parent with token usage + response time
+          const elapsedMs = Math.round(performance.now() - startMs)
+          onDoneEvent?.(inputTokens, outputTokens, elapsedMs)
+        } else {
+          // Plain JSON response
+          const json = await response.json() as { response?: string; message?: string; content?: string }
+          const content = json.response ?? json.message ?? json.content ?? JSON.stringify(json)
+          setMessages(prev => [
+            ...prev,
+            { id: nextId(), role: 'assistant', content, timestamp: new Date() },
+          ])
+          const elapsedMs = Math.round(performance.now() - startMs)
+          onDoneEvent?.(0, 0, elapsedMs)
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        onApiError?.()
+        const errorMsg: Message = {
           id: nextId(),
           role: 'assistant',
-          content: accumulated || '(no response)',
+          content: `Sorry, I encountered an error: ${(err as Error).message}. Please try again.`,
           timestamp: new Date(),
         }
-        setMessages(prev => [...prev, assistantMsg])
-      } else {
-        // Plain JSON response
-        const json = await response.json() as { response?: string; message?: string; content?: string }
-        const content = json.response ?? json.message ?? json.content ?? JSON.stringify(json)
-        setMessages(prev => [
-          ...prev,
-          { id: nextId(), role: 'assistant', content, timestamp: new Date() },
-        ])
+        setMessages(prev => [...prev, errorMsg])
+      } finally {
+        setStreaming(false)
+        setStreamContent('')
+        abortRef.current = null
+        textareaRef.current?.focus()
       }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      const errorMsg: Message = {
-        id: nextId(),
-        role: 'assistant',
-        content: `Sorry, I encountered an error: ${(err as Error).message}. Please try again.`,
-        timestamp: new Date(),
+    // messages captured via closure — stable ref pattern
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [messages, streaming, onDoneEvent, onApiError])
+
+    const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        void sendMessage(input)
       }
-      setMessages(prev => [...prev, errorMsg])
-    } finally {
-      setStreaming(false)
-      setStreamContent('')
-      abortRef.current = null
-      textareaRef.current?.focus()
     }
-  }, [messages, streaming])
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault()
-      void sendMessage(input)
+    const handleSuggestedQuestion = (q: string) => {
+      void sendMessage(q)
     }
-  }
 
-  const handleSuggestedQuestion = (q: string) => {
-    void sendMessage(q)
-  }
+    // Auto-resize textarea
+    const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInput(e.target.value)
+      const el = e.target
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+    }
 
-  // Auto-resize textarea
-  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value)
-    const el = e.target
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
-  }
+    const isEmpty = messages.length === 0 && !streaming
 
-  const isEmpty = messages.length === 0 && !streaming
-
-  return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {isEmpty ? (
-          <EmptyState onSelect={handleSuggestedQuestion} />
-        ) : (
-          <>
-            {messages.map(msg => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
-            {streaming && <StreamingBubble content={streamContent} />}
-            <div ref={bottomRef} />
-          </>
-        )}
-      </div>
-
-      {/* Input area */}
-      <div className="border-t border-gray-200 px-4 py-3 bg-white shrink-0">
-        <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about NEM prices, forecasts, or market events… (Cmd+Enter to send)"
-            rows={1}
-            disabled={streaming}
-            className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none max-h-40 leading-relaxed disabled:opacity-50"
-          />
-          <button
-            onClick={() => void sendMessage(input)}
-            disabled={!input.trim() || streaming}
-            className="shrink-0 p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            aria-label="Send message"
-          >
-            {streaming
-              ? <Loader2 size={16} className="animate-spin" />
-              : <Send size={16} />
-            }
-          </button>
+    return (
+      <div className="flex flex-col h-full bg-white">
+        {/* Message list */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {isEmpty ? (
+            <EmptyState onSelect={handleSuggestedQuestion} />
+          ) : (
+            <>
+              {messages.map(msg => (
+                <MessageBubble key={msg.id} message={msg} />
+              ))}
+              {streaming && <StreamingBubble content={streamContent} />}
+              <div ref={bottomRef} />
+            </>
+          )}
         </div>
-        <p className="text-xs text-gray-400 mt-1.5 text-center">
-          Cmd+Enter to send · AI may make errors · not financial advice
-        </p>
+
+        {/* Input area */}
+        <div className="border-t border-gray-200 px-4 py-3 bg-white shrink-0">
+          <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about NEM prices, forecasts, or market events… (Cmd+Enter to send)"
+              rows={1}
+              disabled={streaming}
+              className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none max-h-40 leading-relaxed disabled:opacity-50"
+            />
+            <button
+              onClick={() => void sendMessage(input)}
+              disabled={!input.trim() || streaming}
+              className="shrink-0 p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Send message"
+            >
+              {streaming
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Send size={16} />
+              }
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5 text-center">
+            Cmd+Enter to send · AI may make errors · not financial advice
+          </p>
+        </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
+)
+
+export default ChatInterface

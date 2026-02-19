@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "energy-copilot"
+version = "0.1.0"
+description = "AI-powered AUS NEM market intelligence platform"
+requires-python = ">=3.11"
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: Requires live Databricks (set ENERGY_COPILOT_INTEGRATION_TEST=1)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pydantic",
+    "ignore::DeprecationWarning:lightgbm",
+    "ignore::DeprecationWarning:numpy",
+]
+
+# ---------------------------------------------------------------------------
+# ruff
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — handled by black
+    "F821",   # undefined name — needed for spark / dbutils in notebook context
+]
+exclude = [
+    ".databricks",
+    "app/frontend",
+]
+
+# ---------------------------------------------------------------------------
+# mypy
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_configs = true
+
+# ---------------------------------------------------------------------------
+# black
+# ---------------------------------------------------------------------------
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]

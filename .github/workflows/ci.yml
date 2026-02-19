@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    env:
+      DATABRICKS_HOST: https://dummy.azuredatabricks.net
+      DATABRICKS_TOKEN: dummy
+      ANTHROPIC_API_KEY: dummy
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short -k "not integration"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-results
+          path: |
+            .pytest_cache/
+          retention-days: 7
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: app/frontend/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('app/frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: app/frontend
+        run: npm run build
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-lint-
+            ${{ runner.os }}-pip-
+
+      - name: Install lint tools
+        run: pip install ruff>=0.4.0 mypy>=1.10.0
+
+      - name: Run ruff
+        run: ruff check . --output-format=github
+
+      - name: Run mypy
+        run: mypy app/backend/ agent/ models/ --ignore-missing-imports

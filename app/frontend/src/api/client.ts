@@ -29,6 +29,26 @@ export interface Alert {
   threshold: number
   status: string
   triggeredAt: string
+  /** Whether the alert is currently active (enabled/disabled toggle) */
+  isActive?: boolean
+  /** Notification delivery channel */
+  notificationChannel?: 'EMAIL' | 'SLACK' | 'IN_APP'
+}
+
+export interface AlertCreateRequest {
+  region_id: string
+  alert_type: 'PRICE_THRESHOLD' | 'DEMAND_SURGE' | 'FCAS_PRICE' | 'FORECAST_SPIKE'
+  threshold_value: number
+  notification_channel: 'EMAIL' | 'SLACK' | 'IN_APP'
+}
+
+export interface MarketSummaryRecord {
+  summary_date: string
+  narrative: string
+  model_id: string
+  generated_at: string
+  word_count: number
+  generation_succeeded: boolean
 }
 
 export interface GenerationDataPoint {
@@ -62,6 +82,34 @@ async function get<T>(path: string): Promise<T> {
     throw new Error(`API error ${res.status} ${res.statusText}: ${text}`)
   }
   return res.json() as Promise<T>
+}
+
+async function post<TBody, TResponse>(path: string, body: TBody): Promise<TResponse> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`API error ${res.status} ${res.statusText}: ${text}`)
+  }
+  return res.json() as Promise<TResponse>
+}
+
+async function del(path: string): Promise<void> {
+  const res = await fetch(path, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  })
+  // 204 No Content is a success
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`API error ${res.status} ${res.statusText}: ${text}`)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +165,31 @@ export const api = {
    */
   getAlerts(): Promise<Alert[]> {
     return get<Alert[]>('/api/alerts')
+  },
+
+  /**
+   * Create a new alert configuration.
+   * @param data  Alert creation payload including region, type, threshold, and channel
+   * @returns     The newly created Alert record (HTTP 201)
+   */
+  createAlert(data: AlertCreateRequest): Promise<Alert> {
+    return post<AlertCreateRequest, Alert>('/api/alerts', data)
+  },
+
+  /**
+   * Delete an alert by ID.
+   * @param id  Alert UUID
+   */
+  deleteAlert(id: string): Promise<void> {
+    return del(`/api/alerts/${id}`)
+  },
+
+  /**
+   * Get the most recent daily market summary narrative.
+   * Cached for 1 hour on the backend (summary pipeline runs once daily at 05:30 AEST).
+   */
+  getMarketSummary(): Promise<MarketSummaryRecord> {
+    return get<MarketSummaryRecord>('/api/market-summary/latest')
   },
 
   /**
