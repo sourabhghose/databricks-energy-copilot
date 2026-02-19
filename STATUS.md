@@ -248,6 +248,10 @@
 **Completed:** README.md (full rewrite ~300 lines: architecture ASCII diagram, quick start, project structure, ML model table, API table, sprint checklist), tests/test_backend.py (TestSprintEightEndpoints: 4 new tests for /api/system/health and extended /api/market-summary/latest validation)
 **Notes:** README now reflects the full production architecture. System health endpoint verified to return correct model count (21) and per-model structure.
 
+## Sprint 9b — Agent Tools Expansion + Eval Dataset — 2026-02-19
+**Completed:** agent/tools/analysis_tools.py (3 new tools: get_anomaly_events, get_model_health, get_forecast_accuracy — all with mock fallback), agent/tools/__init__.py (ALL_TOOLS updated), agent/evaluation/eval_dataset.py (10 new Q&A pairs: anomaly events, model health, forecast accuracy, multi-tool chains, out-of-scope declines)
+**Notes:** get_anomaly_events queries gold.anomaly_detection_results with region/time/type filters. get_model_health queries MLflow UC registry for all 21 models. get_forecast_accuracy reads evaluation Delta tables. All tools degrade to mock data when Databricks unavailable.
+
 ## Sprint 9c — Model Serving + Batch Scoring — 2026-02-19
 **Completed:** databricks.yml (model_serving_endpoints for price_forecast + anomaly_detection, auto-capture logging to ml schema, RBAC permissions), notebooks/batch_scoring.py (Databricks notebook ~250 lines: load 21 models from MLflow, batch inference for all regions+horizons, physical clamping, spike probability, write to gold.nem_forecasts_batch), databricks.yml job_05 updated with batch_scoring_notebook task dependency
 **Notes:** Model serving endpoints use scale_to_zero to minimize cost when idle. Auto-capture logs all serving requests/responses to Delta for drift monitoring. Batch notebook separates the heavy model-loading step from the real-time inference pipeline (05_forecast_pipeline.py handles near-real-time 5-min intervals; batch notebook handles daily full-history scoring).

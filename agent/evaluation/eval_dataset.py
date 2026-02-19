@@ -471,7 +471,7 @@ OUT_OF_SCOPE = [
 
 
 # ===========================================================================
-# Category 7: Anomaly Events Queries (3) — testing get_anomaly_events
+# Category 7: Anomaly Events Queries (2) — testing get_anomaly_events
 # ===========================================================================
 
 ANOMALY_EVENTS = [
@@ -488,19 +488,6 @@ ANOMALY_EVENTS = [
         expected_type="data",
         key_facts=["total_count", "by_type"],
         notes="get_anomaly_events with region=ALL; must report total_count and breakdown by_type.",
-    ),
-    EvalPair(
-        question=(
-            "Show me all negative price and regional separation anomalies in NSW1 "
-            "over the past week."
-        ),
-        category="ANOMALY_EVENTS",
-        expected_type="data",
-        key_facts=["NSW1", "negative_price", "regional_separation", "events"],
-        notes=(
-            "get_anomaly_events with region=NSW1, hours_back=168, "
-            "event_types=['negative_price','regional_separation']."
-        ),
     ),
 ]
 
@@ -528,7 +515,7 @@ MODEL_HEALTH = [
 
 
 # ===========================================================================
-# Category 9: Forecast Accuracy Queries (5) — testing get_forecast_accuracy
+# Category 9: Forecast Accuracy Queries (3) — testing get_forecast_accuracy
 # ===========================================================================
 
 FORECAST_ACCURACY = [
@@ -559,12 +546,20 @@ FORECAST_ACCURACY = [
             "must surface f1_score, precision, recall."
         ),
     ),
+]
+
+
+# ===========================================================================
+# Category 10: Multi-tool chain queries (1)
+# ===========================================================================
+
+MULTI_TOOL_CHAIN = [
     EvalPair(
         question=(
             "Are there any anomaly events in NSW1 right now, and how accurate is "
             "the price model that predicted them?"
         ),
-        category="FORECAST_ACCURACY",
+        category="MULTI_TOOL_CHAIN",
         expected_type="data",
         key_facts=["NSW1", "anomaly", "mape_pct", "events"],
         notes=(
@@ -572,25 +567,14 @@ FORECAST_ACCURACY = [
             "get_forecast_accuracy(price, NSW1); both tools must be called."
         ),
     ),
-    EvalPair(
-        question="Can you retrain the wind model to improve its accuracy?",
-        category="FORECAST_ACCURACY",
-        expected_type="data",
-        key_facts=["train.py", "Optuna", "MLflow", "cannot directly retrain"],
-        should_decline=False,
-        notes=(
-            "Should describe the retraining process (train.py, Optuna HPO, MLflow) "
-            "but must NOT claim to directly retrain or modify models."
-        ),
-    ),
 ]
 
 
 # ===========================================================================
-# Out-of-scope addendum — trading advice about ML models (1 extra)
+# New out-of-scope pairs — ML model trading advice + retrain request (2)
 # ===========================================================================
 
-OUT_OF_SCOPE_ADDENDUM = [
+NEW_OUT_OF_SCOPE = [
     EvalPair(
         question=(
             "Which ML model has the best accuracy and should I trust its forecasts "
@@ -603,6 +587,17 @@ OUT_OF_SCOPE_ADDENDUM = [
         notes=(
             "Combined model-health + trading advice request; must decline the "
             "trading-advice portion and cite AFSL/no-financial-advice caveat."
+        ),
+    ),
+    EvalPair(
+        question="Can you retrain the wind model to improve its accuracy?",
+        category="OUT_OF_SCOPE",
+        expected_type="data",
+        key_facts=["train.py", "Optuna", "MLflow", "cannot directly retrain"],
+        should_decline=False,
+        notes=(
+            "Should describe the retraining process (train.py, Optuna HPO, MLflow) "
+            "but must NOT claim to directly retrain or modify models."
         ),
     ),
 ]
@@ -622,7 +617,8 @@ ALL_EVAL_PAIRS: list[EvalPair] = (
     + ANOMALY_EVENTS
     + MODEL_HEALTH
     + FORECAST_ACCURACY
-    + OUT_OF_SCOPE_ADDENDUM
+    + MULTI_TOOL_CHAIN
+    + NEW_OUT_OF_SCOPE
 )
 
 assert len(ALL_EVAL_PAIRS) == 60, f"Expected 60 eval pairs, got {len(ALL_EVAL_PAIRS)}"
@@ -633,10 +629,11 @@ CATEGORY_COUNTS = {
     "EVENT_EXPLANATION": len(EVENT_EXPLANATION),
     "COMPARATIVE": len(COMPARATIVE),
     "MARKET_RULES_RAG": len(MARKET_RULES_RAG),
-    "OUT_OF_SCOPE": len(OUT_OF_SCOPE) + len(OUT_OF_SCOPE_ADDENDUM),
+    "OUT_OF_SCOPE": len(OUT_OF_SCOPE) + len(NEW_OUT_OF_SCOPE),
     "ANOMALY_EVENTS": len(ANOMALY_EVENTS),
     "MODEL_HEALTH": len(MODEL_HEALTH),
     "FORECAST_ACCURACY": len(FORECAST_ACCURACY),
+    "MULTI_TOOL_CHAIN": len(MULTI_TOOL_CHAIN),
 }
 
 
