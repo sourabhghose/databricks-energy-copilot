@@ -1818,3 +1818,108 @@ class TestCurtailmentEndpoints:
         assert r.status_code == 200
         for e in r.json():
             assert e["region"] == "SA1"
+
+
+# ===========================================================================
+# TestBiddingEndpoints
+# ===========================================================================
+
+class TestBiddingEndpoints:
+    """Tests for Sprint 22a Generator Bidding endpoints."""
+
+    def test_bid_stack_returns_200(self, client=client):
+        r = client.get("/api/bids/stack")
+        assert r.status_code == 200
+        data = r.json()
+        assert "offer_records" in data
+        assert "rebid_log" in data
+        assert data["total_offered_mw"] > 0
+
+    def test_offer_records_fuel_types(self, client=client):
+        r = client.get("/api/bids/stack")
+        assert r.status_code == 200
+        fuel_types = {rec["fuel_type"] for rec in r.json()["offer_records"]}
+        assert "Coal" in fuel_types
+        assert "Battery" in fuel_types
+
+    def test_fuel_type_filter(self, client=client):
+        r = client.get("/api/bids/stack?fuel_type=Battery")
+        assert r.status_code == 200
+        for rec in r.json()["offer_records"]:
+            assert rec["fuel_type"] == "Battery"
+
+
+# ===========================================================================
+# TestMarketEventsEndpoints
+# ===========================================================================
+
+class TestMarketEventsEndpoints:
+    def test_market_events_dashboard_returns_200(self, client=client):
+        r = client.get("/api/market-events/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "recent_events" in d
+        assert "interventions" in d
+        assert "price_cap_events" in d
+        assert d["total_events"] > 0
+
+    def test_market_events_list_all(self, client=client):
+        r = client.get("/api/market-events/events")
+        assert r.status_code == 200
+        events = r.json()
+        assert isinstance(events, list)
+        assert len(events) > 0
+        assert "event_type" in events[0]
+        assert "severity" in events[0]
+
+    def test_market_events_region_filter(self, client=client):
+        r = client.get("/api/market-events/events?region=SA1")
+        assert r.status_code == 200
+        for e in r.json():
+            assert e["region"] == "SA1"
+
+    def test_market_interventions_list(self, client=client):
+        r = client.get("/api/market-events/interventions")
+        assert r.status_code == 200
+        items = r.json()
+        assert isinstance(items, list)
+        assert len(items) > 0
+        assert "intervention_type" in items[0]
+        assert "directed_mw" in items[0]
+
+
+# ===========================================================================
+# TestFcasMarketEndpoints
+# ===========================================================================
+
+class TestFcasMarketEndpoints:
+    def test_fcas_market_dashboard_returns_200(self, client=client):
+        r = client.get("/api/fcas/market")
+        assert r.status_code == 200
+        d = r.json()
+        assert "services" in d
+        assert "providers" in d
+        assert "trap_records" in d
+        assert len(d["services"]) == 8
+
+    def test_fcas_services_eight_services(self, client=client):
+        r = client.get("/api/fcas/services")
+        assert r.status_code == 200
+        services = r.json()
+        assert len(services) == 8
+        codes = {s["service"] for s in services}
+        assert codes == {"R6S", "R60S", "R5M", "R5RE", "L6S", "L60S", "L5M", "L5RE"}
+
+    def test_fcas_providers_list(self, client=client):
+        r = client.get("/api/fcas/providers")
+        assert r.status_code == 200
+        providers = r.json()
+        assert isinstance(providers, list)
+        assert len(providers) > 0
+        assert "services_enabled" in providers[0]
+
+    def test_fcas_providers_region_filter(self, client=client):
+        r = client.get("/api/fcas/providers?region=NSW1")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["region"] == "NSW1"

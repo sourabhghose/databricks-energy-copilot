@@ -10644,3 +10644,1078 @@ def get_fcas_dispatch() -> List[FcasDispatchRecord]:
     fcas = _make_fcas_dispatch()
     _cache_set(cache_key, fcas, _TTL_FCAS_DISPATCH)
     return fcas
+
+
+# ---------------------------------------------------------------------------
+# Sprint 22a — Generator Bidding & Offer Stack Analytics models
+# ---------------------------------------------------------------------------
+
+class OfferBand(BaseModel):
+    price_band: str          # e.g. "-$1000", "$0", "$50", "$200", "$500", "$1000", "$5000", "MPC"
+    price_aud_mwh: float
+    mw_offered: float        # MW offered at this price band
+    cumulative_mw: float     # cumulative MW up to and including this band
+
+class GeneratorOfferRecord(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str           # "Coal", "Gas OCGT", "Gas CCGT", "Hydro", "Wind", "Solar", "Battery"
+    region: str
+    registered_capacity_mw: float
+    max_capacity_mw: float   # MAXCAP (availability declared)
+    offer_bands: list[OfferBand]
+    daily_energy_price_avg: float    # $/MWh weighted average offer price
+    rebit_count_today: int   # number of rebids in the current dispatch day
+
+class RebidRecord(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str
+    region: str
+    rebid_time: str          # HH:MM format
+    reason_code: str         # "ECON", "PLANT", "PROTO", "PRICE", "OTHER"
+    reason_text: str
+    mw_change: float         # net change in offered MW
+    price_band_changed: str  # which price band was changed
+    old_price: float
+    new_price: float
+
+class BidStackSummary(BaseModel):
+    timestamp: str
+    total_offered_mw: float
+    average_offer_price: float
+    offers_below_50: float    # % of offered MW priced below $50/MWh
+    offers_above_300: float   # % above $300/MWh
+    total_rebids_today: int
+    fuel_type_breakdown: list[dict]  # [{"fuel_type": str, "offered_mw": float, "avg_price": float}]
+    offer_records: list[GeneratorOfferRecord]
+    rebid_log: list[RebidRecord]
+
+
+_TTL_BID_STACK = 30         # 30s — bids update every 5 minutes
+_TTL_REBID_LOG = 30
+
+
+def _make_offer_records() -> List[GeneratorOfferRecord]:
+    """Return mock generator offer records for a typical NEM dispatch interval."""
+    import random
+    rng = random.Random(55)
+
+    def make_bands(base_price: float, capacity_mw: float) -> List[OfferBand]:
+        """Generate 8 price bands for a generator."""
+        bands_raw = [
+            ("-$1000", -1000.0, capacity_mw * 0.0),
+            ("$0", 0.0, capacity_mw * 0.05),
+            ("$50", 50.0, capacity_mw * 0.30),
+            ("$200", 200.0, capacity_mw * 0.25),
+            ("$500", 500.0, capacity_mw * 0.20),
+            ("$1000", 1000.0, capacity_mw * 0.10),
+            ("$5000", 5000.0, capacity_mw * 0.05),
+            ("MPC", 15100.0, capacity_mw * 0.05),
+        ]
+        # Shift prices based on generator type
+        bands = []
+        cumulative = 0.0
+        for label, price, mw in bands_raw:
+            mw = round(mw, 0)
+            cumulative += mw
+            bands.append(OfferBand(price_band=label, price_aud_mwh=price, mw_offered=mw, cumulative_mw=round(cumulative, 0)))
+        return bands
+
+    generators = [
+        {"duid": "BAYSW1", "station_name": "Bayswater Power Station U1", "fuel_type": "Coal", "region": "NSW1", "registered_capacity_mw": 660.0, "max_capacity_mw": 640.0, "daily_energy_price_avg": 48.50, "rebit_count_today": 2},
+        {"duid": "BAYSW2", "station_name": "Bayswater Power Station U2", "fuel_type": "Coal", "region": "NSW1", "registered_capacity_mw": 660.0, "max_capacity_mw": 655.0, "daily_energy_price_avg": 49.20, "rebit_count_today": 1},
+        {"duid": "LOYB1", "station_name": "Loy Yang B U1", "fuel_type": "Coal", "region": "VIC1", "registered_capacity_mw": 529.0, "max_capacity_mw": 520.0, "daily_energy_price_avg": 52.10, "rebit_count_today": 0},
+        {"duid": "CALL_B_1", "station_name": "Callide B Power Station", "fuel_type": "Coal", "region": "QLD1", "registered_capacity_mw": 350.0, "max_capacity_mw": 340.0, "daily_energy_price_avg": 55.40, "rebit_count_today": 3},
+        {"duid": "OAKEY1", "station_name": "Oakey Power Station U1", "fuel_type": "Gas OCGT", "region": "QLD1", "registered_capacity_mw": 282.0, "max_capacity_mw": 275.0, "daily_energy_price_avg": 180.0, "rebit_count_today": 8},
+        {"duid": "PPCCGT", "station_name": "Pelican Point CCGT", "fuel_type": "Gas CCGT", "region": "SA1", "registered_capacity_mw": 485.0, "max_capacity_mw": 460.0, "daily_energy_price_avg": 95.0, "rebit_count_today": 2},
+        {"duid": "TUMUT3G1", "station_name": "Tumut 3 Hydro G1", "fuel_type": "Hydro", "region": "NSW1", "registered_capacity_mw": 250.0, "max_capacity_mw": 248.0, "daily_energy_price_avg": 35.0, "rebit_count_today": 12},
+        {"duid": "MACP1", "station_name": "MacIntyre Wind Farm", "fuel_type": "Wind", "region": "QLD1", "registered_capacity_mw": 923.0, "max_capacity_mw": 680.0, "daily_energy_price_avg": 0.0, "rebit_count_today": 0},
+        {"duid": "WGTA01", "station_name": "Waterloo Wind Farm", "fuel_type": "Wind", "region": "SA1", "registered_capacity_mw": 111.0, "max_capacity_mw": 88.0, "daily_energy_price_avg": 0.0, "rebit_count_today": 1},
+        {"duid": "LGASF1", "station_name": "Lake Bonney Solar Farm", "fuel_type": "Solar", "region": "SA1", "registered_capacity_mw": 120.0, "max_capacity_mw": 95.0, "daily_energy_price_avg": -5.0, "rebit_count_today": 0},
+        {"duid": "HPR", "station_name": "Hornsdale Power Reserve (Battery)", "fuel_type": "Battery", "region": "SA1", "registered_capacity_mw": 150.0, "max_capacity_mw": 148.0, "daily_energy_price_avg": 280.0, "rebit_count_today": 24},
+    ]
+
+    result = []
+    for g in generators:
+        bands = make_bands(g["daily_energy_price_avg"], g["max_capacity_mw"])
+        result.append(GeneratorOfferRecord(
+            duid=g["duid"],
+            station_name=g["station_name"],
+            fuel_type=g["fuel_type"],
+            region=g["region"],
+            registered_capacity_mw=g["registered_capacity_mw"],
+            max_capacity_mw=g["max_capacity_mw"],
+            offer_bands=bands,
+            daily_energy_price_avg=g["daily_energy_price_avg"],
+            rebit_count_today=g["rebit_count_today"],
+        ))
+    return result
+
+
+def _make_rebid_log() -> List[RebidRecord]:
+    """Return mock rebid records for today's dispatch day."""
+    rebids = [
+        {"duid": "HPR", "station_name": "Hornsdale Power Reserve", "fuel_type": "Battery", "region": "SA1",
+         "rebid_time": "13:45", "reason_code": "ECON", "reason_text": "Chasing high spot price — shifting capacity to $1000 band",
+         "mw_change": +50.0, "price_band_changed": "$1000", "old_price": 500.0, "new_price": 1000.0},
+        {"duid": "OAKEY1", "station_name": "Oakey Power Station", "fuel_type": "Gas OCGT", "region": "QLD1",
+         "rebid_time": "13:30", "reason_code": "PRICE", "reason_text": "Gas price increase — raising band 3 price",
+         "mw_change": 0.0, "price_band_changed": "$200", "old_price": 180.0, "new_price": 220.0},
+        {"duid": "TUMUT3G1", "station_name": "Tumut 3 Hydro", "fuel_type": "Hydro", "region": "NSW1",
+         "rebid_time": "13:15", "reason_code": "ECON", "reason_text": "Low hydro storage — reducing availability",
+         "mw_change": -30.0, "price_band_changed": "$50", "old_price": 50.0, "new_price": 50.0},
+        {"duid": "CALL_B_1", "station_name": "Callide B Power Station", "fuel_type": "Coal", "region": "QLD1",
+         "rebid_time": "12:55", "reason_code": "PLANT", "reason_text": "Boiler pressure issue — temporary derating",
+         "mw_change": -40.0, "price_band_changed": "$50", "old_price": 50.0, "new_price": 50.0},
+        {"duid": "HPR", "station_name": "Hornsdale Power Reserve", "fuel_type": "Battery", "region": "SA1",
+         "rebid_time": "12:30", "reason_code": "ECON", "reason_text": "State of charge optimisation — reducing discharge",
+         "mw_change": -20.0, "price_band_changed": "$500", "old_price": 500.0, "new_price": 800.0},
+    ]
+    return [RebidRecord(**r) for r in rebids]
+
+
+@app.get("/api/bids/stack", response_model=BidStackSummary,
+         summary="Generator Bid Stack & Offer Analysis", tags=["Bidding"],
+         dependencies=[Depends(verify_api_key)])
+def get_bid_stack(
+    region: Optional[str] = Query(None, description="Filter by NEM region"),
+    fuel_type: Optional[str] = Query(None, description="Filter by fuel type"),
+) -> BidStackSummary:
+    """Generator offer stack with price band breakdown and rebid log. Cached 30s."""
+    cache_key = f"bid_stack:{region or 'all'}:{fuel_type or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    records = _make_offer_records()
+    if region:
+        records = [r for r in records if r.region.upper() == region.upper()]
+    if fuel_type:
+        records = [r for r in records if r.fuel_type.lower() == fuel_type.lower()]
+    total_offered = sum(r.max_capacity_mw for r in records)
+    avg_price = sum(r.daily_energy_price_avg * r.max_capacity_mw for r in records) / max(total_offered, 1)
+    low_pct = sum(r.max_capacity_mw for r in records if r.daily_energy_price_avg <= 50) / max(total_offered, 1) * 100
+    high_pct = sum(r.max_capacity_mw for r in records if r.daily_energy_price_avg >= 300) / max(total_offered, 1) * 100
+    rebids = _make_rebid_log()
+    # Fuel type breakdown
+    fuel_breakdown: dict = {}
+    for r in records:
+        if r.fuel_type not in fuel_breakdown:
+            fuel_breakdown[r.fuel_type] = {"fuel_type": r.fuel_type, "offered_mw": 0.0, "avg_price": 0.0, "count": 0}
+        fuel_breakdown[r.fuel_type]["offered_mw"] += r.max_capacity_mw
+        fuel_breakdown[r.fuel_type]["avg_price"] += r.daily_energy_price_avg
+        fuel_breakdown[r.fuel_type]["count"] += 1
+    breakdown_list = []
+    for ft, data in fuel_breakdown.items():
+        breakdown_list.append({"fuel_type": ft, "offered_mw": round(data["offered_mw"], 0), "avg_price": round(data["avg_price"] / data["count"], 2)})
+    result = BidStackSummary(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_offered_mw=round(total_offered, 0),
+        average_offer_price=round(avg_price, 2),
+        offers_below_50=round(low_pct, 1),
+        offers_above_300=round(high_pct, 1),
+        total_rebids_today=sum(r.rebit_count_today for r in records),
+        fuel_type_breakdown=breakdown_list,
+        offer_records=records,
+        rebid_log=rebids,
+    )
+    _cache_set(cache_key, result, _TTL_BID_STACK)
+    return result
+
+
+# ===========================================================================
+# Sprint 22b — NEM Market Events & Intervention Timeline Analytics
+# ===========================================================================
+
+# TTL constants
+_TTL_MARKET_EVENTS_DASHBOARD = 60
+_TTL_MARKET_EVENTS = 30
+
+
+class MarketEvent(BaseModel):
+    event_id: str
+    event_type: str    # "PRICE_CAP", "PRICE_FLOOR", "MARKET_SUSPENSION", "DIRECTION", "LACK_OF_RESERVE", "RECLASSIFIED_EVENT"
+    region: str
+    start_time: str
+    end_time: Optional[str]
+    duration_minutes: Optional[int]
+    severity: str      # "LOW", "MEDIUM", "HIGH", "CRITICAL"
+    description: str
+    affected_capacity_mw: Optional[float]
+    administered_price: Optional[float]  # $/MWh if price cap/floor applied
+    resolved: bool
+
+
+class MarketIntervention(BaseModel):
+    intervention_id: str
+    intervention_type: str   # "DIRECTION", "RESERVE_TRADER", "NEMDE_INTERVENTION"
+    region: str
+    duid: Optional[str]
+    station_name: Optional[str]
+    issued_time: str
+    duration_hours: float
+    directed_mw: float
+    reason: str
+    market_notice_id: str
+    cost_est_aud: Optional[float]
+
+
+class PriceCapEvent(BaseModel):
+    event_id: str
+    region: str
+    date: str
+    cap_type: str     # "MPC" (Market Price Cap $15,100/MWh) or "APC" (Administered Price Cap $300/MWh)
+    trigger_interval: str
+    intervals_above_cap: int
+    cumulative_energy_mwh: float
+    max_spot_price: float
+    total_apc_duration_hours: Optional[float]
+
+
+class MarketEventsDashboard(BaseModel):
+    period: str
+    total_events: int
+    critical_events: int
+    interventions_this_week: int
+    apc_hours_this_month: float
+    lor_events_today: int
+    directions_active: int
+    recent_events: List[MarketEvent]
+    interventions: List[MarketIntervention]
+    price_cap_events: List[PriceCapEvent]
+
+
+def _make_market_events() -> List[MarketEvent]:
+    now = datetime.now(timezone.utc)
+    return [
+        MarketEvent(
+            event_id="ME-001",
+            event_type="PRICE_CAP",
+            region="SA1",
+            start_time=(now - timedelta(hours=3, minutes=15)).isoformat(),
+            end_time=(now - timedelta(hours=2, minutes=45)).isoformat(),
+            duration_minutes=30,
+            severity="HIGH",
+            description="Market Price Cap triggered in SA1 — spot prices exceeded $15,100/MWh for sustained period during peak demand.",
+            affected_capacity_mw=1850.0,
+            administered_price=15100.0,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-002",
+            event_type="PRICE_CAP",
+            region="QLD1",
+            start_time=(now - timedelta(hours=5, minutes=30)).isoformat(),
+            end_time=(now - timedelta(hours=4, minutes=0)).isoformat(),
+            duration_minutes=90,
+            severity="CRITICAL",
+            description="MPC event in QLD1 — extreme heat wave drove record demand. APC applied for 90-minute interval block.",
+            affected_capacity_mw=3200.0,
+            administered_price=15100.0,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-003",
+            event_type="MARKET_SUSPENSION",
+            region="VIC1",
+            start_time=(now - timedelta(days=2, hours=14)).isoformat(),
+            end_time=(now - timedelta(days=2, hours=10)).isoformat(),
+            duration_minutes=240,
+            severity="CRITICAL",
+            description="Market suspension declared in VIC1 following cascading generator trips and inability to dispatch market schedule. AEMO administered prices for 4-hour period.",
+            affected_capacity_mw=5400.0,
+            administered_price=300.0,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-004",
+            event_type="LACK_OF_RESERVE",
+            region="SA1",
+            start_time=(now - timedelta(hours=1, minutes=20)).isoformat(),
+            end_time=None,
+            duration_minutes=None,
+            severity="HIGH",
+            description="LOR2 condition declared for SA1 — forecast reserve below 420 MW threshold. AEMO monitoring closely.",
+            affected_capacity_mw=420.0,
+            administered_price=None,
+            resolved=False,
+        ),
+        MarketEvent(
+            event_id="ME-005",
+            event_type="LACK_OF_RESERVE",
+            region="NSW1",
+            start_time=(now - timedelta(minutes=45)).isoformat(),
+            end_time=None,
+            duration_minutes=None,
+            severity="MEDIUM",
+            description="LOR1 condition in NSW1 — reserve margin approaching minimum requirement. Voltage constraints on 330 kV network.",
+            affected_capacity_mw=680.0,
+            administered_price=None,
+            resolved=False,
+        ),
+        MarketEvent(
+            event_id="ME-006",
+            event_type="DIRECTION",
+            region="VIC1",
+            start_time=(now - timedelta(hours=2)).isoformat(),
+            end_time=None,
+            duration_minutes=None,
+            severity="HIGH",
+            description="AEMO directed Loy Yang B unit 3 to remain online and generate minimum 120 MW to maintain system strength in VIC1.",
+            affected_capacity_mw=120.0,
+            administered_price=None,
+            resolved=False,
+        ),
+        MarketEvent(
+            event_id="ME-007",
+            event_type="PRICE_FLOOR",
+            region="TAS1",
+            start_time=(now - timedelta(hours=8)).isoformat(),
+            end_time=(now - timedelta(hours=7, minutes=30)).isoformat(),
+            duration_minutes=30,
+            severity="LOW",
+            description="Market Floor Price ($-1,000/MWh) triggered in TAS1 during high wind and hydro generation period. Surplus renewable supply.",
+            affected_capacity_mw=940.0,
+            administered_price=-1000.0,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-008",
+            event_type="RECLASSIFIED_EVENT",
+            region="NSW1",
+            start_time=(now - timedelta(days=1, hours=6)).isoformat(),
+            end_time=(now - timedelta(days=1, hours=5, minutes=50)).isoformat(),
+            duration_minutes=10,
+            severity="MEDIUM",
+            description="Credible contingency reclassified to non-credible following Liddell transformer trip. FCAS procurement increased from 800 MW to 1,200 MW.",
+            affected_capacity_mw=720.0,
+            administered_price=None,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-009",
+            event_type="LACK_OF_RESERVE",
+            region="QLD1",
+            start_time=(now - timedelta(hours=4)).isoformat(),
+            end_time=(now - timedelta(hours=2, minutes=30)).isoformat(),
+            duration_minutes=90,
+            severity="HIGH",
+            description="LOR2 declared in QLD1 — Callide C unit 4 forced outage reduced reserve margin. Reserve Trader activated.",
+            affected_capacity_mw=460.0,
+            administered_price=None,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-010",
+            event_type="PRICE_CAP",
+            region="NSW1",
+            start_time=(now - timedelta(hours=6, minutes=10)).isoformat(),
+            end_time=(now - timedelta(hours=5, minutes=40)).isoformat(),
+            duration_minutes=30,
+            severity="HIGH",
+            description="APC trigger in NSW1 — cumulative price threshold exceeded. Administered price cap $300/MWh applied for 6 dispatch intervals.",
+            affected_capacity_mw=2100.0,
+            administered_price=300.0,
+            resolved=True,
+        ),
+        MarketEvent(
+            event_id="ME-011",
+            event_type="DIRECTION",
+            region="SA1",
+            start_time=(now - timedelta(hours=1, minutes=10)).isoformat(),
+            end_time=None,
+            duration_minutes=None,
+            severity="MEDIUM",
+            description="Torrens Island Power Station directed to generate 80 MW for system strength and inertia support in SA1 during low-inertia operating conditions.",
+            affected_capacity_mw=80.0,
+            administered_price=None,
+            resolved=False,
+        ),
+        MarketEvent(
+            event_id="ME-012",
+            event_type="RECLASSIFIED_EVENT",
+            region="VIC1",
+            start_time=(now - timedelta(days=3, hours=11)).isoformat(),
+            end_time=(now - timedelta(days=3, hours=10, minutes=45)).isoformat(),
+            duration_minutes=15,
+            severity="LOW",
+            description="Basslink trip reclassified — event reclassified from non-credible to credible contingency following network investigation. FCAS requirements updated.",
+            affected_capacity_mw=500.0,
+            administered_price=None,
+            resolved=True,
+        ),
+    ]
+
+
+def _make_market_interventions() -> List[MarketIntervention]:
+    now = datetime.now(timezone.utc)
+    return [
+        MarketIntervention(
+            intervention_id="INT-2024-001",
+            intervention_type="DIRECTION",
+            region="VIC1",
+            duid="LOYYB3",
+            station_name="Loy Yang B",
+            issued_time=(now - timedelta(hours=2)).isoformat(),
+            duration_hours=4.0,
+            directed_mw=120.0,
+            reason="System strength requirement in VIC1 — minimum synchronous generation needed following Basslink trip. Maintain voltage stability on 500 kV corridor.",
+            market_notice_id="MN-98234",
+            cost_est_aud=142500.0,
+        ),
+        MarketIntervention(
+            intervention_id="INT-2024-002",
+            intervention_type="DIRECTION",
+            region="SA1",
+            duid="TORRA1",
+            station_name="Torrens Island PS A",
+            issued_time=(now - timedelta(hours=1, minutes=10)).isoformat(),
+            duration_hours=3.0,
+            directed_mw=80.0,
+            reason="SA1 inertia deficiency — low synchronous inertia following wind farm surge. Required to maintain ROCOF within 3 Hz/s limit.",
+            market_notice_id="MN-98241",
+            cost_est_aud=87200.0,
+        ),
+        MarketIntervention(
+            intervention_id="INT-2024-003",
+            intervention_type="RESERVE_TRADER",
+            region="QLD1",
+            duid="AGLSOM1",
+            station_name="Somerton Power Station",
+            issued_time=(now - timedelta(hours=4)).isoformat(),
+            duration_hours=2.5,
+            directed_mw=160.0,
+            reason="Reserve Trader activation in QLD1 — LOR2 declared following Callide C4 trip. Contracted reserve dispatched to restore 460 MW reserve margin.",
+            market_notice_id="MN-98218",
+            cost_est_aud=215000.0,
+        ),
+        MarketIntervention(
+            intervention_id="INT-2024-004",
+            intervention_type="NEMDE_INTERVENTION",
+            region="NSW1",
+            duid=None,
+            station_name="Multiple Units",
+            issued_time=(now - timedelta(hours=6, minutes=15)).isoformat(),
+            duration_hours=0.5,
+            directed_mw=350.0,
+            reason="NEMDE intervention pricing run — FCAS cost recovery adjustment applied for 3 dispatch intervals. Market intervention pricing used due to APC trigger in NSW1.",
+            market_notice_id="MN-98207",
+            cost_est_aud=None,
+        ),
+        MarketIntervention(
+            intervention_id="INT-2024-005",
+            intervention_type="DIRECTION",
+            region="SA1",
+            duid="BALBG1",
+            station_name="Balbinie Wind Farm Battery",
+            issued_time=(now - timedelta(hours=3, minutes=30)).isoformat(),
+            duration_hours=1.5,
+            directed_mw=50.0,
+            reason="BESS direction for fast frequency response — SA1 system event required immediate FFR dispatch. Battery directed to provide 50 MW within 1-second response.",
+            market_notice_id="MN-98225",
+            cost_est_aud=34600.0,
+        ),
+    ]
+
+
+def _make_price_cap_events() -> List[PriceCapEvent]:
+    now = datetime.now(timezone.utc)
+    return [
+        PriceCapEvent(
+            event_id="PC-001",
+            region="QLD1",
+            date=(now - timedelta(days=1)).strftime("%Y-%m-%d"),
+            cap_type="MPC",
+            trigger_interval=(now - timedelta(days=1, hours=5, minutes=30)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=6,
+            cumulative_energy_mwh=1842.5,
+            max_spot_price=15100.0,
+            total_apc_duration_hours=1.5,
+        ),
+        PriceCapEvent(
+            event_id="PC-002",
+            region="SA1",
+            date=now.strftime("%Y-%m-%d"),
+            cap_type="MPC",
+            trigger_interval=(now - timedelta(hours=3, minutes=15)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=3,
+            cumulative_energy_mwh=620.0,
+            max_spot_price=15100.0,
+            total_apc_duration_hours=0.5,
+        ),
+        PriceCapEvent(
+            event_id="PC-003",
+            region="NSW1",
+            date=now.strftime("%Y-%m-%d"),
+            cap_type="APC",
+            trigger_interval=(now - timedelta(hours=6, minutes=10)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=6,
+            cumulative_energy_mwh=2154.0,
+            max_spot_price=14850.0,
+            total_apc_duration_hours=0.5,
+        ),
+        PriceCapEvent(
+            event_id="PC-004",
+            region="VIC1",
+            date=(now - timedelta(days=3)).strftime("%Y-%m-%d"),
+            cap_type="APC",
+            trigger_interval=(now - timedelta(days=3, hours=16)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=18,
+            cumulative_energy_mwh=5830.0,
+            max_spot_price=15100.0,
+            total_apc_duration_hours=4.0,
+        ),
+        PriceCapEvent(
+            event_id="PC-005",
+            region="SA1",
+            date=(now - timedelta(days=5)).strftime("%Y-%m-%d"),
+            cap_type="MPC",
+            trigger_interval=(now - timedelta(days=5, hours=14, minutes=30)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=9,
+            cumulative_energy_mwh=1120.0,
+            max_spot_price=15100.0,
+            total_apc_duration_hours=1.0,
+        ),
+        PriceCapEvent(
+            event_id="PC-006",
+            region="QLD1",
+            date=(now - timedelta(days=8)).strftime("%Y-%m-%d"),
+            cap_type="APC",
+            trigger_interval=(now - timedelta(days=8, hours=17, minutes=0)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=12,
+            cumulative_energy_mwh=3460.0,
+            max_spot_price=12200.0,
+            total_apc_duration_hours=2.0,
+        ),
+        PriceCapEvent(
+            event_id="PC-007",
+            region="NSW1",
+            date=(now - timedelta(days=14)).strftime("%Y-%m-%d"),
+            cap_type="APC",
+            trigger_interval=(now - timedelta(days=14, hours=15, minutes=30)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=6,
+            cumulative_energy_mwh=1945.0,
+            max_spot_price=9800.0,
+            total_apc_duration_hours=0.5,
+        ),
+        PriceCapEvent(
+            event_id="PC-008",
+            region="VIC1",
+            date=(now - timedelta(days=21)).strftime("%Y-%m-%d"),
+            cap_type="MPC",
+            trigger_interval=(now - timedelta(days=21, hours=13, minutes=0)).strftime("%Y-%m-%dT%H:%M"),
+            intervals_above_cap=3,
+            cumulative_energy_mwh=780.0,
+            max_spot_price=15100.0,
+            total_apc_duration_hours=None,
+        ),
+    ]
+
+
+def _make_market_events_dashboard() -> MarketEventsDashboard:
+    events = _make_market_events()
+    interventions = _make_market_interventions()
+    price_cap_events = _make_price_cap_events()
+
+    critical_events = sum(1 for e in events if e.severity == "CRITICAL")
+    lor_events_today = sum(1 for e in events if e.event_type == "LACK_OF_RESERVE" and not e.resolved)
+    directions_active = sum(1 for e in events if e.event_type == "DIRECTION" and not e.resolved)
+    apc_hours = sum(
+        pc.total_apc_duration_hours for pc in price_cap_events if pc.total_apc_duration_hours is not None
+    )
+
+    return MarketEventsDashboard(
+        period="last_30_days",
+        total_events=len(events),
+        critical_events=critical_events,
+        interventions_this_week=len(interventions),
+        apc_hours_this_month=round(apc_hours, 1),
+        lor_events_today=lor_events_today,
+        directions_active=directions_active,
+        recent_events=events,
+        interventions=interventions,
+        price_cap_events=price_cap_events,
+    )
+
+
+@app.get("/api/market-events/dashboard", response_model=MarketEventsDashboard, dependencies=[Depends(verify_api_key)])
+async def get_market_events_dashboard():
+    cache_key = "market_events_dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_market_events_dashboard()
+    _cache_set(cache_key, result, _TTL_MARKET_EVENTS_DASHBOARD)
+    return result
+
+
+@app.get("/api/market-events/events", response_model=List[MarketEvent], dependencies=[Depends(verify_api_key)])
+async def get_market_events(
+    region: Optional[str] = Query(None),
+    event_type: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+):
+    cache_key = f"market_events_{region}_{event_type}_{severity}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    events = _make_market_events()
+    if region:
+        events = [e for e in events if e.region == region]
+    if event_type:
+        events = [e for e in events if e.event_type == event_type]
+    if severity:
+        events = [e for e in events if e.severity == severity]
+    _cache_set(cache_key, events, _TTL_MARKET_EVENTS)
+    return events
+
+
+@app.get("/api/market-events/interventions", response_model=List[MarketIntervention], dependencies=[Depends(verify_api_key)])
+async def get_market_interventions(
+    region: Optional[str] = Query(None),
+):
+    cache_key = f"market_interventions_{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    interventions = _make_market_interventions()
+    if region:
+        interventions = [i for i in interventions if i.region == region]
+    _cache_set(cache_key, interventions, _TTL_MARKET_EVENTS)
+    return interventions
+
+
+# ===========================================================================
+# Sprint 22c — FCAS Market & Ancillary Services Deep-Dive Analytics
+# ===========================================================================
+
+_TTL_FCAS_MARKET = 30
+
+# ---------------------------------------------------------------------------
+# Pydantic models
+# ---------------------------------------------------------------------------
+
+class FcasServicePrice(BaseModel):
+    service: str
+    service_name: str
+    direction: str
+    type: str
+    clearing_price_aud_mw: float
+    volume_mw: float
+    requirement_mw: float
+    utilisation_pct: float
+    max_clearing_today: float
+    min_clearing_today: float
+    main_provider: str
+
+
+class FcasProvider(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str
+    region: str
+    services_enabled: List[str]
+    raise_mw: float
+    lower_mw: float
+    regulation_mw: float
+    contingency_mw: float
+    revenue_today_aud: float
+    cost_per_mw: float
+
+
+class FcasTrapRecord(BaseModel):
+    duid: str
+    station_name: str
+    region: str
+    service: str
+    trap_type: str
+    constraint_id: str
+    mw_limited: float
+    revenue_foregone_est: float
+    period: str
+
+
+class FcasMarketDashboard(BaseModel):
+    timestamp: str
+    total_fcas_cost_today_aud: float
+    regulation_cost_aud: float
+    contingency_cost_aud: float
+    total_enabled_mw: float
+    shortfall_risk: str
+    services: List[FcasServicePrice]
+    providers: List[FcasProvider]
+    trap_records: List[FcasTrapRecord]
+    regional_requirement: List[dict]
+
+
+# ---------------------------------------------------------------------------
+# Mock data helpers
+# ---------------------------------------------------------------------------
+
+def _make_fcas_service_prices() -> List[FcasServicePrice]:
+    return [
+        FcasServicePrice(
+            service="R6S",
+            service_name="Raise 6 Second",
+            direction="RAISE",
+            type="CONTINGENCY",
+            clearing_price_aud_mw=0.85,
+            volume_mw=620.0,
+            requirement_mw=650.0,
+            utilisation_pct=95.4,
+            max_clearing_today=1.92,
+            min_clearing_today=0.10,
+            main_provider="Tumut 3 Hydro",
+        ),
+        FcasServicePrice(
+            service="R60S",
+            service_name="Raise 60 Second",
+            direction="RAISE",
+            type="CONTINGENCY",
+            clearing_price_aud_mw=2.40,
+            volume_mw=580.0,
+            requirement_mw=600.0,
+            utilisation_pct=96.7,
+            max_clearing_today=4.85,
+            min_clearing_today=0.52,
+            main_provider="Snowy Hydro (Murray 1)",
+        ),
+        FcasServicePrice(
+            service="R5M",
+            service_name="Raise 5 Minute",
+            direction="RAISE",
+            type="CONTINGENCY",
+            clearing_price_aud_mw=5.10,
+            volume_mw=530.0,
+            requirement_mw=550.0,
+            utilisation_pct=96.4,
+            max_clearing_today=9.75,
+            min_clearing_today=1.05,
+            main_provider="Wivenhoe Pumped Storage",
+        ),
+        FcasServicePrice(
+            service="R5RE",
+            service_name="Raise Regulation",
+            direction="RAISE",
+            type="REGULATION",
+            clearing_price_aud_mw=14.20,
+            volume_mw=200.0,
+            requirement_mw=200.0,
+            utilisation_pct=100.0,
+            max_clearing_today=24.50,
+            min_clearing_today=5.30,
+            main_provider="Hornsdale Battery",
+        ),
+        FcasServicePrice(
+            service="L6S",
+            service_name="Lower 6 Second",
+            direction="LOWER",
+            type="CONTINGENCY",
+            clearing_price_aud_mw=0.42,
+            volume_mw=590.0,
+            requirement_mw=620.0,
+            utilisation_pct=95.2,
+            max_clearing_today=1.15,
+            min_clearing_today=0.05,
+            main_provider="Tumut 3 Hydro",
+        ),
+        FcasServicePrice(
+            service="L60S",
+            service_name="Lower 60 Second",
+            direction="LOWER",
+            type="CONTINGENCY",
+            clearing_price_aud_mw=1.75,
+            volume_mw=545.0,
+            requirement_mw=570.0,
+            utilisation_pct=95.6,
+            max_clearing_today=3.60,
+            min_clearing_today=0.48,
+            main_provider="Lake Bonney Battery",
+        ),
+        FcasServicePrice(
+            service="L5M",
+            service_name="Lower 5 Minute",
+            direction="LOWER",
+            type="CONTINGENCY",
+            clearing_price_aud_mw=3.85,
+            volume_mw=480.0,
+            requirement_mw=510.0,
+            utilisation_pct=94.1,
+            max_clearing_today=8.20,
+            min_clearing_today=0.95,
+            main_provider="Wivenhoe Pumped Storage",
+        ),
+        FcasServicePrice(
+            service="L5RE",
+            service_name="Lower Regulation",
+            direction="LOWER",
+            type="REGULATION",
+            clearing_price_aud_mw=11.90,
+            volume_mw=195.0,
+            requirement_mw=200.0,
+            utilisation_pct=97.5,
+            max_clearing_today=22.80,
+            min_clearing_today=4.70,
+            main_provider="Hornsdale Battery",
+        ),
+    ]
+
+
+def _make_fcas_providers() -> List[FcasProvider]:
+    return [
+        FcasProvider(
+            duid="TUMUT3",
+            station_name="Tumut 3 Hydro",
+            fuel_type="Hydro",
+            region="NSW1",
+            services_enabled=["R6S", "R60S", "L6S", "L60S"],
+            raise_mw=180.0,
+            lower_mw=160.0,
+            regulation_mw=0.0,
+            contingency_mw=340.0,
+            revenue_today_aud=12450.0,
+            cost_per_mw=18.30,
+        ),
+        FcasProvider(
+            duid="HPRL1",
+            station_name="Hornsdale Battery",
+            fuel_type="Battery",
+            region="SA1",
+            services_enabled=["R5RE", "L5RE", "R6S", "L6S"],
+            raise_mw=75.0,
+            lower_mw=75.0,
+            regulation_mw=150.0,
+            contingency_mw=75.0,
+            revenue_today_aud=28700.0,
+            cost_per_mw=95.67,
+        ),
+        FcasProvider(
+            duid="LKBONNY3",
+            station_name="Lake Bonney Battery",
+            fuel_type="Battery",
+            region="SA1",
+            services_enabled=["L60S", "L5M", "R60S"],
+            raise_mw=55.0,
+            lower_mw=80.0,
+            regulation_mw=0.0,
+            contingency_mw=135.0,
+            revenue_today_aud=9320.0,
+            cost_per_mw=46.15,
+        ),
+        FcasProvider(
+            duid="MURRAY1",
+            station_name="Snowy Hydro (Murray 1)",
+            fuel_type="Hydro",
+            region="NSW1",
+            services_enabled=["R60S", "R5M", "R6S"],
+            raise_mw=220.0,
+            lower_mw=0.0,
+            regulation_mw=0.0,
+            contingency_mw=220.0,
+            revenue_today_aud=15630.0,
+            cost_per_mw=23.80,
+        ),
+        FcasProvider(
+            duid="WIVENH1",
+            station_name="Wivenhoe Pumped Storage",
+            fuel_type="Pumped Hydro",
+            region="QLD1",
+            services_enabled=["R5M", "L5M", "R60S", "L60S"],
+            raise_mw=140.0,
+            lower_mw=130.0,
+            regulation_mw=0.0,
+            contingency_mw=270.0,
+            revenue_today_aud=18950.0,
+            cost_per_mw=35.10,
+        ),
+        FcasProvider(
+            duid="TORRISA1",
+            station_name="Torrens Island CCGT",
+            fuel_type="Gas CCGT",
+            region="SA1",
+            services_enabled=["R5RE", "L5RE"],
+            raise_mw=40.0,
+            lower_mw=40.0,
+            regulation_mw=80.0,
+            contingency_mw=0.0,
+            revenue_today_aud=7840.0,
+            cost_per_mw=49.00,
+        ),
+        FcasProvider(
+            duid="LKGLASF1",
+            station_name="Lake Glenmaggie Hydro",
+            fuel_type="Hydro",
+            region="VIC1",
+            services_enabled=["R6S", "L6S"],
+            raise_mw=85.0,
+            lower_mw=70.0,
+            regulation_mw=0.0,
+            contingency_mw=155.0,
+            revenue_today_aud=4210.0,
+            cost_per_mw=13.55,
+        ),
+        FcasProvider(
+            duid="GUTHRIE1",
+            station_name="Guthrie Gas OCGT",
+            fuel_type="Gas OCGT",
+            region="QLD1",
+            services_enabled=["R5M", "R60S"],
+            raise_mw=60.0,
+            lower_mw=0.0,
+            regulation_mw=0.0,
+            contingency_mw=60.0,
+            revenue_today_aud=3560.0,
+            cost_per_mw=29.67,
+        ),
+    ]
+
+
+def _make_fcas_trap_records() -> List[FcasTrapRecord]:
+    return [
+        FcasTrapRecord(
+            duid="HPRL1",
+            station_name="Hornsdale Battery",
+            region="SA1",
+            service="R5RE",
+            trap_type="CAUSER_PAYS",
+            constraint_id="S>>NIL_CP_SA1_RAISE_REG",
+            mw_limited=12.5,
+            revenue_foregone_est=3187.50,
+            period="14:30",
+        ),
+        FcasTrapRecord(
+            duid="TORRISA1",
+            station_name="Torrens Island CCGT",
+            region="SA1",
+            service="L5RE",
+            trap_type="CAUSER_PAYS",
+            constraint_id="S>>NIL_CP_SA1_LOWER_REG",
+            mw_limited=8.0,
+            revenue_foregone_est=1904.00,
+            period="14:35",
+        ),
+        FcasTrapRecord(
+            duid="WIVENH1",
+            station_name="Wivenhoe Pumped Storage",
+            region="QLD1",
+            service="R5M",
+            trap_type="ENABLEMENT_LIMIT",
+            constraint_id="Q>>NIL_FCAS_QLD_R5M_ENAB",
+            mw_limited=25.0,
+            revenue_foregone_est=6375.00,
+            period="14:20",
+        ),
+        FcasTrapRecord(
+            duid="MURRAY1",
+            station_name="Snowy Hydro (Murray 1)",
+            region="NSW1",
+            service="R60S",
+            trap_type="ENABLEMENT_LIMIT",
+            constraint_id="N>>NIL_FCAS_NSW_R60S_ENAB",
+            mw_limited=18.0,
+            revenue_foregone_est=2322.00,
+            period="14:25",
+        ),
+    ]
+
+
+def _make_fcas_market_dashboard() -> FcasMarketDashboard:
+    services = _make_fcas_service_prices()
+    providers = _make_fcas_providers()
+    trap_records = _make_fcas_trap_records()
+
+    regulation_services = [s for s in services if s.type == "REGULATION"]
+    contingency_services = [s for s in services if s.type == "CONTINGENCY"]
+
+    regulation_cost = round(sum(s.clearing_price_aud_mw * s.volume_mw * 48 / 1000 for s in regulation_services), 2)
+    contingency_cost = round(sum(s.clearing_price_aud_mw * s.volume_mw * 48 / 1000 for s in contingency_services), 2)
+    total_enabled_mw = round(sum(p.raise_mw + p.lower_mw for p in providers), 0)
+
+    regional_requirement = [
+        {"region": "NSW1", "raise_req_mw": 650.0, "lower_req_mw": 620.0},
+        {"region": "QLD1", "raise_req_mw": 550.0, "lower_req_mw": 510.0},
+        {"region": "VIC1", "raise_req_mw": 420.0, "lower_req_mw": 400.0},
+        {"region": "SA1",  "raise_req_mw": 220.0, "lower_req_mw": 210.0},
+        {"region": "TAS1", "raise_req_mw": 120.0, "lower_req_mw": 115.0},
+    ]
+
+    return FcasMarketDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_fcas_cost_today_aud=round(regulation_cost + contingency_cost, 2),
+        regulation_cost_aud=regulation_cost,
+        contingency_cost_aud=contingency_cost,
+        total_enabled_mw=total_enabled_mw,
+        shortfall_risk="LOW",
+        services=services,
+        providers=providers,
+        trap_records=trap_records,
+        regional_requirement=regional_requirement,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/fcas/market",
+    response_model=FcasMarketDashboard,
+    summary="FCAS market dashboard",
+    tags=["FCAS Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_fcas_market_dashboard():
+    """Return aggregate FCAS market dashboard including all 8 service prices,
+    provider list, trap records, and regional requirements.  Cached 30 s."""
+    cache_key = "fcas:market"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_fcas_market_dashboard()
+    _cache_set(cache_key, result, _TTL_FCAS_MARKET)
+    return result
+
+
+@app.get(
+    "/api/fcas/services",
+    response_model=List[FcasServicePrice],
+    summary="All 8 FCAS service clearing prices",
+    tags=["FCAS Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_fcas_services():
+    """Return current clearing price and volume for all 8 FCAS services.
+    Cached 30 s."""
+    cache_key = "fcas:services"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_fcas_service_prices()
+    _cache_set(cache_key, result, _TTL_FCAS_MARKET)
+    return result
+
+
+@app.get(
+    "/api/fcas/providers",
+    response_model=List[FcasProvider],
+    summary="FCAS provider list",
+    tags=["FCAS Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_fcas_providers(
+    region: Optional[str] = Query(None, description="NEM region filter (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    fuel_type: Optional[str] = Query(None, description="Fuel type filter e.g. 'Battery', 'Hydro'"),
+):
+    """Return list of FCAS providers with raise/lower/regulation/contingency MW
+    and today's revenue.  Filterable by region and fuel type.  Cached 30 s."""
+    cache_key = f"fcas:providers:{region}:{fuel_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    providers = _make_fcas_providers()
+    if region:
+        providers = [p for p in providers if p.region == region]
+    if fuel_type:
+        providers = [p for p in providers if p.fuel_type.lower() == fuel_type.lower()]
+    _cache_set(cache_key, providers, _TTL_FCAS_MARKET)
+    return providers

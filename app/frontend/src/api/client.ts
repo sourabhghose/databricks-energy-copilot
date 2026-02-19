@@ -1334,6 +1334,163 @@ export interface PowerSystemSecurityDashboard {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 22a — Generator Bidding & Offer Stack interfaces
+// ---------------------------------------------------------------------------
+
+export interface OfferBand {
+  price_band: string
+  price_aud_mwh: number
+  mw_offered: number
+  cumulative_mw: number
+}
+
+export interface GeneratorOfferRecord {
+  duid: string
+  station_name: string
+  fuel_type: string
+  region: string
+  registered_capacity_mw: number
+  max_capacity_mw: number
+  offer_bands: OfferBand[]
+  daily_energy_price_avg: number
+  rebit_count_today: number
+}
+
+export interface RebidRecord {
+  duid: string
+  station_name: string
+  fuel_type: string
+  region: string
+  rebid_time: string
+  reason_code: string
+  reason_text: string
+  mw_change: number
+  price_band_changed: string
+  old_price: number
+  new_price: number
+}
+
+export interface BidStackSummary {
+  timestamp: string
+  total_offered_mw: number
+  average_offer_price: number
+  offers_below_50: number
+  offers_above_300: number
+  total_rebids_today: number
+  fuel_type_breakdown: Array<{ fuel_type: string; offered_mw: number; avg_price: number }>
+  offer_records: GeneratorOfferRecord[]
+  rebid_log: RebidRecord[]
+}
+
+// Sprint 22b interfaces
+export interface MarketEvent {
+  event_id: string
+  event_type: string
+  region: string
+  start_time: string
+  end_time: string | null
+  duration_minutes: number | null
+  severity: string
+  description: string
+  affected_capacity_mw: number | null
+  administered_price: number | null
+  resolved: boolean
+}
+
+export interface MarketIntervention {
+  intervention_id: string
+  intervention_type: string
+  region: string
+  duid: string | null
+  station_name: string | null
+  issued_time: string
+  duration_hours: number
+  directed_mw: number
+  reason: string
+  market_notice_id: string
+  cost_est_aud: number | null
+}
+
+export interface PriceCapEvent {
+  event_id: string
+  region: string
+  date: string
+  cap_type: string
+  trigger_interval: string
+  intervals_above_cap: number
+  cumulative_energy_mwh: number
+  max_spot_price: number
+  total_apc_duration_hours: number | null
+}
+
+export interface MarketEventsDashboard {
+  period: string
+  total_events: number
+  critical_events: number
+  interventions_this_week: number
+  apc_hours_this_month: number
+  lor_events_today: number
+  directions_active: number
+  recent_events: MarketEvent[]
+  interventions: MarketIntervention[]
+  price_cap_events: PriceCapEvent[]
+}
+
+// Sprint 22c — FCAS Market Deep-Dive interfaces
+export interface FcasServicePrice {
+  service: string
+  service_name: string
+  direction: string
+  type: string
+  clearing_price_aud_mw: number
+  volume_mw: number
+  requirement_mw: number
+  utilisation_pct: number
+  max_clearing_today: number
+  min_clearing_today: number
+  main_provider: string
+}
+
+export interface FcasProvider {
+  duid: string
+  station_name: string
+  fuel_type: string
+  region: string
+  services_enabled: string[]
+  raise_mw: number
+  lower_mw: number
+  regulation_mw: number
+  contingency_mw: number
+  revenue_today_aud: number
+  cost_per_mw: number
+}
+
+export interface FcasTrapRecord {
+  duid: string
+  station_name: string
+  region: string
+  service: string
+  trap_type: string
+  constraint_id: string
+  mw_limited: number
+  revenue_foregone_est: number
+  period: string
+}
+
+export interface FcasMarketDashboard {
+  timestamp: string
+  total_fcas_cost_today_aud: number
+  regulation_cost_aud: number
+  contingency_cost_aud: number
+  total_enabled_mw: number
+  shortfall_risk: string
+  services: FcasServicePrice[]
+  providers: FcasProvider[]
+  trap_records: FcasTrapRecord[]
+  regional_requirement: Array<{ region: string; raise_req_mw: number; lower_req_mw: number }>
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2259,6 +2416,52 @@ export const api = {
   getFcasDispatch: async (): Promise<FcasDispatchRecord[]> => {
     const res = await fetch(`${BASE_URL}/api/pss/fcas`, { headers })
     if (!res.ok) throw new Error('Failed to fetch FCAS dispatch')
+    return res.json()
+  },
+
+  getBidStack: async (region?: string, fuelType?: string): Promise<BidStackSummary> => {
+    const params = new URLSearchParams()
+    if (region) params.append('region', region)
+    if (fuelType) params.append('fuel_type', fuelType)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/bids/stack${qs}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch bid stack')
+    return res.json()
+  },
+
+  getMarketEventsDashboard: () => get<MarketEventsDashboard>('/api/market-events/dashboard'),
+
+  getMarketEvents: async (params?: { region?: string; event_type?: string; severity?: string }): Promise<MarketEvent[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.event_type) qs.append('event_type', params.event_type)
+    if (params?.severity) qs.append('severity', params.severity)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/market-events/events${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch market events')
+    return res.json()
+  },
+
+  getMarketInterventions: async (params?: { region?: string }): Promise<MarketIntervention[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/market-events/interventions${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch market interventions')
+    return res.json()
+  },
+
+  getFcasMarket: (): Promise<FcasMarketDashboard> => get<FcasMarketDashboard>('/api/fcas/market'),
+
+  getFcasServices: (): Promise<FcasServicePrice[]> => get<FcasServicePrice[]>('/api/fcas/services'),
+
+  getFcasProviders: async (params?: { region?: string; fuel_type?: string }): Promise<FcasProvider[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.fuel_type) qs.append('fuel_type', params.fuel_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/fcas/providers${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch FCAS providers')
     return res.json()
   },
 }

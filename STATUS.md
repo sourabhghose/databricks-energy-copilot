@@ -415,3 +415,33 @@
 - Added TypeScript interfaces and API methods to client.ts
 - Added /security route to App.tsx
 - Added TestPowerSystemSecurityEndpoints tests to test_backend.py
+
+## Sprint 22a — Generator Bidding & Offer Stack Analytics (2026-02-19)
+- Added OfferBand, GeneratorOfferRecord, RebidRecord, BidStackSummary Pydantic models
+- Created /api/bids/stack endpoint (offer records, rebid log, fuel type breakdown)
+- Created BiddingAnalytics.tsx with fuel type BarChart, offer records table, rebid log
+- Added TypeScript interfaces and API methods to client.ts
+- Added /bidding route to App.tsx
+- Added TestBiddingEndpoints tests to test_backend.py
+
+## Sprint 22b — NEM Market Events & Intervention Timeline (2026-02-19)
+**Status**: COMPLETE
+
+### What was built:
+- `MarketEvent`, `MarketIntervention`, `PriceCapEvent`, `MarketEventsDashboard` Pydantic models
+- Endpoints: GET /api/market-events/dashboard, /api/market-events/events, /api/market-events/interventions
+- `NemEvents.tsx` (~500 lines) — event timeline table, intervention log, price cap events, KPI cards, region filter
+- TypeScript interfaces in client.ts + API methods
+- 4 tests in TestMarketEventsEndpoints
+- Covers price cap events (APC/MPC), AEMO directions, LOR declarations, reclassified events
+
+## Sprint 22c — FCAS Market & Ancillary Services Deep-Dive (2026-02-19)
+**Status**: COMPLETE
+
+### What was built:
+- `FcasServicePrice`, `FcasProvider`, `FcasTrapRecord`, `FcasMarketDashboard` Pydantic models
+- Endpoints: GET /api/fcas/market, /api/fcas/services, /api/fcas/providers
+- `FcasMarket.tsx` (~520 lines) — 8-service price table, cost PieChart, provider table, constraint/trap records, regional requirements
+- TypeScript interfaces in client.ts + API methods
+- 4 tests in TestFcasMarketEndpoints
+- Covers all 8 FCAS services (R6S/R60S/R5M/R5RE/L6S/L60S/L5M/L5RE), causer pays, enablement limits

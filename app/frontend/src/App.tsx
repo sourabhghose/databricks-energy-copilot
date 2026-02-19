@@ -28,6 +28,8 @@ import {
   Users,
   Network,
   Shield,
+  Calendar,
+  Gauge,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -65,6 +67,9 @@ import RezInfrastructure from './pages/RezInfrastructure'
 import CurtailmentAnalytics from './pages/CurtailmentAnalytics'
 import DemandResponse from './pages/DemandResponse'
 import SystemSecurity from './pages/SystemSecurity'
+import BiddingAnalytics from './pages/BiddingAnalytics'
+import NemEvents from './pages/NemEvents'
+import FcasMarket from './pages/FcasMarket'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -102,6 +107,9 @@ const NAV_ITEMS = [
   { to: '/curtailment',    label: 'Curtailment',       Icon: TrendingDown   },
   { to: '/dsp',            label: 'Demand Response',   Icon: Users          },
   { to: '/security',       label: 'System Security',   Icon: Shield         },
+  { to: '/bidding',        label: 'Bidding Analytics', Icon: BarChart2      },
+  { to: '/nem-events',     label: 'NEM Events',        Icon: Calendar       },
+  { to: '/fcas-market',    label: 'FCAS Market',       Icon: Gauge          },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -214,6 +222,9 @@ export default function App() {
               <Route path="/curtailment"  element={<CurtailmentAnalytics />} />
               <Route path="/dsp"          element={<DemandResponse />}     />
               <Route path="/security"     element={<SystemSecurity />}     />
+              <Route path="/bidding"      element={<BiddingAnalytics />}   />
+              <Route path="/nem-events"   element={<NemEvents />}          />
+              <Route path="/fcas-market"  element={<FcasMarket />}         />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>
