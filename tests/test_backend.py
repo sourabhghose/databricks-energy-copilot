@@ -2450,3 +2450,110 @@ class TestNetworkConstraintEndpoints:
         assert len(violations) >= 3
         causes = {v["cause"] for v in violations}
         assert len(causes) >= 2
+
+
+class TestPriceSetterEndpoints:
+    def test_price_setter_dashboard_returns_200(self, client=client):
+        r = client.get("/api/price-setter/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "price_setter_records" in d
+        assert "frequency_stats" in d
+        assert "fuel_type_stats" in d
+        assert len(d["price_setter_records"]) == 24
+
+    def test_price_setter_records_list(self, client=client):
+        r = client.get("/api/price-setter/records")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) == 24
+        for rec in records:
+            assert "dispatch_price" in rec
+            assert "fuel_type" in rec
+
+    def test_price_setter_frequency_list(self, client=client):
+        r = client.get("/api/price-setter/frequency")
+        assert r.status_code == 200
+        freq = r.json()
+        assert len(freq) >= 5
+        total_pct = sum(f["pct_intervals"] for f in freq)
+        assert total_pct <= 101  # allow rounding
+
+    def test_fuel_type_stats_coverage(self, client=client):
+        r = client.get("/api/price-setter/dashboard")
+        assert r.status_code == 200
+        fuel_stats = r.json()["fuel_type_stats"]
+        fuel_types = {f["fuel_type"] for f in fuel_stats}
+        assert len(fuel_types) >= 3
+
+
+class TestGridModernisationEndpoints:
+    def test_grid_mod_dashboard_returns_200(self, client=client):
+        r = client.get("/api/grid-modernisation/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "smart_meter_records" in d
+        assert "grid_mod_projects" in d
+        assert "reliability_stats" in d
+        assert 0 <= d["national_smart_meter_pct"] <= 100
+
+    def test_smart_meter_records_list(self, client=client):
+        r = client.get("/api/grid-modernisation/smart-meters")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 6
+        for rec in records:
+            assert 0 <= rec["penetration_pct"] <= 100
+            assert rec["penetration_pct"] <= rec["smart_meter_target_pct"] + 10
+
+    def test_grid_mod_projects_list(self, client=client):
+        r = client.get("/api/grid-modernisation/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 6
+        categories = {p["category"] for p in projects}
+        assert len(categories) >= 3
+
+    def test_grid_mod_status_filter(self, client=client):
+        r = client.get("/api/grid-modernisation/projects?status=UNDERWAY")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["status"] == "UNDERWAY"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 28c — Electricity Retail Tariff Structure & Bill Analytics
+# ---------------------------------------------------------------------------
+
+class TestTariffEndpoints:
+    def test_tariff_dashboard_returns_200(self, client=client):
+        r = client.get("/api/tariff/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "tariff_components" in d
+        assert "tou_structures" in d
+        assert "bill_compositions" in d
+        assert d["national_avg_residential_bill_aud"] > 0
+
+    def test_tariff_components_list(self, client=client):
+        r = client.get("/api/tariff/components")
+        assert r.status_code == 200
+        components = r.json()
+        assert len(components) >= 15
+        comp_names = {c["component"] for c in components}
+        assert "ENERGY" in comp_names
+        assert "NETWORK" in comp_names
+
+    def test_tou_structures_list(self, client=client):
+        r = client.get("/api/tariff/structures")
+        assert r.status_code == 200
+        structures = r.json()
+        assert len(structures) >= 4
+        for s in structures:
+            assert s["peak_rate_c_kwh"] >= s["shoulder_rate_c_kwh"] >= s["off_peak_rate_c_kwh"]
+
+    def test_tariff_state_filter(self, client=client):
+        r = client.get("/api/tariff/components?state=SA")
+        assert r.status_code == 200
+        for c in r.json():
+            assert c["state"] == "SA"

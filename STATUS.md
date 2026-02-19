@@ -550,3 +550,24 @@
 - GET /api/constraints/dashboard, /equations, /violations
 - NetworkConstraints.tsx (~510 lines): constraint cost chart, equations table with slack coloring, violations log
 - 4 tests in TestNetworkConstraintEndpoints
+
+## Sprint 28a — Price Setter & Marginal Generator Analytics (2026-02-19)
+**Status**: COMPLETE
+- PriceSetterRecord, PriceSetterFrequency, FuelTypePriceSetting, PriceSetterDashboard models
+- GET /api/price-setter/dashboard, /records, /frequency
+- PriceSetterAnalytics.tsx (~510 lines): timeline bar chart, fuel PieChart, frequency table, interval records
+- 4 tests in TestPriceSetterEndpoints
+
+## Sprint 28c — Electricity Retail Tariff Structure & Bill Analytics (2026-02-19)
+**Status**: COMPLETE
+- TariffComponent, TouTariffStructure, BillComposition, TariffDashboard models
+- GET /api/tariff/dashboard, /components, /structures
+- TariffAnalytics.tsx (~530 lines): stacked bill BarChart, composition PieChart, TOU table, component breakdown
+- 4 tests in TestTariffEndpoints
+
+## Sprint 28b — Smart Meter & Grid Modernisation Analytics (2026-02-19)
+**Status**: COMPLETE
+- SmartMeterRecord, GridModernisationProject, NetworkReliabilityStats, GridModernisationDashboard models
+- GET /api/grid-modernisation/dashboard, /smart-meters, /projects
+- GridModernisation.tsx (~520 lines): penetration BarChart, SAIDI reliability, smart meter table, projects table
+- 4 tests in TestGridModernisationEndpoints

@@ -17676,3 +17676,1010 @@ def get_constraint_violations(region: Optional[str] = None):
         violations = [v for v in violations if v.region == region]
     _cache_set(cache_key, violations, _TTL_CONSTRAINTS)
     return violations
+
+
+# ===========================================================================
+# Sprint 28c — Electricity Retail Tariff Structure & Bill Analytics
+# ===========================================================================
+
+_TTL_TARIFF = 3600
+
+
+class TariffComponent(BaseModel):
+    state: str
+    customer_type: str               # "RESIDENTIAL", "SME", "LARGE_COMMERCIAL"
+    tariff_type: str                 # "FLAT_RATE", "TIME_OF_USE", "DEMAND", "CAPACITY"
+    dnsp: str
+    component: str                   # "ENERGY", "NETWORK", "ENVIRONMENT", "METERING", "RETAIL_MARGIN", "LOSSES"
+    rate_c_kwh: float                # cents per kWh
+    pct_of_total_bill: float         # % of total bill this component represents
+    yoy_change_pct: float            # year-on-year change
+    regulated: bool                  # is this component regulated?
+
+
+class TouTariffStructure(BaseModel):
+    state: str
+    dnsp: str
+    tariff_name: str
+    peak_hours: str                  # e.g. "Mon-Fri 16:00-21:00"
+    shoulder_hours: str              # e.g. "Mon-Fri 07:00-16:00, 21:00-22:00"
+    off_peak_hours: str              # e.g. "All other times"
+    peak_rate_c_kwh: float
+    shoulder_rate_c_kwh: float
+    off_peak_rate_c_kwh: float
+    daily_supply_charge_aud: float
+    solar_export_rate_c_kwh: float
+    demand_charge_aud_kw_mth: Optional[float]  # if demand tariff component included
+    typical_annual_bill_aud: float   # for 5,000 kWh/yr household
+
+
+class BillComposition(BaseModel):
+    state: str
+    customer_segment: str            # "RESIDENTIAL", "SME", "LARGE_CI"
+    annual_usage_kwh: float
+    total_annual_bill_aud: float
+    energy_cost_aud: float
+    network_cost_aud: float
+    environmental_cost_aud: float    # LRET, VEET, ESS, solar schemes
+    metering_cost_aud: float
+    retail_margin_aud: float
+    energy_pct: float
+    network_pct: float
+    env_pct: float
+    avg_c_kwh_all_in: float
+
+
+class TariffDashboard(BaseModel):
+    timestamp: str
+    national_avg_residential_bill_aud: float
+    cheapest_state: str
+    most_expensive_state: str
+    tou_adoption_pct: float
+    avg_solar_export_rate_c_kwh: float
+    network_cost_share_pct: float    # % of bill that is network costs nationally
+    tariff_components: List[TariffComponent]
+    tou_structures: List[TouTariffStructure]
+    bill_compositions: List[BillComposition]
+
+
+def _make_tariff_components() -> List[TariffComponent]:
+    """30 records — 5 states x 3 customer types x 2 tariff types, 6 components each."""
+    records = []
+    # State configs: (state, dnsp, base_rate_c_kwh)
+    state_configs = [
+        ("NSW", "Endeavour Energy",   28.5),
+        ("VIC", "CitiPower",          27.2),
+        ("QLD", "Energex",            27.8),
+        ("SA",  "SA Power Networks",  38.5),
+        ("TAS", "TasNetworks",        25.8),
+    ]
+    customer_configs = [
+        ("RESIDENTIAL", "FLAT_RATE",      1.00),
+        ("SME",         "TIME_OF_USE",    0.91),
+        ("LARGE_COMMERCIAL", "DEMAND",    0.77),
+    ]
+    # Component breakdown proportions (energy, network, env, metering, retail_margin, losses)
+    component_props = {
+        "RESIDENTIAL":    [0.29, 0.40, 0.18, 0.04, 0.07, 0.02],
+        "SME":            [0.32, 0.38, 0.16, 0.05, 0.07, 0.02],
+        "LARGE_COMMERCIAL": [0.38, 0.36, 0.13, 0.06, 0.05, 0.02],
+    }
+    component_names = ["ENERGY", "NETWORK", "ENVIRONMENT", "METERING", "RETAIL_MARGIN", "LOSSES"]
+    regulated_flags = [False, True, True, False, False, True]
+    yoy_base = {
+        "ENERGY": -3.2, "NETWORK": 5.1, "ENVIRONMENT": 2.8,
+        "METERING": -1.5, "RETAIL_MARGIN": 1.2, "LOSSES": 0.5,
+    }
+    state_yoy_mult = {"NSW": 1.0, "VIC": 1.1, "QLD": 0.9, "SA": 1.3, "TAS": 0.8}
+
+    for state, dnsp, base_rate in state_configs:
+        for cust_type, tariff_type, cust_mult in customer_configs:
+            total_rate = base_rate * cust_mult
+            props = component_props[cust_type]
+            for comp_name, prop, regulated in zip(component_names, props, regulated_flags):
+                rate = round(total_rate * prop, 2)
+                yoy = round(yoy_base[comp_name] * state_yoy_mult[state], 1)
+                records.append(TariffComponent(
+                    state=state,
+                    customer_type=cust_type,
+                    tariff_type=tariff_type,
+                    dnsp=dnsp,
+                    component=comp_name,
+                    rate_c_kwh=rate,
+                    pct_of_total_bill=round(prop * 100, 1),
+                    yoy_change_pct=yoy,
+                    regulated=regulated,
+                ))
+    return records
+
+
+def _make_tou_structures() -> List[TouTariffStructure]:
+    """6 tariff structures — one per state DNSP."""
+    return [
+        TouTariffStructure(
+            state="NSW",
+            dnsp="Ausgrid",
+            tariff_name="Ausgrid EA010 Time-of-Use",
+            peak_hours="Mon-Fri 14:00-20:00",
+            shoulder_hours="Mon-Fri 07:00-14:00, 20:00-22:00; Sat-Sun 07:00-22:00",
+            off_peak_hours="All other times (22:00-07:00 daily)",
+            peak_rate_c_kwh=36.5,
+            shoulder_rate_c_kwh=22.0,
+            off_peak_rate_c_kwh=14.5,
+            daily_supply_charge_aud=1.15,
+            solar_export_rate_c_kwh=7.0,
+            demand_charge_aud_kw_mth=None,
+            typical_annual_bill_aud=1820.0,
+        ),
+        TouTariffStructure(
+            state="VIC",
+            dnsp="CitiPower",
+            tariff_name="CitiPower Residential TOU",
+            peak_hours="Mon-Fri 15:00-21:00",
+            shoulder_hours="Mon-Fri 07:00-15:00, 21:00-22:00",
+            off_peak_hours="All other times",
+            peak_rate_c_kwh=38.0,
+            shoulder_rate_c_kwh=21.5,
+            off_peak_rate_c_kwh=13.0,
+            daily_supply_charge_aud=1.08,
+            solar_export_rate_c_kwh=6.5,
+            demand_charge_aud_kw_mth=None,
+            typical_annual_bill_aud=1720.0,
+        ),
+        TouTariffStructure(
+            state="QLD",
+            dnsp="Energex",
+            tariff_name="Energex Tariff 11 (Flat Rate)",
+            peak_hours="N/A (flat rate tariff)",
+            shoulder_hours="N/A (flat rate tariff)",
+            off_peak_hours="All times (flat rate)",
+            peak_rate_c_kwh=28.0,
+            shoulder_rate_c_kwh=28.0,
+            off_peak_rate_c_kwh=28.0,
+            daily_supply_charge_aud=1.22,
+            solar_export_rate_c_kwh=5.0,
+            demand_charge_aud_kw_mth=None,
+            typical_annual_bill_aud=1580.0,
+        ),
+        TouTariffStructure(
+            state="SA",
+            dnsp="SA Power Networks",
+            tariff_name="SAPN Residential TOU (Cost Reflective)",
+            peak_hours="Mon-Fri 16:00-21:00",
+            shoulder_hours="Mon-Fri 07:00-16:00, 21:00-22:00",
+            off_peak_hours="All other times",
+            peak_rate_c_kwh=42.0,
+            shoulder_rate_c_kwh=24.0,
+            off_peak_rate_c_kwh=18.0,
+            daily_supply_charge_aud=1.35,
+            solar_export_rate_c_kwh=5.5,
+            demand_charge_aud_kw_mth=12.50,
+            typical_annual_bill_aud=2380.0,
+        ),
+        TouTariffStructure(
+            state="TAS",
+            dnsp="TasNetworks",
+            tariff_name="TasNetworks General Supply TOU",
+            peak_hours="Mon-Fri 07:00-10:00, 17:00-21:00",
+            shoulder_hours="Mon-Fri 10:00-17:00, 21:00-23:00",
+            off_peak_hours="23:00-07:00 daily; weekends",
+            peak_rate_c_kwh=30.5,
+            shoulder_rate_c_kwh=19.0,
+            off_peak_rate_c_kwh=12.5,
+            daily_supply_charge_aud=0.98,
+            solar_export_rate_c_kwh=8.5,
+            demand_charge_aud_kw_mth=None,
+            typical_annual_bill_aud=1650.0,
+        ),
+        TouTariffStructure(
+            state="WA",
+            dnsp="Western Power",
+            tariff_name="Western Power Home Plan (TOU Option)",
+            peak_hours="Mon-Fri 07:00-21:00",
+            shoulder_hours="Sat-Sun 07:00-21:00",
+            off_peak_hours="21:00-07:00 daily",
+            peak_rate_c_kwh=34.0,
+            shoulder_rate_c_kwh=20.5,
+            off_peak_rate_c_kwh=16.0,
+            daily_supply_charge_aud=1.10,
+            solar_export_rate_c_kwh=10.0,
+            demand_charge_aud_kw_mth=None,
+            typical_annual_bill_aud=1780.0,
+        ),
+    ]
+
+
+def _make_bill_compositions() -> List[BillComposition]:
+    """5 records — one per NEM state, residential segment at 5,000 kWh/yr."""
+    data = [
+        # (state, total_aud, energy_aud, network_aud, env_aud, metering_aud, retail_aud)
+        ("NSW", 1820.0, 528.0, 728.0,  309.0, 73.0,  182.0),
+        ("VIC", 1720.0, 499.0, 619.0,  344.0, 69.0,  189.0),
+        ("QLD", 1580.0, 458.0, 632.0,  237.0, 63.0,  190.0),
+        ("SA",  2380.0, 690.0, 1023.0, 381.0, 95.0,  191.0),
+        ("TAS", 1650.0, 478.0, 611.0,  231.0, 66.0,  264.0),
+    ]
+    compositions = []
+    for state, total, energy, network, env, metering, retail in data:
+        compositions.append(BillComposition(
+            state=state,
+            customer_segment="RESIDENTIAL",
+            annual_usage_kwh=5000.0,
+            total_annual_bill_aud=total,
+            energy_cost_aud=energy,
+            network_cost_aud=network,
+            environmental_cost_aud=env,
+            metering_cost_aud=metering,
+            retail_margin_aud=retail,
+            energy_pct=round(energy / total * 100, 1),
+            network_pct=round(network / total * 100, 1),
+            env_pct=round(env / total * 100, 1),
+            avg_c_kwh_all_in=round(total / 50.0, 2),
+        ))
+    return compositions
+
+
+def _make_tariff_dashboard() -> TariffDashboard:
+    """Aggregate tariff dashboard."""
+    components = _make_tariff_components()
+    structures = _make_tou_structures()
+    compositions = _make_bill_compositions()
+
+    bills = {c.state: c.total_annual_bill_aud for c in compositions}
+    cheapest = min(bills, key=bills.get)
+    most_expensive = max(bills, key=bills.get)
+    national_avg = round(sum(bills.values()) / len(bills), 0)
+
+    nem_structures = [s for s in structures if s.state in ("NSW", "VIC", "QLD", "SA", "TAS")]
+    avg_solar = round(sum(s.solar_export_rate_c_kwh for s in nem_structures) / len(nem_structures), 2)
+    avg_network_pct = round(sum(c.network_pct for c in compositions) / len(compositions), 1)
+
+    return TariffDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        national_avg_residential_bill_aud=national_avg,
+        cheapest_state=cheapest,
+        most_expensive_state=most_expensive,
+        tou_adoption_pct=42.5,
+        avg_solar_export_rate_c_kwh=avg_solar,
+        network_cost_share_pct=avg_network_pct,
+        tariff_components=components,
+        tou_structures=structures,
+        bill_compositions=compositions,
+    )
+
+
+@app.get(
+    "/api/tariff/dashboard",
+    response_model=TariffDashboard,
+    summary="Electricity retail tariff & bill analytics dashboard",
+    tags=["Tariff Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tariff_dashboard():
+    """Return aggregated retail tariff dashboard. Cached 3600 s."""
+    cache_key = "tariff:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    dashboard = _make_tariff_dashboard()
+    _cache_set(cache_key, dashboard, _TTL_TARIFF)
+    return dashboard
+
+
+@app.get(
+    "/api/tariff/components",
+    response_model=List[TariffComponent],
+    summary="Retail tariff components by state and customer type",
+    tags=["Tariff Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tariff_components(state: Optional[str] = None, customer_type: Optional[str] = None):
+    """Return tariff components. Filterable by state and customer_type. Cached 3600 s."""
+    cache_key = f"tariff:components:{state}:{customer_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    components = _make_tariff_components()
+    if state:
+        components = [c for c in components if c.state == state]
+    if customer_type:
+        components = [c for c in components if c.customer_type == customer_type]
+    _cache_set(cache_key, components, _TTL_TARIFF)
+    return components
+
+
+@app.get(
+    "/api/tariff/structures",
+    response_model=List[TouTariffStructure],
+    summary="Time-of-use tariff structures by DNSP",
+    tags=["Tariff Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tou_structures(state: Optional[str] = None):
+    """Return TOU tariff structures. Filterable by state. Cached 3600 s."""
+    cache_key = f"tariff:structures:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    structures = _make_tou_structures()
+    if state:
+        structures = [s for s in structures if s.state == state]
+    _cache_set(cache_key, structures, _TTL_TARIFF)
+    return structures
+
+
+# ===========================================================================
+# Sprint 28a — Price Setter & Marginal Generator Analytics
+# ===========================================================================
+
+_TTL_PRICE_SETTER = 30
+
+
+class PriceSetterRecord(BaseModel):
+    interval: str                       # "HH:MM"
+    region: str
+    duid: str
+    station_name: str
+    fuel_type: str
+    dispatch_price: float               # $/MWh
+    dispatch_quantity_mw: float
+    offer_band: str                     # price band that set the price
+    offer_price: float                  # $/MWh at that price band
+    is_strategic: bool                  # strategic bid or cost-reflective?
+    shadow_price_mw: float              # marginal value of 1 MW more capacity
+
+
+class PriceSetterFrequency(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str
+    region: str
+    capacity_mw: float
+    intervals_as_price_setter: int      # count for today
+    pct_intervals: float                # % of today's intervals
+    avg_price_when_setter: float        # avg spot price when this unit sets price
+    max_price_when_setter: float
+    estimated_daily_price_power_aud: float  # revenue x influence estimate
+    strategic_bids_pct: float           # % of price-setting intervals with strategic bids
+
+
+class FuelTypePriceSetting(BaseModel):
+    fuel_type: str
+    intervals_as_price_setter: int
+    pct_of_all_intervals: float
+    avg_price_aud_mwh: float
+    max_price_aud_mwh: float
+    economic_rent_est_m_aud: float      # excess revenue above SRMC estimate
+
+
+class PriceSetterDashboard(BaseModel):
+    timestamp: str
+    region: str
+    total_intervals_today: int
+    dominant_price_setter: str          # DUID of most frequent price setter
+    dominant_fuel_type: str
+    strategic_bid_frequency_pct: float
+    avg_price_today: float
+    current_price_setter: str           # current interval
+    current_price: float
+    price_setter_records: List[PriceSetterRecord]   # last 24 intervals
+    frequency_stats: List[PriceSetterFrequency]
+    fuel_type_stats: List[FuelTypePriceSetting]
+
+
+def _make_price_setter_records() -> List[PriceSetterRecord]:
+    """24 hourly price-setter records for SA1 covering distinct market periods."""
+    import math
+    records = []
+
+    # Overnight 00:00-07:00: Wind sets price at $0-$10/MWh (negative bids sometimes)
+    overnight = [
+        ("00:00", "HORNSDALE1", "Hornsdale Wind Farm 1", "Wind", -5.2, 309.0, "BAND1", -10.0, False, 2.1),
+        ("01:00", "HORNSDALE2", "Hornsdale Wind Farm 2", "Wind", 3.1, 315.0, "BAND1", 0.0, False, 1.8),
+        ("02:00", "HALLGAP1", "Hallet Gap Wind", "Wind", -2.4, 210.0, "BAND1", -10.0, False, 2.3),
+        ("03:00", "HORNSDALE1", "Hornsdale Wind Farm 1", "Wind", 0.5, 295.0, "BAND1", 0.0, False, 1.5),
+        ("04:00", "WPWF", "Waterloo Wind Farm", "Wind", 6.8, 112.0, "BAND2", 5.0, False, 3.2),
+        ("05:00", "HORNSDALE2", "Hornsdale Wind Farm 2", "Wind", 4.2, 320.0, "BAND1", 0.0, False, 2.0),
+        ("06:00", "HALLGAP1", "Hallet Gap Wind", "Wind", 8.9, 198.0, "BAND2", 8.0, False, 4.1),
+    ]
+
+    # Morning 07:00-11:00: Gas OCGT at $150-$300/MWh
+    morning = [
+        ("07:00", "TORRENS_A1", "Torrens Island A", "Gas OCGT", 155.0, 120.0, "BAND6", 150.0, False, 18.5),
+        ("08:00", "TORRENS_A2", "Torrens Island A", "Gas OCGT", 198.0, 125.0, "BAND6", 195.0, False, 22.0),
+        ("09:00", "OSBORNE1", "Osborne Power Station", "Gas CCGT", 175.0, 180.0, "BAND5", 170.0, False, 15.8),
+        ("10:00", "TORRENS_B1", "Torrens Island B", "Gas OCGT", 245.0, 110.0, "BAND7", 240.0, False, 28.3),
+    ]
+
+    # Afternoon 11:00-16:00: Solar Farm at $0-$30/MWh during duck curve
+    afternoon = [
+        ("11:00", "TAILEM_SOLAR", "Tailem Bend Solar Farm", "Solar", 12.5, 212.0, "BAND2", 10.0, False, 5.2),
+        ("12:00", "BUNGALA1", "Bungala Solar One", "Solar", 5.3, 220.0, "BAND1", 0.0, False, 3.1),
+        ("13:00", "BUNGALA2", "Bungala Solar Two", "Solar", -3.2, 218.0, "BAND1", -10.0, False, 2.0),
+        ("14:00", "TAILEM_SOLAR", "Tailem Bend Solar Farm", "Solar", 28.0, 205.0, "BAND3", 25.0, False, 6.5),
+        ("15:00", "HORNSDALE_PWR", "Hornsdale Power Reserve", "Battery", 22.0, 100.0, "BAND3", 20.0, False, 8.9),
+    ]
+
+    # Peak 16:00-21:00: Gas OCGT (Quarantine) at $350-$1200/MWh with strategic bids
+    peak = [
+        ("16:00", "QUARANTINE1", "Quarantine Power Station", "Gas OCGT", 420.0, 40.0, "BAND8", 400.0, True, 82.0),
+        ("17:00", "QUARANTINE2", "Quarantine Power Station", "Gas OCGT", 680.0, 38.0, "BAND9", 650.0, True, 135.0),
+        ("18:00", "QUARANTINE1", "Quarantine Power Station", "Gas OCGT", 1200.0, 42.0, "BAND10", 1150.0, True, 245.0),
+        ("19:00", "QUARANTINE2", "Quarantine Power Station", "Gas OCGT", 850.0, 39.0, "BAND9", 820.0, True, 168.0),
+        ("20:00", "HORNSDALE_PWR", "Hornsdale Power Reserve", "Battery", 960.0, 80.0, "BAND10", 930.0, True, 195.0),
+    ]
+
+    # Evening 21:00-24:00: Gas CCGT at $80-$180/MWh
+    evening = [
+        ("21:00", "OSBORNE1", "Osborne Power Station", "Gas CCGT", 145.0, 185.0, "BAND5", 140.0, False, 12.5),
+        ("22:00", "PELICAN_PT", "Pelican Point Power Station", "Gas CCGT", 118.0, 478.0, "BAND5", 115.0, False, 9.8),
+        ("23:00", "OSBORNE1", "Osborne Power Station", "Gas CCGT", 92.0, 180.0, "BAND4", 88.0, False, 7.2),
+    ]
+
+    all_periods = overnight + morning + afternoon + peak + evening
+    for interval, duid, station, fuel, price, qty, band, offer, strategic, shadow in all_periods:
+        records.append(PriceSetterRecord(
+            interval=interval,
+            region="SA1",
+            duid=duid,
+            station_name=station,
+            fuel_type=fuel,
+            dispatch_price=price,
+            dispatch_quantity_mw=qty,
+            offer_band=band,
+            offer_price=offer,
+            is_strategic=strategic,
+            shadow_price_mw=shadow,
+        ))
+    return records
+
+
+def _make_price_setter_frequency() -> List[PriceSetterFrequency]:
+    """8 generators with frequency stats for SA1 today."""
+    return [
+        PriceSetterFrequency(
+            duid="HORNSDALE1",
+            station_name="Hornsdale Wind Farm 1",
+            fuel_type="Wind",
+            region="SA1",
+            capacity_mw=309.0,
+            intervals_as_price_setter=35,
+            pct_intervals=24.3,
+            avg_price_when_setter=8.2,
+            max_price_when_setter=18.5,
+            estimated_daily_price_power_aud=12400.0,
+            strategic_bids_pct=0.0,
+        ),
+        PriceSetterFrequency(
+            duid="QUARANTINE1",
+            station_name="Quarantine Power Station",
+            fuel_type="Gas OCGT",
+            region="SA1",
+            capacity_mw=40.0,
+            intervals_as_price_setter=28,
+            pct_intervals=19.4,
+            avg_price_when_setter=680.0,
+            max_price_when_setter=1200.0,
+            estimated_daily_price_power_aud=185000.0,
+            strategic_bids_pct=78.6,
+        ),
+        PriceSetterFrequency(
+            duid="HORNSDALE_PWR",
+            station_name="Hornsdale Power Reserve",
+            fuel_type="Battery",
+            region="SA1",
+            capacity_mw=150.0,
+            intervals_as_price_setter=12,
+            pct_intervals=8.3,
+            avg_price_when_setter=820.0,
+            max_price_when_setter=960.0,
+            estimated_daily_price_power_aud=62500.0,
+            strategic_bids_pct=58.3,
+        ),
+        PriceSetterFrequency(
+            duid="BUNGALA1",
+            station_name="Bungala Solar One",
+            fuel_type="Solar",
+            region="SA1",
+            capacity_mw=220.0,
+            intervals_as_price_setter=22,
+            pct_intervals=15.3,
+            avg_price_when_setter=5.1,
+            max_price_when_setter=28.0,
+            estimated_daily_price_power_aud=3200.0,
+            strategic_bids_pct=0.0,
+        ),
+        PriceSetterFrequency(
+            duid="OSBORNE1",
+            station_name="Osborne Power Station",
+            fuel_type="Gas CCGT",
+            region="SA1",
+            capacity_mw=180.0,
+            intervals_as_price_setter=18,
+            pct_intervals=12.5,
+            avg_price_when_setter=145.0,
+            max_price_when_setter=198.0,
+            estimated_daily_price_power_aud=28900.0,
+            strategic_bids_pct=5.6,
+        ),
+        PriceSetterFrequency(
+            duid="PELICAN_PT",
+            station_name="Pelican Point Power Station",
+            fuel_type="Gas CCGT",
+            region="SA1",
+            capacity_mw=478.0,
+            intervals_as_price_setter=10,
+            pct_intervals=6.9,
+            avg_price_when_setter=118.0,
+            max_price_when_setter=155.0,
+            estimated_daily_price_power_aud=15800.0,
+            strategic_bids_pct=0.0,
+        ),
+        PriceSetterFrequency(
+            duid="TORRENS_A1",
+            station_name="Torrens Island A",
+            fuel_type="Gas OCGT",
+            region="SA1",
+            capacity_mw=120.0,
+            intervals_as_price_setter=14,
+            pct_intervals=9.7,
+            avg_price_when_setter=212.0,
+            max_price_when_setter=300.0,
+            estimated_daily_price_power_aud=38500.0,
+            strategic_bids_pct=14.3,
+        ),
+        PriceSetterFrequency(
+            duid="LADBROKE_CK",
+            station_name="Ladbroke Creek Power Station",
+            fuel_type="Coal",
+            region="SA1",
+            capacity_mw=240.0,
+            intervals_as_price_setter=5,
+            pct_intervals=3.5,
+            avg_price_when_setter=52.0,
+            max_price_when_setter=68.0,
+            estimated_daily_price_power_aud=4100.0,
+            strategic_bids_pct=0.0,
+        ),
+    ]
+
+
+def _make_fuel_type_price_setting() -> List[FuelTypePriceSetting]:
+    """5 fuel types with aggregate price-setting stats for SA1."""
+    return [
+        FuelTypePriceSetting(
+            fuel_type="Gas OCGT",
+            intervals_as_price_setter=50,
+            pct_of_all_intervals=34.7,
+            avg_price_aud_mwh=425.0,
+            max_price_aud_mwh=1200.0,
+            economic_rent_est_m_aud=3.82,
+        ),
+        FuelTypePriceSetting(
+            fuel_type="Wind",
+            intervals_as_price_setter=40,
+            pct_of_all_intervals=27.8,
+            avg_price_aud_mwh=8.2,
+            max_price_aud_mwh=18.5,
+            economic_rent_est_m_aud=0.05,
+        ),
+        FuelTypePriceSetting(
+            fuel_type="Solar",
+            intervals_as_price_setter=26,
+            pct_of_all_intervals=18.1,
+            avg_price_aud_mwh=5.1,
+            max_price_aud_mwh=28.0,
+            economic_rent_est_m_aud=0.02,
+        ),
+        FuelTypePriceSetting(
+            fuel_type="Battery",
+            intervals_as_price_setter=17,
+            pct_of_all_intervals=11.8,
+            avg_price_aud_mwh=820.0,
+            max_price_aud_mwh=960.0,
+            economic_rent_est_m_aud=1.24,
+        ),
+        FuelTypePriceSetting(
+            fuel_type="Gas CCGT",
+            intervals_as_price_setter=11,
+            pct_of_all_intervals=7.6,
+            avg_price_aud_mwh=145.0,
+            max_price_aud_mwh=198.0,
+            economic_rent_est_m_aud=0.21,
+        ),
+    ]
+
+
+def _make_price_setter_dashboard() -> PriceSetterDashboard:
+    """Aggregate price-setter dashboard for SA1."""
+    from datetime import datetime, timezone
+    records = _make_price_setter_records()
+    frequency = _make_price_setter_frequency()
+    fuel_stats = _make_fuel_type_price_setting()
+    avg_price = round(sum(r.dispatch_price for r in records) / len(records), 2)
+    strategic_count = sum(1 for r in records if r.is_strategic)
+    strategic_pct = round(strategic_count / len(records) * 100, 1)
+    current_record = records[-1]
+    return PriceSetterDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        region="SA1",
+        total_intervals_today=144,
+        dominant_price_setter="HORNSDALE1",
+        dominant_fuel_type="Gas OCGT",
+        strategic_bid_frequency_pct=strategic_pct,
+        avg_price_today=avg_price,
+        current_price_setter=current_record.duid,
+        current_price=current_record.dispatch_price,
+        price_setter_records=records,
+        frequency_stats=frequency,
+        fuel_type_stats=fuel_stats,
+    )
+
+
+@app.get(
+    "/api/price-setter/dashboard",
+    response_model=PriceSetterDashboard,
+    summary="Price setter dashboard with frequency and fuel-type stats",
+    tags=["Price Setter"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_price_setter_dashboard():
+    """Return price setter dashboard for SA1. Cached 30 s."""
+    cache_key = "price_setter:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    dashboard = _make_price_setter_dashboard()
+    _cache_set(cache_key, dashboard, _TTL_PRICE_SETTER)
+    return dashboard
+
+
+@app.get(
+    "/api/price-setter/records",
+    response_model=List[PriceSetterRecord],
+    summary="Individual interval price-setter records",
+    tags=["Price Setter"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_price_setter_records(region: Optional[str] = None):
+    """Return 24 interval price-setter records. Filterable by region. Cached 30 s."""
+    cache_key = f"price_setter:records:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_price_setter_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    _cache_set(cache_key, records, _TTL_PRICE_SETTER)
+    return records
+
+
+@app.get(
+    "/api/price-setter/frequency",
+    response_model=List[PriceSetterFrequency],
+    summary="Generator price-setting frequency statistics",
+    tags=["Price Setter"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_price_setter_frequency(region: Optional[str] = None, fuel_type: Optional[str] = None):
+    """Return generator price-setting frequency stats. Filterable by region and fuel_type. Cached 30 s."""
+    cache_key = f"price_setter:frequency:{region}:{fuel_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    frequency = _make_price_setter_frequency()
+    if region:
+        frequency = [f for f in frequency if f.region == region]
+    if fuel_type:
+        frequency = [f for f in frequency if f.fuel_type == fuel_type]
+    _cache_set(cache_key, frequency, _TTL_PRICE_SETTER)
+    return frequency
+
+
+# ---------------------------------------------------------------------------
+# Sprint 28b — Smart Meter (AMI) Rollout & Grid Modernisation Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_GRID_MOD = 3600
+
+
+class SmartMeterRecord(BaseModel):
+    state: str
+    dnsp: str
+    total_customer_points: int
+    smart_meters_installed: int
+    penetration_pct: float
+    interval_data_enabled_pct: float
+    tou_tariff_customers_pct: float
+    demand_tariff_customers_pct: float
+    smart_meter_target_pct: float
+    annual_rollout_rate_pct: float
+    cost_per_meter_aud: float
+    market_led_upgrades_pct: float
+
+
+class GridModernisationProject(BaseModel):
+    project_id: str
+    project_name: str
+    dnsp: str
+    state: str
+    category: str
+    description: str
+    capex_m_aud: float
+    status: str
+    completion_year: int
+    customers_benefiting: int
+    reliability_improvement_pct: float
+
+
+class NetworkReliabilityStats(BaseModel):
+    dnsp: str
+    state: str
+    year: int
+    saidi_minutes: float
+    saifi_count: float
+    caidi_minutes: float
+    vs_regulatory_target_pct: float
+    unplanned_outages: int
+    planned_outages: int
+    major_event_days: int
+
+
+class GridModernisationDashboard(BaseModel):
+    timestamp: str
+    national_smart_meter_pct: float
+    tou_tariff_adoption_pct: float
+    interval_data_coverage_pct: float
+    total_grid_mod_investment_m_aud: float
+    projects_underway: int
+    avg_saidi_minutes: float
+    smart_meter_records: List[SmartMeterRecord]
+    grid_mod_projects: List[GridModernisationProject]
+    reliability_stats: List[NetworkReliabilityStats]
+
+
+def _make_smart_meter_records() -> List[SmartMeterRecord]:
+    raw = [
+        # (state, dnsp, total_pts, installed, penetration, interval_pct, tou_pct,
+        #  demand_pct, target_pct, rollout_rate, cost_aud, market_led_pct)
+        ("NSW", "Ausgrid",           1_930_000, 1_003_600, 52.0, 88.0, 31.0,  8.0, 80.0, 12.0, 385.0, 42.0),
+        ("NSW", "Endeavour Energy",    960_000,   460_800, 48.0, 84.0, 28.0,  6.5, 80.0, 11.0, 392.0, 38.0),
+        ("NSW", "Essential Energy",    880_000,   255_200, 29.0, 71.0, 18.0,  4.0, 75.0,  7.0, 410.0, 22.0),
+        ("VIC", "AusNet Services",     760_000,   509_200, 67.0, 93.0, 45.0, 12.0, 100.0, 14.0, 365.0, 55.0),
+        ("VIC", "United Energy",       640_000,   454_400, 71.0, 94.0, 47.0, 13.0, 100.0, 15.0, 358.0, 58.0),
+        ("VIC", "CitiPower",           340_000,   251_600, 74.0, 95.0, 49.0, 14.0, 100.0, 16.0, 352.0, 61.0),
+        ("SA",  "SA Power Networks",   890_000,   391_600, 44.0, 82.0, 27.0,  7.0,  80.0, 10.0, 398.0, 35.0),
+        ("QLD", "Energex",           1_500_000,   570_000, 38.0, 78.0, 22.0,  5.5,  75.0,  9.0, 405.0, 28.0),
+        ("QLD", "Ergon Energy",      1_100_000,   242_000, 22.0, 65.0, 13.0,  3.0,  70.0,  6.0, 425.0, 18.0),
+    ]
+    records = []
+    for r in raw:
+        records.append(SmartMeterRecord(
+            state=r[0],
+            dnsp=r[1],
+            total_customer_points=r[2],
+            smart_meters_installed=r[3],
+            penetration_pct=r[4],
+            interval_data_enabled_pct=r[5],
+            tou_tariff_customers_pct=r[6],
+            demand_tariff_customers_pct=r[7],
+            smart_meter_target_pct=r[8],
+            annual_rollout_rate_pct=r[9],
+            cost_per_meter_aud=r[10],
+            market_led_upgrades_pct=r[11],
+        ))
+    return records
+
+
+def _make_grid_modernisation_projects() -> List[GridModernisationProject]:
+    raw = [
+        (
+            "GM-001", "Advanced SCADA Upgrade Stage 2", "Ausgrid", "NSW",
+            "SCADA_UPGRADE",
+            "Replace legacy SCADA with cloud-native ADMS for real-time network control and automated fault detection.",
+            180.0, "UNDERWAY", 2026, 1_930_000, 8.5,
+        ),
+        (
+            "GM-002", "DER Management System Deployment", "SA Power Networks", "SA",
+            "DER_MANAGEMENT",
+            "End-to-end DER management platform supporting 500k rooftop solar and battery assets with dynamic export limiting.",
+            95.0, "UNDERWAY", 2025, 890_000, 6.2,
+        ),
+        (
+            "GM-003", "EV Smart Charging Integration Hub", "AusNet Services", "VIC",
+            "EV_INTEGRATION",
+            "Grid-integrated EV charging orchestration enabling V2G capability for 200k EVs across the AusNet network.",
+            65.0, "PLANNED", 2027, 760_000, 4.8,
+        ),
+        (
+            "GM-004", "Enhanced Network Visibility Program", "United Energy", "VIC",
+            "NETWORK_VISIBILITY",
+            "Install 4,200 smart sensors and reclosers for sub-feeder visibility enabling automated fault isolation.",
+            42.0, "COMPLETE", 2024, 640_000, 5.5,
+        ),
+        (
+            "GM-005", "Cyber Security & OT Network Hardening", "Endeavour Energy", "NSW",
+            "CYBER_SECURITY",
+            "Zero-trust architecture rollout across all OT systems, substations and field automation devices.",
+            88.0, "UNDERWAY", 2026, 960_000, 0.0,
+        ),
+        (
+            "GM-006", "Field Automation & FDIR Rollout", "Energex", "QLD",
+            "FIELD_AUTOMATION",
+            "Fault Detection Isolation and Restoration automation across 850 feeders reducing outage restoration time by 40%.",
+            120.0, "UNDERWAY", 2026, 1_500_000, 9.2,
+        ),
+        (
+            "GM-007", "Advanced Metering Infrastructure Phase 3", "Essential Energy", "NSW",
+            "SCADA_UPGRADE",
+            "AMI head-end system upgrade and backhaul network expansion for 880k rural and regional customer points.",
+            55.0, "PLANNED", 2027, 880_000, 7.1,
+        ),
+        (
+            "GM-008", "DER Visibility & Coordination Platform", "CitiPower", "VIC",
+            "DER_MANAGEMENT",
+            "Real-time visibility of 190k rooftop solar and 45k battery systems with voltage management automation.",
+            38.0, "COMPLETE", 2024, 340_000, 4.3,
+        ),
+        (
+            "GM-009", "Transmission-Distribution Interface Mgmt", "Ergon Energy", "QLD",
+            "NETWORK_VISIBILITY",
+            "Install 1,200 distribution PMUs and upgrade SCADA/EMS interfaces for improved T-D boundary management.",
+            72.0, "UNDERWAY", 2026, 1_100_000, 6.8,
+        ),
+        (
+            "GM-010", "Battery Storage Grid Support Program", "SA Power Networks", "SA",
+            "DER_MANAGEMENT",
+            "Aggregation platform for grid-scale and distributed batteries providing frequency response and peak demand services.",
+            48.0, "APPROVED", 2027, 890_000, 5.0,
+        ),
+    ]
+    projects = []
+    for r in raw:
+        projects.append(GridModernisationProject(
+            project_id=r[0],
+            project_name=r[1],
+            dnsp=r[2],
+            state=r[3],
+            category=r[4],
+            description=r[5],
+            capex_m_aud=r[6],
+            status=r[7],
+            completion_year=r[8],
+            customers_benefiting=r[9],
+            reliability_improvement_pct=r[10],
+        ))
+    return projects
+
+
+def _make_reliability_stats() -> List[NetworkReliabilityStats]:
+    raw = [
+        # (dnsp, state, year, saidi, saifi, caidi, vs_target_pct, unplanned, planned, major_event_days)
+        ("Ausgrid",          "NSW", 2025,  92.4, 1.42, 65.1,  -4.2, 312, 189, 3),
+        ("Endeavour Energy", "NSW", 2025,  98.1, 1.51, 65.0,  -2.1, 288, 201, 4),
+        ("Essential Energy", "NSW", 2025, 210.5, 2.85, 73.9,  18.3, 520, 312, 8),
+        ("AusNet Services",  "VIC", 2025,  88.2, 1.38, 63.9,  -6.1, 295, 175, 3),
+        ("United Energy",    "VIC", 2025,  85.6, 1.31, 65.3,  -8.5, 271, 162, 2),
+        ("CitiPower",        "VIC", 2025,  84.1, 1.28, 65.7,  -9.8, 255, 155, 2),
+        ("SA Power Networks","SA",  2025,  68.3, 1.05, 65.0, -12.4, 198, 145, 5),
+        ("Energex",          "QLD", 2025,  95.7, 1.48, 64.7,  -3.5, 330, 210, 4),
+        ("Ergon Energy",     "QLD", 2025, 185.2, 2.61, 70.9,  14.7, 480, 290, 7),
+    ]
+    stats = []
+    for r in raw:
+        stats.append(NetworkReliabilityStats(
+            dnsp=r[0],
+            state=r[1],
+            year=r[2],
+            saidi_minutes=r[3],
+            saifi_count=r[4],
+            caidi_minutes=r[5],
+            vs_regulatory_target_pct=r[6],
+            unplanned_outages=r[7],
+            planned_outages=r[8],
+            major_event_days=r[9],
+        ))
+    return stats
+
+
+def _make_grid_mod_dashboard() -> GridModernisationDashboard:
+    import datetime as _dt
+    records = _make_smart_meter_records()
+    projects = _make_grid_modernisation_projects()
+    stats = _make_reliability_stats()
+
+    total_pts = sum(r.total_customer_points for r in records)
+    total_installed = sum(r.smart_meters_installed for r in records)
+    national_sm_pct = round(total_installed / total_pts * 100, 1) if total_pts else 0.0
+
+    tou_adoption = round(
+        sum(r.tou_tariff_customers_pct * r.smart_meters_installed for r in records)
+        / max(total_installed, 1),
+        1,
+    )
+    interval_cov = round(
+        sum(r.interval_data_enabled_pct * r.smart_meters_installed for r in records)
+        / max(total_installed, 1),
+        1,
+    )
+    total_investment = round(sum(p.capex_m_aud for p in projects), 1)
+    projects_underway = sum(1 for p in projects if p.status == "UNDERWAY")
+    avg_saidi = round(sum(s.saidi_minutes for s in stats) / max(len(stats), 1), 1)
+
+    return GridModernisationDashboard(
+        timestamp=_dt.datetime.utcnow().isoformat() + "Z",
+        national_smart_meter_pct=national_sm_pct,
+        tou_tariff_adoption_pct=tou_adoption,
+        interval_data_coverage_pct=interval_cov,
+        total_grid_mod_investment_m_aud=total_investment,
+        projects_underway=projects_underway,
+        avg_saidi_minutes=avg_saidi,
+        smart_meter_records=records,
+        grid_mod_projects=projects,
+        reliability_stats=stats,
+    )
+
+
+@app.get(
+    "/api/grid-modernisation/dashboard",
+    response_model=GridModernisationDashboard,
+    summary="Smart Meter & Grid Modernisation Analytics dashboard",
+    tags=["Grid Modernisation"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_mod_dashboard():
+    """Return grid modernisation dashboard aggregate. Cached 3600 s."""
+    cached = _cache_get("grid_mod:dashboard")
+    if cached:
+        return cached
+    data = _make_grid_mod_dashboard()
+    _cache_set("grid_mod:dashboard", data, _TTL_GRID_MOD)
+    return data
+
+
+@app.get(
+    "/api/grid-modernisation/smart-meters",
+    response_model=List[SmartMeterRecord],
+    summary="Smart meter penetration records by DNSP",
+    tags=["Grid Modernisation"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_smart_meter_records(state: Optional[str] = None):
+    """Return smart meter penetration records. Filterable by state. Cached 3600 s."""
+    cache_key = f"grid_mod:smart_meters:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_smart_meter_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    _cache_set(cache_key, records, _TTL_GRID_MOD)
+    return records
+
+
+@app.get(
+    "/api/grid-modernisation/projects",
+    response_model=List[GridModernisationProject],
+    summary="Grid modernisation capital projects",
+    tags=["Grid Modernisation"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_mod_projects(
+    state: Optional[str] = None,
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """Return grid modernisation projects. Filterable by state, category, status. Cached 3600 s."""
+    cache_key = f"grid_mod:projects:{state}:{category}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_grid_modernisation_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if category:
+        projects = [p for p in projects if p.category == category]
+    if status:
+        projects = [p for p in projects if p.status == status]
+    _cache_set(cache_key, projects, _TTL_GRID_MOD)
+    return projects

@@ -1607,6 +1607,30 @@ export interface ConstraintViolationRecord { violation_id: string; constraint_id
 export interface ConstraintDashboard { timestamp: string; total_active_constraints: number; binding_constraints_now: number; total_annual_constraint_cost_m_aud: number; most_constrained_region: string; violations_today: number; region_summaries: ConstraintSummaryByRegion[]; constraint_equations: ConstraintEquation[]; violations: ConstraintViolationRecord[] }
 
 // ---------------------------------------------------------------------------
+// Sprint 28a — Price Setter interfaces
+// ---------------------------------------------------------------------------
+export interface PriceSetterRecord { interval: string; region: string; duid: string; station_name: string; fuel_type: string; dispatch_price: number; dispatch_quantity_mw: number; offer_band: string; offer_price: number; is_strategic: boolean; shadow_price_mw: number }
+export interface PriceSetterFrequency { duid: string; station_name: string; fuel_type: string; region: string; capacity_mw: number; intervals_as_price_setter: number; pct_intervals: number; avg_price_when_setter: number; max_price_when_setter: number; estimated_daily_price_power_aud: number; strategic_bids_pct: number }
+export interface FuelTypePriceSetting { fuel_type: string; intervals_as_price_setter: number; pct_of_all_intervals: number; avg_price_aud_mwh: number; max_price_aud_mwh: number; economic_rent_est_m_aud: number }
+export interface PriceSetterDashboard { timestamp: string; region: string; total_intervals_today: number; dominant_price_setter: string; dominant_fuel_type: string; strategic_bid_frequency_pct: number; avg_price_today: number; current_price_setter: string; current_price: number; price_setter_records: PriceSetterRecord[]; frequency_stats: PriceSetterFrequency[]; fuel_type_stats: FuelTypePriceSetting[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 28c — Retail Tariff Structure interfaces
+// ---------------------------------------------------------------------------
+export interface TariffComponent { state: string; customer_type: string; tariff_type: string; dnsp: string; component: string; rate_c_kwh: number; pct_of_total_bill: number; yoy_change_pct: number; regulated: boolean }
+export interface TouTariffStructure { state: string; dnsp: string; tariff_name: string; peak_hours: string; shoulder_hours: string; off_peak_hours: string; peak_rate_c_kwh: number; shoulder_rate_c_kwh: number; off_peak_rate_c_kwh: number; daily_supply_charge_aud: number; solar_export_rate_c_kwh: number; demand_charge_aud_kw_mth: number | null; typical_annual_bill_aud: number }
+export interface BillComposition { state: string; customer_segment: string; annual_usage_kwh: number; total_annual_bill_aud: number; energy_cost_aud: number; network_cost_aud: number; environmental_cost_aud: number; metering_cost_aud: number; retail_margin_aud: number; energy_pct: number; network_pct: number; env_pct: number; avg_c_kwh_all_in: number }
+export interface TariffDashboard { timestamp: string; national_avg_residential_bill_aud: number; cheapest_state: string; most_expensive_state: string; tou_adoption_pct: number; avg_solar_export_rate_c_kwh: number; network_cost_share_pct: number; tariff_components: TariffComponent[]; tou_structures: TouTariffStructure[]; bill_compositions: BillComposition[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 28b — Smart Meter & Grid Modernisation interfaces
+// ---------------------------------------------------------------------------
+export interface SmartMeterRecord { state: string; dnsp: string; total_customer_points: number; smart_meters_installed: number; penetration_pct: number; interval_data_enabled_pct: number; tou_tariff_customers_pct: number; demand_tariff_customers_pct: number; smart_meter_target_pct: number; annual_rollout_rate_pct: number; cost_per_meter_aud: number; market_led_upgrades_pct: number }
+export interface GridModernisationProject { project_id: string; project_name: string; dnsp: string; state: string; category: string; description: string; capex_m_aud: number; status: string; completion_year: number; customers_benefiting: number; reliability_improvement_pct: number }
+export interface NetworkReliabilityStats { dnsp: string; state: string; year: number; saidi_minutes: number; saifi_count: number; caidi_minutes: number; vs_regulatory_target_pct: number; unplanned_outages: number; planned_outages: number; major_event_days: number }
+export interface GridModernisationDashboard { timestamp: string; national_smart_meter_pct: number; tou_tariff_adoption_pct: number; interval_data_coverage_pct: number; total_grid_mod_investment_m_aud: number; projects_underway: number; avg_saidi_minutes: number; smart_meter_records: SmartMeterRecord[]; grid_mod_projects: GridModernisationProject[]; reliability_stats: NetworkReliabilityStats[] }
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2867,6 +2891,63 @@ export const api = {
     if (params?.region) qs.append('region', params.region)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<ConstraintViolationRecord[]>(`/api/constraints/violations${query}`)
+  },
+
+  getPriceSetterDashboard: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<PriceSetterDashboard>(`/api/price-setter/dashboard${query}`)
+  },
+
+  getPriceSetterRecords: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<PriceSetterRecord[]>(`/api/price-setter/records${query}`)
+  },
+
+  getPriceSetterFrequency: (params?: { region?: string; fuel_type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.fuel_type) qs.append('fuel_type', params.fuel_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<PriceSetterFrequency[]>(`/api/price-setter/frequency${query}`)
+  },
+
+  // Sprint 28c — Retail Tariff Structure & Bill Analytics
+  getTariffDashboard: () => get<TariffDashboard>('/api/tariff/dashboard'),
+  getTariffComponents: (params?: { state?: string; customer_type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.customer_type) qs.append('customer_type', params.customer_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TariffComponent[]>(`/api/tariff/components${query}`)
+  },
+  getTouStructures: (params?: { state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TouTariffStructure[]>(`/api/tariff/structures${query}`)
+  },
+
+  // Sprint 28b — Smart Meter & Grid Modernisation Analytics
+  getGridModernisationDashboard: () => get<GridModernisationDashboard>('/api/grid-modernisation/dashboard'),
+
+  getSmartMeterRecords: (params?: { state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<SmartMeterRecord[]>(`/api/grid-modernisation/smart-meters${query}`)
+  },
+
+  getGridModProjects: (params?: { state?: string; category?: string; status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.category) qs.append('category', params.category)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<GridModernisationProject[]>(`/api/grid-modernisation/projects${query}`)
   },
 }
 

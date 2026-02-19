@@ -37,6 +37,8 @@ import {
   Target,
   MapPin,
   GitBranch,
+  Receipt,
+  Wifi,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -92,6 +94,9 @@ import IspTracker from './pages/IspTracker'
 import SolarEvAnalytics from './pages/SolarEvAnalytics'
 import LrmcAnalytics from './pages/LrmcAnalytics'
 import NetworkConstraints from './pages/NetworkConstraints'
+import PriceSetterAnalytics from './pages/PriceSetterAnalytics'
+import TariffAnalytics from './pages/TariffAnalytics'
+import GridModernisation from './pages/GridModernisation'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -147,6 +152,9 @@ const NAV_ITEMS = [
   { to: '/solar-ev',      label: 'Solar & EV',         Icon: Zap            },
   { to: '/lrmc',          label: 'LRMC & Investment',  Icon: TrendingDown   },
   { to: '/constraints',    label: 'Constraints',        Icon: GitBranch      },
+  { to: '/price-setter',   label: 'Price Setter',       Icon: Target         },
+  { to: '/tariff',         label: 'Tariff Analytics',   Icon: Receipt        },
+  { to: '/grid-mod',       label: 'Grid Modernisation', Icon: Wifi           },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -277,6 +285,9 @@ export default function App() {
               <Route path="/solar-ev"     element={<SolarEvAnalytics />}   />
               <Route path="/lrmc"         element={<LrmcAnalytics />}      />
               <Route path="/constraints"  element={<NetworkConstraints />}  />
+              <Route path="/price-setter" element={<PriceSetterAnalytics />} />
+              <Route path="/tariff"       element={<TariffAnalytics />}    />
+              <Route path="/grid-mod"     element={<GridModernisation />}  />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>
