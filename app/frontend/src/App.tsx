@@ -45,6 +45,8 @@ import {
   CloudLightning,
   Cpu,
   Atom,
+  Fuel,
+  TreePine,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -147,6 +149,9 @@ import DecarbonizationPathway from './pages/DecarbonizationPathway'
 import NuclearLongDuration from './pages/NuclearLongDuration'
 import BiddingBehaviour from './pages/BiddingBehaviour'
 import EnergyPoverty from './pages/EnergyPoverty'
+import SpotForecastDashboard from './pages/SpotForecastDashboard'
+import HydrogenEconomy from './pages/HydrogenEconomy'
+import CarbonCreditMarket from './pages/CarbonCreditMarket'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -249,6 +254,9 @@ const NAV_ITEMS = [
   { to: '/nuclear-ldes',      label: 'Nuclear & LDES',     Icon: Atom           },
   { to: '/bidding-behaviour', label: 'Bidding Behaviour',  Icon: BarChart2      },
   { to: '/energy-poverty',    label: 'Energy Poverty',     Icon: Heart          },
+  { to: '/spot-forecast',     label: 'Spot Forecast',      Icon: Zap            },
+  { to: '/hydrogen-economy',  label: 'Hydrogen Economy',   Icon: Fuel           },
+  { to: '/carbon-credit',     label: 'Carbon Credits',     Icon: TreePine       },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -426,6 +434,9 @@ export default function App() {
               <Route path="/nuclear-ldes"      element={<NuclearLongDuration />}    />
               <Route path="/bidding-behaviour" element={<BiddingBehaviour />}    />
               <Route path="/energy-poverty"    element={<EnergyPoverty />}       />
+              <Route path="/spot-forecast"     element={<SpotForecastDashboard />} />
+              <Route path="/hydrogen-economy"  element={<HydrogenEconomy />}      />
+              <Route path="/carbon-credit"     element={<CarbonCreditMarket />}  />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

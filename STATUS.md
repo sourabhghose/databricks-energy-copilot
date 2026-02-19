@@ -805,6 +805,33 @@
 - App.tsx: BiddingBehaviour page imported, /bidding-behaviour route added, "Bidding Behaviour" nav item added (BarChart2 icon already present)
 - 4 TestBiddingBehaviourEndpoints tests appended to tests/test_backend.py
 
+## Sprint 44a — Electricity Spot Price Forecasting Dashboard [COMPLETE]
+- SpotForecastDashboard.tsx: 5 KPI mini-cards (one per region — current price with trend arrow + spike probability progress bar), Forecast Price Bands AreaChart (P10/P50/P90 confidence intervals + actual prices over 24h, region toggle for NSW1/QLD1/VIC1/SA1/TAS1), Regional Price Summary table (region, current price, 24h avg, 7d avg, spike prob color-coded <15% green / <35% amber / else red, volatility index, trend badge), Model Performance table with period selector (NEURAL/GBDT/ENSEMBLE, MAE, RMSE, MAPE%, R², spike detection rate)
+- Backend Pydantic models: SpotForecastInterval, RegionalPriceSummary, ModelPerformanceRecord, SpotForecastDashboard
+- /api/spot-forecast/dashboard, /intervals, /regional-summary, /model-performance (all with `dependencies=[Depends(verify_api_key)]`)
+  - 48 forecast intervals (30-min for next 24h) for NSW1; actual prices for past 24 intervals, None for future; P10/P50/P90 bands; NEURAL/ENSEMBLE/GBDT model rotation
+  - 5 regional summaries (NSW1 $87.5, QLD1 $74.2, VIC1 $112.8, SA1 $198.4, TAS1 $44.6; spike probs 5.1–40.2%; volatility 21.7–78.4)
+  - 15 model performance records (NEURAL/GBDT/ENSEMBLE × 5 regions; MAE $4.8–24.5; MAPE 7.8–20.7%; R² 0.67–0.86; spike detection 65.4–85.9%)
+  - next_spike_alert: "NSW1 spike risk 73% at 18:30 AEST"; overall_forecast_accuracy_pct: 88.6%
+- TypeScript interfaces: SpotForecastInterval, RegionalPriceSummary, ModelPerformanceRecord, SpotForecastDashboard added to client.ts before `// Internal helpers`
+- api methods: getSpotForecastDashboard, getSpotForecastIntervals, getSpotForecastRegionalSummary, getSpotForecastModelPerformance added to api object in client.ts
+- App.tsx: SpotForecastDashboard page imported, /spot-forecast route added, "Spot Forecast" nav item added (Zap icon already imported)
+- 4 TestSpotForecastEndpoints tests appended to tests/test_backend.py
+
+## Sprint 44c — Carbon Credit & Offset Market Analytics [COMPLETE]
+- CarbonCreditMarket.tsx: TreePine icon header, 4 KPI cards (Current ACCU Price $/unit, Total Issued Mt CO2-e, Safeguard Demand kt CO2, Market Size $B AUD), ACCU Price History line chart (Jan-Jun 2024 daily spot by type: GENERIC/HIR/LANDFILL/SAVANNA_BURNING), Carbon Price Forecast line chart (2024-2035 BASE/HIGH/LOW + EU ETS AUD), Carbon Projects table with type filter badges (REFORESTATION green, SOIL_CARBON amber, SAVANNA_BURNING orange, LANDFILL_GAS gray, AVOIDED_DEFORESTATION teal), Corporate Buyers table with purpose badges (SAFEGUARD_COMPLIANCE red, VOLUNTARY_NET_ZERO green, EXPORT blue)
+- Backend Pydantic models (collision-safe names): AccuSpotRecord, CarbonOffsetProjectRecord, CarbonOffsetBuyerRecord, AccuPriceForecastRecord, CarbonCreditMarketDashboard
+- /api/carbon-credit/dashboard, /spot, /projects, /buyers, /price-forecast (all with `dependencies=[Depends(verify_api_key)]`)
+  - 24 ACCU spot records: daily Jan-Jun 2024; GENERIC $28-42, HIR $44-55+, LANDFILL ~$30, SAVANNA ~$34-42; volumes 8K-95K; buyer_category rotation SAFEGUARD/VOLUNTARY/GOVERNMENT/EXPORT
+  - 15 carbon offset projects: QLD/NSW/WA/NT/VIC/SA states; all 5 project types; vintage 2019-2023; prices $29-48/ACCU; HIR/soil carbon at premium; co_benefits including BIODIVERSITY/WATER/INDIGENOUS_EMPLOYMENT
+  - 10 corporate buyers: BHP/Rio Tinto/AGL/Qantas/Woolworths/ANZ/Santos/Woodside/CBA/Coles; purchase volumes 18K-480K ACCUs; net zero targets 2030-2050
+  - 36 price forecast records: BASE/HIGH/LOW x 12 years (2024-2035); BASE $36-88; HIGH $38-148; LOW $33-65; EU ETS AUD $78-147; California cap-and-trade AUD $48-99
+- TypeScript interfaces: AccuSpotRecord, CarbonOffsetProjectRecord, CarbonOffsetBuyerRecord, AccuPriceForecastRecord, CarbonCreditMarketDashboard added to client.ts
+- api methods: getCarbonCreditDashboard, getCarbonCreditSpot, getCarbonCreditProjects, getCarbonCreditBuyers, getCarbonCreditPriceForecast added to api object in client.ts
+- App.tsx: CarbonCreditMarket imported, TreePine imported from lucide-react, /carbon-credit route added, "Carbon Credits" nav item (TreePine icon)
+- 5 TestCarbonCreditEndpoints tests appended to tests/test_backend.py
+- Note: test execution blocked by pre-existing NameError at line 11930 of main.py (`@router.get` used without `router` defined — not introduced by Sprint 44c)
+
 ## Sprint 43c — Energy Poverty & Just Transition Analytics [COMPLETE]
 - EnergyPoverty.tsx: 4 KPI cards (national hardship rate, workers in transition, total transition fund, low-income solar gap), hardship rate trend line chart by state over 4 quarters, coal worker transition table (wage ratio colored red/amber/green), affordability table (bill % income colored by stress level), just transition programs table (program type and status badges, outcomes score bar)
 - /api/energy-poverty/dashboard, /hardship, /worker-transition, /affordability, /programs

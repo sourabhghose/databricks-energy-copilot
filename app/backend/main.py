@@ -27679,3 +27679,810 @@ async def get_energy_poverty_affordability():
 async def get_energy_poverty_programs():
     dash = await get_energy_poverty_dashboard()
     return dash.just_transition_programs
+
+# ---------------------------------------------------------------------------
+# Sprint 44a — Spot Price Forecasting Dashboard
+# ---------------------------------------------------------------------------
+
+class SpotForecastInterval(BaseModel):
+    trading_interval: str    # ISO datetime
+    region: str
+    actual_price: float | None
+    forecast_p10: float
+    forecast_p50: float
+    forecast_p90: float
+    forecast_model: str      # NEURAL, GBDT, ENSEMBLE
+    mae: float | None
+    mape_pct: float | None
+
+class RegionalPriceSummary(BaseModel):
+    region: str
+    current_price: float
+    forecast_24h_avg: float
+    forecast_7d_avg: float
+    price_spike_prob_pct: float   # probability of >$300/MWh in next 4h
+    volatility_index: float       # 0-100
+    trend: str                    # UP, DOWN, STABLE
+
+class ModelPerformanceRecord(BaseModel):
+    model_name: str
+    region: str
+    period: str             # last_24h, last_7d, last_30d
+    mae: float
+    rmse: float
+    mape_pct: float
+    r2_score: float
+    spike_detection_rate_pct: float
+
+class SpotForecastDashboard(BaseModel):
+    timestamp: str
+    forecast_intervals: list[SpotForecastInterval]
+    regional_summary: list[RegionalPriceSummary]
+    model_performance: list[ModelPerformanceRecord]
+    next_spike_alert: str | None
+    overall_forecast_accuracy_pct: float
+
+
+def _build_spot_forecast_dashboard() -> SpotForecastDashboard:
+    import math
+    base_dt = datetime(2025, 2, 20, 6, 0, 0)  # 06:00 AEST start
+
+    # 48 x 30-min intervals for 24h — actual for first 24 (past 12h) else None
+    intervals: list[SpotForecastInterval] = []
+    models_cycle = ["NEURAL", "ENSEMBLE", "GBDT", "ENSEMBLE", "NEURAL", "GBDT"]
+    base_prices = [58, 62, 55, 70, 85, 110, 145, 130, 95, 80, 72, 65,
+                   60, 58, 62, 68, 75, 90, 105, 120, 135, 115, 88, 70,
+                   65, 62, 60, 58, 55, 60, 65, 70, 78, 88, 102, 118,
+                   130, 122, 105, 92, 80, 72, 65, 60, 58, 56, 54, 52]
+    for i in range(48):
+        dt_str = (base_dt + timedelta(minutes=30 * i)).strftime("%Y-%m-%dT%H:%M:00")
+        bp = base_prices[i % len(base_prices)]
+        spread_p10 = bp * 0.82
+        spread_p50 = bp * 1.0
+        spread_p90 = bp * 1.28
+        actual = round(bp + (i % 7 - 3) * 2.5, 2) if i < 24 else None
+        mae_val = round(abs(actual - spread_p50), 2) if actual is not None else None
+        mape_val = round(abs(actual - spread_p50) / max(actual, 1) * 100, 2) if actual is not None else None
+        intervals.append(SpotForecastInterval(
+            trading_interval=dt_str,
+            region="NSW1",
+            actual_price=actual,
+            forecast_p10=round(spread_p10, 2),
+            forecast_p50=round(spread_p50, 2),
+            forecast_p90=round(spread_p90, 2),
+            forecast_model=models_cycle[i % len(models_cycle)],
+            mae=mae_val,
+            mape_pct=mape_val,
+        ))
+
+    regional_summary = [
+        RegionalPriceSummary(region="NSW1", current_price=87.5,  forecast_24h_avg=92.3,  forecast_7d_avg=78.6,  price_spike_prob_pct=18.5, volatility_index=42.0, trend="UP"),
+        RegionalPriceSummary(region="QLD1", current_price=74.2,  forecast_24h_avg=80.1,  forecast_7d_avg=71.4,  price_spike_prob_pct=12.3, volatility_index=33.5, trend="STABLE"),
+        RegionalPriceSummary(region="VIC1", current_price=112.8, forecast_24h_avg=105.4, forecast_7d_avg=89.2,  price_spike_prob_pct=28.7, volatility_index=61.2, trend="DOWN"),
+        RegionalPriceSummary(region="SA1",  current_price=198.4, forecast_24h_avg=175.6, forecast_7d_avg=142.1, price_spike_prob_pct=40.2, volatility_index=78.4, trend="DOWN"),
+        RegionalPriceSummary(region="TAS1", current_price=44.6,  forecast_24h_avg=48.9,  forecast_7d_avg=45.3,  price_spike_prob_pct=5.1,  volatility_index=21.7, trend="UP"),
+    ]
+
+    perf_data = [
+        # NEURAL × 5 regions
+        ("NEURAL",   "NSW1", "last_24h", 8.4,  11.2, 9.1,  0.84, 81.2),
+        ("NEURAL",   "QLD1", "last_24h", 7.2,  9.8,  8.5,  0.82, 78.5),
+        ("NEURAL",   "VIC1", "last_24h", 14.6, 19.3, 13.8, 0.76, 74.3),
+        ("NEURAL",   "SA1",  "last_24h", 22.1, 29.7, 18.4, 0.71, 68.9),
+        ("NEURAL",   "TAS1", "last_24h", 5.3,  7.1,  8.2,  0.85, 83.4),
+        # GBDT × 5 regions
+        ("GBDT",     "NSW1", "last_7d",  10.7, 14.5, 11.6, 0.79, 76.8),
+        ("GBDT",     "QLD1", "last_7d",  9.3,  12.4, 10.2, 0.78, 74.2),
+        ("GBDT",     "VIC1", "last_7d",  17.8, 23.6, 15.9, 0.72, 70.1),
+        ("GBDT",     "SA1",  "last_7d",  24.5, 32.1, 20.7, 0.67, 65.4),
+        ("GBDT",     "TAS1", "last_7d",  6.1,  8.2,  9.4,  0.81, 79.6),
+        # ENSEMBLE × 5 regions
+        ("ENSEMBLE", "NSW1", "last_30d", 7.1,  9.4,  8.3,  0.85, 84.7),
+        ("ENSEMBLE", "QLD1", "last_30d", 6.4,  8.5,  7.8,  0.83, 82.1),
+        ("ENSEMBLE", "VIC1", "last_30d", 12.8, 17.1, 12.6, 0.78, 77.3),
+        ("ENSEMBLE", "SA1",  "last_30d", 19.6, 26.4, 17.2, 0.73, 71.8),
+        ("ENSEMBLE", "TAS1", "last_30d", 4.8,  6.4,  8.0,  0.86, 85.9),
+    ]
+    model_performance = [
+        ModelPerformanceRecord(
+            model_name=m, region=r, period=p,
+            mae=mae, rmse=rmse, mape_pct=mape,
+            r2_score=r2, spike_detection_rate_pct=sdr,
+        )
+        for m, r, p, mae, rmse, mape, r2, sdr in perf_data
+    ]
+
+    return SpotForecastDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        forecast_intervals=intervals,
+        regional_summary=regional_summary,
+        model_performance=model_performance,
+        next_spike_alert="NSW1 spike risk 73% at 18:30 AEST",
+        overall_forecast_accuracy_pct=88.6,
+    )
+
+
+@app.get("/api/spot-forecast/dashboard", response_model=SpotForecastDashboard, dependencies=[Depends(verify_api_key)])
+async def get_spot_forecast_dashboard():
+    return _build_spot_forecast_dashboard()
+
+
+@app.get("/api/spot-forecast/intervals", response_model=list[SpotForecastInterval], dependencies=[Depends(verify_api_key)])
+async def get_spot_forecast_intervals():
+    return _build_spot_forecast_dashboard().forecast_intervals
+
+
+@app.get("/api/spot-forecast/regional-summary", response_model=list[RegionalPriceSummary], dependencies=[Depends(verify_api_key)])
+async def get_spot_forecast_regional_summary():
+    return _build_spot_forecast_dashboard().regional_summary
+
+
+@app.get("/api/spot-forecast/model-performance", response_model=list[ModelPerformanceRecord], dependencies=[Depends(verify_api_key)])
+async def get_spot_forecast_model_performance():
+    return _build_spot_forecast_dashboard().model_performance
+
+
+# ---------------------------------------------------------------------------
+# Sprint 44b — Hydrogen Economy & Infrastructure Analytics
+# ---------------------------------------------------------------------------
+
+class H2ProductionFacility(BaseModel):
+    facility_id: str
+    facility_name: str
+    developer: str
+    state: str
+    hydrogen_type: str          # GREEN, BLUE, TURQUOISE
+    production_type: str        # ELECTROLYSIS_PEM, ELECTROLYSIS_ALK, SMR_CCS, PYROLYSIS
+    capacity_tpd: float         # tonnes per day
+    electrolyser_mw: float | None
+    renewable_source: str | None  # WIND, SOLAR, HYBRID
+    status: str                 # OPERATING, CONSTRUCTION, APPROVED, FEASIBILITY
+    capex_m_aud: float
+    lcoh_kg: float              # levelised cost of hydrogen $/kg
+    co2_intensity_kgco2_kgh2: float
+    production_2024_tpa: float | None
+
+class H2ExportTerminal(BaseModel):
+    terminal_id: str
+    terminal_name: str
+    port: str
+    state: str
+    carrier: str                # AMMONIA, LH2, MCH
+    capacity_tpa: float
+    status: str
+    first_export_year: int | None
+    capex_b_aud: float
+    target_markets: list[str]
+
+class H2RefuellingStation(BaseModel):
+    station_id: str
+    location: str
+    state: str
+    capacity_kgd: float         # kg/day dispensing
+    pressure_bar: int           # 350 or 700
+    vehicle_type: str           # HCV, BUS, PASSENGER
+    status: str
+    daily_transactions: int | None
+    price_per_kg: float | None
+
+class H2CostBenchmark(BaseModel):
+    year: int
+    technology: str
+    region: str
+    lcoh_kg: float
+    electricity_cost_mwh: float | None
+    capex_index: float          # normalised index, 2024=100
+    cost_reduction_pct_pa: float
+
+class H2EconomyDashboard(BaseModel):
+    timestamp: str
+    production_facilities: list[H2ProductionFacility]
+    export_terminals: list[H2ExportTerminal]
+    refuelling_stations: list[H2RefuellingStation]
+    cost_benchmarks: list[H2CostBenchmark]
+    total_production_capacity_tpd: float
+    operating_facilities: int
+    total_export_capacity_tpa: float
+    avg_lcoh_green: float
+
+
+_H2_PRODUCTION_FACILITIES: list[H2ProductionFacility] = [
+    H2ProductionFacility(
+        facility_id="H2P001", facility_name="Western Green Energy Hub", developer="Intercontinental Energy",
+        state="WA", hydrogen_type="GREEN", production_type="ELECTROLYSIS_PEM",
+        capacity_tpd=500.0, electrolyser_mw=2500.0, renewable_source="HYBRID",
+        status="FEASIBILITY", capex_m_aud=8500.0, lcoh_kg=4.20,
+        co2_intensity_kgco2_kgh2=0.08, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P002", facility_name="Yuri Industrial Hydrogen", developer="Engie / Mitsui",
+        state="WA", hydrogen_type="GREEN", production_type="ELECTROLYSIS_ALK",
+        capacity_tpd=80.0, electrolyser_mw=400.0, renewable_source="SOLAR",
+        status="CONSTRUCTION", capex_m_aud=750.0, lcoh_kg=5.10,
+        co2_intensity_kgco2_kgh2=0.05, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P003", facility_name="Gibson Island Hydrogen Hub", developer="ATCO",
+        state="QLD", hydrogen_type="GREEN", production_type="ELECTROLYSIS_PEM",
+        capacity_tpd=25.0, electrolyser_mw=110.0, renewable_source="WIND",
+        status="APPROVED", capex_m_aud=210.0, lcoh_kg=5.80,
+        co2_intensity_kgco2_kgh2=0.06, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P004", facility_name="Denman Hydrogen Hub", developer="AGL Energy",
+        state="NSW", hydrogen_type="GREEN", production_type="ELECTROLYSIS_PEM",
+        capacity_tpd=10.0, electrolyser_mw=45.0, renewable_source="SOLAR",
+        status="OPERATING", capex_m_aud=95.0, lcoh_kg=6.50,
+        co2_intensity_kgco2_kgh2=0.07, production_2024_tpa=3500.0
+    ),
+    H2ProductionFacility(
+        facility_id="H2P005", facility_name="Hydrogen Energy Supply Chain (HESC)", developer="J-Power / Kawasaki",
+        state="VIC", hydrogen_type="BLUE", production_type="SMR_CCS",
+        capacity_tpd=3.0, electrolyser_mw=None, renewable_source=None,
+        status="OPERATING", capex_m_aud=500.0, lcoh_kg=3.20,
+        co2_intensity_kgco2_kgh2=1.80, production_2024_tpa=1095.0
+    ),
+    H2ProductionFacility(
+        facility_id="H2P006", facility_name="Port Kembla Hydrogen Hub", developer="Austral Green Fuels",
+        state="NSW", hydrogen_type="GREEN", production_type="ELECTROLYSIS_ALK",
+        capacity_tpd=40.0, electrolyser_mw=180.0, renewable_source="WIND",
+        status="CONSTRUCTION", capex_m_aud=380.0, lcoh_kg=5.40,
+        co2_intensity_kgco2_kgh2=0.06, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P007", facility_name="Whyalla H2 Blue Steel", developer="GFG Alliance / Fortescue",
+        state="SA", hydrogen_type="GREEN", production_type="ELECTROLYSIS_PEM",
+        capacity_tpd=60.0, electrolyser_mw=270.0, renewable_source="HYBRID",
+        status="APPROVED", capex_m_aud=620.0, lcoh_kg=4.80,
+        co2_intensity_kgco2_kgh2=0.05, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P008", facility_name="Murchison Hydrogen Renewables", developer="Siemens Gamesa / CWP",
+        state="WA", hydrogen_type="GREEN", production_type="ELECTROLYSIS_ALK",
+        capacity_tpd=200.0, electrolyser_mw=1000.0, renewable_source="WIND",
+        status="FEASIBILITY", capex_m_aud=2200.0, lcoh_kg=3.80,
+        co2_intensity_kgco2_kgh2=0.04, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P009", facility_name="HyP Stuart", developer="Neoen",
+        state="SA", hydrogen_type="GREEN", production_type="ELECTROLYSIS_PEM",
+        capacity_tpd=5.0, electrolyser_mw=22.0, renewable_source="SOLAR",
+        status="OPERATING", capex_m_aud=42.0, lcoh_kg=7.20,
+        co2_intensity_kgco2_kgh2=0.09, production_2024_tpa=1460.0
+    ),
+    H2ProductionFacility(
+        facility_id="H2P010", facility_name="Moranbah Blue Hydrogen", developer="Origin Energy",
+        state="QLD", hydrogen_type="BLUE", production_type="SMR_CCS",
+        capacity_tpd=50.0, electrolyser_mw=None, renewable_source=None,
+        status="CONSTRUCTION", capex_m_aud=680.0, lcoh_kg=2.60,
+        co2_intensity_kgco2_kgh2=2.10, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P011", facility_name="Tassie Renewables H2", developer="ReNu Energy",
+        state="VIC", hydrogen_type="TURQUOISE", production_type="PYROLYSIS",
+        capacity_tpd=8.0, electrolyser_mw=None, renewable_source=None,
+        status="FEASIBILITY", capex_m_aud=90.0, lcoh_kg=5.90,
+        co2_intensity_kgco2_kgh2=0.30, production_2024_tpa=None
+    ),
+    H2ProductionFacility(
+        facility_id="H2P012", facility_name="Hunter Valley Blue H2", developer="Santos",
+        state="NSW", hydrogen_type="BLUE", production_type="SMR_CCS",
+        capacity_tpd=30.0, electrolyser_mw=None, renewable_source=None,
+        status="APPROVED", capex_m_aud=420.0, lcoh_kg=2.80,
+        co2_intensity_kgco2_kgh2=1.95, production_2024_tpa=None
+    ),
+]
+
+_H2_EXPORT_TERMINALS: list[H2ExportTerminal] = [
+    H2ExportTerminal(
+        terminal_id="H2T001", terminal_name="Gladstone Ammonia Export Hub", port="Gladstone",
+        state="QLD", carrier="AMMONIA", capacity_tpa=250000.0,
+        status="CONSTRUCTION", first_export_year=2027, capex_b_aud=1.8,
+        target_markets=["Japan", "Korea"]
+    ),
+    H2ExportTerminal(
+        terminal_id="H2T002", terminal_name="Port Hastings LH2 Terminal", port="Hastings",
+        state="VIC", carrier="LH2", capacity_tpa=50000.0,
+        status="OPERATING", first_export_year=2024, capex_b_aud=0.8,
+        target_markets=["Japan"]
+    ),
+    H2ExportTerminal(
+        terminal_id="H2T003", terminal_name="Henderson Ammonia Export Facility", port="Henderson",
+        state="WA", carrier="AMMONIA", capacity_tpa=400000.0,
+        status="APPROVED", first_export_year=2028, capex_b_aud=3.2,
+        target_markets=["Japan", "Korea", "Germany"]
+    ),
+    H2ExportTerminal(
+        terminal_id="H2T004", terminal_name="Whyalla Ammonia Terminal", port="Whyalla",
+        state="SA", carrier="AMMONIA", capacity_tpa=180000.0,
+        status="FEASIBILITY", first_export_year=2029, capex_b_aud=1.4,
+        target_markets=["Germany", "Netherlands"]
+    ),
+    H2ExportTerminal(
+        terminal_id="H2T005", terminal_name="Port Kembla MCH Terminal", port="Port Kembla",
+        state="NSW", carrier="MCH", capacity_tpa=120000.0,
+        status="FEASIBILITY", first_export_year=2030, capex_b_aud=1.0,
+        target_markets=["Japan", "Korea"]
+    ),
+    H2ExportTerminal(
+        terminal_id="H2T006", terminal_name="Darwin Ammonia Export Hub", port="Darwin",
+        state="NT", carrier="AMMONIA", capacity_tpa=300000.0,
+        status="APPROVED", first_export_year=2028, capex_b_aud=2.5,
+        target_markets=["Japan", "Korea", "Singapore"]
+    ),
+]
+
+_H2_REFUELLING_STATIONS: list[H2RefuellingStation] = [
+    H2RefuellingStation(
+        station_id="H2R001", location="Brisbane Logistics Precinct", state="QLD",
+        capacity_kgd=200.0, pressure_bar=350, vehicle_type="HCV",
+        status="OPERATING", daily_transactions=12, price_per_kg=12.50
+    ),
+    H2RefuellingStation(
+        station_id="H2R002", location="Sydney Port Botany", state="NSW",
+        capacity_kgd=400.0, pressure_bar=350, vehicle_type="HCV",
+        status="OPERATING", daily_transactions=18, price_per_kg=13.00
+    ),
+    H2RefuellingStation(
+        station_id="H2R003", location="Melbourne Laverton North", state="VIC",
+        capacity_kgd=300.0, pressure_bar=350, vehicle_type="HCV",
+        status="OPERATING", daily_transactions=15, price_per_kg=11.80
+    ),
+    H2RefuellingStation(
+        station_id="H2R004", location="Perth Bibra Lake", state="WA",
+        capacity_kgd=500.0, pressure_bar=700, vehicle_type="BUS",
+        status="OPERATING", daily_transactions=30, price_per_kg=10.50
+    ),
+    H2RefuellingStation(
+        station_id="H2R005", location="Adelaide Gillman", state="SA",
+        capacity_kgd=150.0, pressure_bar=350, vehicle_type="HCV",
+        status="CONSTRUCTION", daily_transactions=None, price_per_kg=None
+    ),
+    H2RefuellingStation(
+        station_id="H2R006", location="Canberra Bus Depot", state="ACT",
+        capacity_kgd=250.0, pressure_bar=350, vehicle_type="BUS",
+        status="OPERATING", daily_transactions=22, price_per_kg=9.80
+    ),
+    H2RefuellingStation(
+        station_id="H2R007", location="Gold Coast Transit Hub", state="QLD",
+        capacity_kgd=200.0, pressure_bar=700, vehicle_type="BUS",
+        status="CONSTRUCTION", daily_transactions=None, price_per_kg=None
+    ),
+    H2RefuellingStation(
+        station_id="H2R008", location="Darwin Industrial Zone", state="NT",
+        capacity_kgd=100.0, pressure_bar=350, vehicle_type="HCV",
+        status="APPROVED", daily_transactions=None, price_per_kg=None
+    ),
+    H2RefuellingStation(
+        station_id="H2R009", location="Newcastle Port Access Road", state="NSW",
+        capacity_kgd=350.0, pressure_bar=350, vehicle_type="HCV",
+        status="OPERATING", daily_transactions=14, price_per_kg=12.00
+    ),
+    H2RefuellingStation(
+        station_id="H2R010", location="Fremantle Passenger Terminal", state="WA",
+        capacity_kgd=80.0, pressure_bar=700, vehicle_type="PASSENGER",
+        status="OPERATING", daily_transactions=8, price_per_kg=15.00
+    ),
+]
+
+_H2_COST_BENCHMARKS: list[H2CostBenchmark] = [
+    # GREEN hydrogen trajectory
+    H2CostBenchmark(year=2020, technology="GREEN", region="Australia", lcoh_kg=8.50, electricity_cost_mwh=45.0, capex_index=145.0, cost_reduction_pct_pa=0.0),
+    H2CostBenchmark(year=2021, technology="GREEN", region="Australia", lcoh_kg=7.90, electricity_cost_mwh=43.0, capex_index=138.0, cost_reduction_pct_pa=7.1),
+    H2CostBenchmark(year=2022, technology="GREEN", region="Australia", lcoh_kg=7.20, electricity_cost_mwh=40.0, capex_index=128.0, cost_reduction_pct_pa=8.9),
+    H2CostBenchmark(year=2023, technology="GREEN", region="Australia", lcoh_kg=6.40, electricity_cost_mwh=37.0, capex_index=116.0, cost_reduction_pct_pa=11.1),
+    H2CostBenchmark(year=2024, technology="GREEN", region="Australia", lcoh_kg=5.50, electricity_cost_mwh=33.0, capex_index=100.0, cost_reduction_pct_pa=14.1),
+    H2CostBenchmark(year=2025, technology="GREEN", region="Australia", lcoh_kg=4.80, electricity_cost_mwh=29.0, capex_index=88.0, cost_reduction_pct_pa=12.7),
+    H2CostBenchmark(year=2026, technology="GREEN", region="Australia", lcoh_kg=4.20, electricity_cost_mwh=26.0, capex_index=78.0, cost_reduction_pct_pa=12.5),
+    H2CostBenchmark(year=2027, technology="GREEN", region="Australia", lcoh_kg=3.70, electricity_cost_mwh=23.0, capex_index=69.0, cost_reduction_pct_pa=11.9),
+    H2CostBenchmark(year=2028, technology="GREEN", region="Australia", lcoh_kg=3.20, electricity_cost_mwh=21.0, capex_index=62.0, cost_reduction_pct_pa=13.5),
+    H2CostBenchmark(year=2029, technology="GREEN", region="Australia", lcoh_kg=2.80, electricity_cost_mwh=19.0, capex_index=56.0, cost_reduction_pct_pa=12.5),
+    H2CostBenchmark(year=2030, technology="GREEN", region="Australia", lcoh_kg=2.40, electricity_cost_mwh=17.0, capex_index=50.0, cost_reduction_pct_pa=14.3),
+    # BLUE hydrogen trajectory
+    H2CostBenchmark(year=2020, technology="BLUE", region="Australia", lcoh_kg=3.80, electricity_cost_mwh=None, capex_index=120.0, cost_reduction_pct_pa=0.0),
+    H2CostBenchmark(year=2021, technology="BLUE", region="Australia", lcoh_kg=3.60, electricity_cost_mwh=None, capex_index=115.0, cost_reduction_pct_pa=5.3),
+    H2CostBenchmark(year=2022, technology="BLUE", region="Australia", lcoh_kg=3.40, electricity_cost_mwh=None, capex_index=110.0, cost_reduction_pct_pa=5.6),
+    H2CostBenchmark(year=2023, technology="BLUE", region="Australia", lcoh_kg=3.20, electricity_cost_mwh=None, capex_index=106.0, cost_reduction_pct_pa=5.9),
+    H2CostBenchmark(year=2024, technology="BLUE", region="Australia", lcoh_kg=3.00, electricity_cost_mwh=None, capex_index=100.0, cost_reduction_pct_pa=6.3),
+    H2CostBenchmark(year=2025, technology="BLUE", region="Australia", lcoh_kg=2.85, electricity_cost_mwh=None, capex_index=96.0, cost_reduction_pct_pa=5.0),
+    H2CostBenchmark(year=2026, technology="BLUE", region="Australia", lcoh_kg=2.72, electricity_cost_mwh=None, capex_index=92.0, cost_reduction_pct_pa=4.6),
+    H2CostBenchmark(year=2027, technology="BLUE", region="Australia", lcoh_kg=2.58, electricity_cost_mwh=None, capex_index=88.0, cost_reduction_pct_pa=5.1),
+    H2CostBenchmark(year=2028, technology="BLUE", region="Australia", lcoh_kg=2.45, electricity_cost_mwh=None, capex_index=84.0, cost_reduction_pct_pa=5.0),
+    H2CostBenchmark(year=2029, technology="BLUE", region="Australia", lcoh_kg=2.32, electricity_cost_mwh=None, capex_index=80.0, cost_reduction_pct_pa=5.3),
+    H2CostBenchmark(year=2030, technology="BLUE", region="Australia", lcoh_kg=2.20, electricity_cost_mwh=None, capex_index=76.0, cost_reduction_pct_pa=5.2),
+]
+
+
+@app.get(
+    "/api/hydrogen-economy/dashboard",
+    response_model=H2EconomyDashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_hydrogen_economy_dashboard() -> H2EconomyDashboard:
+    operating = [f for f in _H2_PRODUCTION_FACILITIES if f.status == "OPERATING"]
+    green = [f for f in _H2_PRODUCTION_FACILITIES if f.hydrogen_type == "GREEN"]
+    avg_lcoh_green = round(sum(f.lcoh_kg for f in green) / len(green), 2) if green else 0.0
+    return H2EconomyDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        production_facilities=_H2_PRODUCTION_FACILITIES,
+        export_terminals=_H2_EXPORT_TERMINALS,
+        refuelling_stations=_H2_REFUELLING_STATIONS,
+        cost_benchmarks=_H2_COST_BENCHMARKS,
+        total_production_capacity_tpd=round(sum(f.capacity_tpd for f in _H2_PRODUCTION_FACILITIES), 1),
+        operating_facilities=len(operating),
+        total_export_capacity_tpa=round(sum(t.capacity_tpa for t in _H2_EXPORT_TERMINALS), 0),
+        avg_lcoh_green=avg_lcoh_green,
+    )
+
+
+@app.get(
+    "/api/hydrogen-economy/production",
+    response_model=list[H2ProductionFacility],
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_hydrogen_economy_production() -> list[H2ProductionFacility]:
+    return _H2_PRODUCTION_FACILITIES
+
+
+@app.get(
+    "/api/hydrogen-economy/export-terminals",
+    response_model=list[H2ExportTerminal],
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_hydrogen_economy_export_terminals() -> list[H2ExportTerminal]:
+    return _H2_EXPORT_TERMINALS
+
+
+@app.get(
+    "/api/hydrogen-economy/refuelling",
+    response_model=list[H2RefuellingStation],
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_hydrogen_economy_refuelling() -> list[H2RefuellingStation]:
+    return _H2_REFUELLING_STATIONS
+
+
+@app.get(
+    "/api/hydrogen-economy/cost-benchmarks",
+    response_model=list[H2CostBenchmark],
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_hydrogen_economy_cost_benchmarks() -> list[H2CostBenchmark]:
+    return _H2_COST_BENCHMARKS
+
+# ---------------------------------------------------------------------------
+# Sprint 44c — Carbon Credit & Offset Market Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_CARBON_CREDIT = 1800
+
+
+class AccuSpotRecord(BaseModel):
+    trade_date: str
+    accu_type: str           # GENERIC, HUMAN_INDUCED_REGEN, LANDFILL, SAVANNA_BURNING
+    spot_price_aud: float
+    volume_traded: int       # ACCUs
+    turnover_aud_m: float
+    buyer_category: str      # SAFEGUARD, VOLUNTARY, GOVERNMENT, EXPORT
+
+
+class CarbonOffsetProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    project_type: str        # REFORESTATION, SOIL_CARBON, SAVANNA_BURNING, LANDFILL_GAS, AVOIDED_DEFORESTATION
+    methodology: str
+    registered_units: int
+    issued_units: int
+    cancelled_units: int
+    vintage_year: int
+    price_aud: float
+    permanence_rating: str   # 25Y, 100Y
+    co_benefits: list
+
+
+class CarbonOffsetBuyerRecord(BaseModel):
+    buyer_id: str
+    company_name: str
+    sector: str
+    accus_purchased_2024: int
+    avg_price_paid: float
+    total_spend_m_aud: float
+    offset_purpose: str      # SAFEGUARD_COMPLIANCE, VOLUNTARY_NET_ZERO, EXPORT
+    net_zero_target_year: Optional[int]
+
+
+class AccuPriceForecastRecord(BaseModel):
+    year: int
+    scenario: str            # BASE, HIGH, LOW
+    accu_price_forecast_aud: float
+    eu_ets_aud: float
+    california_cap_aud: float
+    voluntary_premium_aud: float
+
+
+class CarbonCreditMarketDashboard(BaseModel):
+    timestamp: str
+    spot_records: list
+    projects: list
+    buyers: list
+    price_forecasts: list
+    current_accu_price: float
+    total_issued_mtco2: float
+    safeguard_demand_ktco2: float
+    market_size_b_aud: float
+
+
+def _make_accu_spot_records() -> List[AccuSpotRecord]:
+    import random as r
+    records = []
+    accu_types = ["GENERIC", "HUMAN_INDUCED_REGEN", "LANDFILL", "SAVANNA_BURNING"]
+    buyer_categories = ["SAFEGUARD", "VOLUNTARY", "GOVERNMENT", "EXPORT"]
+    # 24 records: daily approx for Jan-Jun 2024 (every ~7-8 days)
+    base_prices = {"GENERIC": 32.0, "HUMAN_INDUCED_REGEN": 44.0, "LANDFILL": 30.0, "SAVANNA_BURNING": 34.0}
+    dates = []
+    month_days = [(1,7),(1,15),(1,22),(2,5),(2,12),(2,20),(3,4),(3,11),(3,18),(3,26),
+                  (4,3),(4,9),(4,16),(4,23),(5,2),(5,8),(5,15),(5,22),(5,29),(6,5),(6,11),(6,18),(6,25),(6,28)]
+    for idx, (m, d) in enumerate(month_days):
+        accu_type = accu_types[idx % len(accu_types)]
+        base = base_prices[accu_type]
+        price = round(base + idx * 0.3 + r.uniform(-1.5, 1.5), 2)
+        volume = r.randint(8000, 95000)
+        turnover = round(price * volume / 1_000_000, 3)
+        records.append(AccuSpotRecord(
+            trade_date=f"2024-{m:02d}-{d:02d}",
+            accu_type=accu_type,
+            spot_price_aud=price,
+            volume_traded=volume,
+            turnover_aud_m=turnover,
+            buyer_category=buyer_categories[idx % len(buyer_categories)],
+        ))
+    return records
+
+
+def _make_carbon_offset_projects() -> List[CarbonOffsetProjectRecord]:
+    import random as r
+    projects_raw = [
+        ("CC001", "Brigalow Belt Reforestation QLD", "Carbon Farmers Australia", "QLD", "REFORESTATION",
+         "FullCAM Reforestation", 180000, 82000, 1200, 2021, 38.50, "100Y",
+         ["BIODIVERSITY", "WATER", "INDIGENOUS_EMPLOYMENT"]),
+        ("CC002", "Riverina Soil Carbon NSW", "AgriCarbon NSW Pty Ltd", "NSW", "SOIL_CARBON",
+         "Measurement of Soil Carbon Sequestration", 95000, 43000, 800, 2022, 45.20, "25Y",
+         ["WATER", "BIODIVERSITY", "AGRICULTURE"]),
+        ("CC003", "Arnhem Land Savanna Burning", "North Australian Indigenous Land Council", "NT", "SAVANNA_BURNING",
+         "Savanna Fire Management", 1250000, 385000, 4200, 2020, 34.80, "25Y",
+         ["BIODIVERSITY", "INDIGENOUS_EMPLOYMENT", "CULTURAL_HERITAGE"]),
+        ("CC004", "Redkite Landfill Gas VIC", "Waste Management Pty Ltd", "VIC", "LANDFILL_GAS",
+         "Destruction of Methane Landfill Gas", 500, 520000, 6800, 2020, 30.10, "25Y",
+         ["AIR_QUALITY"]),
+        ("CC005", "Kimberley Avoided Deforestation WA", "WA Conservation Lands Trust", "WA", "AVOIDED_DEFORESTATION",
+         "Reducing Greenhouse Gas Emissions by Avoiding Clearing", 680000, 165000, 2100, 2021, 41.00, "100Y",
+         ["BIODIVERSITY", "WATER", "INDIGENOUS_EMPLOYMENT"]),
+        ("CC006", "Mulga Country Reforestation NSW", "Murray-Darling Catchment Co", "NSW", "REFORESTATION",
+         "Human-Induced Regeneration of Native Forest", 210000, 74000, 900, 2022, 39.80, "100Y",
+         ["BIODIVERSITY", "WATER"]),
+        ("CC007", "Hunter Valley Soil Carbon NSW", "Carbon Sequestration Pty Ltd", "NSW", "SOIL_CARBON",
+         "Measurement of Soil Carbon Sequestration", 78000, 28000, 350, 2023, 47.50, "25Y",
+         ["AGRICULTURE", "WATER"]),
+        ("CC008", "Cape York Savanna QLD", "Firesticks Alliance Indigenous Corporation", "QLD", "SAVANNA_BURNING",
+         "Savanna Fire Management", 890000, 295000, 3800, 2020, 35.40, "25Y",
+         ["BIODIVERSITY", "INDIGENOUS_EMPLOYMENT", "CULTURAL_HERITAGE"]),
+        ("CC009", "South East Forests VIC Reforestation", "VIC Landcare Network", "VIC", "REFORESTATION",
+         "FullCAM Reforestation", 155000, 58000, 700, 2021, 36.90, "100Y",
+         ["BIODIVERSITY", "WATER", "RECREATION"]),
+        ("CC010", "Wheatbelt Soil Carbon WA", "Grains & Carbon WA", "WA", "SOIL_CARBON",
+         "Measurement of Soil Carbon Sequestration", 320000, 112000, 1400, 2021, 43.00, "25Y",
+         ["AGRICULTURE", "WATER", "BIODIVERSITY"]),
+        ("CC011", "Pilbara Avoided Deforestation WA", "Rio Tinto Sustainability Fund", "WA", "AVOIDED_DEFORESTATION",
+         "Reducing Greenhouse Gas Emissions by Avoiding Clearing", 750000, 210000, 2800, 2022, 40.60, "100Y",
+         ["BIODIVERSITY", "INDIGENOUS_EMPLOYMENT"]),
+        ("CC012", "Otway Ranges Reforestation VIC", "VIC Carbon Alliance", "VIC", "REFORESTATION",
+         "Human-Induced Regeneration of Native Forest", 42000, 18500, 220, 2023, 42.30, "100Y",
+         ["BIODIVERSITY", "WATER", "TOURISM"]),
+        ("CC013", "South Australia Soil Carbon", "SA Grain Growers Collective", "SA", "SOIL_CARBON",
+         "Measurement of Soil Carbon Sequestration", 185000, 67000, 800, 2022, 44.70, "25Y",
+         ["AGRICULTURE", "WATER"]),
+        ("CC014", "Mitchell Grass QLD Savanna", "QLD Conservation Council", "QLD", "SAVANNA_BURNING",
+         "Savanna Fire Management", 1050000, 445000, 5200, 2020, 33.90, "25Y",
+         ["BIODIVERSITY", "INDIGENOUS_EMPLOYMENT"]),
+        ("CC015", "Bundaberg Landfill Gas QLD", "Clean Energy Landfill QLD", "QLD", "LANDFILL_GAS",
+         "Destruction of Methane Landfill Gas", 350, 310000, 3900, 2019, 29.80, "25Y",
+         ["AIR_QUALITY"]),
+    ]
+    result = []
+    for (pid, name, dev, state, ptype, meth, reg, issued, cancelled, vintage, price, perm, cobens) in projects_raw:
+        result.append(CarbonOffsetProjectRecord(
+            project_id=pid,
+            project_name=name,
+            developer=dev,
+            state=state,
+            project_type=ptype,
+            methodology=meth,
+            registered_units=reg,
+            issued_units=issued + r.randint(-2000, 2000),
+            cancelled_units=cancelled,
+            vintage_year=vintage,
+            price_aud=round(price + r.uniform(-1.0, 1.0), 2),
+            permanence_rating=perm,
+            co_benefits=cobens,
+        ))
+    return result
+
+
+def _make_carbon_offset_buyers() -> List[CarbonOffsetBuyerRecord]:
+    import random as r
+    buyers_raw = [
+        ("BUY001", "BHP Group", "Mining", 480000, 38.20, 18.34, "SAFEGUARD_COMPLIANCE", 2050),
+        ("BUY002", "Rio Tinto Australia", "Mining", 320000, 37.50, 12.00, "SAFEGUARD_COMPLIANCE", 2050),
+        ("BUY003", "AGL Energy", "Energy Utilities", 215000, 35.80, 7.70, "SAFEGUARD_COMPLIANCE", 2050),
+        ("BUY004", "Qantas Airways", "Aviation", 95000, 40.10, 3.81, "VOLUNTARY_NET_ZERO", 2050),
+        ("BUY005", "Woolworths Group", "Retail", 48000, 41.50, 1.99, "VOLUNTARY_NET_ZERO", 2040),
+        ("BUY006", "ANZ Banking Group", "Financial Services", 22000, 42.80, 0.94, "VOLUNTARY_NET_ZERO", 2030),
+        ("BUY007", "Santos Ltd", "Oil & Gas", 285000, 36.90, 10.52, "SAFEGUARD_COMPLIANCE", 2040),
+        ("BUY008", "Woodside Energy", "Oil & Gas", 195000, 37.20, 7.25, "SAFEGUARD_COMPLIANCE", 2050),
+        ("BUY009", "Commonwealth Bank", "Financial Services", 18000, 43.50, 0.78, "VOLUNTARY_NET_ZERO", 2030),
+        ("BUY010", "Coles Group", "Retail", 35000, 42.00, 1.47, "VOLUNTARY_NET_ZERO", 2035),
+    ]
+    result = []
+    for (bid, company, sector, purchased, avg_price, spend, purpose, nz_year) in buyers_raw:
+        result.append(CarbonOffsetBuyerRecord(
+            buyer_id=bid,
+            company_name=company,
+            sector=sector,
+            accus_purchased_2024=purchased + r.randint(-5000, 5000),
+            avg_price_paid=round(avg_price + r.uniform(-0.5, 0.5), 2),
+            total_spend_m_aud=round(spend + r.uniform(-0.2, 0.2), 2),
+            offset_purpose=purpose,
+            net_zero_target_year=nz_year,
+        ))
+    return result
+
+
+def _make_accu_price_forecasts() -> List[AccuPriceForecastRecord]:
+    import random as r
+    records = []
+    base_prices = {
+        "BASE": {2024: 36, 2025: 39, 2026: 42, 2027: 46, 2028: 50, 2029: 55, 2030: 60,
+                 2031: 65, 2032: 70, 2033: 76, 2034: 82, 2035: 88},
+        "HIGH": {2024: 38, 2025: 44, 2026: 50, 2027: 58, 2028: 65, 2029: 75, 2030: 85,
+                 2031: 95, 2032: 105, 2033: 118, 2034: 132, 2035: 148},
+        "LOW":  {2024: 33, 2025: 35, 2026: 37, 2027: 39, 2028: 42, 2029: 45, 2030: 48,
+                 2031: 51, 2032: 54, 2033: 57, 2034: 61, 2035: 65},
+    }
+    eu_base = {2024: 78, 2025: 82, 2026: 86, 2027: 91, 2028: 96, 2029: 102, 2030: 108,
+               2031: 115, 2032: 122, 2033: 130, 2034: 138, 2035: 147}
+    cal_base = {2024: 48, 2025: 52, 2026: 55, 2027: 59, 2028: 63, 2029: 67, 2030: 72,
+                2031: 77, 2032: 82, 2033: 87, 2034: 93, 2035: 99}
+    for scenario, year_map in base_prices.items():
+        for year, accu_price in year_map.items():
+            eu = eu_base[year]
+            cal = cal_base[year]
+            vol_premium = round(accu_price * 0.08 + r.uniform(-0.5, 0.5), 2)
+            records.append(AccuPriceForecastRecord(
+                year=year,
+                scenario=scenario,
+                accu_price_forecast_aud=round(accu_price + r.uniform(-0.5, 0.5), 2),
+                eu_ets_aud=round(eu + r.uniform(-1.0, 1.0), 2),
+                california_cap_aud=round(cal + r.uniform(-0.5, 0.5), 2),
+                voluntary_premium_aud=vol_premium,
+            ))
+    return records
+
+
+def _make_carbon_credit_market_dashboard() -> CarbonCreditMarketDashboard:
+    spot = _make_accu_spot_records()
+    projects = _make_carbon_offset_projects()
+    buyers = _make_carbon_offset_buyers()
+    forecasts = _make_accu_price_forecasts()
+    current_price = next((s.spot_price_aud for s in reversed(spot) if s.accu_type == "GENERIC"), 35.0)
+    total_issued = sum(p.issued_units for p in projects) / 1_000_000
+    safeguard_demand = sum(b.accus_purchased_2024 for b in buyers if b.offset_purpose == "SAFEGUARD_COMPLIANCE") / 1000.0
+    market_size = sum(b.total_spend_m_aud for b in buyers) / 1000.0
+    return CarbonCreditMarketDashboard(
+        timestamp=_now_aest(),
+        spot_records=[s.dict() for s in spot],
+        projects=[p.dict() for p in projects],
+        buyers=[b.dict() for b in buyers],
+        price_forecasts=[f.dict() for f in forecasts],
+        current_accu_price=round(current_price, 2),
+        total_issued_mtco2=round(total_issued, 3),
+        safeguard_demand_ktco2=round(safeguard_demand, 1),
+        market_size_b_aud=round(market_size, 3),
+    )
+
+
+@app.get(
+    "/api/carbon-credit/dashboard",
+    response_model=CarbonCreditMarketDashboard,
+    summary="Carbon Credit & Offset Market Analytics dashboard",
+    tags=["CarbonCredit"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_credit_market_dashboard():
+    cached = _cache_get("carbon_credit:market:dashboard")
+    if cached:
+        return cached
+    data = _make_carbon_credit_market_dashboard()
+    _cache_set("carbon_credit:market:dashboard", data, _TTL_CARBON_CREDIT)
+    return data
+
+
+@app.get(
+    "/api/carbon-credit/spot",
+    response_model=List[AccuSpotRecord],
+    summary="ACCU spot market trading records",
+    tags=["CarbonCredit"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_credit_spot(accu_type: Optional[str] = None, buyer_category: Optional[str] = None):
+    cache_key = f"carbon_credit:spot:{accu_type}:{buyer_category}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_accu_spot_records()
+    if accu_type:
+        records = [r for r in records if r.accu_type == accu_type]
+    if buyer_category:
+        records = [r for r in records if r.buyer_category == buyer_category]
+    _cache_set(cache_key, records, _TTL_CARBON_CREDIT)
+    return records
+
+
+@app.get(
+    "/api/carbon-credit/projects",
+    response_model=List[CarbonOffsetProjectRecord],
+    summary="Australian carbon offset projects",
+    tags=["CarbonCredit"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_credit_projects(state: Optional[str] = None, project_type: Optional[str] = None):
+    cache_key = f"carbon_credit:projects:{state}:{project_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_carbon_offset_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if project_type:
+        projects = [p for p in projects if p.project_type == project_type]
+    _cache_set(cache_key, projects, _TTL_CARBON_CREDIT)
+    return projects
+
+
+@app.get(
+    "/api/carbon-credit/buyers",
+    response_model=List[CarbonOffsetBuyerRecord],
+    summary="Corporate carbon offset buyers",
+    tags=["CarbonCredit"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_credit_buyers(offset_purpose: Optional[str] = None):
+    cache_key = f"carbon_credit:buyers:{offset_purpose}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    buyers = _make_carbon_offset_buyers()
+    if offset_purpose:
+        buyers = [b for b in buyers if b.offset_purpose == offset_purpose]
+    _cache_set(cache_key, buyers, _TTL_CARBON_CREDIT)
+    return buyers
+
+
+@app.get(
+    "/api/carbon-credit/price-forecast",
+    response_model=List[AccuPriceForecastRecord],
+    summary="ACCU and global carbon price forecasts 2024-2035",
+    tags=["CarbonCredit"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_credit_price_forecast(scenario: Optional[str] = None):
+    cache_key = f"carbon_credit:price_forecast:{scenario}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    forecasts = _make_accu_price_forecasts()
+    if scenario:
+        forecasts = [f for f in forecasts if f.scenario == scenario]
+    _cache_set(cache_key, forecasts, _TTL_CARBON_CREDIT)
+    return forecasts

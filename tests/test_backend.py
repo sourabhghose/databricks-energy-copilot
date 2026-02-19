@@ -3892,3 +3892,89 @@ class TestBiddingBehaviourEndpoints:
         data = r.json()
         assert isinstance(data, list)
         assert len(data) > 0
+
+
+class TestSpotForecastEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/spot-forecast/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "forecast_intervals" in d
+        assert len(d["forecast_intervals"]) > 0
+
+    def test_intervals(self, client):
+        r = client.get("/api/spot-forecast/intervals", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_regional_summary(self, client):
+        r = client.get("/api/spot-forecast/regional-summary", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert len(r.json()) == 5
+
+    def test_model_performance(self, client):
+        r = client.get("/api/spot-forecast/model-performance", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestHydrogenEconomyEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/hydrogen-economy/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "production_facilities" in d
+        assert len(d["production_facilities"]) > 0
+
+    def test_production(self, client):
+        r = client.get("/api/hydrogen-economy/production", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_export_terminals(self, client):
+        r = client.get("/api/hydrogen-economy/export-terminals", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_cost_benchmarks(self, client):
+        r = client.get("/api/hydrogen-economy/cost-benchmarks", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_refuelling(self, client):
+        r = client.get("/api/hydrogen-economy/refuelling", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+
+class TestCarbonCreditEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/carbon-credit/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "spot_records" in d
+        assert len(d["spot_records"]) > 0
+
+    def test_spot(self, client):
+        r = client.get("/api/carbon-credit/spot", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_projects(self, client):
+        r = client.get("/api/carbon-credit/projects", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_buyers(self, client):
+        r = client.get("/api/carbon-credit/buyers", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+    def test_price_forecast(self, client):
+        r = client.get("/api/carbon-credit/price-forecast", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)

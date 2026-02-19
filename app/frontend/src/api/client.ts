@@ -2975,6 +2975,180 @@ export interface EnergyPovertyDashboard {
   low_income_solar_gap_pct: number
 }
 
+// ---------------------------------------------------------------------------
+// Sprint 44a — Spot Price Forecasting Dashboard
+// ---------------------------------------------------------------------------
+
+export interface SpotForecastInterval {
+  trading_interval: string
+  region: string
+  actual_price: number | null
+  forecast_p10: number
+  forecast_p50: number
+  forecast_p90: number
+  forecast_model: string
+  mae: number | null
+  mape_pct: number | null
+}
+
+export interface RegionalPriceSummary {
+  region: string
+  current_price: number
+  forecast_24h_avg: number
+  forecast_7d_avg: number
+  price_spike_prob_pct: number
+  volatility_index: number
+  trend: string
+}
+
+export interface ModelPerformanceRecord {
+  model_name: string
+  region: string
+  period: string
+  mae: number
+  rmse: number
+  mape_pct: number
+  r2_score: number
+  spike_detection_rate_pct: number
+}
+
+export interface SpotForecastDashboard {
+  timestamp: string
+  forecast_intervals: SpotForecastInterval[]
+  regional_summary: RegionalPriceSummary[]
+  model_performance: ModelPerformanceRecord[]
+  next_spike_alert: string | null
+  overall_forecast_accuracy_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 44b — Hydrogen Economy & Infrastructure Analytics
+// ---------------------------------------------------------------------------
+
+export interface H2ProductionFacility {
+  facility_id: string
+  facility_name: string
+  developer: string
+  state: string
+  hydrogen_type: string          // GREEN, BLUE, TURQUOISE
+  production_type: string        // ELECTROLYSIS_PEM, ELECTROLYSIS_ALK, SMR_CCS, PYROLYSIS
+  capacity_tpd: number
+  electrolyser_mw: number | null
+  renewable_source: string | null
+  status: string
+  capex_m_aud: number
+  lcoh_kg: number
+  co2_intensity_kgco2_kgh2: number
+  production_2024_tpa: number | null
+}
+
+export interface H2ExportTerminal {
+  terminal_id: string
+  terminal_name: string
+  port: string
+  state: string
+  carrier: string                // AMMONIA, LH2, MCH
+  capacity_tpa: number
+  status: string
+  first_export_year: number | null
+  capex_b_aud: number
+  target_markets: string[]
+}
+
+export interface H2RefuellingStation {
+  station_id: string
+  location: string
+  state: string
+  capacity_kgd: number
+  pressure_bar: number
+  vehicle_type: string           // HCV, BUS, PASSENGER
+  status: string
+  daily_transactions: number | null
+  price_per_kg: number | null
+}
+
+export interface H2CostBenchmark {
+  year: number
+  technology: string
+  region: string
+  lcoh_kg: number
+  electricity_cost_mwh: number | null
+  capex_index: number
+  cost_reduction_pct_pa: number
+}
+
+export interface H2EconomyDashboard {
+  timestamp: string
+  production_facilities: H2ProductionFacility[]
+  export_terminals: H2ExportTerminal[]
+  refuelling_stations: H2RefuellingStation[]
+  cost_benchmarks: H2CostBenchmark[]
+  total_production_capacity_tpd: number
+  operating_facilities: number
+  total_export_capacity_tpa: number
+  avg_lcoh_green: number
+}
+
+// Sprint 44c — Carbon Credit & Offset Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface AccuSpotRecord {
+  trade_date: string
+  accu_type: string
+  spot_price_aud: number
+  volume_traded: number
+  turnover_aud_m: number
+  buyer_category: string
+}
+
+export interface CarbonOffsetProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  state: string
+  project_type: string
+  methodology: string
+  registered_units: number
+  issued_units: number
+  cancelled_units: number
+  vintage_year: number
+  price_aud: number
+  permanence_rating: string
+  co_benefits: string[]
+}
+
+export interface CarbonOffsetBuyerRecord {
+  buyer_id: string
+  company_name: string
+  sector: string
+  accus_purchased_2024: number
+  avg_price_paid: number
+  total_spend_m_aud: number
+  offset_purpose: string
+  net_zero_target_year: number | null
+}
+
+export interface AccuPriceForecastRecord {
+  year: number
+  scenario: string
+  accu_price_forecast_aud: number
+  eu_ets_aud: number
+  california_cap_aud: number
+  voluntary_premium_aud: number
+}
+
+export interface CarbonCreditMarketDashboard {
+  timestamp: string
+  spot_records: AccuSpotRecord[]
+  projects: CarbonOffsetProjectRecord[]
+  buyers: CarbonOffsetBuyerRecord[]
+  price_forecasts: AccuPriceForecastRecord[]
+  current_accu_price: number
+  total_issued_mtco2: number
+  safeguard_demand_ktco2: number
+  market_size_b_aud: number
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -4743,6 +4917,48 @@ export const api = {
   // Sprint 43c — Energy Poverty & Just Transition Analytics
   getEnergyPovertyDashboard: (): Promise<EnergyPovertyDashboard> =>
     get<EnergyPovertyDashboard>('/api/energy-poverty/dashboard'),
+
+  // Sprint 44a — Spot Price Forecasting Dashboard
+  getSpotForecastDashboard: (): Promise<SpotForecastDashboard> =>
+    get<SpotForecastDashboard>('/api/spot-forecast/dashboard'),
+  getSpotForecastIntervals: (): Promise<SpotForecastInterval[]> =>
+    get<SpotForecastInterval[]>('/api/spot-forecast/intervals'),
+  getSpotForecastRegionalSummary: (): Promise<RegionalPriceSummary[]> =>
+    get<RegionalPriceSummary[]>('/api/spot-forecast/regional-summary'),
+  getSpotForecastModelPerformance: (): Promise<ModelPerformanceRecord[]> =>
+    get<ModelPerformanceRecord[]>('/api/spot-forecast/model-performance'),
+
+  // Sprint 44b — Hydrogen Economy & Infrastructure Analytics
+  getHydrogenEconomyDashboard: (): Promise<H2EconomyDashboard> =>
+    get<H2EconomyDashboard>('/api/hydrogen-economy/dashboard'),
+  getHydrogenEconomyProduction: (): Promise<H2ProductionFacility[]> =>
+    get<H2ProductionFacility[]>('/api/hydrogen-economy/production'),
+  getHydrogenEconomyExportTerminals: (): Promise<H2ExportTerminal[]> =>
+    get<H2ExportTerminal[]>('/api/hydrogen-economy/export-terminals'),
+  getHydrogenEconomyRefuelling: (): Promise<H2RefuellingStation[]> =>
+    get<H2RefuellingStation[]>('/api/hydrogen-economy/refuelling'),
+  getHydrogenEconomyCostBenchmarks: (): Promise<H2CostBenchmark[]> =>
+    get<H2CostBenchmark[]>('/api/hydrogen-economy/cost-benchmarks'),
+
+  // Sprint 44c — Carbon Credit & Offset Market Analytics
+  getCarbonCreditDashboard: (): Promise<CarbonCreditMarketDashboard> =>
+    get<CarbonCreditMarketDashboard>('/api/carbon-credit/dashboard'),
+  getCarbonCreditSpot: (params?: { accu_type?: string; buyer_category?: string }): Promise<AccuSpotRecord[]> => {
+    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`).join('&') : ''
+    return get<AccuSpotRecord[]>(`/api/carbon-credit/spot${q}`)
+  },
+  getCarbonCreditProjects: (params?: { state?: string; project_type?: string }): Promise<CarbonOffsetProjectRecord[]> => {
+    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`).join('&') : ''
+    return get<CarbonOffsetProjectRecord[]>(`/api/carbon-credit/projects${q}`)
+  },
+  getCarbonCreditBuyers: (offset_purpose?: string): Promise<CarbonOffsetBuyerRecord[]> => {
+    const q = offset_purpose ? `?offset_purpose=${offset_purpose}` : ''
+    return get<CarbonOffsetBuyerRecord[]>(`/api/carbon-credit/buyers${q}`)
+  },
+  getCarbonCreditPriceForecast: (scenario?: string): Promise<AccuPriceForecastRecord[]> => {
+    const q = scenario ? `?scenario=${scenario}` : ''
+    return get<AccuPriceForecastRecord[]>(`/api/carbon-credit/price-forecast${q}`)
+  },
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
