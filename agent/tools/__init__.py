@@ -19,6 +19,9 @@ from agent.tools.analysis_tools import (
     explain_price_event,
     compare_regions,
     get_market_summary,
+    get_anomaly_events,      # new
+    get_model_health,        # new
+    get_forecast_accuracy,   # new
 )
 from agent.tools.rag_tools import search_market_rules
 
@@ -35,6 +38,9 @@ ALL_TOOLS = [
     explain_price_event,
     compare_regions,
     get_market_summary,
+    get_anomaly_events,
+    get_model_health,
+    get_forecast_accuracy,
     search_market_rules,
 ]
 

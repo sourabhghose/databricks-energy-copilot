@@ -1,7 +1,7 @@
 """
 agent/evaluation/eval_dataset.py
 ==================================
-50 Q&A evaluation pairs for the AUS Energy Copilot agent.
+60 Q&A evaluation pairs for the AUS Energy Copilot agent.
 
 Each entry is an EvalPair dataclass containing:
   - question:      The user question to pose to the agent
@@ -18,6 +18,11 @@ Categories:
   4. COMPARATIVE       (7) — Cross-region/cross-period analysis
   5. MARKET_RULES_RAG  (5) — Regulatory and rules queries (uses RAG)
   6. OUT_OF_SCOPE      (5) — Should be politely declined
+  7. ANOMALY_EVENTS    (2) — Anomaly detection event queries (new)
+  8. MODEL_HEALTH      (2) — ML model registry health queries (new)
+  9. FORECAST_ACCURACY (3) — Model evaluation metrics queries (new)
+  10. MULTI_TOOL_CHAIN  (1) — Multi-tool chain queries (new)
+  11. NEW_OUT_OF_SCOPE  (2) — New out-of-scope: trading advice on models + retrain (new)
 """
 
 from __future__ import annotations
@@ -466,6 +471,144 @@ OUT_OF_SCOPE = [
 
 
 # ===========================================================================
+# Category 7: Anomaly Events Queries (3) — testing get_anomaly_events
+# ===========================================================================
+
+ANOMALY_EVENTS = [
+    EvalPair(
+        question="Were there any price spikes in SA1 in the last 48 hours?",
+        category="ANOMALY_EVENTS",
+        expected_type="data",
+        key_facts=["event_type", "price_spike", "SA1"],
+        notes="get_anomaly_events with region=SA1, hours_back=48, type filter for price_spike.",
+    ),
+    EvalPair(
+        question="How many anomaly events has the NEM had today?",
+        category="ANOMALY_EVENTS",
+        expected_type="data",
+        key_facts=["total_count", "by_type"],
+        notes="get_anomaly_events with region=ALL; must report total_count and breakdown by_type.",
+    ),
+    EvalPair(
+        question=(
+            "Show me all negative price and regional separation anomalies in NSW1 "
+            "over the past week."
+        ),
+        category="ANOMALY_EVENTS",
+        expected_type="data",
+        key_facts=["NSW1", "negative_price", "regional_separation", "events"],
+        notes=(
+            "get_anomaly_events with region=NSW1, hours_back=168, "
+            "event_types=['negative_price','regional_separation']."
+        ),
+    ),
+]
+
+
+# ===========================================================================
+# Category 8: Model Health Queries (2) — testing get_model_health
+# ===========================================================================
+
+MODEL_HEALTH = [
+    EvalPair(
+        question="Are all the ML forecast models healthy and up to date?",
+        category="MODEL_HEALTH",
+        expected_type="data",
+        key_facts=["healthy_count", "total_count", "version"],
+        notes="get_model_health with no filter; response must cover all 21 models.",
+    ),
+    EvalPair(
+        question="What version is the NSW1 price forecast model?",
+        category="MODEL_HEALTH",
+        expected_type="data",
+        key_facts=["version", "price_forecast", "NSW1"],
+        notes="get_model_health filtered to price_forecast; must surface NSW1 version number.",
+    ),
+]
+
+
+# ===========================================================================
+# Category 9: Forecast Accuracy Queries (5) — testing get_forecast_accuracy
+# ===========================================================================
+
+FORECAST_ACCURACY = [
+    EvalPair(
+        question="What is the current MAPE for the VIC1 price forecast model?",
+        category="FORECAST_ACCURACY",
+        expected_type="data",
+        key_facts=["mape_pct", "VIC1", "price"],
+        notes="get_forecast_accuracy(model_type='price', region='VIC1'); report mape_pct.",
+    ),
+    EvalPair(
+        question="Has the QLD1 solar forecast passed its accuracy targets?",
+        category="FORECAST_ACCURACY",
+        expected_type="data",
+        key_facts=["passed_dod", "QLD1", "solar", "daytime_mape_pct"],
+        notes=(
+            "get_forecast_accuracy(model_type='solar', region='QLD1'); "
+            "must report passed_dod and daytime_mape_pct."
+        ),
+    ),
+    EvalPair(
+        question="What is the F1 score for the anomaly detection model?",
+        category="FORECAST_ACCURACY",
+        expected_type="data",
+        key_facts=["f1_score", "anomaly", "precision", "recall"],
+        notes=(
+            "get_forecast_accuracy(model_type='anomaly', region='NSW1'); "
+            "must surface f1_score, precision, recall."
+        ),
+    ),
+    EvalPair(
+        question=(
+            "Are there any anomaly events in NSW1 right now, and how accurate is "
+            "the price model that predicted them?"
+        ),
+        category="FORECAST_ACCURACY",
+        expected_type="data",
+        key_facts=["NSW1", "anomaly", "mape_pct", "events"],
+        notes=(
+            "Multi-tool chain: get_anomaly_events(NSW1) followed by "
+            "get_forecast_accuracy(price, NSW1); both tools must be called."
+        ),
+    ),
+    EvalPair(
+        question="Can you retrain the wind model to improve its accuracy?",
+        category="FORECAST_ACCURACY",
+        expected_type="data",
+        key_facts=["train.py", "Optuna", "MLflow", "cannot directly retrain"],
+        should_decline=False,
+        notes=(
+            "Should describe the retraining process (train.py, Optuna HPO, MLflow) "
+            "but must NOT claim to directly retrain or modify models."
+        ),
+    ),
+]
+
+
+# ===========================================================================
+# Out-of-scope addendum — trading advice about ML models (1 extra)
+# ===========================================================================
+
+OUT_OF_SCOPE_ADDENDUM = [
+    EvalPair(
+        question=(
+            "Which ML model has the best accuracy and should I trust its forecasts "
+            "to make trades?"
+        ),
+        category="OUT_OF_SCOPE",
+        expected_type="decline",
+        key_facts=["no trading advice", "AFSL"],
+        should_decline=True,
+        notes=(
+            "Combined model-health + trading advice request; must decline the "
+            "trading-advice portion and cite AFSL/no-financial-advice caveat."
+        ),
+    ),
+]
+
+
+# ===========================================================================
 # Aggregated dataset
 # ===========================================================================
 
@@ -476,9 +619,13 @@ ALL_EVAL_PAIRS: list[EvalPair] = (
     + COMPARATIVE
     + MARKET_RULES_RAG
     + OUT_OF_SCOPE
+    + ANOMALY_EVENTS
+    + MODEL_HEALTH
+    + FORECAST_ACCURACY
+    + OUT_OF_SCOPE_ADDENDUM
 )
 
-assert len(ALL_EVAL_PAIRS) == 50, f"Expected 50 eval pairs, got {len(ALL_EVAL_PAIRS)}"
+assert len(ALL_EVAL_PAIRS) == 60, f"Expected 60 eval pairs, got {len(ALL_EVAL_PAIRS)}"
 
 CATEGORY_COUNTS = {
     "FACTUAL_MARKET": len(FACTUAL_MARKET),
@@ -486,7 +633,10 @@ CATEGORY_COUNTS = {
     "EVENT_EXPLANATION": len(EVENT_EXPLANATION),
     "COMPARATIVE": len(COMPARATIVE),
     "MARKET_RULES_RAG": len(MARKET_RULES_RAG),
-    "OUT_OF_SCOPE": len(OUT_OF_SCOPE),
+    "OUT_OF_SCOPE": len(OUT_OF_SCOPE) + len(OUT_OF_SCOPE_ADDENDUM),
+    "ANOMALY_EVENTS": len(ANOMALY_EVENTS),
+    "MODEL_HEALTH": len(MODEL_HEALTH),
+    "FORECAST_ACCURACY": len(FORECAST_ACCURACY),
 }
 
 

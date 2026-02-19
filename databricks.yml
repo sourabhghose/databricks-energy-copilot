@@ -243,6 +243,14 @@ resources:
                 package: scikit-learn>=1.4.0
             - pypi:
                 package: mlflow>=2.13.0
+        - task_key: batch_scoring_notebook
+          depends_on:
+            - task_key: forecast_pipeline
+          notebook_task:
+            notebook_path: /Workspace/Shared/energy_copilot/notebooks/batch_scoring
+            base_parameters:
+              catalog: ${var.catalog}
+          existing_cluster_id: ""  # uses job cluster from parent task
       max_concurrent_runs: 1
       email_notifications:
         on_failure:
@@ -402,6 +410,82 @@ resources:
       continuous: false
       photon: true
       channel: PREVIEW
+
+  # -------------------------------------------------------------------------
+  # Model Serving Endpoints
+  # -------------------------------------------------------------------------
+  model_serving_endpoints:
+    price_forecast_endpoint:
+      name: energy-copilot-price-forecast-${var.catalog}
+      config:
+        served_entities:
+          - name: price_forecast_nsw1
+            entity_name: ${var.catalog}.ml.price_forecast_NSW1
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+          - name: price_forecast_qld1
+            entity_name: ${var.catalog}.ml.price_forecast_QLD1
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+          - name: price_forecast_vic1
+            entity_name: ${var.catalog}.ml.price_forecast_VIC1
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+          - name: price_forecast_sa1
+            entity_name: ${var.catalog}.ml.price_forecast_SA1
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+          - name: price_forecast_tas1
+            entity_name: ${var.catalog}.ml.price_forecast_TAS1
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+        traffic_config:
+          routes:
+            - served_model_name: price_forecast_nsw1
+              traffic_percentage: 20
+            - served_model_name: price_forecast_qld1
+              traffic_percentage: 20
+            - served_model_name: price_forecast_vic1
+              traffic_percentage: 20
+            - served_model_name: price_forecast_sa1
+              traffic_percentage: 20
+            - served_model_name: price_forecast_tas1
+              traffic_percentage: 20
+        auto_capture_config:
+          catalog_name: ${var.catalog}
+          schema_name: ml
+          table_name_prefix: price_forecast_serving_log
+          enabled: true
+      permissions:
+        - level: CAN_MANAGE
+          group_name: energy_copilot_admins
+        - level: CAN_QUERY
+          group_name: energy_copilot_app_users
+
+    anomaly_detection_endpoint:
+      name: energy-copilot-anomaly-detection-${var.catalog}
+      config:
+        served_entities:
+          - name: anomaly_detection_nem
+            entity_name: ${var.catalog}.ml.anomaly_detection_nem
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+        auto_capture_config:
+          catalog_name: ${var.catalog}
+          schema_name: ml
+          table_name_prefix: anomaly_detection_serving_log
+          enabled: true
+      permissions:
+        - level: CAN_MANAGE
+          group_name: energy_copilot_admins
+        - level: CAN_QUERY
+          group_name: energy_copilot_app_users
 
   # -------------------------------------------------------------------------
   # MLflow Experiments

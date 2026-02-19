@@ -247,3 +247,7 @@
 ## Sprint 9a — README + Test Coverage — 2026-02-19
 **Completed:** README.md (full rewrite ~300 lines: architecture ASCII diagram, quick start, project structure, ML model table, API table, sprint checklist), tests/test_backend.py (TestSprintEightEndpoints: 4 new tests for /api/system/health and extended /api/market-summary/latest validation)
 **Notes:** README now reflects the full production architecture. System health endpoint verified to return correct model count (21) and per-model structure.
+
+## Sprint 9c — Model Serving + Batch Scoring — 2026-02-19
+**Completed:** databricks.yml (model_serving_endpoints for price_forecast + anomaly_detection, auto-capture logging to ml schema, RBAC permissions), notebooks/batch_scoring.py (Databricks notebook ~250 lines: load 21 models from MLflow, batch inference for all regions+horizons, physical clamping, spike probability, write to gold.nem_forecasts_batch), databricks.yml job_05 updated with batch_scoring_notebook task dependency
+**Notes:** Model serving endpoints use scale_to_zero to minimize cost when idle. Auto-capture logs all serving requests/responses to Delta for drift monitoring. Batch notebook separates the heavy model-loading step from the real-time inference pipeline (05_forecast_pipeline.py handles near-real-time 5-min intervals; batch notebook handles daily full-history scoring).
