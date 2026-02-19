@@ -25670,3 +25670,583 @@ async def get_smart_grid_derms():
 async def get_smart_grid_ami():
     dash = await get_smart_grid_dashboard()
     return dash.ami_adoption
+
+# ── Sprint 41a: Minimum Demand & Duck Curve Analytics ────────────────────
+
+class MinimumDemandRecord(BaseModel):
+    record_id: str
+    date: str
+    region: str
+    min_operational_demand_mw: float
+    time_of_minimum: str             # HH:MM AEST
+    rooftop_pv_mw: float
+    behind_meter_load_mw: float
+    total_scheduled_gen_mw: float
+    total_semisc_gen_mw: float
+    system_load_mw: float            # including behind meter
+    negative_price_intervals: int    # number of 5-min intervals at negative price that day
+    min_spot_price_aud_mwh: float
+    system_strength_mvar: float
+    record_low_flag: bool
+
+class DuckCurveProfile(BaseModel):
+    profile_id: str
+    date: str
+    region: str
+    season: str                      # SUMMER | AUTUMN | WINTER | SPRING
+    year: int
+    half_hourly_demand: list[float]  # 48 half-hour periods
+    half_hourly_rooftop_pv: list[float]
+    half_hourly_net_demand: list[float]  # demand - rooftop_pv
+    ramp_rate_mw_30min: float        # evening ramp rate (MW per 30min)
+    trough_depth_mw: float           # midday trough vs morning peak
+    peak_demand_mw: float
+    trough_demand_mw: float
+
+class NegativePricingRecord(BaseModel):
+    record_id: str
+    month: str
+    region: str
+    negative_intervals: int
+    negative_hours: float
+    avg_negative_price_aud_mwh: float
+    min_negative_price_aud_mwh: float
+    curtailed_solar_gwh: float
+    curtailed_wind_gwh: float
+    battery_charge_gwh: float
+    hydro_pump_gwh: float
+
+class MinDemandDashboard(BaseModel):
+    timestamp: str
+    min_demand_record_mw: float
+    min_demand_region: str
+    min_demand_date: str
+    avg_negative_price_intervals_per_day: float
+    total_curtailed_twh_yr: float
+    rooftop_pv_share_at_min_demand_pct: float
+    min_demand_records: list[MinimumDemandRecord]
+    duck_curve_profiles: list[DuckCurveProfile]
+    negative_pricing: list[NegativePricingRecord]
+
+_min_demand_cache: dict = {}
+
+def _build_min_demand_dashboard() -> MinDemandDashboard:
+    import random, math
+    rng = random.Random(7743)
+    now = "2025-07-15T08:00:00"
+
+    # Min demand records — notable low demand days, spring/autumn, clear weekends
+    min_demand_records = [
+        MinimumDemandRecord("MOD-SA-20250420", "2025-04-20", "SA1", 580.0, "12:30", 960.0, 280.0, 620.0, 940.0, 1540.0, 48, -82.5, 1450.0, True),
+        MinimumDemandRecord("MOD-SA-20250413", "2025-04-13", "SA1", 595.0, "12:45", 945.0, 275.0, 630.0, 920.0, 1545.0, 42, -68.2, 1480.0, False),
+        MinimumDemandRecord("MOD-VIC-20250420", "2025-04-20", "VIC1", 2820.0, "13:00", 2650.0, 980.0, 2900.0, 2770.0, 4780.0, 22, -45.8, 2850.0, False),
+        MinimumDemandRecord("MOD-VIC-20241020", "2024-10-20", "VIC1", 2780.0, "12:30", 2580.0, 960.0, 2850.0, 2720.0, 4720.0, 28, -52.4, 2820.0, True),
+        MinimumDemandRecord("MOD-NSW-20250420", "2025-04-20", "NSW1", 4150.0, "13:15", 3420.0, 1200.0, 4200.0, 4050.0, 6850.0, 12, -28.5, 4100.0, False),
+        MinimumDemandRecord("MOD-NSW-20241020", "2024-10-20", "NSW1", 4080.0, "12:45", 3350.0, 1180.0, 4130.0, 3980.0, 6790.0, 18, -35.2, 4040.0, True),
+        MinimumDemandRecord("MOD-QLD-20250420", "2025-04-20", "QLD1", 3420.0, "13:30", 4800.0, 1650.0, 3500.0, 4620.0, 6250.0, 35, -58.8, 3380.0, False),
+        MinimumDemandRecord("MOD-QLD-20241020", "2024-10-20", "QLD1", 3350.0, "13:00", 4720.0, 1620.0, 3420.0, 4540.0, 6180.0, 40, -72.5, 3300.0, True),
+    ]
+
+    # Duck curve profiles — 48 half-hour periods for spring and autumn
+    def duck_curve_hh(peak_mw, trough_mw, pv_peak_mw, season, rng_):
+        # Morning: ramp up to peak, midday: trough, afternoon: ramp back up, evening: final peak
+        demand = []
+        pv = []
+        for i in range(48):  # 0:00 to 23:30
+            h = i * 0.5
+            # Demand shape
+            if h < 6:     d = peak_mw * 0.55 + rng_.uniform(-50, 50)
+            elif h < 9:   d = peak_mw * (0.55 + 0.35 * (h - 6) / 3) + rng_.uniform(-80, 80)
+            elif h < 12:  d = peak_mw * (0.9 - 0.2 * (h - 9) / 3) + rng_.uniform(-100, 100)  # morning peak then drop
+            elif h < 15:  d = trough_mw + rng_.uniform(-50, 80)  # midday trough
+            elif h < 20:  d = trough_mw + (peak_mw - trough_mw) * ((h - 15) / 5) + rng_.uniform(-80, 80)  # afternoon ramp
+            elif h < 21:  d = peak_mw + rng_.uniform(-100, 100)  # evening peak
+            else:         d = peak_mw * (1 - 0.35 * (h - 21) / 3) + rng_.uniform(-80, 80)  # evening decline
+            demand.append(round(max(trough_mw * 0.4, d), 0))
+
+            # PV shape (bell curve around midday)
+            if 6 <= h <= 19:
+                pv_h = pv_peak_mw * math.exp(-0.5 * ((h - 12.5) / 3.0) ** 2)
+                pv.append(round(max(0, pv_h + rng_.uniform(-80, 80)), 0))
+            else:
+                pv.append(0.0)
+
+        net = [round(max(0, demand[i] - pv[i]), 0) for i in range(48)]
+        trough = min(net[18:30])  # midday net demand trough
+        peak   = max(net[32:44])  # evening peak
+        ramp   = round((peak - min(net[22:30])) / 4, 0)  # ramp rate MW per 30min
+        return demand, pv, net, ramp, peak - trough, peak, trough
+
+    duck_profiles = []
+    profile_defs = [
+        ("SA1", "SPRING", 2025, 2200, 580, 1400),
+        ("SA1", "AUTUMN", 2025, 2100, 595, 1350),
+        ("VIC1", "SPRING", 2025, 7200, 2820, 3800),
+        ("VIC1", "AUTUMN", 2025, 6900, 2850, 3600),
+        ("NSW1", "SPRING", 2025, 10500, 4150, 4200),
+        ("NSW1", "AUTUMN", 2025, 10200, 4200, 4050),
+        ("QLD1", "SPRING", 2025, 8500, 3420, 5500),
+        ("QLD1", "AUTUMN", 2025, 8200, 3500, 5200),
+    ]
+    for region, season, year, peak_mw, trough_mw, pv_peak in profile_defs:
+        d48, pv48, net48, ramp, trough_depth, pk, tr = duck_curve_hh(peak_mw, trough_mw, pv_peak, season, rng)
+        date_str = "2025-04-20" if season == "AUTUMN" else "2024-10-20"
+        duck_profiles.append(DuckCurveProfile(
+            f"DUCK-{region}-{season}-{year}", date_str, region, season, year,
+            d48, pv48, net48, ramp, trough_depth, pk, tr,
+        ))
+
+    # Negative pricing records — 12 months × 4 regions
+    months = [f"2024-{m:02d}" if m >= 7 else f"2025-{m:02d}" for m in list(range(7, 13)) + list(range(1, 7))]
+    neg_base = {
+        "SA1":   (280, 0.34, -185.0, -1000.0, 18.0, 8.0, 12.0, 6.0),
+        "VIC1":  (120, 0.15, -95.0, -500.0, 8.5, 4.0, 8.0, 4.5),
+        "NSW1":  (85,  0.10, -72.0, -380.0, 6.2, 3.0, 5.5, 3.0),
+        "QLD1":  (195, 0.24, -120.0, -650.0, 12.5, 5.5, 9.0, 5.0),
+    }
+    negative_pricing = []
+    for region, (base_neg, base_hrs, avg_neg, min_neg, curt_sol, curt_wind, bat_chg, hyd_pump) in neg_base.items():
+        for i, month in enumerate(months):
+            # More negative periods in spring/summer, fewer in winter
+            season_factor = 1.3 if i in [3, 4, 9, 10] else (0.6 if i in [0, 1, 5, 6] else 1.0)
+            neg_int = int(base_neg * season_factor * rng.uniform(0.75, 1.35))
+            neg_hrs = round(base_hrs * season_factor * rng.uniform(0.75, 1.35), 1)
+            avg_n   = round(avg_neg * rng.uniform(0.85, 1.15), 1)
+            min_n   = round(min_neg * rng.uniform(0.85, 1.20), 1)
+            cs      = round(curt_sol * season_factor * rng.uniform(0.75, 1.35), 2)
+            cw      = round(curt_wind * rng.uniform(0.75, 1.35), 2)
+            bc      = round(bat_chg * season_factor * rng.uniform(0.8, 1.3), 2)
+            hp      = round(hyd_pump * rng.uniform(0.7, 1.3), 2)
+            negative_pricing.append(NegativePricingRecord(
+                f"NEG-{region}-{month}", month, region, neg_int, neg_hrs,
+                avg_n, min_n, cs, cw, bc, hp,
+            ))
+
+    record_low = min(min_demand_records, key=lambda r: r.min_operational_demand_mw)
+    avg_neg_int = sum(r.negative_price_intervals for r in min_demand_records) / len(min_demand_records)
+    total_curtailed = (sum(r.curtailed_solar_gwh + r.curtailed_wind_gwh for r in negative_pricing) / 1000)  # TWh
+    avg_pv_share = sum(r.rooftop_pv_mw / r.system_load_mw * 100 for r in min_demand_records) / len(min_demand_records)
+
+    return MinDemandDashboard(
+        timestamp=now,
+        min_demand_record_mw=record_low.min_operational_demand_mw,
+        min_demand_region=record_low.region,
+        min_demand_date=record_low.date,
+        avg_negative_price_intervals_per_day=round(avg_neg_int, 1),
+        total_curtailed_twh_yr=round(total_curtailed, 3),
+        rooftop_pv_share_at_min_demand_pct=round(avg_pv_share, 1),
+        min_demand_records=min_demand_records,
+        duck_curve_profiles=duck_profiles,
+        negative_pricing=negative_pricing,
+    )
+
+@app.get("/api/minimum-demand/dashboard", response_model=MinDemandDashboard, dependencies=[Depends(verify_api_key)])
+async def get_min_demand_dashboard():
+    cached = _cache_get(_min_demand_cache, "min_demand")
+    if cached: return cached
+    result = _build_min_demand_dashboard()
+    _cache_set(_min_demand_cache, "min_demand", result)
+    return result
+
+@app.get("/api/minimum-demand/records", response_model=list[MinimumDemandRecord], dependencies=[Depends(verify_api_key)])
+async def get_min_demand_records():
+    dash = await get_min_demand_dashboard()
+    return dash.min_demand_records
+
+@app.get("/api/minimum-demand/duck-curve", response_model=list[DuckCurveProfile], dependencies=[Depends(verify_api_key)])
+async def get_duck_curve():
+    dash = await get_min_demand_dashboard()
+    return dash.duck_curve_profiles
+
+@app.get("/api/minimum-demand/negative-pricing", response_model=list[NegativePricingRecord], dependencies=[Depends(verify_api_key)])
+async def get_negative_pricing():
+    dash = await get_min_demand_dashboard()
+    return dash.negative_pricing
+
+# ── Sprint 41b: NEM Market Suspension & Major Events Analysis ────────────
+
+class MajorNEMEvent(BaseModel):
+    event_id: str
+    event_name: str
+    start_date: str
+    end_date: str
+    duration_days: float
+    event_type: str                  # MARKET_SUSPENSION | PRICE_CAP | AEMO_DIRECTION | LOAD_SHEDDING | FORCE_MAJEURE | SYSTEM_EMERGENCY
+    regions_affected: list[str]
+    trigger: str
+    avg_spot_price_before_aud_mwh: float
+    avg_spot_price_during_aud_mwh: float
+    max_spot_price_aud_mwh: float
+    total_market_cost_m_aud: float
+    load_shed_mwh: float
+    generators_directed: int
+    aemo_market_notices: int
+    rule_changes_triggered: int
+    description: str
+
+class NEMInterventionRecord(BaseModel):
+    intervention_id: str
+    event_id: str
+    intervention_type: str           # DIRECTED_CONTRACT | RERT_ACTIVATION | LOR_DECLARATION | ADMINISTERED_PRICE | MARKET_SUSPENSION | RESERVE_CALL
+    date: str
+    region: str
+    generator_or_party: str
+    quantity_mw: float
+    duration_hrs: float
+    trigger_reason: str
+    cost_m_aud: float
+    outcome: str                     # SUCCESSFUL | PARTIAL | FAILED
+
+class NEMEventTimeline(BaseModel):
+    record_id: str
+    event_id: str
+    timestamp: str
+    milestone: str
+    milestone_type: str              # NOTICE | DIRECTION | DECLARATION | SUSPENSION | RESTORATION | SETTLEMENT
+    region: str
+    detail: str
+
+class NEMSuspensionDashboard(BaseModel):
+    timestamp: str
+    total_events_5yr: int
+    total_suspension_days: float
+    total_market_cost_m_aud: float
+    total_load_shed_gwh: float
+    events: list[MajorNEMEvent]
+    interventions: list[NEMInterventionRecord]
+    timeline: list[NEMEventTimeline]
+
+_nem_suspension_cache: dict = {}
+
+def _build_nem_suspension_dashboard() -> NEMSuspensionDashboard:
+    now = "2025-07-15T08:00:00"
+
+    events = [
+        MajorNEMEvent(
+            event_id="EVT-2022-SUSPENSION", event_name="2022 NEM Market Suspension",
+            start_date="2022-06-15", end_date="2022-06-26", duration_days=11.0,
+            event_type="MARKET_SUSPENSION",
+            regions_affected=["NSW1", "QLD1", "VIC1", "SA1"],
+            trigger="Simultaneous coal generator failures (outages) + gas supply disruptions + low hydro storage + extreme demand during cold snap",
+            avg_spot_price_before_aud_mwh=82.5, avg_spot_price_during_aud_mwh=9150.0,
+            max_spot_price_aud_mwh=15100.0, total_market_cost_m_aud=1280.0, load_shed_mwh=0.0,
+            generators_directed=62, aemo_market_notices=847, rule_changes_triggered=3,
+            description="AEMO suspended the NEM spot market on 15 June 2022, setting administered prices. The suspension was the first since the NEM began in 1998. Triggered by multiple simultaneous forced outages, gas shortages, and extreme winter demand."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2019-NSW-SPIKE", event_name="NSW Price Spike Jan 2019",
+            start_date="2019-01-24", end_date="2019-01-25", duration_days=1.0,
+            event_type="PRICE_CAP",
+            regions_affected=["NSW1"],
+            trigger="Extreme heatwave driving record air conditioning demand with multiple generator outages",
+            avg_spot_price_before_aud_mwh=78.5, avg_spot_price_during_aud_mwh=14500.0,
+            max_spot_price_aud_mwh=14500.0, total_market_cost_m_aud=185.0, load_shed_mwh=850.0,
+            generators_directed=8, aemo_market_notices=42, rule_changes_triggered=0,
+            description="Sustained price at Market Price Cap ($14,500/MWh) during January heatwave. RERT activated."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2016-SA-BLACKOUT", event_name="South Australia System Black",
+            start_date="2016-09-28", end_date="2016-09-28", duration_days=0.125,
+            event_type="SYSTEM_EMERGENCY",
+            regions_affected=["SA1"],
+            trigger="Severe storm causing multiple transmission tower collapses, triggering cascading failure",
+            avg_spot_price_before_aud_mwh=98.5, avg_spot_price_during_aud_mwh=0.0,
+            max_spot_price_aud_mwh=0.0, total_market_cost_m_aud=150.0, load_shed_mwh=1850000.0,
+            generators_directed=12, aemo_market_notices=158, rule_changes_triggered=4,
+            description="SA experienced a state-wide blackout lasting up to 3 hours. 13 transmission towers collapsed, islanded SA, tripped Heywood interconnector, collapsed synchronous generation. Led to major system security reforms."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2020-COVID-DEMAND", event_name="COVID-19 Demand Reduction",
+            start_date="2020-03-23", end_date="2020-06-01", duration_days=70.0,
+            event_type="FORCE_MAJEURE",
+            regions_affected=["NSW1", "QLD1", "VIC1", "SA1", "TAS1"],
+            trigger="COVID-19 lockdowns reducing industrial/commercial demand 5-12%",
+            avg_spot_price_before_aud_mwh=78.5, avg_spot_price_during_aud_mwh=42.0,
+            max_spot_price_aud_mwh=250.0, total_market_cost_m_aud=-380.0, load_shed_mwh=0.0,
+            generators_directed=0, aemo_market_notices=12, rule_changes_triggered=1,
+            description="Prolonged demand reduction due to lockdowns led to extended negative price periods and significant renewable curtailment. Several coal units mothballed."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2021-QLD-HEAT", event_name="Queensland January 2021 Heatwave",
+            start_date="2021-01-16", end_date="2021-01-18", duration_days=2.0,
+            event_type="AEMO_DIRECTION",
+            regions_affected=["QLD1"],
+            trigger="Heatwave driving peak demand with generator trips",
+            avg_spot_price_before_aud_mwh=82.0, avg_spot_price_during_aud_mwh=5800.0,
+            max_spot_price_aud_mwh=14500.0, total_market_cost_m_aud=95.0, load_shed_mwh=125.0,
+            generators_directed=6, aemo_market_notices=35, rule_changes_triggered=0,
+            description="Multiple LOR2 and LOR3 declarations. RERT activated. Callide C unit experienced forced outage at critical time."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2021-CALLIDE-EXPLOSION", event_name="Callide C4 Explosion & Qld Separation",
+            start_date="2021-05-25", end_date="2021-05-25", duration_days=0.2,
+            event_type="SYSTEM_EMERGENCY",
+            regions_affected=["QLD1"],
+            trigger="Callide C4 turbine fire and explosion causing unit trip and partial QLD separation from NEM",
+            avg_spot_price_before_aud_mwh=82.0, avg_spot_price_during_aud_mwh=9200.0,
+            max_spot_price_aud_mwh=14500.0, total_market_cost_m_aud=280.0, load_shed_mwh=650000.0,
+            generators_directed=18, aemo_market_notices=92, rule_changes_triggered=1,
+            description="Callide C4 unit suffered catastrophic failure. QLD partially separated from NEM. Load shedding in southern QLD. Unit remained offline for months."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2022-BASSLINK-OUTAGE", event_name="Basslink Interconnector Outage",
+            start_date="2022-01-12", end_date="2022-03-15", duration_days=62.0,
+            event_type="AEMO_DIRECTION",
+            regions_affected=["TAS1", "VIC1"],
+            trigger="Basslink HVDC cable fault requiring extended outage for repair",
+            avg_spot_price_before_aud_mwh=72.0, avg_spot_price_during_aud_mwh=285.0,
+            max_spot_price_aud_mwh=4200.0, total_market_cost_m_aud=85.0, load_shed_mwh=0.0,
+            generators_directed=5, aemo_market_notices=68, rule_changes_triggered=0,
+            description="Extended Basslink outage islanded Tasmania, limiting both export revenue and import capacity. SA interconnector flows were impacted."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2023-VIC-HEATWAVE", event_name="Victoria Heatwave February 2023",
+            start_date="2023-02-13", end_date="2023-02-14", duration_days=1.0,
+            event_type="AEMO_DIRECTION",
+            regions_affected=["VIC1", "SA1"],
+            trigger="Extreme heat with multiple generator outages at peak demand",
+            avg_spot_price_before_aud_mwh=78.5, avg_spot_price_during_aud_mwh=6200.0,
+            max_spot_price_aud_mwh=14500.0, total_market_cost_m_aud=125.0, load_shed_mwh=280.0,
+            generators_directed=8, aemo_market_notices=48, rule_changes_triggered=0,
+            description="RERT activated. Multiple LOR2 declarations. Demand response successfully called."
+        ),
+        MajorNEMEvent(
+            event_id="EVT-2024-NSW-DROUGHT", event_name="NSW Hydro Storage Low Event",
+            start_date="2024-01-15", end_date="2024-03-31", duration_days=75.0,
+            event_type="LOAD_SHEDDING",
+            regions_affected=["NSW1"],
+            trigger="Prolonged drought reducing Snowy Hydro storage availability",
+            avg_spot_price_before_aud_mwh=88.0, avg_spot_price_during_aud_mwh=182.0,
+            max_spot_price_aud_mwh=8500.0, total_market_cost_m_aud=95.0, load_shed_mwh=0.0,
+            generators_directed=2, aemo_market_notices=28, rule_changes_triggered=0,
+            description="Low hydro storage levels reduced NSW flexible generation, increasing gas dispatch and spot price volatility."
+        ),
+    ]
+
+    interventions = [
+        NEMInterventionRecord(intervention_id="INT-001", event_id="EVT-2022-SUSPENSION", intervention_type="MARKET_SUSPENSION", date="2022-06-15", region="NSW1", generator_or_party="AEMO", quantity_mw=0.0, duration_hrs=264.0, trigger_reason="Simultaneous outages + gas shortage", cost_m_aud=1280.0, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-002", event_id="EVT-2022-SUSPENSION", intervention_type="ADMINISTERED_PRICE", date="2022-06-15", region="QLD1", generator_or_party="AEMO", quantity_mw=0.0, duration_hrs=264.0, trigger_reason="Market suspension - administered pricing", cost_m_aud=0.0, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-003", event_id="EVT-2022-SUSPENSION", intervention_type="DIRECTED_CONTRACT", date="2022-06-18", region="NSW1", generator_or_party="Eraring Power Station", quantity_mw=2880.0, duration_hrs=48.0, trigger_reason="Direction to operate at full capacity", cost_m_aud=28.5, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-004", event_id="EVT-2022-SUSPENSION", intervention_type="DIRECTED_CONTRACT", date="2022-06-20", region="QLD1", generator_or_party="Callide C Power Station", quantity_mw=1440.0, duration_hrs=72.0, trigger_reason="Direction to operate unit 3", cost_m_aud=18.2, outcome="PARTIAL"),
+        NEMInterventionRecord(intervention_id="INT-005", event_id="EVT-2019-NSW-SPIKE", intervention_type="RERT_ACTIVATION", date="2019-01-24", region="NSW1", generator_or_party="Multiple Providers", quantity_mw=850.0, duration_hrs=4.5, trigger_reason="LOR2 declaration, RERT activation", cost_m_aud=12.5, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-006", event_id="EVT-2016-SA-BLACKOUT", intervention_type="RESERVE_CALL", date="2016-09-28", region="SA1", generator_or_party="AEMO", quantity_mw=0.0, duration_hrs=3.0, trigger_reason="System black event restoration", cost_m_aud=150.0, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-007", event_id="EVT-2021-CALLIDE-EXPLOSION", intervention_type="LOR_DECLARATION", date="2021-05-25", region="QLD1", generator_or_party="AEMO", quantity_mw=0.0, duration_hrs=2.5, trigger_reason="LOR3 after Callide C4 explosion", cost_m_aud=42.0, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-008", event_id="EVT-2023-VIC-HEATWAVE", intervention_type="RERT_ACTIVATION", date="2023-02-13", region="VIC1", generator_or_party="Multiple DR Providers", quantity_mw=420.0, duration_hrs=3.0, trigger_reason="LOR2 + extreme heat demand", cost_m_aud=8.5, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-009", event_id="EVT-2022-SUSPENSION", intervention_type="DIRECTED_CONTRACT", date="2022-06-22", region="VIC1", generator_or_party="Loy Yang A", quantity_mw=1680.0, duration_hrs=36.0, trigger_reason="Direction to maintain output during suspension", cost_m_aud=22.0, outcome="SUCCESSFUL"),
+        NEMInterventionRecord(intervention_id="INT-010", event_id="EVT-2021-QLD-HEAT", intervention_type="RERT_ACTIVATION", date="2021-01-17", region="QLD1", generator_or_party="Multiple Providers", quantity_mw=380.0, duration_hrs=2.5, trigger_reason="LOR2 activation", cost_m_aud=9.2, outcome="SUCCESSFUL"),
+    ]
+
+    timeline = [
+        NEMEventTimeline(record_id="TL-001", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-13T12:00:00", milestone="First LOR1 Notice issued", milestone_type="DECLARATION", region="NSW1", detail="Low Reserve Condition Level 1 issued as coal outages accumulate"),
+        NEMEventTimeline(record_id="TL-002", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-14T08:00:00", milestone="LOR2 escalation", milestone_type="DECLARATION", region="QLD1", detail="LOR2 issued as gas supply disruptions worsen"),
+        NEMEventTimeline(record_id="TL-003", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-15T14:00:00", milestone="Market Suspension Decision", milestone_type="SUSPENSION", region="ALL", detail="AEMO suspends NEM spot market - first time in NEM history since 1998"),
+        NEMEventTimeline(record_id="TL-004", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-15T16:00:00", milestone="Administered Prices Set", milestone_type="NOTICE", region="ALL", detail="AEMO sets administered price caps for all regions"),
+        NEMEventTimeline(record_id="TL-005", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-18T09:00:00", milestone="Directions to Generators", milestone_type="DIRECTION", region="NSW1", detail="AEMO directs coal generators to operate at full capacity"),
+        NEMEventTimeline(record_id="TL-006", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-20T17:00:00", milestone="Partial Market Restoration", milestone_type="RESTORATION", region="SA1", detail="SA1 spot market restored as reserve levels improve"),
+        NEMEventTimeline(record_id="TL-007", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-22T14:00:00", milestone="Queensland Market Restored", milestone_type="RESTORATION", region="QLD1", detail="QLD1 spot market restored"),
+        NEMEventTimeline(record_id="TL-008", event_id="EVT-2022-SUSPENSION", timestamp="2022-06-26T18:00:00", milestone="Full Market Restoration", milestone_type="RESTORATION", region="ALL", detail="All regions restored to normal market operation"),
+        NEMEventTimeline(record_id="TL-009", event_id="EVT-2016-SA-BLACKOUT", timestamp="2016-09-28T16:18:00", milestone="SA System Black", milestone_type="DECLARATION", region="SA1", detail="Transmission towers collapse, SA enters system black condition"),
+        NEMEventTimeline(record_id="TL-010", event_id="EVT-2016-SA-BLACKOUT", timestamp="2016-09-28T19:30:00", milestone="Partial Restoration Begins", milestone_type="RESTORATION", region="SA1", detail="SA Grid progressively restored via black start procedures"),
+        NEMEventTimeline(record_id="TL-011", event_id="EVT-2021-CALLIDE-EXPLOSION", timestamp="2021-05-25T14:02:00", milestone="Callide C4 Explosion", milestone_type="DECLARATION", region="QLD1", detail="Turbine fire triggers explosion, unit trips, QLD separation commences"),
+        NEMEventTimeline(record_id="TL-012", event_id="EVT-2021-CALLIDE-EXPLOSION", timestamp="2021-05-25T16:00:00", milestone="QLD Partially Resynchronised", milestone_type="RESTORATION", region="QLD1", detail="QLD reconnected to NEM with partial generation available"),
+    ]
+
+    total_cost = sum(e.total_market_cost_m_aud for e in events)
+    susp_days  = sum(e.duration_days for e in events if e.event_type == "MARKET_SUSPENSION")
+    load_shed  = sum(e.load_shed_mwh for e in events) / 1e6  # GWh
+
+    return NEMSuspensionDashboard(
+        timestamp=now,
+        total_events_5yr=len(events),
+        total_suspension_days=susp_days,
+        total_market_cost_m_aud=round(total_cost, 1),
+        total_load_shed_gwh=round(load_shed, 3),
+        events=events,
+        interventions=interventions,
+        timeline=timeline,
+    )
+
+@app.get("/api/nem-suspension/dashboard", response_model=NEMSuspensionDashboard, dependencies=[Depends(verify_api_key)])
+async def get_nem_suspension_dashboard():
+    cached = _cache_get(_nem_suspension_cache, "nem_suspension")
+    if cached: return cached
+    result = _build_nem_suspension_dashboard()
+    _cache_set(_nem_suspension_cache, "nem_suspension", result)
+    return result
+
+@app.get("/api/nem-suspension/events", response_model=list[MajorNEMEvent], dependencies=[Depends(verify_api_key)])
+async def get_nem_suspension_events():
+    dash = await get_nem_suspension_dashboard()
+    return dash.events
+
+@app.get("/api/nem-suspension/interventions", response_model=list[NEMInterventionRecord], dependencies=[Depends(verify_api_key)])
+async def get_nem_suspension_interventions():
+    dash = await get_nem_suspension_dashboard()
+    return dash.interventions
+
+@app.get("/api/nem-suspension/timeline", response_model=list[NEMEventTimeline], dependencies=[Depends(verify_api_key)])
+async def get_nem_suspension_timeline():
+    dash = await get_nem_suspension_dashboard()
+    return dash.timeline
+
+# ── Sprint 41c: Battery Technology Economics & Learning Rate Analytics ─────
+
+class BatteryTechCostRecord(BaseModel):
+    record_id: str
+    year: int
+    technology: str                  # LI_ION_NMC | LI_ION_LFP | FLOW_VANADIUM | FLOW_ZINC | COMPRESSED_AIR | GRAVITY | SODIUM_ION
+    pack_cost_usd_kwh: float
+    system_cost_usd_kwh: float       # includes BOP, EPC
+    cycle_life: int
+    round_trip_efficiency_pct: float
+    calendar_life_years: int
+    energy_density_wh_kg: float
+    cumulative_deployed_gwh: float   # global cumulative deployed
+    learning_rate_pct: float         # cost reduction per doubling of capacity
+
+class LcosRecord(BaseModel):
+    record_id: str
+    year: int
+    technology: str
+    application: str                 # UTILITY_2HR | UTILITY_4HR | RESIDENTIAL | FREQUENCY_RESPONSE | LONG_DURATION
+    lcos_usd_mwh: float             # levelized cost of storage
+    lcos_aud_mwh: float
+    capacity_cost_pct: float         # % of LCOS from capital
+    om_cost_pct: float
+    replacement_cost_pct: float
+    discount_rate_pct: float
+    project_life_years: int
+    cycles_per_year: int
+
+class SupplyChainRecord(BaseModel):
+    record_id: str
+    material: str                    # LITHIUM | COBALT | NICKEL | MANGANESE | GRAPHITE | VANADIUM
+    price_usd_tonne: float
+    year: int
+    price_change_pct_yr: float
+    supply_concentration_hhi: float  # Herfindahl-Hirschman Index
+    top_producer_country: str
+    battery_tech_exposure: list[str]  # which technologies use this material
+
+class BatteryTechDashboard(BaseModel):
+    timestamp: str
+    li_ion_pack_cost_2024_usd_kwh: float
+    cost_reduction_since_2015_pct: float
+    projected_cost_2030_usd_kwh: float
+    avg_li_ion_learning_rate_pct: float
+    cost_records: list[BatteryTechCostRecord]
+    lcos_records: list[LcosRecord]
+    supply_chain: list[SupplyChainRecord]
+
+_battery_tech_cache: dict = {}
+
+def _build_battery_tech_dashboard() -> BatteryTechDashboard:
+    import random
+    rng = random.Random(1122)
+    now = "2025-07-15T08:00:00"
+
+    # Li-ion NMC pack cost trajectory 2015-2024 (BloombergNEF-inspired)
+    li_nmc_costs = {
+        2015: 373, 2016: 273, 2017: 209, 2018: 181, 2019: 156,
+        2020: 137, 2021: 132, 2022: 151, 2023: 139, 2024: 115,
+    }
+    li_lfp_costs = {
+        2015: 320, 2016: 240, 2017: 185, 2018: 162, 2019: 138,
+        2020: 118, 2021: 110, 2022: 122, 2023: 102, 2024: 85,
+    }
+    flow_v_costs  = {2015:580, 2016:545, 2017:510, 2018:480, 2019:450, 2020:420, 2021:400, 2022:385, 2023:360, 2024:335}
+    cumulative_gwh = {2015:50, 2016:88, 2017:140, 2018:205, 2019:295, 2020:440, 2021:660, 2022:950, 2023:1350, 2024:1900}
+
+    cost_records = []
+    for year in range(2015, 2025):
+        cgwh = cumulative_gwh[year]
+        # LFP
+        cost_records.append(BatteryTechCostRecord(
+            f"BAT-LFP-{year}", year, "LI_ION_LFP", float(li_lfp_costs[year]),
+            float(li_lfp_costs[year] * 1.38), 4000, 92.0, 15, 155.0, cgwh * 0.45, 20.0,
+        ))
+        # NMC
+        cost_records.append(BatteryTechCostRecord(
+            f"BAT-NMC-{year}", year, "LI_ION_NMC", float(li_nmc_costs[year]),
+            float(li_nmc_costs[year] * 1.42), 2500, 90.0, 12, 250.0, cgwh * 0.40, 18.5,
+        ))
+        # Vanadium flow
+        cost_records.append(BatteryTechCostRecord(
+            f"BAT-FLOW-{year}", year, "FLOW_VANADIUM", float(flow_v_costs[year]),
+            float(flow_v_costs[year] * 1.55), 20000, 75.0, 25, 25.0, cgwh * 0.02, 12.0,
+        ))
+        # Emerging — Sodium ion (from 2021)
+        if year >= 2021:
+            na_cost = {2021:185, 2022:162, 2023:138, 2024:115}[year]
+            cost_records.append(BatteryTechCostRecord(
+                f"BAT-NA-{year}", year, "SODIUM_ION", float(na_cost),
+                float(na_cost * 1.35), 3000, 88.0, 12, 120.0, cgwh * 0.01, 22.0,
+            ))
+
+    # LCOS records for 2024
+    lcos_records = [
+        LcosRecord("LCOS-LFP-UTL2-2024", 2024, "LI_ION_LFP", "UTILITY_2HR", 142.0, 212.0, 55.0, 18.0, 8.0, 8.0, 15, 365),
+        LcosRecord("LCOS-LFP-UTL4-2024", 2024, "LI_ION_LFP", "UTILITY_4HR", 118.0, 176.0, 58.0, 16.0, 9.0, 8.0, 15, 250),
+        LcosRecord("LCOS-NMC-UTL2-2024", 2024, "LI_ION_NMC", "UTILITY_2HR", 162.0, 242.0, 56.0, 19.0, 10.0, 8.0, 12, 365),
+        LcosRecord("LCOS-NMC-RES-2024", 2024, "LI_ION_NMC", "RESIDENTIAL", 245.0, 366.0, 62.0, 15.0, 8.0, 7.0, 12, 180),
+        LcosRecord("LCOS-LFP-FREQ-2024", 2024, "LI_ION_LFP", "FREQUENCY_RESPONSE", 88.0, 131.0, 45.0, 22.0, 8.0, 8.0, 15, 1200),
+        LcosRecord("LCOS-FLOW-LONG-2024", 2024, "FLOW_VANADIUM", "LONG_DURATION", 185.0, 276.0, 65.0, 20.0, 5.0, 7.5, 25, 150),
+        LcosRecord("LCOS-FLOW-UTL4-2024", 2024, "FLOW_VANADIUM", "UTILITY_4HR", 168.0, 251.0, 63.0, 22.0, 5.0, 7.5, 25, 250),
+        LcosRecord("LCOS-NA-UTL2-2024", 2024, "SODIUM_ION", "UTILITY_2HR", 145.0, 216.0, 54.0, 20.0, 9.0, 8.0, 12, 365),
+        # Historical LCOS comparison
+        LcosRecord("LCOS-LFP-UTL2-2020", 2020, "LI_ION_LFP", "UTILITY_2HR", 225.0, 326.0, 58.0, 18.0, 9.0, 8.0, 12, 365),
+        LcosRecord("LCOS-LFP-UTL2-2022", 2022, "LI_ION_LFP", "UTILITY_2HR", 188.0, 278.0, 56.0, 18.0, 9.0, 8.0, 14, 365),
+        LcosRecord("LCOS-NMC-UTL2-2020", 2020, "LI_ION_NMC", "UTILITY_2HR", 258.0, 374.0, 59.0, 20.0, 10.0, 8.0, 10, 365),
+        LcosRecord("LCOS-NMC-UTL2-2022", 2022, "LI_ION_NMC", "UTILITY_2HR", 218.0, 316.0, 58.0, 20.0, 10.0, 8.0, 12, 365),
+    ]
+
+    supply_chain = [
+        SupplyChainRecord("SC-LITHIUM-2024", "LITHIUM", 24500.0, 2024, -42.5, 0.52, "Australia", ["LI_ION_LFP", "LI_ION_NMC", "SODIUM_ION"]),
+        SupplyChainRecord("SC-COBALT-2024", "COBALT", 28200.0, 2024, -18.2, 0.68, "DRC", ["LI_ION_NMC"]),
+        SupplyChainRecord("SC-NICKEL-2024", "NICKEL", 16800.0, 2024, -25.8, 0.45, "Indonesia", ["LI_ION_NMC"]),
+        SupplyChainRecord("SC-MANGANESE-2024", "MANGANESE", 2850.0, 2024, 2.5, 0.38, "South Africa", ["LI_ION_NMC"]),
+        SupplyChainRecord("SC-GRAPHITE-2024", "GRAPHITE", 18500.0, 2024, -12.0, 0.75, "China", ["LI_ION_LFP", "LI_ION_NMC", "SODIUM_ION"]),
+        SupplyChainRecord("SC-VANADIUM-2024", "VANADIUM", 32000.0, 2024, 5.2, 0.72, "China", ["FLOW_VANADIUM"]),
+    ]
+
+    li_ion_2024 = [r for r in cost_records if r.year == 2024 and r.technology == "LI_ION_LFP"]
+    li_ion_2015 = [r for r in cost_records if r.year == 2015 and r.technology == "LI_ION_LFP"]
+    pack_2024 = li_ion_2024[0].pack_cost_usd_kwh if li_ion_2024 else 85.0
+    pack_2015 = li_ion_2015[0].pack_cost_usd_kwh if li_ion_2015 else 320.0
+    cost_reduction = (1 - pack_2024 / pack_2015) * 100
+    projected_2030 = pack_2024 * (0.80)  # ~20% further reduction by 2030
+    avg_lr = sum(r.learning_rate_pct for r in cost_records if r.technology in ("LI_ION_LFP","LI_ION_NMC")) / max(1, len([r for r in cost_records if r.technology in ("LI_ION_LFP","LI_ION_NMC")]))
+
+    return BatteryTechDashboard(
+        timestamp=now,
+        li_ion_pack_cost_2024_usd_kwh=pack_2024,
+        cost_reduction_since_2015_pct=round(cost_reduction, 1),
+        projected_cost_2030_usd_kwh=round(projected_2030, 0),
+        avg_li_ion_learning_rate_pct=round(avg_lr, 1),
+        cost_records=cost_records,
+        lcos_records=lcos_records,
+        supply_chain=supply_chain,
+    )
+
+@app.get("/api/battery-tech/dashboard", response_model=BatteryTechDashboard, dependencies=[Depends(verify_api_key)])
+async def get_battery_tech_dashboard():
+    cached = _cache_get(_battery_tech_cache, "battery_tech")
+    if cached: return cached
+    result = _build_battery_tech_dashboard()
+    _cache_set(_battery_tech_cache, "battery_tech", result)
+    return result
+
+@app.get("/api/battery-tech/costs", response_model=list[BatteryTechCostRecord], dependencies=[Depends(verify_api_key)])
+async def get_battery_tech_costs():
+    dash = await get_battery_tech_dashboard()
+    return dash.cost_records
+
+@app.get("/api/battery-tech/lcos", response_model=list[LcosRecord], dependencies=[Depends(verify_api_key)])
+async def get_battery_tech_lcos():
+    dash = await get_battery_tech_dashboard()
+    return dash.lcos_records
+
+@app.get("/api/battery-tech/supply-chain", response_model=list[SupplyChainRecord], dependencies=[Depends(verify_api_key)])
+async def get_battery_tech_supply_chain():
+    dash = await get_battery_tech_dashboard()
+    return dash.supply_chain

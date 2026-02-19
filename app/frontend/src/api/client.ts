@@ -2431,6 +2431,174 @@ export interface SmartGridDashboard {
   ami_adoption: AmiAdoptionRecord[]
 }
 
+// ── Sprint 41a: Minimum Demand & Duck Curve ──
+export interface MinimumDemandRecord {
+  record_id: string
+  date: string
+  region: string
+  min_operational_demand_mw: number
+  time_of_minimum: string
+  rooftop_pv_mw: number
+  behind_meter_load_mw: number
+  total_scheduled_gen_mw: number
+  total_semisc_gen_mw: number
+  system_load_mw: number
+  negative_price_intervals: number
+  min_spot_price_aud_mwh: number
+  system_strength_mvar: number
+  record_low_flag: boolean
+}
+
+export interface DuckCurveProfile {
+  profile_id: string
+  date: string
+  region: string
+  season: string
+  year: number
+  half_hourly_demand: number[]
+  half_hourly_rooftop_pv: number[]
+  half_hourly_net_demand: number[]
+  ramp_rate_mw_30min: number
+  trough_depth_mw: number
+  peak_demand_mw: number
+  trough_demand_mw: number
+}
+
+export interface NegativePricingRecord {
+  record_id: string
+  month: string
+  region: string
+  negative_intervals: number
+  negative_hours: number
+  avg_negative_price_aud_mwh: number
+  min_negative_price_aud_mwh: number
+  curtailed_solar_gwh: number
+  curtailed_wind_gwh: number
+  battery_charge_gwh: number
+  hydro_pump_gwh: number
+}
+
+export interface MinDemandDashboard {
+  timestamp: string
+  min_demand_record_mw: number
+  min_demand_region: string
+  min_demand_date: string
+  avg_negative_price_intervals_per_day: number
+  total_curtailed_twh_yr: number
+  rooftop_pv_share_at_min_demand_pct: number
+  min_demand_records: MinimumDemandRecord[]
+  duck_curve_profiles: DuckCurveProfile[]
+  negative_pricing: NegativePricingRecord[]
+}
+
+// ── Sprint 41b: NEM Market Events ──
+export interface MajorMarketEvent {
+  event_id: string
+  event_name: string
+  start_date: string
+  end_date: string
+  duration_days: number
+  event_type: string
+  regions_affected: string[]
+  trigger: string
+  avg_spot_price_before_aud_mwh: number
+  avg_spot_price_during_aud_mwh: number
+  max_spot_price_aud_mwh: number
+  total_market_cost_m_aud: number
+  load_shed_mwh: number
+  generators_directed: number
+  aemo_market_notices: number
+  rule_changes_triggered: number
+  description: string
+}
+
+export interface InterventionRecord {
+  intervention_id: string
+  event_id: string
+  intervention_type: string
+  date: string
+  region: string
+  generator_or_party: string
+  quantity_mw: number
+  duration_hrs: number
+  trigger_reason: string
+  cost_m_aud: number
+  outcome: string
+}
+
+export interface MarketEventTimeline {
+  record_id: string
+  event_id: string
+  timestamp: string
+  milestone: string
+  milestone_type: string
+  region: string
+  detail: string
+}
+
+export interface NEMSuspensionDashboard {
+  timestamp: string
+  total_events_5yr: number
+  total_suspension_days: number
+  total_market_cost_m_aud: number
+  total_load_shed_gwh: number
+  events: MajorMarketEvent[]
+  interventions: InterventionRecord[]
+  timeline: MarketEventTimeline[]
+}
+
+// ── Sprint 41c: Battery Technology Economics ──
+export interface BatteryTechCostRecord {
+  record_id: string
+  year: number
+  technology: string
+  pack_cost_usd_kwh: number
+  system_cost_usd_kwh: number
+  cycle_life: number
+  round_trip_efficiency_pct: number
+  calendar_life_years: number
+  energy_density_wh_kg: number
+  cumulative_deployed_gwh: number
+  learning_rate_pct: number
+}
+
+export interface LcosRecord {
+  record_id: string
+  year: number
+  technology: string
+  application: string
+  lcos_usd_mwh: number
+  lcos_aud_mwh: number
+  capacity_cost_pct: number
+  om_cost_pct: number
+  replacement_cost_pct: number
+  discount_rate_pct: number
+  project_life_years: number
+  cycles_per_year: number
+}
+
+export interface SupplyChainRecord {
+  record_id: string
+  material: string
+  price_usd_tonne: number
+  year: number
+  price_change_pct_yr: number
+  supply_concentration_hhi: number
+  top_producer_country: string
+  battery_tech_exposure: string[]
+}
+
+export interface BatteryTechDashboard {
+  timestamp: string
+  li_ion_pack_cost_2024_usd_kwh: number
+  cost_reduction_since_2015_pct: number
+  projected_cost_2030_usd_kwh: number
+  avg_li_ion_learning_rate_pct: number
+  cost_records: BatteryTechCostRecord[]
+  lcos_records: LcosRecord[]
+  supply_chain: SupplyChainRecord[]
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -4135,6 +4303,30 @@ export const api = {
     get<DermsRecord[]>('/api/smart-grid/derms'),
   getSmartGridAmi: (): Promise<AmiAdoptionRecord[]> =>
     get<AmiAdoptionRecord[]>('/api/smart-grid/ami'),
+  getMinDemandDashboard: (): Promise<MinDemandDashboard> =>
+    get<MinDemandDashboard>('/api/minimum-demand/dashboard'),
+  getMinDemandRecords: (): Promise<MinimumDemandRecord[]> =>
+    get<MinimumDemandRecord[]>('/api/minimum-demand/records'),
+  getDuckCurve: (): Promise<DuckCurveProfile[]> =>
+    get<DuckCurveProfile[]>('/api/minimum-demand/duck-curve'),
+  getNegativePricing: (): Promise<NegativePricingRecord[]> =>
+    get<NegativePricingRecord[]>('/api/minimum-demand/negative-pricing'),
+  getNEMSuspensionDashboard: (): Promise<NEMSuspensionDashboard> =>
+    get<NEMSuspensionDashboard>('/api/nem-suspension/dashboard'),
+  getNEMSuspensionEvents: (): Promise<MajorMarketEvent[]> =>
+    get<MajorMarketEvent[]>('/api/nem-suspension/events'),
+  getNEMSuspensionInterventions: (): Promise<InterventionRecord[]> =>
+    get<InterventionRecord[]>('/api/nem-suspension/interventions'),
+  getNEMSuspensionTimeline: (): Promise<MarketEventTimeline[]> =>
+    get<MarketEventTimeline[]>('/api/nem-suspension/timeline'),
+  getBatteryTechDashboard: (): Promise<BatteryTechDashboard> =>
+    get<BatteryTechDashboard>('/api/battery-tech/dashboard'),
+  getBatteryTechCosts: (): Promise<BatteryTechCostRecord[]> =>
+    get<BatteryTechCostRecord[]>('/api/battery-tech/costs'),
+  getBatteryTechLcos: (): Promise<LcosRecord[]> =>
+    get<LcosRecord[]>('/api/battery-tech/lcos'),
+  getBatteryTechSupplyChain: (): Promise<SupplyChainRecord[]> =>
+    get<SupplyChainRecord[]>('/api/battery-tech/supply-chain'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

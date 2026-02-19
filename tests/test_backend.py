@@ -3659,3 +3659,81 @@ class TestSmartGridEndpoints:
         r = client.get("/api/smart-grid/ami", headers=AUTH)
         assert r.status_code == 200
         assert len(r.json()) >= 20
+
+class TestMinDemandEndpoints:
+    def test_min_demand_dashboard(self, client):
+        r = client.get("/api/minimum-demand/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["min_demand_record_mw"] > 0
+        assert len(d["min_demand_records"]) >= 6
+        assert len(d["duck_curve_profiles"]) >= 6
+        assert len(d["negative_pricing"]) >= 40
+
+    def test_min_demand_records(self, client):
+        r = client.get("/api/minimum-demand/records", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 6
+
+    def test_duck_curve(self, client):
+        r = client.get("/api/minimum-demand/duck-curve", headers=AUTH)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) >= 6
+        assert len(data[0]["half_hourly_demand"]) == 48
+
+    def test_negative_pricing(self, client):
+        r = client.get("/api/minimum-demand/negative-pricing", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 40
+
+class TestNEMSuspensionEndpoints:
+    def test_market_events_dashboard(self, client):
+        r = client.get("/api/nem-suspension/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["total_events_5yr"] >= 8
+        assert len(d["events"]) >= 8
+        assert len(d["interventions"]) >= 8
+        assert len(d["timeline"]) >= 10
+
+    def test_market_events_list(self, client):
+        r = client.get("/api/nem-suspension/events", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_market_interventions(self, client):
+        r = client.get("/api/nem-suspension/interventions", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_market_timeline(self, client):
+        r = client.get("/api/nem-suspension/timeline", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+
+class TestBatteryTechEndpoints:
+    def test_battery_tech_dashboard(self, client):
+        r = client.get("/api/battery-tech/dashboard", headers=AUTH)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["li_ion_pack_cost_2024_usd_kwh"] > 0
+        assert len(d["cost_records"]) >= 25
+        assert len(d["lcos_records"]) >= 8
+        assert len(d["supply_chain"]) >= 5
+
+    def test_battery_tech_costs(self, client):
+        r = client.get("/api/battery-tech/costs", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 25
+
+    def test_battery_tech_lcos(self, client):
+        r = client.get("/api/battery-tech/lcos", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 8
+
+    def test_battery_tech_supply_chain(self, client):
+        r = client.get("/api/battery-tech/supply-chain", headers=AUTH)
+        assert r.status_code == 200
+        assert len(r.json()) >= 5

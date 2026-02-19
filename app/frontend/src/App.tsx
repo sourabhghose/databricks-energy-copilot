@@ -137,6 +137,9 @@ import ConsumerProtection from './pages/ConsumerProtection'
 import GeneratorAvailability from './pages/GeneratorAvailability'
 import ClimateRiskAnalytics from './pages/ClimateRiskAnalytics'
 import SmartGridAnalytics from './pages/SmartGridAnalytics'
+import MinimumDemandAnalytics from './pages/MinimumDemandAnalytics'
+import MarketEventsAnalysis from './pages/MarketEventsAnalysis'
+import BatteryTechAnalytics from './pages/BatteryTechAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -230,6 +233,9 @@ const NAV_ITEMS = [
   { to: '/efor',            label: 'Generator EFOR',   Icon: Activity       },
   { to: '/climate-risk',    label: 'Climate Risk',     Icon: CloudLightning },
   { to: '/smart-grid',      label: 'Smart Grid',       Icon: Cpu            },
+  { to: '/minimum-demand',  label: 'Min Demand',       Icon: TrendingDown   },
+  { to: '/market-events',  label: 'Market Events',    Icon: AlertTriangle  },
+  { to: '/battery-tech',   label: 'Battery Tech',     Icon: Battery        },
   { to: '/settings',        label: 'Settings',         Icon: SettingsIcon   },
 ]
 
@@ -398,6 +404,9 @@ export default function App() {
               <Route path="/efor"            element={<GeneratorAvailability />} />
               <Route path="/climate-risk"    element={<ClimateRiskAnalytics />} />
               <Route path="/smart-grid"      element={<SmartGridAnalytics />}   />
+              <Route path="/minimum-demand"  element={<MinimumDemandAnalytics />} />
+              <Route path="/market-events"  element={<MarketEventsAnalysis />}  />
+              <Route path="/battery-tech"   element={<BatteryTechAnalytics />}  />
               <Route path="/settings"        element={<Settings />}              />
             </Routes>
           </main>

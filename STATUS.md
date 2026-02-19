@@ -751,3 +751,18 @@
 - SmartGridAnalytics.tsx: DOE program bar chart with state filters, DERMS systems table, AMI adoption tracking
 - /api/smart-grid/dashboard, /doe-programs, /derms, /ami (12 DOE programs, 8 DERMS systems, 24 AMI adoption records)
 - 4 TestSmartGridEndpoints tests
+
+## Sprint 41a — Minimum Demand & Duck Curve Analytics [COMPLETE]
+- MinimumDemandAnalytics.tsx: duck curve line chart (demand/PV/net 48 half-hour periods), min demand records table, negative pricing stacked bar chart
+- /api/minimum-demand/dashboard, /records, /duck-curve, /negative-pricing (8 min demand events, 8 duck curve profiles with 48 data points each, 48 negative pricing records)
+- 4 TestMinDemandEndpoints tests
+
+## Sprint 41b — NEM Market Events & AEMO Interventions Analysis [COMPLETE]
+- MarketEventsAnalysis.tsx: event duration bar chart, events table with expandable descriptions, interventions table, chronological milestone timeline
+- /api/nem-suspension/dashboard, /events, /interventions, /timeline (9 major events incl. 2022 suspension + 2016 SA blackout, 10 interventions, 12 timeline milestones)
+- 4 TestNEMSuspensionEndpoints tests
+
+## Sprint 41c — Battery Technology Economics & Learning Rate Analytics [COMPLETE]
+- BatteryTechAnalytics.tsx: 10-year pack cost trend line chart by technology, LCOS comparison bar chart (2024), technology spec comparison table, critical mineral supply chain risk table
+- /api/battery-tech/dashboard, /costs, /lcos, /supply-chain (34 cost records 2015-2024, 12 LCOS records, 6 supply chain records)
+- 4 TestBatteryTechEndpoints tests
