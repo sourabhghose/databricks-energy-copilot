@@ -1017,4 +1017,147 @@ class TestMeritOrderEndpoints:
             (u for u in data["units"] if u["cumulative_mw"] >= demand), None
         )
         assert marginal is not None
+
+
+# ===========================================================================
+# TestCatalogEndpoints  (Sprint 16c)
+# ===========================================================================
+
+class TestCatalogEndpoints:
+    """Tests for /api/catalog/* endpoints."""
+
+    def test_catalog_dashboard_structure(self, client=client):
+        """GET /api/catalog/dashboard must return 200 with all top-level fields."""
+        r = client.get("/api/catalog/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "table_health" in data
+        assert "dq_expectations" in data
+        assert "recent_pipelines" in data
+        assert data["total_tables"] > 0
+
+    def test_table_freshness_status_valid(self, client=client):
+        """Every table_health record must have a valid freshness_status and a pass rate in [0, 1]."""
+        r = client.get("/api/catalog/dashboard")
+        data = r.json()
+        for tbl in data["table_health"]:
+            assert tbl["freshness_status"] in ("fresh", "stale", "critical")
+            assert 0 <= tbl["expectation_pass_rate"] <= 1.0
+
+    def test_pipeline_runs_status_valid(self, client=client):
+        """GET /api/catalog/pipeline_runs must return 200 with valid status values."""
+        r = client.get("/api/catalog/pipeline_runs")
+        assert r.status_code == 200
+        for run in r.json():
+            assert run["status"] in ("COMPLETED", "RUNNING", "FAILED", "WAITING")
         assert marginal["duid"] == data["marginal_generator"]
+
+
+# ===========================================================================
+# TestMlDashboardEndpoints
+# ===========================================================================
+
+class TestMlDashboardEndpoints:
+    """Tests for GET /api/ml/dashboard and GET /api/ml/runs endpoints."""
+
+    def test_ml_dashboard_structure(self, client=client):
+        """GET /api/ml/dashboard returns 200 with required top-level keys.
+
+        The response must include recent_runs, drift_summary, feature_importance,
+        and a positive models_in_production count.
+        """
+        r = client.get("/api/ml/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "recent_runs" in data
+        assert "drift_summary" in data
+        assert "feature_importance" in data
+        assert data["models_in_production"] > 0
+
+    def test_ml_runs_list(self, client=client):
+        """GET /api/ml/runs?limit=5 returns at most 5 runs with valid status values.
+
+        Each run must have a status that is one of the known MLflow run states.
+        """
+        r = client.get("/api/ml/runs?limit=5")
+        assert r.status_code == 200
+        runs = r.json()
+        assert len(runs) <= 5
+        for run in runs:
+            assert run["status"] in ("FINISHED", "RUNNING", "FAILED")
+
+    def test_drift_status_values(self, client=client):
+        """GET /api/ml/dashboard drift_summary entries have valid status and positive ratios.
+
+        Every drift record must have drift_status in the allowed set and a
+        drift_ratio strictly greater than zero.
+        """
+        r = client.get("/api/ml/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        for drift in data["drift_summary"]:
+            assert drift["drift_status"] in ("stable", "warning", "critical")
+            assert drift["drift_ratio"] > 0
+
+
+# ===========================================================================
+# TestScenarioEndpoints
+# ===========================================================================
+
+class TestScenarioEndpoints:
+    """Tests for the scenario what-if analysis endpoints."""
+
+    def test_scenario_run_base(self, client=client):
+        """POST /api/scenario/run with all-default parameters returns 200.
+
+        With no parameter deviations from base, the price_change_pct should
+        be near zero (within +/- 5%).
+        """
+        payload = {
+            "region": "NSW1",
+            "base_temperature_c": 25.0,
+            "temperature_delta_c": 0.0,
+            "gas_price_multiplier": 1.0,
+            "wind_output_multiplier": 1.0,
+            "solar_output_multiplier": 1.0,
+            "demand_multiplier": 1.0,
+            "coal_outage_mw": 0.0,
+        }
+        r = client.post("/api/scenario/run", json=payload)
+        assert r.status_code == 200
+        data = r.json()
+        assert "result" in data
+        # With no changes, price_change should be near 0
+        assert abs(data["result"]["price_change_pct"]) < 5
+
+    def test_scenario_hot_day(self, client=client):
+        """POST /api/scenario/run with extreme heat + high demand should raise price.
+
+        A +12 degree C temperature delta combined with 20% demand uplift should
+        produce a positive price_change_pct.
+        """
+        payload = {
+            "region": "SA1",
+            "base_temperature_c": 25.0,
+            "temperature_delta_c": 12.0,
+            "gas_price_multiplier": 1.0,
+            "wind_output_multiplier": 1.0,
+            "solar_output_multiplier": 1.2,
+            "demand_multiplier": 1.2,
+            "coal_outage_mw": 0.0,
+        }
+        r = client.post("/api/scenario/run", json=payload)
+        assert r.status_code == 200
+        # Hot day + high demand should increase price
+        assert r.json()["result"]["price_change_pct"] > 0
+
+    def test_scenario_presets(self, client=client):
+        """GET /api/scenario/presets returns at least 5 named presets.
+
+        Each preset must have a 'name' key. The endpoint should return 200.
+        """
+        r = client.get("/api/scenario/presets")
+        assert r.status_code == 200
+        presets = r.json()
+        assert len(presets) >= 5
+        assert all("name" in p for p in presets)

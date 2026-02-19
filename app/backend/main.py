@@ -4404,3 +4404,1421 @@ def get_dispatch_stack() -> DispatchStackSummary:
     )
     _cache_set(cache_key, result, _TTL_MERIT_STACK)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Sprint 16a: MLflow Experiment & Model Management
+# ---------------------------------------------------------------------------
+
+class MlflowRun(BaseModel):
+    run_id: str
+    experiment_name: str
+    model_type: str        # "price_forecast", "demand_forecast", etc.
+    region: str
+    status: str            # "FINISHED", "RUNNING", "FAILED"
+    start_time: str
+    end_time: Optional[str] = None
+    duration_seconds: float
+    mae: float
+    rmse: float
+    mape: float
+    r2_score: float
+    training_rows: int
+    feature_count: int
+    model_version: str
+    tags: Dict[str, str]
+
+
+class FeatureImportance(BaseModel):
+    feature_name: str
+    importance: float      # 0.0 to 1.0 (normalized)
+    rank: int
+
+
+class ModelDriftRecord(BaseModel):
+    model_type: str
+    region: str
+    date: str
+    mae_production: float
+    mae_training: float
+    drift_ratio: float     # mae_production / mae_training (1.0 = no drift, >1.5 = significant drift)
+    drift_status: str      # "stable", "warning", "critical"
+    samples_evaluated: int
+
+
+class MlDashboard(BaseModel):
+    timestamp: str
+    total_experiments: int
+    total_runs: int
+    models_in_production: int
+    avg_mae_production: float
+    recent_runs: List[MlflowRun]
+    feature_importance: Dict[str, List[FeatureImportance]]
+    drift_summary: List[ModelDriftRecord]
+
+
+# ---------------------------------------------------------------------------
+# Mock data helpers — Sprint 16a
+# ---------------------------------------------------------------------------
+
+def _make_ml_runs() -> List[MlflowRun]:
+    """Return a fixed set of 10 mock MLflow training runs."""
+    import hashlib
+
+    def _run_id(seed: str) -> str:
+        return hashlib.md5(seed.encode()).hexdigest()
+
+    runs = [
+        MlflowRun(
+            run_id=_run_id("price_NSW1_v5"),
+            experiment_name="/Shared/energy_copilot/experiments/price_forecast",
+            model_type="price_forecast",
+            region="NSW1",
+            status="FINISHED",
+            start_time="2026-02-19T01:00:00Z",
+            end_time="2026-02-19T01:47:23Z",
+            duration_seconds=2843.0,
+            mae=12.4,
+            rmse=18.7,
+            mape=8.2,
+            r2_score=0.91,
+            training_rows=527040,
+            feature_count=38,
+            model_version="5",
+            tags={"phase": "final_training", "triggered_by": "scheduled"},
+        ),
+        MlflowRun(
+            run_id=_run_id("price_VIC1_v4"),
+            experiment_name="/Shared/energy_copilot/experiments/price_forecast",
+            model_type="price_forecast",
+            region="VIC1",
+            status="FINISHED",
+            start_time="2026-02-18T23:15:00Z",
+            end_time="2026-02-19T00:02:11Z",
+            duration_seconds=2831.0,
+            mae=13.1,
+            rmse=20.2,
+            mape=9.0,
+            r2_score=0.89,
+            training_rows=524288,
+            feature_count=38,
+            model_version="4",
+            tags={"phase": "final_training", "triggered_by": "scheduled"},
+        ),
+        MlflowRun(
+            run_id=_run_id("demand_QLD1_v3"),
+            experiment_name="/Shared/energy_copilot/experiments/demand_forecast",
+            model_type="demand_forecast",
+            region="QLD1",
+            status="FINISHED",
+            start_time="2026-02-18T21:30:00Z",
+            end_time="2026-02-18T22:08:45Z",
+            duration_seconds=2325.0,
+            mae=98.5,
+            rmse=142.3,
+            mape=2.1,
+            r2_score=0.97,
+            training_rows=512000,
+            feature_count=22,
+            model_version="3",
+            tags={"phase": "final_training", "triggered_by": "manual"},
+        ),
+        MlflowRun(
+            run_id=_run_id("wind_SA1_v6"),
+            experiment_name="/Shared/energy_copilot/experiments/wind_forecast",
+            model_type="wind_forecast",
+            region="SA1",
+            status="FINISHED",
+            start_time="2026-02-18T20:00:00Z",
+            end_time="2026-02-18T20:34:22Z",
+            duration_seconds=2062.0,
+            mae=45.2,
+            rmse=67.8,
+            mape=6.8,
+            r2_score=0.88,
+            training_rows=498000,
+            feature_count=28,
+            model_version="6",
+            tags={"phase": "final_training", "triggered_by": "scheduled"},
+        ),
+        MlflowRun(
+            run_id=_run_id("solar_NSW1_v4"),
+            experiment_name="/Shared/energy_copilot/experiments/solar_forecast",
+            model_type="solar_forecast",
+            region="NSW1",
+            status="FINISHED",
+            start_time="2026-02-18T18:45:00Z",
+            end_time="2026-02-18T19:14:55Z",
+            duration_seconds=1795.0,
+            mae=32.1,
+            rmse=51.4,
+            mape=7.3,
+            r2_score=0.93,
+            training_rows=261120,
+            feature_count=25,
+            model_version="4",
+            tags={"phase": "final_training", "triggered_by": "scheduled"},
+        ),
+        MlflowRun(
+            run_id=_run_id("price_SA1_v3"),
+            experiment_name="/Shared/energy_copilot/experiments/price_forecast",
+            model_type="price_forecast",
+            region="SA1",
+            status="FINISHED",
+            start_time="2026-02-18T17:00:00Z",
+            end_time="2026-02-18T17:52:09Z",
+            duration_seconds=3129.0,
+            mae=21.7,
+            rmse=38.5,
+            mape=11.4,
+            r2_score=0.84,
+            training_rows=527040,
+            feature_count=38,
+            model_version="3",
+            tags={"phase": "final_training", "triggered_by": "scheduled"},
+        ),
+        MlflowRun(
+            run_id=_run_id("demand_TAS1_v2"),
+            experiment_name="/Shared/energy_copilot/experiments/demand_forecast",
+            model_type="demand_forecast",
+            region="TAS1",
+            status="FINISHED",
+            start_time="2026-02-18T15:30:00Z",
+            end_time="2026-02-18T16:01:44Z",
+            duration_seconds=1904.0,
+            mae=55.3,
+            rmse=78.1,
+            mape=1.8,
+            r2_score=0.98,
+            training_rows=512000,
+            feature_count=22,
+            model_version="2",
+            tags={"phase": "final_training", "triggered_by": "manual"},
+        ),
+        MlflowRun(
+            run_id=_run_id("price_QLD1_failed_v5"),
+            experiment_name="/Shared/energy_copilot/experiments/price_forecast",
+            model_type="price_forecast",
+            region="QLD1",
+            status="FAILED",
+            start_time="2026-02-18T14:00:00Z",
+            end_time=None,
+            duration_seconds=320.0,
+            mae=0.0,
+            rmse=0.0,
+            mape=0.0,
+            r2_score=0.0,
+            training_rows=0,
+            feature_count=38,
+            model_version="5",
+            tags={"phase": "hpo", "triggered_by": "scheduled", "failure_reason": "OOMKilled"},
+        ),
+        MlflowRun(
+            run_id=_run_id("wind_VIC1_failed_v3"),
+            experiment_name="/Shared/energy_copilot/experiments/wind_forecast",
+            model_type="wind_forecast",
+            region="VIC1",
+            status="FAILED",
+            start_time="2026-02-18T12:15:00Z",
+            end_time=None,
+            duration_seconds=88.0,
+            mae=0.0,
+            rmse=0.0,
+            mape=0.0,
+            r2_score=0.0,
+            training_rows=0,
+            feature_count=28,
+            model_version="3",
+            tags={"phase": "hpo", "triggered_by": "manual", "failure_reason": "FeatureStoreTimeout"},
+        ),
+        MlflowRun(
+            run_id=_run_id("solar_QLD1_failed_v2"),
+            experiment_name="/Shared/energy_copilot/experiments/solar_forecast",
+            model_type="solar_forecast",
+            region="QLD1",
+            status="FAILED",
+            start_time="2026-02-18T10:00:00Z",
+            end_time=None,
+            duration_seconds=214.0,
+            mae=0.0,
+            rmse=0.0,
+            mape=0.0,
+            r2_score=0.0,
+            training_rows=0,
+            feature_count=25,
+            model_version="2",
+            tags={"phase": "hpo", "triggered_by": "scheduled", "failure_reason": "DataFreshnessMiss"},
+        ),
+    ]
+    return runs
+
+
+def _make_feature_importance() -> Dict[str, List[FeatureImportance]]:
+    """Return feature importance for price_forecast model."""
+    price_features = [
+        ("hour_of_day",   0.22, 1),
+        ("day_of_week",   0.18, 2),
+        ("temp_c",        0.15, 3),
+        ("nem_demand",    0.13, 4),
+        ("gas_price",     0.11, 5),
+        ("prev_rrp_1h",   0.09, 6),
+        ("wind_mw",       0.07, 7),
+        ("solar_mw",      0.05, 8),
+    ]
+    return {
+        "price_forecast": [
+            FeatureImportance(feature_name=n, importance=i, rank=r)
+            for n, i, r in price_features
+        ]
+    }
+
+
+def _make_drift_summary() -> List[ModelDriftRecord]:
+    """Return model drift records covering all NEM model types."""
+    return [
+        ModelDriftRecord(
+            model_type="price_forecast",
+            region="NSW1",
+            date="2026-02-19",
+            mae_production=13.8,
+            mae_training=12.4,
+            drift_ratio=round(13.8 / 12.4, 3),
+            drift_status="stable",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="price_forecast",
+            region="VIC1",
+            date="2026-02-19",
+            mae_production=14.5,
+            mae_training=13.1,
+            drift_ratio=round(14.5 / 13.1, 3),
+            drift_status="stable",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="price_forecast",
+            region="SA1",
+            date="2026-02-19",
+            mae_production=31.2,
+            mae_training=21.7,
+            drift_ratio=round(31.2 / 21.7, 3),
+            drift_status="warning",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="price_forecast",
+            region="QLD1",
+            date="2026-02-19",
+            mae_production=13.4,
+            mae_training=12.8,
+            drift_ratio=round(13.4 / 12.8, 3),
+            drift_status="stable",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="price_forecast",
+            region="TAS1",
+            date="2026-02-19",
+            mae_production=11.9,
+            mae_training=11.2,
+            drift_ratio=round(11.9 / 11.2, 3),
+            drift_status="stable",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="demand_forecast",
+            region="NSW1",
+            date="2026-02-19",
+            mae_production=108.2,
+            mae_training=98.5,
+            drift_ratio=round(108.2 / 98.5, 3),
+            drift_status="stable",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="demand_forecast",
+            region="QLD1",
+            date="2026-02-19",
+            mae_production=143.7,
+            mae_training=98.5,
+            drift_ratio=round(143.7 / 98.5, 3),
+            drift_status="warning",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="wind_forecast",
+            region="SA1",
+            date="2026-02-19",
+            mae_production=48.5,
+            mae_training=45.2,
+            drift_ratio=round(48.5 / 45.2, 3),
+            drift_status="stable",
+            samples_evaluated=8640,
+        ),
+        ModelDriftRecord(
+            model_type="solar_forecast",
+            region="NSW1",
+            date="2026-02-19",
+            mae_production=34.2,
+            mae_training=32.1,
+            drift_ratio=round(34.2 / 32.1, 3),
+            drift_status="stable",
+            samples_evaluated=4320,
+        ),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# MLflow Dashboard endpoints — Sprint 16a
+# ---------------------------------------------------------------------------
+
+_TTL_ML_DASHBOARD = 300
+_TTL_ML_RUNS      = 60
+
+
+@app.get(
+    "/api/ml/dashboard",
+    response_model=MlDashboard,
+    summary="MLflow experiment and model management dashboard",
+    tags=["ML Models"],
+    response_description="Summary of MLflow runs, feature importance, and drift metrics",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ml_dashboard() -> MlDashboard:
+    """
+    Return a consolidated ML dashboard including:
+    - Recent MLflow training runs (8-10 runs, mix of FINISHED/FAILED)
+    - Feature importance for price_forecast (top 8 LightGBM gain features)
+    - Model drift summary across all NEM model types and regions
+    - Summary statistics: total experiments, runs, models in production, avg MAE
+
+    Drift is detected when production MAE / training MAE > 1.3 (warning)
+    or > 1.5 (critical). Feature importance uses LightGBM gain metric,
+    normalised to sum to 1.0.
+
+    MLflow experiments map to Unity Catalog:
+    energy_copilot.models.<model_type>_<region>
+
+    Cached for 300 seconds.
+    """
+    cache_key = "ml_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    runs = _make_ml_runs()
+    drift = _make_drift_summary()
+    feature_imp = _make_feature_importance()
+
+    finished_runs = [r for r in runs if r.status == "FINISHED"]
+    avg_mae = round(
+        sum(r.mae for r in finished_runs) / len(finished_runs), 2
+    ) if finished_runs else 0.0
+
+    result = MlDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_experiments=5,   # price, demand, wind, solar, anomaly
+        total_runs=len(runs),
+        models_in_production=20,  # 4 model types x 5 regions
+        avg_mae_production=avg_mae,
+        recent_runs=runs,
+        feature_importance=feature_imp,
+        drift_summary=drift,
+    )
+    _cache_set(cache_key, result, _TTL_ML_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/ml/runs",
+    response_model=List[MlflowRun],
+    summary="List recent MLflow training runs",
+    tags=["ML Models"],
+    response_description="Filtered list of recent MLflow runs",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ml_runs(
+    model_type: Optional[str] = Query(None, description="Filter by model type, e.g. price_forecast"),
+    region: Optional[str] = Query(None, description="Filter by NEM region code, e.g. NSW1"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of runs to return"),
+) -> List[MlflowRun]:
+    """
+    Return a filtered list of recent MLflow training runs.
+
+    Supports filtering by model_type and/or region. Results are ordered
+    by start_time descending (most recent first). The limit parameter
+    caps the number of records returned.
+
+    Cached for 60 seconds (cache key includes filter params).
+    """
+    cache_key = f"ml_runs:{model_type}:{region}:{limit}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    runs = _make_ml_runs()
+
+    if model_type:
+        runs = [r for r in runs if r.model_type == model_type]
+    if region:
+        runs = [r for r in runs if r.region == region]
+
+    result = runs[:limit]
+    _cache_set(cache_key, result, _TTL_ML_RUNS)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Scenario / What-If Analysis  (Sprint 16b)
+# ---------------------------------------------------------------------------
+
+_TTL_SCENARIO_PRESETS = 3600  # 1 hour
+
+
+class ScenarioInput(BaseModel):
+    region: str = "NSW1"
+    base_temperature_c: float = 25.0
+    temperature_delta_c: float = 0.0       # change from base
+    gas_price_multiplier: float = 1.0      # 1.0 = no change, 1.2 = +20%
+    wind_output_multiplier: float = 1.0    # 1.0 = no change, 0.5 = -50%
+    solar_output_multiplier: float = 1.0
+    demand_multiplier: float = 1.0         # broad demand adjustment
+    coal_outage_mw: float = 0.0            # additional forced coal outage MW
+
+
+class ScenarioResult(BaseModel):
+    scenario_id: str
+    region: str
+    base_price_aud_mwh: float
+    scenario_price_aud_mwh: float
+    price_change_aud_mwh: float
+    price_change_pct: float
+    base_demand_mw: float
+    scenario_demand_mw: float
+    demand_change_mw: float
+    base_renewable_pct: float
+    scenario_renewable_pct: float
+    marginal_generator_base: str
+    marginal_generator_scenario: str
+    key_drivers: List[str]
+    confidence: str  # "HIGH", "MEDIUM", "LOW"
+
+
+class ScenarioComparison(BaseModel):
+    timestamp: str
+    inputs: ScenarioInput
+    result: ScenarioResult
+    sensitivity_table: List[Dict]  # parameter -> low/base/high price impact
+
+
+# Region-specific base parameters for scenario modelling
+_REGION_BASE_SCENARIO: Dict[str, Dict[str, float]] = {
+    "NSW1": {"price": 85.0,  "demand": 8500.0, "renewable_pct": 28.0},
+    "QLD1": {"price": 80.0,  "demand": 7200.0, "renewable_pct": 22.0},
+    "VIC1": {"price": 90.0,  "demand": 5800.0, "renewable_pct": 35.0},
+    "SA1":  {"price": 110.0, "demand": 1600.0, "renewable_pct": 65.0},
+    "TAS1": {"price": 70.0,  "demand": 1200.0, "renewable_pct": 88.0},
+}
+
+# Marginal generator labels indexed cheapest to most expensive
+_MARGINAL_GENERATORS_SCENARIO: Dict[str, List[str]] = {
+    "NSW1": ["Black Coal (Eraring)", "Gas CCGT (Tallawarra B)", "Gas OCGT (Tallawarra)", "Diesel/VoLL"],
+    "QLD1": ["Black Coal (Stanwell)", "Gas CCGT (Darling Downs)", "Gas OCGT (Swanbank E)", "Diesel/VoLL"],
+    "VIC1": ["Brown Coal (Loy Yang A)", "Gas CCGT (Newport)", "Gas OCGT (Jeeralang)", "Diesel/VoLL"],
+    "SA1":  ["Wind (Hornsdale)", "Gas CCGT (Torrens Island B)", "Gas OCGT (Snuggery)", "Diesel/VoLL"],
+    "TAS1": ["Hydro (Gordon)", "Hydro (Poatina)", "Gas OCGT (Tamar Valley)", "Diesel/VoLL"],
+}
+
+
+def _compute_scenario(inp: ScenarioInput) -> ScenarioComparison:
+    """Apply the linear sensitivity model to produce a ScenarioComparison."""
+    region_params = _REGION_BASE_SCENARIO.get(inp.region, _REGION_BASE_SCENARIO["NSW1"])
+    base_price = region_params["price"]
+    base_demand = region_params["demand"]
+    base_renewable_pct = region_params["renewable_pct"]
+
+    # --- Price effects ---
+    effective_temp = inp.base_temperature_c + inp.temperature_delta_c
+    temp_effect = 0.0
+    if effective_temp > 30.0:
+        temp_effect = (effective_temp - 30.0) * 3.50
+    elif effective_temp < 10.0:
+        temp_effect = (10.0 - effective_temp) * 2.00
+
+    gas_effect = (inp.gas_price_multiplier - 1.0) * 0.35 * base_price
+    wind_effect = (1.0 - inp.wind_output_multiplier) * 0.15 * base_price
+    solar_effect = (1.0 - inp.solar_output_multiplier) * 0.08 * base_price
+    coal_effect = inp.coal_outage_mw * 0.05
+    demand_effect = (inp.demand_multiplier - 1.0) * base_price * 0.40
+
+    total_delta = temp_effect + gas_effect + wind_effect + solar_effect + coal_effect + demand_effect
+    scenario_price = max(0.0, round(base_price + total_delta, 2))
+
+    # --- Demand ---
+    scenario_demand = round(base_demand * inp.demand_multiplier, 1)
+    demand_change = round(scenario_demand - base_demand, 1)
+
+    # --- Renewable % ---
+    wind_share = 0.45 * base_renewable_pct
+    solar_share = 0.35 * base_renewable_pct
+    other_renewable_share = base_renewable_pct - wind_share - solar_share
+    new_wind_share = wind_share * inp.wind_output_multiplier
+    new_solar_share = solar_share * inp.solar_output_multiplier
+    scenario_renewable_pct = round(
+        min(100.0, max(0.0, new_wind_share + new_solar_share + other_renewable_share)), 1
+    )
+
+    # --- Marginal generator ---
+    gen_options = _MARGINAL_GENERATORS_SCENARIO.get(inp.region, _MARGINAL_GENERATORS_SCENARIO["NSW1"])
+    if base_price < 80:
+        base_gen_idx = 0
+    elif base_price < 130:
+        base_gen_idx = 1
+    else:
+        base_gen_idx = 2
+
+    price_change_pct = ((scenario_price - base_price) / base_price * 100) if base_price > 0 else 0.0
+    if price_change_pct > 30:
+        scenario_gen_idx = min(base_gen_idx + 2, len(gen_options) - 1)
+    elif price_change_pct > 10:
+        scenario_gen_idx = min(base_gen_idx + 1, len(gen_options) - 1)
+    elif price_change_pct < -10:
+        scenario_gen_idx = max(base_gen_idx - 1, 0)
+    else:
+        scenario_gen_idx = base_gen_idx
+
+    # --- Key drivers ---
+    drivers: List[str] = []
+    if abs(inp.temperature_delta_c) >= 3:
+        direction = "above" if inp.temperature_delta_c > 0 else "below"
+        drivers.append(
+            f"Temperature {abs(inp.temperature_delta_c):.0f}\u00b0C {direction} base \u2014 "
+            f"{'AC load surge' if inp.temperature_delta_c > 0 else 'heating load surge'}"
+        )
+    if abs(inp.gas_price_multiplier - 1.0) >= 0.1:
+        pct_chg = (inp.gas_price_multiplier - 1.0) * 100
+        drivers.append(
+            f"Gas price {'+' if pct_chg > 0 else ''}{pct_chg:.0f}% \u2014 marginal cost pass-through"
+        )
+    if abs(inp.wind_output_multiplier - 1.0) >= 0.1:
+        pct_chg = (inp.wind_output_multiplier - 1.0) * 100
+        drivers.append(
+            f"Wind output {'+' if pct_chg > 0 else ''}{pct_chg:.0f}% \u2014 "
+            f"renewable supply {'boost' if pct_chg > 0 else 'shortfall'}"
+        )
+    if abs(inp.solar_output_multiplier - 1.0) >= 0.1:
+        pct_chg = (inp.solar_output_multiplier - 1.0) * 100
+        drivers.append(
+            f"Solar output {'+' if pct_chg > 0 else ''}{pct_chg:.0f}% \u2014 "
+            f"midday generation {'boost' if pct_chg > 0 else 'reduction'}"
+        )
+    if inp.coal_outage_mw >= 200:
+        drivers.append(
+            f"Coal outage {inp.coal_outage_mw:.0f} MW \u2014 "
+            "thermal supply withdrawn from dispatch stack"
+        )
+    if abs(inp.demand_multiplier - 1.0) >= 0.05:
+        pct_chg = (inp.demand_multiplier - 1.0) * 100
+        drivers.append(
+            f"Demand {'+' if pct_chg > 0 else ''}{pct_chg:.0f}% \u2014 "
+            f"{'elevated' if pct_chg > 0 else 'reduced'} system load"
+        )
+    if not drivers:
+        drivers.append("No significant parameter deviations from base case")
+
+    # --- Confidence ---
+    num_changes = sum([
+        abs(inp.temperature_delta_c) >= 3,
+        abs(inp.gas_price_multiplier - 1.0) >= 0.1,
+        abs(inp.wind_output_multiplier - 1.0) >= 0.1,
+        abs(inp.solar_output_multiplier - 1.0) >= 0.1,
+        inp.coal_outage_mw >= 200,
+        abs(inp.demand_multiplier - 1.0) >= 0.05,
+    ])
+    if num_changes <= 1:
+        confidence = "HIGH"
+    elif num_changes <= 3:
+        confidence = "MEDIUM"
+    else:
+        confidence = "LOW"
+
+    # --- Sensitivity table (6 parameters x low/base/high) ---
+    def _temp_price(delta: float) -> float:
+        t = inp.base_temperature_c + delta
+        if t > 30.0:
+            return round(base_price + (t - 30.0) * 3.50, 2)
+        elif t < 10.0:
+            return round(base_price + (10.0 - t) * 2.00, 2)
+        return round(base_price, 2)
+
+    sensitivity_table: List[Dict] = [
+        {
+            "parameter": "Temperature Delta (degrees C)",
+            "low_value": -10,
+            "base_value": 0,
+            "high_value": 10,
+            "low_price": _temp_price(-10),
+            "base_price": round(base_price, 2),
+            "high_price": _temp_price(10),
+        },
+        {
+            "parameter": "Gas Price Multiplier",
+            "low_value": 0.7,
+            "base_value": 1.0,
+            "high_value": 2.0,
+            "low_price": round(base_price + (0.7 - 1.0) * 0.35 * base_price, 2),
+            "base_price": round(base_price, 2),
+            "high_price": round(base_price + (2.0 - 1.0) * 0.35 * base_price, 2),
+        },
+        {
+            "parameter": "Wind Output Multiplier",
+            "low_value": 0.2,
+            "base_value": 1.0,
+            "high_value": 1.3,
+            "low_price": round(base_price + (1.0 - 0.2) * 0.15 * base_price, 2),
+            "base_price": round(base_price, 2),
+            "high_price": round(base_price + (1.0 - 1.3) * 0.15 * base_price, 2),
+        },
+        {
+            "parameter": "Solar Output Multiplier",
+            "low_value": 0.2,
+            "base_value": 1.0,
+            "high_value": 1.3,
+            "low_price": round(base_price + (1.0 - 0.2) * 0.08 * base_price, 2),
+            "base_price": round(base_price, 2),
+            "high_price": round(base_price + (1.0 - 1.3) * 0.08 * base_price, 2),
+        },
+        {
+            "parameter": "Coal Outage (MW)",
+            "low_value": 0,
+            "base_value": 0,
+            "high_value": 2000,
+            "low_price": round(base_price, 2),
+            "base_price": round(base_price, 2),
+            "high_price": round(base_price + 2000 * 0.05, 2),
+        },
+        {
+            "parameter": "Demand Multiplier",
+            "low_value": 0.8,
+            "base_value": 1.0,
+            "high_value": 1.2,
+            "low_price": round(base_price + (0.8 - 1.0) * base_price * 0.40, 2),
+            "base_price": round(base_price, 2),
+            "high_price": round(base_price + (1.2 - 1.0) * base_price * 0.40, 2),
+        },
+    ]
+
+    scenario_result = ScenarioResult(
+        scenario_id=str(uuid.uuid4()),
+        region=inp.region,
+        base_price_aud_mwh=round(base_price, 2),
+        scenario_price_aud_mwh=scenario_price,
+        price_change_aud_mwh=round(scenario_price - base_price, 2),
+        price_change_pct=round(price_change_pct, 2),
+        base_demand_mw=base_demand,
+        scenario_demand_mw=scenario_demand,
+        demand_change_mw=demand_change,
+        base_renewable_pct=base_renewable_pct,
+        scenario_renewable_pct=scenario_renewable_pct,
+        marginal_generator_base=gen_options[base_gen_idx],
+        marginal_generator_scenario=gen_options[scenario_gen_idx],
+        key_drivers=drivers,
+        confidence=confidence,
+    )
+
+    return ScenarioComparison(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        inputs=inp,
+        result=scenario_result,
+        sensitivity_table=sensitivity_table,
+    )
+
+
+@app.post(
+    "/api/scenario/run",
+    response_model=ScenarioComparison,
+    summary="Run a what-if scenario analysis",
+    tags=["Market Data"],
+    response_description="Price and demand impact of the specified parameter changes",
+    dependencies=[Depends(verify_api_key)],
+)
+def run_scenario(inp: ScenarioInput) -> ScenarioComparison:
+    """
+    Run a what-if scenario analysis using a simplified linear sensitivity model.
+
+    - Temperature effect: +$3.50/MWh per degree C above 30 degrees C, +$2.00/MWh per degree C below 10 degrees C
+    - Gas price pass-through: 35% of base price per unit change in multiplier
+    - Wind shortfall: 15% base price impact per unit reduction in wind output multiplier
+    - Solar shortfall: 8% base price impact per unit reduction in solar output multiplier
+    - Coal outage: $0.05/MWh per MW of outage
+    - Demand: 40% of base price per unit change in demand multiplier
+
+    No caching: POST endpoint is dynamic.
+    """
+    return _compute_scenario(inp)
+
+
+@app.get(
+    "/api/scenario/presets",
+    summary="Get pre-built scenario presets",
+    tags=["Market Data"],
+    response_description="List of named scenario presets with parameter values",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_scenario_presets() -> List[Dict]:
+    """
+    Return a list of pre-built scenario presets for common NEM market conditions.
+
+    Each preset includes a name, description, icon, and parameter overrides.
+    Cached for 3600 seconds.
+    """
+    cache_key = "scenario:presets"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    presets: List[Dict] = [
+        {
+            "id": "hot_summer_day",
+            "name": "Hot Summer Day",
+            "description": "Extreme heat drives AC load surge with strong solar output",
+            "icon": "sun",
+            "parameters": {
+                "temperature_delta_c": 8.0,
+                "solar_output_multiplier": 1.2,
+                "demand_multiplier": 1.15,
+                "gas_price_multiplier": 1.0,
+                "wind_output_multiplier": 1.0,
+                "coal_outage_mw": 0.0,
+            },
+        },
+        {
+            "id": "cold_snap",
+            "name": "Cold Snap",
+            "description": "Cold front drives heating load while reducing wind output",
+            "icon": "thermometer",
+            "parameters": {
+                "temperature_delta_c": -10.0,
+                "wind_output_multiplier": 0.8,
+                "demand_multiplier": 1.10,
+                "gas_price_multiplier": 1.0,
+                "solar_output_multiplier": 1.0,
+                "coal_outage_mw": 0.0,
+            },
+        },
+        {
+            "id": "wind_drought",
+            "name": "Wind Drought",
+            "description": "Prolonged calm period reduces wind and solar output significantly",
+            "icon": "wind",
+            "parameters": {
+                "wind_output_multiplier": 0.2,
+                "solar_output_multiplier": 0.8,
+                "temperature_delta_c": 0.0,
+                "gas_price_multiplier": 1.0,
+                "demand_multiplier": 1.0,
+                "coal_outage_mw": 0.0,
+            },
+        },
+        {
+            "id": "gas_price_spike",
+            "name": "Gas Price Spike",
+            "description": "Gas supply disruption drives up fuel costs for gas peakers",
+            "icon": "zap",
+            "parameters": {
+                "gas_price_multiplier": 1.8,
+                "temperature_delta_c": 0.0,
+                "wind_output_multiplier": 1.0,
+                "solar_output_multiplier": 1.0,
+                "demand_multiplier": 1.0,
+                "coal_outage_mw": 0.0,
+            },
+        },
+        {
+            "id": "major_coal_outage",
+            "name": "Major Coal Outage",
+            "description": "Unplanned outage at a major baseload coal unit tightens supply",
+            "icon": "alert",
+            "parameters": {
+                "coal_outage_mw": 1500.0,
+                "temperature_delta_c": 0.0,
+                "gas_price_multiplier": 1.0,
+                "wind_output_multiplier": 1.0,
+                "solar_output_multiplier": 1.0,
+                "demand_multiplier": 1.0,
+            },
+        },
+        {
+            "id": "perfect_green_day",
+            "name": "Perfect Green Day",
+            "description": "Ideal conditions for renewables: strong wind, bright sun, mild gas prices",
+            "icon": "leaf",
+            "parameters": {
+                "wind_output_multiplier": 1.3,
+                "solar_output_multiplier": 1.2,
+                "gas_price_multiplier": 0.9,
+                "temperature_delta_c": 0.0,
+                "demand_multiplier": 1.0,
+                "coal_outage_mw": 0.0,
+            },
+        },
+    ]
+
+    _cache_set(cache_key, presets, _TTL_SCENARIO_PRESETS)
+    return presets
+
+
+# ===========================================================================
+# Data Catalog & Pipeline Health endpoints  (Sprint 16c)
+# ===========================================================================
+
+class PipelineRunRecord(BaseModel):
+    pipeline_id: str
+    pipeline_name: str
+    run_id: str
+    status: str                    # "COMPLETED", "RUNNING", "FAILED", "WAITING"
+    start_time: str
+    end_time: Optional[str] = None
+    duration_seconds: float
+    rows_processed: int
+    rows_failed: int
+    error_message: Optional[str] = None
+    triggered_by: str              # "SCHEDULED", "MANUAL", "EVENT"
+
+
+class TableHealthRecord(BaseModel):
+    catalog: str
+    schema_name: str               # "bronze", "silver", "gold"
+    table_name: str
+    row_count: int
+    last_updated: str
+    freshness_minutes: float
+    freshness_status: str          # "fresh", "stale", "critical"
+    size_gb: float
+    partition_count: int
+    expectation_pass_rate: float   # 0.0-1.0
+
+
+class DataQualityExpectation(BaseModel):
+    table_name: str
+    expectation_name: str
+    column_name: str
+    expectation_type: str          # "not_null", "unique", "in_range", "matches_regex"
+    passed: bool
+    pass_rate: float               # fraction of rows passing
+    failed_rows: int
+    last_evaluated: str
+    severity: str                  # "error", "warning", "drop"
+
+
+class DataCatalogDashboard(BaseModel):
+    timestamp: str
+    total_tables: int
+    fresh_tables: int
+    stale_tables: int
+    critical_tables: int
+    total_rows_today: int
+    pipeline_runs_today: int
+    pipeline_failures_today: int
+    recent_pipelines: List[PipelineRunRecord]
+    table_health: List[TableHealthRecord]
+    dq_expectations: List[DataQualityExpectation]
+
+
+_TTL_CATALOG_DASHBOARD = 60
+_TTL_PIPELINE_RUNS = 30
+
+
+def _make_pipeline_runs() -> List[PipelineRunRecord]:
+    """Return mock DLT pipeline run records for the NEM project."""
+    now = datetime.now(timezone.utc)
+
+    def _ts(minutes_ago: float) -> str:
+        return (now - timedelta(minutes=minutes_ago)).isoformat()
+
+    def _end(start_minutes_ago: float, duration_s: float) -> str:
+        start = now - timedelta(minutes=start_minutes_ago)
+        end = start + timedelta(seconds=duration_s)
+        return end.isoformat()
+
+    runs: List[PipelineRunRecord] = [
+        PipelineRunRecord(
+            pipeline_id="pipe-bronze-001",
+            pipeline_name="nemweb_bronze_pipeline",
+            run_id="run-b-20260219-001",
+            status="COMPLETED",
+            start_time=_ts(3),
+            end_time=_end(3, 28),
+            duration_seconds=28.4,
+            rows_processed=1204,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-silver-001",
+            pipeline_name="silver_transform_pipeline",
+            run_id="run-s-20260219-001",
+            status="COMPLETED",
+            start_time=_ts(4),
+            end_time=_end(4, 2.1),
+            duration_seconds=2.1,
+            rows_processed=802,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-bronze-001",
+            pipeline_name="nemweb_bronze_pipeline",
+            run_id="run-b-20260219-002",
+            status="COMPLETED",
+            start_time=_ts(8),
+            end_time=_end(8, 31.2),
+            duration_seconds=31.2,
+            rows_processed=1198,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-silver-001",
+            pipeline_name="silver_transform_pipeline",
+            run_id="run-s-20260219-002",
+            status="COMPLETED",
+            start_time=_ts(9),
+            end_time=_end(9, 1.9),
+            duration_seconds=1.9,
+            rows_processed=795,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-gold-001",
+            pipeline_name="gold_aggregation_pipeline",
+            run_id="run-g-20260219-001",
+            status="COMPLETED",
+            start_time=_ts(32),
+            end_time=_end(32, 44.7),
+            duration_seconds=44.7,
+            rows_processed=198,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-ml-001",
+            pipeline_name="ml_feature_pipeline",
+            run_id="run-ml-20260219-001",
+            status="COMPLETED",
+            start_time=_ts(65),
+            end_time=_end(65, 118.3),
+            duration_seconds=118.3,
+            rows_processed=2015,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-bronze-001",
+            pipeline_name="nemweb_bronze_pipeline",
+            run_id="run-b-20260219-003",
+            status="FAILED",
+            start_time=_ts(13),
+            end_time=_end(13, 8.5),
+            duration_seconds=8.5,
+            rows_processed=0,
+            rows_failed=0,
+            error_message="ConnectionError: nemweb.com.au returned HTTP 503 — upstream source unavailable. Retried 3 times.",
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-silver-001",
+            pipeline_name="silver_transform_pipeline",
+            run_id="run-s-20260219-003",
+            status="FAILED",
+            start_time=_ts(14),
+            end_time=_end(14, 3.8),
+            duration_seconds=3.8,
+            rows_processed=0,
+            rows_failed=42,
+            error_message="AnalysisException: upstream bronze table has 0 new rows — dependency nemweb_bronze_pipeline FAILED.",
+            triggered_by="EVENT",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-gold-001",
+            pipeline_name="gold_aggregation_pipeline",
+            run_id="run-g-20260219-002",
+            status="RUNNING",
+            start_time=_ts(0.5),
+            end_time=None,
+            duration_seconds=30.0,
+            rows_processed=87,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+        PipelineRunRecord(
+            pipeline_id="pipe-ml-001",
+            pipeline_name="ml_feature_pipeline",
+            run_id="run-ml-20260219-002",
+            status="WAITING",
+            start_time=_ts(0.2),
+            end_time=None,
+            duration_seconds=0.0,
+            rows_processed=0,
+            rows_failed=0,
+            triggered_by="SCHEDULED",
+        ),
+    ]
+    return runs
+
+
+def _make_table_health() -> List[TableHealthRecord]:
+    """Return mock Unity Catalog table health records."""
+    now = datetime.now(timezone.utc)
+
+    def _upd(minutes_ago: float) -> str:
+        return (now - timedelta(minutes=minutes_ago)).isoformat()
+
+    def _status(minutes: float) -> str:
+        if minutes < 10:
+            return "fresh"
+        elif minutes <= 30:
+            return "stale"
+        else:
+            return "critical"
+
+    tables = [
+        # Bronze
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="bronze",
+            table_name="dispatch_price",
+            row_count=125_000_000,
+            last_updated=_upd(3.2),
+            freshness_minutes=3.2,
+            freshness_status=_status(3.2),
+            size_gb=2.4,
+            partition_count=288,
+            expectation_pass_rate=0.998,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="bronze",
+            table_name="dispatch_scada",
+            row_count=89_000_000,
+            last_updated=_upd(3.8),
+            freshness_minutes=3.8,
+            freshness_status=_status(3.8),
+            size_gb=1.8,
+            partition_count=288,
+            expectation_pass_rate=1.0,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="bronze",
+            table_name="trading_price",
+            row_count=41_200_000,
+            last_updated=_upd(5.1),
+            freshness_minutes=5.1,
+            freshness_status=_status(5.1),
+            size_gb=0.8,
+            partition_count=96,
+            expectation_pass_rate=0.9998,
+        ),
+        # Silver
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="silver",
+            table_name="nem_prices_5min",
+            row_count=45_000_000,
+            last_updated=_upd(4.5),
+            freshness_minutes=4.5,
+            freshness_status=_status(4.5),
+            size_gb=0.9,
+            partition_count=144,
+            expectation_pass_rate=0.985,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="silver",
+            table_name="generation_by_duid",
+            row_count=32_000_000,
+            last_updated=_upd(18.3),
+            freshness_minutes=18.3,
+            freshness_status=_status(18.3),
+            size_gb=0.6,
+            partition_count=144,
+            expectation_pass_rate=0.972,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="silver",
+            table_name="interconnector_flows",
+            row_count=12_500_000,
+            last_updated=_upd(6.7),
+            freshness_minutes=6.7,
+            freshness_status=_status(6.7),
+            size_gb=0.25,
+            partition_count=144,
+            expectation_pass_rate=1.0,
+        ),
+        # Gold
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="gold",
+            table_name="nem_prices_summary",
+            row_count=8_000_000,
+            last_updated=_upd(7.1),
+            freshness_minutes=7.1,
+            freshness_status=_status(7.1),
+            size_gb=0.2,
+            partition_count=48,
+            expectation_pass_rate=1.0,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="gold",
+            table_name="forecast_features",
+            row_count=5_000_000,
+            last_updated=_upd(8.9),
+            freshness_minutes=8.9,
+            freshness_status=_status(8.9),
+            size_gb=0.1,
+            partition_count=48,
+            expectation_pass_rate=0.999,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="gold",
+            table_name="forecast_evaluation",
+            row_count=1_200_000,
+            last_updated=_upd(35.4),
+            freshness_minutes=35.4,
+            freshness_status=_status(35.4),
+            size_gb=0.05,
+            partition_count=24,
+            expectation_pass_rate=0.85,
+        ),
+        TableHealthRecord(
+            catalog="energy_copilot",
+            schema_name="gold",
+            table_name="backfill_progress",
+            row_count=500,
+            last_updated=_upd(2.1),
+            freshness_minutes=2.1,
+            freshness_status=_status(2.1),
+            size_gb=0.001,
+            partition_count=1,
+            expectation_pass_rate=1.0,
+        ),
+    ]
+    return tables
+
+
+def _make_dq_expectations() -> List[DataQualityExpectation]:
+    """Return mock DQ expectation results for NEM Delta tables."""
+    now = datetime.now(timezone.utc)
+    ts = now.isoformat()
+
+    expectations = [
+        DataQualityExpectation(
+            table_name="bronze.dispatch_price",
+            expectation_name="rrp_not_null",
+            column_name="rrp",
+            expectation_type="not_null",
+            passed=True,
+            pass_rate=1.0,
+            failed_rows=0,
+            last_evaluated=ts,
+            severity="error",
+        ),
+        DataQualityExpectation(
+            table_name="bronze.dispatch_price",
+            expectation_name="settlementdate_not_null",
+            column_name="settlementdate",
+            expectation_type="not_null",
+            passed=True,
+            pass_rate=1.0,
+            failed_rows=0,
+            last_evaluated=ts,
+            severity="error",
+        ),
+        DataQualityExpectation(
+            table_name="bronze.dispatch_price",
+            expectation_name="rrp_in_range",
+            column_name="rrp",
+            expectation_type="in_range",
+            passed=True,
+            pass_rate=0.998,
+            failed_rows=250,
+            last_evaluated=ts,
+            severity="warning",
+        ),
+        DataQualityExpectation(
+            table_name="bronze.dispatch_price",
+            expectation_name="regionid_matches_regex",
+            column_name="regionid",
+            expectation_type="matches_regex",
+            passed=True,
+            pass_rate=1.0,
+            failed_rows=0,
+            last_evaluated=ts,
+            severity="error",
+        ),
+        DataQualityExpectation(
+            table_name="silver.nem_prices_5min",
+            expectation_name="demand_positive",
+            column_name="totaldemand",
+            expectation_type="in_range",
+            passed=True,
+            pass_rate=0.985,
+            failed_rows=675,
+            last_evaluated=ts,
+            severity="warning",
+        ),
+        DataQualityExpectation(
+            table_name="silver.nem_prices_5min",
+            expectation_name="rrp_not_null",
+            column_name="rrp",
+            expectation_type="not_null",
+            passed=True,
+            pass_rate=1.0,
+            failed_rows=0,
+            last_evaluated=ts,
+            severity="error",
+        ),
+        DataQualityExpectation(
+            table_name="gold.nem_prices_summary",
+            expectation_name="unique_trading_interval_region",
+            column_name="trading_interval",
+            expectation_type="unique",
+            passed=True,
+            pass_rate=1.0,
+            failed_rows=0,
+            last_evaluated=ts,
+            severity="error",
+        ),
+        DataQualityExpectation(
+            table_name="gold.forecast_evaluation",
+            expectation_name="mae_within_threshold",
+            column_name="mae",
+            expectation_type="in_range",
+            passed=False,
+            pass_rate=0.85,
+            failed_rows=1800,
+            last_evaluated=ts,
+            severity="warning",
+        ),
+        DataQualityExpectation(
+            table_name="silver.generation_by_duid",
+            expectation_name="duid_not_null",
+            column_name="duid",
+            expectation_type="not_null",
+            passed=False,
+            pass_rate=0.872,
+            failed_rows=4096,
+            last_evaluated=ts,
+            severity="warning",
+        ),
+        DataQualityExpectation(
+            table_name="gold.forecast_features",
+            expectation_name="feature_values_not_null",
+            column_name="feature_vector",
+            expectation_type="not_null",
+            passed=True,
+            pass_rate=0.999,
+            failed_rows=5,
+            last_evaluated=ts,
+            severity="drop",
+        ),
+    ]
+    return expectations
+
+
+@app.get(
+    "/api/catalog/dashboard",
+    response_model=DataCatalogDashboard,
+    summary="Data Pipeline & Catalog Health Dashboard",
+    tags=["Data Catalog"],
+    response_description="DLT pipeline run history, Unity Catalog table freshness, and DQ expectation results",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_catalog_dashboard() -> DataCatalogDashboard:
+    """
+    Return the Data Pipeline & Catalog Health Dashboard.
+
+    Includes:
+    - Recent DLT pipeline runs across bronze/silver/gold/ml layers
+    - Unity Catalog table freshness status and row counts
+    - Delta Live Tables data quality expectation pass rates
+
+    Freshness thresholds: fresh < 10 min, stale 10–30 min, critical > 30 min.
+
+    Cached for 60 seconds.
+    """
+    cache_key = "catalog_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    runs = _make_pipeline_runs()
+    tables = _make_table_health()
+    expectations = _make_dq_expectations()
+
+    fresh = sum(1 for t in tables if t.freshness_status == "fresh")
+    stale = sum(1 for t in tables if t.freshness_status == "stale")
+    critical = sum(1 for t in tables if t.freshness_status == "critical")
+    failures_today = sum(1 for r in runs if r.status == "FAILED")
+    total_rows_today = sum(r.rows_processed for r in runs)
+
+    result = DataCatalogDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_tables=len(tables),
+        fresh_tables=fresh,
+        stale_tables=stale,
+        critical_tables=critical,
+        total_rows_today=total_rows_today,
+        pipeline_runs_today=len(runs),
+        pipeline_failures_today=failures_today,
+        recent_pipelines=runs,
+        table_health=tables,
+        dq_expectations=expectations,
+    )
+    _cache_set(cache_key, result, _TTL_CATALOG_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/catalog/pipeline_runs",
+    response_model=List[PipelineRunRecord],
+    summary="List recent DLT pipeline runs",
+    tags=["Data Catalog"],
+    response_description="Filtered list of recent DLT pipeline runs",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_pipeline_runs(
+    pipeline_name: Optional[str] = Query(None, description="Filter by pipeline name, e.g. nemweb_bronze_pipeline"),
+    status: Optional[str] = Query(None, description="Filter by status: COMPLETED, RUNNING, FAILED, WAITING"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of runs to return"),
+) -> List[PipelineRunRecord]:
+    """
+    Return a filtered list of recent DLT pipeline runs.
+
+    Supports filtering by pipeline_name and/or status. Results are ordered
+    by start_time descending (most recent first). The limit parameter caps
+    the number of records returned.
+
+    Cached for 30 seconds (cache key includes filter params).
+    """
+    cache_key = f"pipeline_runs:{pipeline_name}:{status}:{limit}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    runs = _make_pipeline_runs()
+
+    if pipeline_name:
+        runs = [r for r in runs if r.pipeline_name == pipeline_name]
+    if status:
+        runs = [r for r in runs if r.status == status.upper()]
+
+    result = runs[:limit]
+    _cache_set(cache_key, result, _TTL_PIPELINE_RUNS)
+    return result

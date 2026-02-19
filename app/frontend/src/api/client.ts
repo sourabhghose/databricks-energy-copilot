@@ -463,6 +463,146 @@ export interface MeritOrderCurve {
   units: MeritOrderUnit[]
 }
 
+export interface MlflowRun {
+  run_id: string
+  experiment_name: string
+  model_type: string
+  region: string
+  status: string
+  start_time: string
+  end_time?: string
+  duration_seconds: number
+  mae: number
+  rmse: number
+  mape: number
+  r2_score: number
+  training_rows: number
+  feature_count: number
+  model_version: string
+  tags: Record<string, string>
+}
+
+export interface FeatureImportance {
+  feature_name: string
+  importance: number
+  rank: number
+}
+
+export interface ModelDriftRecord {
+  model_type: string
+  region: string
+  date: string
+  mae_production: number
+  mae_training: number
+  drift_ratio: number
+  drift_status: string
+  samples_evaluated: number
+}
+
+export interface MlDashboardData {
+  timestamp: string
+  total_experiments: number
+  total_runs: number
+  models_in_production: number
+  avg_mae_production: number
+  recent_runs: MlflowRun[]
+  feature_importance: Record<string, FeatureImportance[]>
+  drift_summary: ModelDriftRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 16c — Data Catalog & Pipeline Health interfaces
+// ---------------------------------------------------------------------------
+
+export interface PipelineRunRecord {
+  pipeline_id: string
+  pipeline_name: string
+  run_id: string
+  status: string
+  start_time: string
+  end_time?: string
+  duration_seconds: number
+  rows_processed: number
+  rows_failed: number
+  error_message?: string
+  triggered_by: string
+}
+
+export interface TableHealthRecord {
+  catalog: string
+  schema_name: string
+  table_name: string
+  row_count: number
+  last_updated: string
+  freshness_minutes: number
+  freshness_status: string
+  size_gb: number
+  partition_count: number
+  expectation_pass_rate: number
+}
+
+export interface DataQualityExpectation {
+  table_name: string
+  expectation_name: string
+  column_name: string
+  expectation_type: string
+  passed: boolean
+  pass_rate: number
+  failed_rows: number
+  last_evaluated: string
+  severity: string
+}
+
+export interface DataCatalogDashboard {
+  timestamp: string
+  total_tables: number
+  fresh_tables: number
+  stale_tables: number
+  critical_tables: number
+  total_rows_today: number
+  pipeline_runs_today: number
+  pipeline_failures_today: number
+  recent_pipelines: PipelineRunRecord[]
+  table_health: TableHealthRecord[]
+  dq_expectations: DataQualityExpectation[]
+}
+
+export interface ScenarioInput {
+  region: string
+  base_temperature_c: number
+  temperature_delta_c: number
+  gas_price_multiplier: number
+  wind_output_multiplier: number
+  solar_output_multiplier: number
+  demand_multiplier: number
+  coal_outage_mw: number
+}
+
+export interface ScenarioResult {
+  scenario_id: string
+  region: string
+  base_price_aud_mwh: number
+  scenario_price_aud_mwh: number
+  price_change_aud_mwh: number
+  price_change_pct: number
+  base_demand_mw: number
+  scenario_demand_mw: number
+  demand_change_mw: number
+  base_renewable_pct: number
+  scenario_renewable_pct: number
+  marginal_generator_base: string
+  marginal_generator_scenario: string
+  key_drivers: string[]
+  confidence: string
+}
+
+export interface ScenarioComparison {
+  timestamp: string
+  inputs: ScenarioInput
+  result: ScenarioResult
+  sensitivity_table: Record<string, number>[]
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -926,6 +1066,80 @@ export const api = {
   getMeritOrder: async (region = 'NSW1'): Promise<MeritOrderCurve> => {
     const res = await fetch(`${BASE_URL}/api/merit/order?region=${region}`, { headers })
     if (!res.ok) throw new Error('Failed to fetch merit order')
+    return res.json()
+  },
+
+  /**
+   * Get the ML experiment and model management dashboard.
+   * Returns recent MLflow runs, feature importance, and drift summary.
+   */
+  getMlDashboard: async (): Promise<MlDashboardData> => {
+    const res = await fetch(`${BASE_URL}/api/ml/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch ML dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of recent MLflow training runs.
+   * @param modelType  Optional model type filter, e.g. "price_forecast"
+   * @param region     Optional NEM region filter, e.g. "NSW1"
+   * @param limit      Maximum number of runs to return (default 20)
+   */
+  getMlRuns: async (modelType?: string, region?: string, limit = 20): Promise<MlflowRun[]> => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (modelType) params.set('model_type', modelType)
+    if (region) params.set('region', region)
+    const res = await fetch(`${BASE_URL}/api/ml/runs?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch ML runs')
+    return res.json()
+  },
+
+  /**
+   * Get the Data Pipeline & Catalog Health Dashboard.
+   * Returns DLT pipeline runs, Unity Catalog table freshness, and DQ expectations.
+   */
+  getCatalogDashboard: async (): Promise<DataCatalogDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/catalog/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch catalog dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of recent DLT pipeline runs.
+   * @param pipelineName  Optional pipeline name filter, e.g. "nemweb_bronze_pipeline"
+   * @param status        Optional status filter: COMPLETED, RUNNING, FAILED, WAITING
+   * @param limit         Maximum number of runs to return (default 20)
+   */
+  getPipelineRuns: async (pipelineName?: string, status?: string, limit = 20): Promise<PipelineRunRecord[]> => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (pipelineName) params.set('pipeline_name', pipelineName)
+    if (status) params.set('status', status)
+    const res = await fetch(`${BASE_URL}/api/catalog/pipeline_runs?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch pipeline runs')
+    return res.json()
+  },
+
+  /**
+   * Run a what-if scenario analysis with the given parameter inputs.
+   * Returns price/demand impact, renewable % change, marginal generator shift,
+   * key drivers, and a sensitivity table.
+   */
+  runScenario: async (input: ScenarioInput): Promise<ScenarioComparison> => {
+    const res = await fetch(`${BASE_URL}/api/scenario/run`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (!res.ok) throw new Error('Failed to run scenario')
+    return res.json()
+  },
+
+  /**
+   * Get pre-built scenario presets (Hot Summer Day, Cold Snap, Wind Drought, etc.).
+   */
+  getScenarioPresets: async (): Promise<Record<string, unknown>[]> => {
+    const res = await fetch(`${BASE_URL}/api/scenario/presets`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch scenario presets')
     return res.json()
   },
 }

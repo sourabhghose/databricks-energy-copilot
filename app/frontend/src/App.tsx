@@ -15,6 +15,8 @@ import {
   Thermometer,
   DollarSign,
   Leaf,
+  Brain,
+  Database,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -34,6 +36,9 @@ import BessAnalytics from './pages/BessAnalytics'
 import TradingDesk from './pages/TradingDesk'
 import Sustainability from './pages/Sustainability'
 import MeritOrder from './pages/MeritOrder'
+import MlDashboardPage from './pages/MlDashboard'
+import DataCatalog from './pages/DataCatalog'
+import ScenarioAnalysis from './pages/ScenarioAnalysis'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -54,6 +59,9 @@ const NAV_ITEMS = [
   { to: '/trading-desk',    label: 'Trading Desk',     Icon: DollarSign     },
   { to: '/sustainability',  label: 'Sustainability',   Icon: Leaf            },
   { to: '/merit-order',     label: 'Merit Order',      Icon: TrendingUp      },
+  { to: '/ml-dashboard',   label: 'ML Models',        Icon: Brain           },
+  { to: '/data-catalog',  label: 'Data Catalog',     Icon: Database        },
+  { to: '/scenario',      label: 'Scenario Analysis', Icon: Activity       },
 ]
 
 function Sidebar() {
@@ -148,6 +156,9 @@ export default function App() {
               <Route path="/trading-desk"    element={<TradingDesk />}      />
               <Route path="/sustainability" element={<Sustainability />}  />
               <Route path="/merit-order"   element={<MeritOrder />}       />
+              <Route path="/ml-dashboard" element={<MlDashboardPage />}  />
+              <Route path="/data-catalog" element={<DataCatalog />}       />
+              <Route path="/scenario"    element={<ScenarioAnalysis />}  />
             </Routes>
           </main>
         </div>
