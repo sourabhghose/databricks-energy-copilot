@@ -631,3 +631,18 @@
 - TransmissionProjects.tsx: project table with RIT-T/AER status, milestone tracker, capex vs benefit chart
 - /api/transmission/dashboard, /projects, /milestones (8 projects: HumeLink, VNI West, EnergyConnect, Marinus Link)
 - 4 TestTransmissionEndpoints tests
+
+## Sprint 33b — Virtual Power Plant (VPP) Performance Dashboard [COMPLETE]
+- VppDashboard.tsx: capacity by scheme chart, schemes table with filters, 12-month performance LineChart
+- /api/vpp/dashboard, /schemes, /dispatches (10 VPP schemes: AGL, Origin, sonnen, EA, Simply)
+- 4 TestVppEndpoints tests
+
+## Sprint 33a — DNSP Distribution Network Analytics [COMPLETE]
+- DnspAnalytics.tsx: SAIDI bar chart vs regulatory target, DNSP table with reliability metrics, investment table
+- /api/dnsp/dashboard, /records, /investments (14 DNSPs across all states)
+- 4 TestDnspEndpoints tests
+
+## Sprint 33c — NEM Market Reform Tracker [COMPLETE]
+- MarketReformTracker.tsx: reforms table with status/category/agency filters, milestone timeline, financial impact table
+- /api/reform/dashboard, /list, /milestones (10 reforms: 5MS, GSL, DER Integration, Two-Sided Markets, Capacity Mechanism)
+- 4 TestReformEndpoints tests

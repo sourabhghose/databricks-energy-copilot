@@ -2991,3 +2991,100 @@ class TestTransmissionEndpoints:
         assert r.status_code == 200
         for p in r.json():
             assert p["status"] == "CONSTRUCTION"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33a — DNSP Distribution Network Analytics
+# ---------------------------------------------------------------------------
+
+class TestDnspEndpoints:
+    def test_dnsp_dashboard_returns_200(self, client=client):
+        r = client.get("/api/dnsp/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "dnsp_records" in d
+        assert d["total_distribution_customers"] > 0
+
+    def test_dnsp_records_list(self, client=client):
+        r = client.get("/api/dnsp/records")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 10
+        for rec in records:
+            assert rec["saidi_minutes"] > 0
+
+    def test_dnsp_investments_list(self, client=client):
+        r = client.get("/api/dnsp/investments")
+        assert r.status_code == 200
+        assert len(r.json()) >= 5
+
+    def test_dnsp_state_filter(self, client=client):
+        r = client.get("/api/dnsp/records?state=VIC")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["state"] == "VIC"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33b — Virtual Power Plant (VPP) Performance
+# ---------------------------------------------------------------------------
+
+class TestVppEndpoints:
+    def test_vpp_dashboard_returns_200(self, client=client):
+        r = client.get("/api/vpp/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "schemes" in d
+        assert "dispatches" in d
+        assert d["total_enrolled_participants"] > 0
+
+    def test_vpp_schemes_list(self, client=client):
+        r = client.get("/api/vpp/schemes")
+        assert r.status_code == 200
+        schemes = r.json()
+        assert len(schemes) >= 5
+
+    def test_vpp_dispatches_list(self, client=client):
+        r = client.get("/api/vpp/dispatches")
+        assert r.status_code == 200
+        dispatches = r.json()
+        assert len(dispatches) >= 5
+
+    def test_vpp_state_filter(self, client=client):
+        r = client.get("/api/vpp/schemes?state=SA")
+        assert r.status_code == 200
+        for s in r.json():
+            assert s["state"] == "SA"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33c — NEM Market Reform Tracker
+# ---------------------------------------------------------------------------
+
+class TestReformEndpoints:
+    def test_reform_dashboard_returns_200(self, client=client):
+        r = client.get("/api/reform/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "reforms" in d
+        assert "milestones" in d
+        assert d["implemented_reforms"] >= 0
+
+    def test_reform_list(self, client=client):
+        r = client.get("/api/reform/list")
+        assert r.status_code == 200
+        reforms = r.json()
+        assert len(reforms) >= 5
+        for ref in reforms:
+            assert ref["impact_level"] in ["HIGH", "MEDIUM", "LOW"]
+
+    def test_reform_status_filter(self, client=client):
+        r = client.get("/api/reform/list?status=IMPLEMENTED")
+        assert r.status_code == 200
+        for ref in r.json():
+            assert ref["status"] == "IMPLEMENTED"
+
+    def test_reform_milestones_list(self, client=client):
+        r = client.get("/api/reform/milestones")
+        assert r.status_code == 200
+        assert len(r.json()) >= 5

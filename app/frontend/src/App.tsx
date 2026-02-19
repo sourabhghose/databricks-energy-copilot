@@ -110,6 +110,9 @@ import TnspAnalytics from './pages/TnspAnalytics'
 import InertiaAnalytics from './pages/InertiaAnalytics'
 import HydrogenAnalytics from './pages/HydrogenAnalytics'
 import TransmissionProjects from './pages/TransmissionProjects'
+import DnspAnalytics from './pages/DnspAnalytics'
+import VppDashboard from './pages/VppDashboard'
+import MarketReformTracker from './pages/MarketReformTracker'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -180,6 +183,9 @@ const NAV_ITEMS = [
   { to: '/phes',          label: 'Pumped Hydro (PHES)', Icon: Droplets       },
   { to: '/safeguard',     label: 'Safeguard & ERF',   Icon: Leaf           },
   { to: '/transmission', label: 'Major Transmission', Icon: GitBranch },
+  { to: '/dnsp',           label: 'DNSP Analytics',    Icon: Network        },
+  { to: '/vpp',            label: 'VPP Performance',   Icon: BatteryCharging },
+  { to: '/reform',         label: 'Market Reform',     Icon: FileText       },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -325,6 +331,9 @@ export default function App() {
               <Route path="/phes"         element={<PhesAnalytics />}      />
               <Route path="/safeguard"    element={<SafeguardAnalytics />} />
               <Route path="/transmission" element={<TransmissionProjects />} />
+              <Route path="/dnsp"         element={<DnspAnalytics />}      />
+              <Route path="/vpp"          element={<VppDashboard />}       />
+              <Route path="/reform"       element={<MarketReformTracker />} />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

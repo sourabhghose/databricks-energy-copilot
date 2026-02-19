@@ -1725,6 +1725,30 @@ export interface TransmissionProject { project_id: string; project_name: string;
 export interface TransmissionMilestone { project_id: string; project_name: string; milestone: string; planned_date: string; actual_date: string | null; status: string; notes: string }
 export interface TransmissionDashboard { timestamp: string; total_pipeline_capex_b_aud: number; km_under_construction: number; km_approved: number; projects_at_risk: number; projects: TransmissionProject[]; milestones: TransmissionMilestone[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 33a — DNSP Distribution Network interfaces
+// ---------------------------------------------------------------------------
+export interface DnspRecord { dnsp: string; state: string; customers: number; network_km: number; substations: number; saidi_minutes: number; saifi_count: number; maifi_count: number; regulatory_target_saidi: number; network_tariff_aud_kwh: number; capex_m_aud: number; opex_m_aud: number; rab_m_aud: number; allowed_revenue_m_aud: number; rooftop_solar_pct: number; ev_charger_connections: number; demand_mw: number; reporting_year: number }
+export interface DnspFaultRecord { dnsp: string; date: string; fault_type: string; duration_minutes: number; customers_affected: number; cause: string; region: string }
+export interface DnspInvestmentRecord { dnsp: string; project_name: string; category: string; capex_m_aud: number; year: number; customer_benefit: string; status: string }
+export interface DnspDashboard { timestamp: string; total_distribution_customers: number; national_avg_saidi: number; total_network_km: number; total_rooftop_solar_pct: number; dnsp_records: DnspRecord[]; fault_records: DnspFaultRecord[]; investment_records: DnspInvestmentRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 33b — Virtual Power Plant (VPP) interfaces
+// ---------------------------------------------------------------------------
+export interface VppScheme { scheme_id: string; scheme_name: string; operator: string; state: string; technology: string; enrolled_participants: number; total_capacity_mw: number; avg_battery_kwh: number; nem_registered: boolean; fcas_eligible: boolean; status: string; launch_year: number; avg_annual_saving_aud: number }
+export interface VppDispatchRecord { scheme_id: string; scheme_name: string; trading_interval: string; dispatch_type: string; energy_dispatched_mwh: number; participants_dispatched: number; revenue_aud: number; avg_participant_payment_aud: number; trigger: string }
+export interface VppPerformanceRecord { scheme_id: string; scheme_name: string; month: string; total_dispatches: number; total_energy_mwh: number; total_revenue_aud: number; avg_response_time_sec: number; reliability_pct: number; participant_satisfaction_pct: number; co2_avoided_t: number }
+export interface VppDashboard { timestamp: string; total_enrolled_participants: number; total_vpp_capacity_mw: number; active_schemes: number; total_revenue_ytd_aud: number; schemes: VppScheme[]; dispatches: VppDispatchRecord[]; performance: VppPerformanceRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 33c — NEM Market Reform Tracker interfaces
+// ---------------------------------------------------------------------------
+export interface MarketReform { reform_id: string; reform_name: string; category: string; description: string; status: string; lead_agency: string; implementation_date: string | null; impact_level: string; stakeholders_affected: string[]; rule_reference: string | null; ner_clause: string | null; key_benefit: string }
+export interface ReformMilestoneRecord { reform_id: string; reform_name: string; milestone: string; date: string; status: string; description: string }
+export interface ReformImpactRecord { reform_id: string; reform_name: string; stakeholder_type: string; impact_description: string; financial_impact_m_aud: number; benefit_type: string }
+export interface ReformDashboard { timestamp: string; implemented_reforms: number; in_progress_reforms: number; proposed_reforms: number; high_impact_reforms: number; reforms: MarketReform[]; milestones: ReformMilestoneRecord[]; impacts: ReformImpactRecord[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3180,6 +3204,47 @@ export const api = {
     if (params?.project_id) qs.append('project_id', params.project_id)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<TransmissionMilestone[]>(`/api/transmission/milestones${query}`)
+  },
+  getDnspDashboard: () => get<DnspDashboard>('/api/dnsp/dashboard'),
+  getDnspRecords: (params?: { state?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<DnspRecord[]>(`/api/dnsp/records${query}`)
+  },
+  getDnspInvestments: (params?: { dnsp?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.append('dnsp', params.dnsp)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<DnspInvestmentRecord[]>(`/api/dnsp/investments${query}`)
+  },
+  getVppDashboard: () => get<VppDashboard>('/api/vpp/dashboard'),
+  getVppSchemes: (params?: { state?: string; technology?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.technology) qs.append('technology', params.technology)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<VppScheme[]>(`/api/vpp/schemes${query}`)
+  },
+  getVppDispatches: (params?: { scheme_id?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.scheme_id) qs.append('scheme_id', params.scheme_id)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<VppDispatchRecord[]>(`/api/vpp/dispatches${query}`)
+  },
+  getReformDashboard: () => get<ReformDashboard>('/api/reform/dashboard'),
+  getReformList: (params?: { status?: string; category?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.append('status', params.status)
+    if (params?.category) qs.append('category', params.category)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<MarketReform[]>(`/api/reform/list${query}`)
+  },
+  getReformMilestones: (params?: { reform_id?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.reform_id) qs.append('reform_id', params.reform_id)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<ReformMilestoneRecord[]>(`/api/reform/milestones${query}`)
   },
 }
 

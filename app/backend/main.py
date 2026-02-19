@@ -21277,3 +21277,673 @@ def get_transmission_milestones(project_id: Optional[str] = None):
         milestones = [m for m in milestones if m.project_id == project_id]
     _cache_set(cache_key, milestones, _TTL_TRANSMISSION)
     return milestones
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33b — Virtual Power Plant (VPP) Performance Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_VPP = 300
+
+
+class VppScheme(BaseModel):
+    scheme_id: str
+    scheme_name: str
+    operator: str
+    state: str
+    technology: str  # SOLAR_BATTERY / BATTERY_ONLY / EV / HEAT_PUMP / MIXED
+    enrolled_participants: int
+    total_capacity_mw: float
+    avg_battery_kwh: float
+    nem_registered: bool
+    fcas_eligible: bool
+    status: str  # OPERATING / TRIAL / APPROVED
+    launch_year: int
+    avg_annual_saving_aud: float
+
+
+class VppDispatchRecord(BaseModel):
+    scheme_id: str
+    scheme_name: str
+    trading_interval: str
+    dispatch_type: str  # DISCHARGE / CHARGE / FCAS_RAISE / FCAS_LOWER / DEMAND_RESPONSE
+    energy_dispatched_mwh: float
+    participants_dispatched: int
+    revenue_aud: float
+    avg_participant_payment_aud: float
+    trigger: str  # PRICE_SPIKE / FCAS_SIGNAL / DEMAND_RESPONSE / GRID_STABILITY / SCHEDULED
+
+
+class VppPerformanceRecord(BaseModel):
+    scheme_id: str
+    scheme_name: str
+    month: str
+    total_dispatches: int
+    total_energy_mwh: float
+    total_revenue_aud: float
+    avg_response_time_sec: float
+    reliability_pct: float
+    participant_satisfaction_pct: float
+    co2_avoided_t: float
+
+
+class VppDashboard(BaseModel):
+    timestamp: str
+    total_enrolled_participants: int
+    total_vpp_capacity_mw: float
+    active_schemes: int
+    total_revenue_ytd_aud: float
+    schemes: List[VppScheme]
+    dispatches: List[VppDispatchRecord]
+    performance: List[VppPerformanceRecord]
+
+
+def _make_vpp_schemes() -> List[VppScheme]:
+    import random as r
+    schemes_data = [
+        ("AGL-VPP", "AGL Virtual Power Plant", "AGL Energy", "SA", "SOLAR_BATTERY", 3500),
+        ("ORIGIN-VPP", "Origin VPP", "Origin Energy", "QLD", "SOLAR_BATTERY", 2800),
+        ("EA-VPP", "EnergyAustralia VPP", "EnergyAustralia", "VIC", "SOLAR_BATTERY", 1500),
+        ("SONNEN-NET", "sonnen Community", "sonnen", "NSW", "BATTERY_ONLY", 800),
+        ("SIMPLY-VPP", "Simply Smart Home VPP", "Simply Energy", "SA", "MIXED", 1200),
+        ("ENERGY-LOCALS", "Energy Locals VPP", "Energy Locals", "NSW", "SOLAR_BATTERY", 600),
+        ("EVO-VPP", "EVO Energy VPP", "EVO Energy", "ACT", "SOLAR_BATTERY", 400),
+        ("AMBER-VPP", "Amber Smart Home VPP", "Amber Electric", "VIC", "BATTERY_ONLY", 350),
+        ("REPOSIT-NET", "Reposit Network", "Reposit Power", "NSW", "SOLAR_BATTERY", 900),
+        ("EV-VPP-SA", "Electrovehicle VPP SA", "SGSC", "SA", "EV", 280),
+    ]
+    records = []
+    for sid, sname, op, state, tech, participants in schemes_data:
+        records.append(VppScheme(
+            scheme_id=sid, scheme_name=sname, operator=op, state=state, technology=tech,
+            enrolled_participants=participants,
+            total_capacity_mw=round(participants * r.uniform(0.003, 0.006), 2),
+            avg_battery_kwh=round(r.uniform(8, 14), 1),
+            nem_registered=r.random() > 0.3,
+            fcas_eligible=r.random() > 0.4,
+            status=r.choice(["OPERATING", "OPERATING", "OPERATING", "TRIAL"]),
+            launch_year=r.randint(2018, 2024),
+            avg_annual_saving_aud=round(r.uniform(400, 1200), 2),
+        ))
+    return records
+
+
+def _make_vpp_dispatches() -> List[VppDispatchRecord]:
+    import random as r
+    schemes = [
+        ("AGL-VPP", "AGL Virtual Power Plant"),
+        ("ORIGIN-VPP", "Origin VPP"),
+        ("SONNEN-NET", "sonnen Community"),
+        ("EA-VPP", "EnergyAustralia VPP"),
+        ("SIMPLY-VPP", "Simply Smart Home VPP"),
+    ]
+    dispatch_types = ["DISCHARGE", "CHARGE", "FCAS_RAISE", "FCAS_LOWER", "DEMAND_RESPONSE"]
+    triggers = ["PRICE_SPIKE", "FCAS_SIGNAL", "DEMAND_RESPONSE", "GRID_STABILITY", "SCHEDULED"]
+    records = []
+    for i in range(20):
+        sid, sname = r.choice(schemes)
+        hour = r.randint(0, 23)
+        energy = round(r.uniform(0.5, 25.0), 2)
+        revenue = round(energy * r.uniform(50, 500), 2)
+        participants = r.randint(50, 2000)
+        records.append(VppDispatchRecord(
+            scheme_id=sid, scheme_name=sname,
+            trading_interval=f"2025-12-01T{hour:02d}:{'00' if r.random() > 0.5 else '30'}:00",
+            dispatch_type=r.choice(dispatch_types),
+            energy_dispatched_mwh=energy,
+            participants_dispatched=participants,
+            revenue_aud=revenue,
+            avg_participant_payment_aud=round(revenue / participants, 2),
+            trigger=r.choice(triggers),
+        ))
+    return records
+
+
+def _make_vpp_performance() -> List[VppPerformanceRecord]:
+    import random as r
+    schemes = [
+        ("AGL-VPP", "AGL Virtual Power Plant"),
+        ("ORIGIN-VPP", "Origin VPP"),
+        ("SONNEN-NET", "sonnen Community"),
+    ]
+    records = []
+    for sid, sname in schemes:
+        for month in range(1, 13):
+            energy = round(r.uniform(50, 500), 2)
+            records.append(VppPerformanceRecord(
+                scheme_id=sid, scheme_name=sname,
+                month=f"2025-{month:02d}",
+                total_dispatches=r.randint(10, 150),
+                total_energy_mwh=energy,
+                total_revenue_aud=round(energy * r.uniform(100, 400), 2),
+                avg_response_time_sec=round(r.uniform(0.5, 3.0), 2),
+                reliability_pct=round(r.uniform(92, 99.5), 2),
+                participant_satisfaction_pct=round(r.uniform(78, 96), 2),
+                co2_avoided_t=round(energy * 0.65, 2),
+            ))
+    return records
+
+
+def _make_vpp_dashboard() -> VppDashboard:
+    import random as r
+    schemes = _make_vpp_schemes()
+    dispatches = _make_vpp_dispatches()
+    performance = _make_vpp_performance()
+    total_participants = sum(s.enrolled_participants for s in schemes)
+    total_capacity = round(sum(s.total_capacity_mw for s in schemes), 2)
+    active = sum(1 for s in schemes if s.status == "OPERATING")
+    total_revenue = round(sum(p.total_revenue_aud for p in performance), 2)
+    return VppDashboard(
+        timestamp=_now_aest(),
+        total_enrolled_participants=total_participants,
+        total_vpp_capacity_mw=total_capacity,
+        active_schemes=active,
+        total_revenue_ytd_aud=total_revenue,
+        schemes=schemes,
+        dispatches=dispatches,
+        performance=performance,
+    )
+
+
+@app.get(
+    "/api/vpp/dashboard",
+    response_model=VppDashboard,
+    summary="Virtual Power Plant Performance dashboard",
+    tags=["VPP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_vpp_dashboard():
+    cached = _cache_get("vpp:dashboard")
+    if cached:
+        return cached
+    data = _make_vpp_dashboard()
+    _cache_set("vpp:dashboard", data, _TTL_VPP)
+    return data
+
+
+@app.get(
+    "/api/vpp/schemes",
+    response_model=List[VppScheme],
+    summary="VPP scheme registrations",
+    tags=["VPP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_vpp_schemes(state: Optional[str] = None, technology: Optional[str] = None):
+    cache_key = f"vpp:schemes:{state}:{technology}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    schemes = _make_vpp_schemes()
+    if state:
+        schemes = [s for s in schemes if s.state == state]
+    if technology:
+        schemes = [s for s in schemes if s.technology == technology]
+    _cache_set(cache_key, schemes, _TTL_VPP)
+    return schemes
+
+
+@app.get(
+    "/api/vpp/dispatches",
+    response_model=List[VppDispatchRecord],
+    summary="VPP dispatch events",
+    tags=["VPP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_vpp_dispatches(scheme_id: Optional[str] = None):
+    cache_key = f"vpp:dispatches:{scheme_id}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    dispatches = _make_vpp_dispatches()
+    if scheme_id:
+        dispatches = [d for d in dispatches if d.scheme_id == scheme_id]
+    _cache_set(cache_key, dispatches, _TTL_VPP)
+    return dispatches
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33a — DNSP (Distribution Network) Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_DNSP = 3600
+
+
+class DnspRecord(BaseModel):
+    dnsp: str
+    state: str
+    customers: int
+    network_km: float
+    substations: int
+    saidi_minutes: float
+    saifi_count: float
+    maifi_count: float
+    regulatory_target_saidi: float
+    network_tariff_aud_kwh: float
+    capex_m_aud: float
+    opex_m_aud: float
+    rab_m_aud: float
+    allowed_revenue_m_aud: float
+    rooftop_solar_pct: float
+    ev_charger_connections: int
+    demand_mw: float
+    reporting_year: int
+
+
+class DnspFaultRecord(BaseModel):
+    dnsp: str
+    date: str
+    fault_type: str  # UNPLANNED / PLANNED / MAJOR_EVENT
+    duration_minutes: float
+    customers_affected: int
+    cause: str
+    region: str
+
+
+class DnspInvestmentRecord(BaseModel):
+    dnsp: str
+    project_name: str
+    category: str  # AUGMENTATION / REPLACEMENT / DEMAND_MANAGEMENT / DIGITISATION
+    capex_m_aud: float
+    year: int
+    customer_benefit: str
+    status: str  # APPROVED / UNDERWAY / COMPLETE
+
+
+class DnspDashboard(BaseModel):
+    timestamp: str
+    total_distribution_customers: int
+    national_avg_saidi: float
+    total_network_km: float
+    total_rooftop_solar_pct: float
+    dnsp_records: List[DnspRecord]
+    fault_records: List[DnspFaultRecord]
+    investment_records: List[DnspInvestmentRecord]
+
+
+def _make_dnsp_records() -> List[DnspRecord]:
+    import random as r
+    dnsps_data = [
+        ("Ausgrid", "NSW", 1_750_000, 51000, 800, 52.0, 0.62, 0.95, 60.0, 0.0082),
+        ("Endeavour Energy", "NSW", 1_000_000, 34000, 500, 75.0, 0.75, 1.10, 80.0, 0.0078),
+        ("Essential Energy", "NSW", 890_000, 215000, 1100, 210.0, 1.85, 2.50, 220.0, 0.0095),
+        ("Energex", "QLD", 1_500_000, 45000, 700, 88.0, 1.02, 1.40, 95.0, 0.0071),
+        ("Ergon Energy", "QLD", 750_000, 150000, 1500, 180.0, 1.75, 2.20, 185.0, 0.0112),
+        ("AusNet Services", "VIC", 740_000, 39000, 480, 65.0, 0.88, 1.30, 70.0, 0.0068),
+        ("CitiPower", "VIC", 340_000, 6000, 120, 34.0, 0.45, 0.70, 38.0, 0.0062),
+        ("Powercor", "VIC", 840_000, 40000, 650, 82.0, 0.95, 1.45, 88.0, 0.0074),
+        ("United Energy", "VIC", 680_000, 13000, 200, 48.0, 0.65, 0.98, 52.0, 0.0066),
+        ("Jemena", "VIC", 380_000, 8000, 150, 55.0, 0.72, 1.10, 60.0, 0.0070),
+        ("SA Power Networks", "SA", 900_000, 89000, 650, 68.0, 0.78, 1.15, 72.0, 0.0085),
+        ("TasNetworks (Dist)", "TAS", 290_000, 20000, 350, 95.0, 1.15, 1.80, 100.0, 0.0102),
+        ("Horizon Power", "WA", 110_000, 250000, 900, 350.0, 2.80, 4.50, 360.0, 0.0185),
+        ("Western Power", "WA", 1_200_000, 98000, 800, 72.0, 0.88, 1.35, 78.0, 0.0079),
+    ]
+    records = []
+    for dnsp, state, cust, km, subs, saidi, saifi, maifi, target_saidi, tariff in dnsps_data:
+        records.append(DnspRecord(
+            dnsp=dnsp, state=state, customers=cust, network_km=float(km), substations=subs,
+            saidi_minutes=round(saidi * r.uniform(0.85, 1.15), 1),
+            saifi_count=round(saifi * r.uniform(0.85, 1.15), 2),
+            maifi_count=round(maifi * r.uniform(0.85, 1.15), 2),
+            regulatory_target_saidi=target_saidi,
+            network_tariff_aud_kwh=tariff,
+            capex_m_aud=round(r.uniform(200, 1200), 2),
+            opex_m_aud=round(r.uniform(100, 600), 2),
+            rab_m_aud=round(r.uniform(1000, 12000), 2),
+            allowed_revenue_m_aud=round(r.uniform(300, 1800), 2),
+            rooftop_solar_pct=round(r.uniform(15, 55), 1),
+            ev_charger_connections=r.randint(500, 25000),
+            demand_mw=round(float(cust) * r.uniform(0.0008, 0.0015), 1),
+            reporting_year=2025,
+        ))
+    return records
+
+
+def _make_dnsp_fault_records() -> List[DnspFaultRecord]:
+    import random as r
+    dnsps = ["Ausgrid", "Energex", "SA Power Networks", "AusNet Services", "Powercor"]
+    causes = ["Vegetation Contact", "Lightning", "Equipment Failure", "Third Party Damage", "Weather"]
+    fault_types = ["UNPLANNED", "PLANNED", "MAJOR_EVENT"]
+    records = []
+    for _ in range(20):
+        records.append(DnspFaultRecord(
+            dnsp=r.choice(dnsps),
+            date=f"2025-{r.randint(1,12):02d}-{r.randint(1,28):02d}",
+            fault_type=r.choice(fault_types),
+            duration_minutes=round(r.uniform(10, 480), 1),
+            customers_affected=r.randint(50, 50000),
+            cause=r.choice(causes),
+            region=r.choice(["Metro", "Inner Regional", "Outer Regional", "Remote"]),
+        ))
+    return records
+
+
+def _make_dnsp_investments() -> List[DnspInvestmentRecord]:
+    import random as r
+    projects = [
+        ("Ausgrid", "Sydney CBD Underground Replacement", "REPLACEMENT", 450.0),
+        ("Energex", "SEQ Network Augmentation", "AUGMENTATION", 380.0),
+        ("SA Power Networks", "DER Integration Program", "DEMAND_MANAGEMENT", 120.0),
+        ("AusNet Services", "VIC Smart Grid Rollout", "DIGITISATION", 250.0),
+        ("Powercor", "West VIC Bushfire Resilience", "REPLACEMENT", 200.0),
+        ("Essential Energy", "Regional Reliability Program", "AUGMENTATION", 180.0),
+        ("CitiPower", "Melbourne CBD Network Upgrade", "AUGMENTATION", 95.0),
+        ("Horizon Power", "Kimberley Microgrids", "DEMAND_MANAGEMENT", 85.0),
+    ]
+    records = []
+    for dnsp, name, cat, capex in projects:
+        records.append(DnspInvestmentRecord(
+            dnsp=dnsp, project_name=name, category=cat,
+            capex_m_aud=capex, year=r.randint(2023, 2026),
+            customer_benefit=r.choice(["Reliability", "Safety", "DER Hosting", "Cost Reduction"]),
+            status=r.choice(["APPROVED", "UNDERWAY", "COMPLETE"]),
+        ))
+    return records
+
+
+def _make_dnsp_dashboard() -> DnspDashboard:
+    records = _make_dnsp_records()
+    faults = _make_dnsp_fault_records()
+    investments = _make_dnsp_investments()
+    total_customers = sum(r.customers for r in records)
+    avg_saidi = round(sum(r.saidi_minutes for r in records) / len(records), 1)
+    total_km = sum(r.network_km for r in records)
+    avg_solar = round(sum(r.rooftop_solar_pct for r in records) / len(records), 1)
+    return DnspDashboard(
+        timestamp=_now_aest(),
+        total_distribution_customers=total_customers,
+        national_avg_saidi=avg_saidi,
+        total_network_km=round(total_km, 0),
+        total_rooftop_solar_pct=avg_solar,
+        dnsp_records=records,
+        fault_records=faults,
+        investment_records=investments,
+    )
+
+
+@app.get(
+    "/api/dnsp/dashboard",
+    response_model=DnspDashboard,
+    summary="DNSP Distribution Network Analytics dashboard",
+    tags=["DNSP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dnsp_dashboard():
+    cached = _cache_get("dnsp:dashboard")
+    if cached:
+        return cached
+    data = _make_dnsp_dashboard()
+    _cache_set("dnsp:dashboard", data, _TTL_DNSP)
+    return data
+
+
+@app.get(
+    "/api/dnsp/records",
+    response_model=List[DnspRecord],
+    summary="DNSP reliability and revenue records",
+    tags=["DNSP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dnsp_records(state: Optional[str] = None):
+    cache_key = f"dnsp:records:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_dnsp_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    _cache_set(cache_key, records, _TTL_DNSP)
+    return records
+
+
+@app.get(
+    "/api/dnsp/investments",
+    response_model=List[DnspInvestmentRecord],
+    summary="DNSP capital investment records",
+    tags=["DNSP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dnsp_investments(dnsp: Optional[str] = None):
+    cache_key = f"dnsp:investments:{dnsp}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_dnsp_investments()
+    if dnsp:
+        records = [r for r in records if r.dnsp == dnsp]
+    _cache_set(cache_key, records, _TTL_DNSP)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 33c — Electricity Market Reform Tracker
+# ---------------------------------------------------------------------------
+
+_TTL_REFORM = 3600
+
+
+class MarketReform(BaseModel):
+    reform_id: str
+    reform_name: str
+    category: str  # SETTLEMENT / GRID_SERVICES / DER / CONSUMER / RELIABILITY / MARKET_DESIGN
+    description: str
+    status: str  # IMPLEMENTED / IN_PROGRESS / APPROVED / PROPOSED / CONSULTATION
+    lead_agency: str  # AEMC / AEMO / AER / ESB / DCCEEW
+    implementation_date: Optional[str]
+    impact_level: str  # HIGH / MEDIUM / LOW
+    stakeholders_affected: List[str]
+    rule_reference: Optional[str]
+    ner_clause: Optional[str]
+    key_benefit: str
+
+
+class ReformMilestoneRecord(BaseModel):
+    reform_id: str
+    reform_name: str
+    milestone: str
+    date: str
+    status: str  # COMPLETE / UPCOMING / IN_PROGRESS
+    description: str
+
+
+class ReformImpactRecord(BaseModel):
+    reform_id: str
+    reform_name: str
+    stakeholder_type: str
+    impact_description: str
+    financial_impact_m_aud: float
+    benefit_type: str  # COST_SAVING / REVENUE / COMPLIANCE / OPERATIONAL
+
+
+class ReformDashboard(BaseModel):
+    timestamp: str
+    implemented_reforms: int
+    in_progress_reforms: int
+    proposed_reforms: int
+    high_impact_reforms: int
+    reforms: List[MarketReform]
+    milestones: List[ReformMilestoneRecord]
+    impacts: List[ReformImpactRecord]
+
+
+def _make_market_reforms() -> List[MarketReform]:
+    reforms_data = [
+        ("5MS", "5-Minute Settlement", "SETTLEMENT",
+         "Aligning settlement to 5-minute dispatch intervals, replacing 30-minute settlement",
+         "IMPLEMENTED", "AEMC", "2021-10-01", "HIGH",
+         ["Generators", "Retailers", "BESS", "VPPs"],
+         "AEMC Rule 2017/15", "NER 3.15.6", "Reduces gaming incentives, rewards fast-responding resources"),
+        ("GSL", "Global Settlement and Market Reconciliation", "SETTLEMENT",
+         "End-to-end settlement reconciliation across all participants and intervals",
+         "IN_PROGRESS", "AEMO", "2025-06-01", "HIGH",
+         ["Retailers", "Networks", "AEMO"],
+         "AEMC Rule 2021/09", "NER 3.15.8A", "Reduces settlement residues and system costs"),
+        ("DER-INTEG", "DER Integration Rule Change", "DER",
+         "New technical standards for connecting distributed energy resources to the grid",
+         "IMPLEMENTED", "AEMC", "2022-06-01", "HIGH",
+         ["Households", "DNSPs", "Installers", "VPPs"],
+         "AEMC Rule 2021/08", "NER 5.3.9", "Enables high DER penetration with grid stability"),
+        ("FLEX-EXPORT", "Flexible Export Limits", "DER",
+         "Dynamic export limits for rooftop solar to manage network constraints",
+         "IN_PROGRESS", "AEMC", "2023-12-01", "MEDIUM",
+         ["Solar Households", "DNSPs", "Retailers"],
+         "AEMC Rule 2020/09", "NER 5.3.4A", "Increases solar export capacity without network investment"),
+        ("RETAILER-REL", "Retailer Reliability Obligation", "RELIABILITY",
+         "Requires retailers to contract sufficient dispatchable capacity ahead of reliability gaps",
+         "IMPLEMENTED", "AEMC", "2019-07-01", "HIGH",
+         ["Retailers", "Generators", "AEMO"],
+         "AEMC Rule 2018/09", "NER 4.8.9", "Reliability backstop for the NEM transition"),
+        ("ISP-REFORM", "ISP Legislative Reforms", "MARKET_DESIGN",
+         "Strengthening AEMO's Integrated System Plan with binding investment obligations",
+         "IN_PROGRESS", "DCCEEW", None, "HIGH",
+         ["TNSPs", "AEMO", "AEMC", "Investors"],
+         None, None, "Accelerates transmission investment for energy transition"),
+        ("CAPACITY-MECH", "Capacity Mechanism Design", "RELIABILITY",
+         "Design and implementation of a capacity mechanism for firming of variable renewables",
+         "CONSULTATION", "ESB", None, "HIGH",
+         ["Generators", "Retailers", "Storage", "AEMO"],
+         None, None, "Ensures adequate dispatchable capacity as coal exits"),
+        ("CONSULT-PROT", "Consumer Data Rights Energy", "CONSUMER",
+         "Open energy data access for consumers to compare retailers and services",
+         "IN_PROGRESS", "DCCEEW", "2024-01-01", "MEDIUM",
+         ["Consumers", "Retailers", "Fintechs", "Aggregators"],
+         None, None, "Empowers consumer choice and switching"),
+        ("TWO-SIDED", "Two-Sided Markets", "MARKET_DESIGN",
+         "Reform to enable demand response to participate in NEM dispatch alongside generation",
+         "CONSULTATION", "AEMC", None, "HIGH",
+         ["Large Consumers", "Aggregators", "AEMO"],
+         "AEMC ERC0311", None, "Unlocks demand flexibility as a market resource"),
+        ("ORCHESTRATION", "VPP Orchestration Standard", "DER",
+         "Mandatory technical standards for VPP aggregators operating in the NEM",
+         "APPROVED", "AEMC", "2024-07-01", "MEDIUM",
+         ["VPP Operators", "AEMO", "DNSPs", "Households"],
+         "AEMC Rule 2023/05", "NER 3.8.3B", "Creates consistent interoperability for VPPs"),
+    ]
+    records = []
+    for reform_id, name, cat, desc, status, agency, impl_date, impact, stakeholders, rule_ref, ner_clause, benefit in reforms_data:
+        records.append(MarketReform(
+            reform_id=reform_id, reform_name=name, category=cat, description=desc,
+            status=status, lead_agency=agency, implementation_date=impl_date,
+            impact_level=impact, stakeholders_affected=stakeholders,
+            rule_reference=rule_ref, ner_clause=ner_clause, key_benefit=benefit,
+        ))
+    return records
+
+
+def _make_reform_milestones() -> List[ReformMilestoneRecord]:
+    milestones_data = [
+        ("5MS", "5-Minute Settlement", "AEMC Rule Determination", "2017-11-28", "COMPLETE", "Final determination made"),
+        ("5MS", "5-Minute Settlement", "Industry Readiness Program", "2020-01-01", "COMPLETE", "Industry preparation completed"),
+        ("5MS", "5-Minute Settlement", "Go-Live Date", "2021-10-01", "COMPLETE", "Successfully implemented"),
+        ("GSL", "Global Settlement", "Consultation Paper", "2021-06-01", "COMPLETE", "Industry consultation completed"),
+        ("GSL", "Global Settlement", "Rule Determination", "2022-03-01", "COMPLETE", "AEMC made final rule"),
+        ("GSL", "Global Settlement", "AEMO Systems Ready", "2025-06-01", "UPCOMING", "AEMO implementing systems"),
+        ("DER-INTEG", "DER Integration", "Technical Standards Published", "2022-01-01", "COMPLETE", "AS/NZS 4777 updated"),
+        ("DER-INTEG", "DER Integration", "Implementation", "2022-06-01", "COMPLETE", "DNSPs implementing"),
+        ("CAPACITY-MECH", "Capacity Mechanism", "ESB Design Paper", "2022-08-01", "COMPLETE", "Published for consultation"),
+        ("CAPACITY-MECH", "Capacity Mechanism", "Ministers Decision", "2023-12-01", "UPCOMING", "Pending NEM ministers"),
+        ("TWO-SIDED", "Two-Sided Markets", "Consultation Paper", "2022-11-01", "COMPLETE", "Initial consultation"),
+        ("TWO-SIDED", "Two-Sided Markets", "Rule Change Request", "2024-01-01", "COMPLETE", "Formal request lodged"),
+    ]
+    return [
+        ReformMilestoneRecord(
+            reform_id=rid, reform_name=rname, milestone=m, date=d, status=s, description=desc
+        )
+        for rid, rname, m, d, s, desc in milestones_data
+    ]
+
+
+def _make_reform_impacts() -> List[ReformImpactRecord]:
+    impacts_data = [
+        ("5MS", "5-Minute Settlement", "BESS Operators", "Improved revenue through faster dispatch response", 150.0, "REVENUE"),
+        ("5MS", "5-Minute Settlement", "Retailers", "Increased hedging complexity and costs", -30.0, "COMPLIANCE"),
+        ("DER-INTEG", "DER Integration", "Solar Households", "Increased export capacity with dynamic limits", 800.0, "COST_SAVING"),
+        ("DER-INTEG", "DER Integration", "DNSPs", "Reduced augmentation investment required", 500.0, "COST_SAVING"),
+        ("RETAILER-REL", "Retailer Reliability Obligation", "Dispatchable Generators", "New long-term revenue stream via contracts", 200.0, "REVENUE"),
+        ("ORCHESTRATION", "VPP Orchestration", "VPP Operators", "Standardised participation reduces onboarding cost", 50.0, "OPERATIONAL"),
+        ("CAPACITY-MECH", "Capacity Mechanism", "New Storage Projects", "Investment signal for firm capacity", 2000.0, "REVENUE"),
+        ("TWO-SIDED", "Two-Sided Markets", "Large Consumers", "Ability to sell demand response into market", 300.0, "REVENUE"),
+    ]
+    return [
+        ReformImpactRecord(
+            reform_id=rid, reform_name=rname, stakeholder_type=st,
+            impact_description=desc, financial_impact_m_aud=fin, benefit_type=bt,
+        )
+        for rid, rname, st, desc, fin, bt in impacts_data
+    ]
+
+
+def _make_reform_dashboard() -> ReformDashboard:
+    reforms = _make_market_reforms()
+    milestones = _make_reform_milestones()
+    impacts = _make_reform_impacts()
+    implemented = sum(1 for r in reforms if r.status == "IMPLEMENTED")
+    in_progress = sum(1 for r in reforms if r.status in ("IN_PROGRESS", "APPROVED"))
+    proposed = sum(1 for r in reforms if r.status in ("PROPOSED", "CONSULTATION"))
+    high_impact = sum(1 for r in reforms if r.impact_level == "HIGH")
+    return ReformDashboard(
+        timestamp=_now_aest(),
+        implemented_reforms=implemented,
+        in_progress_reforms=in_progress,
+        proposed_reforms=proposed,
+        high_impact_reforms=high_impact,
+        reforms=reforms,
+        milestones=milestones,
+        impacts=impacts,
+    )
+
+
+@app.get(
+    "/api/reform/dashboard",
+    response_model=ReformDashboard,
+    summary="NEM Market Reform Tracker dashboard",
+    tags=["Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_reform_dashboard():
+    cached = _cache_get("reform:dashboard")
+    if cached:
+        return cached
+    data = _make_reform_dashboard()
+    _cache_set("reform:dashboard", data, _TTL_REFORM)
+    return data
+
+
+@app.get(
+    "/api/reform/list",
+    response_model=List[MarketReform],
+    summary="NEM market reforms list",
+    tags=["Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_reform_list(status: Optional[str] = None, category: Optional[str] = None):
+    cache_key = f"reform:list:{status}:{category}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    reforms = _make_market_reforms()
+    if status:
+        reforms = [r for r in reforms if r.status == status]
+    if category:
+        reforms = [r for r in reforms if r.category == category]
+    _cache_set(cache_key, reforms, _TTL_REFORM)
+    return reforms
+
+
+@app.get(
+    "/api/reform/milestones",
+    response_model=List[ReformMilestoneRecord],
+    summary="Reform milestone tracker",
+    tags=["Reform"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_reform_milestones(reform_id: Optional[str] = None):
+    cache_key = f"reform:milestones:{reform_id}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    milestones = _make_reform_milestones()
+    if reform_id:
+        milestones = [m for m in milestones if m.reform_id == reform_id]
+    _cache_set(cache_key, milestones, _TTL_REFORM)
+    return milestones
