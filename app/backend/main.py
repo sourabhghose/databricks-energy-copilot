@@ -3685,3 +3685,722 @@ def get_bess_dispatch(
 
     _cache_set(cache_key, intervals, _TTL_BESS)
     return intervals
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Portfolio Trading Desk (Sprint 15a)
+# ---------------------------------------------------------------------------
+
+class PortfolioAsset(BaseModel):
+    asset_id: str
+    name: str
+    asset_type: str                # "generation", "load", "hedge"
+    fuel_type: str                 # Coal, Gas, Wind, Solar, Hydro, Hedge
+    region: str
+    capacity_mw: float
+    contracted_volume_mwh: float   # hedged volume per day
+    contract_price_aud_mwh: float  # strike price for hedge
+    current_spot_mwh: float        # current market price
+    mtm_pnl_aud: float             # mark-to-market P&L today
+    daily_revenue_aud: float
+    daily_cost_aud: float
+
+
+class HedgePosition(BaseModel):
+    hedge_id: str
+    hedge_type: str          # "cap", "swap", "floor", "collar"
+    region: str
+    volume_mw: float
+    strike_price: float
+    premium_paid_aud: float
+    current_value_aud: float
+    expiry_date: str
+    in_the_money: bool
+
+
+class PortfolioSummary(BaseModel):
+    timestamp: str
+    total_mtm_pnl_aud: float
+    total_daily_revenue_aud: float
+    total_hedge_value_aud: float
+    net_open_position_mw: float
+    hedge_ratio_pct: float
+    assets: List[PortfolioAsset]
+    hedges: List[HedgePosition]
+    region_pnl: Dict[str, float]   # region → P&L
+
+
+# ---------------------------------------------------------------------------
+# Portfolio mock data helpers (Sprint 15a)
+# ---------------------------------------------------------------------------
+
+# Current spot prices by region (mock, refreshed with TTL)
+_PORTFOLIO_SPOT_PRICES: Dict[str, float] = {
+    "NSW1": 87.50,
+    "SA1":  112.30,
+    "QLD1": 78.40,
+    "VIC1": 95.10,
+    "TAS1": 71.80,
+}
+
+
+def _build_portfolio_summary() -> Dict[str, Any]:
+    """Build a diverse mock generation portfolio with hedges and MtM P&L."""
+    import random
+    rng = random.Random(int(time.monotonic() // 60))  # stable within a 60-second window
+    now = datetime.now(timezone.utc)
+
+    # Inject small spot price noise (±5%)
+    spot = {r: round(p * (1 + rng.uniform(-0.05, 0.05)), 2) for r, p in _PORTFOLIO_SPOT_PRICES.items()}
+
+    # Generation asset definitions
+    # (asset_id, name, asset_type, fuel_type, region, capacity_mw,
+    #  contracted_volume_mwh, contract_price_aud_mwh)
+    _asset_defs = [
+        ("LIDDELL",   "Liddell",                 "generation", "Coal",  "NSW1", 1000.0,  18000.0, 62.00),
+        ("ERARING",   "Eraring",                 "generation", "Coal",  "NSW1", 2880.0,  52000.0, 58.50),
+        ("TORRENS",   "Torrens Island CCGT",     "generation", "Gas",   "SA1",   400.0,   7200.0, 85.00),
+        ("HALLETT",   "Hallet Wind Farm",        "generation", "Wind",  "SA1",    99.0,   1600.0, 72.00),
+        ("BANGO",     "Bango Wind Farm",         "generation", "Wind",  "NSW1",  244.0,   4400.0, 68.00),
+        ("DARLINGTON","Darlington Point Solar",  "generation", "Solar", "NSW1",  275.0,   3200.0, 55.00),
+        ("SNOWY2",    "Snowy 2.0 Pumped Hydro",  "generation", "Hydro", "NSW1", 2000.0,  16000.0, 70.00),
+    ]
+
+    assets: List[Dict[str, Any]] = []
+    for asset_id, name, asset_type, fuel_type, region, cap_mw, contracted_vol, contract_price in _asset_defs:
+        spot_price = spot.get(region, 87.50)
+        # MtM P&L = (current_spot - contract_price) * contracted_volume_mwh / 1000
+        mtm_pnl = round((spot_price - contract_price) * contracted_vol / 1000.0, 2)
+        # Daily revenue = contracted_volume * contract_price / 1000 (in thousands AUD)
+        daily_revenue = round(contracted_vol * spot_price / 1000.0, 2)
+        # Daily cost = fixed operating cost (fuel/maintenance proxy)
+        fuel_cost_factor = {"Coal": 0.45, "Gas": 0.55, "Wind": 0.08, "Solar": 0.05, "Hydro": 0.10}
+        daily_cost = round(contracted_vol * contract_price * fuel_cost_factor.get(fuel_type, 0.20) / 1000.0, 2)
+        assets.append({
+            "asset_id":            asset_id,
+            "name":                name,
+            "asset_type":          asset_type,
+            "fuel_type":           fuel_type,
+            "region":              region,
+            "capacity_mw":         cap_mw,
+            "contracted_volume_mwh": contracted_vol,
+            "contract_price_aud_mwh": contract_price,
+            "current_spot_mwh":    spot_price,
+            "mtm_pnl_aud":         mtm_pnl,
+            "daily_revenue_aud":   daily_revenue,
+            "daily_cost_aud":      daily_cost,
+        })
+
+    # Hedge positions — caps, swaps, floor, collar
+    _hedge_defs = [
+        # (hedge_id, hedge_type, region, volume_mw, strike_price, premium_paid_aud, expiry_date)
+        ("HEDGE-NSW1-CAP-01", "cap",    "NSW1", 500.0, 300.0,  180000.0, "2026-06-30"),
+        ("HEDGE-NSW1-SWP-01", "swap",   "NSW1", 800.0,  75.0,   60000.0, "2026-12-31"),
+        ("HEDGE-SA1-CAP-01",  "cap",    "SA1",  150.0, 250.0,   90000.0, "2026-06-30"),
+        ("HEDGE-NSW1-FLR-01", "floor",  "NSW1", 300.0,  50.0,   25000.0, "2026-09-30"),
+    ]
+
+    hedges: List[Dict[str, Any]] = []
+    for hedge_id, hedge_type, region, vol_mw, strike, premium, expiry in _hedge_defs:
+        spot_r = spot.get(region, 87.50)
+        if hedge_type == "cap":
+            # Cap pays (spot - strike) * volume when spot > strike
+            current_value = round(max(0.0, spot_r - strike) * vol_mw * 48 / 1000.0, 2)
+            in_the_money = spot_r > strike
+        elif hedge_type == "swap":
+            # Swap pays (spot - strike) * volume — can be negative
+            current_value = round((spot_r - strike) * vol_mw * 48 / 1000.0, 2)
+            in_the_money = spot_r > strike
+        elif hedge_type == "floor":
+            # Floor pays (strike - spot) * volume when spot < strike
+            current_value = round(max(0.0, strike - spot_r) * vol_mw * 48 / 1000.0, 2)
+            in_the_money = spot_r < strike
+        else:
+            # Collar: combo of cap + floor
+            current_value = round((spot_r - strike) * vol_mw * 48 / 1000.0, 2)
+            in_the_money = True
+        # Add slight noise
+        current_value = round(current_value * (1 + rng.uniform(-0.03, 0.03)), 2)
+        hedges.append({
+            "hedge_id":         hedge_id,
+            "hedge_type":       hedge_type,
+            "region":           region,
+            "volume_mw":        vol_mw,
+            "strike_price":     strike,
+            "premium_paid_aud": premium,
+            "current_value_aud": current_value,
+            "expiry_date":      expiry,
+            "in_the_money":     in_the_money,
+        })
+
+    # Aggregate metrics
+    total_mtm_pnl = round(sum(a["mtm_pnl_aud"] for a in assets), 2)
+    total_daily_revenue = round(sum(a["daily_revenue_aud"] for a in assets), 2)
+    total_hedge_value = round(sum(h["current_value_aud"] for h in hedges), 2)
+
+    total_capacity_mw = sum(a["capacity_mw"] for a in assets)
+    total_hedged_mw = sum(h["volume_mw"] for h in hedges)
+    hedge_ratio_pct = round(min(100.0, (total_hedged_mw / total_capacity_mw * 100.0)) if total_capacity_mw > 0 else 0.0, 1)
+    net_open_position_mw = round(total_capacity_mw - total_hedged_mw, 1)
+
+    # Region P&L breakdown
+    region_pnl: Dict[str, float] = {}
+    for a in assets:
+        r = a["region"]
+        region_pnl[r] = round(region_pnl.get(r, 0.0) + a["mtm_pnl_aud"], 2)
+
+    return {
+        "timestamp": now.isoformat(),
+        "total_mtm_pnl_aud": total_mtm_pnl,
+        "total_daily_revenue_aud": total_daily_revenue,
+        "total_hedge_value_aud": total_hedge_value,
+        "net_open_position_mw": net_open_position_mw,
+        "hedge_ratio_pct": hedge_ratio_pct,
+        "assets": assets,
+        "hedges": hedges,
+        "region_pnl": region_pnl,
+    }
+
+
+def _build_pnl_history(days: int) -> List[Dict[str, Any]]:
+    """Generate daily P&L history for the requested number of days."""
+    import random
+    rng = random.Random(42)  # deterministic seed for consistent mock data
+    today = datetime.now(timezone.utc).date()
+    history = []
+    cumulative = 0.0
+    for i in range(days - 1, -1, -1):
+        day = today - timedelta(days=i)
+        # Realistic daily P&L: base ~$45k with ±$30k variability
+        pnl = round(rng.gauss(45000.0, 30000.0), 2)
+        revenue = round(rng.gauss(185000.0, 20000.0), 2)
+        hedge_value = round(rng.gauss(-12000.0, 8000.0), 2)
+        cumulative = round(cumulative + pnl, 2)
+        history.append({
+            "date": day.isoformat(),
+            "pnl_aud": pnl,
+            "revenue_aud": revenue,
+            "hedge_value_aud": hedge_value,
+            "cumulative_pnl_aud": cumulative,
+        })
+    return history
+
+
+# ---------------------------------------------------------------------------
+# Portfolio Trading Desk endpoints (Sprint 15a)
+# ---------------------------------------------------------------------------
+
+_TTL_PORTFOLIO_SUMMARY = 60   # seconds
+_TTL_PNL_HISTORY       = 300  # seconds
+
+
+@app.get(
+    "/api/portfolio/summary",
+    response_model=PortfolioSummary,
+    summary="Portfolio mark-to-market summary",
+    tags=["Portfolio"],
+    response_description="Full portfolio P&L, hedge positions, and region breakdown",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_portfolio_summary() -> Dict[str, Any]:
+    """Return a full portfolio trading desk summary.
+
+    Includes 7 NEM generation assets (coal, gas, wind, solar, hydro),
+    4 hedge positions (caps, swaps, floor), MtM P&L per asset,
+    and a region P&L breakdown.
+
+    MtM P&L = (current_spot - contract_price) * contracted_volume_mwh / 1000.
+    Cached for 60 seconds.
+    """
+    cache_key = "portfolio:summary"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = _build_portfolio_summary()
+    _cache_set(cache_key, result, _TTL_PORTFOLIO_SUMMARY)
+    return result
+
+
+@app.get(
+    "/api/portfolio/pnl_history",
+    response_model=List[Dict],
+    summary="Portfolio P&L history",
+    tags=["Portfolio"],
+    response_description="Daily P&L history with revenue and hedge value breakdown",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_portfolio_pnl_history(
+    days: int = Query(7, ge=1, le=90, description="Number of days of history to return"),
+) -> List[Dict[str, Any]]:
+    """Return daily P&L history for the trading desk.
+
+    Each record contains:
+    - date: trading day (YYYY-MM-DD)
+    - pnl_aud: daily mark-to-market P&L
+    - revenue_aud: total revenue from spot sales
+    - hedge_value_aud: net hedge payoff (positive = hedge in money)
+    - cumulative_pnl_aud: running cumulative P&L from day 1
+
+    Cached for 300 seconds.
+    """
+    cache_key = f"portfolio:pnl_history:{days}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = _build_pnl_history(days)
+    _cache_set(cache_key, result, _TTL_PNL_HISTORY)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Carbon & Sustainability Dashboard (Sprint 15c)
+# ---------------------------------------------------------------------------
+
+class CarbonIntensityRecord(BaseModel):
+    timestamp: str
+    region: str
+    carbon_intensity_kg_co2_mwh: float
+    renewable_pct: float
+    fossil_pct: float
+    generation_mix: Dict[str, float]  # fuel_type -> MW
+
+class LgcMarketRecord(BaseModel):
+    date: str
+    lgc_spot_price_aud: float        # Large-scale Generation Certificate spot price
+    lgc_futures_2026: float
+    lgc_futures_2027: float
+    lgc_futures_2028: float
+    sts_price_aud: float             # Small-scale Technology Certificate price (fixed at $40)
+    total_lgcs_surrendered_ytd: int  # year-to-date surrenders (millions)
+    liable_entities_shortfall_gwh: float
+
+class SustainabilityDashboard(BaseModel):
+    timestamp: str
+    nem_carbon_intensity: float           # overall NEM average kg CO2/MWh
+    nem_renewable_pct: float
+    annual_emissions_mt_co2: float        # annual NEM emissions in megatonnes
+    emissions_vs_2005_pct: float          # % change vs 2005 baseline (negative = reduction)
+    renewable_capacity_gw: float          # total installed renewable capacity
+    renewable_target_gw: float            # 2030 target ~82% renewables
+    lgc_market: LgcMarketRecord
+    regional_intensity: List[CarbonIntensityRecord]  # one per NEM region (latest)
+    intensity_history: List[CarbonIntensityRecord]   # last 24 hours for selected region
+
+
+# ---------------------------------------------------------------------------
+# Carbon intensity profiles per region
+# ---------------------------------------------------------------------------
+
+_CARBON_INTENSITY_PROFILES: Dict[str, Dict[str, Any]] = {
+    "NSW1": {
+        "carbon_intensity_kg_co2_mwh": 0.72,
+        "renewable_pct": 22.0,
+        "fossil_pct": 78.0,
+        "generation_mix": {"Coal": 5800.0, "Gas": 1200.0, "Wind": 800.0, "Solar": 900.0, "Hydro": 400.0, "Battery": 60.0},
+    },
+    "QLD1": {
+        "carbon_intensity_kg_co2_mwh": 0.68,
+        "renewable_pct": 25.0,
+        "fossil_pct": 75.0,
+        "generation_mix": {"Coal": 4200.0, "Gas": 900.0, "Wind": 600.0, "Solar": 850.0, "Hydro": 200.0, "Battery": 80.0},
+    },
+    "VIC1": {
+        "carbon_intensity_kg_co2_mwh": 0.45,
+        "renewable_pct": 42.0,
+        "fossil_pct": 58.0,
+        "generation_mix": {"Coal": 2800.0, "Gas": 500.0, "Wind": 1800.0, "Solar": 600.0, "Hydro": 600.0, "Battery": 50.0},
+    },
+    "SA1": {
+        "carbon_intensity_kg_co2_mwh": 0.15,
+        "renewable_pct": 72.0,
+        "fossil_pct": 28.0,
+        "generation_mix": {"Coal": 0.0, "Gas": 400.0, "Wind": 900.0, "Solar": 350.0, "Hydro": 0.0, "Battery": 150.0},
+    },
+    "TAS1": {
+        "carbon_intensity_kg_co2_mwh": 0.05,
+        "renewable_pct": 95.0,
+        "fossil_pct": 5.0,
+        "generation_mix": {"Coal": 0.0, "Gas": 50.0, "Wind": 300.0, "Solar": 30.0, "Hydro": 1800.0, "Battery": 0.0},
+    },
+}
+
+
+def _build_carbon_intensity_record(region: str, hours_back: int = 0) -> Dict[str, Any]:
+    """Build a single CarbonIntensityRecord with optional diurnal variation."""
+    import math as _math
+    profile = _CARBON_INTENSITY_PROFILES[region]
+
+    # Apply mild diurnal variation based on hours_back
+    # Lower intensity during sunny hours (solar reduces fossil dispatch)
+    now = datetime.now(timezone.utc)
+    point_dt = now - timedelta(hours=hours_back)
+    local_hour = (point_dt.hour + 10) % 24  # AEST
+
+    # Solar hours (9am-4pm local) reduce intensity by up to 15% in solar-heavy regions
+    solar_factor = 0.0
+    if 9 <= local_hour <= 16:
+        solar_phase = (local_hour - 12.5) / 3.5
+        solar_factor = _math.exp(-0.5 * solar_phase ** 2)
+
+    # Scale solar reduction by renewable penetration
+    renewable_fraction = profile["renewable_pct"] / 100.0
+    intensity_reduction = 0.15 * renewable_fraction * solar_factor
+    carbon_intensity = round(profile["carbon_intensity_kg_co2_mwh"] * (1.0 - intensity_reduction), 4)
+
+    # Renewable slightly higher during solar hours
+    renewable_pct = round(min(100.0, profile["renewable_pct"] + 15.0 * solar_factor * renewable_fraction), 1)
+    fossil_pct = round(100.0 - renewable_pct, 1)
+
+    return {
+        "timestamp": point_dt.isoformat(),
+        "region": region,
+        "carbon_intensity_kg_co2_mwh": carbon_intensity,
+        "renewable_pct": renewable_pct,
+        "fossil_pct": fossil_pct,
+        "generation_mix": profile["generation_mix"],
+    }
+
+
+def _build_intensity_history(region: str, hours: int) -> List[Dict[str, Any]]:
+    """Build hourly carbon intensity history for a region."""
+    return [
+        _build_carbon_intensity_record(region, hours_back=i)
+        for i in range(hours - 1, -1, -1)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Sustainability endpoints (Sprint 15c)
+# ---------------------------------------------------------------------------
+
+_TTL_SUSTAINABILITY = 300  # 5-minute cache
+
+
+@app.get(
+    "/api/sustainability/dashboard",
+    response_model=SustainabilityDashboard,
+    summary="Carbon & sustainability dashboard",
+    tags=["Market Data"],
+    response_description="NEM decarbonisation stats, LGC market, and regional carbon intensities",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_sustainability_dashboard(
+    region: str = Query("NSW1", description="NEM region code for intensity_history series"),
+) -> Dict[str, Any]:
+    """Return the full sustainability dashboard.
+
+    Includes:
+    - NEM-wide carbon intensity and decarbonisation progress vs 2005 baseline
+    - LGC (Large-scale Generation Certificate) market prices and futures curve
+    - Regional carbon intensity breakdown for all 5 NEM regions
+    - 24-hour hourly intensity trend for the selected region
+
+    NEM 2026 carbon intensity ~0.50 kg CO2/MWh, down 36% from 2005 baseline of 0.82.
+    TAS1 is near-zero (~0.05, predominantly hydro). SA1 is low (~0.15, high wind).
+    NSW1 and QLD1 remain highest (~0.68-0.72, coal dominated).
+    Cached for 5 minutes.
+    """
+    cache_key = f"sustainability_dashboard:{region}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    now = datetime.now(timezone.utc)
+
+    # LGC market data (mock 2026 values)
+    lgc_market = {
+        "date": now.strftime("%Y-%m-%d"),
+        "lgc_spot_price_aud": 34.50,
+        "lgc_futures_2026": 32.80,
+        "lgc_futures_2027": 28.40,
+        "lgc_futures_2028": 22.10,
+        "sts_price_aud": 40.00,   # Small-scale Technology Certificate — legislatively fixed at $40
+        "total_lgcs_surrendered_ytd": 8,  # millions
+        "liable_entities_shortfall_gwh": 1240.0,
+    }
+
+    # Regional intensity: one record per NEM region (current snapshot)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    regional_intensity = [_build_carbon_intensity_record(r, hours_back=0) for r in regions]
+
+    # 24-hour intensity history for the selected region
+    intensity_history = _build_intensity_history(region, 24)
+
+    result = {
+        "timestamp": now.isoformat(),
+        "nem_carbon_intensity": 0.50,       # kg CO2/MWh — NEM average 2026
+        "nem_renewable_pct": 40.0,           # ~40% renewable penetration
+        "annual_emissions_mt_co2": 140.0,    # megatonnes CO2 (down from 220 MT in 2005)
+        "emissions_vs_2005_pct": -36.4,      # 36.4% reduction from 2005 baseline
+        "renewable_capacity_gw": 42.0,       # total installed renewable capacity GW
+        "renewable_target_gw": 100.0,        # 2030 target (82% of total ~120 GW)
+        "lgc_market": lgc_market,
+        "regional_intensity": regional_intensity,
+        "intensity_history": intensity_history,
+    }
+
+    _cache_set(cache_key, result, _TTL_SUSTAINABILITY)
+    return result
+
+
+@app.get(
+    "/api/sustainability/intensity_history",
+    response_model=List[CarbonIntensityRecord],
+    summary="Carbon intensity history for a region",
+    tags=["Market Data"],
+    response_description="Hourly carbon intensity series showing diurnal variation",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_carbon_intensity_history(
+    region: str = Query("NSW1", description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    hours: int = Query(24, ge=1, le=168, description="Number of hours of history to return"),
+) -> List[Dict[str, Any]]:
+    """Return hourly carbon intensity history for a NEM region.
+
+    Intensity follows a diurnal pattern — lower during sunny hours in solar-heavy
+    regions (SA1, QLD1) as renewable generation displaces fossil fuels.
+    TAS1 shows near-constant near-zero intensity (hydro dominated).
+    Cached for 5 minutes.
+    """
+    cache_key = f"sustainability_intensity_history:{region}:{hours}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = _build_intensity_history(region, hours)
+    _cache_set(cache_key, result, _TTL_SUSTAINABILITY)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 15b — Merit Order & Dispatch Stack
+# ---------------------------------------------------------------------------
+
+class MeritOrderUnit(BaseModel):
+    duid: str
+    station_name: str
+    fuel_type: str
+    region: str
+    capacity_mw: float
+    marginal_cost_aud_mwh: float   # short-run marginal cost
+    current_offer_price: float      # current dispatch offer price
+    dispatched_mw: float
+    cumulative_mw: float            # cumulative capacity on merit order
+    on_merit: bool                  # True if dispatched at current demand level
+
+class MeritOrderCurve(BaseModel):
+    region: str
+    timestamp: str
+    demand_mw: float
+    marginal_generator: str         # DUID of the marginal unit
+    system_marginal_cost: float     # price set by marginal unit
+    total_supply_mw: float
+    units: List[MeritOrderUnit]     # sorted by marginal_cost ascending
+
+class DispatchStackSummary(BaseModel):
+    timestamp: str
+    regions: Dict[str, MeritOrderCurve]
+
+
+# --- Merit order fuel cost ranges (SRMC) ---
+
+_MERIT_ORDER_FUELS: Dict[str, Dict[str, Any]] = {
+    "Hydro":     {"srmc_lo": 0.0,   "srmc_hi": 5.0,   "offer_lo": 0.0,   "offer_hi": 10.0},
+    "Wind":      {"srmc_lo": 0.0,   "srmc_hi": 5.0,   "offer_lo": 0.0,   "offer_hi": 5.0},
+    "Solar":     {"srmc_lo": 0.0,   "srmc_hi": 5.0,   "offer_lo": 0.0,   "offer_hi": 5.0},
+    "Biomass":   {"srmc_lo": 5.0,   "srmc_hi": 20.0,  "offer_lo": 10.0,  "offer_hi": 30.0},
+    "Coal":      {"srmc_lo": 35.0,  "srmc_hi": 55.0,  "offer_lo": 40.0,  "offer_hi": 65.0},
+    "BrownCoal": {"srmc_lo": 25.0,  "srmc_hi": 45.0,  "offer_lo": 30.0,  "offer_hi": 55.0},
+    "Gas":       {"srmc_lo": 65.0,  "srmc_hi": 95.0,  "offer_lo": 70.0,  "offer_hi": 120.0},
+    "GasOCGT":   {"srmc_lo": 150.0, "srmc_hi": 350.0, "offer_lo": 160.0, "offer_hi": 400.0},
+    "Battery":   {"srmc_lo": 50.0,  "srmc_hi": 500.0, "offer_lo": 80.0,  "offer_hi": 500.0},
+    "Diesel":    {"srmc_lo": 400.0, "srmc_hi": 800.0, "offer_lo": 450.0, "offer_hi": 850.0},
+}
+
+# Per-region demand baselines (MW)
+_MERIT_DEMAND: Dict[str, float] = {
+    "NSW1": 8200.0,
+    "QLD1": 6100.0,
+    "VIC1": 5600.0,
+    "SA1":  1350.0,
+    "TAS1": 1020.0,
+}
+
+
+def _build_merit_order_curve(region: str) -> MeritOrderCurve:
+    """Build a realistic merit order curve for the given NEM region."""
+    import random
+    rng = random.Random(hash(region) + int(time.monotonic() // 30))
+
+    generators_raw = _MOCK_GENERATORS.get(region, _MOCK_GENERATORS["NSW1"])
+
+    units_data = []
+    for u in generators_raw:
+        raw_fuel = u["fuel_type"]
+        cap = u["registered_capacity_mw"]
+        out = u["current_output_mw"]
+
+        # Map Generator Fleet fuel types to merit order fuel categories.
+        # VIC1 coal is brown coal (lignite).
+        if raw_fuel == "Coal" and region == "VIC1":
+            merit_fuel = "BrownCoal"
+        elif raw_fuel == "Gas":
+            # Distinguish CCGT (larger capacity) from OCGT peakers
+            if cap >= 200.0:
+                merit_fuel = "Gas"
+            else:
+                merit_fuel = "GasOCGT"
+        else:
+            merit_fuel = raw_fuel
+
+        fuel_cfg = _MERIT_ORDER_FUELS.get(merit_fuel, _MERIT_ORDER_FUELS["Gas"])
+        srmc_lo = fuel_cfg["srmc_lo"]
+        srmc_hi = fuel_cfg["srmc_hi"]
+        offer_lo = fuel_cfg["offer_lo"]
+        offer_hi = fuel_cfg["offer_hi"]
+
+        # Seed per-unit so costs are stable within the 30-second cache window
+        unit_rng = random.Random(hash(u["duid"]) + int(time.monotonic() // 30))
+        marginal_cost = round(unit_rng.uniform(srmc_lo, srmc_hi), 2)
+        offer_price = round(
+            max(marginal_cost, unit_rng.uniform(offer_lo, offer_hi)), 2
+        )
+
+        units_data.append({
+            "duid": u["duid"],
+            "station_name": u["station_name"],
+            "fuel_type": raw_fuel,  # use original label for display
+            "region": region,
+            "capacity_mw": round(cap, 1),
+            "marginal_cost_aud_mwh": marginal_cost,
+            "current_offer_price": offer_price,
+            "dispatched_mw": round(out, 1),
+        })
+
+    # Sort ascending by SRMC (merit order)
+    units_data.sort(key=lambda x: x["marginal_cost_aud_mwh"])
+
+    # Demand with small random variation around the regional baseline
+    demand_mw = round(
+        _MERIT_DEMAND.get(region, 7000.0) + rng.uniform(-300.0, 300.0), 1
+    )
+    total_supply_mw = round(sum(u["capacity_mw"] for u in units_data), 1)
+
+    # Assign cumulative MW and identify the marginal unit
+    cumulative = 0.0
+    marginal_generator = units_data[-1]["duid"] if units_data else "UNKNOWN"
+    system_marginal_cost = units_data[-1]["marginal_cost_aud_mwh"] if units_data else 0.0
+    marginal_found = False
+
+    merit_units = []
+    for u in units_data:
+        cumulative = round(cumulative + u["capacity_mw"], 1)
+        on_merit = cumulative <= demand_mw
+        if not marginal_found and cumulative >= demand_mw:
+            marginal_generator = u["duid"]
+            system_marginal_cost = u["marginal_cost_aud_mwh"]
+            marginal_found = True
+            on_merit = True  # marginal unit is always on merit
+
+        merit_units.append(MeritOrderUnit(
+            duid=u["duid"],
+            station_name=u["station_name"],
+            fuel_type=u["fuel_type"],
+            region=u["region"],
+            capacity_mw=u["capacity_mw"],
+            marginal_cost_aud_mwh=u["marginal_cost_aud_mwh"],
+            current_offer_price=u["current_offer_price"],
+            dispatched_mw=u["dispatched_mw"],
+            cumulative_mw=cumulative,
+            on_merit=on_merit,
+        ))
+
+    return MeritOrderCurve(
+        region=region,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        demand_mw=demand_mw,
+        marginal_generator=marginal_generator,
+        system_marginal_cost=round(system_marginal_cost, 2),
+        total_supply_mw=total_supply_mw,
+        units=merit_units,
+    )
+
+
+_TTL_MERIT_ORDER = 30   # seconds
+_TTL_MERIT_STACK = 60   # seconds
+
+
+@app.get(
+    "/api/merit/order",
+    response_model=MeritOrderCurve,
+    summary="NEM merit order curve for a region",
+    tags=["Market Data"],
+    response_description="Supply stack sorted by SRMC ascending with marginal unit identification",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_merit_order(
+    region: str = Query("NSW1", description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+) -> MeritOrderCurve:
+    """
+    Return the merit order curve for a NEM region.
+
+    Units sorted by short-run marginal cost (SRMC) ascending.
+    cumulative_mw is the running total capacity in merit order.
+    The marginal generator is the first unit where cumulative_mw >= demand_mw.
+    system_marginal_cost = that unit's SRMC (competitive equilibrium spot price).
+
+    SRMC ranges by fuel type:
+    - Hydro/Wind/Solar: $0-20/MWh (must-run / zero-fuel-cost)
+    - Biomass: $5-20/MWh
+    - Brown Coal (VIC1 only): $25-45/MWh
+    - Black Coal: $35-55/MWh
+    - Gas CCGT: $65-95/MWh
+    - Gas OCGT (capacity < 200 MW peakers): $150-350/MWh
+    - Battery: $50-500/MWh (strategic bidding)
+    - Diesel: $400-800/MWh
+
+    Cached for 30 seconds.
+    """
+    cache_key = f"merit_order:{region}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = _build_merit_order_curve(region)
+    _cache_set(cache_key, result, _TTL_MERIT_ORDER)
+    return result
+
+
+@app.get(
+    "/api/merit/stack",
+    response_model=DispatchStackSummary,
+    summary="Dispatch stack for all NEM regions",
+    tags=["Market Data"],
+    response_description="Merit order curves for all 5 NEM regions",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dispatch_stack() -> DispatchStackSummary:
+    """
+    Return merit order curves for all 5 NEM regions (NSW1, QLD1, VIC1, SA1, TAS1).
+
+    Each region's curve is built via _build_merit_order_curve().
+    Cached for 60 seconds.
+    """
+    cache_key = "merit_stack:all"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    regions_data: Dict[str, MeritOrderCurve] = {}
+    for r in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+        regions_data[r] = _build_merit_order_curve(r)
+
+    result = DispatchStackSummary(
+        timestamp=timestamp,
+        regions=regions_data,
+    )
+    _cache_set(cache_key, result, _TTL_MERIT_STACK)
+    return result

@@ -13,6 +13,8 @@ import {
   Moon,
   Sun,
   Thermometer,
+  DollarSign,
+  Leaf,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -29,6 +31,9 @@ import GeneratorFleet from './pages/GeneratorFleet'
 import MarketNotices from './pages/MarketNotices'
 import WeatherDemand from './pages/WeatherDemand'
 import BessAnalytics from './pages/BessAnalytics'
+import TradingDesk from './pages/TradingDesk'
+import Sustainability from './pages/Sustainability'
+import MeritOrder from './pages/MeritOrder'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -46,6 +51,9 @@ const NAV_ITEMS = [
   { to: '/market-notices',   label: 'Market Notices',   Icon: Bell           },
   { to: '/weather-demand',   label: 'Weather & Demand', Icon: Thermometer    },
   { to: '/bess',             label: 'Battery Storage',  Icon: Battery        },
+  { to: '/trading-desk',    label: 'Trading Desk',     Icon: DollarSign     },
+  { to: '/sustainability',  label: 'Sustainability',   Icon: Leaf            },
+  { to: '/merit-order',     label: 'Merit Order',      Icon: TrendingUp      },
 ]
 
 function Sidebar() {
@@ -137,6 +145,9 @@ export default function App() {
               <Route path="/market-notices"   element={<MarketNotices />}    />
               <Route path="/weather-demand"   element={<WeatherDemand />}    />
               <Route path="/bess"             element={<BessAnalytics />}    />
+              <Route path="/trading-desk"    element={<TradingDesk />}      />
+              <Route path="/sustainability" element={<Sustainability />}  />
+              <Route path="/merit-order"   element={<MeritOrder />}       />
             </Routes>
           </main>
         </div>

@@ -368,6 +368,101 @@ export interface BessFleetSummary {
   units: BessUnit[]
 }
 
+export interface PortfolioAsset {
+  asset_id: string
+  name: string
+  asset_type: string
+  fuel_type: string
+  region: string
+  capacity_mw: number
+  contracted_volume_mwh: number
+  contract_price_aud_mwh: number
+  current_spot_mwh: number
+  mtm_pnl_aud: number
+  daily_revenue_aud: number
+  daily_cost_aud: number
+}
+
+export interface HedgePosition {
+  hedge_id: string
+  hedge_type: string
+  region: string
+  volume_mw: number
+  strike_price: number
+  premium_paid_aud: number
+  current_value_aud: number
+  expiry_date: string
+  in_the_money: boolean
+}
+
+export interface PortfolioSummary {
+  timestamp: string
+  total_mtm_pnl_aud: number
+  total_daily_revenue_aud: number
+  total_hedge_value_aud: number
+  net_open_position_mw: number
+  hedge_ratio_pct: number
+  assets: PortfolioAsset[]
+  hedges: HedgePosition[]
+  region_pnl: Record<string, number>
+}
+
+export interface CarbonIntensityRecord {
+  timestamp: string
+  region: string
+  carbon_intensity_kg_co2_mwh: number
+  renewable_pct: number
+  fossil_pct: number
+  generation_mix: Record<string, number>
+}
+
+export interface LgcMarketRecord {
+  date: string
+  lgc_spot_price_aud: number
+  lgc_futures_2026: number
+  lgc_futures_2027: number
+  lgc_futures_2028: number
+  sts_price_aud: number
+  total_lgcs_surrendered_ytd: number
+  liable_entities_shortfall_gwh: number
+}
+
+export interface SustainabilityDashboard {
+  timestamp: string
+  nem_carbon_intensity: number
+  nem_renewable_pct: number
+  annual_emissions_mt_co2: number
+  emissions_vs_2005_pct: number
+  renewable_capacity_gw: number
+  renewable_target_gw: number
+  lgc_market: LgcMarketRecord
+  regional_intensity: CarbonIntensityRecord[]
+  intensity_history: CarbonIntensityRecord[]
+}
+
+export interface MeritOrderUnit {
+  duid: string
+  station_name: string
+  fuel_type: string
+  region: string
+  capacity_mw: number
+  marginal_cost_aud_mwh: number
+  current_offer_price: number
+  dispatched_mw: number
+  cumulative_mw: number
+  on_merit: boolean
+}
+
+export interface MeritOrderCurve {
+  region: string
+  timestamp: string
+  demand_mw: number
+  marginal_generator: string
+  system_marginal_cost: number
+  total_supply_mw: number
+  units: MeritOrderUnit[]
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -777,6 +872,60 @@ export const api = {
   getBessDispatch: async (duid: string, count = 24): Promise<BessDispatchInterval[]> => {
     const res = await fetch(`${BASE_URL}/api/bess/dispatch?duid=${encodeURIComponent(duid)}&count=${count}`, { headers })
     if (!res.ok) throw new Error('Failed to fetch BESS dispatch')
+    return res.json()
+  },
+
+  /**
+   * Get the portfolio trading desk summary including all generation assets,
+   * hedge positions, MtM P&L, and region P&L breakdown.
+   */
+  getPortfolioSummary: async (): Promise<PortfolioSummary> => {
+    const res = await fetch(`${BASE_URL}/api/portfolio/summary`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch portfolio summary')
+    return res.json()
+  },
+
+  /**
+   * Get daily P&L history for the trading desk portfolio.
+   * @param days  Number of days of history to return (default 7)
+   */
+  getPortfolioPnlHistory: async (days = 7): Promise<Record<string, number>[]> => {
+    const res = await fetch(`${BASE_URL}/api/portfolio/pnl_history?days=${days}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch P&L history')
+    return res.json()
+  },
+
+  /**
+   * Get the full carbon & sustainability dashboard including NEM decarbonisation
+   * stats, LGC market prices, regional carbon intensities, and 24-hour trend.
+   * @param region  NEM region code for the intensity_history series (default: NSW1)
+   */
+  getSustainabilityDashboard: async (region = 'NSW1'): Promise<SustainabilityDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/sustainability/dashboard?region=${region}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch sustainability dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get hourly carbon intensity history for a NEM region.
+   * @param region  NEM region code (default: NSW1)
+   * @param hours   Number of hours of history to return (default: 24)
+   */
+  getCarbonIntensityHistory: async (region = 'NSW1', hours = 24): Promise<CarbonIntensityRecord[]> => {
+    const res = await fetch(`${BASE_URL}/api/sustainability/intensity_history?region=${region}&hours=${hours}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch carbon intensity history')
+    return res.json()
+  },
+
+  /**
+   * Get the merit order curve for a NEM region.
+   * Units are sorted by SRMC ascending. The marginal generator is the first
+   * unit whose cumulative MW meets or exceeds current demand.
+   * @param region  NEM region code (default: NSW1)
+   */
+  getMeritOrder: async (region = 'NSW1'): Promise<MeritOrderCurve> => {
+    const res = await fetch(`${BASE_URL}/api/merit/order?region=${region}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch merit order')
     return res.json()
   },
 }

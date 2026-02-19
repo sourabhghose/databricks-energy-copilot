@@ -862,3 +862,159 @@ class TestBessEndpoints:
         for unit in fleet["units"]:
             assert 0 <= unit["soc_pct"] <= 100
             assert unit["efficiency_pct"] >= 80
+
+
+# ===========================================================================
+# TestPortfolioEndpoints
+# ===========================================================================
+
+class TestPortfolioEndpoints:
+    """Tests for GET /api/portfolio/summary and GET /api/portfolio/pnl_history."""
+
+    def test_portfolio_summary_structure(self, client=client):
+        """GET /api/portfolio/summary returns 200 with required fields.
+
+        The response must include 'assets', 'hedges', 'total_mtm_pnl_aud',
+        'region_pnl', and 'hedge_ratio_pct'. The assets list must contain
+        at least 5 generation units covering the NEM portfolio.
+        """
+        r = client.get("/api/portfolio/summary")
+        assert r.status_code == 200
+        data = r.json()
+        assert "assets" in data
+        assert "hedges" in data
+        assert len(data["assets"]) >= 5
+        assert "total_mtm_pnl_aud" in data
+        assert "region_pnl" in data
+        assert "total_daily_revenue_aud" in data
+        assert "total_hedge_value_aud" in data
+
+    def test_portfolio_hedge_ratio(self, client=client):
+        """GET /api/portfolio/summary hedge_ratio_pct is in the range [0, 100].
+
+        The hedge ratio represents the proportion of total capacity that has
+        been hedged. It must be a valid percentage between 0 and 100 inclusive.
+        """
+        r = client.get("/api/portfolio/summary")
+        data = r.json()
+        assert 0 <= data["hedge_ratio_pct"] <= 100
+
+    def test_pnl_history_days(self, client=client):
+        """GET /api/portfolio/pnl_history?days=7 returns exactly 7 records.
+
+        Each record must contain 'pnl_aud' at minimum. The number of records
+        returned must exactly match the 'days' query parameter.
+        """
+        r = client.get("/api/portfolio/pnl_history?days=7")
+        assert r.status_code == 200
+        history = r.json()
+        assert len(history) == 7
+        assert all("pnl_aud" in day for day in history)
+
+
+# ===========================================================================
+# TestSustainabilityEndpoints
+# ===========================================================================
+
+class TestSustainabilityEndpoints:
+    """Tests for GET /api/sustainability/dashboard and GET /api/sustainability/intensity_history."""
+
+    def test_sustainability_dashboard_structure(self, client=client):
+        """GET /api/sustainability/dashboard returns 200 with required top-level keys.
+
+        The response must contain nem_carbon_intensity, lgc_market, regional_intensity
+        (5 NEM regions), and a positive nem_renewable_pct value.
+        """
+        r = client.get("/api/sustainability/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "nem_carbon_intensity" in data
+        assert "lgc_market" in data
+        assert len(data["regional_intensity"]) == 5
+        assert data["nem_renewable_pct"] > 0
+
+    def test_carbon_intensity_history(self, client=client):
+        """GET /api/sustainability/intensity_history?region=SA1&hours=12 returns 12 hourly records.
+
+        Each record must have region=SA1 and renewable_pct in the valid [0, 100] range.
+        """
+        r = client.get("/api/sustainability/intensity_history?region=SA1&hours=12")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) == 12
+        for rec in records:
+            assert rec["region"] == "SA1"
+            assert 0 <= rec["renewable_pct"] <= 100
+
+    def test_regional_intensity_ordering(self, client=client):
+        """TAS1 must have a lower carbon intensity than NSW1.
+
+        TAS1 is predominantly hydro (~95% renewable) and should have carbon
+        intensity close to zero. NSW1 is coal-heavy (~0.7 kg CO2/MWh) and must
+        always read higher than TAS1.
+        """
+        r = client.get("/api/sustainability/dashboard")
+        data = r.json()
+        intensities = {rec["region"]: rec["carbon_intensity_kg_co2_mwh"]
+                       for rec in data["regional_intensity"]}
+        # TAS1 should have very low carbon intensity (almost all hydro)
+        assert intensities.get("TAS1", 99) < intensities.get("NSW1", 0)
+
+
+# ===========================================================================
+# TestMeritOrderEndpoints
+# ===========================================================================
+
+class TestMeritOrderEndpoints:
+    """Tests for GET /api/merit/order and GET /api/merit/stack endpoints."""
+
+    def test_merit_order_sorted(self, client=client):
+        """GET /api/merit/order?region=NSW1 returns units sorted ascending by SRMC.
+
+        The merit order must have units arranged from cheapest (hydro/wind/solar
+        near $0/MWh) to most expensive (diesel peakers, up to $800/MWh).
+        Any violation would invalidate the marginal cost calculation.
+        """
+        r = client.get("/api/merit/order?region=NSW1")
+        assert r.status_code == 200
+        data = r.json()
+        units = data["units"]
+        assert len(units) > 0
+        # Merit order must be sorted ascending by marginal cost
+        costs = [u["marginal_cost_aud_mwh"] for u in units]
+        assert costs == sorted(costs)
+
+    def test_merit_order_cumulative_mw(self, client=client):
+        """GET /api/merit/order?region=VIC1 has monotonically increasing cumulative_mw.
+
+        cumulative_mw is the running total of capacity from the cheapest unit
+        forward. It must never decrease across the sorted merit order stack.
+        """
+        r = client.get("/api/merit/order?region=VIC1")
+        assert r.status_code == 200
+        data = r.json()
+        units = data["units"]
+        # Cumulative MW must be monotonically non-decreasing
+        cumulative = [u["cumulative_mw"] for u in units]
+        assert all(
+            cumulative[i] <= cumulative[i + 1]
+            for i in range(len(cumulative) - 1)
+        )
+
+    def test_marginal_unit_identification(self, client=client):
+        """GET /api/merit/order?region=QLD1 correctly identifies the marginal generator.
+
+        The marginal_generator DUID must match the first unit in the sorted stack
+        whose cumulative_mw is greater than or equal to demand_mw. This unit sets
+        the system_marginal_cost (competitive equilibrium spot price).
+        """
+        r = client.get("/api/merit/order?region=QLD1")
+        assert r.status_code == 200
+        data = r.json()
+        demand = data["demand_mw"]
+        # Find the marginal unit: first unit where cumulative_mw >= demand
+        marginal = next(
+            (u for u in data["units"] if u["cumulative_mw"] >= demand), None
+        )
+        assert marginal is not None
+        assert marginal["duid"] == data["marginal_generator"]
