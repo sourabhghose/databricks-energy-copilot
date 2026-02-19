@@ -466,3 +466,24 @@
 - GET /api/carbon/dashboard, /regions, /trajectory
 - CarbonAnalytics.tsx (~520 lines): trajectory ComposedChart, region intensity table, fuel factors, Scope 2 calculator
 - 4 tests in TestCarbonAnalyticsEndpoints
+
+## Sprint 24a — OTC Hedging & Contract Portfolio Analytics (2026-02-19)
+**Status**: COMPLETE
+- HedgeContract, HedgePortfolioSummary, HedgingDashboard models
+- GET /api/hedging/dashboard, /contracts, /portfolio
+- HedgingAnalytics.tsx (~530 lines): quarterly position BarChart, portfolio table, contract details with filters
+- 4 tests in TestHedgingEndpoints
+
+## Sprint 24b — Hydro Storage & Water Value Analytics (2026-02-19)
+**Status**: COMPLETE
+- ReservoirRecord, HydroInflowForecast, WaterValuePoint, HydroSchemeSummary, HydroDashboard models
+- GET /api/hydro/dashboard, /reservoirs, /water-value
+- HydroStorage.tsx (~510 lines): water value curve, scheme summary cards, reservoir table, inflow forecasts
+- 4 tests in TestHydroStorageEndpoints
+
+## Sprint 24c — Market Power & Concentration Analytics (2026-02-19)
+**Status**: COMPLETE
+- HhiRecord, PivotalSupplierRecord, MarketShareTrend, MarketPowerDashboard models
+- GET /api/market-power/dashboard, /hhi, /pivotal
+- MarketPower.tsx (~500 lines): HHI BarChart, share trend LineChart, pivotal supplier table, HHI details
+- 4 tests in TestMarketPowerEndpoints

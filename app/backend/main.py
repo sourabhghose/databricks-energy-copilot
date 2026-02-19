@@ -12726,3 +12726,1315 @@ def get_carbon_trajectory():
     trajectory = _make_emissions_trajectory()
     _cache_set("carbon:trajectory", trajectory, _TTL_CARBON_TRAJECTORY)
     return trajectory
+
+
+# ---------------------------------------------------------------------------
+# Sprint 24a — OTC Hedging & Contract Portfolio Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_HEDGING = 300
+
+
+class HedgeContract(BaseModel):
+    contract_id: str
+    contract_type: str         # "CAP", "SWAP", "FLOOR", "COLLAR", "SWAPTION"
+    region: str
+    counterparty: str
+    start_date: str
+    end_date: str
+    strike_price: float        # $/MWh (cap/floor strike or swap price)
+    volume_mw: float           # MW contracted
+    volume_mwh: float          # total MWh over contract period
+    premium_paid_aud: float    # option premium (for caps/floors)
+    mtm_value_aud: float       # current mark-to-market value
+    pnl_aud: float             # unrealised P&L vs entry
+    hedge_period: str          # "Q1 2026", "Q2 2026", "FY2026", etc.
+    status: str                # "ACTIVE", "EXPIRED", "PENDING"
+    underlying: str            # "SPOT", "Q1_FUT", "Q2_FUT", "CAL_FUT"
+
+
+class HedgePortfolioSummary(BaseModel):
+    region: str
+    total_hedged_mw: float
+    expected_generation_mw: float
+    hedge_ratio_pct: float           # total_hedged_mw / expected_generation * 100
+    avg_swap_price: float
+    mtm_total_aud: float
+    unrealised_pnl_aud: float
+    var_95_aud: float                # 95% VaR (daily)
+    var_99_aud: float
+    cap_protection_pct: float        # % of generation protected by caps
+    num_active_contracts: int
+
+
+class HedgingDashboard(BaseModel):
+    timestamp: str
+    total_portfolio_mtm_aud: float
+    total_unrealised_pnl_aud: float
+    portfolio_var_95_aud: float
+    weighted_avg_hedge_price: float
+    overall_hedge_ratio_pct: float
+    contracts: List[HedgeContract]
+    portfolio_by_region: List[HedgePortfolioSummary]
+    quarterly_position: List[dict]   # [{"quarter": "Q1 2026", "hedged_mw": float, "spot_ref": float, "contract_price": float}]
+
+
+def _make_hedge_contracts() -> List[HedgeContract]:
+    contracts = [
+        # --- SWAPs ---
+        HedgeContract(
+            contract_id="HC-NSW-001",
+            contract_type="SWAP",
+            region="NSW1",
+            counterparty="AGL",
+            start_date="2026-01-01",
+            end_date="2026-06-30",
+            strike_price=92.50,
+            volume_mw=150.0,
+            volume_mwh=150.0 * 181 * 24,
+            premium_paid_aud=0.0,
+            mtm_value_aud=1_250_000.0,
+            pnl_aud=1_250_000.0,
+            hedge_period="Q1-Q2 2026",
+            status="ACTIVE",
+            underlying="Q1_FUT",
+        ),
+        HedgeContract(
+            contract_id="HC-VIC-001",
+            contract_type="SWAP",
+            region="VIC1",
+            counterparty="Origin",
+            start_date="2026-01-01",
+            end_date="2026-12-31",
+            strike_price=88.00,
+            volume_mw=200.0,
+            volume_mwh=200.0 * 365 * 24,
+            premium_paid_aud=0.0,
+            mtm_value_aud=980_000.0,
+            pnl_aud=980_000.0,
+            hedge_period="FY2026",
+            status="ACTIVE",
+            underlying="CAL_FUT",
+        ),
+        HedgeContract(
+            contract_id="HC-QLD-001",
+            contract_type="SWAP",
+            region="QLD1",
+            counterparty="Macquarie Energy",
+            start_date="2026-01-01",
+            end_date="2026-03-31",
+            strike_price=95.00,
+            volume_mw=120.0,
+            volume_mwh=120.0 * 90 * 24,
+            premium_paid_aud=0.0,
+            mtm_value_aud=420_000.0,
+            pnl_aud=420_000.0,
+            hedge_period="Q1 2026",
+            status="ACTIVE",
+            underlying="Q1_FUT",
+        ),
+        HedgeContract(
+            contract_id="HC-SA-001",
+            contract_type="SWAP",
+            region="SA1",
+            counterparty="Shell Energy",
+            start_date="2026-04-01",
+            end_date="2026-06-30",
+            strike_price=105.00,
+            volume_mw=80.0,
+            volume_mwh=80.0 * 91 * 24,
+            premium_paid_aud=0.0,
+            mtm_value_aud=650_000.0,
+            pnl_aud=650_000.0,
+            hedge_period="Q2 2026",
+            status="ACTIVE",
+            underlying="Q2_FUT",
+        ),
+        HedgeContract(
+            contract_id="HC-NSW-002",
+            contract_type="SWAP",
+            region="NSW1",
+            counterparty="EnergyAustralia",
+            start_date="2025-07-01",
+            end_date="2025-12-31",
+            strike_price=84.00,
+            volume_mw=100.0,
+            volume_mwh=100.0 * 184 * 24,
+            premium_paid_aud=0.0,
+            mtm_value_aud=0.0,
+            pnl_aud=210_000.0,
+            hedge_period="FY2025 H2",
+            status="EXPIRED",
+            underlying="CAL_FUT",
+        ),
+        # --- CAPs ---
+        HedgeContract(
+            contract_id="HC-SA-002",
+            contract_type="CAP",
+            region="SA1",
+            counterparty="Macquarie Energy",
+            start_date="2026-01-01",
+            end_date="2026-12-31",
+            strike_price=300.00,
+            volume_mw=100.0,
+            volume_mwh=100.0 * 365 * 24,
+            premium_paid_aud=2_100_000.0,
+            mtm_value_aud=2_050_000.0,
+            pnl_aud=-50_000.0,
+            hedge_period="FY2026",
+            status="ACTIVE",
+            underlying="SPOT",
+        ),
+        HedgeContract(
+            contract_id="HC-NSW-003",
+            contract_type="CAP",
+            region="NSW1",
+            counterparty="Glencore Energy",
+            start_date="2026-04-01",
+            end_date="2026-06-30",
+            strike_price=300.00,
+            volume_mw=75.0,
+            volume_mwh=75.0 * 91 * 24,
+            premium_paid_aud=480_000.0,
+            mtm_value_aud=510_000.0,
+            pnl_aud=30_000.0,
+            hedge_period="Q2 2026",
+            status="ACTIVE",
+            underlying="SPOT",
+        ),
+        HedgeContract(
+            contract_id="HC-QLD-002",
+            contract_type="CAP",
+            region="QLD1",
+            counterparty="AGL",
+            start_date="2026-07-01",
+            end_date="2026-09-30",
+            strike_price=300.00,
+            volume_mw=90.0,
+            volume_mwh=90.0 * 92 * 24,
+            premium_paid_aud=550_000.0,
+            mtm_value_aud=490_000.0,
+            pnl_aud=-60_000.0,
+            hedge_period="Q3 2026",
+            status="PENDING",
+            underlying="Q2_FUT",
+        ),
+        HedgeContract(
+            contract_id="HC-VIC-002",
+            contract_type="CAP",
+            region="VIC1",
+            counterparty="Origin",
+            start_date="2025-10-01",
+            end_date="2025-12-31",
+            strike_price=300.00,
+            volume_mw=60.0,
+            volume_mwh=60.0 * 92 * 24,
+            premium_paid_aud=340_000.0,
+            mtm_value_aud=0.0,
+            pnl_aud=-340_000.0,
+            hedge_period="Q4 2025",
+            status="EXPIRED",
+            underlying="SPOT",
+        ),
+        # --- COLLARs ---
+        HedgeContract(
+            contract_id="HC-NSW-004",
+            contract_type="COLLAR",
+            region="NSW1",
+            counterparty="Shell Energy",
+            start_date="2026-07-01",
+            end_date="2026-12-31",
+            strike_price=115.00,
+            volume_mw=130.0,
+            volume_mwh=130.0 * 184 * 24,
+            premium_paid_aud=180_000.0,
+            mtm_value_aud=320_000.0,
+            pnl_aud=140_000.0,
+            hedge_period="FY2026 H2",
+            status="PENDING",
+            underlying="CAL_FUT",
+        ),
+        HedgeContract(
+            contract_id="HC-SA-003",
+            contract_type="COLLAR",
+            region="SA1",
+            counterparty="EnergyAustralia",
+            start_date="2026-04-01",
+            end_date="2026-09-30",
+            strike_price=120.00,
+            volume_mw=70.0,
+            volume_mwh=70.0 * 183 * 24,
+            premium_paid_aud=95_000.0,
+            mtm_value_aud=215_000.0,
+            pnl_aud=120_000.0,
+            hedge_period="Q2-Q3 2026",
+            status="ACTIVE",
+            underlying="Q2_FUT",
+        ),
+        # --- FLOOR ---
+        HedgeContract(
+            contract_id="HC-QLD-003",
+            contract_type="FLOOR",
+            region="QLD1",
+            counterparty="Glencore Energy",
+            start_date="2026-01-01",
+            end_date="2026-06-30",
+            strike_price=70.00,
+            volume_mw=110.0,
+            volume_mwh=110.0 * 181 * 24,
+            premium_paid_aud=620_000.0,
+            mtm_value_aud=520_000.0,
+            pnl_aud=-100_000.0,
+            hedge_period="Q1-Q2 2026",
+            status="ACTIVE",
+            underlying="Q1_FUT",
+        ),
+    ]
+    return contracts
+
+
+def _make_portfolio_by_region() -> List[HedgePortfolioSummary]:
+    return [
+        HedgePortfolioSummary(
+            region="NSW1",
+            total_hedged_mw=455.0,
+            expected_generation_mw=535.0,
+            hedge_ratio_pct=85.0,
+            avg_swap_price=97.50,
+            mtm_total_aud=2_080_000.0,
+            unrealised_pnl_aud=1_490_000.0,
+            var_95_aud=185_000.0,
+            var_99_aud=265_000.0,
+            cap_protection_pct=38.0,
+            num_active_contracts=3,
+        ),
+        HedgePortfolioSummary(
+            region="SA1",
+            total_hedged_mw=250.0,
+            expected_generation_mw=347.0,
+            hedge_ratio_pct=72.0,
+            avg_swap_price=108.30,
+            mtm_total_aud=2_915_000.0,
+            unrealised_pnl_aud=720_000.0,
+            var_95_aud=310_000.0,
+            var_99_aud=445_000.0,
+            cap_protection_pct=57.0,
+            num_active_contracts=3,
+        ),
+        HedgePortfolioSummary(
+            region="QLD1",
+            total_hedged_mw=320.0,
+            expected_generation_mw=352.0,
+            hedge_ratio_pct=91.0,
+            avg_swap_price=93.20,
+            mtm_total_aud=1_430_000.0,
+            unrealised_pnl_aud=260_000.0,
+            var_95_aud=148_000.0,
+            var_99_aud=212_000.0,
+            cap_protection_pct=42.0,
+            num_active_contracts=3,
+        ),
+        HedgePortfolioSummary(
+            region="VIC1",
+            total_hedged_mw=200.0,
+            expected_generation_mw=256.0,
+            hedge_ratio_pct=78.0,
+            avg_swap_price=88.00,
+            mtm_total_aud=980_000.0,
+            unrealised_pnl_aud=980_000.0,
+            var_95_aud=95_000.0,
+            var_99_aud=138_000.0,
+            cap_protection_pct=0.0,
+            num_active_contracts=1,
+        ),
+    ]
+
+
+def _make_quarterly_position() -> List[dict]:
+    return [
+        {"quarter": "Q1 2026", "hedged_mw": 370.0, "spot_ref": 98.50, "contract_price": 94.20},
+        {"quarter": "Q2 2026", "hedged_mw": 335.0, "spot_ref": 104.00, "contract_price": 99.80},
+        {"quarter": "Q3 2026", "hedged_mw": 220.0, "spot_ref": 112.00, "contract_price": 108.50},
+        {"quarter": "Q4 2026", "hedged_mw": 180.0, "spot_ref": 95.00, "contract_price": 92.00},
+        {"quarter": "Q1 2027", "hedged_mw": 120.0, "spot_ref": 101.00, "contract_price": 97.50},
+        {"quarter": "Q2 2027", "hedged_mw": 80.0, "spot_ref": 108.00, "contract_price": 104.00},
+    ]
+
+
+def _make_hedging_dashboard() -> HedgingDashboard:
+    contracts = _make_hedge_contracts()
+    portfolio_by_region = _make_portfolio_by_region()
+    quarterly_position = _make_quarterly_position()
+
+    total_mtm = sum(p.mtm_total_aud for p in portfolio_by_region)
+    total_pnl = sum(p.unrealised_pnl_aud for p in portfolio_by_region)
+    portfolio_var_95 = sum(p.var_95_aud for p in portfolio_by_region)
+
+    total_hedged_mw = sum(p.total_hedged_mw for p in portfolio_by_region)
+    total_expected_mw = sum(p.expected_generation_mw for p in portfolio_by_region)
+    overall_hedge_ratio = (total_hedged_mw / total_expected_mw * 100) if total_expected_mw > 0 else 0.0
+
+    # volume-weighted average hedge price across SWAPs
+    swap_contracts = [c for c in contracts if c.contract_type == "SWAP" and c.status == "ACTIVE"]
+    total_vol = sum(c.volume_mwh for c in swap_contracts)
+    weighted_price = (
+        sum(c.strike_price * c.volume_mwh for c in swap_contracts) / total_vol
+        if total_vol > 0 else 0.0
+    )
+
+    return HedgingDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        total_portfolio_mtm_aud=round(total_mtm, 2),
+        total_unrealised_pnl_aud=round(total_pnl, 2),
+        portfolio_var_95_aud=round(portfolio_var_95, 2),
+        weighted_avg_hedge_price=round(weighted_price, 2),
+        overall_hedge_ratio_pct=round(overall_hedge_ratio, 2),
+        contracts=contracts,
+        portfolio_by_region=portfolio_by_region,
+        quarterly_position=quarterly_position,
+    )
+
+
+@app.get(
+    "/api/hedging/dashboard",
+    response_model=HedgingDashboard,
+    summary="OTC hedging portfolio dashboard — MtM, VaR, hedge ratios",
+    tags=["OTC Hedging"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hedging_dashboard():
+    """Return the full OTC hedging dashboard including all contracts, portfolio
+    summaries by region, quarterly positions, VaR, and MtM values. Cached 300 s."""
+    cached = _cache_get("hedging:dashboard")
+    if cached:
+        return cached
+    dashboard = _make_hedging_dashboard()
+    _cache_set("hedging:dashboard", dashboard, _TTL_HEDGING)
+    return dashboard
+
+
+@app.get(
+    "/api/hedging/contracts",
+    response_model=List[HedgeContract],
+    summary="OTC hedge contracts — filterable by region, type, status",
+    tags=["OTC Hedging"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hedge_contracts(
+    region: Optional[str] = None,
+    contract_type: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """Return all OTC hedge contracts. Optionally filter by region (e.g. NSW1),
+    contract_type (CAP, SWAP, FLOOR, COLLAR), or status (ACTIVE, EXPIRED, PENDING).
+    Cached 300 s."""
+    cache_key = f"hedging:contracts:{region}:{contract_type}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    contracts = _make_hedge_contracts()
+    if region:
+        contracts = [c for c in contracts if c.region == region]
+    if contract_type:
+        contracts = [c for c in contracts if c.contract_type == contract_type.upper()]
+    if status:
+        contracts = [c for c in contracts if c.status == status.upper()]
+    _cache_set(cache_key, contracts, _TTL_HEDGING)
+    return contracts
+
+
+@app.get(
+    "/api/hedging/portfolio",
+    response_model=List[HedgePortfolioSummary],
+    summary="OTC hedging portfolio summary by region",
+    tags=["OTC Hedging"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hedge_portfolio(region: Optional[str] = None):
+    """Return hedging portfolio summary for each NEM region, including hedge
+    ratios, MtM, VaR and cap protection metrics. Optionally filter by region.
+    Cached 300 s."""
+    cache_key = f"hedging:portfolio:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    portfolio = _make_portfolio_by_region()
+    if region:
+        portfolio = [p for p in portfolio if p.region == region]
+    _cache_set(cache_key, portfolio, _TTL_HEDGING)
+    return portfolio
+
+
+# ===========================================================================
+# Sprint 24c — Market Power & Concentration Analytics
+# ===========================================================================
+
+_TTL_MARKET_POWER = 3600
+
+
+class HhiRecord(BaseModel):
+    region: str
+    fuel_type: Optional[str]        # None = overall NEM HHI
+    hhi_score: float                 # 0-10000 (>2500 = concentrated)
+    num_competitors: int
+    top3_share_pct: float
+    market_structure: str            # "COMPETITIVE", "MODERATELY_CONCENTRATED", "HIGHLY_CONCENTRATED"
+    trend_direction: str             # "IMPROVING", "STABLE", "DETERIORATING"
+    change_vs_last_year: float       # HHI change points
+
+
+class PivotalSupplierRecord(BaseModel):
+    participant_id: str
+    participant_name: str
+    region: str
+    pivotal_status: str              # "PIVOTAL", "QUASI_PIVOTAL", "NON_PIVOTAL"
+    capacity_mw: float
+    residual_supply_index: float     # RSI = (total_capacity - participant_capacity) / demand; <1.0 means pivotal
+    occurrence_frequency_pct: float  # % of dispatch intervals where pivotal
+    strategic_capacity_mw: float     # MW that could be withheld
+    avg_rebids_per_day: float
+
+
+class MarketShareTrend(BaseModel):
+    participant_name: str
+    participant_type: str            # "INTEGRATED", "PURE_GENERATOR", "PURE_RETAILER"
+    year: int
+    quarter: str                     # "Q1", "Q2", "Q3", "Q4"
+    generation_share_pct: float
+    retail_share_pct: Optional[float]
+    capacity_mw: float
+
+
+class MarketPowerDashboard(BaseModel):
+    timestamp: str
+    nem_overall_hhi: float
+    sa1_hhi: float                   # SA1 historically most concentrated
+    concentration_trend: str          # "IMPROVING" as new entrants add capacity
+    pivotal_suppliers_count: int
+    quasi_pivotal_count: int
+    market_review_status: str         # "UNDER_REVIEW", "MONITORING", "CLEARED"
+    hhi_records: List[HhiRecord]
+    pivotal_suppliers: List[PivotalSupplierRecord]
+    share_trends: List[MarketShareTrend]
+
+
+def _make_hhi_records() -> List[HhiRecord]:
+    """Return 10 HHI records: 5 regional + 5 by fuel type."""
+    return [
+        # Regional HHIs
+        HhiRecord(
+            region="NEM",
+            fuel_type=None,
+            hhi_score=1800.0,
+            num_competitors=12,
+            top3_share_pct=52.0,
+            market_structure="MODERATELY_CONCENTRATED",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-120.0,
+        ),
+        HhiRecord(
+            region="NSW1",
+            fuel_type=None,
+            hhi_score=1600.0,
+            num_competitors=9,
+            top3_share_pct=48.0,
+            market_structure="MODERATELY_CONCENTRATED",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-95.0,
+        ),
+        HhiRecord(
+            region="QLD1",
+            fuel_type=None,
+            hhi_score=2100.0,
+            num_competitors=7,
+            top3_share_pct=58.0,
+            market_structure="MODERATELY_CONCENTRATED",
+            trend_direction="STABLE",
+            change_vs_last_year=-30.0,
+        ),
+        HhiRecord(
+            region="VIC1",
+            fuel_type=None,
+            hhi_score=1900.0,
+            num_competitors=8,
+            top3_share_pct=53.0,
+            market_structure="MODERATELY_CONCENTRATED",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-80.0,
+        ),
+        HhiRecord(
+            region="SA1",
+            fuel_type=None,
+            hhi_score=3200.0,
+            num_competitors=4,
+            top3_share_pct=78.0,
+            market_structure="HIGHLY_CONCENTRATED",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-150.0,
+        ),
+        # Fuel type HHIs
+        HhiRecord(
+            region="NEM",
+            fuel_type="Black Coal",
+            hhi_score=2800.0,
+            num_competitors=5,
+            top3_share_pct=71.0,
+            market_structure="HIGHLY_CONCENTRATED",
+            trend_direction="DETERIORATING",
+            change_vs_last_year=110.0,
+        ),
+        HhiRecord(
+            region="NEM",
+            fuel_type="Gas CCGT",
+            hhi_score=2200.0,
+            num_competitors=6,
+            top3_share_pct=62.0,
+            market_structure="MODERATELY_CONCENTRATED",
+            trend_direction="STABLE",
+            change_vs_last_year=20.0,
+        ),
+        HhiRecord(
+            region="NEM",
+            fuel_type="Wind",
+            hhi_score=1200.0,
+            num_competitors=15,
+            top3_share_pct=38.0,
+            market_structure="COMPETITIVE",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-180.0,
+        ),
+        HhiRecord(
+            region="NEM",
+            fuel_type="Solar",
+            hhi_score=900.0,
+            num_competitors=22,
+            top3_share_pct=28.0,
+            market_structure="COMPETITIVE",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-210.0,
+        ),
+        HhiRecord(
+            region="NEM",
+            fuel_type="Battery",
+            hhi_score=2600.0,
+            num_competitors=5,
+            top3_share_pct=68.0,
+            market_structure="HIGHLY_CONCENTRATED",
+            trend_direction="IMPROVING",
+            change_vs_last_year=-320.0,
+        ),
+    ]
+
+
+def _make_pivotal_suppliers() -> List[PivotalSupplierRecord]:
+    """Return 6 pivotal supplier records across NEM regions."""
+    return [
+        PivotalSupplierRecord(
+            participant_id="AGL",
+            participant_name="AGL Energy",
+            region="SA1",
+            pivotal_status="PIVOTAL",
+            capacity_mw=1280.0,
+            residual_supply_index=0.78,
+            occurrence_frequency_pct=35.0,
+            strategic_capacity_mw=420.0,
+            avg_rebids_per_day=12.4,
+        ),
+        PivotalSupplierRecord(
+            participant_id="ORIGINEN",
+            participant_name="Origin Energy",
+            region="QLD1",
+            pivotal_status="QUASI_PIVOTAL",
+            capacity_mw=3200.0,
+            residual_supply_index=0.87,
+            occurrence_frequency_pct=18.0,
+            strategic_capacity_mw=680.0,
+            avg_rebids_per_day=8.7,
+        ),
+        PivotalSupplierRecord(
+            participant_id="ALINTA",
+            participant_name="Alinta Energy",
+            region="SA1",
+            pivotal_status="QUASI_PIVOTAL",
+            capacity_mw=760.0,
+            residual_supply_index=0.91,
+            occurrence_frequency_pct=12.0,
+            strategic_capacity_mw=190.0,
+            avg_rebids_per_day=6.2,
+        ),
+        PivotalSupplierRecord(
+            participant_id="ENERGYAUS",
+            participant_name="EnergyAustralia",
+            region="VIC1",
+            pivotal_status="NON_PIVOTAL",
+            capacity_mw=2450.0,
+            residual_supply_index=0.96,
+            occurrence_frequency_pct=4.0,
+            strategic_capacity_mw=320.0,
+            avg_rebids_per_day=5.1,
+        ),
+        PivotalSupplierRecord(
+            participant_id="SNOWYHYDRO",
+            participant_name="Snowy Hydro",
+            region="NSW1",
+            pivotal_status="QUASI_PIVOTAL",
+            capacity_mw=4100.0,
+            residual_supply_index=0.85,
+            occurrence_frequency_pct=22.0,
+            strategic_capacity_mw=900.0,
+            avg_rebids_per_day=9.8,
+        ),
+        PivotalSupplierRecord(
+            participant_id="CSENERGY",
+            participant_name="CS Energy",
+            region="QLD1",
+            pivotal_status="QUASI_PIVOTAL",
+            capacity_mw=1850.0,
+            residual_supply_index=0.88,
+            occurrence_frequency_pct=16.0,
+            strategic_capacity_mw=410.0,
+            avg_rebids_per_day=7.3,
+        ),
+    ]
+
+
+def _make_market_share_trends() -> List[MarketShareTrend]:
+    """Return 15 market share trend records: 3 participants x 5 quarterly snapshots."""
+    quarters = [
+        (2024, "Q1", {"AGL": (22.5, 28.0, 3800.0), "Origin": (20.1, 24.5, 5200.0), "EA": (16.8, 21.0, 4100.0)}),
+        (2024, "Q3", {"AGL": (21.8, 27.3, 3850.0), "Origin": (19.6, 24.0, 5250.0), "EA": (16.2, 20.5, 4150.0)}),
+        (2025, "Q1", {"AGL": (20.9, 26.1, 3900.0), "Origin": (18.8, 23.2, 5300.0), "EA": (15.5, 19.8, 4200.0)}),
+        (2025, "Q3", {"AGL": (19.7, 24.8, 3950.0), "Origin": (18.0, 22.5, 5350.0), "EA": (14.8, 19.0, 4250.0)}),
+        (2026, "Q1", {"AGL": (18.6, 23.5, 4000.0), "Origin": (17.2, 21.8, 5400.0), "EA": (14.1, 18.2, 4300.0)}),
+    ]
+    full_names = {
+        "AGL": "AGL Energy",
+        "Origin": "Origin Energy",
+        "EA": "EnergyAustralia",
+    }
+    records: List[MarketShareTrend] = []
+    for year, quarter, data in quarters:
+        for key, (gen_share, retail_share, cap_mw) in data.items():
+            records.append(MarketShareTrend(
+                participant_name=full_names[key],
+                participant_type="INTEGRATED",
+                year=year,
+                quarter=quarter,
+                generation_share_pct=gen_share,
+                retail_share_pct=retail_share,
+                capacity_mw=cap_mw,
+            ))
+    return records
+
+
+def _make_market_power_dashboard() -> MarketPowerDashboard:
+    """Aggregate all market power data into a single dashboard object."""
+    hhi_records = _make_hhi_records()
+    pivotal_suppliers = _make_pivotal_suppliers()
+    share_trends = _make_market_share_trends()
+
+    nem_hhi = next((r.hhi_score for r in hhi_records if r.region == "NEM" and r.fuel_type is None), 1800.0)
+    sa1_hhi = next((r.hhi_score for r in hhi_records if r.region == "SA1" and r.fuel_type is None), 3200.0)
+    pivotal_count = sum(1 for s in pivotal_suppliers if s.pivotal_status == "PIVOTAL")
+    quasi_count = sum(1 for s in pivotal_suppliers if s.pivotal_status == "QUASI_PIVOTAL")
+
+    return MarketPowerDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        nem_overall_hhi=nem_hhi,
+        sa1_hhi=sa1_hhi,
+        concentration_trend="IMPROVING",
+        pivotal_suppliers_count=pivotal_count,
+        quasi_pivotal_count=quasi_count,
+        market_review_status="MONITORING",
+        hhi_records=hhi_records,
+        pivotal_suppliers=pivotal_suppliers,
+        share_trends=share_trends,
+    )
+
+
+@app.get(
+    "/api/market-power/dashboard",
+    response_model=MarketPowerDashboard,
+    summary="Market power dashboard — HHI, pivotal suppliers, share trends",
+    tags=["Market Power"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_power_dashboard():
+    """Return the full market power dashboard including HHI records, pivotal
+    supplier analysis, and market share trends. Cached 3600 s."""
+    cached = _cache_get("market_power:dashboard")
+    if cached:
+        return cached
+    dashboard = _make_market_power_dashboard()
+    _cache_set("market_power:dashboard", dashboard, _TTL_MARKET_POWER)
+    return dashboard
+
+
+@app.get(
+    "/api/market-power/hhi",
+    response_model=List[HhiRecord],
+    summary="HHI records — filterable by region and fuel type",
+    tags=["Market Power"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hhi_records(
+    region: Optional[str] = None,
+    fuel_type: Optional[str] = None,
+):
+    """Return Herfindahl-Hirschman Index records by region and/or fuel type.
+    Optionally filter by region (e.g. SA1) or fuel_type (e.g. Wind).
+    Cached 3600 s."""
+    cache_key = f"market_power:hhi:{region}:{fuel_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_hhi_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    if fuel_type:
+        records = [r for r in records if r.fuel_type == fuel_type]
+    _cache_set(cache_key, records, _TTL_MARKET_POWER)
+    return records
+
+
+@app.get(
+    "/api/market-power/pivotal",
+    response_model=List[PivotalSupplierRecord],
+    summary="Pivotal supplier analysis — filterable by region and status",
+    tags=["Market Power"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_pivotal_suppliers(
+    region: Optional[str] = None,
+    pivotal_status: Optional[str] = None,
+):
+    """Return pivotal supplier records including RSI, frequency, and strategic
+    capacity metrics. Optionally filter by region or pivotal_status
+    (PIVOTAL, QUASI_PIVOTAL, NON_PIVOTAL). Cached 3600 s."""
+    cache_key = f"market_power:pivotal:{region}:{pivotal_status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    suppliers = _make_pivotal_suppliers()
+    if region:
+        suppliers = [s for s in suppliers if s.region == region]
+    if pivotal_status:
+        suppliers = [s for s in suppliers if s.pivotal_status == pivotal_status.upper()]
+    _cache_set(cache_key, suppliers, _TTL_MARKET_POWER)
+    return suppliers
+
+
+# ===========================================================================
+# Sprint 24b — Hydro Storage & Water Value Analytics
+# ===========================================================================
+
+_TTL_HYDRO = 3600
+
+# --- Pydantic models --------------------------------------------------------
+
+class ReservoirRecord(BaseModel):
+    reservoir_id: str
+    name: str
+    scheme: str
+    region: str
+    state: str
+    current_storage_gl: float
+    full_supply_level_gl: float
+    dead_storage_gl: float
+    percent_full: float
+    usable_storage_gl: float
+    usable_pct: float
+    inflow_7d_gl: float
+    outflow_7d_gl: float
+    net_change_7d_gl: float
+    energy_potential_gwh: float
+    last_updated: str
+
+
+class HydroInflowForecast(BaseModel):
+    scheme: str
+    region: str
+    forecast_period: str
+    inflow_gl: float
+    vs_median_pct: float
+    probability_exceedance_pct: float
+    confidence: str
+    scenario: str
+
+
+class WaterValuePoint(BaseModel):
+    usable_storage_pct: float
+    water_value_aud_ml: float
+    season: str
+    regime: str
+
+
+class HydroSchemeSummary(BaseModel):
+    scheme: str
+    region: str
+    total_capacity_mw: float
+    total_storage_gl: float
+    total_storage_pct: float
+    avg_water_value_aud_ml: float
+    num_stations: int
+    annual_energy_twh: float
+    critical_storage_threshold_pct: float
+
+
+class HydroDashboard(BaseModel):
+    timestamp: str
+    total_nem_hydro_storage_pct: float
+    vs_last_year_pct_pts: float
+    critical_reservoirs: int
+    forecast_outlook: str
+    schemes: List[HydroSchemeSummary]
+    reservoirs: List[ReservoirRecord]
+    inflow_forecasts: List[HydroInflowForecast]
+    water_value_curve: List[WaterValuePoint]
+
+
+# --- Mock data helpers -------------------------------------------------------
+
+def _make_reservoirs() -> List[ReservoirRecord]:
+    now_str = datetime.utcnow().isoformat() + "Z"
+    records = [
+        # Snowy Hydro — NSW
+        ReservoirRecord(
+            reservoir_id="SNO-EUCUMBENE",
+            name="Lake Eucumbene",
+            scheme="Snowy Hydro",
+            region="Snowy Mountains",
+            state="NSW",
+            current_storage_gl=2917.0,
+            full_supply_level_gl=4798.0,
+            dead_storage_gl=188.0,
+            percent_full=60.8,
+            usable_storage_gl=2729.0,
+            usable_pct=52.0,
+            inflow_7d_gl=18.5,
+            outflow_7d_gl=22.1,
+            net_change_7d_gl=-3.6,
+            energy_potential_gwh=3820.0,
+            last_updated=now_str,
+        ),
+        ReservoirRecord(
+            reservoir_id="SNO-JINDABYNE",
+            name="Lake Jindabyne",
+            scheme="Snowy Hydro",
+            region="Snowy Mountains",
+            state="NSW",
+            current_storage_gl=567.0,
+            full_supply_level_gl=688.0,
+            dead_storage_gl=68.0,
+            percent_full=82.4,
+            usable_storage_gl=499.0,
+            usable_pct=45.0,
+            inflow_7d_gl=9.2,
+            outflow_7d_gl=11.8,
+            net_change_7d_gl=-2.6,
+            energy_potential_gwh=210.0,
+            last_updated=now_str,
+        ),
+        ReservoirRecord(
+            reservoir_id="SNO-TANTANGARA",
+            name="Tantangara Reservoir",
+            scheme="Snowy Hydro",
+            region="Snowy Mountains",
+            state="NSW",
+            current_storage_gl=166.0,
+            full_supply_level_gl=254.0,
+            dead_storage_gl=0.0,
+            percent_full=65.4,
+            usable_storage_gl=166.0,
+            usable_pct=65.4,
+            inflow_7d_gl=4.1,
+            outflow_7d_gl=3.8,
+            net_change_7d_gl=0.3,
+            energy_potential_gwh=95.0,
+            last_updated=now_str,
+        ),
+        ReservoirRecord(
+            reservoir_id="SNO-MURRAY",
+            name="Lake Murray (Khancoban)",
+            scheme="Snowy Hydro",
+            region="Murray-Tumut",
+            state="NSW",
+            current_storage_gl=94.0,
+            full_supply_level_gl=145.0,
+            dead_storage_gl=5.0,
+            percent_full=64.8,
+            usable_storage_gl=89.0,
+            usable_pct=62.7,
+            inflow_7d_gl=3.5,
+            outflow_7d_gl=4.2,
+            net_change_7d_gl=-0.7,
+            energy_potential_gwh=58.0,
+            last_updated=now_str,
+        ),
+        # Hydro Tasmania — TAS
+        ReservoirRecord(
+            reservoir_id="HT-GORDON",
+            name="Lake Gordon",
+            scheme="Hydro Tasmania",
+            region="South West Tasmania",
+            state="TAS",
+            current_storage_gl=8590.0,
+            full_supply_level_gl=12467.0,
+            dead_storage_gl=1260.0,
+            percent_full=68.9,
+            usable_storage_gl=7330.0,
+            usable_pct=68.0,
+            inflow_7d_gl=42.0,
+            outflow_7d_gl=38.5,
+            net_change_7d_gl=3.5,
+            energy_potential_gwh=8120.0,
+            last_updated=now_str,
+        ),
+        ReservoirRecord(
+            reservoir_id="HT-PIEMAN",
+            name="Lake Pieman (Mackintosh)",
+            scheme="Hydro Tasmania",
+            region="West Coast Tasmania",
+            state="TAS",
+            current_storage_gl=882.0,
+            full_supply_level_gl=1159.0,
+            dead_storage_gl=34.0,
+            percent_full=76.1,
+            usable_storage_gl=848.0,
+            usable_pct=72.0,
+            inflow_7d_gl=28.3,
+            outflow_7d_gl=22.1,
+            net_change_7d_gl=6.2,
+            energy_potential_gwh=980.0,
+            last_updated=now_str,
+        ),
+        ReservoirRecord(
+            reservoir_id="HT-PEDDER",
+            name="Lake Pedder",
+            scheme="Hydro Tasmania",
+            region="South West Tasmania",
+            state="TAS",
+            current_storage_gl=2730.0,
+            full_supply_level_gl=3520.0,
+            dead_storage_gl=280.0,
+            percent_full=77.6,
+            usable_storage_gl=2450.0,
+            usable_pct=74.2,
+            inflow_7d_gl=19.8,
+            outflow_7d_gl=16.4,
+            net_change_7d_gl=3.4,
+            energy_potential_gwh=2650.0,
+            last_updated=now_str,
+        ),
+        ReservoirRecord(
+            reservoir_id="HT-BASSLINK",
+            name="Basslink Storage (King)",
+            scheme="Hydro Tasmania",
+            region="Central Highlands",
+            state="TAS",
+            current_storage_gl=410.0,
+            full_supply_level_gl=615.0,
+            dead_storage_gl=15.0,
+            percent_full=66.7,
+            usable_storage_gl=395.0,
+            usable_pct=64.2,
+            inflow_7d_gl=11.0,
+            outflow_7d_gl=12.8,
+            net_change_7d_gl=-1.8,
+            energy_potential_gwh=410.0,
+            last_updated=now_str,
+        ),
+        # AGL — VIC
+        ReservoirRecord(
+            reservoir_id="AGL-EILDON",
+            name="Lake Eildon",
+            scheme="AGL Hydro",
+            region="Upper Goulburn",
+            state="VIC",
+            current_storage_gl=2143.0,
+            full_supply_level_gl=3334.0,
+            dead_storage_gl=163.0,
+            percent_full=64.3,
+            usable_storage_gl=1980.0,
+            usable_pct=60.5,
+            inflow_7d_gl=14.6,
+            outflow_7d_gl=16.2,
+            net_change_7d_gl=-1.6,
+            energy_potential_gwh=540.0,
+            last_updated=now_str,
+        ),
+        # QLD
+        ReservoirRecord(
+            reservoir_id="QLD-WIVENHOE",
+            name="Lake Wivenhoe",
+            scheme="CS Energy",
+            region="South East Queensland",
+            state="QLD",
+            current_storage_gl=775.0,
+            full_supply_level_gl=1165.0,
+            dead_storage_gl=35.0,
+            percent_full=66.5,
+            usable_storage_gl=740.0,
+            usable_pct=63.6,
+            inflow_7d_gl=8.4,
+            outflow_7d_gl=7.9,
+            net_change_7d_gl=0.5,
+            energy_potential_gwh=310.0,
+            last_updated=now_str,
+        ),
+    ]
+    return records
+
+
+def _make_inflow_forecasts() -> List[HydroInflowForecast]:
+    return [
+        # Snowy Hydro — 3 periods
+        HydroInflowForecast(
+            scheme="Snowy Hydro",
+            region="Snowy Mountains",
+            forecast_period="7-DAY",
+            inflow_gl=35.0,
+            vs_median_pct=92.0,
+            probability_exceedance_pct=55.0,
+            confidence="HIGH",
+            scenario="CURRENT_FORECAST",
+        ),
+        HydroInflowForecast(
+            scheme="Snowy Hydro",
+            region="Snowy Mountains",
+            forecast_period="30-DAY",
+            inflow_gl=148.0,
+            vs_median_pct=85.0,
+            probability_exceedance_pct=60.0,
+            confidence="MEDIUM",
+            scenario="DRY",
+        ),
+        HydroInflowForecast(
+            scheme="Snowy Hydro",
+            region="Snowy Mountains",
+            forecast_period="90-DAY",
+            inflow_gl=410.0,
+            vs_median_pct=94.0,
+            probability_exceedance_pct=52.0,
+            confidence="LOW",
+            scenario="CURRENT_FORECAST",
+        ),
+        # Hydro Tasmania — wet season
+        HydroInflowForecast(
+            scheme="Hydro Tasmania",
+            region="West Coast Tasmania",
+            forecast_period="7-DAY",
+            inflow_gl=110.0,
+            vs_median_pct=138.0,
+            probability_exceedance_pct=30.0,
+            confidence="HIGH",
+            scenario="WET",
+        ),
+        HydroInflowForecast(
+            scheme="Hydro Tasmania",
+            region="West Coast Tasmania",
+            forecast_period="30-DAY",
+            inflow_gl=420.0,
+            vs_median_pct=125.0,
+            probability_exceedance_pct=35.0,
+            confidence="MEDIUM",
+            scenario="WET",
+        ),
+        HydroInflowForecast(
+            scheme="Hydro Tasmania",
+            region="West Coast Tasmania",
+            forecast_period="90-DAY",
+            inflow_gl=1180.0,
+            vs_median_pct=115.0,
+            probability_exceedance_pct=38.0,
+            confidence="LOW",
+            scenario="WET",
+        ),
+        # Murray — slightly below median
+        HydroInflowForecast(
+            scheme="Snowy Hydro",
+            region="Murray-Tumut",
+            forecast_period="7-DAY",
+            inflow_gl=12.0,
+            vs_median_pct=88.0,
+            probability_exceedance_pct=58.0,
+            confidence="HIGH",
+            scenario="DRY",
+        ),
+        HydroInflowForecast(
+            scheme="Snowy Hydro",
+            region="Murray-Tumut",
+            forecast_period="30-DAY",
+            inflow_gl=46.0,
+            vs_median_pct=82.0,
+            probability_exceedance_pct=65.0,
+            confidence="MEDIUM",
+            scenario="DRY",
+        ),
+        HydroInflowForecast(
+            scheme="Snowy Hydro",
+            region="Murray-Tumut",
+            forecast_period="90-DAY",
+            inflow_gl=128.0,
+            vs_median_pct=90.0,
+            probability_exceedance_pct=55.0,
+            confidence="LOW",
+            scenario="CURRENT_FORECAST",
+        ),
+    ]
+
+
+def _make_water_value_curve() -> List[WaterValuePoint]:
+    """12 WaterValuePoints: storage pct vs $/ML shadow price.
+    At 20% storage ~$350/ML, 50% ~$120/ML, 80% ~$60/ML.
+    Drought/Average/Wet scenarios across seasons."""
+    base_storage = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
+    base_value   = [520.0, 350.0, 230.0, 165.0, 120.0, 90.0, 72.0, 60.0, 50.0, 42.0]
+    # 4 combos × 3 storage breakpoints = 12 points
+    combos = [
+        ("WINTER",  "DROUGHT", 2.2),
+        ("SPRING",  "AVERAGE", 1.3),
+        ("SUMMER",  "AVERAGE", 0.9),
+        ("AUTUMN",  "WET",     0.6),
+    ]
+    points: List[WaterValuePoint] = []
+    for i, (season, regime, multiplier) in enumerate(combos):
+        for j in range(3):
+            idx = min(i * 2 + j, len(base_storage) - 1)
+            points.append(WaterValuePoint(
+                usable_storage_pct=base_storage[idx],
+                water_value_aud_ml=round(base_value[idx] * multiplier, 1),
+                season=season,
+                regime=regime,
+            ))
+    return points
+
+
+def _make_hydro_schemes() -> List[HydroSchemeSummary]:
+    return [
+        HydroSchemeSummary(
+            scheme="Snowy Hydro",
+            region="NSW / VIC",
+            total_capacity_mw=4100.0,
+            total_storage_gl=72.0,
+            total_storage_pct=55.2,
+            avg_water_value_aud_ml=118.0,
+            num_stations=16,
+            annual_energy_twh=4.5,
+            critical_storage_threshold_pct=30.0,
+        ),
+        HydroSchemeSummary(
+            scheme="Hydro Tasmania",
+            region="TAS",
+            total_capacity_mw=2780.0,
+            total_storage_gl=28.0,
+            total_storage_pct=70.5,
+            avg_water_value_aud_ml=85.0,
+            num_stations=30,
+            annual_energy_twh=8.8,
+            critical_storage_threshold_pct=25.0,
+        ),
+        HydroSchemeSummary(
+            scheme="AGL Hydro",
+            region="VIC / NSW",
+            total_capacity_mw=370.0,
+            total_storage_gl=3.2,
+            total_storage_pct=61.5,
+            avg_water_value_aud_ml=145.0,
+            num_stations=4,
+            annual_energy_twh=0.9,
+            critical_storage_threshold_pct=35.0,
+        ),
+    ]
+
+
+def _make_hydro_dashboard() -> HydroDashboard:
+    reservoirs = _make_reservoirs()
+    inflow_forecasts = _make_inflow_forecasts()
+    water_value_curve = _make_water_value_curve()
+    schemes = _make_hydro_schemes()
+
+    total_usable = sum(r.usable_storage_gl for r in reservoirs)
+    weighted_pct = (
+        sum(r.usable_pct * r.usable_storage_gl for r in reservoirs) / total_usable
+        if total_usable > 0 else 0.0
+    )
+    critical_count = sum(1 for r in reservoirs if r.usable_pct < 30.0)
+
+    return HydroDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        total_nem_hydro_storage_pct=round(weighted_pct, 1),
+        vs_last_year_pct_pts=3.4,
+        critical_reservoirs=critical_count,
+        forecast_outlook="AVERAGE",
+        schemes=schemes,
+        reservoirs=reservoirs,
+        inflow_forecasts=inflow_forecasts,
+        water_value_curve=water_value_curve,
+    )
+
+
+# --- Endpoints ---------------------------------------------------------------
+
+@app.get(
+    "/api/hydro/dashboard",
+    response_model=HydroDashboard,
+    summary="Hydro Storage & Water Value Dashboard",
+    tags=["Hydro Storage"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hydro_dashboard():
+    """Aggregate NEM hydro storage dashboard — reservoir levels, inflow forecasts,
+    water value curves, and scheme summaries. Cached 3600 s."""
+    cached = _cache_get("hydro:dashboard")
+    if cached:
+        return cached
+    data = _make_hydro_dashboard()
+    _cache_set("hydro:dashboard", data, _TTL_HYDRO)
+    return data
+
+
+@app.get(
+    "/api/hydro/reservoirs",
+    response_model=List[ReservoirRecord],
+    summary="NEM hydro reservoir storage records",
+    tags=["Hydro Storage"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_hydro_reservoirs(scheme: Optional[str] = None, state: Optional[str] = None):
+    """Return reservoir storage records, optionally filtered by scheme or state.
+    Cached 3600 s."""
+    cache_key = f"hydro:reservoirs:{scheme}:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    reservoirs = _make_reservoirs()
+    if scheme:
+        reservoirs = [r for r in reservoirs if r.scheme == scheme]
+    if state:
+        reservoirs = [r for r in reservoirs if r.state == state]
+    _cache_set(cache_key, reservoirs, _TTL_HYDRO)
+    return reservoirs
+
+
+@app.get(
+    "/api/hydro/water-value",
+    response_model=List[WaterValuePoint],
+    summary="Hydro water value curve (shadow price vs storage)",
+    tags=["Hydro Storage"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_water_value_curve(season: Optional[str] = None, regime: Optional[str] = None):
+    """Return water value curve points ($/ML vs usable storage %), optionally
+    filtered by season or regime. Cached 3600 s."""
+    cache_key = f"hydro:water-value:{season}:{regime}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    points = _make_water_value_curve()
+    if season:
+        points = [p for p in points if p.season == season]
+    if regime:
+        points = [p for p in points if p.regime == regime]
+    _cache_set(cache_key, points, _TTL_HYDRO)
+    return points

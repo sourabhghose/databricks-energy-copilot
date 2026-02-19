@@ -32,6 +32,8 @@ import {
   Calendar,
   Gauge,
   FileText,
+  Droplets,
+  AlertTriangle,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -75,6 +77,9 @@ import FcasMarket from './pages/FcasMarket'
 import BatteryEconomics from './pages/BatteryEconomics'
 import NemSettlement from './pages/NemSettlement'
 import CarbonAnalytics from './pages/CarbonAnalytics'
+import HedgingAnalytics from './pages/HedgingAnalytics'
+import HydroStorage from './pages/HydroStorage'
+import MarketPower from './pages/MarketPower'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -118,6 +123,9 @@ const NAV_ITEMS = [
   { to: '/battery-econ',  label: 'Battery Economics', Icon: BatteryCharging },
   { to: '/settlement',    label: 'NEM Settlement',    Icon: FileText        },
   { to: '/carbon',        label: 'Carbon Analytics',  Icon: Leaf            },
+  { to: '/hedging',       label: 'OTC Hedging',        Icon: TrendingUp     },
+  { to: '/hydro',         label: 'Hydro Storage',      Icon: Droplets       },
+  { to: '/market-power',  label: 'Market Power',       Icon: AlertTriangle  },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -236,6 +244,9 @@ export default function App() {
               <Route path="/battery-econ" element={<BatteryEconomics />}  />
               <Route path="/settlement"   element={<NemSettlement />}      />
               <Route path="/carbon"       element={<CarbonAnalytics />}   />
+              <Route path="/hedging"      element={<HedgingAnalytics />}  />
+              <Route path="/hydro"        element={<HydroStorage />}       />
+              <Route path="/market-power" element={<MarketPower />}        />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

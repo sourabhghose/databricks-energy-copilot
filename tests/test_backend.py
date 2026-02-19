@@ -2037,3 +2037,107 @@ class TestCarbonAnalyticsEndpoints:
             assert 0 <= rec["emissions_intensity_kg_co2_mwh"] <= 1500
             pcts = rec["renewable_pct"] + rec["coal_pct"] + rec["gas_pct"]
             assert pcts <= 101  # allow rounding
+
+
+# ===========================================================================
+# Sprint 24c — Market Power & Concentration Analytics
+# ===========================================================================
+
+class TestMarketPowerEndpoints:
+    def test_market_power_dashboard_returns_200(self, client=client):
+        r = client.get("/api/market-power/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "hhi_records" in d
+        assert "pivotal_suppliers" in d
+        assert d["nem_overall_hhi"] > 0
+
+    def test_hhi_records_regions(self, client=client):
+        r = client.get("/api/market-power/hhi")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 5
+        for rec in records:
+            assert 0 <= rec["hhi_score"] <= 10000
+            assert rec["market_structure"] in ["COMPETITIVE", "MODERATELY_CONCENTRATED", "HIGHLY_CONCENTRATED"]
+
+    def test_pivotal_suppliers_list(self, client=client):
+        r = client.get("/api/market-power/pivotal")
+        assert r.status_code == 200
+        suppliers = r.json()
+        assert len(suppliers) >= 4
+        statuses = {s["pivotal_status"] for s in suppliers}
+        assert "PIVOTAL" in statuses
+
+    def test_pivotal_status_filter(self, client=client):
+        r = client.get("/api/market-power/pivotal?pivotal_status=PIVOTAL")
+        assert r.status_code == 200
+        for s in r.json():
+            assert s["pivotal_status"] == "PIVOTAL"
+
+
+class TestHedgingEndpoints:
+    def test_hedging_dashboard_returns_200(self, client=client):
+        r = client.get("/api/hedging/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "contracts" in d
+        assert "portfolio_by_region" in d
+        assert d["overall_hedge_ratio_pct"] > 0
+
+    def test_hedge_contracts_list(self, client=client):
+        r = client.get("/api/hedging/contracts")
+        assert r.status_code == 200
+        contracts = r.json()
+        assert len(contracts) >= 8
+        types = {c["contract_type"] for c in contracts}
+        assert "CAP" in types
+        assert "SWAP" in types
+
+    def test_hedge_contracts_type_filter(self, client=client):
+        r = client.get("/api/hedging/contracts?contract_type=CAP")
+        assert r.status_code == 200
+        for c in r.json():
+            assert c["contract_type"] == "CAP"
+
+    def test_hedge_portfolio_by_region(self, client=client):
+        r = client.get("/api/hedging/portfolio")
+        assert r.status_code == 200
+        portfolio = r.json()
+        assert len(portfolio) >= 3
+        for p in portfolio:
+            assert 0 <= p["hedge_ratio_pct"] <= 200
+
+
+class TestHydroStorageEndpoints:
+    def test_hydro_dashboard_returns_200(self, client=client):
+        r = client.get("/api/hydro/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "reservoirs" in d
+        assert "schemes" in d
+        assert "water_value_curve" in d
+        assert 0 <= d["total_nem_hydro_storage_pct"] <= 100
+
+    def test_hydro_reservoirs_list(self, client=client):
+        r = client.get("/api/hydro/reservoirs")
+        assert r.status_code == 200
+        reservoirs = r.json()
+        assert len(reservoirs) >= 6
+        for res in reservoirs:
+            assert 0 <= res["usable_pct"] <= 100
+
+    def test_hydro_reservoirs_scheme_filter(self, client=client):
+        r = client.get("/api/hydro/reservoirs?scheme=Hydro Tasmania")
+        assert r.status_code == 200
+        for res in r.json():
+            assert res["scheme"] == "Hydro Tasmania"
+
+    def test_water_value_curve_structure(self, client=client):
+        r = client.get("/api/hydro/water-value")
+        assert r.status_code == 200
+        points = r.json()
+        assert len(points) >= 8
+        for pt in points:
+            assert 0 <= pt["usable_storage_pct"] <= 100
+            assert pt["water_value_aud_ml"] > 0

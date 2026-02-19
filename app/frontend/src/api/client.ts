@@ -1516,6 +1516,30 @@ export interface Scope2Calculator { state: string; consumption_gwh: number; emis
 export interface CarbonDashboard { timestamp: string; nem_emissions_intensity_now: number; lowest_region: string; lowest_intensity: number; highest_region: string; highest_intensity: number; renewable_share_now_pct: number; vs_same_time_last_year_pct: number; annual_trajectory: EmissionsTrajectory[]; region_records: RegionEmissionsRecord[]; fuel_factors: FuelEmissionsFactor[]; scope2_by_state: Scope2Calculator[] }
 
 // ---------------------------------------------------------------------------
+// Sprint 24a — OTC Hedging interfaces
+// ---------------------------------------------------------------------------
+export interface HedgeContract { contract_id: string; contract_type: string; region: string; counterparty: string; start_date: string; end_date: string; strike_price: number; volume_mw: number; volume_mwh: number; premium_paid_aud: number; mtm_value_aud: number; pnl_aud: number; hedge_period: string; status: string; underlying: string }
+export interface HedgePortfolioSummary { region: string; total_hedged_mw: number; expected_generation_mw: number; hedge_ratio_pct: number; avg_swap_price: number; mtm_total_aud: number; unrealised_pnl_aud: number; var_95_aud: number; var_99_aud: number; cap_protection_pct: number; num_active_contracts: number }
+export interface HedgingDashboard { timestamp: string; total_portfolio_mtm_aud: number; total_unrealised_pnl_aud: number; portfolio_var_95_aud: number; weighted_avg_hedge_price: number; overall_hedge_ratio_pct: number; contracts: HedgeContract[]; portfolio_by_region: HedgePortfolioSummary[]; quarterly_position: Array<{quarter: string; hedged_mw: number; spot_ref: number; contract_price: number}> }
+
+// ---------------------------------------------------------------------------
+// Sprint 24b — Hydro Storage interfaces
+// ---------------------------------------------------------------------------
+export interface ReservoirRecord { reservoir_id: string; name: string; scheme: string; region: string; state: string; current_storage_gl: number; full_supply_level_gl: number; dead_storage_gl: number; percent_full: number; usable_storage_gl: number; usable_pct: number; inflow_7d_gl: number; outflow_7d_gl: number; net_change_7d_gl: number; energy_potential_gwh: number; last_updated: string }
+export interface HydroInflowForecast { scheme: string; region: string; forecast_period: string; inflow_gl: number; vs_median_pct: number; probability_exceedance_pct: number; confidence: string; scenario: string }
+export interface WaterValuePoint { usable_storage_pct: number; water_value_aud_ml: number; season: string; regime: string }
+export interface HydroSchemeSummary { scheme: string; region: string; total_capacity_mw: number; total_storage_gl: number; total_storage_pct: number; avg_water_value_aud_ml: number; num_stations: number; annual_energy_twh: number; critical_storage_threshold_pct: number }
+export interface HydroDashboard { timestamp: string; total_nem_hydro_storage_pct: number; vs_last_year_pct_pts: number; critical_reservoirs: number; forecast_outlook: string; schemes: HydroSchemeSummary[]; reservoirs: ReservoirRecord[]; inflow_forecasts: HydroInflowForecast[]; water_value_curve: WaterValuePoint[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 24c — Market Power & HHI interfaces
+// ---------------------------------------------------------------------------
+export interface HhiRecord { region: string; fuel_type: string | null; hhi_score: number; num_competitors: number; top3_share_pct: number; market_structure: string; trend_direction: string; change_vs_last_year: number }
+export interface PivotalSupplierRecord { participant_id: string; participant_name: string; region: string; pivotal_status: string; capacity_mw: number; residual_supply_index: number; occurrence_frequency_pct: number; strategic_capacity_mw: number; avg_rebids_per_day: number }
+export interface MarketShareTrend { participant_name: string; participant_type: string; year: number; quarter: string; generation_share_pct: number; retail_share_pct: number | null; capacity_mw: number }
+export interface MarketPowerDashboard { timestamp: string; nem_overall_hhi: number; sa1_hhi: number; concentration_trend: string; pivotal_suppliers_count: number; quasi_pivotal_count: number; market_review_status: string; hhi_records: HhiRecord[]; pivotal_suppliers: PivotalSupplierRecord[]; share_trends: MarketShareTrend[] }
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2535,6 +2559,74 @@ export const api = {
   getCarbonDashboard: () => get<CarbonDashboard>('/api/carbon/dashboard'),
   getCarbonRegions: () => get<RegionEmissionsRecord[]>('/api/carbon/regions'),
   getCarbonTrajectory: () => get<EmissionsTrajectory[]>('/api/carbon/trajectory'),
+
+  getHedgingDashboard: () => get<HedgingDashboard>('/api/hedging/dashboard'),
+
+  getHedgeContracts: async (params?: { region?: string; contract_type?: string; status?: string }): Promise<HedgeContract[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.contract_type) qs.append('contract_type', params.contract_type)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/hedging/contracts${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch hedge contracts')
+    return res.json()
+  },
+
+  getHedgePortfolio: async (params?: { region?: string }): Promise<HedgePortfolioSummary[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/hedging/portfolio${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch hedge portfolio')
+    return res.json()
+  },
+
+  // Sprint 24b — Hydro Storage & Water Value
+  getHydroDashboard: () => get<HydroDashboard>('/api/hydro/dashboard'),
+
+  getHydroReservoirs: async (params?: { scheme?: string; state?: string }): Promise<ReservoirRecord[]> => {
+    const qs = new URLSearchParams()
+    if (params?.scheme) qs.append('scheme', params.scheme)
+    if (params?.state) qs.append('state', params.state)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/hydro/reservoirs${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch hydro reservoirs')
+    return res.json()
+  },
+
+  getWaterValueCurve: async (params?: { season?: string; regime?: string }): Promise<WaterValuePoint[]> => {
+    const qs = new URLSearchParams()
+    if (params?.season) qs.append('season', params.season)
+    if (params?.regime) qs.append('regime', params.regime)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/hydro/water-value${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch water value curve')
+    return res.json()
+  },
+
+  // Sprint 24c — Market Power & Concentration Analytics
+  getMarketPowerDashboard: () => get<MarketPowerDashboard>('/api/market-power/dashboard'),
+
+  getHhiRecords: async (params?: { region?: string; fuel_type?: string }): Promise<HhiRecord[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.fuel_type) qs.append('fuel_type', params.fuel_type)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/market-power/hhi${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch HHI records')
+    return res.json()
+  },
+
+  getPivotalSuppliers: async (params?: { region?: string; pivotal_status?: string }): Promise<PivotalSupplierRecord[]> => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.pivotal_status) qs.append('pivotal_status', params.pivotal_status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/market-power/pivotal${query}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch pivotal suppliers')
+    return res.json()
+  },
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
