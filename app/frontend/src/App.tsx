@@ -9,8 +9,10 @@ import {
   Activity,
   ArrowRightLeft,
   BarChart2,
+  Battery,
   Moon,
   Sun,
+  Thermometer,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -24,6 +26,9 @@ import MarketDepth from './pages/MarketDepth'
 import PriceAnalysis from './pages/PriceAnalysis'
 import Interconnectors from './pages/Interconnectors'
 import GeneratorFleet from './pages/GeneratorFleet'
+import MarketNotices from './pages/MarketNotices'
+import WeatherDemand from './pages/WeatherDemand'
+import BessAnalytics from './pages/BessAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -38,6 +43,9 @@ const NAV_ITEMS = [
   { to: '/price-analysis',    label: 'Price Analysis', Icon: BarChart2       },
   { to: '/interconnectors',   label: 'Interconnectors', Icon: ArrowRightLeft },
   { to: '/generator-fleet',  label: 'Generator Fleet', Icon: Zap            },
+  { to: '/market-notices',   label: 'Market Notices',   Icon: Bell           },
+  { to: '/weather-demand',   label: 'Weather & Demand', Icon: Thermometer    },
+  { to: '/bess',             label: 'Battery Storage',  Icon: Battery        },
 ]
 
 function Sidebar() {
@@ -126,6 +134,9 @@ export default function App() {
               <Route path="/price-analysis"    element={<PriceAnalysis />}    />
               <Route path="/interconnectors"   element={<Interconnectors />}  />
               <Route path="/generator-fleet"  element={<GeneratorFleet />}   />
+              <Route path="/market-notices"   element={<MarketNotices />}    />
+              <Route path="/weather-demand"   element={<WeatherDemand />}    />
+              <Route path="/bess"             element={<BessAnalytics />}    />
             </Routes>
           </main>
         </div>

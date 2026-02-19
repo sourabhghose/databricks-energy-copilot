@@ -267,9 +267,113 @@ export interface GenerationSummary {
   fuel_mix: GenerationMixRecord[]
 }
 
+export interface MarketNotice {
+  notice_id: string
+  notice_type: string
+  creation_date: string
+  external_reference: string
+  reason: string
+  regions_affected: string[]
+  severity: string
+  resolved: boolean
+}
+
+export interface DispatchInterval {
+  interval_datetime: string
+  region: string
+  rrp: number
+  predispatch_rrp: number
+  rrp_deviation: number
+  totaldemand: number
+  dispatchablegeneration: number
+  net_interchange: number
+  lower_reg_mw: number
+  raise_reg_mw: number
+}
+
+export interface DispatchSummary {
+  region: string
+  intervals: DispatchInterval[]
+  mean_deviation: number
+  max_surprise: number
+  surprise_intervals: number
+}
+
+export interface WeatherDemandPoint {
+  timestamp: string
+  region: string
+  temperature_c: number
+  apparent_temp_c: number
+  demand_mw: number
+  demand_baseline_mw: number
+  demand_deviation_mw: number
+  wind_speed_kmh: number
+  solar_irradiance_wm2: number
+}
+
+export interface DemandResponseEvent {
+  event_id: string
+  program_name: string
+  region: string
+  activation_time: string
+  duration_minutes: number
+  mw_reduction: number
+  participants: number
+  status: string
+  trigger_reason: string
+}
+
+export interface DemandResponseSummary {
+  timestamp: string
+  active_programs: number
+  total_enrolled_mw: number
+  total_activated_mw_today: number
+  events_today: number
+  events: DemandResponseEvent[]
+  region_summaries: Record<string, number>
+}
+
+export interface BessUnit {
+  duid: string
+  station_name: string
+  region: string
+  capacity_mwh: number
+  power_mw: number
+  soc_pct: number
+  mode: string
+  current_mw: number
+  cycles_today: number
+  revenue_today_aud: number
+  efficiency_pct: number
+}
+
+export interface BessDispatchInterval {
+  interval_datetime: string
+  duid: string
+  mw: number
+  soc_pct: number
+  rrp_at_dispatch: number
+  revenue_aud: number
+}
+
+export interface BessFleetSummary {
+  timestamp: string
+  total_capacity_mwh: number
+  total_power_mw: number
+  units_discharging: number
+  units_charging: number
+  units_idle: number
+  fleet_avg_soc_pct: number
+  fleet_revenue_today_aud: number
+  units: BessUnit[]
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+const BASE_URL = ''
+const headers = { Accept: 'application/json' }
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, {
@@ -606,6 +710,74 @@ export const api = {
    */
   getGenerationMix(region = 'NSW1'): Promise<GenerationSummary> {
     return get<GenerationSummary>(`/api/generation/mix?region=${region}`)
+  },
+
+  /**
+   * Get AEMO market notices (LOR, constraint binding, reclassification, price limit, general).
+   * @param severity    Optional filter: "INFO" | "WARNING" | "CRITICAL"
+   * @param noticeType  Optional filter: "LOR" | "CONSTRAINT" | "RECLASSIFICATION" | "PRICE_LIMIT" | "GENERAL"
+   * @param limit       Maximum number of notices to return (default 20)
+   */
+  getMarketNotices: async (severity?: string, noticeType?: string, limit = 20): Promise<MarketNotice[]> => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (severity) params.set('severity', severity)
+    if (noticeType) params.set('notice_type', noticeType)
+    const res = await fetch(`/api/market/notices?${params}`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) throw new Error('Failed to fetch market notices')
+    return res.json()
+  },
+
+  /**
+   * Get 5-minute dispatch interval analysis with actual RRP vs pre-dispatch forecast.
+   * @param region  NEM region code (default: NSW1)
+   * @param count   Number of 5-minute intervals (default 12 = 1 hour)
+   */
+  getDispatchIntervals: async (region = 'NSW1', count = 12): Promise<DispatchSummary> => {
+    const res = await fetch(`/api/dispatch/intervals?region=${region}&count=${count}`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) throw new Error('Failed to fetch dispatch intervals')
+    return res.json()
+  },
+
+  /**
+   * Get hourly temperature and electricity demand data for a region.
+   * @param region  NEM region code (default: NSW1)
+   * @param hours   Number of hours of history (default: 24)
+   */
+  getWeatherDemand: async (region = 'NSW1', hours = 24): Promise<WeatherDemandPoint[]> => {
+    const res = await fetch(`${BASE_URL}/api/weather/demand?region=${region}&hours=${hours}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch weather demand data')
+    return res.json()
+  },
+
+  /**
+   * Get demand response program summary and event list.
+   * @param region  Optional NEM region filter (omit for all regions)
+   */
+  getDemandResponse: async (region?: string): Promise<DemandResponseSummary> => {
+    const params = region ? `?region=${region}` : ''
+    const res = await fetch(`${BASE_URL}/api/demand/response${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch demand response data')
+    return res.json()
+  },
+
+  /**
+   * Get BESS fleet summary with SOC, mode, and revenue for all NEM battery units.
+   */
+  getBessFleet: async (): Promise<BessFleetSummary> => {
+    const res = await fetch(`${BASE_URL}/api/bess/fleet`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch BESS fleet')
+    return res.json()
+  },
+
+  /**
+   * Get BESS dispatch history (charge/discharge intervals) for a single unit.
+   * @param duid   BESS unit DUID
+   * @param count  Number of 5-min intervals to return (default 24 = 2 hours)
+   */
+  getBessDispatch: async (duid: string, count = 24): Promise<BessDispatchInterval[]> => {
+    const res = await fetch(`${BASE_URL}/api/bess/dispatch?duid=${encodeURIComponent(duid)}&count=${count}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch BESS dispatch')
+    return res.json()
   },
 }
 

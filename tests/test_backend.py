@@ -727,3 +727,138 @@ class TestGenerationEndpoints:
         assert r.status_code == 200
         for unit in r.json():
             assert 0 <= unit["capacity_factor"] <= 1
+
+
+# ===========================================================================
+# TestMarketNoticesEndpoints
+# ===========================================================================
+
+class TestMarketNoticesEndpoints:
+    """Tests for the GET /api/market/notices and GET /api/dispatch/intervals endpoints."""
+
+    def test_market_notices_list(self, client=client):
+        """GET /api/market/notices returns 200 with a non-empty list of notice objects.
+
+        Each notice must contain at minimum the required fields: notice_id and severity.
+        The endpoint returns mock data covering LOR1/2/3, constraint, reclassification,
+        price limit, and general notice types.
+        """
+        r = client.get("/api/market/notices")
+        assert r.status_code == 200
+        notices = r.json()
+        assert isinstance(notices, list)
+        assert len(notices) > 0
+        assert "notice_id" in notices[0]
+        assert "severity" in notices[0]
+
+    def test_market_notices_severity_filter(self, client=client):
+        """GET /api/market/notices?severity=CRITICAL returns only CRITICAL notices.
+
+        When a severity query parameter is provided, every notice in the response
+        must have the matching severity value.
+        """
+        r = client.get("/api/market/notices?severity=CRITICAL")
+        assert r.status_code == 200
+        for n in r.json():
+            assert n["severity"] == "CRITICAL"
+
+    def test_dispatch_intervals_structure(self, client=client):
+        """GET /api/dispatch/intervals?region=VIC1&count=6 returns correct structure.
+
+        The response must include the region field, exactly 6 interval records,
+        and the mean_deviation summary field. For every interval, rrp_deviation
+        must equal rrp - predispatch_rrp within floating-point tolerance.
+        """
+        r = client.get("/api/dispatch/intervals?region=VIC1&count=6")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["region"] == "VIC1"
+        assert len(data["intervals"]) == 6
+        assert "mean_deviation" in data
+        for iv in data["intervals"]:
+            # rrp_deviation should equal rrp - predispatch_rrp
+            assert abs(iv["rrp_deviation"] - (iv["rrp"] - iv["predispatch_rrp"])) < 0.01
+
+
+# ===========================================================================
+# TestWeatherDemandEndpoints
+# ===========================================================================
+
+class TestWeatherDemandEndpoints:
+    """Tests for GET /api/weather/demand and GET /api/demand/response endpoints."""
+
+    def test_weather_demand_series(self, client=client):
+        r = client.get("/api/weather/demand?region=NSW1&hours=12")
+        assert r.status_code == 200
+        data = r.json()
+        assert isinstance(data, list)
+        assert len(data) == 12
+        for pt in data:
+            assert "temperature_c" in pt
+            assert "demand_mw" in pt
+            assert abs(pt["demand_deviation_mw"] - (pt["demand_mw"] - pt["demand_baseline_mw"])) < 0.1
+
+    def test_demand_response_summary(self, client=client):
+        r = client.get("/api/demand/response")
+        assert r.status_code == 200
+        data = r.json()
+        assert "events" in data
+        assert data["total_enrolled_mw"] > 0
+        assert isinstance(data["events"], list)
+
+    def test_weather_temperature_range(self, client=client):
+        for region in ["NSW1", "TAS1", "SA1"]:
+            r = client.get(f"/api/weather/demand?region={region}&hours=24")
+            assert r.status_code == 200
+            temps = [pt["temperature_c"] for pt in r.json()]
+            # All NEM regions have temperatures between -5 and 50°C
+            assert all(-5 <= t <= 50 for t in temps)
+
+
+# ===========================================================================
+# TestBessEndpoints
+# ===========================================================================
+
+class TestBessEndpoints:
+    """Tests for GET /api/bess/fleet and GET /api/bess/dispatch endpoints."""
+
+    def test_bess_fleet_structure(self, client=client):
+        """GET /api/bess/fleet returns 200 with BessFleetSummary containing >= 8 units.
+
+        The response must have the 'units' list with at least 8 NEM BESS units,
+        fleet_avg_soc_pct, and each unit must pass SOC/mode validation.
+        """
+        r = client.get("/api/bess/fleet")
+        assert r.status_code == 200
+        data = r.json()
+        assert "units" in data
+        assert len(data["units"]) >= 8
+        assert "fleet_avg_soc_pct" in data
+        for unit in data["units"]:
+            assert 0 <= unit["soc_pct"] <= 100
+            assert unit["mode"] in ("charging", "discharging", "idle", "standby")
+
+    def test_bess_dispatch_history(self, client=client):
+        """GET /api/bess/dispatch returns exactly count intervals for a given DUID.
+
+        Fetches the first DUID from the fleet, then requests exactly 12 intervals.
+        Each interval must contain the rrp_at_dispatch field.
+        """
+        fleet = client.get("/api/bess/fleet").json()
+        duid = fleet["units"][0]["duid"]
+        r = client.get(f"/api/bess/dispatch?duid={duid}&count=12")
+        assert r.status_code == 200
+        intervals = r.json()
+        assert len(intervals) == 12
+        assert all("rrp_at_dispatch" in iv for iv in intervals)
+
+    def test_bess_soc_range(self, client=client):
+        """All BESS units have soc_pct in [0, 100] and efficiency_pct >= 80.
+
+        Validates the fleet data quality constraints: SOC cannot exceed battery
+        capacity and round-trip efficiency for any NEM BESS must be at least 80%.
+        """
+        fleet = client.get("/api/bess/fleet").json()
+        for unit in fleet["units"]:
+            assert 0 <= unit["soc_pct"] <= 100
+            assert unit["efficiency_pct"] >= 80

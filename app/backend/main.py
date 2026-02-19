@@ -2791,3 +2791,897 @@ def get_version():
         "databricks_catalog": DATABRICKS_CATALOG,
         "rate_limit_requests_per_minute": RATE_LIMIT_REQUESTS,
     }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 14a — Market Notices & Dispatch Interval Analysis
+# ---------------------------------------------------------------------------
+
+class MarketNotice(BaseModel):
+    notice_id: str
+    notice_type: str     # "CONSTRAINT", "MARKET_SUSPENSION", "RECLASSIFICATION", "LOR", "PRICE_LIMIT", "GENERAL"
+    creation_date: str
+    external_reference: str
+    reason: str
+    regions_affected: List[str]
+    severity: str        # "INFO", "WARNING", "CRITICAL"
+    resolved: bool
+
+
+class DispatchInterval(BaseModel):
+    interval_datetime: str
+    region: str
+    rrp: float
+    predispatch_rrp: float
+    rrp_deviation: float
+    totaldemand: float
+    dispatchablegeneration: float
+    net_interchange: float
+    lower_reg_mw: float
+    raise_reg_mw: float
+
+
+class DispatchSummary(BaseModel):
+    region: str
+    intervals: List[DispatchInterval]
+    mean_deviation: float
+    max_surprise: float
+    surprise_intervals: int
+
+
+# --- Mock data for market notices ---
+
+_MOCK_MARKET_NOTICES: List[Dict[str, Any]] = [
+    {
+        "notice_id": "LOR3-SA1-20260219-001",
+        "notice_type": "LOR",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=12)).isoformat(),
+        "external_reference": "LOR3/SA1/2026/001",
+        "reason": "LOR3 declared for SA1 — reserve below 750 MW following unplanned outage of Pelican Point unit 2. Lack of Reserve Level 3 condition exists.",
+        "regions_affected": ["SA1"],
+        "severity": "CRITICAL",
+        "resolved": False,
+    },
+    {
+        "notice_id": "LOR2-NSW1-20260219-002",
+        "notice_type": "LOR",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=35)).isoformat(),
+        "external_reference": "LOR2/NSW1/2026/002",
+        "reason": "LOR2 declared for NSW1 — reserve margin below 1200 MW. Vales Point B unit 5 on forced outage. Generators requested to increase output.",
+        "regions_affected": ["NSW1"],
+        "severity": "CRITICAL",
+        "resolved": False,
+    },
+    {
+        "notice_id": "LOR1-VIC1-20260219-003",
+        "notice_type": "LOR",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=58)).isoformat(),
+        "external_reference": "LOR1/VIC1/2026/003",
+        "reason": "LOR1 declared for VIC1 — reserve margin approaching 1500 MW threshold. Load forecast for evening peak elevated.",
+        "regions_affected": ["VIC1"],
+        "severity": "WARNING",
+        "resolved": True,
+    },
+    {
+        "notice_id": "CON-NSW1-VIC1-20260219-004",
+        "notice_type": "CONSTRAINT",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=75)).isoformat(),
+        "external_reference": "N>>V1_TL_700",
+        "reason": "Constraint N>>V1_TL_700 binding — thermal limit on the NSW1-VIC1 500kV transmission corridor. Interconnector flow limited to 700 MW.",
+        "regions_affected": ["NSW1", "VIC1"],
+        "severity": "WARNING",
+        "resolved": False,
+    },
+    {
+        "notice_id": "CON-QLD1-20260219-005",
+        "notice_type": "CONSTRAINT",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=92)).isoformat(),
+        "external_reference": "Q>>NSW_HVDC_LINK",
+        "reason": "Northward flow on QLD1-NSW1 interconnector constrained due to voltage stability limit. Maximum export reduced to 950 MW.",
+        "regions_affected": ["QLD1", "NSW1"],
+        "severity": "WARNING",
+        "resolved": True,
+    },
+    {
+        "notice_id": "RECLASSIFY-VIC1-20260219-006",
+        "notice_type": "RECLASSIFICATION",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=110)).isoformat(),
+        "external_reference": "RECLASSIFY/VIC/LOLP/2026/006",
+        "reason": "Basslink HVDC cable reclassified from non-credible to credible contingency following commissioning inspection. TAS1 import limit adjusted.",
+        "regions_affected": ["VIC1", "TAS1"],
+        "severity": "WARNING",
+        "resolved": False,
+    },
+    {
+        "notice_id": "RECLASSIFY-SA1-20260219-007",
+        "notice_type": "RECLASSIFICATION",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=145)).isoformat(),
+        "external_reference": "RECLASSIFY/SA/HEYWOOD/2026/007",
+        "reason": "Heywood interconnector transformer reclassified as credible contingency. SA1 islanding constraints updated in dispatch.",
+        "regions_affected": ["SA1", "VIC1"],
+        "severity": "INFO",
+        "resolved": True,
+    },
+    {
+        "notice_id": "PRICE-LIMIT-NEM-20260219-008",
+        "notice_type": "PRICE_LIMIT",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=180)).isoformat(),
+        "external_reference": "CPT/NEM/2026/008",
+        "reason": "Cumulative Price Threshold (CPT) utilisation at 74% in SA1 over the 7-day rolling window. Market Price Cap approaches. Administered price protection may be triggered.",
+        "regions_affected": ["SA1"],
+        "severity": "CRITICAL",
+        "resolved": False,
+    },
+    {
+        "notice_id": "PRICE-LIMIT-QLD1-20260219-009",
+        "notice_type": "PRICE_LIMIT",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=210)).isoformat(),
+        "external_reference": "APC/QLD/2026/009",
+        "reason": "Administered Price Cap (APC) triggered for QLD1 following 30-minute sustained spot price above $5000/MWh. APC price of $300/MWh applies.",
+        "regions_affected": ["QLD1"],
+        "severity": "CRITICAL",
+        "resolved": True,
+    },
+    {
+        "notice_id": "LOR1-SA1-20260219-010",
+        "notice_type": "LOR",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=240)).isoformat(),
+        "external_reference": "LOR1/SA1/2026/010",
+        "reason": "LOR1 declared for SA1 — wind generation down 400 MW due to lower-than-forecast wind speed. Reserve margins reduced.",
+        "regions_affected": ["SA1"],
+        "severity": "WARNING",
+        "resolved": True,
+    },
+    {
+        "notice_id": "GEN-NEM-20260219-011",
+        "notice_type": "GENERAL",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=300)).isoformat(),
+        "external_reference": "NEMWEB/GEN/2026/011",
+        "reason": "AEMO NEMWEB data publication delayed by 3 minutes due to upstream data feed latency. All affected intervals will be republished.",
+        "regions_affected": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"],
+        "severity": "INFO",
+        "resolved": True,
+    },
+    {
+        "notice_id": "GEN-NEM-20260219-012",
+        "notice_type": "GENERAL",
+        "creation_date": (datetime.now(timezone.utc) - timedelta(minutes=360)).isoformat(),
+        "external_reference": "NEMWEB/GEN/2026/012",
+        "reason": "Planned maintenance on AEMO's Market Management System scheduled for 02:00–04:00 AEST. NEMWEB publications may be delayed during this window.",
+        "regions_affected": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"],
+        "severity": "INFO",
+        "resolved": True,
+    },
+]
+
+_TTL_MARKET_NOTICES = 60   # seconds
+_TTL_DISPATCH_INTERVALS = 30  # seconds
+
+
+@app.get(
+    "/api/market/notices",
+    response_model=List[MarketNotice],
+    summary="AEMO market notices",
+    tags=["Market Data"],
+    response_description="List of AEMO market notices ordered by most recent first",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_notices(
+    severity: Optional[str] = Query(None, description="Filter by severity: INFO, WARNING, CRITICAL"),
+    notice_type: Optional[str] = Query(None, description="Filter by type: CONSTRAINT, LOR, RECLASSIFICATION, PRICE_LIMIT, GENERAL"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of notices to return"),
+) -> List[Dict[str, Any]]:
+    """Return AEMO market notices sorted by most recent first, with optional severity and type filters."""
+    cache_key = f"market_notices:{severity}:{notice_type}:{limit}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    notices = list(_MOCK_MARKET_NOTICES)
+
+    if severity:
+        notices = [n for n in notices if n["severity"] == severity.upper()]
+    if notice_type:
+        notices = [n for n in notices if n["notice_type"] == notice_type.upper()]
+
+    result = notices[:limit]
+    _cache_set(cache_key, result, _TTL_MARKET_NOTICES)
+    return result
+
+
+# --- Mock base prices per region for dispatch intervals ---
+
+_DISPATCH_BASE_RRP: Dict[str, float] = {
+    "NSW1": 85.0,
+    "QLD1": 78.0,
+    "VIC1": 92.0,
+    "SA1": 110.0,
+    "TAS1": 71.0,
+}
+
+_DISPATCH_BASE_DEMAND: Dict[str, float] = {
+    "NSW1": 8500.0,
+    "QLD1": 6200.0,
+    "VIC1": 5800.0,
+    "SA1": 1450.0,
+    "TAS1": 1050.0,
+}
+
+
+@app.get(
+    "/api/dispatch/intervals",
+    response_model=DispatchSummary,
+    summary="5-minute dispatch interval analysis",
+    tags=["Market Data"],
+    response_description="Dispatch RRP vs pre-dispatch forecast with deviation analysis",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dispatch_intervals(
+    region: str = Query("NSW1", description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    count: int = Query(12, ge=1, le=288, description="Number of 5-minute intervals to return"),
+) -> Dict[str, Any]:
+    """
+    Return 5-minute dispatch intervals with actual RRP vs pre-dispatch forecast.
+    rrp_deviation = rrp - predispatch_rrp measures forecast surprise.
+    Surprise threshold: abs(deviation) > $50/MWh.
+    """
+    cache_key = f"dispatch_intervals:{region}:{count}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    import random
+    rng = random.Random(int(time.monotonic() * 10))  # near-deterministic within a 100ms window
+
+    base_rrp = _DISPATCH_BASE_RRP.get(region, 85.0)
+    base_demand = _DISPATCH_BASE_DEMAND.get(region, 7000.0)
+
+    now = datetime.now(timezone.utc)
+    # Snap to the most recent 5-minute boundary
+    minutes_past = now.minute % 5
+    latest_interval = now - timedelta(minutes=minutes_past, seconds=now.second, microseconds=now.microsecond)
+
+    intervals = []
+    for i in range(count - 1, -1, -1):
+        interval_dt = latest_interval - timedelta(minutes=5 * i)
+
+        # Simulate realistic 5-min dispatch RRP with time-of-day variation
+        hour = interval_dt.hour
+        # Morning peak ~07:00–09:00, evening peak ~17:00–20:00 (UTC+10 ≈ UTC hours)
+        tod_factor = 1.0
+        if 21 <= hour or hour <= 1:   # Evening peak (AEST 07:00–11:00)
+            tod_factor = 1.3
+        elif 7 <= hour <= 9:           # Evening peak (AEST 17:00–19:00)
+            tod_factor = 1.25
+        rrp = max(-50.0, base_rrp * tod_factor + rng.gauss(0, base_rrp * 0.15))
+
+        # Pre-dispatch RRP is the forecast made ~30 minutes earlier — noisy
+        # It is correlated but can deviate significantly around peaks
+        predispatch_noise = rng.gauss(0, base_rrp * 0.22)
+        # Occasionally create a larger surprise (spikes are hard to forecast)
+        if rng.random() < 0.12:
+            predispatch_noise += rng.choice([-1, 1]) * rng.uniform(60, 180)
+        predispatch_rrp = max(-50.0, rrp - predispatch_noise)
+
+        deviation = round(rrp - predispatch_rrp, 2)
+
+        demand = base_demand * tod_factor + rng.gauss(0, base_demand * 0.03)
+        gen = demand + rng.gauss(0, 50)
+        net_interchange = round(rng.gauss(0, 200), 1)
+
+        intervals.append({
+            "interval_datetime": interval_dt.isoformat(),
+            "region": region,
+            "rrp": round(rrp, 2),
+            "predispatch_rrp": round(predispatch_rrp, 2),
+            "rrp_deviation": deviation,
+            "totaldemand": round(demand, 1),
+            "dispatchablegeneration": round(gen, 1),
+            "net_interchange": net_interchange,
+            "lower_reg_mw": round(abs(rng.gauss(80, 20)), 1),
+            "raise_reg_mw": round(abs(rng.gauss(90, 20)), 1),
+        })
+
+    deviations = [abs(iv["rrp_deviation"]) for iv in intervals]
+    mean_deviation = round(sum(deviations) / len(deviations), 2) if deviations else 0.0
+    max_surprise = round(max(deviations), 2) if deviations else 0.0
+    surprise_intervals = sum(1 for d in deviations if d > 50.0)
+
+    result: Dict[str, Any] = {
+        "region": region,
+        "intervals": intervals,
+        "mean_deviation": mean_deviation,
+        "max_surprise": max_surprise,
+        "surprise_intervals": surprise_intervals,
+    }
+    _cache_set(cache_key, result, _TTL_DISPATCH_INTERVALS)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 14c — Weather Correlation & Demand Response Analytics
+# ---------------------------------------------------------------------------
+
+class WeatherDemandPoint(BaseModel):
+    timestamp: str
+    region: str
+    temperature_c: float
+    apparent_temp_c: float       # feels-like temperature
+    demand_mw: float
+    demand_baseline_mw: float    # long-run average for this hour
+    demand_deviation_mw: float   # demand - baseline
+    wind_speed_kmh: float
+    solar_irradiance_wm2: float  # relevant for solar output
+
+
+class DemandResponseEvent(BaseModel):
+    event_id: str
+    program_name: str      # e.g. "RERT", "Interruptible Load", "EV Fleet Response"
+    region: str
+    activation_time: str
+    duration_minutes: int
+    mw_reduction: float
+    participants: int
+    status: str            # "active", "completed", "cancelled"
+    trigger_reason: str    # e.g. "LOR2", "High Price", "Grid Emergency"
+
+
+class DemandResponseSummary(BaseModel):
+    timestamp: str
+    active_programs: int
+    total_enrolled_mw: float
+    total_activated_mw_today: float
+    events_today: int
+    events: List[DemandResponseEvent]
+    region_summaries: Dict[str, float]  # region → activated MW today
+
+
+# --- Temperature baseline configs per region ---
+
+_WEATHER_CONFIGS: Dict[str, Dict[str, Any]] = {
+    "NSW1":  {"base_temp": 26.0, "temp_range": 6.0,  "base_demand": 8500.0,  "solar_peak": 650.0},
+    "QLD1":  {"base_temp": 27.0, "temp_range": 5.0,  "base_demand": 6200.0,  "solar_peak": 750.0},
+    "VIC1":  {"base_temp": 22.0, "temp_range": 6.5,  "base_demand": 5800.0,  "solar_peak": 550.0},
+    "SA1":   {"base_temp": 27.0, "temp_range": 8.5,  "base_demand": 1450.0,  "solar_peak": 700.0},
+    "TAS1":  {"base_temp": 17.0, "temp_range": 5.0,  "base_demand": 1050.0,  "solar_peak": 400.0},
+}
+
+
+@app.get(
+    "/api/weather/demand",
+    response_model=List[WeatherDemandPoint],
+    summary="Weather and demand correlation data",
+    tags=["Market Data"],
+    response_description="Hourly temperature and electricity demand data for the requested region and time window",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_weather_demand(
+    region: str = Query("NSW1", description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    hours: int = Query(24, ge=1, le=168, description="Number of hours of history to return"),
+) -> List[Dict[str, Any]]:
+    """
+    Return hourly weather and electricity demand data going back `hours` hours.
+
+    Temperature follows a realistic diurnal pattern (trough ~5am, peak ~3pm).
+    Demand correlates with temperature deviation from the 18°C comfort zone:
+    both very hot (AC load) and very cold (heating load) raise demand above baseline.
+    Solar irradiance is a smooth daytime bell-curve, zero at night.
+    Cached for 5 minutes (weather data is stable within a 5-min window).
+    """
+    import math as _math
+
+    cache_key = f"weather_demand:{region}:{hours}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    cfg = _WEATHER_CONFIGS.get(region, _WEATHER_CONFIGS["NSW1"])
+    base_temp: float = cfg["base_temp"]
+    temp_range: float = cfg["temp_range"]
+    base_demand: float = cfg["base_demand"]
+    solar_peak: float = cfg["solar_peak"]
+
+    now = datetime.now(timezone.utc)
+    # Snap to the most recent whole hour
+    latest_hour = now.replace(minute=0, second=0, microsecond=0)
+
+    result = []
+    for i in range(hours - 1, -1, -1):
+        point_dt = latest_hour - timedelta(hours=i)
+        # AEST offset (+10 hours) for local time-of-day calculation
+        local_hour = (point_dt.hour + 10) % 24
+
+        # Diurnal temperature: trough at 05:00 local, peak at 15:00 local
+        # Use cosine: phase offset so minimum at 5am (hour 5)
+        # temp(h) = base_temp + temp_range * cos(2π(h-15)/24) gives peak at 15:00
+        phase_rad = 2.0 * _math.pi * (local_hour - 15) / 24.0
+        temperature_c = round(base_temp + temp_range * _math.cos(phase_rad), 1)
+
+        # Apparent (feels-like) temperature: slightly warmer mid-afternoon (heat index),
+        # slightly cooler at night (wind chill proxy)
+        wind_factor = 0.5 if 6 <= local_hour <= 20 else -0.8
+        apparent_temp_c = round(temperature_c + wind_factor + (temperature_c - base_temp) * 0.15, 1)
+
+        # Wind speed: higher overnight / morning, calmer mid-afternoon
+        wind_phase = 2.0 * _math.pi * (local_hour - 6) / 24.0
+        wind_speed_kmh = round(18.0 + 12.0 * _math.cos(wind_phase), 1)
+
+        # Solar irradiance: Gaussian bell-curve centred at 12:00, zero at night
+        if 6 <= local_hour <= 18:
+            solar_phase = (local_hour - 12.0) / 4.0  # std ≈ 4h
+            solar_irradiance_wm2 = round(solar_peak * _math.exp(-0.5 * solar_phase ** 2), 1)
+        else:
+            solar_irradiance_wm2 = 0.0
+
+        # Demand baseline: long-run average for this hour with mild diurnal shape
+        # Morning peak ~08:00, evening peak ~18:00
+        morning_peak = _math.exp(-0.5 * ((local_hour - 8.0) / 2.5) ** 2)
+        evening_peak = _math.exp(-0.5 * ((local_hour - 18.0) / 2.5) ** 2)
+        hour_factor = 0.85 + 0.20 * max(morning_peak, evening_peak)
+        demand_baseline_mw = round(base_demand * hour_factor, 1)
+
+        # Temperature effect on demand:
+        # Comfort zone ~18°C. Both above and below increase demand.
+        # Cooling dominated above 22°C (AC load), heating dominated below 15°C.
+        comfort_temp = 18.0
+        temp_deviation = temperature_c - comfort_temp
+        if temp_deviation > 0:
+            # Hot: AC load boost — strong above 26°C
+            temp_effect = 0.012 * temp_deviation ** 1.5
+        else:
+            # Cold: heating load boost
+            temp_effect = 0.008 * abs(temp_deviation) ** 1.3
+        demand_mw = round(demand_baseline_mw * (1.0 + temp_effect), 1)
+        demand_deviation_mw = round(demand_mw - demand_baseline_mw, 1)
+
+        result.append({
+            "timestamp": point_dt.isoformat(),
+            "region": region,
+            "temperature_c": temperature_c,
+            "apparent_temp_c": apparent_temp_c,
+            "demand_mw": demand_mw,
+            "demand_baseline_mw": demand_baseline_mw,
+            "demand_deviation_mw": demand_deviation_mw,
+            "wind_speed_kmh": wind_speed_kmh,
+            "solar_irradiance_wm2": solar_irradiance_wm2,
+        })
+
+    _cache_set(cache_key, result, 300)  # 5 minutes — weather data is stable
+    return result
+
+
+# --- Mock Demand Response events ---
+
+_MOCK_DR_EVENTS: List[Dict[str, Any]] = [
+    {
+        "event_id": "DR-RERT-NSW1-001",
+        "program_name": "RERT",
+        "region": "NSW1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+        "duration_minutes": 120,
+        "mw_reduction": 320.0,
+        "participants": 4,
+        "status": "active",
+        "trigger_reason": "LOR2",
+    },
+    {
+        "event_id": "DR-IL-SA1-001",
+        "program_name": "Interruptible Load",
+        "region": "SA1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)).isoformat(),
+        "duration_minutes": 60,
+        "mw_reduction": 85.0,
+        "participants": 12,
+        "status": "completed",
+        "trigger_reason": "High Price",
+    },
+    {
+        "event_id": "DR-EV-VIC1-001",
+        "program_name": "EV Fleet Response",
+        "region": "VIC1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+        "duration_minutes": 90,
+        "mw_reduction": 45.0,
+        "participants": 1850,
+        "status": "active",
+        "trigger_reason": "Grid Emergency",
+    },
+    {
+        "event_id": "DR-AGG-QLD1-001",
+        "program_name": "Demand Aggregator",
+        "region": "QLD1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat(),
+        "duration_minutes": 30,
+        "mw_reduction": 110.0,
+        "participants": 38,
+        "status": "completed",
+        "trigger_reason": "High Price",
+    },
+    {
+        "event_id": "DR-IL-VIC1-001",
+        "program_name": "Interruptible Load",
+        "region": "VIC1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat(),
+        "duration_minutes": 45,
+        "mw_reduction": 200.0,
+        "participants": 7,
+        "status": "completed",
+        "trigger_reason": "LOR2",
+    },
+    {
+        "event_id": "DR-RERT-SA1-002",
+        "program_name": "RERT",
+        "region": "SA1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat(),
+        "duration_minutes": 180,
+        "mw_reduction": 150.0,
+        "participants": 2,
+        "status": "active",
+        "trigger_reason": "LOR3",
+    },
+    {
+        "event_id": "DR-EV-NSW1-002",
+        "program_name": "EV Fleet Response",
+        "region": "NSW1",
+        "activation_time": (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat(),
+        "duration_minutes": 60,
+        "mw_reduction": 30.0,
+        "participants": 940,
+        "status": "cancelled",
+        "trigger_reason": "High Price",
+    },
+]
+
+
+@app.get(
+    "/api/demand/response",
+    response_model=DemandResponseSummary,
+    summary="Demand response program summary",
+    tags=["Market Data"],
+    response_description="Active and recent demand response events with enrolled and activated capacity",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_demand_response(
+    region: Optional[str] = Query(None, description="NEM region filter (omit for all regions)"),
+) -> Dict[str, Any]:
+    """
+    Return a summary of demand response programs and events across the NEM.
+
+    Covers four program types:
+    - RERT (Reliability and Emergency Reserve Trader): large volumes, used in grid emergencies
+    - Interruptible Load: industrial customers contracted to shed load on request
+    - EV Fleet Response: aggregated electric vehicle charging deferral
+    - Demand Aggregator: third-party aggregator programs combining many small loads
+
+    total_enrolled_mw reflects contracted capacity across the NEM (~500–1500 MW).
+    Cached for 60 seconds.
+    """
+    cache_key = f"demand_response:{region or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    events = list(_MOCK_DR_EVENTS)
+    if region:
+        events = [e for e in events if e["region"] == region]
+
+    active_programs = len({e["program_name"] for e in events if e["status"] == "active"})
+    total_activated_mw_today = round(sum(
+        e["mw_reduction"] for e in events if e["status"] in ("active", "completed")
+    ), 1)
+    events_today = len([e for e in events if e["status"] != "cancelled"])
+
+    # Region summaries: MW activated today per region
+    region_summaries: Dict[str, float] = {}
+    for e in events:
+        if e["status"] in ("active", "completed"):
+            r = e["region"]
+            region_summaries[r] = round(region_summaries.get(r, 0.0) + e["mw_reduction"], 1)
+
+    # Enrolled MW differs from activated: contracted capacity across all programs
+    _enrolled_by_region: Dict[str, float] = {
+        "NSW1": 420.0,
+        "QLD1": 280.0,
+        "VIC1": 350.0,
+        "SA1": 180.0,
+        "TAS1": 90.0,
+    }
+    if region:
+        total_enrolled_mw = _enrolled_by_region.get(region, 100.0)
+    else:
+        total_enrolled_mw = sum(_enrolled_by_region.values())
+
+    result: Dict[str, Any] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "active_programs": active_programs,
+        "total_enrolled_mw": total_enrolled_mw,
+        "total_activated_mw_today": total_activated_mw_today,
+        "events_today": events_today,
+        "events": events,
+        "region_summaries": region_summaries,
+    }
+    _cache_set(cache_key, result, 60)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Battery & Storage Analytics (Sprint 14b)
+# ---------------------------------------------------------------------------
+
+class BessUnit(BaseModel):
+    duid: str
+    station_name: str
+    region: str
+    capacity_mwh: float      # energy capacity
+    power_mw: float          # max charge/discharge power
+    soc_pct: float           # current state of charge %
+    mode: str                # "charging", "discharging", "idle", "standby"
+    current_mw: float        # positive=discharging, negative=charging
+    cycles_today: int
+    revenue_today_aud: float
+    efficiency_pct: float    # round-trip efficiency ~85-92%
+
+class BessDispatchInterval(BaseModel):
+    interval_datetime: str
+    duid: str
+    mw: float               # positive=discharge, negative=charge
+    soc_pct: float
+    rrp_at_dispatch: float  # spot price when dispatched
+    revenue_aud: float      # mw * rrp_at_dispatch * (5/60)
+
+class BessFleetSummary(BaseModel):
+    timestamp: str
+    total_capacity_mwh: float
+    total_power_mw: float
+    units_discharging: int
+    units_charging: int
+    units_idle: int
+    fleet_avg_soc_pct: float
+    fleet_revenue_today_aud: float
+    units: List[BessUnit]
+
+
+# ---------------------------------------------------------------------------
+# BESS fleet mock data (Sprint 14b)
+# ---------------------------------------------------------------------------
+
+_BESS_CONFIGS = [
+    # (duid, station_name, region, capacity_mwh, power_mw, efficiency_pct)
+    ("HPRL1",   "Hornsdale Power Reserve",  "SA1",  193.5,  150.0, 90.0),
+    ("VICBAT1", "Victorian Big Battery",    "VIC1", 450.0,  300.0, 88.0),
+    ("BAT01",   "Waratah Super Battery",    "NSW1", 1680.0, 850.0, 87.0),
+    ("BAT02",   "Capital Battery",          "NSW1",  50.0,   50.0, 85.0),
+    ("GANNBAT", "Gannawarra Battery",       "VIC1",  50.0,   25.0, 89.0),
+    ("BULGBAT", "Bulgana Battery",          "VIC1",  40.0,   20.0, 86.0),
+    ("LKBONBT", "Lake Bonney Battery",      "SA1",   52.0,   25.0, 91.0),
+    ("WANDBAT", "Wandoan South BESS",       "QLD1", 150.0,  100.0, 92.0),
+]
+
+# Mode assignment: units with high SOC + high price period -> discharging
+# Units in low-price period (overnight/solar hour) -> charging; rest -> idle/standby
+_BESS_MODE_SCHEDULE = [
+    "discharging",   # HPRL1
+    "discharging",   # VICBAT1
+    "discharging",   # BAT01 (Waratah)
+    "charging",      # Capital Battery
+    "idle",          # Gannawarra
+    "charging",      # Bulgana
+    "discharging",   # Lake Bonney
+    "standby",       # Wandoan
+]
+
+_BESS_SOC_BASE = [72.0, 65.0, 81.0, 38.0, 55.0, 22.0, 68.0, 90.0]
+_BESS_CYCLES_TODAY = [3, 2, 1, 4, 2, 3, 3, 1]
+_BESS_REVENUE_TODAY = [14820.0, 28500.0, 95000.0, -1200.0, 1800.0, -800.0, 9600.0, 4500.0]
+
+
+def _get_bess_fleet_data() -> List[dict]:
+    """Build the BESS fleet list with mild time-seeded noise."""
+    import random
+    now = datetime.utcnow()
+    rng = random.Random(int(now.timestamp() // 30))
+
+    units = []
+    for i, (duid, station_name, region, cap_mwh, power_mw, eff) in enumerate(_BESS_CONFIGS):
+        mode = _BESS_MODE_SCHEDULE[i]
+        base_soc = _BESS_SOC_BASE[i]
+        soc = round(min(100.0, max(0.0, base_soc + rng.uniform(-3.0, 3.0))), 1)
+        if mode == "discharging":
+            current_mw = round(power_mw * rng.uniform(0.4, 0.9), 1)
+        elif mode == "charging":
+            current_mw = round(-power_mw * rng.uniform(0.3, 0.8), 1)
+        else:
+            current_mw = 0.0
+        efficiency = round(eff + rng.uniform(-1.0, 1.0), 1)
+        revenue = round(_BESS_REVENUE_TODAY[i] + rng.uniform(-200.0, 200.0), 2)
+        units.append({
+            "duid": duid,
+            "station_name": station_name,
+            "region": region,
+            "capacity_mwh": cap_mwh,
+            "power_mw": power_mw,
+            "soc_pct": soc,
+            "mode": mode,
+            "current_mw": current_mw,
+            "cycles_today": _BESS_CYCLES_TODAY[i],
+            "revenue_today_aud": revenue,
+            "efficiency_pct": efficiency,
+        })
+    return units
+
+
+# ---------------------------------------------------------------------------
+# BESS endpoints (Sprint 14b)
+# ---------------------------------------------------------------------------
+
+_TTL_BESS = 30  # 30-second cache for BESS data
+
+
+@app.get(
+    "/api/bess/fleet",
+    response_model=BessFleetSummary,
+    summary="BESS fleet summary",
+    tags=["Market Data"],
+    response_description="Fleet summary with state of charge and dispatch status for all NEM BESS units",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_bess_fleet():
+    """Return current state of the NEM BESS fleet.
+
+    Returns 8 real-world-inspired BESS units across NEM regions including
+    Hornsdale Power Reserve (SA1), Victorian Big Battery (VIC1), and Waratah
+    Super Battery (NSW1 -- 850 MW / 1680 MWh, the largest in the NEM).
+
+    SOC, mode, and current MW values are refreshed every 30 seconds.
+    Revenue is cumulative for the current trading day (AEST).
+    """
+    cache_key = "bess_fleet:summary"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    units_data = _get_bess_fleet_data()
+
+    total_capacity_mwh = sum(u["capacity_mwh"] for u in units_data)
+    total_power_mw = sum(u["power_mw"] for u in units_data)
+    units_discharging = sum(1 for u in units_data if u["mode"] == "discharging")
+    units_charging = sum(1 for u in units_data if u["mode"] == "charging")
+    units_idle = sum(1 for u in units_data if u["mode"] in ("idle", "standby"))
+    fleet_avg_soc = round(sum(u["soc_pct"] for u in units_data) / len(units_data), 1)
+    fleet_revenue = round(sum(u["revenue_today_aud"] for u in units_data), 2)
+
+    result = BessFleetSummary(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        total_capacity_mwh=round(total_capacity_mwh, 1),
+        total_power_mw=round(total_power_mw, 1),
+        units_discharging=units_discharging,
+        units_charging=units_charging,
+        units_idle=units_idle,
+        fleet_avg_soc_pct=fleet_avg_soc,
+        fleet_revenue_today_aud=fleet_revenue,
+        units=[BessUnit(**u) for u in units_data],
+    )
+
+    _cache_set(cache_key, result, _TTL_BESS)
+    return result
+
+
+@app.get(
+    "/api/bess/dispatch",
+    response_model=List[BessDispatchInterval],
+    summary="BESS dispatch history for a single unit",
+    tags=["Market Data"],
+    response_description="Charge/discharge intervals with spot price and revenue for the requested BESS unit",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_bess_dispatch(
+    duid: str = Query(..., description="BESS unit DUID"),
+    count: int = Query(24, ge=1, le=288, description="Number of 5-min intervals to return (24 = 2 hours)"),
+):
+    """Return dispatch history for a single BESS unit.
+
+    Simulates realistic charge/discharge cycles:
+    - Overnight (00:00-06:00 AEST): charging at low off-peak prices (~$40-70/MWh)
+    - Morning peak (07:00-09:00 AEST): discharging at high prices (~$150-400/MWh)
+    - Midday (11:00-14:00 AEST): charging during solar surplus (prices $20-60/MWh)
+    - Evening peak (17:00-20:00 AEST): discharging at peak prices (~$200-600/MWh)
+
+    revenue_aud = abs(mw) * rrp_at_dispatch * (5/60) when discharging.
+    Charging intervals have negative revenue (cost of charge).
+    """
+    cache_key = f"bess_dispatch:{duid}:{count}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    import random
+    now = datetime.utcnow()
+    rng = random.Random(hash(duid) + int(now.timestamp() // 30))
+
+    # Find the unit config so we can size MW values appropriately
+    cfg = next((c for c in _BESS_CONFIGS if c[0] == duid), None)
+    if cfg is None:
+        power_mw = 100.0
+    else:
+        power_mw = cfg[4]  # index 4 = power_mw
+
+    intervals = []
+    soc = rng.uniform(40.0, 80.0)  # starting SOC
+
+    for i in range(count):
+        interval_dt = now - timedelta(minutes=5 * (count - 1 - i))
+        # Hour of day in AEST (UTC+10)
+        hour_aest = (interval_dt.hour + 10) % 24
+
+        # Determine dispatch mode based on time of day
+        if 0 <= hour_aest < 6:
+            # Overnight: charging at low prices
+            mode_iv = "charging"
+            rrp = round(rng.uniform(30.0, 70.0), 2)
+            mw = -round(power_mw * rng.uniform(0.5, 0.95), 1)
+        elif 6 <= hour_aest < 9:
+            # Morning peak: discharging at high prices
+            mode_iv = "discharging"
+            rrp = round(rng.uniform(150.0, 400.0), 2)
+            mw = round(power_mw * rng.uniform(0.6, 1.0), 1)
+        elif 9 <= hour_aest < 11:
+            # Post-morning ramp: light dispatch or idle
+            if rng.random() < 0.4:
+                mode_iv = "discharging"
+                rrp = round(rng.uniform(80.0, 150.0), 2)
+                mw = round(power_mw * rng.uniform(0.2, 0.5), 1)
+            else:
+                mode_iv = "idle"
+                rrp = round(rng.uniform(60.0, 100.0), 2)
+                mw = 0.0
+        elif 11 <= hour_aest < 15:
+            # Solar midday surplus: charging at low/negative prices
+            mode_iv = "charging"
+            rrp = round(rng.uniform(-20.0, 60.0), 2)
+            mw = -round(power_mw * rng.uniform(0.4, 0.85), 1)
+        elif 15 <= hour_aest < 17:
+            # Afternoon: idle or light discharge
+            if rng.random() < 0.3:
+                mode_iv = "discharging"
+                rrp = round(rng.uniform(90.0, 180.0), 2)
+                mw = round(power_mw * rng.uniform(0.2, 0.5), 1)
+            else:
+                mode_iv = "idle"
+                rrp = round(rng.uniform(70.0, 110.0), 2)
+                mw = 0.0
+        elif 17 <= hour_aest < 21:
+            # Evening peak: heavy discharge at high prices
+            mode_iv = "discharging"
+            rrp = round(rng.uniform(200.0, 600.0), 2)
+            mw = round(power_mw * rng.uniform(0.7, 1.0), 1)
+        else:
+            # Late night: light charging
+            mode_iv = "charging"
+            rrp = round(rng.uniform(40.0, 80.0), 2)
+            mw = -round(power_mw * rng.uniform(0.3, 0.6), 1)
+
+        # Update SOC
+        if mode_iv == "charging":
+            soc = min(100.0, soc + abs(mw) / power_mw * 5.0)
+        elif mode_iv == "discharging":
+            soc = max(0.0, soc - mw / power_mw * 5.0)
+
+        # Calculate revenue: positive for discharge, negative for charging cost
+        if mode_iv == "discharging" and mw > 0:
+            revenue = round(mw * rrp * (5.0 / 60.0), 2)
+        elif mode_iv == "charging" and mw < 0:
+            revenue = round(mw * rrp * (5.0 / 60.0), 2)  # negative (cost)
+        else:
+            revenue = 0.0
+
+        intervals.append(BessDispatchInterval(
+            interval_datetime=interval_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+            duid=duid,
+            mw=mw,
+            soc_pct=round(soc, 1),
+            rrp_at_dispatch=rrp,
+            revenue_aud=revenue,
+        ))
+
+    _cache_set(cache_key, intervals, _TTL_BESS)
+    return intervals
