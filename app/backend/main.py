@@ -116,6 +116,10 @@ _TTL_INTERCONNECTORS = 30
 _TTL_FORECASTS       = 60
 _TTL_MARKET_SUMMARY  = 3600  # summary only regenerates once per day
 _TTL_REGISTRY        = 3600  # participant registry changes infrequently
+_TTL_ADMIN_PREFS     = 30
+_TTL_ADMIN_API_KEYS  = 60
+_TTL_ADMIN_SOURCES   = 60
+_TTL_ADMIN_SYSCONFIG = 30
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))  # per window
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
@@ -7663,6 +7667,48 @@ class PasaDashboard(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Pydantic models — VPP & Distributed Energy Resources (DER)
+# ---------------------------------------------------------------------------
+
+class VppUnit(BaseModel):
+    vpp_id: str
+    vpp_name: str
+    operator: str
+    region: str
+    total_capacity_mw: float
+    participating_households: int
+    battery_capacity_mwh: float
+    solar_capacity_mw: float
+    ev_count: int               # participating EVs
+    current_dispatch_mw: float  # positive=discharging, negative=charging
+    mode: str                   # "peak_support", "frequency_response", "arbitrage", "idle"
+    revenue_today_aud: float
+
+
+class DerSummary(BaseModel):
+    region: str
+    rooftop_solar_capacity_gw: float      # total installed rooftop solar
+    rooftop_solar_output_mw: float        # current generation
+    btm_battery_capacity_gwh: float       # behind-the-meter battery
+    btm_battery_output_mw: float
+    ev_connected_count: int
+    ev_charging_mw: float
+    net_demand_mw: float                  # grid demand after DER
+    gross_demand_mw: float                # demand before rooftop solar
+    solar_penetration_pct: float          # rooftop_solar / gross_demand * 100
+
+
+class DerDashboard(BaseModel):
+    timestamp: str
+    nem_rooftop_solar_gw: float
+    nem_btm_battery_gwh: float
+    nem_net_demand_reduction_mw: float
+    vpp_fleet: List[VppUnit]
+    regional_der: List[DerSummary]
+    hourly_solar_forecast: List[Dict]     # next 24h rooftop solar forecast
+
+
+# ---------------------------------------------------------------------------
 # Cache TTLs — Outages & PASA
 # ---------------------------------------------------------------------------
 
@@ -8012,4 +8058,953 @@ def get_outage_list(
         filtered = [o for o in filtered if o.outage_type == outage_type.upper()]
 
     _cache_set(cache_key, filtered, _TTL_OUTAGE_LIST)
+    return filtered
+
+
+# ---------------------------------------------------------------------------
+# Cache TTLs — VPP & DER
+# ---------------------------------------------------------------------------
+
+_TTL_DER_DASHBOARD = 60   # 60 seconds
+_TTL_VPP_FLEET     = 30   # 30 seconds
+
+
+# ---------------------------------------------------------------------------
+# Helpers — build mock VPP fleet and regional DER data
+# ---------------------------------------------------------------------------
+
+def _make_vpp_fleet() -> List[VppUnit]:
+    """Return a list of mock VPP units representing the 2026 NEM VPP landscape."""
+    return [
+        VppUnit(
+            vpp_id="VPP-AGL-SA1",
+            vpp_name="AGL Virtual Power Plant",
+            operator="AGL Energy",
+            region="SA1",
+            total_capacity_mw=50.0,
+            participating_households=5000,
+            battery_capacity_mwh=25.0,
+            solar_capacity_mw=18.5,
+            ev_count=320,
+            current_dispatch_mw=32.4,
+            mode="arbitrage",
+            revenue_today_aud=18750.0,
+        ),
+        VppUnit(
+            vpp_id="VPP-ORIGIN-NSW1",
+            vpp_name="Origin VPP",
+            operator="Origin Energy",
+            region="NSW1",
+            total_capacity_mw=80.0,
+            participating_households=8000,
+            battery_capacity_mwh=40.0,
+            solar_capacity_mw=29.6,
+            ev_count=510,
+            current_dispatch_mw=55.2,
+            mode="peak_support",
+            revenue_today_aud=31200.0,
+        ),
+        VppUnit(
+            vpp_id="VPP-TESLA-SA1",
+            vpp_name="Tesla Virtual Power Plant",
+            operator="Tesla Energy",
+            region="SA1",
+            total_capacity_mw=40.0,
+            participating_households=4000,
+            battery_capacity_mwh=52.0,   # Powerwalls — higher battery/household
+            solar_capacity_mw=14.8,
+            ev_count=215,
+            current_dispatch_mw=28.6,
+            mode="frequency_response",
+            revenue_today_aud=22400.0,
+        ),
+        VppUnit(
+            vpp_id="VPP-EA-VIC1",
+            vpp_name="EnergyAustralia VPP",
+            operator="EnergyAustralia",
+            region="VIC1",
+            total_capacity_mw=60.0,
+            participating_households=6000,
+            battery_capacity_mwh=30.0,
+            solar_capacity_mw=22.2,
+            ev_count=380,
+            current_dispatch_mw=-12.0,   # charging (negative)
+            mode="arbitrage",
+            revenue_today_aud=9800.0,
+        ),
+        VppUnit(
+            vpp_id="VPP-AMBER-MULTI",
+            vpp_name="Amber Electric VPP",
+            operator="Amber Electric",
+            region="NSW1",
+            total_capacity_mw=30.0,
+            participating_households=3000,
+            battery_capacity_mwh=15.0,
+            solar_capacity_mw=11.1,
+            ev_count=420,               # high EV count — Amber targets EV owners
+            current_dispatch_mw=18.9,
+            mode="arbitrage",
+            revenue_today_aud=11500.0,
+        ),
+        VppUnit(
+            vpp_id="VPP-PL-QLD1",
+            vpp_name="Power Ledger P2P VPP",
+            operator="Power Ledger",
+            region="QLD1",
+            total_capacity_mw=20.0,
+            participating_households=2000,
+            battery_capacity_mwh=10.0,
+            solar_capacity_mw=7.4,
+            ev_count=95,
+            current_dispatch_mw=0.0,
+            mode="idle",
+            revenue_today_aud=0.0,
+        ),
+        VppUnit(
+            vpp_id="VPP-SIMPLY-VIC1",
+            vpp_name="Simply Energy VPP",
+            operator="Simply Energy",
+            region="VIC1",
+            total_capacity_mw=35.0,
+            participating_households=3500,
+            battery_capacity_mwh=17.5,
+            solar_capacity_mw=12.9,
+            ev_count=180,
+            current_dispatch_mw=22.1,
+            mode="peak_support",
+            revenue_today_aud=14300.0,
+        ),
+    ]
+
+
+def _make_regional_der() -> List[DerSummary]:
+    """Return per-region DER summary for the 5 NEM regions."""
+    # NEM 2026 DER landscape — ~22 GW rooftop solar installed, ~3.5 GWh BTM batteries
+    # Current output assumed ~midday (peak solar conditions)
+    regions_data = [
+        # region, solar_cap_gw, solar_out_mw, btm_bat_gwh, btm_bat_out_mw,
+        #         ev_count, ev_chg_mw, gross_demand_mw
+        ("NSW1",  7.2, 4850.0, 1.10,  320.0, 85000,  210.0, 8200.0),
+        ("QLD1",  5.8, 4100.0, 0.85,  245.0, 62000,  155.0, 7100.0),
+        ("VIC1",  4.9, 2980.0, 0.90,  180.0, 58000,  145.0, 6500.0),
+        ("SA1",   2.6, 1820.0, 0.45,  110.0, 28000,   70.0, 2800.0),
+        ("TAS1",  1.5,  280.0, 0.20,   35.0, 17000,   42.0, 1400.0),
+    ]
+    result = []
+    for (region, solar_cap_gw, solar_out_mw, btm_bat_gwh, btm_bat_out_mw,
+         ev_count, ev_chg_mw, gross_demand_mw) in regions_data:
+        net_demand_mw = round(gross_demand_mw - solar_out_mw - btm_bat_out_mw, 1)
+        solar_penetration_pct = round(solar_out_mw / gross_demand_mw * 100, 1)
+        result.append(DerSummary(
+            region=region,
+            rooftop_solar_capacity_gw=solar_cap_gw,
+            rooftop_solar_output_mw=solar_out_mw,
+            btm_battery_capacity_gwh=btm_bat_gwh,
+            btm_battery_output_mw=btm_bat_out_mw,
+            ev_connected_count=ev_count,
+            ev_charging_mw=ev_chg_mw,
+            net_demand_mw=net_demand_mw,
+            gross_demand_mw=gross_demand_mw,
+            solar_penetration_pct=solar_penetration_pct,
+        ))
+    return result
+
+
+def _make_hourly_solar_forecast() -> List[Dict]:
+    """
+    Return a 24-hour rooftop solar forecast (bell curve peaking at noon).
+    Hours 0-5 and 20-23 are zero (night). Peak around hour 12.
+    Represents NEM-wide aggregate rooftop solar in MW.
+    """
+    # Peak midday NEM-wide rooftop solar ~14,000 MW in summer 2026
+    peak_mw = 14000.0
+    forecast = []
+    for hour in range(24):
+        if hour < 6 or hour >= 20:
+            solar_mw = 0.0
+        else:
+            # Bell curve centred at 12:00 (hour 13 for afternoon thermal peak)
+            # Use a cosine curve: max at hour 12, zeros at hours 6 and 19
+            # Map [6, 19] -> [0, pi]
+            angle = math.pi * (hour - 6) / (19 - 6)
+            solar_mw = round(peak_mw * math.sin(angle), 1)
+            if solar_mw < 0:
+                solar_mw = 0.0
+        forecast.append({"hour": hour, "solar_mw": solar_mw})
+    return forecast
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — VPP & Distributed Energy Resources (DER)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/der/dashboard",
+    response_model=DerDashboard,
+    summary="VPP & DER Dashboard",
+    tags=["DER"],
+    response_description=(
+        "NEM-wide VPP fleet, regional DER summary, and 24-hour rooftop solar forecast"
+    ),
+    dependencies=[Depends(verify_api_key)],
+)
+def get_der_dashboard(
+    region: Optional[str] = Query(None, description="Filter regional DER to a single NEM region"),
+) -> DerDashboard:
+    """
+    Return the VPP & Distributed Energy Resources dashboard.
+
+    Includes:
+    - NEM-wide aggregate rooftop solar, BTM battery, and EV metrics
+    - Full VPP fleet (6–8 VPPs) with dispatch mode and revenue
+    - Per-region DER summary for 5 NEM regions
+    - 24-hour rooftop solar forecast (bell curve with duck curve effect)
+
+    NEM 2026 DER landscape:
+    - ~22 GW rooftop solar installed (~3.5 million households)
+    - Current output during midday: 12–15 GW
+    - BTM batteries: ~3.5 GWh
+    - EVs: ~250,000 connected with smart charging enabled
+
+    Cached for 60 seconds.
+    """
+    cache_key = f"der_dashboard:{region}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    vpp_fleet = _make_vpp_fleet()
+    regional_der = _make_regional_der()
+    hourly_solar_forecast = _make_hourly_solar_forecast()
+
+    # Filter regional DER if a region is specified
+    if region:
+        regional_der = [r for r in regional_der if r.region == region.upper()]
+
+    # NEM-wide aggregates
+    nem_rooftop_solar_gw = round(sum(r.rooftop_solar_capacity_gw for r in _make_regional_der()), 1)
+    nem_btm_battery_gwh = round(sum(r.btm_battery_capacity_gwh for r in _make_regional_der()), 2)
+    nem_net_demand_reduction_mw = round(
+        sum(r.rooftop_solar_output_mw + r.btm_battery_output_mw for r in _make_regional_der()), 1
+    )
+
+    result = DerDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        nem_rooftop_solar_gw=nem_rooftop_solar_gw,
+        nem_btm_battery_gwh=nem_btm_battery_gwh,
+        nem_net_demand_reduction_mw=nem_net_demand_reduction_mw,
+        vpp_fleet=vpp_fleet,
+        regional_der=regional_der,
+        hourly_solar_forecast=hourly_solar_forecast,
+    )
+
+    _cache_set(cache_key, result, _TTL_DER_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/der/vpp",
+    response_model=List[VppUnit],
+    summary="VPP Fleet (filterable)",
+    tags=["DER"],
+    response_description="Filtered list of Virtual Power Plant units",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_vpp_fleet(
+    region: Optional[str] = Query(None, description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    mode: Optional[str] = Query(None, description="VPP mode: peak_support, frequency_response, arbitrage, idle"),
+) -> List[VppUnit]:
+    """
+    Return a filtered list of Virtual Power Plant units.
+
+    Filters:
+    - **region**: NEM region code (NSW1, QLD1, VIC1, SA1, TAS1). Omit for all regions.
+    - **mode**: peak_support, frequency_response, arbitrage, or idle. Omit for all modes.
+
+    Cached for 30 seconds (cache key includes all filter parameters).
+    """
+    cache_key = f"vpp_fleet:{region}:{mode}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    fleet = _make_vpp_fleet()
+
+    if region:
+        fleet = [v for v in fleet if v.region == region.upper()]
+
+    if mode:
+        fleet = [v for v in fleet if v.mode == mode.lower()]
+
+    _cache_set(cache_key, fleet, _TTL_VPP_FLEET)
+    return fleet
+
+
+# ===========================================================================
+# Sprint 19c — Admin Settings & API Configuration Panel
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Admin
+# ---------------------------------------------------------------------------
+
+class UserPreferences(BaseModel):
+    user_id: str
+    default_region: str = "NSW1"
+    theme: str = "light"          # "light" | "dark" | "system"
+    default_horizon: str = "24h"  # forecast horizon
+    price_alert_threshold: float = 300.0  # $/MWh
+    demand_alert_threshold: float = 12000.0  # MW
+    auto_refresh_seconds: int = 30
+    notification_email: Optional[str] = None
+    notification_slack_webhook: Optional[str] = None
+    regions_watchlist: List[str] = ["NSW1", "VIC1"]
+    data_export_format: str = "csv"  # "csv" | "json" | "parquet"
+
+
+class ApiKeyInfo(BaseModel):
+    key_id: str
+    name: str
+    key_prefix: str              # first 8 chars of key (rest masked)
+    created_at: str
+    last_used_at: Optional[str]
+    expires_at: Optional[str]
+    permissions: List[str]       # ["read", "write", "admin"]
+    request_count_today: int
+    rate_limit_per_min: int
+    is_active: bool
+
+
+class DataSourceConfig(BaseModel):
+    source_id: str
+    name: str                    # "AEMO NEMWEB", "MLflow Registry", etc.
+    endpoint_url: str
+    status: str                  # "connected", "degraded", "disconnected"
+    last_sync: str
+    sync_interval_minutes: int
+    records_synced_today: int
+
+
+class SystemConfig(BaseModel):
+    mock_mode: bool
+    environment: str             # "development", "staging", "production"
+    databricks_workspace: str
+    unity_catalog: str
+    mlflow_experiment: str
+    api_version: str
+    frontend_version: str
+    backend_uptime_hours: float
+    total_api_requests_today: int
+    cache_hit_rate_pct: float
+
+
+# ---------------------------------------------------------------------------
+# Mock data helpers — Admin
+# ---------------------------------------------------------------------------
+
+_ADMIN_START_TIME: float = time.monotonic()
+
+
+def _mock_preferences() -> UserPreferences:
+    return UserPreferences(
+        user_id="default-user",
+        default_region="NSW1",
+        theme="light",
+        default_horizon="24h",
+        price_alert_threshold=300.0,
+        demand_alert_threshold=12000.0,
+        auto_refresh_seconds=30,
+        notification_email="admin@energycopilot.au",
+        notification_slack_webhook=None,
+        regions_watchlist=["NSW1", "VIC1"],
+        data_export_format="csv",
+    )
+
+
+def _mock_api_keys() -> List[ApiKeyInfo]:
+    return [
+        ApiKeyInfo(
+            key_id="key-001",
+            name="Admin Dashboard Key",
+            key_prefix="ec_adm_ab",
+            created_at="2026-01-01T00:00:00Z",
+            last_used_at="2026-02-19T08:32:00Z",
+            expires_at=None,
+            permissions=["read", "write", "admin"],
+            request_count_today=1243,
+            rate_limit_per_min=120,
+            is_active=True,
+        ),
+        ApiKeyInfo(
+            key_id="key-002",
+            name="Read-Only Analytics Key",
+            key_prefix="ec_ro_cd12",
+            created_at="2026-01-15T09:00:00Z",
+            last_used_at="2026-02-19T07:55:00Z",
+            expires_at="2026-12-31T23:59:59Z",
+            permissions=["read"],
+            request_count_today=587,
+            rate_limit_per_min=60,
+            is_active=True,
+        ),
+        ApiKeyInfo(
+            key_id="key-003",
+            name="Legacy Integration Key",
+            key_prefix="ec_leg_ef34",
+            created_at="2025-06-01T00:00:00Z",
+            last_used_at="2025-12-31T23:59:00Z",
+            expires_at="2025-12-31T23:59:59Z",
+            permissions=["read"],
+            request_count_today=0,
+            rate_limit_per_min=30,
+            is_active=False,
+        ),
+    ]
+
+
+def _mock_data_sources(lakebase_healthy: bool = True) -> List[DataSourceConfig]:
+    lb_status = "connected" if lakebase_healthy else "degraded"
+    now = datetime.now(timezone.utc)
+
+    def _fmt_last_sync(minutes_ago: int) -> str:
+        return (now - timedelta(minutes=minutes_ago)).isoformat()
+
+    return [
+        DataSourceConfig(
+            source_id="src-nemweb",
+            name="AEMO NEMWEB",
+            endpoint_url="https://nemweb.com.au/Reports/Current/",
+            status="connected",
+            last_sync=_fmt_last_sync(3),
+            sync_interval_minutes=5,
+            records_synced_today=15840,
+        ),
+        DataSourceConfig(
+            source_id="src-mlflow",
+            name="MLflow Unity Catalog",
+            endpoint_url="https://adb-workspace.azuredatabricks.net/ml/experiments",
+            status="connected",
+            last_sync=_fmt_last_sync(42),
+            sync_interval_minutes=60,
+            records_synced_today=24,
+        ),
+        DataSourceConfig(
+            source_id="src-gas-bb",
+            name="AEMO Gas Bulletin Board",
+            endpoint_url="https://www.aemo.com.au/gas/national-gas-market/gas-bulletin-board",
+            status="connected",
+            last_sync=_fmt_last_sync(18),
+            sync_interval_minutes=30,
+            records_synced_today=864,
+        ),
+        DataSourceConfig(
+            source_id="src-lakebase",
+            name="Lakebase (PostgreSQL)",
+            endpoint_url="postgresql://lakebase.internal:5432/energy_copilot",
+            status=lb_status,
+            last_sync=_fmt_last_sync(1),
+            sync_interval_minutes=1,
+            records_synced_today=28800,
+        ),
+        DataSourceConfig(
+            source_id="src-asx",
+            name="ASX Energy Futures (manual)",
+            endpoint_url="https://www.asxenergy.com.au/futures_nem",
+            status="connected",
+            last_sync=_fmt_last_sync(11),
+            sync_interval_minutes=15,
+            records_synced_today=2880,
+        ),
+        DataSourceConfig(
+            source_id="src-bom",
+            name="BOM Weather API",
+            endpoint_url="https://api.bom.gov.au/v1/observations",
+            status="connected",
+            last_sync=_fmt_last_sync(55),
+            sync_interval_minutes=60,
+            records_synced_today=480,
+        ),
+    ]
+
+
+def _mock_system_config() -> SystemConfig:
+    uptime_hours = round((time.monotonic() - _ADMIN_START_TIME) / 3600.0, 2)
+    return SystemConfig(
+        mock_mode=MOCK_MODE,
+        environment="development" if MOCK_MODE else "production",
+        databricks_workspace="adb-************.azuredatabricks.net",
+        unity_catalog=DATABRICKS_CATALOG,
+        mlflow_experiment="/energy-copilot/forecasting",
+        api_version="19c",
+        frontend_version="19c",
+        backend_uptime_hours=uptime_hours,
+        total_api_requests_today=48291,
+        cache_hit_rate_pct=76.4,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Admin Settings
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/admin/preferences",
+    response_model=UserPreferences,
+    summary="Get user preferences",
+    tags=["Admin"],
+    response_description="Default user preferences for the platform",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_admin_preferences() -> UserPreferences:
+    """
+    Return the default user preferences for the platform.
+
+    In mock mode returns a static default preferences object.
+    Cached for 30 seconds.
+    """
+    cache_key = "admin_preferences"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    result = _mock_preferences()
+    _cache_set(cache_key, result, _TTL_ADMIN_PREFS)
+    return result
+
+
+@app.put(
+    "/api/admin/preferences",
+    response_model=UserPreferences,
+    summary="Update user preferences",
+    tags=["Admin"],
+    response_description="Updated user preferences echoed back",
+    dependencies=[Depends(verify_api_key)],
+)
+def update_admin_preferences(prefs: UserPreferences) -> UserPreferences:
+    """
+    Update user preferences.
+
+    In mock mode the input is echoed back unchanged (stateless).
+    Write operations are not cached.
+    """
+    # Invalidate any cached preferences so next GET reflects intent
+    _cache.pop("admin_preferences", None)
+    return prefs
+
+
+@app.get(
+    "/api/admin/api_keys",
+    response_model=List[ApiKeyInfo],
+    summary="List API keys",
+    tags=["Admin"],
+    response_description="All API keys (prefixes only, secrets masked)",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_api_keys() -> List[ApiKeyInfo]:
+    """
+    Return mock API key metadata.
+
+    Returns one admin key, one read-only key, and one expired key.
+    Key secrets are never returned — only the first 8 characters (prefix) are exposed.
+    Cached for 60 seconds.
+    """
+    cache_key = "admin_api_keys"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    result = _mock_api_keys()
+    _cache_set(cache_key, result, _TTL_ADMIN_API_KEYS)
+    return result
+
+
+@app.get(
+    "/api/admin/data_sources",
+    response_model=List[DataSourceConfig],
+    summary="List data source configurations",
+    tags=["Admin"],
+    response_description="All configured data sources with live status",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_data_sources() -> List[DataSourceConfig]:
+    """
+    Return the list of configured data sources with their current status.
+
+    Sources include:
+    - AEMO NEMWEB (5-min dispatch data)
+    - MLflow Unity Catalog (model registry)
+    - AEMO Gas Bulletin Board (gas market data)
+    - Lakebase PostgreSQL (operational database — status mirrors health check)
+    - ASX Energy Futures (manual price feed)
+    - BOM Weather API (temperature and weather data)
+
+    Cached for 60 seconds.
+    """
+    cache_key = "admin_data_sources"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    lb_ok = _lakebase.health_check() if not MOCK_MODE else True
+    result = _mock_data_sources(lakebase_healthy=lb_ok)
+    _cache_set(cache_key, result, _TTL_ADMIN_SOURCES)
+    return result
+
+
+@app.get(
+    "/api/admin/system_config",
+    response_model=SystemConfig,
+    summary="Get system configuration",
+    tags=["Admin"],
+    response_description="Platform environment metadata and runtime stats",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_system_config() -> SystemConfig:
+    """
+    Return system configuration and runtime statistics.
+
+    Includes mock mode flag, environment, Databricks workspace (masked),
+    Unity Catalog name, API version, uptime, daily request count, and cache
+    hit rate.
+
+    Cached for 30 seconds.
+    """
+    cache_key = "admin_system_config"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    result = _mock_system_config()
+    _cache_set(cache_key, result, _TTL_ADMIN_SYSCONFIG)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Gas Market & Pipeline Analytics (Sprint 19b)
+# ---------------------------------------------------------------------------
+
+class GasPipelineFlow(BaseModel):
+    pipeline_id: str
+    pipeline_name: str        # e.g. "Moomba Sydney Pipeline", "Eastern Gas Pipeline"
+    from_location: str
+    to_location: str
+    flow_tj_day: float        # terajoules per day
+    capacity_tj_day: float
+    utilisation_pct: float    # flow / capacity * 100
+    direction: str            # "FORWARD", "REVERSE", "ZERO"
+    pressure_kpa: float       # operating pressure
+
+
+class GasHubPrice(BaseModel):
+    hub: str                  # "Wallumbilla", "Moomba", "Longford", "Port Hedland"
+    timestamp: str
+    price_aud_gj: float       # price per GJ
+    volume_tj: float          # traded volume
+    change_1d: float
+    change_1w: float
+
+
+class LngExportRecord(BaseModel):
+    terminal: str             # "QCLNG", "APLNG", "GLNG", "DLNG", "NWLHIC"
+    region: str
+    export_volume_mtpa: float  # million tonnes per annum annualised rate
+    domestic_allocation_pj: float  # domestic reservation obligation
+    spot_cargo: bool           # whether selling spot cargoes
+    next_cargo_date: str
+
+
+class GasMarketDashboard(BaseModel):
+    timestamp: str
+    wallumbilla_price: float   # key reference price $/GJ
+    moomba_price: float
+    longford_price: float
+    total_pipeline_flow_tj: float
+    lng_exports_today_tj: float
+    domestic_demand_tj: float
+    gas_power_generation_tj: float  # gas consumed by power sector
+    hub_prices: List[GasHubPrice]
+    pipeline_flows: List[GasPipelineFlow]
+    lng_terminals: List[LngExportRecord]
+
+
+# ---------------------------------------------------------------------------
+# Cache TTLs — Gas Market
+# ---------------------------------------------------------------------------
+_TTL_GAS_DASHBOARD = 60
+_TTL_GAS_PIPELINE_FLOWS = 30
+
+
+# ---------------------------------------------------------------------------
+# Mock helpers — Gas Market
+# ---------------------------------------------------------------------------
+
+def _make_gas_pipeline_flows() -> List[GasPipelineFlow]:
+    """Return mock pipeline flow data for 5 major Australian gas pipelines."""
+    import random
+    rng = random.Random(42)
+
+    pipelines_raw = [
+        {
+            "pipeline_id": "MSP",
+            "pipeline_name": "Moomba Sydney Pipeline",
+            "from_location": "Moomba",
+            "to_location": "Sydney",
+            "capacity_tj_day": 310.0,
+            "base_flow": 245.0,
+            "pressure_kpa": 10000.0,
+        },
+        {
+            "pipeline_id": "EGP",
+            "pipeline_name": "Eastern Gas Pipeline",
+            "from_location": "Longford",
+            "to_location": "Sydney",
+            "capacity_tj_day": 195.0,
+            "base_flow": 142.0,
+            "pressure_kpa": 8600.0,
+        },
+        {
+            "pipeline_id": "SEA",
+            "pipeline_name": "SEA Gas Pipeline",
+            "from_location": "Victoria",
+            "to_location": "Adelaide",
+            "capacity_tj_day": 90.0,
+            "base_flow": 58.0,
+            "pressure_kpa": 7400.0,
+        },
+        {
+            "pipeline_id": "CGP",
+            "pipeline_name": "Carpentaria Gas Pipeline",
+            "from_location": "Ballera",
+            "to_location": "Mount Isa",
+            "capacity_tj_day": 110.0,
+            "base_flow": 74.0,
+            "pressure_kpa": 9200.0,
+        },
+        {
+            "pipeline_id": "SWQP",
+            "pipeline_name": "South West Queensland Pipeline",
+            "from_location": "Wallumbilla",
+            "to_location": "Moomba",
+            "capacity_tj_day": 210.0,
+            "base_flow": 163.0,
+            "pressure_kpa": 11500.0,
+        },
+    ]
+
+    results = []
+    for p in pipelines_raw:
+        noise = rng.uniform(-0.08, 0.08)
+        flow = round(p["base_flow"] * (1 + noise), 1)
+        capacity = p["capacity_tj_day"]
+        utilisation = round(flow / capacity * 100, 2)
+
+        if flow > 0:
+            direction = "FORWARD"
+        elif flow < 0:
+            direction = "REVERSE"
+        else:
+            direction = "ZERO"
+
+        results.append(GasPipelineFlow(
+            pipeline_id=p["pipeline_id"],
+            pipeline_name=p["pipeline_name"],
+            from_location=p["from_location"],
+            to_location=p["to_location"],
+            flow_tj_day=flow,
+            capacity_tj_day=capacity,
+            utilisation_pct=utilisation,
+            direction=direction,
+            pressure_kpa=p["pressure_kpa"],
+        ))
+
+    return results
+
+
+def _make_gas_hub_prices() -> List[GasHubPrice]:
+    """Return mock gas hub prices for the major east coast trading hubs."""
+    import random
+    rng = random.Random(int(time.time()) // 60)  # changes every minute
+    now_ts = datetime.now(timezone.utc).isoformat()
+
+    hubs_raw = [
+        {"hub": "Wallumbilla", "base_price": 9.80, "volume": 420.0},
+        {"hub": "Moomba",      "base_price": 9.40, "volume": 185.0},
+        {"hub": "Longford",    "base_price": 10.60, "volume": 310.0},
+        {"hub": "Port Hedland","base_price": 8.90, "volume": 95.0},
+    ]
+
+    results = []
+    for h in hubs_raw:
+        noise_price = rng.uniform(-1.2, 1.2)
+        price = round(max(6.0, h["base_price"] + noise_price), 2)
+        change_1d = round(rng.uniform(-0.85, 0.85), 2)
+        change_1w = round(rng.uniform(-1.50, 1.50), 2)
+        volume = round(h["volume"] * rng.uniform(0.85, 1.15), 1)
+
+        results.append(GasHubPrice(
+            hub=h["hub"],
+            timestamp=now_ts,
+            price_aud_gj=price,
+            volume_tj=volume,
+            change_1d=change_1d,
+            change_1w=change_1w,
+        ))
+
+    return results
+
+
+def _make_lng_terminals() -> List[LngExportRecord]:
+    """Return mock LNG terminal export records for 5 Australian LNG facilities."""
+    now = datetime.now(timezone.utc)
+
+    def _next_cargo(days_ahead: int) -> str:
+        return (now + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+
+    terminals = [
+        LngExportRecord(
+            terminal="QCLNG",
+            region="QLD",
+            export_volume_mtpa=8.5,
+            domestic_allocation_pj=0.0,   # QLD has no domestic reservation obligation
+            spot_cargo=True,
+            next_cargo_date=_next_cargo(3),
+        ),
+        LngExportRecord(
+            terminal="APLNG",
+            region="QLD",
+            export_volume_mtpa=9.0,
+            domestic_allocation_pj=0.0,
+            spot_cargo=False,
+            next_cargo_date=_next_cargo(7),
+        ),
+        LngExportRecord(
+            terminal="GLNG",
+            region="QLD",
+            export_volume_mtpa=7.8,
+            domestic_allocation_pj=0.0,
+            spot_cargo=True,
+            next_cargo_date=_next_cargo(2),
+        ),
+        LngExportRecord(
+            terminal="DLNG",
+            region="NT/WA",
+            export_volume_mtpa=3.6,
+            domestic_allocation_pj=38.5,  # WA domestic reservation: 15% of LNG production
+            spot_cargo=False,
+            next_cargo_date=_next_cargo(10),
+        ),
+        LngExportRecord(
+            terminal="NWLHIC",
+            region="WA",
+            export_volume_mtpa=16.9,
+            domestic_allocation_pj=125.0,  # NW Shelf largest WA domestic obligation
+            spot_cargo=True,
+            next_cargo_date=_next_cargo(5),
+        ),
+    ]
+
+    return terminals
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Gas Market & Pipeline Analytics (Sprint 19b)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/gas/dashboard",
+    response_model=GasMarketDashboard,
+    summary="Gas Market Dashboard",
+    tags=["Gas Market"],
+    response_description=(
+        "Australian east coast gas market dashboard including hub prices, "
+        "pipeline flows, and LNG terminal export data"
+    ),
+    dependencies=[Depends(verify_api_key)],
+)
+def get_gas_dashboard() -> GasMarketDashboard:
+    """
+    Return the Gas Market Dashboard for the Australian east coast gas market.
+
+    Includes:
+    - Hub spot prices for Wallumbilla (QLD), Moomba (SA), Longford (VIC), Port Hedland (WA)
+    - Pipeline flow data for 5 major transmission pipelines
+    - LNG export terminal records for 3 Queensland and 2 WA terminals
+    - Gas-to-power generation estimate (TJ/day consumed by the NEM power sector)
+
+    Key reference points:
+    - Wallumbilla (QLD): Australia's largest gas trading hub
+    - Moomba (SA): Major production and processing centre
+    - Longford (VIC): Bass Strait supply point, often highest price
+
+    Cached for 60 seconds.
+    """
+    cache_key = "gas_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    hub_prices = _make_gas_hub_prices()
+    pipeline_flows = _make_gas_pipeline_flows()
+    lng_terminals = _make_lng_terminals()
+
+    hub_map = {h.hub: h.price_aud_gj for h in hub_prices}
+    wallumbilla_price = hub_map.get("Wallumbilla", 9.80)
+    moomba_price = hub_map.get("Moomba", 9.40)
+    longford_price = hub_map.get("Longford", 10.60)
+
+    total_pipeline_flow_tj = round(sum(p.flow_tj_day for p in pipeline_flows), 1)
+
+    # LNG exports: MTPA / 365 * 1000 converts million tonnes per annum to TJ/day
+    lng_exports_today_tj = round(
+        sum(t.export_volume_mtpa / 365.0 * 1000.0 for t in lng_terminals), 1
+    )
+
+    # Domestic gas demand (east coast): ~1,600-1,900 TJ/day total
+    domestic_demand_tj = 1740.0
+    # Gas-to-power: share consumed by the electricity sector (~450-800 TJ/day)
+    gas_power_generation_tj = 620.0
+
+    result = GasMarketDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        wallumbilla_price=round(wallumbilla_price, 2),
+        moomba_price=round(moomba_price, 2),
+        longford_price=round(longford_price, 2),
+        total_pipeline_flow_tj=total_pipeline_flow_tj,
+        lng_exports_today_tj=lng_exports_today_tj,
+        domestic_demand_tj=domestic_demand_tj,
+        gas_power_generation_tj=gas_power_generation_tj,
+        hub_prices=hub_prices,
+        pipeline_flows=pipeline_flows,
+        lng_terminals=lng_terminals,
+    )
+
+    _cache_set(cache_key, result, _TTL_GAS_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/gas/pipeline_flows",
+    response_model=List[GasPipelineFlow],
+    summary="Gas Pipeline Flows (filterable)",
+    tags=["Gas Market"],
+    response_description="Filtered list of gas pipeline flow records",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_gas_pipeline_flows(
+    min_utilisation_pct: float = Query(0.0, description="Minimum pipeline utilisation % (0-100)"),
+) -> List[GasPipelineFlow]:
+    """
+    Return a filtered list of gas pipeline flow records.
+
+    Query parameter:
+    - **min_utilisation_pct**: Only return pipelines with utilisation at or above this threshold.
+      Use 80 to find highly loaded pipelines. Default: 0 (return all pipelines).
+
+    Cached for 30 seconds (cache key includes the filter value).
+    """
+    cache_key = f"gas_pipeline_flows:{min_utilisation_pct}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    all_flows = _make_gas_pipeline_flows()
+    filtered = [p for p in all_flows if p.utilisation_pct >= min_utilisation_pct]
+
+    _cache_set(cache_key, filtered, _TTL_GAS_PIPELINE_FLOWS)
     return filtered

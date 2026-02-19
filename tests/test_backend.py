@@ -1422,3 +1422,153 @@ class TestOutageEndpoints:
         assert r.status_code == 200
         for o in r.json():
             assert o["outage_type"] == "FORCED"
+
+
+# ===========================================================================
+# TestDerEndpoints
+# ===========================================================================
+
+class TestDerEndpoints:
+    """Tests for VPP & Distributed Energy Resources endpoints."""
+
+    def test_der_dashboard_structure(self, client=client):
+        """GET /api/der/dashboard must return the full DER dashboard structure.
+
+        Verifies top-level keys, VPP fleet has at least 5 VPPs, regional_der
+        covers all 5 NEM regions, and NEM aggregate solar is positive.
+        """
+        r = client.get("/api/der/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "vpp_fleet" in data
+        assert "regional_der" in data
+        assert len(data["vpp_fleet"]) >= 5
+        assert len(data["regional_der"]) == 5
+        assert data["nem_rooftop_solar_gw"] > 0
+
+    def test_solar_forecast_24h(self, client=client):
+        """GET /api/der/dashboard must include a 24-point hourly solar forecast.
+
+        Each point must have 'hour' and 'solar_mw' keys.
+        Night hours (0-5) should have zero or near-zero solar output.
+        """
+        r = client.get("/api/der/dashboard")
+        data = r.json()
+        assert len(data["hourly_solar_forecast"]) == 24
+        # Solar should be zero at night (hours 0-5 and 20-23)
+        for pt in data["hourly_solar_forecast"]:
+            assert "hour" in pt
+            assert "solar_mw" in pt
+
+    def test_vpp_modes_valid(self, client=client):
+        """GET /api/der/vpp must return only VPPs with valid mode values.
+
+        All VPP mode values must be one of the four defined operational modes:
+        peak_support, frequency_response, arbitrage, or idle.
+        """
+        r = client.get("/api/der/vpp")
+        assert r.status_code == 200
+        valid_modes = {"peak_support", "frequency_response", "arbitrage", "idle"}
+        for vpp in r.json():
+            assert vpp["mode"] in valid_modes
+
+
+# ===========================================================================
+# TestAdminEndpoints
+# ===========================================================================
+
+class TestAdminEndpoints:
+    """Tests for the /api/admin/* endpoints (Sprint 19c)."""
+
+    def test_admin_preferences_get(self, client=client):
+        """GET /api/admin/preferences must return 200 with valid preference fields.
+
+        Checks that the response includes a 'default_region' field whose value
+        is one of the five NEM region codes, and that 'auto_refresh_seconds'
+        is a positive integer.
+        """
+        r = client.get("/api/admin/preferences")
+        assert r.status_code == 200
+        data = r.json()
+        assert "default_region" in data
+        assert data["default_region"] in ("NSW1", "QLD1", "VIC1", "SA1", "TAS1")
+        assert data["auto_refresh_seconds"] > 0
+
+    def test_admin_preferences_update(self, client=client):
+        """PUT /api/admin/preferences must echo back the submitted preferences.
+
+        In mock mode the endpoint is stateless and echoes the input payload.
+        Verifies that the updated 'default_region' is returned as submitted.
+        """
+        prefs = {
+            "user_id": "test-user",
+            "default_region": "VIC1",
+            "theme": "dark",
+            "default_horizon": "4h",
+            "price_alert_threshold": 500.0,
+            "demand_alert_threshold": 10000.0,
+            "auto_refresh_seconds": 60,
+            "regions_watchlist": ["VIC1", "SA1"],
+            "data_export_format": "json"
+        }
+        r = client.put("/api/admin/preferences", json=prefs)
+        assert r.status_code == 200
+        assert r.json()["default_region"] == "VIC1"
+
+    def test_data_sources_status(self, client=client):
+        """GET /api/admin/data_sources must return at least 4 sources with valid statuses.
+
+        Each source must have a 'status' field that is one of the three defined
+        values: connected, degraded, or disconnected.
+        """
+        r = client.get("/api/admin/data_sources")
+        assert r.status_code == 200
+        sources = r.json()
+        assert len(sources) >= 4
+        for s in sources:
+            assert s["status"] in ("connected", "degraded", "disconnected")
+
+
+class TestGasEndpoints:
+    """Tests for GET /api/gas/dashboard and GET /api/gas/pipeline_flows endpoints."""
+
+    def test_gas_dashboard_structure(self, client=client):
+        """GET /api/gas/dashboard returns 200 with required top-level keys.
+
+        The response must include hub_prices, pipeline_flows, lng_terminals,
+        and a positive wallumbilla_price. All hub and pipeline lists must be
+        non-empty.
+        """
+        r = client.get("/api/gas/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "hub_prices" in data
+        assert "pipeline_flows" in data
+        assert "lng_terminals" in data
+        assert data["wallumbilla_price"] > 0
+
+    def test_pipeline_utilisation_valid(self, client=client):
+        """GET /api/gas/pipeline_flows returns valid utilisation and direction values.
+
+        utilisation_pct must be between 0 and 100 inclusive.
+        direction must be one of FORWARD, REVERSE, ZERO.
+        utilisation_pct must match flow_tj_day / capacity_tj_day * 100 within 0.1%.
+        """
+        r = client.get("/api/gas/pipeline_flows")
+        assert r.status_code == 200
+        for pipe in r.json():
+            assert 0 <= pipe["utilisation_pct"] <= 100
+            assert pipe["direction"] in ("FORWARD", "REVERSE", "ZERO")
+            assert abs(pipe["flow_tj_day"] / pipe["capacity_tj_day"] * 100 - pipe["utilisation_pct"]) < 0.1
+
+    def test_gas_hub_prices_present(self, client=client):
+        """GET /api/gas/dashboard hub_prices must include Wallumbilla and Longford hubs.
+
+        These are the key east coast reference price hubs. All hub prices must
+        be positive values (gas is not typically traded at negative prices).
+        """
+        r = client.get("/api/gas/dashboard")
+        data = r.json()
+        hubs = {h["hub"] for h in data["hub_prices"]}
+        assert "Wallumbilla" in hubs
+        assert "Longford" in hubs

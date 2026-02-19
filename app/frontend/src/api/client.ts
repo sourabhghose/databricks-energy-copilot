@@ -876,6 +876,150 @@ export interface PasaDashboard {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 19a — VPP & Distributed Energy Resources (DER) interfaces
+// ---------------------------------------------------------------------------
+
+export interface VppUnit {
+  vpp_id: string
+  vpp_name: string
+  operator: string
+  region: string
+  total_capacity_mw: number
+  participating_households: number
+  battery_capacity_mwh: number
+  solar_capacity_mw: number
+  ev_count: number
+  current_dispatch_mw: number
+  mode: string
+  revenue_today_aud: number
+}
+
+export interface DerSummary {
+  region: string
+  rooftop_solar_capacity_gw: number
+  rooftop_solar_output_mw: number
+  btm_battery_capacity_gwh: number
+  btm_battery_output_mw: number
+  ev_connected_count: number
+  ev_charging_mw: number
+  net_demand_mw: number
+  gross_demand_mw: number
+  solar_penetration_pct: number
+}
+
+export interface DerDashboard {
+  timestamp: string
+  nem_rooftop_solar_gw: number
+  nem_btm_battery_gwh: number
+  nem_net_demand_reduction_mw: number
+  vpp_fleet: VppUnit[]
+  regional_der: DerSummary[]
+  hourly_solar_forecast: Record<string, number>[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 19c — Admin Settings & API Configuration Panel interfaces
+// ---------------------------------------------------------------------------
+
+export interface UserPreferences {
+  user_id: string
+  default_region: string
+  theme: string
+  default_horizon: string
+  price_alert_threshold: number
+  demand_alert_threshold: number
+  auto_refresh_seconds: number
+  notification_email?: string
+  notification_slack_webhook?: string
+  regions_watchlist: string[]
+  data_export_format: string
+}
+
+export interface ApiKeyInfo {
+  key_id: string
+  name: string
+  key_prefix: string
+  created_at: string
+  last_used_at?: string
+  expires_at?: string
+  permissions: string[]
+  request_count_today: number
+  rate_limit_per_min: number
+  is_active: boolean
+}
+
+export interface DataSourceConfig {
+  source_id: string
+  name: string
+  endpoint_url: string
+  status: string
+  last_sync: string
+  sync_interval_minutes: number
+  records_synced_today: number
+}
+
+export interface SystemConfig {
+  mock_mode: boolean
+  environment: string
+  databricks_workspace: string
+  unity_catalog: string
+  mlflow_experiment: string
+  api_version: string
+  frontend_version: string
+  backend_uptime_hours: number
+  total_api_requests_today: number
+  cache_hit_rate_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 19b — Gas Market & Pipeline Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface GasPipelineFlow {
+  pipeline_id: string
+  pipeline_name: string
+  from_location: string
+  to_location: string
+  flow_tj_day: number
+  capacity_tj_day: number
+  utilisation_pct: number
+  direction: string
+  pressure_kpa: number
+}
+
+export interface GasHubPrice {
+  hub: string
+  timestamp: string
+  price_aud_gj: number
+  volume_tj: number
+  change_1d: number
+  change_1w: number
+}
+
+export interface LngExportRecord {
+  terminal: string
+  region: string
+  export_volume_mtpa: number
+  domestic_allocation_pj: number
+  spot_cargo: boolean
+  next_cargo_date: string
+}
+
+export interface GasMarketDashboard {
+  timestamp: string
+  wallumbilla_price: number
+  moomba_price: number
+  longford_price: number
+  total_pipeline_flow_tj: number
+  lng_exports_today_tj: number
+  domestic_demand_tj: number
+  gas_power_generation_tj: number
+  hub_prices: GasHubPrice[]
+  pipeline_flows: GasPipelineFlow[]
+  lng_terminals: LngExportRecord[]
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -1573,6 +1717,111 @@ export const api = {
     if (outageType) params.set('outage_type', outageType)
     const res = await fetch(`${BASE_URL}/api/outages/list?${params}`, { headers })
     if (!res.ok) throw new Error('Failed to fetch outage list')
+    return res.json()
+  },
+
+  /**
+   * Get the VPP & Distributed Energy Resources dashboard.
+   * Returns NEM-wide DER metrics, VPP fleet, regional DER summary, and
+   * 24-hour rooftop solar forecast showing the duck curve effect.
+   * @param region  Optional NEM region code to filter regional_der
+   * Cache TTL: 60 seconds on the backend.
+   */
+  getDerDashboard: async (region?: string): Promise<DerDashboard> => {
+    const params = region ? `?region=${region}` : ''
+    const res = await fetch(`${BASE_URL}/api/der/dashboard${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch DER dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of VPP units.
+   * @param region  Optional NEM region code filter, e.g. "SA1"
+   * @param mode    Optional VPP mode filter: "peak_support" | "frequency_response" | "arbitrage" | "idle"
+   * Cache TTL: 30 seconds on the backend.
+   */
+  getVppFleet: async (region?: string, mode?: string): Promise<VppUnit[]> => {
+    const params = new URLSearchParams()
+    if (region) params.set('region', region)
+    if (mode) params.set('mode', mode)
+    const res = await fetch(`${BASE_URL}/api/der/vpp?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch VPP fleet')
+    return res.json()
+  },
+
+  /**
+   * Get the default user preferences for the platform.
+   * Cache TTL: 30 seconds on the backend.
+   */
+  getAdminPreferences: async (): Promise<UserPreferences> => {
+    const res = await fetch(`${BASE_URL}/api/admin/preferences`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch preferences')
+    return res.json()
+  },
+
+  /**
+   * Update user preferences (stateless echo in mock mode).
+   * @param prefs  Full UserPreferences object to persist
+   */
+  updateAdminPreferences: async (prefs: UserPreferences): Promise<UserPreferences> => {
+    const res = await fetch(`${BASE_URL}/api/admin/preferences`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(prefs),
+    })
+    if (!res.ok) throw new Error('Failed to update preferences')
+    return res.json()
+  },
+
+  /**
+   * List all API keys (prefixes only, secrets masked).
+   * Cache TTL: 60 seconds on the backend.
+   */
+  getApiKeys: async (): Promise<ApiKeyInfo[]> => {
+    const res = await fetch(`${BASE_URL}/api/admin/api_keys`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch API keys')
+    return res.json()
+  },
+
+  /**
+   * List all configured data sources with their current sync status.
+   * Cache TTL: 60 seconds on the backend.
+   */
+  getDataSources: async (): Promise<DataSourceConfig[]> => {
+    const res = await fetch(`${BASE_URL}/api/admin/data_sources`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch data sources')
+    return res.json()
+  },
+
+  /**
+   * Get platform system configuration and runtime statistics.
+   * Cache TTL: 30 seconds on the backend.
+   */
+  getSystemConfig: async (): Promise<SystemConfig> => {
+    const res = await fetch(`${BASE_URL}/api/admin/system_config`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch system config')
+    return res.json()
+  },
+
+  /**
+   * Get the Gas Market Dashboard for the Australian east coast gas market.
+   * Includes hub prices (Wallumbilla, Moomba, Longford, Port Hedland),
+   * pipeline flows for 5 major pipelines, and LNG terminal export records.
+   * Cache TTL: 60 seconds on the backend.
+   */
+  getGasDashboard: async (): Promise<GasMarketDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/gas/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch gas market dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of gas pipeline flow records.
+   * @param minUtilisation  Minimum utilisation % threshold (default 0 = return all pipelines)
+   */
+  getGasPipelineFlows: async (minUtilisation = 0): Promise<GasPipelineFlow[]> => {
+    const res = await fetch(`${BASE_URL}/api/gas/pipeline_flows?min_utilisation_pct=${minUtilisation}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch pipeline flows')
     return res.json()
   },
 }

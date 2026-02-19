@@ -21,6 +21,9 @@ import {
   Radio,
   Building2,
   Wrench,
+  Home as HomeIcon,
+  Settings as SettingsIcon,
+  Flame,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -49,6 +52,9 @@ import FrequencyAnalytics from './pages/FrequencyAnalytics'
 import EnergyFutures from './pages/EnergyFutures'
 import ParticipantRegistry from './pages/ParticipantRegistry'
 import OutageSchedule from './pages/OutageSchedule'
+import DerDashboard from './pages/DerDashboard'
+import Settings from './pages/Settings'
+import GasMarket from './pages/GasMarket'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -78,6 +84,9 @@ const NAV_ITEMS = [
   { to: '/futures',        label: 'Energy Futures',    Icon: TrendingUp     },
   { to: '/registry',       label: 'Participants',      Icon: Building2      },
   { to: '/outages',        label: 'Outage Schedule',   Icon: Wrench         },
+  { to: '/der',            label: 'VPP & DER',         Icon: HomeIcon       },
+  { to: '/gas',            label: 'Gas Market',        Icon: Flame          },
+  { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
 function Sidebar() {
@@ -181,6 +190,9 @@ export default function App() {
               <Route path="/futures"      element={<EnergyFutures />}      />
               <Route path="/registry"     element={<ParticipantRegistry />} />
               <Route path="/outages"      element={<OutageSchedule />}     />
+              <Route path="/der"          element={<DerDashboard />}       />
+              <Route path="/gas"          element={<GasMarket />}          />
+              <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>
         </div>
