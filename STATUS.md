@@ -255,3 +255,7 @@
 ## Sprint 9c — Model Serving + Batch Scoring — 2026-02-19
 **Completed:** databricks.yml (model_serving_endpoints for price_forecast + anomaly_detection, auto-capture logging to ml schema, RBAC permissions), notebooks/batch_scoring.py (Databricks notebook ~250 lines: load 21 models from MLflow, batch inference for all regions+horizons, physical clamping, spike probability, write to gold.nem_forecasts_batch), databricks.yml job_05 updated with batch_scoring_notebook task dependency
 **Notes:** Model serving endpoints use scale_to_zero to minimize cost when idle. Auto-capture logs all serving requests/responses to Delta for drift monitoring. Batch notebook separates the heavy model-loading step from the real-time inference pipeline (05_forecast_pipeline.py handles near-real-time 5-min intervals; batch notebook handles daily full-history scoring).
+
+## Sprint 10a — API Auth + OpenAPI Docs — 2026-02-19
+**Completed:** app/backend/main.py (FastAPI OpenAPI metadata, API key auth middleware via X-API-Key header, /api/version endpoint, Depends(verify_api_key) on all /api/* routes), app/backend/.env.example (ENERGY_COPILOT_API_KEY + rate limit vars), tests/test_backend.py (TestApiKeyAuth: 3 tests), CHANGELOG.md (Sprint 10 section)
+**Notes:** API auth is opt-in — set ENERGY_COPILOT_API_KEY env var to enable; unset (default) disables auth for dev/mock mode. All existing tests continue to pass since ENERGY_COPILOT_API_KEY is not set in test env.

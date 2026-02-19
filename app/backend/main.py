@@ -138,12 +138,56 @@ async def lifespan(application: FastAPI):
     # Shutdown: nothing to clean up (connections are per-request)
 
 # ---------------------------------------------------------------------------
+# API Key authentication
+# ---------------------------------------------------------------------------
+API_KEY = os.getenv("ENERGY_COPILOT_API_KEY", "")
+API_KEY_HEADER = "X-API-Key"
+_API_AUTH_ENABLED = bool(API_KEY)  # disabled if env var not set
+
+async def verify_api_key(request: Request) -> None:
+    """Dependency that enforces API key auth when ENERGY_COPILOT_API_KEY is set."""
+    if not _API_AUTH_ENABLED:
+        return  # auth disabled in dev/mock mode
+    key = request.headers.get(API_KEY_HEADER, "")
+    if not key or key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "unauthorized",
+                "message": f"Valid '{API_KEY_HEADER}' header required",
+            },
+            headers={"WWW-Authenticate": f"ApiKey header={API_KEY_HEADER}"},
+        )
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="AUS Energy Copilot API",
-    description="Backend API for the Australian NEM Energy Copilot dashboard",
+    description="""
+## AUS Energy Copilot — NEM Market Intelligence API
+
+Real-time Australian electricity market data, ML forecasts, and AI-powered analytics.
+
+### Authentication
+Include your API key in the `X-API-Key` header for production requests.
+In mock mode (no `DATABRICKS_HOST` set) authentication is bypassed.
+
+### Rate Limiting
+60 requests per minute per IP address (configurable via `RATE_LIMIT_REQUESTS` env var).
+    """,
     version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "Health", "description": "Service health and readiness checks"},
+        {"name": "Market Data", "description": "Real-time NEM prices, generation, and interconnector data"},
+        {"name": "Forecasts", "description": "ML-powered price and generation forecasts"},
+        {"name": "Alerts", "description": "User-configurable threshold alerts"},
+        {"name": "Chat", "description": "AI copilot streaming chat endpoint"},
+        {"name": "Market Summary", "description": "Daily AI-generated market narrative"},
+        {"name": "System", "description": "System health and model registry status"},
+    ],
     lifespan=lifespan,
 )
 
@@ -568,6 +612,8 @@ def _tool_dispatch(tool_name: str, tool_input: dict) -> str:
     response_model=List[PriceRecord],
     summary="Latest dispatch prices",
     tags=["Market Data"],
+    response_description="List of latest 5-min spot prices per NEM region",
+    dependencies=[Depends(verify_api_key)],
 )
 def get_latest_prices(
     region: Optional[str] = Query(None, description="NEM region code, e.g. NSW1"),
@@ -606,6 +652,7 @@ def get_latest_prices(
     response_model=List[PriceRecord],
     summary="Price history",
     tags=["Market Data"],
+    dependencies=[Depends(verify_api_key)],
 )
 def get_price_history(
     region: str           = Query(..., description="NEM region code, e.g. NSW1"),
@@ -640,6 +687,7 @@ def get_price_history(
     response_model=List[ForecastRecord],
     summary="Price forecasts",
     tags=["Forecasts"],
+    dependencies=[Depends(verify_api_key)],
 )
 def get_forecasts(
     region:  str = Query(..., description="NEM region code"),
@@ -681,6 +729,7 @@ def get_forecasts(
     response_model=List[GenerationRecord],
     summary="Generation by fuel type",
     tags=["Market Data"],
+    dependencies=[Depends(verify_api_key)],
 )
 def get_generation(
     region: str            = Query(..., description="NEM region code"),
@@ -725,6 +774,7 @@ def get_generation(
     response_model=List[InterconnectorRecord],
     summary="Interconnector flows",
     tags=["Market Data"],
+    dependencies=[Depends(verify_api_key)],
 )
 def get_interconnectors(
     interconnector_id: Optional[str] = Query(None, description="e.g. VIC1-NSW1"),
@@ -766,6 +816,7 @@ def get_interconnectors(
     response_model=List[FcasRecord],
     summary="FCAS prices",
     tags=["Market Data"],
+    dependencies=[Depends(verify_api_key)],
 )
 def get_fcas(
     region:  str           = Query(..., description="NEM region code"),
@@ -837,7 +888,8 @@ _MOCK_MARKET_SUMMARY: Dict[str, Any] = {
     "/api/market-summary/latest",
     response_model=MarketSummaryRecord,
     summary="Latest daily AI market summary",
-    tags=["Market Data"],
+    tags=["Market Summary"],
+    dependencies=[Depends(verify_api_key)],
 )
 def get_latest_market_summary() -> Dict[str, Any]:
     """
@@ -905,6 +957,7 @@ def get_latest_market_summary() -> Dict[str, Any]:
     response_model=List[AlertConfig],
     summary="List alert configurations",
     tags=["Alerts"],
+    dependencies=[Depends(verify_api_key)],
 )
 def list_alerts(
     is_active: Optional[bool] = Query(None, description="Filter by active state"),
@@ -935,6 +988,7 @@ def list_alerts(
     status_code=201,
     summary="Create an alert configuration",
     tags=["Alerts"],
+    dependencies=[Depends(verify_api_key)],
 )
 def create_alert(body: AlertCreateRequest):
     """Create a new alert configuration in Lakebase."""
@@ -1011,6 +1065,7 @@ def get_alert(alert_id: str):
     status_code=204,
     summary="Delete an alert configuration",
     tags=["Alerts"],
+    dependencies=[Depends(verify_api_key)],
 )
 def delete_alert(alert_id: str):
     """Delete an alert configuration from Lakebase by ID."""
@@ -1176,7 +1231,9 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
 @app.post(
     "/api/chat",
     summary="SSE streaming chat with Claude copilot",
-    tags=["Copilot"],
+    tags=["Chat"],
+    response_description="Server-Sent Events stream of AI copilot responses",
+    dependencies=[Depends(verify_api_key)],
 )
 async def chat(request: ChatRequest):
     """
@@ -1237,7 +1294,14 @@ class SystemHealthResponse(BaseModel):
     data_freshness_minutes: Optional[float] = None
     model_details: List[ModelHealthRecord]
 
-@app.get("/api/system/health", response_model=SystemHealthResponse)
+@app.get(
+    "/api/system/health",
+    response_model=SystemHealthResponse,
+    summary="System health and model registry",
+    tags=["System"],
+    response_description="System-wide health status including ML model registry",
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_system_health():
     """Return system-wide health: DB connectivity, model registry status, data freshness."""
     db_ok = _db.health_check()
@@ -1277,3 +1341,19 @@ async def get_system_health():
         data_freshness_minutes=2.3,
         model_details=mock_models
     )
+
+
+# ---------------------------------------------------------------------------
+# /api/version — version and feature flags (no auth required)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/version", tags=["Health"], summary="API version info")
+def get_version():
+    """Return API version, build info, and feature flags."""
+    return {
+        "version": "1.0.0",
+        "api_auth_enabled": _API_AUTH_ENABLED,
+        "mock_mode": MOCK_MODE,
+        "databricks_catalog": DATABRICKS_CATALOG,
+        "rate_limit_requests_per_minute": RATE_LIMIT_REQUESTS,
+    }

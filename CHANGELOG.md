@@ -3,6 +3,16 @@
 All notable changes to AUS Energy Copilot are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased] — Sprint 10 (2026-02-19)
+
+### Added
+- API key authentication middleware (X-API-Key header, opt-in via ENERGY_COPILOT_API_KEY env var)
+- /api/version endpoint (version, auth status, mock mode, rate limit config)
+- OpenAPI metadata: app title, description, tag groups, response descriptions
+- Agent tools: get_anomaly_events, get_model_health, get_forecast_accuracy (Sprint 9b)
+- Model serving endpoints in databricks.yml (Sprint 9c)
+- Batch scoring notebook (Sprint 9c)
+
 ## [Unreleased] - Sprint 7 (2026-02-19)
 
 ### Added

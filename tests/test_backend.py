@@ -405,3 +405,43 @@ class TestSprintEightEndpoints:
         assert data["word_count"] is not None
         assert isinstance(data["word_count"], int)
         assert data["word_count"] > 0
+
+
+# ===========================================================================
+# TestApiKeyAuth
+# ===========================================================================
+
+class TestApiKeyAuth:
+    """Tests for API key authentication middleware."""
+
+    def test_version_endpoint_no_auth(self):
+        """GET /api/version returns 200 without any headers (auth not required).
+
+        The /api/version endpoint is explicitly excluded from auth requirements
+        and must be accessible without any X-API-Key header present.
+        """
+        response = client.get("/api/version")
+        assert response.status_code == 200
+
+    def test_version_returns_mock_mode(self):
+        """GET /api/version response includes the mock_mode key.
+
+        The version endpoint returns a dict with feature flags including
+        mock_mode, api_auth_enabled, databricks_catalog, and
+        rate_limit_requests_per_minute.
+        """
+        response = client.get("/api/version")
+        assert response.status_code == 200
+        data = response.json()
+        assert "mock_mode" in data
+
+    def test_api_auth_disabled_in_mock_mode(self):
+        """GET /api/prices/latest returns 200 without X-API-Key header.
+
+        In the test environment ENERGY_COPILOT_API_KEY is not set, so
+        _API_AUTH_ENABLED is False and the verify_api_key dependency
+        returns immediately without checking for the header. All /api/*
+        routes must therefore be accessible without authentication.
+        """
+        response = client.get("/api/prices/latest")
+        assert response.status_code == 200
