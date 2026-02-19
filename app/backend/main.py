@@ -28486,3 +28486,1454 @@ def get_carbon_credit_price_forecast(scenario: Optional[str] = None):
         forecasts = [f for f in forecasts if f.scenario == scenario]
     _cache_set(cache_key, forecasts, _TTL_CARBON_CREDIT)
     return forecasts
+
+
+# ---------------------------------------------------------------------------
+# Sprint 45b — Power System Resilience & Extreme Weather Analytics
+# ---------------------------------------------------------------------------
+
+class WeatherOutageEvent(BaseModel):
+    event_id: str
+    event_name: str
+    event_type: str          # BUSHFIRE, FLOOD, HEATWAVE, STORM, CYCLONE, DROUGHT
+    state: str
+    region: str
+    start_date: str
+    end_date: Optional[str]
+    affected_customers: int
+    peak_demand_impact_mw: float
+    unserved_energy_mwh: float
+    infrastructure_damage_m_aud: float
+    recovery_days: float
+    severity: str            # LOW, MODERATE, HIGH, EXTREME
+
+
+class ResilienceInvestmentRecord(BaseModel):
+    project_id: str
+    project_name: str
+    asset_owner: str
+    state: str
+    investment_type: str     # UNDERGROUNDING, FLOOD_PROTECTION, FIRE_HARDENING, MICROGRID, BACKUP_POWER, COMMS_UPGRADE
+    capex_m_aud: float
+    annual_benefit_m_aud: float
+    customers_protected: int
+    risk_reduction_pct: float
+    status: str              # PLANNING, APPROVED, CONSTRUCTION, COMPLETE
+
+
+class GridVulnerabilityRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_type: str          # SUBSTATION, TRANSMISSION_LINE, DISTRIBUTION_LINE, TRANSFORMER, CONTROL_SYSTEM
+    state: str
+    vulnerability_score: float    # 0-10
+    bushfire_risk: str            # LOW, MEDIUM, HIGH, EXTREME
+    flood_risk: str
+    heat_risk: str
+    age_years: int
+    last_hardening_year: Optional[int]
+    replacement_priority: str     # CRITICAL, HIGH, MEDIUM, LOW
+
+
+class ResilienceKpiRecord(BaseModel):
+    year: int
+    state: str
+    saidi_minutes: float          # System Average Interruption Duration Index
+    saifi_count: float            # System Average Interruption Frequency Index
+    maifi_count: float            # Momentary Average Interruption Frequency
+    unserved_energy_mwh: float
+    weather_related_pct: float    # % of outages weather-related
+    avg_restoration_hours: float
+    resilience_investment_m_aud: float
+
+
+class GridResilienceDashboard(BaseModel):
+    timestamp: str
+    outage_events: List[WeatherOutageEvent]
+    resilience_investments: List[ResilienceInvestmentRecord]
+    vulnerability_records: List[GridVulnerabilityRecord]
+    kpi_records: List[ResilienceKpiRecord]
+    total_unserved_energy_mwh: float
+    total_affected_customers: int
+    total_resilience_investment_m_aud: float
+    avg_recovery_days: float
+
+
+# --- Mock data factories ---
+
+def _make_weather_outage_events() -> List[WeatherOutageEvent]:
+    return [
+        WeatherOutageEvent(
+            event_id="WOE-001",
+            event_name="Black Summer — NSW North Coast Fires",
+            event_type="BUSHFIRE",
+            state="NSW",
+            region="North Coast",
+            start_date="2019-11-08",
+            end_date="2020-02-10",
+            affected_customers=185000,
+            peak_demand_impact_mw=420.0,
+            unserved_energy_mwh=18400.0,
+            infrastructure_damage_m_aud=320.0,
+            recovery_days=28.0,
+            severity="EXTREME",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-002",
+            event_name="Black Summer — VIC East Gippsland Fires",
+            event_type="BUSHFIRE",
+            state="VIC",
+            region="East Gippsland",
+            start_date="2019-12-20",
+            end_date="2020-02-15",
+            affected_customers=110000,
+            peak_demand_impact_mw=310.0,
+            unserved_energy_mwh=12800.0,
+            infrastructure_damage_m_aud=195.0,
+            recovery_days=22.5,
+            severity="EXTREME",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-003",
+            event_name="2022 SE QLD & NSW Floods",
+            event_type="FLOOD",
+            state="QLD",
+            region="South-East Queensland",
+            start_date="2022-02-25",
+            end_date="2022-03-20",
+            affected_customers=230000,
+            peak_demand_impact_mw=580.0,
+            unserved_energy_mwh=22100.0,
+            infrastructure_damage_m_aud=450.0,
+            recovery_days=18.0,
+            severity="EXTREME",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-004",
+            event_name="2022 Northern Rivers NSW Floods",
+            event_type="FLOOD",
+            state="NSW",
+            region="Northern Rivers",
+            start_date="2022-02-28",
+            end_date="2022-03-25",
+            affected_customers=148000,
+            peak_demand_impact_mw=390.0,
+            unserved_energy_mwh=14600.0,
+            infrastructure_damage_m_aud=280.0,
+            recovery_days=15.5,
+            severity="HIGH",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-005",
+            event_name="Cyclone Ilsa — Pilbara Coast",
+            event_type="CYCLONE",
+            state="WA",
+            region="Pilbara",
+            start_date="2023-04-13",
+            end_date="2023-04-15",
+            affected_customers=22000,
+            peak_demand_impact_mw=155.0,
+            unserved_energy_mwh=1850.0,
+            infrastructure_damage_m_aud=88.0,
+            recovery_days=5.0,
+            severity="HIGH",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-006",
+            event_name="2024 SE Queensland Heatwave",
+            event_type="HEATWAVE",
+            state="QLD",
+            region="South-East Queensland",
+            start_date="2024-01-10",
+            end_date="2024-01-14",
+            affected_customers=95000,
+            peak_demand_impact_mw=820.0,
+            unserved_energy_mwh=6200.0,
+            infrastructure_damage_m_aud=35.0,
+            recovery_days=1.5,
+            severity="HIGH",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-007",
+            event_name="2019 SA Thunderstorm Blackout",
+            event_type="STORM",
+            state="SA",
+            region="Adelaide Metro",
+            start_date="2019-01-24",
+            end_date="2019-01-25",
+            affected_customers=60000,
+            peak_demand_impact_mw=480.0,
+            unserved_energy_mwh=3100.0,
+            infrastructure_damage_m_aud=42.0,
+            recovery_days=0.75,
+            severity="MODERATE",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-008",
+            event_name="2023 VIC Alpine Bushfires",
+            event_type="BUSHFIRE",
+            state="VIC",
+            region="Alpine Region",
+            start_date="2023-01-15",
+            end_date="2023-02-08",
+            affected_customers=38000,
+            peak_demand_impact_mw=120.0,
+            unserved_energy_mwh=4400.0,
+            infrastructure_damage_m_aud=67.0,
+            recovery_days=12.0,
+            severity="HIGH",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-009",
+            event_name="2023 NSW Central West Flooding",
+            event_type="FLOOD",
+            state="NSW",
+            region="Central West",
+            start_date="2023-08-09",
+            end_date="2023-08-20",
+            affected_customers=42000,
+            peak_demand_impact_mw=110.0,
+            unserved_energy_mwh=2800.0,
+            infrastructure_damage_m_aud=55.0,
+            recovery_days=7.0,
+            severity="MODERATE",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-010",
+            event_name="2022 WA Tropical Cyclone Ellie",
+            event_type="CYCLONE",
+            state="WA",
+            region="Kimberley",
+            start_date="2022-12-27",
+            end_date="2023-01-02",
+            affected_customers=14000,
+            peak_demand_impact_mw=78.0,
+            unserved_energy_mwh=980.0,
+            infrastructure_damage_m_aud=28.0,
+            recovery_days=4.5,
+            severity="MODERATE",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-011",
+            event_name="2024 TAS Drought — Hydro Shortfall",
+            event_type="DROUGHT",
+            state="TAS",
+            region="State-wide",
+            start_date="2024-06-01",
+            end_date="2024-09-30",
+            affected_customers=8500,
+            peak_demand_impact_mw=195.0,
+            unserved_energy_mwh=8700.0,
+            infrastructure_damage_m_aud=12.0,
+            recovery_days=30.0,
+            severity="HIGH",
+        ),
+        WeatherOutageEvent(
+            event_id="WOE-012",
+            event_name="2023 NT Cyclone Season Storms",
+            event_type="STORM",
+            state="NT",
+            region="Darwin Region",
+            start_date="2023-03-05",
+            end_date="2023-03-07",
+            affected_customers=28000,
+            peak_demand_impact_mw=92.0,
+            unserved_energy_mwh=720.0,
+            infrastructure_damage_m_aud=18.0,
+            recovery_days=0.5,
+            severity="LOW",
+        ),
+    ]
+
+
+def _make_resilience_investments() -> List[ResilienceInvestmentRecord]:
+    return [
+        ResilienceInvestmentRecord(
+            project_id="RI-001",
+            project_name="Western Sydney Undergrounding Stage 1",
+            asset_owner="Endeavour Energy",
+            state="NSW",
+            investment_type="UNDERGROUNDING",
+            capex_m_aud=245.0,
+            annual_benefit_m_aud=18.5,
+            customers_protected=95000,
+            risk_reduction_pct=42.0,
+            status="CONSTRUCTION",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-002",
+            project_name="Lismore Substation Flood Barrier",
+            asset_owner="Ausgrid",
+            state="NSW",
+            investment_type="FLOOD_PROTECTION",
+            capex_m_aud=38.0,
+            annual_benefit_m_aud=6.2,
+            customers_protected=42000,
+            risk_reduction_pct=68.0,
+            status="COMPLETE",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-003",
+            project_name="Gippsland Communities Microgrid Network",
+            asset_owner="AusNet",
+            state="VIC",
+            investment_type="MICROGRID",
+            capex_m_aud=82.0,
+            annual_benefit_m_aud=9.4,
+            customers_protected=18500,
+            risk_reduction_pct=55.0,
+            status="CONSTRUCTION",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-004",
+            project_name="Powerlink QLD Tower Fire Hardening",
+            asset_owner="Powerlink",
+            state="QLD",
+            investment_type="FIRE_HARDENING",
+            capex_m_aud=145.0,
+            annual_benefit_m_aud=14.8,
+            customers_protected=210000,
+            risk_reduction_pct=38.0,
+            status="APPROVED",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-005",
+            project_name="SA Remote Community Backup Power",
+            asset_owner="SA Power Networks",
+            state="SA",
+            investment_type="BACKUP_POWER",
+            capex_m_aud=28.0,
+            annual_benefit_m_aud=3.8,
+            customers_protected=8200,
+            risk_reduction_pct=72.0,
+            status="COMPLETE",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-006",
+            project_name="Pilbara Grid Communications Upgrade",
+            asset_owner="Western Power",
+            state="WA",
+            investment_type="COMMS_UPGRADE",
+            capex_m_aud=55.0,
+            annual_benefit_m_aud=7.1,
+            customers_protected=35000,
+            risk_reduction_pct=48.0,
+            status="COMPLETE",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-007",
+            project_name="North QLD Distribution Undergrounding",
+            asset_owner="Ergon Energy",
+            state="QLD",
+            investment_type="UNDERGROUNDING",
+            capex_m_aud=180.0,
+            annual_benefit_m_aud=16.2,
+            customers_protected=78000,
+            risk_reduction_pct=44.0,
+            status="PLANNING",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-008",
+            project_name="VIC Transmission Flood Protection Works",
+            asset_owner="AusNet",
+            state="VIC",
+            investment_type="FLOOD_PROTECTION",
+            capex_m_aud=62.0,
+            annual_benefit_m_aud=8.5,
+            customers_protected=125000,
+            risk_reduction_pct=35.0,
+            status="APPROVED",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-009",
+            project_name="Adelaide Hills Bushfire Zone Hardening",
+            asset_owner="SA Power Networks",
+            state="SA",
+            investment_type="FIRE_HARDENING",
+            capex_m_aud=95.0,
+            annual_benefit_m_aud=11.0,
+            customers_protected=52000,
+            risk_reduction_pct=58.0,
+            status="CONSTRUCTION",
+        ),
+        ResilienceInvestmentRecord(
+            project_id="RI-010",
+            project_name="TAS Hydro Emergency Diesel Backup Fleet",
+            asset_owner="TasNetworks",
+            state="TAS",
+            investment_type="BACKUP_POWER",
+            capex_m_aud=18.0,
+            annual_benefit_m_aud=4.5,
+            customers_protected=12000,
+            risk_reduction_pct=80.0,
+            status="COMPLETE",
+        ),
+    ]
+
+
+def _make_grid_vulnerability_records() -> List[GridVulnerabilityRecord]:
+    return [
+        GridVulnerabilityRecord(
+            asset_id="GV-001",
+            asset_name="Tumut 330kV Substation",
+            asset_type="SUBSTATION",
+            state="NSW",
+            vulnerability_score=8.2,
+            bushfire_risk="EXTREME",
+            flood_risk="LOW",
+            heat_risk="MEDIUM",
+            age_years=42,
+            last_hardening_year=2018,
+            replacement_priority="CRITICAL",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-002",
+            asset_name="Lismore Zone Substation",
+            asset_type="SUBSTATION",
+            state="NSW",
+            vulnerability_score=7.8,
+            bushfire_risk="MEDIUM",
+            flood_risk="EXTREME",
+            heat_risk="LOW",
+            age_years=38,
+            last_hardening_year=2022,
+            replacement_priority="HIGH",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-003",
+            asset_name="Gippsland 220kV Transmission Line",
+            asset_type="TRANSMISSION_LINE",
+            state="VIC",
+            vulnerability_score=8.9,
+            bushfire_risk="EXTREME",
+            flood_risk="MEDIUM",
+            heat_risk="HIGH",
+            age_years=45,
+            last_hardening_year=None,
+            replacement_priority="CRITICAL",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-004",
+            asset_name="Hazelwood Junction Transformer",
+            asset_type="TRANSFORMER",
+            state="VIC",
+            vulnerability_score=6.5,
+            bushfire_risk="HIGH",
+            flood_risk="LOW",
+            heat_risk="EXTREME",
+            age_years=32,
+            last_hardening_year=2019,
+            replacement_priority="HIGH",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-005",
+            asset_name="Cairns 132kV Distribution Feeders",
+            asset_type="DISTRIBUTION_LINE",
+            state="QLD",
+            vulnerability_score=7.1,
+            bushfire_risk="LOW",
+            flood_risk="HIGH",
+            heat_risk="HIGH",
+            age_years=28,
+            last_hardening_year=2020,
+            replacement_priority="HIGH",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-006",
+            asset_name="Townsville SCADA Control System",
+            asset_type="CONTROL_SYSTEM",
+            state="QLD",
+            vulnerability_score=5.8,
+            bushfire_risk="LOW",
+            flood_risk="HIGH",
+            heat_risk="MEDIUM",
+            age_years=15,
+            last_hardening_year=2021,
+            replacement_priority="MEDIUM",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-007",
+            asset_name="Port Augusta 275kV Substation",
+            asset_type="SUBSTATION",
+            state="SA",
+            vulnerability_score=7.4,
+            bushfire_risk="HIGH",
+            flood_risk="MEDIUM",
+            heat_risk="EXTREME",
+            age_years=40,
+            last_hardening_year=2017,
+            replacement_priority="HIGH",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-008",
+            asset_name="Murray Bridge Distribution Lines",
+            asset_type="DISTRIBUTION_LINE",
+            state="SA",
+            vulnerability_score=6.2,
+            bushfire_risk="HIGH",
+            flood_risk="MEDIUM",
+            heat_risk="HIGH",
+            age_years=35,
+            last_hardening_year=2020,
+            replacement_priority="MEDIUM",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-009",
+            asset_name="Karratha 220kV Transmission Line",
+            asset_type="TRANSMISSION_LINE",
+            state="WA",
+            vulnerability_score=8.5,
+            bushfire_risk="HIGH",
+            flood_risk="MEDIUM",
+            heat_risk="EXTREME",
+            age_years=30,
+            last_hardening_year=2023,
+            replacement_priority="CRITICAL",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-010",
+            asset_name="Perth Metro 132kV Grid Transformer",
+            asset_type="TRANSFORMER",
+            state="WA",
+            vulnerability_score=4.8,
+            bushfire_risk="MEDIUM",
+            flood_risk="LOW",
+            heat_risk="HIGH",
+            age_years=22,
+            last_hardening_year=2022,
+            replacement_priority="MEDIUM",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-011",
+            asset_name="Hobart Grid Connection Substation",
+            asset_type="SUBSTATION",
+            state="TAS",
+            vulnerability_score=5.2,
+            bushfire_risk="MEDIUM",
+            flood_risk="MEDIUM",
+            heat_risk="LOW",
+            age_years=18,
+            last_hardening_year=2021,
+            replacement_priority="MEDIUM",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-012",
+            asset_name="Dederang High Voltage Transformer",
+            asset_type="TRANSFORMER",
+            state="VIC",
+            vulnerability_score=7.6,
+            bushfire_risk="EXTREME",
+            flood_risk="LOW",
+            heat_risk="HIGH",
+            age_years=44,
+            last_hardening_year=None,
+            replacement_priority="CRITICAL",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-013",
+            asset_name="NSW Blue Mountains Distribution Network",
+            asset_type="DISTRIBUTION_LINE",
+            state="NSW",
+            vulnerability_score=8.0,
+            bushfire_risk="EXTREME",
+            flood_risk="LOW",
+            heat_risk="MEDIUM",
+            age_years=36,
+            last_hardening_year=2019,
+            replacement_priority="CRITICAL",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-014",
+            asset_name="Darwin SCADA & Communications Hub",
+            asset_type="CONTROL_SYSTEM",
+            state="NT",
+            vulnerability_score=6.8,
+            bushfire_risk="MEDIUM",
+            flood_risk="HIGH",
+            heat_risk="HIGH",
+            age_years=12,
+            last_hardening_year=2022,
+            replacement_priority="HIGH",
+        ),
+        GridVulnerabilityRecord(
+            asset_id="GV-015",
+            asset_name="Woolnorth 220kV Transmission Line",
+            asset_type="TRANSMISSION_LINE",
+            state="TAS",
+            vulnerability_score=5.5,
+            bushfire_risk="LOW",
+            flood_risk="MEDIUM",
+            heat_risk="LOW",
+            age_years=5,
+            last_hardening_year=2020,
+            replacement_priority="LOW",
+        ),
+    ]
+
+
+def _make_resilience_kpis() -> List[ResilienceKpiRecord]:
+    data = [
+        # NSW
+        (2022, "NSW", 285.4, 2.84, 1.22, 18400.0, 62.0, 4.8, 185.0),
+        (2023, "NSW", 255.8, 2.61, 1.10, 15200.0, 58.5, 4.2, 215.0),
+        (2024, "NSW", 230.1, 2.43, 0.98, 12800.0, 54.0, 3.8, 248.0),
+        # VIC
+        (2022, "VIC", 340.2, 3.12, 1.45, 21600.0, 67.5, 5.6, 162.0),
+        (2023, "VIC", 310.5, 2.95, 1.35, 18900.0, 64.0, 5.0, 198.0),
+        (2024, "VIC", 278.9, 2.74, 1.20, 16400.0, 59.5, 4.5, 235.0),
+        # QLD
+        (2022, "QLD", 395.7, 3.55, 1.68, 28500.0, 71.0, 6.4, 140.0),
+        (2023, "QLD", 365.2, 3.32, 1.55, 24800.0, 68.0, 5.9, 175.0),
+        (2024, "QLD", 328.4, 3.08, 1.40, 21200.0, 64.5, 5.4, 210.0),
+        # SA
+        (2022, "SA", 215.3, 2.18, 0.92, 9800.0, 48.5, 3.6, 95.0),
+        (2023, "SA", 198.6, 2.05, 0.86, 8600.0, 45.0, 3.2, 118.0),
+        (2024, "SA", 182.4, 1.92, 0.80, 7500.0, 42.0, 2.9, 145.0),
+        # WA
+        (2022, "WA", 168.9, 1.88, 0.78, 7200.0, 42.5, 2.8, 78.0),
+        (2023, "WA", 155.2, 1.75, 0.72, 6400.0, 40.0, 2.5, 98.0),
+        (2024, "WA", 140.8, 1.62, 0.66, 5600.0, 38.0, 2.2, 122.0),
+    ]
+    records = []
+    for row in data:
+        year, state, saidi, saifi, maifi, use, wrpct, avgr, inv = row
+        records.append(ResilienceKpiRecord(
+            year=year,
+            state=state,
+            saidi_minutes=saidi,
+            saifi_count=saifi,
+            maifi_count=maifi,
+            unserved_energy_mwh=use,
+            weather_related_pct=wrpct,
+            avg_restoration_hours=avgr,
+            resilience_investment_m_aud=inv,
+        ))
+    return records
+
+
+_TTL_GRID_RESILIENCE = 300
+
+
+@app.get(
+    "/api/grid-resilience/dashboard",
+    response_model=GridResilienceDashboard,
+    summary="Grid resilience & extreme weather analytics dashboard",
+    tags=["GridResilience"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_resilience_dashboard():
+    cache_key = "grid_resilience:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    events = _make_weather_outage_events()
+    investments = _make_resilience_investments()
+    vuln = _make_grid_vulnerability_records()
+    kpis = _make_resilience_kpis()
+    total_use = sum(e.unserved_energy_mwh for e in events)
+    total_cust = sum(e.affected_customers for e in events)
+    total_inv = sum(i.capex_m_aud for i in investments)
+    avg_rec = sum(e.recovery_days for e in events) / len(events)
+    result = GridResilienceDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        outage_events=events,
+        resilience_investments=investments,
+        vulnerability_records=vuln,
+        kpi_records=kpis,
+        total_unserved_energy_mwh=round(total_use, 1),
+        total_affected_customers=total_cust,
+        total_resilience_investment_m_aud=round(total_inv, 1),
+        avg_recovery_days=round(avg_rec, 2),
+    )
+    _cache_set(cache_key, result, _TTL_GRID_RESILIENCE)
+    return result
+
+
+@app.get(
+    "/api/grid-resilience/outage-events",
+    response_model=List[WeatherOutageEvent],
+    summary="Weather-related outage events (bushfire, flood, heatwave, etc.)",
+    tags=["GridResilience"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_resilience_outage_events(event_type: Optional[str] = None, state: Optional[str] = None):
+    cache_key = f"grid_resilience:outage_events:{event_type}:{state}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    events = _make_weather_outage_events()
+    if event_type:
+        events = [e for e in events if e.event_type == event_type.upper()]
+    if state:
+        events = [e for e in events if e.state == state.upper()]
+    _cache_set(cache_key, events, _TTL_GRID_RESILIENCE)
+    return events
+
+
+@app.get(
+    "/api/grid-resilience/investments",
+    response_model=List[ResilienceInvestmentRecord],
+    summary="Resilience investment projects (undergrounding, flood barriers, etc.)",
+    tags=["GridResilience"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_resilience_investments(state: Optional[str] = None, investment_type: Optional[str] = None):
+    cache_key = f"grid_resilience:investments:{state}:{investment_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    investments = _make_resilience_investments()
+    if state:
+        investments = [i for i in investments if i.state == state.upper()]
+    if investment_type:
+        investments = [i for i in investments if i.investment_type == investment_type.upper()]
+    _cache_set(cache_key, investments, _TTL_GRID_RESILIENCE)
+    return investments
+
+
+@app.get(
+    "/api/grid-resilience/vulnerability",
+    response_model=List[GridVulnerabilityRecord],
+    summary="Grid asset vulnerability assessment records",
+    tags=["GridResilience"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_resilience_vulnerability(state: Optional[str] = None, asset_type: Optional[str] = None):
+    cache_key = f"grid_resilience:vulnerability:{state}:{asset_type}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_grid_vulnerability_records()
+    if state:
+        records = [r for r in records if r.state == state.upper()]
+    if asset_type:
+        records = [r for r in records if r.asset_type == asset_type.upper()]
+    _cache_set(cache_key, records, _TTL_GRID_RESILIENCE)
+    return records
+
+
+@app.get(
+    "/api/grid-resilience/kpis",
+    response_model=List[ResilienceKpiRecord],
+    summary="Resilience KPIs: SAIDI, SAIFI, MAIFI, unserved energy by state & year",
+    tags=["GridResilience"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_grid_resilience_kpis(state: Optional[str] = None, year: Optional[int] = None):
+    cache_key = f"grid_resilience:kpis:{state}:{year}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    kpis = _make_resilience_kpis()
+    if state:
+        kpis = [k for k in kpis if k.state == state.upper()]
+    if year:
+        kpis = [k for k in kpis if k.year == year]
+    _cache_set(cache_key, kpis, _TTL_GRID_RESILIENCE)
+    return kpis
+
+# ---------------------------------------------------------------------------
+# Sprint 45a — EV Fleet & Grid-Scale Charging Integration Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_EV_FLEET = 1800
+
+
+class EvFleet45Record(BaseModel):
+    fleet_id: str
+    fleet_name: str
+    operator: str
+    state: str
+    fleet_type: str          # BUS, TRUCK, DELIVERY_VAN, GOVERNMENT, TAXI
+    total_vehicles: int
+    ev_vehicles: int
+    ev_penetration_pct: float
+    avg_daily_km: float
+    avg_consumption_kwh_100km: float
+    total_daily_kwh_demand: float
+    charging_strategy: str   # OVERNIGHT, OPPORTUNITY, SMART_V2G
+    peak_charge_mw: float
+    grid_connection_kv: float
+
+
+class ChargingInfra45Record(BaseModel):
+    site_id: str
+    site_name: str
+    operator: str
+    state: str
+    location_type: str       # DEPOT, HIGHWAY, RETAIL, WORKPLACE, RESIDENTIAL_HUB
+    charger_type: str        # AC_SLOW, AC_FAST, DC_FAST, DC_ULTRA
+    num_chargers: int
+    total_power_kw: float
+    avg_utilisation_pct: float
+    sessions_per_day: float
+    avg_energy_per_session_kwh: float
+    v2g_capable: bool
+    status: str              # OPERATING, CONSTRUCTION, PLANNED
+
+
+class V2GDispatch45Record(BaseModel):
+    interval: str
+    fleet_id: str
+    fleet_name: str
+    v2g_export_mw: float
+    grid_frequency_hz: float
+    spot_price_aud_mwh: float
+    revenue_aud: float
+    soc_before_pct: float
+    soc_after_pct: float
+
+
+class EvDemandForecast45Record(BaseModel):
+    year: int
+    ev_stock_millions: float
+    fleet_ev_pct: float
+    total_ev_demand_twh: float
+    managed_charging_twh: float
+    v2g_discharge_twh: float
+    peak_demand_increase_gw: float
+    off_peak_shift_gw: float
+
+
+class EvFleet45Dashboard(BaseModel):
+    timestamp: str
+    fleets: list[EvFleet45Record]
+    charging_infra: list[ChargingInfra45Record]
+    v2g_dispatch: list[V2GDispatch45Record]
+    demand_forecast: list[EvDemandForecast45Record]
+    total_fleet_ev_vehicles: int
+    total_charging_power_mw: float
+    avg_fleet_ev_penetration_pct: float
+    v2g_capable_sites: int
+
+
+def _make_ev_fleet45_records() -> list[EvFleet45Record]:
+    data = [
+        # fleet_id, fleet_name, operator, state, fleet_type, total_vehicles, ev_vehicles,
+        # ev_penetration_pct, avg_daily_km, avg_consumption_kwh_100km,
+        # total_daily_kwh_demand, charging_strategy, peak_charge_mw, grid_connection_kv
+        ("FLT001", "Sydney Buses Metro", "Transport for NSW", "NSW", "BUS",
+         2500, 250, 10.0, 180.0, 120.0, 54000.0, "OVERNIGHT", 4.5, 11.0),
+        ("FLT002", "Melbourne Metro Trains Depot", "Metro Trains Melbourne", "VIC", "BUS",
+         500, 175, 35.0, 250.0, 110.0, 48125.0, "SMART_V2G", 6.2, 22.0),
+        ("FLT003", "Australia Post Delivery Fleet", "Australia Post", "NSW", "DELIVERY_VAN",
+         8000, 2400, 30.0, 120.0, 22.0, 63360.0, "OVERNIGHT", 3.8, 11.0),
+        ("FLT004", "Woolworths Distribution", "Woolworths Group", "VIC", "TRUCK",
+         1200, 480, 40.0, 320.0, 180.0, 276480.0, "OPPORTUNITY", 12.4, 33.0),
+        ("FLT005", "NSW Government Fleet", "NSW Government", "NSW", "GOVERNMENT",
+         15000, 9000, 60.0, 80.0, 18.0, 129600.0, "SMART_V2G", 8.5, 11.0),
+        ("FLT006", "QLD Taxi Fleet", "QLD Transport", "QLD", "TAXI",
+         4500, 900, 20.0, 300.0, 16.0, 43200.0, "OPPORTUNITY", 1.8, 11.0),
+        ("FLT007", "Brisbane City Council", "Brisbane City Council", "QLD", "GOVERNMENT",
+         3200, 1600, 50.0, 90.0, 20.0, 28800.0, "SMART_V2G", 3.2, 11.0),
+        ("FLT008", "Toll Group Freight", "Toll Group", "VIC", "TRUCK",
+         2800, 1400, 50.0, 400.0, 200.0, 1120000.0, "OVERNIGHT", 18.6, 33.0),
+        ("FLT009", "StarTrack Express", "Australia Post", "QLD", "DELIVERY_VAN",
+         3600, 2520, 70.0, 110.0, 21.0, 58212.0, "SMART_V2G", 5.1, 11.0),
+        ("FLT010", "TransLink Bus Network", "TransLink", "QLD", "BUS",
+         1800, 1530, 85.0, 200.0, 115.0, 352350.0, "SMART_V2G", 22.0, 33.0),
+    ]
+    records = []
+    for row in data:
+        (fid, fname, op, state, ftype, total_v, ev_v, ev_pct, daily_km,
+         cons, daily_kwh, strategy, peak_mw, grid_kv) = row
+        records.append(EvFleet45Record(
+            fleet_id=fid,
+            fleet_name=fname,
+            operator=op,
+            state=state,
+            fleet_type=ftype,
+            total_vehicles=total_v,
+            ev_vehicles=ev_v,
+            ev_penetration_pct=ev_pct,
+            avg_daily_km=daily_km,
+            avg_consumption_kwh_100km=cons,
+            total_daily_kwh_demand=daily_kwh,
+            charging_strategy=strategy,
+            peak_charge_mw=peak_mw,
+            grid_connection_kv=grid_kv,
+        ))
+    return records
+
+
+def _make_charging_infra45_records() -> list[ChargingInfra45Record]:
+    data = [
+        # site_id, site_name, operator, state, location_type, charger_type,
+        # num_chargers, total_power_kw, avg_util_pct, sess_per_day, avg_kwh_per_sess, v2g_capable, status
+        ("SITE001", "Sydney Buses Ryde Depot", "Transport for NSW", "NSW", "DEPOT", "AC_SLOW",
+         80, 1760.0, 62.0, 200.0, 110.0, False, "OPERATING"),
+        ("SITE002", "Melbourne Dynon Rail Depot", "Metro Trains Melbourne", "VIC", "DEPOT", "DC_ULTRA",
+         24, 8400.0, 75.0, 48.0, 280.0, True, "OPERATING"),
+        ("SITE003", "Hume Highway Truck Stop Goulburn", "Evie Networks", "NSW", "HIGHWAY", "DC_ULTRA",
+         12, 4200.0, 68.0, 96.0, 150.0, False, "OPERATING"),
+        ("SITE004", "Pacific Motorway Coomera", "Chargefox", "QLD", "HIGHWAY", "DC_FAST",
+         8, 600.0, 55.0, 64.0, 48.0, False, "OPERATING"),
+        ("SITE005", "Westfield Parramatta", "BP Pulse", "NSW", "RETAIL", "AC_FAST",
+         30, 660.0, 45.0, 90.0, 22.0, False, "OPERATING"),
+        ("SITE006", "Southland Shopping Centre", "Chargefox", "VIC", "RETAIL", "DC_FAST",
+         16, 1200.0, 58.0, 64.0, 38.0, False, "OPERATING"),
+        ("SITE007", "Australia Post Chullora Hub", "Australia Post", "NSW", "DEPOT", "AC_FAST",
+         120, 2640.0, 70.0, 360.0, 28.0, True, "OPERATING"),
+        ("SITE008", "Toll Somerton Freight Hub", "Toll Group", "VIC", "DEPOT", "DC_ULTRA",
+         36, 12600.0, 80.0, 72.0, 320.0, True, "OPERATING"),
+        ("SITE009", "Brisbane CBD Workplace Hub", "Energex", "QLD", "WORKPLACE", "AC_FAST",
+         40, 880.0, 50.0, 120.0, 18.0, False, "OPERATING"),
+        ("SITE010", "Adelaide Residential Hub Mawson Lakes", "SA Power Networks", "SA", "RESIDENTIAL_HUB", "AC_SLOW",
+         50, 550.0, 35.0, 75.0, 12.0, True, "OPERATING"),
+        ("SITE011", "Perth Fremantle Port Depot", "Western Power", "WA", "DEPOT", "DC_FAST",
+         20, 1500.0, 65.0, 60.0, 68.0, True, "CONSTRUCTION"),
+        ("SITE012", "Sunshine Coast Hinterland Highway", "NRMA Energy", "QLD", "HIGHWAY", "DC_ULTRA",
+         6, 2100.0, 30.0, 24.0, 180.0, False, "PLANNED"),
+    ]
+    records = []
+    for row in data:
+        (sid, sname, op, state, ltype, ctype, num_c, total_pw,
+         util_pct, sess, avg_kwh, v2g, status) = row
+        records.append(ChargingInfra45Record(
+            site_id=sid,
+            site_name=sname,
+            operator=op,
+            state=state,
+            location_type=ltype,
+            charger_type=ctype,
+            num_chargers=num_c,
+            total_power_kw=total_pw,
+            avg_utilisation_pct=util_pct,
+            sessions_per_day=sess,
+            avg_energy_per_session_kwh=avg_kwh,
+            v2g_capable=v2g,
+            status=status,
+        ))
+    return records
+
+
+def _make_v2g_dispatch45_records() -> list[V2GDispatch45Record]:
+    import math
+    # 24 half-hour intervals for a peak price day; 3 fleets rotating
+    fleet_pool = [
+        ("FLT002", "Melbourne Metro Trains Depot"),
+        ("FLT005", "NSW Government Fleet"),
+        ("FLT007", "Brisbane City Council"),
+    ]
+    records = []
+    base_date = "2026-02-20"
+    for i in range(24):
+        hour = 6 + i // 2
+        minute = 30 if i % 2 else 0
+        interval = f"{base_date}T{hour:02d}:{minute:02d}:00+10:00"
+        fleet_id, fleet_name = fleet_pool[i % 3]
+
+        # Morning ramp 6-9, shoulder 9-16, evening peak 16-21, off-peak 21+
+        if 6 <= hour < 9:
+            spot = round(80.0 + i * 15, 2)
+            export = round(0.5 + i * 0.2, 2)
+        elif 9 <= hour < 16:
+            spot = round(75.0 + math.sin(i * 0.3) * 20, 2)
+            export = round(1.0 + math.sin(i * 0.25) * 0.8, 2)
+        elif 16 <= hour < 21:
+            spot = round(250.0 + (hour - 16) * 50, 2)
+            export = round(3.0 + (hour - 16) * 0.4, 2)
+        else:
+            spot = round(55.0 + i * 2, 2)
+            export = round(0.2, 2)
+
+        export = max(0.0, min(5.0, export))
+        freq = round(50.0 + (0.02 if export > 2.0 else -0.01), 3)
+        revenue = round(export * spot * 0.5, 2)  # MW * $/MWh * 0.5 h
+        soc_before = round(85.0 - i * 1.5, 1)
+        soc_after = round(soc_before - export * 0.5 * 2.5, 1)  # rough SoC delta
+        soc_before = max(20.0, min(95.0, soc_before))
+        soc_after = max(20.0, min(95.0, soc_after))
+
+        records.append(V2GDispatch45Record(
+            interval=interval,
+            fleet_id=fleet_id,
+            fleet_name=fleet_name,
+            v2g_export_mw=export,
+            grid_frequency_hz=freq,
+            spot_price_aud_mwh=spot,
+            revenue_aud=revenue,
+            soc_before_pct=soc_before,
+            soc_after_pct=soc_after,
+        ))
+    return records
+
+
+def _make_ev_demand_forecast45_records() -> list[EvDemandForecast45Record]:
+    data = [
+        # year, ev_stock_millions, fleet_ev_pct, total_ev_demand_twh,
+        # managed_charging_twh, v2g_discharge_twh, peak_demand_increase_gw, off_peak_shift_gw
+        (2024, 0.25,  8.0,  1.2,  0.3, 0.05, 0.4,  0.2),
+        (2025, 0.50, 12.0,  2.5,  0.7, 0.15, 0.8,  0.5),
+        (2026, 0.90, 18.0,  4.8,  1.5, 0.35, 1.5,  1.0),
+        (2027, 1.50, 25.0,  8.5,  2.8, 0.70, 2.4,  1.8),
+        (2028, 2.20, 33.0, 13.2,  4.6, 1.20, 3.5,  2.8),
+        (2029, 3.10, 42.0, 19.8,  7.0, 2.00, 4.8,  4.0),
+        (2030, 4.20, 52.0, 28.5, 10.5, 3.20, 6.2,  5.5),
+        (2031, 5.50, 61.0, 39.6, 15.0, 4.80, 7.8,  7.2),
+        (2032, 6.80, 70.0, 52.0, 20.5, 6.80, 9.2,  9.0),
+        (2033, 8.20, 78.0, 65.8, 27.0, 9.20, 10.8, 11.0),
+        (2034, 9.60, 85.0, 80.2, 34.5, 12.0, 12.1, 13.2),
+        (2035, 11.0, 91.0, 95.0, 42.0, 15.5, 13.5, 15.8),
+    ]
+    records = []
+    for row in data:
+        (yr, ev_stock, fleet_pct, total_twh, managed_twh,
+         v2g_twh, peak_gw, offpeak_gw) = row
+        records.append(EvDemandForecast45Record(
+            year=yr,
+            ev_stock_millions=ev_stock,
+            fleet_ev_pct=fleet_pct,
+            total_ev_demand_twh=total_twh,
+            managed_charging_twh=managed_twh,
+            v2g_discharge_twh=v2g_twh,
+            peak_demand_increase_gw=peak_gw,
+            off_peak_shift_gw=offpeak_gw,
+        ))
+    return records
+
+
+def _make_ev_fleet45_dashboard() -> EvFleet45Dashboard:
+    from datetime import datetime, timezone
+    fleets = _make_ev_fleet45_records()
+    infra = _make_charging_infra45_records()
+    v2g = _make_v2g_dispatch45_records()
+    forecast = _make_ev_demand_forecast45_records()
+
+    total_ev_vehicles = sum(f.ev_vehicles for f in fleets)
+    total_charging_mw = round(sum(s.total_power_kw for s in infra) / 1000.0, 3)
+    avg_penetration = round(sum(f.ev_penetration_pct for f in fleets) / len(fleets), 1)
+    v2g_sites = sum(1 for s in infra if s.v2g_capable)
+
+    return EvFleet45Dashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        fleets=fleets,
+        charging_infra=infra,
+        v2g_dispatch=v2g,
+        demand_forecast=forecast,
+        total_fleet_ev_vehicles=total_ev_vehicles,
+        total_charging_power_mw=total_charging_mw,
+        avg_fleet_ev_penetration_pct=avg_penetration,
+        v2g_capable_sites=v2g_sites,
+    )
+
+
+@app.get(
+    "/api/ev-fleet/dashboard",
+    response_model=EvFleet45Dashboard,
+    summary="EV Fleet & Grid-Scale Charging Integration Dashboard",
+    tags=["EV Fleet Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_fleet_dashboard():
+    cache_key = "ev_fleet45:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_ev_fleet45_dashboard()
+    _cache_set(cache_key, result, _TTL_EV_FLEET)
+    return result
+
+
+@app.get(
+    "/api/ev-fleet/fleets",
+    response_model=list[EvFleet45Record],
+    summary="EV Fleet registry records",
+    tags=["EV Fleet Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_fleet_fleets():
+    cache_key = "ev_fleet45:fleets"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_ev_fleet45_records()
+    _cache_set(cache_key, result, _TTL_EV_FLEET)
+    return result
+
+
+@app.get(
+    "/api/ev-fleet/charging-infra",
+    response_model=list[ChargingInfra45Record],
+    summary="EV charging infrastructure records",
+    tags=["EV Fleet Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_fleet_charging_infra():
+    cache_key = "ev_fleet45:charging_infra"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_charging_infra45_records()
+    _cache_set(cache_key, result, _TTL_EV_FLEET)
+    return result
+
+
+@app.get(
+    "/api/ev-fleet/v2g-dispatch",
+    response_model=list[V2GDispatch45Record],
+    summary="V2G dispatch intervals for current day",
+    tags=["EV Fleet Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_fleet_v2g_dispatch():
+    cache_key = "ev_fleet45:v2g_dispatch"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_v2g_dispatch45_records()
+    _cache_set(cache_key, result, _TTL_EV_FLEET)
+    return result
+
+
+@app.get(
+    "/api/ev-fleet/demand-forecast",
+    response_model=list[EvDemandForecast45Record],
+    summary="EV demand forecast 2024-2035",
+    tags=["EV Fleet Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ev_fleet_demand_forecast():
+    cache_key = "ev_fleet45:demand_forecast"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_ev_demand_forecast45_records()
+    _cache_set(cache_key, result, _TTL_EV_FLEET)
+    return result
+
+# ---------------------------------------------------------------------------
+# Sprint 45c — Renewable Energy Certificate Market Analytics
+# ---------------------------------------------------------------------------
+
+class LgcSpotRecord(BaseModel):
+    trade_date: str
+    spot_price_aud: float
+    volume_traded: int          # LGCs
+    open_interest: int
+    created_from: str           # WIND, SOLAR, HYDRO, BIOMASS, GEOTHERMAL
+    vintage_year: int
+
+class SurplusDeficitRecord(BaseModel):
+    year: int
+    liable_entity: str
+    required_lgcs: int
+    surrendered_lgcs: int
+    shortfall_lgcs: int
+    shortfall_charge_m_aud: float
+    compliance_pct: float
+
+class LgcCreationRecord(BaseModel):
+    accreditation_id: str
+    station_name: str
+    technology: str             # WIND, SOLAR, HYDRO, BIOMASS, WASTE_COAL_MINE
+    state: str
+    capacity_mw: float
+    lgcs_created_2024: int
+    lgcs_surrendered_2024: int
+    lgcs_in_registry: int
+    avg_price_received: float
+
+class StcRecord(BaseModel):
+    quarter: str                # e.g. "2024-Q1"
+    stc_price_aud: float
+    volume_created: int
+    rooftop_solar_mw: float
+    solar_hot_water_units: int
+    heat_pump_units: int
+    total_stc_value_m_aud: float
+
+class RecMarketDashboard(BaseModel):
+    timestamp: str
+    lgc_spot_records: list[LgcSpotRecord]
+    surplus_deficit: list[SurplusDeficitRecord]
+    lgc_creation: list[LgcCreationRecord]
+    stc_records: list[StcRecord]
+    current_lgc_price: float
+    current_stc_price: float
+    lgc_surplus_deficit_m: float   # positive = surplus, negative = deficit in millions
+    lret_target_2030_twh: float
+    lret_progress_pct: float
+
+
+# --- Mock data factories ---
+
+def _make_lgc_spot_records() -> list[LgcSpotRecord]:
+    import random
+    random.seed(4501)
+    records = []
+    technologies = ["WIND", "WIND", "WIND", "SOLAR", "SOLAR", "HYDRO", "BIOMASS"]
+    base_dates = [
+        "2024-01-02","2024-01-05","2024-01-09","2024-01-12","2024-01-16",
+        "2024-01-19","2024-01-23","2024-01-26","2024-01-30","2024-02-02",
+        "2024-02-06","2024-02-09","2024-02-13","2024-02-16","2024-02-20",
+        "2024-02-23","2024-02-27","2024-03-01","2024-03-05","2024-03-08",
+        "2024-03-12","2024-03-15","2024-03-19","2024-03-22",
+    ]
+    prices = [
+        52.50, 53.20, 51.80, 54.10, 55.30, 53.90, 56.40, 57.20, 58.10, 56.80,
+        55.50, 54.90, 53.60, 52.80, 51.50, 50.90, 49.80, 48.60, 47.20, 46.50,
+        45.80, 44.90, 43.50, 42.80,
+    ]
+    volumes = [
+        18500, 22300, 15600, 31200, 28700, 19800, 35400, 41200, 38900, 29300,
+        25600, 21400, 18700, 16200, 14800, 13500, 12900, 11800, 10600, 9800,
+        9200, 8700, 8100, 7600,
+    ]
+    open_interests = [
+        145000, 148200, 143600, 152300, 157800, 154200, 162500, 169800, 172300, 168500,
+        163200, 158700, 153400, 148900, 143200, 138700, 132900, 127400, 121800, 116500,
+        111200, 106800, 101500, 97200,
+    ]
+    vintages = [2023, 2023, 2024, 2024, 2023, 2024, 2023, 2024, 2024, 2023,
+                2024, 2024, 2023, 2024, 2024, 2023, 2024, 2024, 2023, 2024,
+                2024, 2023, 2024, 2024]
+    for i, date in enumerate(base_dates):
+        records.append(LgcSpotRecord(
+            trade_date=date,
+            spot_price_aud=prices[i],
+            volume_traded=volumes[i],
+            open_interest=open_interests[i],
+            created_from=technologies[i % len(technologies)],
+            vintage_year=vintages[i],
+        ))
+    return records
+
+
+def _make_surplus_deficit_records() -> list[SurplusDeficitRecord]:
+    return [
+        SurplusDeficitRecord(year=2024, liable_entity="AGL Energy", required_lgcs=8250000,
+            surrendered_lgcs=8250000, shortfall_lgcs=0, shortfall_charge_m_aud=0.0, compliance_pct=100.0),
+        SurplusDeficitRecord(year=2024, liable_entity="Origin Energy", required_lgcs=6180000,
+            surrendered_lgcs=6180000, shortfall_lgcs=0, shortfall_charge_m_aud=0.0, compliance_pct=100.0),
+        SurplusDeficitRecord(year=2024, liable_entity="EnergyAustralia", required_lgcs=4920000,
+            surrendered_lgcs=4895000, shortfall_lgcs=25000, shortfall_charge_m_aud=1.32, compliance_pct=99.49),
+        SurplusDeficitRecord(year=2024, liable_entity="Alinta Energy", required_lgcs=2340000,
+            surrendered_lgcs=2340000, shortfall_lgcs=0, shortfall_charge_m_aud=0.0, compliance_pct=100.0),
+        SurplusDeficitRecord(year=2024, liable_entity="ERM Power", required_lgcs=1890000,
+            surrendered_lgcs=1878000, shortfall_lgcs=12000, shortfall_charge_m_aud=0.63, compliance_pct=99.37),
+        SurplusDeficitRecord(year=2024, liable_entity="Snowy Hydro Retail", required_lgcs=1560000,
+            surrendered_lgcs=1560000, shortfall_lgcs=0, shortfall_charge_m_aud=0.0, compliance_pct=100.0),
+        SurplusDeficitRecord(year=2024, liable_entity="Ergon Energy Retail", required_lgcs=1230000,
+            surrendered_lgcs=1230000, shortfall_lgcs=0, shortfall_charge_m_aud=0.0, compliance_pct=100.0),
+        SurplusDeficitRecord(year=2024, liable_entity="Powercor Australia", required_lgcs=980000,
+            surrendered_lgcs=971000, shortfall_lgcs=9000, shortfall_charge_m_aud=0.47, compliance_pct=99.08),
+    ]
+
+
+def _make_lgc_creation_records() -> list[LgcCreationRecord]:
+    return [
+        LgcCreationRecord(accreditation_id="A0001234", station_name="Macarthur Wind Farm",
+            technology="WIND", state="VIC", capacity_mw=420.0,
+            lgcs_created_2024=1245000, lgcs_surrendered_2024=1198000,
+            lgcs_in_registry=47000, avg_price_received=51.20),
+        LgcCreationRecord(accreditation_id="A0001456", station_name="Snowtown Wind Farm Stage 2",
+            technology="WIND", state="SA", capacity_mw=270.0,
+            lgcs_created_2024=892000, lgcs_surrendered_2024=860000,
+            lgcs_in_registry=32000, avg_price_received=52.40),
+        LgcCreationRecord(accreditation_id="A0002345", station_name="Bungala Solar Farm",
+            technology="SOLAR", state="SA", capacity_mw=220.0,
+            lgcs_created_2024=456000, lgcs_surrendered_2024=440000,
+            lgcs_in_registry=16000, avg_price_received=49.80),
+        LgcCreationRecord(accreditation_id="A0002678", station_name="Hornsdale Wind Farm",
+            technology="WIND", state="SA", capacity_mw=315.0,
+            lgcs_created_2024=978000, lgcs_surrendered_2024=945000,
+            lgcs_in_registry=33000, avg_price_received=50.90),
+        LgcCreationRecord(accreditation_id="A0003456", station_name="Loy Yang HSPS",
+            technology="HYDRO", state="VIC", capacity_mw=500.0,
+            lgcs_created_2024=1560000, lgcs_surrendered_2024=1520000,
+            lgcs_in_registry=40000, avg_price_received=53.60),
+        LgcCreationRecord(accreditation_id="A0004123", station_name="Coopers Gap Wind Farm",
+            technology="WIND", state="QLD", capacity_mw=453.0,
+            lgcs_created_2024=1320000, lgcs_surrendered_2024=1280000,
+            lgcs_in_registry=40000, avg_price_received=51.70),
+        LgcCreationRecord(accreditation_id="A0004567", station_name="Darlington Point Solar",
+            technology="SOLAR", state="NSW", capacity_mw=275.0,
+            lgcs_created_2024=534000, lgcs_surrendered_2024=510000,
+            lgcs_in_registry=24000, avg_price_received=48.90),
+        LgcCreationRecord(accreditation_id="A0005234", station_name="Murra Warra Wind Farm",
+            technology="WIND", state="VIC", capacity_mw=428.0,
+            lgcs_created_2024=1256000, lgcs_surrendered_2024=1210000,
+            lgcs_in_registry=46000, avg_price_received=50.40),
+        LgcCreationRecord(accreditation_id="A0005678", station_name="Sun Cable Darwin Solar",
+            technology="SOLAR", state="NT", capacity_mw=180.0,
+            lgcs_created_2024=378000, lgcs_surrendered_2024=365000,
+            lgcs_in_registry=13000, avg_price_received=47.60),
+        LgcCreationRecord(accreditation_id="A0006123", station_name="Snowy 2.0 Pumped Hydro",
+            technology="HYDRO", state="NSW", capacity_mw=2000.0,
+            lgcs_created_2024=4230000, lgcs_surrendered_2024=4100000,
+            lgcs_in_registry=130000, avg_price_received=54.80),
+        LgcCreationRecord(accreditation_id="A0006456", station_name="Ararat Wind Farm",
+            technology="WIND", state="VIC", capacity_mw=240.0,
+            lgcs_created_2024=712000, lgcs_surrendered_2024=690000,
+            lgcs_in_registry=22000, avg_price_received=50.10),
+        LgcCreationRecord(accreditation_id="A0007234", station_name="Mount Mercer Wind Farm",
+            technology="WIND", state="VIC", capacity_mw=131.0,
+            lgcs_created_2024=389000, lgcs_surrendered_2024=376000,
+            lgcs_in_registry=13000, avg_price_received=49.30),
+        LgcCreationRecord(accreditation_id="A0007567", station_name="Moree Solar Farm",
+            technology="SOLAR", state="NSW", capacity_mw=56.0,
+            lgcs_created_2024=112000, lgcs_surrendered_2024=108000,
+            lgcs_in_registry=4000, avg_price_received=46.50),
+        LgcCreationRecord(accreditation_id="A0008123", station_name="Sapphire Wind Farm",
+            technology="WIND", state="NSW", capacity_mw=270.0,
+            lgcs_created_2024=801000, lgcs_surrendered_2024=774000,
+            lgcs_in_registry=27000, avg_price_received=51.00),
+        LgcCreationRecord(accreditation_id="A0008456", station_name="Vales Point Biomass",
+            technology="BIOMASS", state="NSW", capacity_mw=45.0,
+            lgcs_created_2024=267000, lgcs_surrendered_2024=258000,
+            lgcs_in_registry=9000, avg_price_received=45.20),
+        LgcCreationRecord(accreditation_id="A0009123", station_name="Stockyard Hill Wind Farm",
+            technology="WIND", state="VIC", capacity_mw=530.0,
+            lgcs_created_2024=1567000, lgcs_surrendered_2024=1520000,
+            lgcs_in_registry=47000, avg_price_received=52.10),
+        LgcCreationRecord(accreditation_id="A0009456", station_name="Wambo Wind Farm",
+            technology="WASTE_COAL_MINE", state="QLD", capacity_mw=38.0,
+            lgcs_created_2024=189000, lgcs_surrendered_2024=182000,
+            lgcs_in_registry=7000, avg_price_received=44.80),
+        LgcCreationRecord(accreditation_id="A0010123", station_name="Coonooer Bridge Wind Farm",
+            technology="WIND", state="VIC", capacity_mw=120.0,
+            lgcs_created_2024=356000, lgcs_surrendered_2024=344000,
+            lgcs_in_registry=12000, avg_price_received=49.70),
+        LgcCreationRecord(accreditation_id="A0010456", station_name="Ross River Solar Farm",
+            technology="SOLAR", state="QLD", capacity_mw=130.0,
+            lgcs_created_2024=301000, lgcs_surrendered_2024=291000,
+            lgcs_in_registry=10000, avg_price_received=48.30),
+        LgcCreationRecord(accreditation_id="A0011123", station_name="Beryl Solar Farm",
+            technology="SOLAR", state="NSW", capacity_mw=104.0,
+            lgcs_created_2024=223000, lgcs_surrendered_2024=215000,
+            lgcs_in_registry=8000, avg_price_received=47.90),
+    ]
+
+
+def _make_stc_records() -> list[StcRecord]:
+    return [
+        StcRecord(quarter="2022-Q3", stc_price_aud=37.50, volume_created=18450000,
+            rooftop_solar_mw=389.0, solar_hot_water_units=12400, heat_pump_units=8900,
+            total_stc_value_m_aud=691.9),
+        StcRecord(quarter="2022-Q4", stc_price_aud=38.20, volume_created=21300000,
+            rooftop_solar_mw=452.0, solar_hot_water_units=13800, heat_pump_units=9600,
+            total_stc_value_m_aud=813.7),
+        StcRecord(quarter="2023-Q1", stc_price_aud=39.10, volume_created=22100000,
+            rooftop_solar_mw=487.0, solar_hot_water_units=14200, heat_pump_units=10300,
+            total_stc_value_m_aud=864.1),
+        StcRecord(quarter="2023-Q2", stc_price_aud=38.80, volume_created=19800000,
+            rooftop_solar_mw=412.0, solar_hot_water_units=12900, heat_pump_units=9800,
+            total_stc_value_m_aud=768.2),
+        StcRecord(quarter="2023-Q3", stc_price_aud=38.50, volume_created=20600000,
+            rooftop_solar_mw=445.0, solar_hot_water_units=13500, heat_pump_units=10100,
+            total_stc_value_m_aud=793.1),
+        StcRecord(quarter="2023-Q4", stc_price_aud=39.40, volume_created=24800000,
+            rooftop_solar_mw=536.0, solar_hot_water_units=15600, heat_pump_units=11200,
+            total_stc_value_m_aud=977.1),
+        StcRecord(quarter="2024-Q1", stc_price_aud=39.90, volume_created=25600000,
+            rooftop_solar_mw=568.0, solar_hot_water_units=16100, heat_pump_units=11800,
+            total_stc_value_m_aud=1021.4),
+        StcRecord(quarter="2024-Q2", stc_price_aud=40.20, volume_created=23400000,
+            rooftop_solar_mw=498.0, solar_hot_water_units=14900, heat_pump_units=11000,
+            total_stc_value_m_aud=940.7),
+    ]
+
+
+def _make_rec_market_dashboard() -> RecMarketDashboard:
+    lgc_spots = _make_lgc_spot_records()
+    return RecMarketDashboard(
+        timestamp="2024-06-30T23:00:00+10:00",
+        lgc_spot_records=lgc_spots,
+        surplus_deficit=_make_surplus_deficit_records(),
+        lgc_creation=_make_lgc_creation_records(),
+        stc_records=_make_stc_records(),
+        current_lgc_price=42.80,
+        current_stc_price=40.20,
+        lgc_surplus_deficit_m=-2.3,
+        lret_target_2030_twh=33.0,
+        lret_progress_pct=67.4,
+    )
+
+
+_TTL_REC_MARKET = 1800   # 30 minutes
+
+
+@app.get(
+    "/api/rec-market/dashboard",
+    response_model=RecMarketDashboard,
+    summary="REC market dashboard — LGC & STC overview",
+    tags=["RecMarket"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rec_market_dashboard():
+    cache_key = "rec_market:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_rec_market_dashboard()
+    _cache_set(cache_key, result, _TTL_REC_MARKET)
+    return result
+
+
+@app.get(
+    "/api/rec-market/lgc-spot",
+    response_model=List[LgcSpotRecord],
+    summary="LGC daily spot price records Jan–Jun 2024",
+    tags=["RecMarket"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rec_market_lgc_spot():
+    cache_key = "rec_market:lgc_spot"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_lgc_spot_records()
+    _cache_set(cache_key, result, _TTL_REC_MARKET)
+    return result
+
+
+@app.get(
+    "/api/rec-market/lgc-creation",
+    response_model=List[LgcCreationRecord],
+    summary="LGC creation registry — accredited power stations",
+    tags=["RecMarket"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rec_market_lgc_creation():
+    cache_key = "rec_market:lgc_creation"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_lgc_creation_records()
+    _cache_set(cache_key, result, _TTL_REC_MARKET)
+    return result
+
+
+@app.get(
+    "/api/rec-market/surplus-deficit",
+    response_model=List[SurplusDeficitRecord],
+    summary="LRET surplus/deficit by liable entity 2024",
+    tags=["RecMarket"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rec_market_surplus_deficit():
+    cache_key = "rec_market:surplus_deficit"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_surplus_deficit_records()
+    _cache_set(cache_key, result, _TTL_REC_MARKET)
+    return result
+
+
+@app.get(
+    "/api/rec-market/stc",
+    response_model=List[StcRecord],
+    summary="STC quarterly market data 2022–2024",
+    tags=["RecMarket"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rec_market_stc():
+    cache_key = "rec_market:stc"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_stc_records()
+    _cache_set(cache_key, result, _TTL_REC_MARKET)
+    return result

@@ -832,6 +832,33 @@
 - 5 TestCarbonCreditEndpoints tests appended to tests/test_backend.py
 - Note: test execution blocked by pre-existing NameError at line 11930 of main.py (`@router.get` used without `router` defined — not introduced by Sprint 44c)
 
+## Sprint 45b — Power System Resilience & Extreme Weather Analytics [COMPLETE]
+- GridResilience.tsx: ShieldAlert icon header, 4 KPI cards (Total Unserved Energy MWh, Customers Affected, Total Resilience Investment $M, Avg Recovery days), SAIDI Trend grouped bar chart 2022–2024 by state (NSW/VIC/QLD/SA/WA in distinct colors), Weather Outage Events table (event type badges: BUSHFIRE red, FLOOD blue, HEATWAVE amber, STORM gray, CYCLONE purple, DROUGHT yellow-brown; severity badges: LOW green / MODERATE amber / HIGH orange / EXTREME red), Grid Asset Vulnerability table (type badges, vulnerability score progress bar 0–10 color-coded, risk badges per hazard, replacement priority badges), Resilience Investment Programs table (investment type badges, status badges)
+- Backend Pydantic models: WeatherOutageEvent, ResilienceInvestmentRecord, GridVulnerabilityRecord, ResilienceKpiRecord, GridResilienceDashboard
+- /api/grid-resilience/dashboard, /outage-events, /investments, /vulnerability, /kpis (all with `dependencies=[Depends(verify_api_key)]`)
+  - 12 weather outage events: Black Summer NSW/VIC fires 2019-20, 2022 QLD/NSW floods, Cyclone Ilsa WA 2023, 2024 SE QLD heatwave, 2019 SA storm, 2023 VIC alpine fires, 2023 NSW central west floods, 2022 WA Cyclone Ellie, 2024 TAS drought, 2023 NT storms; severity mix LOW–EXTREME; recovery 0.5–30 days
+  - 10 resilience investments: Western Sydney undergrounding ($245M), Lismore substation flood barrier ($38M), Gippsland microgrids ($82M), Powerlink fire hardening ($145M), SA remote backup power ($28M), Pilbara comms upgrade ($55M), North QLD undergrounding ($180M), VIC transmission flood protection ($62M), Adelaide Hills fire hardening ($95M), TAS diesel backup ($18M); statuses PLANNING/APPROVED/CONSTRUCTION/COMPLETE
+  - 15 grid vulnerability records: mix of SUBSTATION/TRANSMISSION_LINE/DISTRIBUTION_LINE/TRANSFORMER/CONTROL_SYSTEM; age 5–45 years; vulnerability scores 4.8–8.9
+  - 15 KPI records: 5 states × 3 years (2022–2024); SAIDI 140–396 min; weather_related_pct 38–71.5%; resilience investment $78M–$248M
+- TypeScript interfaces: WeatherOutageEvent, ResilienceInvestmentRecord, GridVulnerabilityRecord, ResilienceKpiRecord, GridResilienceDashboard added to client.ts
+- api methods: getGridResilienceDashboard, getGridResilienceOutageEvents, getGridResilienceInvestments, getGridResilienceVulnerability, getGridResilienceKpis added to api object in client.ts
+- App.tsx: GridResilience imported, ShieldAlert imported from lucide-react, /grid-resilience route added, "Grid Resilience" nav item (ShieldAlert icon)
+- 5 TestGridResilienceEndpoints tests appended to tests/test_backend.py
+
+## Sprint 45a — EV Fleet & Grid-Scale Charging Integration Analytics [COMPLETE]
+- EvFleetCharging.tsx: Car icon header, 4 KPI cards (Total EV Fleet Vehicles, Total Charging Power MW, Avg Fleet EV Penetration %, V2G Capable Sites), EV Demand Forecast composed chart 2024–2035 (stacked areas for total_ev_demand/managed_charging/v2g_discharge TWh; line for peak_demand_increase_gw on right axis), Fleet Registry table (fleet type badges: BUS cyan/TRUCK amber/DELIVERY_VAN orange/GOVERNMENT blue/TAXI purple; penetration % colored <30% red/<60% amber/else green; charging strategy badges: OVERNIGHT gray/OPPORTUNITY amber/SMART_V2G green), Charging Infrastructure table (location type badges: DEPOT blue/HIGHWAY green/RETAIL purple/WORKPLACE amber/RESIDENTIAL_HUB cyan; charger type badges: AC_SLOW gray/AC_FAST blue/DC_FAST amber/DC_ULTRA red; V2G green badge; status badges), V2G Dispatch composed chart (bar for v2g_export_mw; line overlay for spot price on right axis)
+- Backend Pydantic models: EvFleet45Record, ChargingInfra45Record, V2GDispatch45Record, EvDemandForecast45Record, EvFleet45Dashboard (note: Sprint 27a had EvFleetRecord so 45-suffix used to avoid collision)
+- /api/ev-fleet/dashboard, /fleets, /charging-infra, /v2g-dispatch, /demand-forecast (all with `dependencies=[Depends(verify_api_key)]`)
+  - 10 fleet records: Sydney Buses, Melbourne Metro Trains, Australia Post, Woolworths Distribution, NSW Government Fleet, QLD Taxi Fleet, Brisbane City Council, Toll Group, StarTrack, TransLink; EV penetration 10–85%; fleet_type BUS/TRUCK/DELIVERY_VAN/GOVERNMENT/TAXI; charging_strategy mix with 5 V2G-enabled fleets
+  - 12 charging infrastructure sites: depots/highways/retail/workplace/residential hub across NSW/VIC/QLD/SA/WA; AC_SLOW to DC_ULTRA; utilisation 30–80%; 5 V2G-capable sites; statuses OPERATING/CONSTRUCTION/PLANNED
+  - 24 V2G dispatch intervals: 30-min for 2026-02-20 (06:00–17:30); 3 fleet IDs rotating; export 0.2–5 MW following price curve; spot prices $55–$500/MWh; SoC tracking 20–95%
+  - 12 demand forecast records (2024–2035): EV stock 0.25M–11M; fleet EV % 8–91%; total demand 1.2–95 TWh; managed charging 0.3–42 TWh; V2G discharge 0.05–15.5 TWh
+- TypeScript interfaces: EvFleet45Record, ChargingInfra45Record, V2GDispatch45Record, EvDemandForecast45Record, EvFleet45Dashboard added to client.ts
+- api method: getEvFleetDashboard added to api object in client.ts
+- App.tsx: EvFleetCharging imported, Car imported from lucide-react, /ev-fleet route added, "EV Fleet & V2G" nav item (Car icon)
+- 5 TestEvFleetEndpoints tests appended to tests/test_backend.py
+- Note: test execution blocked by pre-existing NameError at line 11930 of main.py (`@router.get` used without `router` defined — not introduced by Sprint 45a)
+
 ## Sprint 43c — Energy Poverty & Just Transition Analytics [COMPLETE]
 - EnergyPoverty.tsx: 4 KPI cards (national hardship rate, workers in transition, total transition fund, low-income solar gap), hardship rate trend line chart by state over 4 quarters, coal worker transition table (wage ratio colored red/amber/green), affordability table (bill % income colored by stress level), just transition programs table (program type and status badges, outcomes score bar)
 - /api/energy-poverty/dashboard, /hardship, /worker-transition, /affordability, /programs
@@ -841,3 +868,24 @@
   - 12 just transition programs (WORKER_RETRAINING, COMMUNITY_FUND, CLEAN_ENERGY_ACCESS, ECONOMIC_DIVERSIFICATION; budgets $20M–$500M; up to 58,000 beneficiaries)
 - 4 TestEnergyPovertyEndpoints tests
 - App.tsx: Heart icon nav entry at /energy-poverty; Heart already in lucide-react imports
+
+## Sprint 45c — Renewable Energy Certificate Market Analytics [COMPLETE]
+- RecMarket.tsx: Award icon header, title "Renewable Energy Certificate Market (LGC & STC)", subtitle about LRET compliance and certificate markets
+  - 4 KPI cards: Current LGC Price ($/cert), Current STC Price ($/cert), LRET Progress %, LGC Surplus/Deficit (M)
+  - LGC Spot Price History line chart (Jan–Mar 2024 daily; color-coded by technology source WIND/SOLAR/HYDRO/BIOMASS)
+  - LRET Target Progress bar: visual progress indicator with achieved TWh, gap to target, and 2030 deadline
+  - LGC Creation Registry table: filterable by technology (WIND/SOLAR/HYDRO/BIOMASS/WASTE_COAL_MINE); 20 stations including Macarthur Wind Farm, Snowtown, Bungala Solar, Snowy 2.0, Hornsdale, etc.; technology badges (WIND blue, SOLAR amber, HYDRO cyan, BIOMASS green, WASTE_COAL_MINE gray)
+  - LRET Compliance table: 8 liable entities (AGL, Origin, EnergyAustralia, Alinta, ERM, Snowy, Ergon, Powercor); compliance % color-coded; CheckCircle/AlertTriangle icons
+  - STC Market section: quarterly bar+line chart (2022–2024) + detail table with quarter, price, volume, rooftop solar MW, solar HW units, heat pumps, total value
+- Backend Pydantic models: LgcSpotRecord, SurplusDeficitRecord, LgcCreationRecord, StcRecord, RecMarketDashboard
+- Endpoints: /api/rec-market/dashboard, /lgc-spot, /lgc-creation, /surplus-deficit, /stc (all with verify_api_key)
+  - 24 LGC spot records: Jan–Mar 2024; prices $42.80–$58.10/cert; volumes 7.6K–41.2K; technologies WIND/SOLAR/HYDRO/BIOMASS; vintages 2023–2024
+  - 8 surplus/deficit records: AGL/Origin/EnergyAustralia/Alinta/ERM/Snowy/Ergon/Powercor; 3 entities with shortfalls (EnergyAustralia 25K LGCs/$1.32M, ERM 12K/$0.63M, Powercor 9K/$0.47M)
+  - 20 LGC creation records: major wind/solar/hydro/biomass/waste-coal-mine stations; LGCs created 112K–4.23M; capacities 38–2000 MW; avg prices $44.80–$54.80/cert
+  - 8 STC quarterly records: 2022-Q3 through 2024-Q2; prices $37.50–$40.20/cert; volumes 18.45M–25.6M; rooftop solar 389–568 MW/quarter; total values $691.9M–$1021.4M
+- Dashboard KPIs: current_lgc_price=$42.80, current_stc_price=$40.20, lgc_surplus_deficit_m=-2.3 (deficit), lret_target_2030_twh=33.0, lret_progress_pct=67.4%
+- Cache TTL: 1800s (30 minutes)
+- TypeScript interfaces: LgcSpotRecord, SurplusDeficitRecord, LgcCreationRecord, StcRecord, RecMarketDashboard added to client.ts
+- api methods: getRecMarketDashboard, getRecMarketLgcSpot, getRecMarketLgcCreation, getRecMarketSurplusDeficit, getRecMarketStc added to api object in client.ts
+- App.tsx: RecMarket imported, Award imported from lucide-react, /rec-market route added, "REC Market (LGC/STC)" nav item (Award icon)
+- 5 TestRecMarketEndpoints tests appended to tests/test_backend.py

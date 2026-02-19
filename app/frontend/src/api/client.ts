@@ -4959,6 +4959,113 @@ export const api = {
     const q = scenario ? `?scenario=${scenario}` : ''
     return get<AccuPriceForecastRecord[]>(`/api/carbon-credit/price-forecast${q}`)
   },
+
+  // Sprint 45b — Power System Resilience & Extreme Weather Analytics
+  getGridResilienceDashboard: (): Promise<GridResilienceDashboard> =>
+    get<GridResilienceDashboard>('/api/grid-resilience/dashboard'),
+  getGridResilienceOutageEvents: (params?: { event_type?: string; state?: string }): Promise<WeatherOutageEvent[]> => {
+    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`).join('&') : ''
+    return get<WeatherOutageEvent[]>(`/api/grid-resilience/outage-events${q}`)
+  },
+  getGridResilienceInvestments: (params?: { state?: string; investment_type?: string }): Promise<ResilienceInvestmentRecord[]> => {
+    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`).join('&') : ''
+    return get<ResilienceInvestmentRecord[]>(`/api/grid-resilience/investments${q}`)
+  },
+  getGridResilienceVulnerability: (params?: { state?: string; asset_type?: string }): Promise<GridVulnerabilityRecord[]> => {
+    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`).join('&') : ''
+    return get<GridVulnerabilityRecord[]>(`/api/grid-resilience/vulnerability${q}`)
+  },
+  getGridResilienceKpis: (params?: { state?: string; year?: number }): Promise<ResilienceKpiRecord[]> => {
+    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`).join('&') : ''
+    return get<ResilienceKpiRecord[]>(`/api/grid-resilience/kpis${q}`)
+  },
+
+  // Sprint 45a — EV Fleet & Grid-Scale Charging Integration Analytics
+  getEvFleetDashboard: (): Promise<EvFleet45Dashboard> =>
+    get<EvFleet45Dashboard>('/api/ev-fleet/dashboard'),
+
+  // Sprint 45c — Renewable Energy Certificate Market Analytics
+  getRecMarketDashboard: (): Promise<RecMarketDashboard> =>
+    get<RecMarketDashboard>('/api/rec-market/dashboard'),
+  getRecMarketLgcSpot: (): Promise<LgcSpotRecord[]> =>
+    get<LgcSpotRecord[]>('/api/rec-market/lgc-spot'),
+  getRecMarketLgcCreation: (): Promise<LgcCreationRecord[]> =>
+    get<LgcCreationRecord[]>('/api/rec-market/lgc-creation'),
+  getRecMarketSurplusDeficit: (): Promise<SurplusDeficitRecord[]> =>
+    get<SurplusDeficitRecord[]>('/api/rec-market/surplus-deficit'),
+  getRecMarketStc: (): Promise<StcRecord[]> =>
+    get<StcRecord[]>('/api/rec-market/stc'),
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 45b — Power System Resilience & Extreme Weather Analytics
+// ---------------------------------------------------------------------------
+
+export interface WeatherOutageEvent {
+  event_id: string
+  event_name: string
+  event_type: string
+  state: string
+  region: string
+  start_date: string
+  end_date: string | null
+  affected_customers: number
+  peak_demand_impact_mw: number
+  unserved_energy_mwh: number
+  infrastructure_damage_m_aud: number
+  recovery_days: number
+  severity: string
+}
+
+export interface ResilienceInvestmentRecord {
+  project_id: string
+  project_name: string
+  asset_owner: string
+  state: string
+  investment_type: string
+  capex_m_aud: number
+  annual_benefit_m_aud: number
+  customers_protected: number
+  risk_reduction_pct: number
+  status: string
+}
+
+export interface GridVulnerabilityRecord {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  state: string
+  vulnerability_score: number
+  bushfire_risk: string
+  flood_risk: string
+  heat_risk: string
+  age_years: number
+  last_hardening_year: number | null
+  replacement_priority: string
+}
+
+export interface ResilienceKpiRecord {
+  year: number
+  state: string
+  saidi_minutes: number
+  saifi_count: number
+  maifi_count: number
+  unserved_energy_mwh: number
+  weather_related_pct: number
+  avg_restoration_hours: number
+  resilience_investment_m_aud: number
+}
+
+export interface GridResilienceDashboard {
+  timestamp: string
+  outage_events: WeatherOutageEvent[]
+  resilience_investments: ResilienceInvestmentRecord[]
+  vulnerability_records: GridVulnerabilityRecord[]
+  kpi_records: ResilienceKpiRecord[]
+  total_unserved_energy_mwh: number
+  total_affected_customers: number
+  total_resilience_investment_m_aud: number
+  avg_recovery_days: number
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
@@ -4980,4 +5087,134 @@ export function exportToCSV(data: Record<string, unknown>[], filename: string): 
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 45a — EV Fleet & Grid-Scale Charging Integration Analytics
+// ---------------------------------------------------------------------------
+
+export interface EvFleet45Record {
+  fleet_id: string
+  fleet_name: string
+  operator: string
+  state: string
+  fleet_type: string
+  total_vehicles: number
+  ev_vehicles: number
+  ev_penetration_pct: number
+  avg_daily_km: number
+  avg_consumption_kwh_100km: number
+  total_daily_kwh_demand: number
+  charging_strategy: string
+  peak_charge_mw: number
+  grid_connection_kv: number
+}
+
+export interface ChargingInfra45Record {
+  site_id: string
+  site_name: string
+  operator: string
+  state: string
+  location_type: string
+  charger_type: string
+  num_chargers: number
+  total_power_kw: number
+  avg_utilisation_pct: number
+  sessions_per_day: number
+  avg_energy_per_session_kwh: number
+  v2g_capable: boolean
+  status: string
+}
+
+export interface V2GDispatch45Record {
+  interval: string
+  fleet_id: string
+  fleet_name: string
+  v2g_export_mw: number
+  grid_frequency_hz: number
+  spot_price_aud_mwh: number
+  revenue_aud: number
+  soc_before_pct: number
+  soc_after_pct: number
+}
+
+export interface EvDemandForecast45Record {
+  year: number
+  ev_stock_millions: number
+  fleet_ev_pct: number
+  total_ev_demand_twh: number
+  managed_charging_twh: number
+  v2g_discharge_twh: number
+  peak_demand_increase_gw: number
+  off_peak_shift_gw: number
+}
+
+export interface EvFleet45Dashboard {
+  timestamp: string
+  fleets: EvFleet45Record[]
+  charging_infra: ChargingInfra45Record[]
+  v2g_dispatch: V2GDispatch45Record[]
+  demand_forecast: EvDemandForecast45Record[]
+  total_fleet_ev_vehicles: number
+  total_charging_power_mw: number
+  avg_fleet_ev_penetration_pct: number
+  v2g_capable_sites: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 45c — Renewable Energy Certificate Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface LgcSpotRecord {
+  trade_date: string
+  spot_price_aud: number
+  volume_traded: number
+  open_interest: number
+  created_from: string    // WIND, SOLAR, HYDRO, BIOMASS, GEOTHERMAL
+  vintage_year: number
+}
+
+export interface SurplusDeficitRecord {
+  year: number
+  liable_entity: string
+  required_lgcs: number
+  surrendered_lgcs: number
+  shortfall_lgcs: number
+  shortfall_charge_m_aud: number
+  compliance_pct: number
+}
+
+export interface LgcCreationRecord {
+  accreditation_id: string
+  station_name: string
+  technology: string      // WIND, SOLAR, HYDRO, BIOMASS, WASTE_COAL_MINE
+  state: string
+  capacity_mw: number
+  lgcs_created_2024: number
+  lgcs_surrendered_2024: number
+  lgcs_in_registry: number
+  avg_price_received: number
+}
+
+export interface StcRecord {
+  quarter: string         // e.g. "2024-Q1"
+  stc_price_aud: number
+  volume_created: number
+  rooftop_solar_mw: number
+  solar_hot_water_units: number
+  heat_pump_units: number
+  total_stc_value_m_aud: number
+}
+
+export interface RecMarketDashboard {
+  timestamp: string
+  lgc_spot_records: LgcSpotRecord[]
+  surplus_deficit: SurplusDeficitRecord[]
+  lgc_creation: LgcCreationRecord[]
+  stc_records: StcRecord[]
+  current_lgc_price: number
+  current_stc_price: number
+  lgc_surplus_deficit_m: number   // positive = surplus, negative = deficit in millions
+  lret_target_2030_twh: number
+  lret_progress_pct: number
 }

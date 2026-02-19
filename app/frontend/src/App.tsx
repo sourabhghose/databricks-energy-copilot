@@ -29,6 +29,7 @@ import {
   Users,
   Network,
   Shield,
+  ShieldAlert,
   Calendar,
   Gauge,
   FileText,
@@ -47,6 +48,8 @@ import {
   Atom,
   Fuel,
   TreePine,
+  Car,
+  Award,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -152,6 +155,9 @@ import EnergyPoverty from './pages/EnergyPoverty'
 import SpotForecastDashboard from './pages/SpotForecastDashboard'
 import HydrogenEconomy from './pages/HydrogenEconomy'
 import CarbonCreditMarket from './pages/CarbonCreditMarket'
+import GridResilience from './pages/GridResilience'
+import EvFleetCharging from './pages/EvFleetCharging'
+import RecMarket from './pages/RecMarket'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -257,6 +263,9 @@ const NAV_ITEMS = [
   { to: '/spot-forecast',     label: 'Spot Forecast',      Icon: Zap            },
   { to: '/hydrogen-economy',  label: 'Hydrogen Economy',   Icon: Fuel           },
   { to: '/carbon-credit',     label: 'Carbon Credits',     Icon: TreePine       },
+  { to: '/grid-resilience',   label: 'Grid Resilience',    Icon: ShieldAlert    },
+  { to: '/ev-fleet',          label: 'EV Fleet & V2G',     Icon: Car            },
+  { to: '/rec-market',        label: 'REC Market (LGC/STC)', Icon: Award        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -437,6 +446,9 @@ export default function App() {
               <Route path="/spot-forecast"     element={<SpotForecastDashboard />} />
               <Route path="/hydrogen-economy"  element={<HydrogenEconomy />}      />
               <Route path="/carbon-credit"     element={<CarbonCreditMarket />}  />
+              <Route path="/grid-resilience"   element={<GridResilience />}      />
+              <Route path="/ev-fleet"          element={<EvFleetCharging />}     />
+              <Route path="/rec-market"        element={<RecMarket />}           />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -3978,3 +3978,90 @@ class TestCarbonCreditEndpoints:
         r = client.get("/api/carbon-credit/price-forecast", headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestGridResilienceEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/grid-resilience/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "outage_events" in d
+        assert len(d["outage_events"]) > 0
+
+    def test_outage_events(self, client):
+        r = client.get("/api/grid-resilience/outage-events", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_investments(self, client):
+        r = client.get("/api/grid-resilience/investments", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_vulnerability(self, client):
+        r = client.get("/api/grid-resilience/vulnerability", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_kpis(self, client):
+        r = client.get("/api/grid-resilience/kpis", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestEvFleetEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/ev-fleet/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "fleets" in d
+        assert len(d["fleets"]) > 0
+
+    def test_fleets(self, client):
+        r = client.get("/api/ev-fleet/fleets", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_charging_infra(self, client):
+        r = client.get("/api/ev-fleet/charging-infra", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_v2g_dispatch(self, client):
+        r = client.get("/api/ev-fleet/v2g-dispatch", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_demand_forecast(self, client):
+        r = client.get("/api/ev-fleet/demand-forecast", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestRecMarketEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/rec-market/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "lgc_spot_records" in d
+        assert len(d["lgc_spot_records"]) > 0
+
+    def test_lgc_spot(self, client):
+        r = client.get("/api/rec-market/lgc-spot", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_lgc_creation(self, client):
+        r = client.get("/api/rec-market/lgc-creation", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_surplus_deficit(self, client):
+        r = client.get("/api/rec-market/surplus-deficit", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_stc(self, client):
+        r = client.get("/api/rec-market/stc", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
