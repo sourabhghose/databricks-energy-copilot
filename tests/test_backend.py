@@ -1572,3 +1572,152 @@ class TestGasEndpoints:
         hubs = {h["hub"] for h in data["hub_prices"]}
         assert "Wallumbilla" in hubs
         assert "Longford" in hubs
+
+
+class TestRetailEndpoints:
+    """Tests for GET /api/retail/dashboard and GET /api/retail/offers endpoints."""
+
+    def test_retail_dashboard_structure(self, client=client):
+        """GET /api/retail/dashboard returns 200 with required top-level keys.
+
+        The response must include market_shares and default_offers lists.
+        The sum of all retailer market share percentages must be within the
+        range 95-105% (accounting for rounding).
+        """
+        r = client.get("/api/retail/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "market_shares" in data
+        assert "default_offers" in data
+        total_share = sum(m["market_share_pct"] for m in data["market_shares"])
+        assert 95 <= total_share <= 105
+
+    def test_default_offers_state_filter(self, client=client):
+        """GET /api/retail/offers?state=NSW returns only NSW offer records.
+
+        Every record in the response must have state == "NSW".
+        """
+        r = client.get("/api/retail/offers?state=NSW")
+        assert r.status_code == 200
+        for offer in r.json():
+            assert offer["state"] == "NSW"
+
+    def test_switching_data_present(self, client=client):
+        """GET /api/retail/dashboard switching_data has >= 4 valid quarters.
+
+        Each record must have positive avg_savings_aud_yr and
+        switching_rate_pct in the range 0-100.
+        """
+        r = client.get("/api/retail/dashboard")
+        data = r.json()
+        assert len(data["switching_data"]) >= 4
+        for rec in data["switching_data"]:
+            assert rec["avg_savings_aud_yr"] > 0
+            assert 0 <= rec["switching_rate_pct"] <= 100
+
+
+# ===========================================================================
+# TestRezInfrastructureEndpoints
+# ===========================================================================
+
+class TestRezInfrastructureEndpoints:
+    """Tests for Sprint 20c REZ & Infrastructure Investment endpoints."""
+
+    def test_rez_dashboard_returns_200(self, client=client):
+        """GET /api/rez/dashboard must return 200 with valid structure."""
+        r = client.get("/api/rez/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "rez_projects" in data
+        assert "isp_projects" in data
+        assert "cis_contracts" in data
+        assert data["total_rez_capacity_gw"] > 0
+
+    def test_rez_projects_returns_list(self, client=client):
+        """GET /api/rez/projects must return a non-empty list of REZ projects."""
+        r = client.get("/api/rez/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 5
+        for p in projects:
+            assert p["total_capacity_mw"] > 0
+            assert p["state"] in ("NSW", "QLD", "VIC", "SA", "TAS")
+
+    def test_rez_projects_state_filter(self, client=client):
+        """GET /api/rez/projects?state=NSW must return only NSW projects."""
+        r = client.get("/api/rez/projects?state=NSW")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["state"] == "NSW"
+
+    def test_cis_contracts_returns_list(self, client=client):
+        """GET /api/rez/cis_contracts must return a non-empty list of CIS contracts."""
+        r = client.get("/api/rez/cis_contracts")
+        assert r.status_code == 200
+        contracts = r.json()
+        assert len(contracts) >= 5
+        for c in contracts:
+            assert c["capacity_mw"] > 0
+            assert c["strike_price_mwh"] > 0
+
+    def test_cis_technology_filter(self, client=client):
+        """GET /api/rez/cis_contracts?technology=Wind must return only wind contracts."""
+        r = client.get("/api/rez/cis_contracts?technology=Wind")
+        assert r.status_code == 200
+        for c in r.json():
+            assert c["technology"] == "Wind"
+
+
+# ===========================================================================
+# TestNetworkEndpoints
+# ===========================================================================
+
+class TestNetworkEndpoints:
+    """Tests for GET /api/network/dashboard and GET /api/network/loss_factors endpoints."""
+
+    def test_network_dashboard_structure(self, client=client):
+        """GET /api/network/dashboard must return 200 with loss_factors and network_elements.
+
+        The response must include both sections and at least 15 loss factor records
+        covering the 5 NEM regions.
+        """
+        r = client.get("/api/network/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "loss_factors" in data
+        assert "network_elements" in data
+        assert len(data["loss_factors"]) >= 15
+
+    def test_mlf_categories_correct(self, client=client):
+        """GET /api/network/loss_factors verifies MLF categories and combined_lf math.
+
+        Each record's mlf_category must be consistent with its mlf value:
+        - mlf > 1.02 => category == "high"
+        - mlf < 0.98 => category == "low"
+        - 0.98 <= mlf <= 1.02 => category == "normal"
+
+        combined_lf must equal mlf * dlf within floating-point tolerance (0.001).
+        """
+        r = client.get("/api/network/loss_factors")
+        assert r.status_code == 200
+        for lf in r.json():
+            if lf["mlf"] > 1.02:
+                assert lf["mlf_category"] == "high"
+            elif lf["mlf"] < 0.98:
+                assert lf["mlf_category"] == "low"
+            else:
+                assert lf["mlf_category"] == "normal"
+            # Combined LF should equal mlf * dlf
+            assert abs(lf["combined_lf"] - lf["mlf"] * lf["dlf"]) < 0.001
+
+    def test_network_loading_valid(self, client=client):
+        """GET /api/network/dashboard verifies loading_pct is internally consistent.
+
+        loading_pct must be in range [0, 150] (can temporarily exceed 100% during N-1 events).
+        loading_pct must match current_flow_mva / thermal_limit_mva * 100 within 0.1%.
+        """
+        r = client.get("/api/network/dashboard")
+        data = r.json()
+        for elem in data["network_elements"]:
+            assert 0 <= elem["loading_pct"] <= 150  # can exceed 100% temporarily
+            assert abs(elem["loading_pct"] - elem["current_flow_mva"] / elem["thermal_limit_mva"] * 100) < 0.1

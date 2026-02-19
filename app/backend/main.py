@@ -9008,3 +9008,1026 @@ def get_gas_pipeline_flows(
 
     _cache_set(cache_key, filtered, _TTL_GAS_PIPELINE_FLOWS)
     return filtered
+
+
+# ===========================================================================
+# Sprint 20a — Retail Market Analytics
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Retail Market Analytics
+# ---------------------------------------------------------------------------
+
+class RetailerMarketShare(BaseModel):
+    retailer: str
+    state: str
+    residential_customers: int
+    sme_customers: int
+    large_commercial_customers: int
+    total_customers: int
+    market_share_pct: float
+    electricity_volume_gwh: float
+    avg_retail_margin_pct: float
+
+
+class DefaultOfferPrice(BaseModel):
+    state: str
+    offer_type: str            # "DMO" (NSW/QLD/SA/VIC) or "VDO" (VIC only)
+    distributor: str           # "Ausgrid", "Energex", "CitiPower", etc.
+    annual_usage_kwh: int      # reference usage level
+    flat_rate_c_kwh: float     # standing offer rate in cents/kWh
+    daily_supply_charge: float # cents/day
+    annual_bill_aud: float     # total annual bill at reference usage
+    previous_year_aud: float
+    change_pct: float          # % change from prior year
+
+
+class CustomerSwitchingRecord(BaseModel):
+    state: str
+    quarter: str               # "2025-Q3"
+    switches_count: int
+    switching_rate_pct: float  # % of customers that switched
+    avg_savings_aud_yr: float  # average annual savings from switching
+    market_offer_take_up_pct: float  # % on market offers vs standing offers
+
+
+class RetailMarketDashboard(BaseModel):
+    timestamp: str
+    total_residential_customers: int
+    total_market_offers_count: int
+    best_market_offer_discount_pct: float  # best deal vs DMO reference
+    standing_offer_customers_pct: float    # % still on expensive standing offers
+    market_shares: List[RetailerMarketShare]
+    default_offers: List[DefaultOfferPrice]
+    switching_data: List[CustomerSwitchingRecord]
+
+
+# ---------------------------------------------------------------------------
+# Cache TTLs — Retail Market Analytics
+# ---------------------------------------------------------------------------
+_TTL_RETAIL_DASHBOARD = 3600   # 1 hour — DMO/VDO prices change annually
+_TTL_RETAIL_OFFERS    = 3600   # 1 hour
+
+
+# ---------------------------------------------------------------------------
+# Mock data helpers — Retail Market Analytics
+# ---------------------------------------------------------------------------
+
+def _make_retailer_market_shares() -> List[RetailerMarketShare]:
+    """Return mock retailer market share data for major NEM retailers."""
+    retailers_raw = [
+        {
+            "retailer": "AGL Energy",
+            "state": "NEM",
+            "residential_customers": 2_100_000,
+            "sme_customers": 210_000,
+            "large_commercial_customers": 4_200,
+            "market_share_pct": 23.0,
+            "electricity_volume_gwh": 38_400.0,
+            "avg_retail_margin_pct": 6.2,
+        },
+        {
+            "retailer": "Origin Energy",
+            "state": "NEM",
+            "residential_customers": 2_010_000,
+            "sme_customers": 195_000,
+            "large_commercial_customers": 3_800,
+            "market_share_pct": 22.0,
+            "electricity_volume_gwh": 36_100.0,
+            "avg_retail_margin_pct": 5.8,
+        },
+        {
+            "retailer": "EnergyAustralia",
+            "state": "NEM",
+            "residential_customers": 1_820_000,
+            "sme_customers": 175_000,
+            "large_commercial_customers": 3_500,
+            "market_share_pct": 20.0,
+            "electricity_volume_gwh": 33_200.0,
+            "avg_retail_margin_pct": 5.5,
+        },
+        {
+            "retailer": "Simply Energy",
+            "state": "NEM",
+            "residential_customers": 600_000,
+            "sme_customers": 62_000,
+            "large_commercial_customers": 1_100,
+            "market_share_pct": 7.0,
+            "electricity_volume_gwh": 10_800.0,
+            "avg_retail_margin_pct": 4.9,
+        },
+        {
+            "retailer": "Red Energy / Lumo",
+            "state": "NEM",
+            "residential_customers": 500_000,
+            "sme_customers": 48_000,
+            "large_commercial_customers": 850,
+            "market_share_pct": 5.0,
+            "electricity_volume_gwh": 8_900.0,
+            "avg_retail_margin_pct": 5.1,
+        },
+        {
+            "retailer": "Alinta Energy",
+            "state": "NEM",
+            "residential_customers": 400_000,
+            "sme_customers": 38_000,
+            "large_commercial_customers": 700,
+            "market_share_pct": 4.0,
+            "electricity_volume_gwh": 7_100.0,
+            "avg_retail_margin_pct": 4.7,
+        },
+        {
+            "retailer": "Others",
+            "state": "NEM",
+            "residential_customers": 1_650_000,
+            "sme_customers": 160_000,
+            "large_commercial_customers": 3_000,
+            "market_share_pct": 19.0,
+            "electricity_volume_gwh": 31_500.0,
+            "avg_retail_margin_pct": 4.3,
+        },
+    ]
+
+    return [
+        RetailerMarketShare(
+            retailer=r["retailer"],
+            state=r["state"],
+            residential_customers=r["residential_customers"],
+            sme_customers=r["sme_customers"],
+            large_commercial_customers=r["large_commercial_customers"],
+            total_customers=(
+                r["residential_customers"]
+                + r["sme_customers"]
+                + r["large_commercial_customers"]
+            ),
+            market_share_pct=r["market_share_pct"],
+            electricity_volume_gwh=r["electricity_volume_gwh"],
+            avg_retail_margin_pct=r["avg_retail_margin_pct"],
+        )
+        for r in retailers_raw
+    ]
+
+
+def _make_default_offer_prices() -> List[DefaultOfferPrice]:
+    """Return mock DMO/VDO reference prices for 2025-26 regulatory year."""
+    offers_raw = [
+        {
+            "state": "NSW",
+            "offer_type": "DMO",
+            "distributor": "Ausgrid",
+            "annual_usage_kwh": 5_570,
+            "flat_rate_c_kwh": 35.2,
+            "daily_supply_charge": 106.3,
+            "annual_bill_aud": 1_820.0,
+            "previous_year_aud": 1_768.0,
+        },
+        {
+            "state": "NSW",
+            "offer_type": "DMO",
+            "distributor": "Endeavour Energy",
+            "annual_usage_kwh": 5_570,
+            "flat_rate_c_kwh": 33.8,
+            "daily_supply_charge": 101.1,
+            "annual_bill_aud": 1_749.0,
+            "previous_year_aud": 1_690.0,
+        },
+        {
+            "state": "NSW",
+            "offer_type": "DMO",
+            "distributor": "Essential Energy",
+            "annual_usage_kwh": 5_570,
+            "flat_rate_c_kwh": 36.1,
+            "daily_supply_charge": 108.5,
+            "annual_bill_aud": 1_863.0,
+            "previous_year_aud": 1_811.0,
+        },
+        {
+            "state": "QLD",
+            "offer_type": "DMO",
+            "distributor": "Energex",
+            "annual_usage_kwh": 4_613,
+            "flat_rate_c_kwh": 31.5,
+            "daily_supply_charge": 92.4,
+            "annual_bill_aud": 1_624.0,
+            "previous_year_aud": 1_592.0,
+        },
+        {
+            "state": "QLD",
+            "offer_type": "DMO",
+            "distributor": "Ergon Energy",
+            "annual_usage_kwh": 4_613,
+            "flat_rate_c_kwh": 32.8,
+            "daily_supply_charge": 95.6,
+            "annual_bill_aud": 1_691.0,
+            "previous_year_aud": 1_649.0,
+        },
+        {
+            "state": "SA",
+            "offer_type": "DMO",
+            "distributor": "SA Power Networks",
+            "annual_usage_kwh": 4_011,
+            "flat_rate_c_kwh": 42.1,
+            "daily_supply_charge": 128.7,
+            "annual_bill_aud": 2_172.0,
+            "previous_year_aud": 2_093.0,
+        },
+        {
+            "state": "VIC",
+            "offer_type": "VDO",
+            "distributor": "CitiPower",
+            "annual_usage_kwh": 4_000,
+            "flat_rate_c_kwh": 32.4,
+            "daily_supply_charge": 97.5,
+            "annual_bill_aud": 1_649.0,
+            "previous_year_aud": 1_608.0,
+        },
+        {
+            "state": "VIC",
+            "offer_type": "VDO",
+            "distributor": "Powercor",
+            "annual_usage_kwh": 4_000,
+            "flat_rate_c_kwh": 33.8,
+            "daily_supply_charge": 99.2,
+            "annual_bill_aud": 1_714.0,
+            "previous_year_aud": 1_659.0,
+        },
+        {
+            "state": "VIC",
+            "offer_type": "VDO",
+            "distributor": "AusNet Services",
+            "annual_usage_kwh": 4_000,
+            "flat_rate_c_kwh": 34.1,
+            "daily_supply_charge": 100.8,
+            "annual_bill_aud": 1_732.0,
+            "previous_year_aud": 1_680.0,
+        },
+    ]
+
+    results = []
+    for o in offers_raw:
+        prev = o["previous_year_aud"]
+        curr = o["annual_bill_aud"]
+        change_pct = round((curr - prev) / prev * 100, 2)
+        results.append(DefaultOfferPrice(
+            state=o["state"],
+            offer_type=o["offer_type"],
+            distributor=o["distributor"],
+            annual_usage_kwh=o["annual_usage_kwh"],
+            flat_rate_c_kwh=o["flat_rate_c_kwh"],
+            daily_supply_charge=o["daily_supply_charge"],
+            annual_bill_aud=curr,
+            previous_year_aud=prev,
+            change_pct=change_pct,
+        ))
+    return results
+
+
+def _make_customer_switching_data() -> List[CustomerSwitchingRecord]:
+    """Return mock customer switching records for the last 8 quarters."""
+    records_raw = [
+        {"state": "NEM", "quarter": "2023-Q3", "switches_count": 412_000, "switching_rate_pct": 18.1, "avg_savings_aud_yr": 295.0, "market_offer_take_up_pct": 67.2},
+        {"state": "NEM", "quarter": "2023-Q4", "switches_count": 438_000, "switching_rate_pct": 18.8, "avg_savings_aud_yr": 308.0, "market_offer_take_up_pct": 68.4},
+        {"state": "NEM", "quarter": "2024-Q1", "switches_count": 451_000, "switching_rate_pct": 19.2, "avg_savings_aud_yr": 315.0, "market_offer_take_up_pct": 69.0},
+        {"state": "NEM", "quarter": "2024-Q2", "switches_count": 469_000, "switching_rate_pct": 19.8, "avg_savings_aud_yr": 324.0, "market_offer_take_up_pct": 69.8},
+        {"state": "NEM", "quarter": "2024-Q3", "switches_count": 488_000, "switching_rate_pct": 20.5, "avg_savings_aud_yr": 338.0, "market_offer_take_up_pct": 70.5},
+        {"state": "NEM", "quarter": "2024-Q4", "switches_count": 502_000, "switching_rate_pct": 21.0, "avg_savings_aud_yr": 352.0, "market_offer_take_up_pct": 71.2},
+        {"state": "NEM", "quarter": "2025-Q1", "switches_count": 516_000, "switching_rate_pct": 21.4, "avg_savings_aud_yr": 361.0, "market_offer_take_up_pct": 71.8},
+        {"state": "NEM", "quarter": "2025-Q2", "switches_count": 528_000, "switching_rate_pct": 21.9, "avg_savings_aud_yr": 374.0, "market_offer_take_up_pct": 72.3},
+    ]
+
+    return [
+        CustomerSwitchingRecord(
+            state=r["state"],
+            quarter=r["quarter"],
+            switches_count=r["switches_count"],
+            switching_rate_pct=r["switching_rate_pct"],
+            avg_savings_aud_yr=r["avg_savings_aud_yr"],
+            market_offer_take_up_pct=r["market_offer_take_up_pct"],
+        )
+        for r in records_raw
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Retail Market Analytics (Sprint 20a)
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/retail/dashboard",
+    response_model=RetailMarketDashboard,
+    summary="Retail Market Analytics Dashboard",
+    tags=["Retail Market"],
+    response_description=(
+        "NEM retail market dashboard including retailer market shares, "
+        "DMO/VDO reference prices, and customer switching data"
+    ),
+    dependencies=[Depends(verify_api_key)],
+)
+def get_retail_dashboard(
+    state: Optional[str] = Query(None, description="Optional NEM state filter: NSW, QLD, VIC, SA, TAS"),
+) -> RetailMarketDashboard:
+    """
+    Return the Retail Market Analytics Dashboard for the NEM.
+
+    Includes:
+    - Retailer market share breakdown (7 major retailers + Others)
+    - Default Market Offer (DMO) and Victorian Default Offer (VDO) reference prices
+      set by AER and ESC for the 2025-26 regulatory year
+    - Customer switching rate trends across the last 8 quarters
+
+    Key reference points:
+    - AGL (~23% market share, ~2.1M residential customers)
+    - Origin Energy (~22% share, ~2.0M residential)
+    - EnergyAustralia (~20% share, ~1.8M residential)
+    - SA has the highest electricity prices in the NEM (~$2,172/yr reference)
+    - ~18-22% of customers switch retailers annually, average $300-400/yr savings
+    - ~30% of residential customers remain on expensive standing offers
+
+    Cached for 3600 seconds (1 hour).
+    """
+    cache_key = f"retail_dashboard:{state or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    market_shares = _make_retailer_market_shares()
+    default_offers = _make_default_offer_prices()
+    switching_data = _make_customer_switching_data()
+
+    # Apply optional state filter to default_offers
+    if state:
+        default_offers = [o for o in default_offers if o.state.upper() == state.upper()]
+
+    # Aggregate top-level metrics
+    total_residential = sum(m.residential_customers for m in market_shares)
+    total_market_offers_count = 245  # approximate count of market offers in energy comparison tools
+
+    # Best market offer discount vs DMO: top competitive deals are ~28-32% below DMO
+    best_market_offer_discount_pct = 28.4
+
+    # ~30% of residential customers still on expensive standing offers
+    standing_offer_customers_pct = 29.8
+
+    result = RetailMarketDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_residential_customers=total_residential,
+        total_market_offers_count=total_market_offers_count,
+        best_market_offer_discount_pct=best_market_offer_discount_pct,
+        standing_offer_customers_pct=standing_offer_customers_pct,
+        market_shares=market_shares,
+        default_offers=default_offers,
+        switching_data=switching_data,
+    )
+
+    _cache_set(cache_key, result, _TTL_RETAIL_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/retail/offers",
+    response_model=List[DefaultOfferPrice],
+    summary="DMO / VDO Default Offer Prices (filterable by state)",
+    tags=["Retail Market"],
+    response_description="List of DMO and VDO reference price records, optionally filtered by state",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_retail_offers(
+    state: Optional[str] = Query(None, description="Optional state filter: NSW, QLD, VIC, SA"),
+) -> List[DefaultOfferPrice]:
+    """
+    Return Default Market Offer (DMO) and Victorian Default Offer (VDO) reference prices.
+
+    Query parameter:
+    - **state**: Filter by state code (NSW, QLD, VIC, SA). Omit to return all states.
+
+    The DMO is the Australian federal government's reference price cap, set annually by
+    the AER (Australian Energy Regulator). The VDO is the Victorian-specific equivalent
+    set by the ESC (Essential Services Commission).
+
+    SA has the highest reference price in the NEM at ~$2,172/yr due to higher network
+    costs and reliance on gas peakers for reliability.
+
+    Cached for 3600 seconds (1 hour).
+    """
+    cache_key = f"retail_offers:{state or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    all_offers = _make_default_offer_prices()
+    if state:
+        all_offers = [o for o in all_offers if o.state.upper() == state.upper()]
+
+    _cache_set(cache_key, all_offers, _TTL_RETAIL_OFFERS)
+    return all_offers
+
+
+# ===========================================================================
+# Sprint 20b — Transmission Loss Factor & Network Analytics
+# ===========================================================================
+
+class LossFactorRecord(BaseModel):
+    connection_point: str      # e.g. "BAYSW1" (Bayswater connection)
+    duid: str
+    station_name: str
+    region: str
+    fuel_type: str
+    registered_capacity_mw: float
+    mlf: float                 # Marginal Loss Factor (1.0 = no loss, <1 = losses, >1 = gain)
+    dlf: float                 # Distribution Loss Factor
+    combined_lf: float         # mlf * dlf
+    mlf_category: str          # "high" (>1.02), "normal" (0.98-1.02), "low" (<0.98)
+    mlf_prior_year: float      # prior year MLF for comparison
+    mlf_change: float          # mlf - mlf_prior_year
+
+
+class NetworkConstraintLimit(BaseModel):
+    element_id: str
+    element_name: str          # e.g. "Murray-Tumut 330kV"
+    region: str
+    voltage_kv: int
+    thermal_limit_mva: float
+    current_flow_mva: float
+    loading_pct: float         # current_flow / thermal_limit * 100
+    n1_contingency_mva: float  # post-contingency limit (lower)
+    status: str                # "normal", "loaded", "overloaded"
+
+
+class NetworkDashboard(BaseModel):
+    timestamp: str
+    total_connection_points: int
+    avg_mlf_renewables: float
+    avg_mlf_thermal: float
+    low_mlf_generators: int     # count with MLF < 0.95 (significant revenue impact)
+    high_mlf_generators: int    # count with MLF > 1.02
+    loss_factors: List[LossFactorRecord]
+    network_elements: List[NetworkConstraintLimit]
+
+
+# ---------------------------------------------------------------------------
+# Cache TTLs — Network Analytics
+# ---------------------------------------------------------------------------
+_TTL_NETWORK_DASHBOARD = 3600
+_TTL_NETWORK_LOSS_FACTORS = 3600
+
+
+# ---------------------------------------------------------------------------
+# Mock helpers — Network Analytics
+# ---------------------------------------------------------------------------
+
+def _make_loss_factor_records() -> List[LossFactorRecord]:
+    """Return mock MLF/DLF data for 22 NEM connection points (FY2025-26)."""
+
+    def _category(mlf: float) -> str:
+        if mlf > 1.02:
+            return "high"
+        if mlf < 0.98:
+            return "low"
+        return "normal"
+
+    raw: list = [
+        # NSW1 — near load centres (higher MLF)
+        dict(cp="BAYSW1",   duid="BAYSWATER1",   name="Bayswater",            region="NSW1", fuel="Coal",        cap=660.0,  mlf=1.021, dlf=1.000, mlf_py=1.018),
+        dict(cp="BAYSW2",   duid="BAYSWATER2",   name="Bayswater",            region="NSW1", fuel="Coal",        cap=660.0,  mlf=1.021, dlf=1.000, mlf_py=1.019),
+        dict(cp="ERARING1", duid="ERARING1",      name="Eraring",              region="NSW1", fuel="Coal",        cap=720.0,  mlf=1.012, dlf=1.000, mlf_py=1.010),
+        dict(cp="ERARING2", duid="ERARING2",      name="Eraring",              region="NSW1", fuel="Coal",        cap=720.0,  mlf=1.011, dlf=1.000, mlf_py=1.009),
+        dict(cp="NEOEN1",   duid="NEOCAP1",       name="Neoen Capital Wind",   region="NSW1", fuel="Wind",        cap=132.0,  mlf=0.923, dlf=0.999, mlf_py=0.918),
+        dict(cp="SNOWYH1",  duid="SNOWY1",        name="Snowy Hydro Murray",   region="NSW1", fuel="Hydro",       cap=950.0,  mlf=1.003, dlf=1.000, mlf_py=1.001),
+        dict(cp="TALLW1",   duid="TALLAWARRA1",   name="Tallawarra B",         region="NSW1", fuel="Gas (OCGT)",  cap=316.0,  mlf=1.007, dlf=1.000, mlf_py=1.005),
+        # QLD1 — mix; remote solar farms low MLF
+        dict(cp="CSQLD1",   duid="CALLIDE_C1",    name="Callide C",            region="QLD1", fuel="Coal",        cap=450.0,  mlf=1.005, dlf=1.000, mlf_py=1.003),
+        dict(cp="KGANS1",   duid="KOGAN_CREEK1",  name="Kogan Creek",          region="QLD1", fuel="Coal",        cap=750.0,  mlf=0.999, dlf=1.000, mlf_py=0.998),
+        dict(cp="OQSOL1",   duid="OAKEY_SF1",     name="Oakey Solar Farm",     region="QLD1", fuel="Solar",       cap=100.0,  mlf=0.912, dlf=0.998, mlf_py=0.905),
+        dict(cp="QTSOL1",   duid="QATEN_SF1",     name="Haughton Solar Farm",  region="QLD1", fuel="Solar",       cap=102.0,  mlf=0.897, dlf=0.997, mlf_py=0.891),
+        dict(cp="WNDQLD1",  duid="MACINTYRE1",    name="MacIntyre Wind Farm",  region="QLD1", fuel="Wind",        cap=923.0,  mlf=0.934, dlf=0.999, mlf_py=0.928),
+        # VIC1
+        dict(cp="LOYS1",    duid="LOYYANG_A1",    name="Loy Yang A",           region="VIC1", fuel="Coal",        cap=560.0,  mlf=1.013, dlf=1.000, mlf_py=1.011),
+        dict(cp="LOYS2",    duid="LOYYANG_A2",    name="Loy Yang A",           region="VIC1", fuel="Coal",        cap=560.0,  mlf=1.013, dlf=1.000, mlf_py=1.010),
+        dict(cp="ARWF1",    duid="AGL_WR_WF1",    name="AGL Waubra Wind",      region="VIC1", fuel="Wind",        cap=192.0,  mlf=0.971, dlf=0.999, mlf_py=0.968),
+        dict(cp="BALLARAT1",duid="BALLARAT_BAT1", name="Ballarat Battery",     region="VIC1", fuel="Battery",     cap=30.0,   mlf=1.018, dlf=1.000, mlf_py=1.015),
+        # SA1 — remote wind; notably low MLF
+        dict(cp="HPWRSA1",  duid="HPWNR1",        name="Hornsdale Power",      region="SA1",  fuel="Battery",     cap=150.0,  mlf=0.883, dlf=0.998, mlf_py=0.879),
+        dict(cp="HWSF1",    duid="HORNSDALE_WF1", name="Hornsdale Wind Farm",  region="SA1",  fuel="Wind",        cap=315.0,  mlf=0.891, dlf=0.998, mlf_py=0.885),
+        dict(cp="CLMSA1",   duid="CLEMENTS_GAP1", name="Clements Gap Wind",    region="SA1",  fuel="Wind",        cap=57.0,   mlf=0.872, dlf=0.997, mlf_py=0.868),
+        dict(cp="PPCCGT1",  duid="PELICAN_PT1",   name="Pelican Point CCGT",   region="SA1",  fuel="Gas (CCGT)",  cap=479.0,  mlf=1.024, dlf=1.000, mlf_py=1.020),
+        # TAS1
+        dict(cp="POATINA1", duid="POATINA1",      name="Poatina Hydro",        region="TAS1", fuel="Hydro",       cap=300.0,  mlf=1.008, dlf=1.000, mlf_py=1.006),
+        dict(cp="WOOLNTH1", duid="WOOLNTH1",      name="Woolnorth Wind Farm",  region="TAS1", fuel="Wind",        cap=140.0,  mlf=0.961, dlf=0.999, mlf_py=0.957),
+    ]
+
+    records: List[LossFactorRecord] = []
+    for r in raw:
+        mlf = r["mlf"]
+        dlf = r["dlf"]
+        mlf_py = r["mlf_py"]
+        records.append(LossFactorRecord(
+            connection_point=r["cp"],
+            duid=r["duid"],
+            station_name=r["name"],
+            region=r["region"],
+            fuel_type=r["fuel"],
+            registered_capacity_mw=r["cap"],
+            mlf=round(mlf, 4),
+            dlf=round(dlf, 4),
+            combined_lf=round(mlf * dlf, 4),
+            mlf_category=_category(mlf),
+            mlf_prior_year=round(mlf_py, 4),
+            mlf_change=round(mlf - mlf_py, 4),
+        ))
+    return records
+
+
+def _make_network_elements() -> List[NetworkConstraintLimit]:
+    """Return mock transmission element thermal loading data (9 elements)."""
+
+    def _status(pct: float) -> str:
+        if pct >= 80.0:
+            return "overloaded"
+        if pct >= 60.0:
+            return "loaded"
+        return "normal"
+
+    raw = [
+        dict(eid="NSW_QLD_330",    name="NSW-QLD Interconnect 330kV",  region="NSW1", kv=330, limit=1200.0, flow=780.0,  n1=900.0),
+        dict(eid="MURRAY_TUMUT",   name="Murray-Tumut 330kV",          region="NSW1", kv=330, limit=600.0,  flow=492.0,  n1=480.0),
+        dict(eid="SNOWY_WAGGA",    name="Snowy-Wagga 330kV",           region="NSW1", kv=330, limit=700.0,  flow=315.0,  n1=560.0),
+        dict(eid="VIC_SA_HEYW",    name="Heywood Interconnect 275kV",  region="VIC1", kv=275, limit=650.0,  flow=390.0,  n1=520.0),
+        dict(eid="VIC_NSW_TMNM",   name="Thomastown-NSW 500kV",        region="VIC1", kv=500, limit=1400.0, flow=868.0,  n1=1100.0),
+        dict(eid="SA_NORTH_132",   name="SA Northern 132kV Ring",      region="SA1",  kv=132, limit=300.0,  flow=249.0,  n1=220.0),
+        dict(eid="QLD_ROSS_275",   name="Ross-Townsville 275kV",       region="QLD1", kv=275, limit=500.0,  flow=210.0,  n1=400.0),
+        dict(eid="QLD_DARLING_275",name="Darling Downs 275kV",         region="QLD1", kv=275, limit=800.0,  flow=472.0,  n1=640.0),
+        dict(eid="TAS_BASSLINK",   name="Basslink HVDC 400kV",         region="TAS1", kv=400, limit=478.0,  flow=382.0,  n1=478.0),
+    ]
+
+    elements: List[NetworkConstraintLimit] = []
+    for r in raw:
+        flow = r["flow"]
+        limit = r["limit"]
+        pct = round(flow / limit * 100.0, 1)
+        elements.append(NetworkConstraintLimit(
+            element_id=r["eid"],
+            element_name=r["name"],
+            region=r["region"],
+            voltage_kv=r["kv"],
+            thermal_limit_mva=limit,
+            current_flow_mva=flow,
+            loading_pct=pct,
+            n1_contingency_mva=r["n1"],
+            status=_status(pct),
+        ))
+    return elements
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Network Analytics
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/network/dashboard",
+    response_model=NetworkDashboard,
+    summary="Network & Loss Factor Dashboard",
+    tags=["Network Analytics"],
+    response_description="MLF/DLF summary with connection point data and transmission element loading",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_network_dashboard(
+    region: Optional[str] = Query(None, description="Filter by NEM region (NSW1, QLD1, VIC1, SA1, TAS1)"),
+) -> NetworkDashboard:
+    """
+    Return the Transmission Loss Factor and Network Analytics dashboard.
+
+    Includes:
+    - Per-connection-point MLF, DLF, combined loss factor, and year-on-year change
+    - Summary statistics split by renewable vs. thermal generators
+    - Transmission element thermal loading (9 major elements)
+
+    MLFs are set annually by AEMO for each financial year.
+    Cache TTL: 3600 seconds (MLFs updated annually in practice).
+    """
+    cache_key = f"network_dashboard:{region or 'ALL'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    all_lf = _make_loss_factor_records()
+    if region:
+        lf_list = [r for r in all_lf if r.region == region]
+    else:
+        lf_list = all_lf
+
+    network_elements = _make_network_elements()
+    if region:
+        network_elements = [e for e in network_elements if e.region == region]
+
+    renewable_fuels = {"Wind", "Solar", "Hydro", "Battery"}
+    renewable_mlfs = [r.mlf for r in lf_list if r.fuel_type in renewable_fuels]
+    thermal_mlfs = [r.mlf for r in lf_list if r.fuel_type not in renewable_fuels]
+
+    avg_mlf_renewables = round(sum(renewable_mlfs) / len(renewable_mlfs), 4) if renewable_mlfs else 0.0
+    avg_mlf_thermal = round(sum(thermal_mlfs) / len(thermal_mlfs), 4) if thermal_mlfs else 0.0
+    low_mlf_count = sum(1 for r in lf_list if r.mlf < 0.95)
+    high_mlf_count = sum(1 for r in lf_list if r.mlf > 1.02)
+
+    result = NetworkDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_connection_points=len(lf_list),
+        avg_mlf_renewables=avg_mlf_renewables,
+        avg_mlf_thermal=avg_mlf_thermal,
+        low_mlf_generators=low_mlf_count,
+        high_mlf_generators=high_mlf_count,
+        loss_factors=lf_list,
+        network_elements=network_elements,
+    )
+
+    _cache_set(cache_key, result, _TTL_NETWORK_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/network/loss_factors",
+    response_model=List[LossFactorRecord],
+    summary="Loss Factors (filterable)",
+    tags=["Network Analytics"],
+    response_description="Filtered list of MLF/DLF records for NEM connection points",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_loss_factors(
+    region: Optional[str] = Query(None, description="Filter by NEM region (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    mlf_category: Optional[str] = Query(None, description="Filter by MLF category: high, normal, low"),
+) -> List[LossFactorRecord]:
+    """
+    Return a filtered list of MLF/DLF records for NEM connection points.
+
+    Query parameters:
+    - **region**: Optional NEM region filter (NSW1, QLD1, VIC1, SA1, TAS1)
+    - **mlf_category**: Optional category filter — "high" (MLF > 1.02), "normal" (0.98-1.02), "low" (< 0.98)
+
+    Cache TTL: 3600 seconds (MLFs are set annually by AEMO).
+    """
+    cache_key = f"network_loss_factors:{region or 'ALL'}:{mlf_category or 'ALL'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    records = _make_loss_factor_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    if mlf_category:
+        records = [r for r in records if r.mlf_category == mlf_category]
+
+    _cache_set(cache_key, records, _TTL_NETWORK_LOSS_FACTORS)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 20c — REZ & Infrastructure Investment Analytics models
+# ---------------------------------------------------------------------------
+
+class RezProject(BaseModel):
+    rez_id: str                    # e.g. "NSW-REZ-N1", "QLD-REZ-Q1"
+    rez_name: str                  # e.g. "New England REZ", "Central-West Orana REZ"
+    state: str
+    region: str                    # NEM region: NSW1, QLD1, etc.
+    status: str                    # "Operational", "Under Construction", "Committed", "Proposed"
+    total_capacity_mw: float       # total REZ capacity limit
+    committed_capacity_mw: float   # capacity under connection agreements
+    operational_capacity_mw: float # currently generating
+    connection_queue_mw: float     # capacity in connection queue
+    technology_mix: dict           # {"wind_mw": x, "solar_mw": y, "storage_mw": z}
+    target_completion_year: int
+    network_investment_m: float    # AUD millions of network investment required
+    developer_count: int
+
+class IspProject(BaseModel):
+    project_id: str                # e.g. "ISP-001", "ISP-VNI-MINOR"
+    project_name: str              # e.g. "VNI West", "HumeLink", "EnergyConnect"
+    category: str                  # "Actionable ISP", "Committed", "Regulatory Investment"
+    states_connected: list[str]    # e.g. ["VIC", "NSW"]
+    capacity_mva: float            # transmission capacity in MVA
+    voltage_kv: int                # voltage class
+    capex_m: float                 # estimated capital cost AUD millions
+    status: str                    # "Operational", "Under Construction", "Approved", "Assessment"
+    expected_commissioning_year: int
+    congestion_relief_m_pa: float  # annual market benefit AUD millions
+    benefit_cost_ratio: float
+
+class CisContract(BaseModel):
+    contract_id: str               # e.g. "CIS-2023-001"
+    project_name: str
+    technology: str                # "Wind", "Solar", "Storage", "Hybrid"
+    state: str
+    capacity_mw: float
+    storage_duration_hrs: float    # 0 for non-storage
+    auction_round: str             # e.g. "CIS Round 1 2023", "CIS Round 2 2024"
+    strike_price_mwh: float        # AUD/MWh floor price
+    contract_duration_years: int
+    expected_generation_gwh_pa: float
+    developer: str
+    commissioning_year: int
+
+class RezDashboard(BaseModel):
+    timestamp: str
+    total_rez_capacity_gw: float   # total committed REZ capacity across NEM
+    operational_rez_gw: float      # currently operational
+    under_construction_gw: float
+    pipeline_gw: float             # committed + proposed
+    total_cis_contracts: int
+    cis_contracted_capacity_gw: float
+    total_isp_projects: int
+    isp_actionable_capex_b: float  # total actionable ISP capex AUD billions
+    rez_projects: list[RezProject]
+    isp_projects: list[IspProject]
+    cis_contracts: list[CisContract]
+
+
+_TTL_REZ_DASHBOARD = 3600
+_TTL_REZ_PROJECTS = 1800
+_TTL_ISP_PROJECTS = 3600
+_TTL_CIS_CONTRACTS = 3600
+
+
+def _make_rez_projects() -> List[RezProject]:
+    """Return mock REZ project data for AEMO's declared REZs across the NEM."""
+    rez_data = [
+        {
+            "rez_id": "NSW-REZ-N1", "rez_name": "New England REZ",
+            "state": "NSW", "region": "NSW1", "status": "Under Construction",
+            "total_capacity_mw": 8000, "committed_capacity_mw": 3200,
+            "operational_capacity_mw": 800, "connection_queue_mw": 4200,
+            "technology_mix": {"wind_mw": 5500, "solar_mw": 1800, "storage_mw": 700},
+            "target_completion_year": 2028, "network_investment_m": 2100.0, "developer_count": 12,
+        },
+        {
+            "rez_id": "NSW-REZ-CWO", "rez_name": "Central-West Orana REZ",
+            "state": "NSW", "region": "NSW1", "status": "Under Construction",
+            "total_capacity_mw": 12000, "committed_capacity_mw": 5800,
+            "operational_capacity_mw": 1200, "connection_queue_mw": 5000,
+            "technology_mix": {"wind_mw": 7000, "solar_mw": 3500, "storage_mw": 1500},
+            "target_completion_year": 2030, "network_investment_m": 3200.0, "developer_count": 18,
+        },
+        {
+            "rez_id": "NSW-REZ-SHN", "rez_name": "South West REZ",
+            "state": "NSW", "region": "NSW1", "status": "Committed",
+            "total_capacity_mw": 3000, "committed_capacity_mw": 1100,
+            "operational_capacity_mw": 400, "connection_queue_mw": 1800,
+            "technology_mix": {"wind_mw": 1800, "solar_mw": 900, "storage_mw": 300},
+            "target_completion_year": 2027, "network_investment_m": 850.0, "developer_count": 6,
+        },
+        {
+            "rez_id": "QLD-REZ-Q1", "rez_name": "Central Queensland REZ",
+            "state": "QLD", "region": "QLD1", "status": "Operational",
+            "total_capacity_mw": 4000, "committed_capacity_mw": 3800,
+            "operational_capacity_mw": 2600, "connection_queue_mw": 800,
+            "technology_mix": {"wind_mw": 1200, "solar_mw": 2500, "storage_mw": 300},
+            "target_completion_year": 2025, "network_investment_m": 680.0, "developer_count": 9,
+        },
+        {
+            "rez_id": "QLD-REZ-Q2", "rez_name": "Southern Queensland REZ",
+            "state": "QLD", "region": "QLD1", "status": "Under Construction",
+            "total_capacity_mw": 6000, "committed_capacity_mw": 2400,
+            "operational_capacity_mw": 300, "connection_queue_mw": 3200,
+            "technology_mix": {"wind_mw": 3000, "solar_mw": 2400, "storage_mw": 600},
+            "target_completion_year": 2028, "network_investment_m": 1400.0, "developer_count": 11,
+        },
+        {
+            "rez_id": "VIC-REZ-V1", "rez_name": "Western Victoria REZ",
+            "state": "VIC", "region": "VIC1", "status": "Under Construction",
+            "total_capacity_mw": 6500, "committed_capacity_mw": 3100,
+            "operational_capacity_mw": 900, "connection_queue_mw": 3200,
+            "technology_mix": {"wind_mw": 4800, "solar_mw": 1200, "storage_mw": 500},
+            "target_completion_year": 2027, "network_investment_m": 1650.0, "developer_count": 8,
+        },
+        {
+            "rez_id": "VIC-REZ-V2", "rez_name": "Gippsland REZ",
+            "state": "VIC", "region": "VIC1", "status": "Proposed",
+            "total_capacity_mw": 5000, "committed_capacity_mw": 800,
+            "operational_capacity_mw": 0, "connection_queue_mw": 2100,
+            "technology_mix": {"wind_mw": 3500, "solar_mw": 800, "storage_mw": 700},
+            "target_completion_year": 2032, "network_investment_m": 1900.0, "developer_count": 5,
+        },
+        {
+            "rez_id": "SA-REZ-S1", "rez_name": "Eyre Peninsula REZ",
+            "state": "SA", "region": "SA1", "status": "Committed",
+            "total_capacity_mw": 2800, "committed_capacity_mw": 1200,
+            "operational_capacity_mw": 200, "connection_queue_mw": 1400,
+            "technology_mix": {"wind_mw": 2000, "solar_mw": 500, "storage_mw": 300},
+            "target_completion_year": 2027, "network_investment_m": 720.0, "developer_count": 4,
+        },
+    ]
+    return [RezProject(**r) for r in rez_data]
+
+
+def _make_isp_projects() -> List[IspProject]:
+    """Return mock ISP actionable and committed project data."""
+    projects = [
+        {
+            "project_id": "ISP-001", "project_name": "EnergyConnect (SA-NSW Interconnector)",
+            "category": "Actionable ISP", "states_connected": ["SA", "NSW"],
+            "capacity_mva": 800, "voltage_kv": 330,
+            "capex_m": 2300.0, "status": "Under Construction",
+            "expected_commissioning_year": 2025,
+            "congestion_relief_m_pa": 220.0, "benefit_cost_ratio": 2.8,
+        },
+        {
+            "project_id": "ISP-002", "project_name": "HumeLink (Snowy-Sydney transmission)",
+            "category": "Actionable ISP", "states_connected": ["NSW"],
+            "capacity_mva": 2200, "voltage_kv": 500,
+            "capex_m": 4900.0, "status": "Approved",
+            "expected_commissioning_year": 2028,
+            "congestion_relief_m_pa": 380.0, "benefit_cost_ratio": 2.3,
+        },
+        {
+            "project_id": "ISP-003", "project_name": "VNI West (VIC-NSW Interconnector upgrade)",
+            "category": "Actionable ISP", "states_connected": ["VIC", "NSW"],
+            "capacity_mva": 1400, "voltage_kv": 500,
+            "capex_m": 3200.0, "status": "Assessment",
+            "expected_commissioning_year": 2030,
+            "congestion_relief_m_pa": 290.0, "benefit_cost_ratio": 2.1,
+        },
+        {
+            "project_id": "ISP-004", "project_name": "Central-West Orana REZ Transmission",
+            "category": "Regulatory Investment", "states_connected": ["NSW"],
+            "capacity_mva": 700, "voltage_kv": 330,
+            "capex_m": 1800.0, "status": "Under Construction",
+            "expected_commissioning_year": 2026,
+            "congestion_relief_m_pa": 160.0, "benefit_cost_ratio": 2.6,
+        },
+        {
+            "project_id": "ISP-005", "project_name": "New England REZ Transmission",
+            "category": "Regulatory Investment", "states_connected": ["NSW"],
+            "capacity_mva": 600, "voltage_kv": 330,
+            "capex_m": 1500.0, "status": "Approved",
+            "expected_commissioning_year": 2027,
+            "congestion_relief_m_pa": 140.0, "benefit_cost_ratio": 2.4,
+        },
+        {
+            "project_id": "ISP-006", "project_name": "QNI Upgrade (QLD-NSW Interconnector)",
+            "category": "Actionable ISP", "states_connected": ["QLD", "NSW"],
+            "capacity_mva": 1000, "voltage_kv": 330,
+            "capex_m": 1600.0, "status": "Assessment",
+            "expected_commissioning_year": 2029,
+            "congestion_relief_m_pa": 200.0, "benefit_cost_ratio": 2.9,
+        },
+    ]
+    return [IspProject(**p) for p in projects]
+
+
+def _make_cis_contracts() -> List[CisContract]:
+    """Return mock Capacity Investment Scheme contract data."""
+    contracts = [
+        {
+            "contract_id": "CIS-2023-001", "project_name": "Barratta Creek Wind Farm",
+            "technology": "Wind", "state": "QLD", "capacity_mw": 400.0,
+            "storage_duration_hrs": 0.0, "auction_round": "CIS Round 1 2023",
+            "strike_price_mwh": 72.0, "contract_duration_years": 15,
+            "expected_generation_gwh_pa": 1400.0, "developer": "Acciona Energia",
+            "commissioning_year": 2026,
+        },
+        {
+            "contract_id": "CIS-2023-002", "project_name": "MacIntyre Wind Farm",
+            "technology": "Wind", "state": "QLD", "capacity_mw": 923.0,
+            "storage_duration_hrs": 0.0, "auction_round": "CIS Round 1 2023",
+            "strike_price_mwh": 68.5, "contract_duration_years": 15,
+            "expected_generation_gwh_pa": 3100.0, "developer": "Acciona Energia",
+            "commissioning_year": 2024,
+        },
+        {
+            "contract_id": "CIS-2023-003", "project_name": "Waratah Super Battery",
+            "technology": "Storage", "state": "NSW", "capacity_mw": 850.0,
+            "storage_duration_hrs": 4.0, "auction_round": "CIS Round 1 2023",
+            "strike_price_mwh": 155.0, "contract_duration_years": 20,
+            "expected_generation_gwh_pa": 0.0, "developer": "AGL Energy",
+            "commissioning_year": 2025,
+        },
+        {
+            "contract_id": "CIS-2024-001", "project_name": "Stubbo Solar Farm",
+            "technology": "Solar", "state": "NSW", "capacity_mw": 500.0,
+            "storage_duration_hrs": 0.0, "auction_round": "CIS Round 2 2024",
+            "strike_price_mwh": 58.0, "contract_duration_years": 15,
+            "expected_generation_gwh_pa": 1050.0, "developer": "Elysian Energy",
+            "commissioning_year": 2027,
+        },
+        {
+            "contract_id": "CIS-2024-002", "project_name": "Orana REZ Wind Cluster",
+            "technology": "Hybrid", "state": "NSW", "capacity_mw": 1200.0,
+            "storage_duration_hrs": 2.0, "auction_round": "CIS Round 2 2024",
+            "strike_price_mwh": 76.0, "contract_duration_years": 20,
+            "expected_generation_gwh_pa": 3800.0, "developer": "Transgrid/Partners",
+            "commissioning_year": 2028,
+        },
+        {
+            "contract_id": "CIS-2024-003", "project_name": "Star of the South Offshore Wind",
+            "technology": "Wind", "state": "VIC", "capacity_mw": 2200.0,
+            "storage_duration_hrs": 0.0, "auction_round": "CIS Round 2 2024",
+            "strike_price_mwh": 89.0, "contract_duration_years": 20,
+            "expected_generation_gwh_pa": 7700.0, "developer": "Copenhagen Infrastructure Partners",
+            "commissioning_year": 2030,
+        },
+        {
+            "contract_id": "CIS-2024-004", "project_name": "Torrens Island Battery",
+            "technology": "Storage", "state": "SA", "capacity_mw": 250.0,
+            "storage_duration_hrs": 4.0, "auction_round": "CIS Round 2 2024",
+            "strike_price_mwh": 148.0, "contract_duration_years": 15,
+            "expected_generation_gwh_pa": 0.0, "developer": "AGL Energy",
+            "commissioning_year": 2026,
+        },
+        {
+            "contract_id": "CIS-2024-005", "project_name": "Glenbrook Solar + Storage",
+            "technology": "Hybrid", "state": "QLD", "capacity_mw": 350.0,
+            "storage_duration_hrs": 3.0, "auction_round": "CIS Round 2 2024",
+            "strike_price_mwh": 82.0, "contract_duration_years": 15,
+            "expected_generation_gwh_pa": 680.0, "developer": "Origin Energy",
+            "commissioning_year": 2027,
+        },
+    ]
+    return [CisContract(**c) for c in contracts]
+
+
+@app.get(
+    "/api/rez/dashboard",
+    response_model=RezDashboard,
+    summary="REZ & Infrastructure Investment Dashboard",
+    tags=["REZ & Infrastructure"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_dashboard() -> RezDashboard:
+    """REZ development, ISP projects, and CIS contracts dashboard. Cached 3600s."""
+    cache_key = "rez_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    rez_projects = _make_rez_projects()
+    isp_projects = _make_isp_projects()
+    cis_contracts = _make_cis_contracts()
+    total_rez = sum(r.total_capacity_mw for r in rez_projects) / 1000
+    operational_rez = sum(r.operational_capacity_mw for r in rez_projects) / 1000
+    under_construction_rez = sum(r.committed_capacity_mw for r in rez_projects if r.status == "Under Construction") / 1000
+    pipeline_rez = sum(r.committed_capacity_mw + r.connection_queue_mw for r in rez_projects if r.status in ("Committed", "Proposed")) / 1000
+    cis_capacity = sum(c.capacity_mw for c in cis_contracts) / 1000
+    isp_capex = sum(p.capex_m for p in isp_projects if p.category == "Actionable ISP") / 1000
+    result = RezDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_rez_capacity_gw=round(total_rez, 2),
+        operational_rez_gw=round(operational_rez, 2),
+        under_construction_gw=round(under_construction_rez, 2),
+        pipeline_gw=round(pipeline_rez, 2),
+        total_cis_contracts=len(cis_contracts),
+        cis_contracted_capacity_gw=round(cis_capacity, 2),
+        total_isp_projects=len(isp_projects),
+        isp_actionable_capex_b=round(isp_capex, 2),
+        rez_projects=rez_projects,
+        isp_projects=isp_projects,
+        cis_contracts=cis_contracts,
+    )
+    _cache_set(cache_key, result, _TTL_REZ_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/rez/projects",
+    response_model=List[RezProject],
+    summary="REZ Projects (filterable by state/status)",
+    tags=["REZ & Infrastructure"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_projects(
+    state: Optional[str] = Query(None, description="Filter by state: NSW, QLD, VIC, SA"),
+    status: Optional[str] = Query(None, description="Filter by status: Operational, Under Construction, Committed, Proposed"),
+) -> List[RezProject]:
+    """Return list of REZ projects with optional filters. Cached 1800s."""
+    cache_key = f"rez_projects:{state or 'all'}:{status or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    projects = _make_rez_projects()
+    if state:
+        projects = [p for p in projects if p.state.upper() == state.upper()]
+    if status:
+        projects = [p for p in projects if p.status.lower() == status.lower()]
+    _cache_set(cache_key, projects, _TTL_REZ_PROJECTS)
+    return projects
+
+
+@app.get(
+    "/api/rez/cis_contracts",
+    response_model=List[CisContract],
+    summary="CIS Capacity Investment Scheme Contracts",
+    tags=["REZ & Infrastructure"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_cis_contracts(
+    technology: Optional[str] = Query(None, description="Filter by technology: Wind, Solar, Storage, Hybrid"),
+    state: Optional[str] = Query(None, description="Filter by state"),
+) -> List[CisContract]:
+    """Return CIS contract list with optional technology/state filters. Cached 3600s."""
+    cache_key = f"cis_contracts:{technology or 'all'}:{state or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    contracts = _make_cis_contracts()
+    if technology:
+        contracts = [c for c in contracts if c.technology.lower() == technology.lower()]
+    if state:
+        contracts = [c for c in contracts if c.state.upper() == state.upper()]
+    _cache_set(cache_key, contracts, _TTL_CIS_CONTRACTS)
+    return contracts

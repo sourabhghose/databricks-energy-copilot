@@ -24,6 +24,8 @@ import {
   Home as HomeIcon,
   Settings as SettingsIcon,
   Flame,
+  Users,
+  Network,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -55,6 +57,9 @@ import OutageSchedule from './pages/OutageSchedule'
 import DerDashboard from './pages/DerDashboard'
 import Settings from './pages/Settings'
 import GasMarket from './pages/GasMarket'
+import RetailMarket from './pages/RetailMarket'
+import NetworkAnalytics from './pages/NetworkAnalytics'
+import RezInfrastructure from './pages/RezInfrastructure'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -86,6 +91,9 @@ const NAV_ITEMS = [
   { to: '/outages',        label: 'Outage Schedule',   Icon: Wrench         },
   { to: '/der',            label: 'VPP & DER',         Icon: HomeIcon       },
   { to: '/gas',            label: 'Gas Market',        Icon: Flame          },
+  { to: '/retail',         label: 'Retail Market',     Icon: Users          },
+  { to: '/network',        label: 'Network & MLF',     Icon: Network        },
+  { to: '/rez',            label: 'REZ & Infrastructure', Icon: Zap         },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -192,6 +200,9 @@ export default function App() {
               <Route path="/outages"      element={<OutageSchedule />}     />
               <Route path="/der"          element={<DerDashboard />}       />
               <Route path="/gas"          element={<GasMarket />}          />
+              <Route path="/retail"       element={<RetailMarket />}       />
+              <Route path="/network"      element={<NetworkAnalytics />}   />
+              <Route path="/rez"          element={<RezInfrastructure />}  />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

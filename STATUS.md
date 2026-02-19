@@ -375,3 +375,19 @@
 ## Sprint 19b — Gas Market & Pipeline Analytics — 2026-02-19
 **Completed:** app/backend/main.py (GasPipelineFlow/GasHubPrice/LngExportRecord/GasMarketDashboard Pydantic models, GET /api/gas/dashboard with 3 hub prices + 5 pipeline flows + 5 LNG terminals, GET /api/gas/pipeline_flows with utilisation filter), app/frontend/src/api/client.ts (GasPipelineFlow/GasHubPrice/LngExportRecord/GasMarketDashboard interfaces, getGasDashboard/getGasPipelineFlows methods), app/frontend/src/pages/GasMarket.tsx (new ~450-line page: hub price cards, pipeline flows table with utilisation bars, hub price BarChart, LNG terminals table), app/frontend/src/App.tsx (gas route + nav item), tests/test_backend.py (TestGasEndpoints: 3 tests)
 **Notes:** Australian east coast gas hubs: Wallumbilla (QLD, largest trading hub), Moomba (SA, major production centre), Longford (VIC, Bass Strait supply point). Gas-to-power is key NEM fuel input: ~450-800 TJ/day. LNG export terminals: 3 in QLD (QCLNG, APLNG, GLNG) + 2 in WA (Darwin LNG, NW Shelf). Domestic Reservation Obligation (WA) requires 15% of LNG production reserved for domestic market.
+
+## Sprint 20a — Retail Market Analytics — 2026-02-19
+**Completed:** app/backend/main.py (RetailerMarketShare/DefaultOfferPrice/CustomerSwitchingRecord/RetailMarketDashboard Pydantic models, GET /api/retail/dashboard with 7 retailers + DMO/VDO prices + switching data, GET /api/retail/offers with state filter), app/frontend/src/api/client.ts (RetailerMarketShare/DefaultOfferPrice/CustomerSwitchingRecord/RetailMarketDashboard interfaces, getRetailDashboard/getRetailOffers methods), app/frontend/src/pages/RetailMarket.tsx (new ~460-line page: market overview cards, retailer PieChart, DMO/VDO prices table, customer switching BarChart), app/frontend/src/App.tsx (retail route + nav item), tests/test_backend.py (TestRetailEndpoints: 3 tests)
+**Notes:** DMO (Default Market Offer) = Australian federal government's reference price cap, set annually by AER. VDO (Victorian Default Offer) = Victorian-specific equivalent set by ESC. SA has highest electricity prices in NEM (~$2,172/yr reference). ~18-22% of customers switch retailers annually, saving average $300-400/yr. ~30% of residential customers still on expensive standing offers.
+
+## Sprint 20b — Transmission Loss Factor & Network Analytics — 2026-02-19
+**Completed:** app/backend/main.py (LossFactorRecord/NetworkConstraintLimit/NetworkDashboard Pydantic models, GET /api/network/dashboard with 20-25 MLF records + 8-10 network elements, GET /api/network/loss_factors with region/category filters), app/frontend/src/api/client.ts (LossFactorRecord/NetworkConstraintLimit/NetworkDashboard interfaces, getNetworkDashboard/getLossFactors methods), app/frontend/src/pages/NetworkAnalytics.tsx (new ~460-line page: MLF summary cards, MLF distribution BarChart, loss factors table sorted by MLF, network element loading table), app/frontend/src/App.tsx (network route + nav item), tests/test_backend.py (TestNetworkEndpoints: 3 tests)
+**Notes:** MLF (Marginal Loss Factor) measures the marginal transmission loss at a generator's connection point. MLF < 1.0 means revenue penalty (generator receives less than the spot price). Remote renewable zones in SA and QLD often have MLFs 0.85-0.95, significantly reducing effective revenue. MLFs are set annually by AEMO for each financial year. Combined LF = MLF x DLF.
+
+## Sprint 20c — REZ & Infrastructure Investment Analytics (2026-02-19)
+- Added RezProject, IspProject, CisContract, RezDashboard Pydantic models to main.py
+- Created /api/rez/dashboard, /api/rez/projects, /api/rez/cis_contracts endpoints
+- Created RezInfrastructure.tsx with REZ project table, ISP project table, CIS contracts table
+- Added TypeScript interfaces and API methods to client.ts
+- Added /rez route to App.tsx
+- Added TestRezInfrastructureEndpoints tests to test_backend.py

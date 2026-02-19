@@ -1020,6 +1020,160 @@ export interface GasMarketDashboard {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 20a — Retail Market Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface RetailerMarketShare {
+  retailer: string
+  state: string
+  residential_customers: number
+  sme_customers: number
+  large_commercial_customers: number
+  total_customers: number
+  market_share_pct: number
+  electricity_volume_gwh: number
+  avg_retail_margin_pct: number
+}
+
+export interface DefaultOfferPrice {
+  state: string
+  offer_type: string
+  distributor: string
+  annual_usage_kwh: number
+  flat_rate_c_kwh: number
+  daily_supply_charge: number
+  annual_bill_aud: number
+  previous_year_aud: number
+  change_pct: number
+}
+
+export interface CustomerSwitchingRecord {
+  state: string
+  quarter: string
+  switches_count: number
+  switching_rate_pct: number
+  avg_savings_aud_yr: number
+  market_offer_take_up_pct: number
+}
+
+export interface RetailMarketDashboard {
+  timestamp: string
+  total_residential_customers: number
+  total_market_offers_count: number
+  best_market_offer_discount_pct: number
+  standing_offer_customers_pct: number
+  market_shares: RetailerMarketShare[]
+  default_offers: DefaultOfferPrice[]
+  switching_data: CustomerSwitchingRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 20b — Transmission Loss Factor & Network Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface LossFactorRecord {
+  connection_point: string
+  duid: string
+  station_name: string
+  region: string
+  fuel_type: string
+  registered_capacity_mw: number
+  mlf: number
+  dlf: number
+  combined_lf: number
+  mlf_category: string
+  mlf_prior_year: number
+  mlf_change: number
+}
+
+export interface NetworkConstraintLimit {
+  element_id: string
+  element_name: string
+  region: string
+  voltage_kv: number
+  thermal_limit_mva: number
+  current_flow_mva: number
+  loading_pct: number
+  n1_contingency_mva: number
+  status: string
+}
+
+export interface NetworkDashboard {
+  timestamp: string
+  total_connection_points: number
+  avg_mlf_renewables: number
+  avg_mlf_thermal: number
+  low_mlf_generators: number
+  high_mlf_generators: number
+  loss_factors: LossFactorRecord[]
+  network_elements: NetworkConstraintLimit[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 20c — REZ & Infrastructure Investment Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface RezProject {
+  rez_id: string
+  rez_name: string
+  state: string
+  region: string
+  status: string
+  total_capacity_mw: number
+  committed_capacity_mw: number
+  operational_capacity_mw: number
+  connection_queue_mw: number
+  technology_mix: { wind_mw?: number; solar_mw?: number; storage_mw?: number }
+  target_completion_year: number
+  network_investment_m: number
+  developer_count: number
+}
+
+export interface IspProject {
+  project_id: string
+  project_name: string
+  category: string
+  states_connected: string[]
+  capacity_mva: number
+  voltage_kv: number
+  capex_m: number
+  status: string
+  expected_commissioning_year: number
+  congestion_relief_m_pa: number
+  benefit_cost_ratio: number
+}
+
+export interface CisContract {
+  contract_id: string
+  project_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  storage_duration_hrs: number
+  auction_round: string
+  strike_price_mwh: number
+  contract_duration_years: number
+  expected_generation_gwh_pa: number
+  developer: string
+  commissioning_year: number
+}
+
+export interface RezDashboard {
+  timestamp: string
+  total_rez_capacity_gw: number
+  operational_rez_gw: number
+  under_construction_gw: number
+  pipeline_gw: number
+  total_cis_contracts: number
+  cis_contracted_capacity_gw: number
+  total_isp_projects: number
+  isp_actionable_capex_b: number
+  rez_projects: RezProject[]
+  isp_projects: IspProject[]
+  cis_contracts: CisContract[]
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -1822,6 +1976,85 @@ export const api = {
   getGasPipelineFlows: async (minUtilisation = 0): Promise<GasPipelineFlow[]> => {
     const res = await fetch(`${BASE_URL}/api/gas/pipeline_flows?min_utilisation_pct=${minUtilisation}`, { headers })
     if (!res.ok) throw new Error('Failed to fetch pipeline flows')
+    return res.json()
+  },
+
+  /**
+   * Get the Retail Market Analytics Dashboard.
+   * Includes retailer market shares, DMO/VDO reference prices, and customer switching data.
+   * @param state  Optional NEM state filter: NSW, QLD, VIC, SA, TAS
+   * Cache TTL: 3600 seconds on the backend.
+   */
+  getRetailDashboard: async (state?: string): Promise<RetailMarketDashboard> => {
+    const params = state ? `?state=${state}` : ''
+    const res = await fetch(`${BASE_URL}/api/retail/dashboard${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch retail dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get DMO and VDO reference prices, optionally filtered by state.
+   * @param state  Optional state filter: NSW, QLD, VIC, SA
+   * Cache TTL: 3600 seconds on the backend.
+   */
+  getRetailOffers: async (state?: string): Promise<DefaultOfferPrice[]> => {
+    const params = state ? `?state=${state}` : ''
+    const res = await fetch(`${BASE_URL}/api/retail/offers${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch retail offers')
+    return res.json()
+  },
+
+  /**
+   * Get the Transmission Loss Factor & Network Analytics dashboard.
+   * Includes per-connection-point MLF/DLF data and transmission element loading.
+   * @param region  Optional NEM region filter (NSW1, QLD1, VIC1, SA1, TAS1)
+   * Cache TTL: 3600 seconds on the backend (MLFs updated annually by AEMO).
+   */
+  getNetworkDashboard: async (region?: string): Promise<NetworkDashboard> => {
+    const params = region ? `?region=${region}` : ''
+    const res = await fetch(`${BASE_URL}/api/network/dashboard${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch network dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of MLF/DLF records for NEM connection points.
+   * @param region       Optional NEM region filter (NSW1, QLD1, VIC1, SA1, TAS1)
+   * @param mlfCategory  Optional MLF category filter: "high" | "normal" | "low"
+   * Cache TTL: 3600 seconds on the backend.
+   */
+  getLossFactors: async (region?: string, mlfCategory?: string): Promise<LossFactorRecord[]> => {
+    const params = new URLSearchParams()
+    if (region) params.set('region', region)
+    if (mlfCategory) params.set('mlf_category', mlfCategory)
+    const res = await fetch(`${BASE_URL}/api/network/loss_factors?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch loss factors')
+    return res.json()
+  },
+
+  getRezDashboard: async (): Promise<RezDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/rez/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch REZ dashboard')
+    return res.json()
+  },
+
+  getRezProjects: async (state?: string, status?: string): Promise<RezProject[]> => {
+    const params = new URLSearchParams()
+    if (state) params.append('state', state)
+    if (status) params.append('status', status)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/rez/projects${qs}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch REZ projects')
+    return res.json()
+  },
+
+  getCisContracts: async (technology?: string, state?: string): Promise<CisContract[]> => {
+    const params = new URLSearchParams()
+    if (technology) params.append('technology', technology)
+    if (state) params.append('state', state)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/rez/cis_contracts${qs}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch CIS contracts')
     return res.json()
   },
 }
