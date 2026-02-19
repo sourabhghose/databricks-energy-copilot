@@ -661,3 +661,18 @@
 - CarbonRegistry.tsx: 24-month ACCU spot/futures price chart, projects table with method filters, method breakdown bar chart
 - /api/carbon/dashboard, /projects, /market (12 ACCU projects: Savanna Fire, HIR, Soil Carbon; 24-month market data)
 - 4 TestCarbonEndpoints tests
+
+## Sprint 35a — Grid-Scale Energy Storage Arbitrage Analytics [COMPLETE]
+- StorageArbitrage.tsx: revenue stack chart (arbitrage+FCAS+capacity), projects table, 48-period dispatch/SoC/price chart
+- /api/storage/dashboard, /projects, /dispatch (12 BESS projects: HPR/VBB/Waratah/Snowy 2.0, 48-interval dispatch)
+- 4 TestStorageEndpoints tests
+
+## Sprint 35b — NEM Demand Forecasting Accuracy & PASA Analytics [COMPLETE]
+- DemandForecastAnalytics.tsx: MAE by horizon bar chart, forecast records table, PASA reliability table with reserve margin colour-coding
+- /api/demand-forecast/dashboard, /records, /pasa (100 forecast records, 60 PASA reliability records)
+- 4 TestDemandForecastEndpoints tests
+
+## Sprint 35c — Renewable Energy Zone (REZ) Development Analytics [COMPLETE]
+- RezDevelopment.tsx: REZ capacity progress chart, zones table with state/status filters, generation pipeline table
+- /api/rez/dashboard, /zones, /projects (11 REZs: New England, CWO, Southern QLD, Gippsland; 14 generation projects)
+- 4 TestRezEndpoints tests

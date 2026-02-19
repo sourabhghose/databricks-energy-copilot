@@ -116,6 +116,9 @@ import MarketReformTracker from './pages/MarketReformTracker'
 import TuosAnalytics from './pages/TuosAnalytics'
 import CarbonRegistry from './pages/CarbonRegistry'
 import EvCharging from './pages/EvCharging'
+import StorageArbitrage from './pages/StorageArbitrage'
+import DemandForecastAnalytics from './pages/DemandForecastAnalytics'
+import RezDevelopment from './pages/RezDevelopment'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -192,6 +195,9 @@ const NAV_ITEMS = [
   { to: '/tuos',          label: 'Network Pricing',   Icon: DollarSign     },
   { to: '/carbon-registry', label: 'Carbon Registry',  Icon: Leaf           },
   { to: '/ev',            label: 'EV Charging',       Icon: Zap            },
+  { to: '/storage',       label: 'Storage Arbitrage', Icon: Battery        },
+  { to: '/demand-forecast', label: 'Demand Forecast', Icon: TrendingUp    },
+  { to: '/rez-development', label: 'REZ Development',   Icon: MapPin         },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -343,6 +349,9 @@ export default function App() {
               <Route path="/tuos"         element={<TuosAnalytics />}      />
               <Route path="/carbon-registry" element={<CarbonRegistry />}  />
               <Route path="/ev"           element={<EvCharging />}          />
+              <Route path="/storage"      element={<StorageArbitrage />}    />
+              <Route path="/demand-forecast" element={<DemandForecastAnalytics />} />
+              <Route path="/rez-development" element={<RezDevelopment />}      />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

@@ -22492,3 +22492,574 @@ def get_ev_grid_impact(state: Optional[str] = None):
         impacts = [g for g in impacts if g.state == state]
     _cache_set(cache_key, impacts, _TTL_EV)
     return impacts
+
+
+# ---------------------------------------------------------------------------
+# Sprint 35a — Grid-Scale Energy Storage Arbitrage Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_STORAGE = 1800
+
+
+class BessProject(BaseModel):
+    project_id: str
+    project_name: str
+    owner: str
+    state: str
+    technology: str              # LI_ION / FLOW / COMPRESSED_AIR / THERMAL
+    capacity_mwh: float
+    power_mw: float
+    duration_hours: float
+    round_trip_efficiency_pct: float
+    commissioning_year: int
+    status: str                  # OPERATING / CONSTRUCTION / APPROVED / PROPOSED
+    energy_arbitrage_revenue_m_aud: float
+    fcas_revenue_m_aud: float
+    capacity_revenue_m_aud: float
+    capex_m_aud: float
+    lcoe_mwh: float              # levelised cost $/MWh
+
+class StorageDispatchRecord(BaseModel):
+    project_id: str
+    trading_interval: str
+    charge_mw: float             # positive=charging, negative=discharging
+    soc_pct: float               # state of charge %
+    spot_price_aud_mwh: float
+    fcas_raise_revenue_aud: float
+    fcas_lower_revenue_aud: float
+    net_revenue_aud: float
+
+class StorageDashboard(BaseModel):
+    timestamp: str
+    total_storage_capacity_mwh: float
+    total_storage_power_mw: float
+    operating_projects: int
+    avg_round_trip_efficiency_pct: float
+    total_annual_revenue_m_aud: float
+    projects: List[BessProject]
+    dispatch_records: List[StorageDispatchRecord]
+
+
+def _make_bess_projects() -> List[BessProject]:
+    import random as r
+    projects_data = [
+        ("BESS001", "Hornsdale Power Reserve", "Neoen", "SA", "LI_ION", 193.5, 150.0, 1.29, 93.2, 2017, "OPERATING", 18.4, 22.1, 0.0, 66.0, 68.5),
+        ("BESS002", "Victorian Big Battery", "Neoen/Tesla", "VIC", "LI_ION", 450.0, 300.0, 1.50, 92.8, 2021, "OPERATING", 32.6, 28.4, 0.0, 160.0, 74.2),
+        ("BESS003", "Waratah Super Battery", "Akaysha Energy", "NSW", "LI_ION", 850.0, 700.0, 1.21, 91.5, 2024, "OPERATING", 62.4, 42.8, 15.6, 320.0, 78.4),
+        ("BESS004", "Riverina Energy Storage", "Origin Energy", "NSW", "LI_ION", 200.0, 200.0, 1.00, 90.8, 2023, "OPERATING", 14.2, 18.6, 8.2, 80.0, 82.6),
+        ("BESS005", "Torrens Island BESS", "AGL", "SA", "LI_ION", 250.0, 250.0, 1.00, 91.2, 2023, "OPERATING", 19.8, 21.4, 10.5, 95.0, 80.3),
+        ("BESS006", "Capital Battery", "ENGIE", "ACT", "LI_ION", 50.0, 50.0, 1.00, 92.4, 2023, "OPERATING", 3.8, 4.2, 0.0, 22.0, 91.5),
+        ("BESS007", "Bouldercombe BESS", "AGL", "QLD", "LI_ION", 150.0, 150.0, 1.00, 90.6, 2024, "CONSTRUCTION", 0.0, 0.0, 0.0, 60.0, 79.8),
+        ("BESS008", "Orana REZ Battery", "Amp Energy", "NSW", "LI_ION", 1000.0, 500.0, 2.00, 91.8, 2025, "APPROVED", 0.0, 0.0, 0.0, 380.0, 72.4),
+        ("BESS009", "Snowy Pumped Hydro 2.0", "Snowy Hydro", "NSW", "FLOW", 350000.0, 2000.0, 175.0, 78.4, 2029, "CONSTRUCTION", 0.0, 0.0, 0.0, 12000.0, 135.8),
+        ("BESS010", "Kidston Pumped Hydro", "Genex Power", "QLD", "FLOW", 250.0, 50.0, 5.00, 75.6, 2025, "CONSTRUCTION", 0.0, 0.0, 0.0, 350.0, 98.4),
+        ("BESS011", "CEP Energy BESS", "CEP Energy", "NSW", "LI_ION", 200.0, 200.0, 1.00, 91.6, 2025, "APPROVED", 0.0, 0.0, 0.0, 78.0, 81.2),
+        ("BESS012", "Yadlamalka BESS", "ElectraNet/Neoen", "SA", "LI_ION", 100.0, 100.0, 1.00, 92.1, 2024, "OPERATING", 7.6, 9.8, 4.2, 42.0, 86.4),
+    ]
+    records = []
+    for pid, name, owner, state, tech, cap, pwr, dur, rte, year, status, earb, efcas, ecap, capex, lcoe in projects_data:
+        records.append(BessProject(
+            project_id=pid,
+            project_name=name,
+            owner=owner,
+            state=state,
+            technology=tech,
+            capacity_mwh=cap,
+            power_mw=pwr,
+            duration_hours=dur,
+            round_trip_efficiency_pct=round(rte + r.uniform(-0.5, 0.5), 1),
+            commissioning_year=year,
+            status=status,
+            energy_arbitrage_revenue_m_aud=round(earb + r.uniform(-1, 1), 1) if earb > 0 else 0.0,
+            fcas_revenue_m_aud=round(efcas + r.uniform(-1, 1), 1) if efcas > 0 else 0.0,
+            capacity_revenue_m_aud=round(ecap + r.uniform(-0.5, 0.5), 1) if ecap > 0 else 0.0,
+            capex_m_aud=capex,
+            lcoe_mwh=round(lcoe + r.uniform(-2, 2), 1),
+        ))
+    return records
+
+
+def _make_storage_dispatch() -> List[StorageDispatchRecord]:
+    import random as r
+    records = []
+    soc = 50.0
+    for i in range(48):
+        hour = (i * 30) // 60
+        minute = (i * 30) % 60
+        interval = f"2025-01-15 {hour:02d}:{minute:02d}"
+        # Low prices = charge, high prices = discharge
+        if 2 <= hour <= 6:
+            price = round(r.uniform(20, 60), 2)
+            charge = round(r.uniform(50, 150), 1)
+            soc = min(100, soc + 8)
+        elif hour in [7, 8, 17, 18, 19]:
+            price = round(r.uniform(180, 450), 2)
+            charge = round(r.uniform(-200, -80), 1)
+            soc = max(10, soc - 12)
+        else:
+            price = round(r.uniform(60, 130), 2)
+            charge = round(r.uniform(-20, 20), 1)
+        net_rev = round(-charge * price / 2000, 2)
+        records.append(StorageDispatchRecord(
+            project_id="BESS001",
+            trading_interval=interval,
+            charge_mw=charge,
+            soc_pct=round(soc, 1),
+            spot_price_aud_mwh=price,
+            fcas_raise_revenue_aud=round(r.uniform(200, 1800), 2),
+            fcas_lower_revenue_aud=round(r.uniform(100, 800), 2),
+            net_revenue_aud=net_rev,
+        ))
+    return records
+
+
+def _make_storage_dashboard() -> StorageDashboard:
+    import random as r
+    projects = _make_bess_projects()
+    dispatch = _make_storage_dispatch()
+    operating = [p for p in projects if p.status == "OPERATING"]
+    total_cap = round(sum(p.capacity_mwh for p in operating), 1)
+    total_pwr = round(sum(p.power_mw for p in operating), 1)
+    avg_rte = round(sum(p.round_trip_efficiency_pct for p in operating) / len(operating), 1) if operating else 0
+    total_rev = round(sum(p.energy_arbitrage_revenue_m_aud + p.fcas_revenue_m_aud + p.capacity_revenue_m_aud for p in operating), 1)
+    return StorageDashboard(
+        timestamp=_now_aest(),
+        total_storage_capacity_mwh=total_cap,
+        total_storage_power_mw=total_pwr,
+        operating_projects=len(operating),
+        avg_round_trip_efficiency_pct=avg_rte,
+        total_annual_revenue_m_aud=total_rev,
+        projects=projects,
+        dispatch_records=dispatch,
+    )
+
+
+@app.get(
+    "/api/storage/dashboard",
+    response_model=StorageDashboard,
+    summary="Grid-Scale Energy Storage Arbitrage dashboard",
+    tags=["Storage"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_dashboard():
+    cached = _cache_get("storage:dashboard")
+    if cached:
+        return cached
+    data = _make_storage_dashboard()
+    _cache_set("storage:dashboard", data, _TTL_STORAGE)
+    return data
+
+
+@app.get(
+    "/api/storage/projects",
+    response_model=List[BessProject],
+    summary="BESS projects registry",
+    tags=["Storage"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_bess_projects(state: Optional[str] = None, status: Optional[str] = None):
+    cache_key = f"storage:projects:{state}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_bess_projects()
+    if state:
+        projects = [p for p in projects if p.state == state]
+    if status:
+        projects = [p for p in projects if p.status == status]
+    _cache_set(cache_key, projects, _TTL_STORAGE)
+    return projects
+
+
+@app.get(
+    "/api/storage/dispatch",
+    response_model=List[StorageDispatchRecord],
+    summary="BESS intraday dispatch profile",
+    tags=["Storage"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_dispatch(project_id: Optional[str] = None):
+    cache_key = f"storage:dispatch:{project_id}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_storage_dispatch()
+    if project_id:
+        records = [r for r in records if r.project_id == project_id]
+    _cache_set(cache_key, records, _TTL_STORAGE)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 35b — NEM Demand Forecasting Accuracy & PASA Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_DEMAND_FORECAST = 1800
+
+
+class DemandForecastRecord(BaseModel):
+    region: str
+    forecast_date: str
+    forecast_horizon_h: int       # hours ahead: 1, 4, 24, 48, 168
+    forecast_mw: float
+    actual_mw: float
+    error_mw: float               # forecast - actual
+    mae_pct: float                # mean absolute error %
+    forecast_model: str           # AEMO_ST_PASA / AEMO_MT_PASA / ML_ENHANCED
+    temperature_c: float
+    conditions: str               # HOT / MODERATE / COLD / STORM
+
+class PasaReliabilityRecord(BaseModel):
+    region: str
+    month: str
+    reserve_margin_pct: float
+    ues_mwh: float               # Unserved Energy
+    lrc_mw: float                # Low Reserve Condition trigger MW
+    capacity_available_mw: float
+    demand_10poe_mw: float       # 10% probability of exceedance
+    demand_50poe_mw: float
+    reliability_standard_met: bool
+
+class DemandForecastDashboard(BaseModel):
+    timestamp: str
+    regions: List[str]
+    avg_mae_1h_pct: float
+    avg_mae_24h_pct: float
+    avg_mae_168h_pct: float
+    forecast_records: List[DemandForecastRecord]
+    pasa_records: List[PasaReliabilityRecord]
+
+
+def _make_demand_forecast_records() -> List[DemandForecastRecord]:
+    import random as r
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    horizons = [1, 4, 24, 48, 168]
+    models = ["AEMO_ST_PASA", "AEMO_MT_PASA", "ML_ENHANCED"]
+    conditions = ["HOT", "MODERATE", "COLD", "STORM"]
+    records = []
+    base_demands = {"NSW1": 8200, "VIC1": 6800, "QLD1": 7400, "SA1": 1900, "TAS1": 1100}
+    for region in regions:
+        base = base_demands[region]
+        for i in range(20):
+            horizon = r.choice(horizons)
+            actual = round(base + r.uniform(-1200, 1500), 1)
+            # Error increases with horizon
+            max_err = horizon * 8
+            error = round(r.uniform(-max_err, max_err), 1)
+            forecast = round(actual + error, 1)
+            mae_pct = round(abs(error) / actual * 100, 2)
+            records.append(DemandForecastRecord(
+                region=region,
+                forecast_date=f"2025-{r.randint(1, 12):02d}-{r.randint(1, 28):02d}",
+                forecast_horizon_h=horizon,
+                forecast_mw=forecast,
+                actual_mw=actual,
+                error_mw=error,
+                mae_pct=mae_pct,
+                forecast_model=r.choice(models),
+                temperature_c=round(r.uniform(8, 42), 1),
+                conditions=r.choice(conditions),
+            ))
+    return records
+
+
+def _make_pasa_records() -> List[PasaReliabilityRecord]:
+    import random as r
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    records = []
+    cap_by_region = {"NSW1": 18500, "VIC1": 11800, "QLD1": 15400, "SA1": 3800, "TAS1": 2600}
+    demand_50_by_region = {"NSW1": 9800, "VIC1": 7200, "QLD1": 8600, "SA1": 2200, "TAS1": 1400}
+    for region in regions:
+        cap = cap_by_region[region]
+        d50 = demand_50_by_region[region]
+        for month_idx in range(12):
+            month = f"2025-{month_idx + 1:02d}"
+            seasonal_adj = 1.0 + 0.15 * abs(month_idx - 6) / 6
+            d10 = round(d50 * seasonal_adj, 0)
+            cap_avail = round(cap * r.uniform(0.85, 0.96), 0)
+            reserve = round((cap_avail - d10) / d10 * 100, 1)
+            lrc = round(d10 * 0.92, 0)
+            ues = round(r.uniform(0, 50) if reserve < 10 else r.uniform(0, 5), 2)
+            records.append(PasaReliabilityRecord(
+                region=region,
+                month=month,
+                reserve_margin_pct=reserve,
+                ues_mwh=ues,
+                lrc_mw=lrc,
+                capacity_available_mw=cap_avail,
+                demand_10poe_mw=d10,
+                demand_50poe_mw=float(d50),
+                reliability_standard_met=ues < 0.002 * d50 * 365,
+            ))
+    return records
+
+
+def _make_demand_forecast_dashboard() -> DemandForecastDashboard:
+    import random as r
+    records = _make_demand_forecast_records()
+    pasa = _make_pasa_records()
+    h1 = [rec.mae_pct for rec in records if rec.forecast_horizon_h == 1]
+    h24 = [rec.mae_pct for rec in records if rec.forecast_horizon_h == 24]
+    h168 = [rec.mae_pct for rec in records if rec.forecast_horizon_h == 168]
+    return DemandForecastDashboard(
+        timestamp=_now_aest(),
+        regions=["NSW1", "VIC1", "QLD1", "SA1", "TAS1"],
+        avg_mae_1h_pct=round(sum(h1) / len(h1), 2) if h1 else 0.0,
+        avg_mae_24h_pct=round(sum(h24) / len(h24), 2) if h24 else 0.0,
+        avg_mae_168h_pct=round(sum(h168) / len(h168), 2) if h168 else 0.0,
+        forecast_records=records,
+        pasa_records=pasa,
+    )
+
+
+@app.get(
+    "/api/demand-forecast/dashboard",
+    response_model=DemandForecastDashboard,
+    summary="NEM Demand Forecasting & PASA dashboard",
+    tags=["DemandForecast"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_demand_forecast_dashboard():
+    cached = _cache_get("demand_forecast:dashboard")
+    if cached:
+        return cached
+    data = _make_demand_forecast_dashboard()
+    _cache_set("demand_forecast:dashboard", data, _TTL_DEMAND_FORECAST)
+    return data
+
+
+@app.get(
+    "/api/demand-forecast/records",
+    response_model=List[DemandForecastRecord],
+    summary="Demand forecast accuracy records",
+    tags=["DemandForecast"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_demand_forecast_records(region: Optional[str] = None, horizon_h: Optional[int] = None):
+    cache_key = f"demand_forecast:records:{region}:{horizon_h}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_demand_forecast_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    if horizon_h:
+        records = [r for r in records if r.forecast_horizon_h == horizon_h]
+    _cache_set(cache_key, records, _TTL_DEMAND_FORECAST)
+    return records
+
+
+@app.get(
+    "/api/demand-forecast/pasa",
+    response_model=List[PasaReliabilityRecord],
+    summary="PASA reliability assessment records",
+    tags=["DemandForecast"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_pasa_records(region: Optional[str] = None):
+    cache_key = f"demand_forecast:pasa:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_pasa_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    _cache_set(cache_key, records, _TTL_DEMAND_FORECAST)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 35c — Renewable Energy Zone (REZ) Development Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_REZ_DEV = 3600
+
+
+class RezRecord(BaseModel):
+    rez_id: str
+    rez_name: str
+    state: str
+    region: str
+    status: str                   # PRIORITY / ACTIVE / COMMITTED / COMPLETED
+    technology_focus: str         # WIND / SOLAR / MIXED
+    capacity_potential_gw: float
+    committed_capacity_mw: float
+    operating_capacity_mw: float
+    pipeline_capacity_mw: float
+    transmission_investment_m_aud: float
+    land_area_km2: int
+    rez_class: str                # REZ_1 / REZ_2 / REZ_3 (ISP priority)
+    enabling_project: str         # associated transmission project
+
+class RezGenerationProject(BaseModel):
+    project_id: str
+    project_name: str
+    rez_id: str
+    technology: str
+    capacity_mw: float
+    developer: str
+    state: str
+    status: str                   # OPERATING / CONSTRUCTION / APPROVED / PROPOSED
+    commissioning_year: int
+    estimated_generation_gwh: float
+    firming_partner: str          # battery/hydro/gas firming
+
+class RezDevDashboard(BaseModel):
+    timestamp: str
+    total_rez_zones: int
+    total_pipeline_gw: float
+    committed_capacity_mw: float
+    operating_capacity_mw: float
+    total_transmission_investment_m_aud: float
+    rez_records: List[RezRecord]
+    generation_projects: List[RezGenerationProject]
+
+
+def _make_rez_dev_records() -> List[RezRecord]:
+    import random as r
+    rez_data = [
+        ("REZ_NSW_NEW_ENGLAND", "New England REZ", "NSW", "NSW1", "ACTIVE", "MIXED", 14.0, 3200, 580, 8400, 680.0, 8500, "REZ_1", "HumeLink"),
+        ("REZ_NSW_CENTRAL_WEST", "Central-West Orana REZ", "NSW", "NSW1", "COMMITTED", "MIXED", 14.0, 5800, 1200, 6200, 920.0, 12000, "REZ_1", "Central-West Orana Backbone"),
+        ("REZ_NSW_SOUTH_WEST", "South West NSW REZ", "NSW", "NSW1", "ACTIVE", "SOLAR", 18.0, 2800, 850, 9400, 540.0, 9800, "REZ_2", "EnergyConnect"),
+        ("REZ_VIC_MURRAY_RIVER", "Murray River REZ", "VIC", "VIC1", "PRIORITY", "MIXED", 10.0, 1200, 320, 5800, 480.0, 6400, "REZ_1", "VNI West"),
+        ("REZ_VIC_GIPPSLAND", "Gippsland REZ", "VIC", "VIC1", "ACTIVE", "WIND", 13.0, 2400, 480, 7200, 580.0, 7800, "REZ_2", "Marinus Link"),
+        ("REZ_VIC_WESTERN", "Western Victoria REZ", "VIC", "VIC1", "COMMITTED", "MIXED", 6.5, 1800, 650, 3400, 320.0, 5200, "REZ_1", "Western Victoria Tx"),
+        ("REZ_QLD_SOUTHERN", "Southern QLD REZ", "QLD", "QLD1", "ACTIVE", "SOLAR", 15.0, 3600, 1400, 7800, 680.0, 11000, "REZ_1", "QLD-NSW Interconnector"),
+        ("REZ_QLD_CENTRAL", "Central QLD REZ", "QLD", "QLD1", "PRIORITY", "MIXED", 18.0, 1800, 420, 9600, 580.0, 18000, "REZ_2", "CQ-SEQ Transmission"),
+        ("REZ_SA_EYRE_PENINSULA", "Eyre Peninsula REZ", "SA", "SA1", "ACTIVE", "WIND", 5.0, 980, 240, 2800, 420.0, 3600, "REZ_1", "EnergyConnect"),
+        ("REZ_SA_MID_NORTH", "Mid-North SA REZ", "SA", "SA1", "COMMITTED", "MIXED", 4.0, 1200, 580, 1800, 280.0, 2800, "REZ_2", "ElectraNet REZ Tx"),
+        ("REZ_TAS_NORTH", "Northern Tasmania REZ", "TAS", "TAS1", "ACTIVE", "WIND", 9.0, 1400, 320, 4800, 380.0, 5400, "REZ_1", "Marinus Link"),
+    ]
+    records = []
+    for rez_id, name, state, region, status, tech, potential, committed, operating, pipeline, tx_inv, area, cls, proj in rez_data:
+        records.append(RezRecord(
+            rez_id=rez_id,
+            rez_name=name,
+            state=state,
+            region=region,
+            status=status,
+            technology_focus=tech,
+            capacity_potential_gw=potential,
+            committed_capacity_mw=committed + r.randint(-100, 100),
+            operating_capacity_mw=operating + r.randint(-50, 50),
+            pipeline_capacity_mw=pipeline + r.randint(-200, 200),
+            transmission_investment_m_aud=round(tx_inv + r.uniform(-20, 20), 1),
+            land_area_km2=area,
+            rez_class=cls,
+            enabling_project=proj,
+        ))
+    return records
+
+
+def _make_rez_generation_projects() -> List[RezGenerationProject]:
+    import random as r
+    projects_data = [
+        ("GEN001", "Bango Wind Farm", "REZ_NSW_NEW_ENGLAND", "WIND", 244.0, "Neoen", "NSW", "OPERATING", 2022, 810.0, "Hornsdale Power Reserve"),
+        ("GEN002", "Rye Park Wind", "REZ_NSW_NEW_ENGLAND", "WIND", 396.0, "Tilt Renewables", "NSW", "OPERATING", 2023, 1380.0, "BESS"),
+        ("GEN003", "Merriwa Solar Farm", "REZ_NSW_CENTRAL_WEST", "SOLAR", 333.0, "Canadian Solar", "NSW", "CONSTRUCTION", 2025, 620.0, "Gas backup"),
+        ("GEN004", "Limondale Solar", "REZ_NSW_SOUTH_WEST", "SOLAR", 249.0, "EDF Renewables", "NSW", "OPERATING", 2020, 480.0, "None"),
+        ("GEN005", "Bulgana Green Power Hub", "REZ_VIC_WESTERN", "WIND", 204.0, "Tilt Renewables", "VIC", "OPERATING", 2019, 690.0, "BESS"),
+        ("GEN006", "Dundonnell Wind Farm", "REZ_VIC_WESTERN", "WIND", 336.0, "Vestas", "VIC", "OPERATING", 2021, 1100.0, "None"),
+        ("GEN007", "Darlington Point Solar", "REZ_NSW_SOUTH_WEST", "SOLAR", 275.0, "Foresight Group", "NSW", "OPERATING", 2021, 510.0, "None"),
+        ("GEN008", "Western Downs Solar", "REZ_QLD_SOUTHERN", "SOLAR", 400.0, "Akaysha Energy", "QLD", "OPERATING", 2022, 740.0, "BESS"),
+        ("GEN009", "CleanCo Solar Farm", "REZ_QLD_SOUTHERN", "SOLAR", 100.0, "CleanCo", "QLD", "OPERATING", 2023, 185.0, "None"),
+        ("GEN010", "Lincoln Gap Wind Farm", "REZ_SA_EYRE_PENINSULA", "WIND", 126.0, "Pacific Hydro", "SA", "OPERATING", 2020, 420.0, "None"),
+        ("GEN011", "Snowtown 2 Wind", "REZ_SA_MID_NORTH", "WIND", 270.0, "Pacific Hydro", "SA", "OPERATING", 2014, 890.0, "None"),
+        ("GEN012", "Cattle Hill Wind Farm", "REZ_TAS_NORTH", "WIND", 148.0, "Goldwind", "TAS", "OPERATING", 2020, 500.0, "Hydro Tasmania"),
+        ("GEN013", "Murchison Green Hydrogen REZ", "REZ_VIC_GIPPSLAND", "WIND", 600.0, "Star of the South", "VIC", "APPROVED", 2027, 2100.0, "Marinus Link"),
+        ("GEN014", "CWO Backbone Solar Hub", "REZ_NSW_CENTRAL_WEST", "SOLAR", 1000.0, "BP/Lightsource", "NSW", "APPROVED", 2026, 1860.0, "BESS"),
+    ]
+    records = []
+    for pid, name, rez, tech, cap, dev, state, status, year, gen, firming in projects_data:
+        records.append(RezGenerationProject(
+            project_id=pid,
+            project_name=name,
+            rez_id=rez,
+            technology=tech,
+            capacity_mw=cap,
+            developer=dev,
+            state=state,
+            status=status,
+            commissioning_year=year,
+            estimated_generation_gwh=round(gen + r.uniform(-50, 50), 1),
+            firming_partner=firming,
+        ))
+    return records
+
+
+def _make_rez_dev_dashboard() -> RezDevDashboard:
+    import random as r
+    rezs = _make_rez_dev_records()
+    projects = _make_rez_generation_projects()
+    total_pipeline = round(sum(rez.capacity_potential_gw for rez in rezs), 1)
+    committed = sum(rez.committed_capacity_mw for rez in rezs)
+    operating = sum(rez.operating_capacity_mw for rez in rezs)
+    tx_inv = round(sum(rez.transmission_investment_m_aud for rez in rezs), 1)
+    return RezDevDashboard(
+        timestamp=_now_aest(),
+        total_rez_zones=len(rezs),
+        total_pipeline_gw=total_pipeline,
+        committed_capacity_mw=committed,
+        operating_capacity_mw=operating,
+        total_transmission_investment_m_aud=tx_inv,
+        rez_records=rezs,
+        generation_projects=projects,
+    )
+
+
+@app.get(
+    "/api/rez-dev/dashboard",
+    response_model=RezDevDashboard,
+    summary="Renewable Energy Zone (REZ) Development dashboard",
+    tags=["REZ"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_dev_dashboard():
+    cached = _cache_get("rez_dev:dashboard")
+    if cached:
+        return cached
+    data = _make_rez_dev_dashboard()
+    _cache_set("rez_dev:dashboard", data, _TTL_REZ_DEV)
+    return data
+
+
+@app.get(
+    "/api/rez-dev/zones",
+    response_model=List[RezRecord],
+    summary="REZ zone registry",
+    tags=["REZ"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_dev_zones(state: Optional[str] = None, status: Optional[str] = None):
+    cache_key = f"rez_dev:zones:{state}:{status}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_rez_dev_records()
+    if state:
+        records = [r for r in records if r.state == state]
+    if status:
+        records = [r for r in records if r.status == status]
+    _cache_set(cache_key, records, _TTL_REZ_DEV)
+    return records
+
+
+@app.get(
+    "/api/rez-dev/projects",
+    response_model=List[RezGenerationProject],
+    summary="REZ generation pipeline projects",
+    tags=["REZ"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rez_dev_projects(rez_id: Optional[str] = None, technology: Optional[str] = None):
+    cache_key = f"rez_dev:projects:{rez_id}:{technology}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_rez_generation_projects()
+    if rez_id:
+        records = [r for r in records if r.rez_id == rez_id]
+    if technology:
+        records = [r for r in records if r.technology == technology]
+    _cache_set(cache_key, records, _TTL_REZ_DEV)
+    return records

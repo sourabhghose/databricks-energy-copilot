@@ -3187,3 +3187,97 @@ class TestCarbonEndpoints:
         assert r.status_code == 200
         for p in r.json():
             assert p["state"] == "QLD"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 35a — Grid-Scale Energy Storage Arbitrage
+# ---------------------------------------------------------------------------
+
+class TestStorageEndpoints:
+    def test_storage_dashboard_returns_200(self, client=client):
+        r = client.get("/api/storage/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "projects" in d
+        assert "dispatch_records" in d
+        assert d["operating_projects"] >= 3
+
+    def test_storage_projects_list(self, client=client):
+        r = client.get("/api/storage/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 8
+
+    def test_storage_dispatch_list(self, client=client):
+        r = client.get("/api/storage/dispatch")
+        assert r.status_code == 200
+        assert len(r.json()) >= 24
+
+    def test_storage_status_filter(self, client=client):
+        r = client.get("/api/storage/projects?status=OPERATING")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["status"] == "OPERATING"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 35b — NEM Demand Forecasting Accuracy & PASA
+# ---------------------------------------------------------------------------
+
+class TestDemandForecastEndpoints:
+    def test_demand_forecast_dashboard_returns_200(self, client=client):
+        r = client.get("/api/demand-forecast/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "forecast_records" in d
+        assert "pasa_records" in d
+        assert d["avg_mae_1h_pct"] >= 0
+
+    def test_demand_forecast_records_list(self, client=client):
+        r = client.get("/api/demand-forecast/records")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 20
+
+    def test_demand_forecast_region_filter(self, client=client):
+        r = client.get("/api/demand-forecast/records?region=NSW1")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["region"] == "NSW1"
+
+    def test_pasa_records_list(self, client=client):
+        r = client.get("/api/demand-forecast/pasa")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 12
+
+
+# ---------------------------------------------------------------------------
+# Sprint 35c — Renewable Energy Zone (REZ) Development
+# ---------------------------------------------------------------------------
+
+class TestRezEndpoints:
+    def test_rez_dashboard_returns_200(self, client=client):
+        r = client.get("/api/rez-dev/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "rez_records" in d
+        assert "generation_projects" in d
+        assert d["total_rez_zones"] >= 8
+
+    def test_rez_zones_list(self, client=client):
+        r = client.get("/api/rez-dev/zones")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 8
+
+    def test_rez_projects_list(self, client=client):
+        r = client.get("/api/rez-dev/projects")
+        assert r.status_code == 200
+        assert len(r.json()) >= 10
+
+    def test_rez_state_filter(self, client=client):
+        r = client.get("/api/rez-dev/zones?state=NSW")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["state"] == "NSW"

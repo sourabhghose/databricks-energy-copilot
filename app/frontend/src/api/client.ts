@@ -1770,6 +1770,27 @@ export interface EvCharger { charger_id: string; site_name: string; operator: st
 export interface EvGridImpact { state: string; ev_vehicles_registered: number; charging_load_mw_peak: number; charging_load_mw_offpeak: number; managed_charging_participation_pct: number; grid_upgrade_cost_m_aud: number; renewable_charging_pct: number; v2g_capable_vehicles: number }
 export interface EvDashboard { timestamp: string; total_chargers: number; total_ev_vehicles: number; total_charging_capacity_mw: number; avg_utilisation_pct: number; managed_charging_pct: number; chargers: EvCharger[]; grid_impacts: EvGridImpact[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 35a — Grid-Scale Energy Storage Arbitrage interfaces
+// ---------------------------------------------------------------------------
+export interface BessProject { project_id: string; project_name: string; owner: string; state: string; technology: string; capacity_mwh: number; power_mw: number; duration_hours: number; round_trip_efficiency_pct: number; commissioning_year: number; status: string; energy_arbitrage_revenue_m_aud: number; fcas_revenue_m_aud: number; capacity_revenue_m_aud: number; capex_m_aud: number; lcoe_mwh: number }
+export interface StorageDispatchRecord { project_id: string; trading_interval: string; charge_mw: number; soc_pct: number; spot_price_aud_mwh: number; fcas_raise_revenue_aud: number; fcas_lower_revenue_aud: number; net_revenue_aud: number }
+export interface StorageDashboard { timestamp: string; total_storage_capacity_mwh: number; total_storage_power_mw: number; operating_projects: number; avg_round_trip_efficiency_pct: number; total_annual_revenue_m_aud: number; projects: BessProject[]; dispatch_records: StorageDispatchRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 35b — NEM Demand Forecasting Accuracy & PASA interfaces
+// ---------------------------------------------------------------------------
+export interface DemandForecastRecord { region: string; forecast_date: string; forecast_horizon_h: number; forecast_mw: number; actual_mw: number; error_mw: number; mae_pct: number; forecast_model: string; temperature_c: number; conditions: string }
+export interface PasaReliabilityRecord { region: string; month: string; reserve_margin_pct: number; ues_mwh: number; lrc_mw: number; capacity_available_mw: number; demand_10poe_mw: number; demand_50poe_mw: number; reliability_standard_met: boolean }
+export interface DemandForecastDashboard { timestamp: string; regions: string[]; avg_mae_1h_pct: number; avg_mae_24h_pct: number; avg_mae_168h_pct: number; forecast_records: DemandForecastRecord[]; pasa_records: PasaReliabilityRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 35c — Renewable Energy Zone (REZ) Development interfaces
+// ---------------------------------------------------------------------------
+export interface RezRecord { rez_id: string; rez_name: string; state: string; region: string; status: string; technology_focus: string; capacity_potential_gw: number; committed_capacity_mw: number; operating_capacity_mw: number; pipeline_capacity_mw: number; transmission_investment_m_aud: number; land_area_km2: number; rez_class: string; enabling_project: string }
+export interface RezGenerationProject { project_id: string; project_name: string; rez_id: string; technology: string; capacity_mw: number; developer: string; state: string; status: string; commissioning_year: number; estimated_generation_gwh: number; firming_partner: string }
+export interface RezDevDashboard { timestamp: string; total_rez_zones: number; total_pipeline_gw: number; committed_capacity_mw: number; operating_capacity_mw: number; total_transmission_investment_m_aud: number; rez_records: RezRecord[]; generation_projects: RezGenerationProject[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3304,6 +3325,49 @@ export const api = {
     if (params?.state) qs.append('state', params.state)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<EvGridImpact[]>(`/api/ev/grid-impact${query}`)
+  },
+  getStorageDashboard: () => get<StorageDashboard>('/api/storage/dashboard'),
+  getBessProjects: (params?: { state?: string; status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<BessProject[]>(`/api/storage/projects${query}`)
+  },
+  getStorageDispatch: (params?: { project_id?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.project_id) qs.append('project_id', params.project_id)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<StorageDispatchRecord[]>(`/api/storage/dispatch${query}`)
+  },
+  getDemandForecastDashboard: () => get<DemandForecastDashboard>('/api/demand-forecast/dashboard'),
+  getDemandForecastRecords: (params?: { region?: string; horizon_h?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    if (params?.horizon_h) qs.append('horizon_h', String(params.horizon_h))
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<DemandForecastRecord[]>(`/api/demand-forecast/records${query}`)
+  },
+  getPasaRecords: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<PasaReliabilityRecord[]>(`/api/demand-forecast/pasa${query}`)
+  },
+  getRezDevDashboard: () => get<RezDevDashboard>('/api/rez-dev/dashboard'),
+  getRezDevZones: (params?: { state?: string; status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.state) qs.append('state', params.state)
+    if (params?.status) qs.append('status', params.status)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<RezRecord[]>(`/api/rez-dev/zones${query}`)
+  },
+  getRezDevProjects: (params?: { rez_id?: string; technology?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.rez_id) qs.append('rez_id', params.rez_id)
+    if (params?.technology) qs.append('technology', params.technology)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<RezGenerationProject[]>(`/api/rez-dev/projects${query}`)
   },
 }
 
