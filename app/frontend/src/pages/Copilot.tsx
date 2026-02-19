@@ -7,8 +7,12 @@ import {
   Zap,
   Clock,
   Activity,
+  History,
+  Plus,
+  Star,
 } from 'lucide-react'
 import ChatInterface, { type ChatInterfaceHandle } from '../components/ChatInterface'
+import { api, type CopilotSession } from '../api/client'
 
 // ---------------------------------------------------------------------------
 // Sidebar: model info + example questions + session stats
@@ -23,16 +27,105 @@ const EXAMPLE_QUESTIONS = [
   'What NEM rules govern AEMO\'s intervention powers?',
 ]
 
-interface SidebarProps {
+// ---------------------------------------------------------------------------
+// Sessions tab — session history list
+// ---------------------------------------------------------------------------
+
+interface SessionsTabProps {
+  onNewSession: () => void
+  onSelectSession: (session: CopilotSession) => void
+}
+
+function SessionsTab({ onNewSession, onSelectSession }: SessionsTabProps) {
+  const [sessions, setSessions] = useState<CopilotSession[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.listSessions(10)
+      .then(data => setSessions(data))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString('en-AU', {
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    } catch {
+      return iso
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 px-3 py-3 flex-1">
+      <button
+        onClick={onNewSession}
+        className="flex items-center gap-1.5 w-full px-3 py-2 rounded-lg text-xs font-medium text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors"
+      >
+        <Plus size={12} />
+        New Session
+      </button>
+
+      {loading ? (
+        <div className="flex flex-col gap-2 mt-1">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="animate-pulse h-14 rounded-lg bg-gray-200" />
+          ))}
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="text-xs text-gray-400 text-center py-4">
+          No sessions yet. Start chatting to create one.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 mt-1 overflow-y-auto">
+          {sessions.map(sess => (
+            <button
+              key={sess.session_id}
+              onClick={() => onSelectSession(sess)}
+              className="text-left px-2.5 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors"
+            >
+              <div className="text-xs font-medium text-gray-700 leading-snug truncate">
+                {formatDate(sess.last_active)}
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-gray-400">
+                  {sess.message_count} msgs
+                </span>
+                <span className="text-xs text-gray-400">
+                  {sess.total_tokens.toLocaleString()} tok
+                </span>
+                {sess.rating != null && (
+                  <span className="flex items-center gap-0.5 text-xs text-amber-500">
+                    <Star size={10} fill="currentColor" />
+                    {sess.rating}
+                  </span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Info tab — model info + example questions + session stats
+// ---------------------------------------------------------------------------
+
+interface InfoTabProps {
   onSelectQuestion: (q: string) => void
   apiError: boolean
   messageCount: number
   avgResponseMs: number
 }
 
-function Sidebar({ onSelectQuestion, apiError, messageCount, avgResponseMs }: SidebarProps) {
+function InfoTab({ onSelectQuestion, apiError, messageCount, avgResponseMs }: InfoTabProps) {
   return (
-    <aside className="w-[200px] shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 overflow-y-auto">
+    <>
       {/* Model info */}
       <div className="px-3 py-3 border-b border-gray-200">
         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -107,6 +200,77 @@ function Sidebar({ onSelectQuestion, apiError, messageCount, avgResponseMs }: Si
           </div>
         </div>
       </div>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar wrapper with tab switcher
+// ---------------------------------------------------------------------------
+
+interface SidebarProps {
+  onSelectQuestion: (q: string) => void
+  apiError: boolean
+  messageCount: number
+  avgResponseMs: number
+  onNewSession: () => void
+  onSelectSession: (session: CopilotSession) => void
+}
+
+function Sidebar({
+  onSelectQuestion,
+  apiError,
+  messageCount,
+  avgResponseMs,
+  onNewSession,
+  onSelectSession,
+}: SidebarProps) {
+  const [activeTab, setActiveTab] = useState<'info' | 'sessions'>('info')
+
+  return (
+    <aside className="w-[200px] shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 overflow-y-auto">
+      {/* Tab buttons */}
+      <div className="flex border-b border-gray-200 shrink-0">
+        <button
+          onClick={() => setActiveTab('info')}
+          className={[
+            'flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium transition-colors',
+            activeTab === 'info'
+              ? 'bg-white text-blue-700 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+          ].join(' ')}
+        >
+          <Zap size={11} />
+          Info
+        </button>
+        <button
+          onClick={() => setActiveTab('sessions')}
+          className={[
+            'flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium transition-colors',
+            activeTab === 'sessions'
+              ? 'bg-white text-blue-700 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+          ].join(' ')}
+        >
+          <History size={11} />
+          Sessions
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'info' ? (
+        <InfoTab
+          onSelectQuestion={onSelectQuestion}
+          apiError={apiError}
+          messageCount={messageCount}
+          avgResponseMs={avgResponseMs}
+        />
+      ) : (
+        <SessionsTab
+          onNewSession={onNewSession}
+          onSelectSession={onSelectSession}
+        />
+      )}
     </aside>
   )
 }
@@ -174,6 +338,32 @@ export default function Copilot() {
     chatRef.current?.sendQuestion(q)
   }, [])
 
+  const handleNewSession = useCallback(() => {
+    api.createSession()
+      .then(() => {
+        chatRef.current?.clearChat()
+        setTotalTokens(0)
+        setMessageCount(0)
+        setAvgResponseMs(0)
+        setResponseTimes([])
+        setApiError(false)
+      })
+      .catch(() => {
+        // Create session failed — still clear chat locally
+        chatRef.current?.clearChat()
+      })
+  }, [])
+
+  const handleSelectSession = useCallback((_session: CopilotSession) => {
+    // Clear current chat and load session messages into view
+    chatRef.current?.clearChat()
+    setTotalTokens(_session.total_tokens)
+    setMessageCount(_session.message_count)
+    setAvgResponseMs(0)
+    setResponseTimes([])
+    setApiError(false)
+  }, [])
+
   // Cmd/Ctrl+K — focus the chat input
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -235,6 +425,8 @@ export default function Copilot() {
             apiError={apiError}
             messageCount={messageCount}
             avgResponseMs={avgResponseMs}
+            onNewSession={handleNewSession}
+            onSelectSession={handleSelectSession}
           />
         )}
       </div>

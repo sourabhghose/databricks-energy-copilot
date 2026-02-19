@@ -108,6 +108,7 @@ def _cache_set(key: str, data: Any, ttl_seconds: float) -> None:
 
 # Cache TTLs (seconds)
 _TTL_LATEST_PRICES   = 10
+_TTL_PRICES          = 60
 _TTL_GENERATION      = 30
 _TTL_INTERCONNECTORS = 30
 _TTL_FORECASTS       = 60
@@ -355,13 +356,40 @@ class MarketSummaryRecord(BaseModel):
     lowest_price_region:    Optional[str]  = Field(None, description="NEM region with lowest average price this period")
     avg_nem_price:          Optional[float] = Field(None, description="Volume-weighted average price across the NEM ($/MWh)")
 
+class RegionComparisonPoint(BaseModel):
+    timestamp: str
+    NSW1: Optional[float] = None
+    QLD1: Optional[float] = None
+    VIC1: Optional[float] = None
+    SA1: Optional[float] = None
+    TAS1: Optional[float] = None
+
 class ChatMessage(BaseModel):
     role:    str = Field(..., pattern="^(user|assistant)$")
     content: str
 
 class ChatRequest(BaseModel):
-    message: str            = Field(..., min_length=1, max_length=8000)
-    history: List[ChatMessage] = Field(default_factory=list)
+    message: str            = Field(..., min_length=1, max_length=4000)
+    history: List[Dict[str, str]] = []
+    session_id: Optional[str] = None  # if provided, append to existing session
+
+class SessionMessage(BaseModel):
+    role:       str            # "user" or "assistant"
+    content:    str
+    timestamp:  str
+    tokens_used: Optional[int] = None
+
+class CopilotSession(BaseModel):
+    session_id:    str
+    created_at:    str
+    last_active:   str
+    message_count: int
+    total_tokens:  int
+    messages:      Optional[List[SessionMessage]] = None
+    rating:        Optional[int] = None  # 1-5 stars
+
+class SessionRatingRequest(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
 
 # ---------------------------------------------------------------------------
 # Helpers — run a SQL query via _db (respects mock mode)
@@ -683,6 +711,73 @@ def get_price_history(
     return rows
 
 @app.get(
+    "/api/prices/compare",
+    response_model=List[RegionComparisonPoint],
+    summary="Multi-region price comparison",
+    response_description="Price time series for all 5 NEM regions in a single response",
+    tags=["Market Data"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_prices_compare(
+    start: str = Query(..., description="ISO-8601 start datetime"),
+    end: str   = Query(..., description="ISO-8601 end datetime"),
+    interval_minutes: int = Query(30, description="Aggregation interval in minutes (5, 15, 30, 60)"),
+):
+    """Return spot price time series for all NEM regions in a pivoted format."""
+    import mock_data as md
+
+    cache_key = f"compare:{start}:{end}:{interval_minutes}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if MOCK_MODE:
+        # Generate mock comparison data: sine wave per region with different offsets
+        import math
+        from datetime import datetime, timedelta
+
+        start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+        REGION_OFFSETS = {"NSW1": 0, "QLD1": 10, "VIC1": -8, "SA1": 15, "TAS1": -12}
+        BASE_PRICES = {"NSW1": 85, "QLD1": 78, "VIC1": 92, "SA1": 105, "TAS1": 71}
+
+        points = []
+        current = start_dt
+        step = timedelta(minutes=interval_minutes)
+        while current <= end_dt:
+            hour = current.hour + current.minute / 60
+            point = {"timestamp": current.isoformat()}
+            for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+                base = BASE_PRICES[region]
+                offset = REGION_OFFSETS[region]
+                noise = (hash(f"{region}{current}") % 20 - 10)
+                price = base + offset + 20 * math.sin(2 * math.pi * (hour - 7) / 24) + noise
+                point[region] = round(max(-50, price), 2)
+            points.append(point)
+            current += step
+
+        _cache_set(cache_key, points, _TTL_PRICES)
+        return points
+
+    # Real mode: pivot query
+    rows = _run_query(f"""
+        SELECT date_trunc('second',
+               CAST(FLOOR(UNIX_TIMESTAMP(settlementdate) / {interval_minutes * 60}) * {interval_minutes * 60} AS TIMESTAMP)
+             ) AS timestamp,
+             MAX(CASE WHEN regionid = 'NSW1' THEN rrp END) AS NSW1,
+             MAX(CASE WHEN regionid = 'QLD1' THEN rrp END) AS QLD1,
+             MAX(CASE WHEN regionid = 'VIC1' THEN rrp END) AS VIC1,
+             MAX(CASE WHEN regionid = 'SA1'  THEN rrp END) AS SA1,
+             MAX(CASE WHEN regionid = 'TAS1' THEN rrp END) AS TAS1
+        FROM {DATABRICKS_CATALOG}.gold.nem_prices_5min
+        WHERE settlementdate BETWEEN '{start}' AND '{end}'
+        GROUP BY 1
+        ORDER BY 1
+    """)
+    _cache_set(cache_key, rows, _TTL_PRICES)
+    return rows
+
+@app.get(
     "/api/forecasts",
     response_model=List[ForecastRecord],
     summary="Price forecasts",
@@ -949,6 +1044,177 @@ def get_latest_market_summary() -> Dict[str, Any]:
     return result
 
 # ---------------------------------------------------------------------------
+# Mock session storage (in-process for mock mode)
+# ---------------------------------------------------------------------------
+
+_MOCK_SESSIONS: Dict[str, dict] = {
+    "sess-001": {
+        "session_id": "sess-001",
+        "created_at": "2026-02-19T08:00:00Z",
+        "last_active": "2026-02-19T08:15:00Z",
+        "message_count": 4,
+        "total_tokens": 1240,
+        "rating": 5,
+    },
+    "sess-002": {
+        "session_id": "sess-002",
+        "created_at": "2026-02-19T09:30:00Z",
+        "last_active": "2026-02-19T09:45:00Z",
+        "message_count": 2,
+        "total_tokens": 680,
+        "rating": None,
+    },
+    "sess-003": {
+        "session_id": "sess-003",
+        "created_at": "2026-02-19T10:00:00Z",
+        "last_active": "2026-02-19T10:22:00Z",
+        "message_count": 6,
+        "total_tokens": 2100,
+        "rating": 4,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Session endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/sessions", response_model=List[CopilotSession], tags=["Chat"],
+         dependencies=[Depends(verify_api_key)])
+def list_sessions(limit: int = Query(20, le=100)):
+    """List recent copilot sessions, sorted by last_active descending."""
+    if MOCK_MODE:
+        sessions = sorted(
+            _MOCK_SESSIONS.values(),
+            key=lambda s: s["last_active"],
+            reverse=True,
+        )
+        return sessions[:limit]
+
+    rows = _lakebase.execute(
+        "SELECT session_id, created_at, last_active, message_count, total_tokens, rating "
+        "FROM public.copilot_sessions ORDER BY last_active DESC LIMIT %s",
+        (limit,),
+    )
+    return rows
+
+
+@app.get("/api/sessions/{session_id}", response_model=CopilotSession, tags=["Chat"],
+         dependencies=[Depends(verify_api_key)])
+def get_session(session_id: str):
+    """Get a full session record including messages."""
+    if MOCK_MODE:
+        sess = _MOCK_SESSIONS.get(session_id)
+        if not sess:
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        return sess
+
+    row = _lakebase.execute_one(
+        "SELECT session_id, created_at, last_active, message_count, total_tokens, rating, messages "
+        "FROM public.copilot_sessions WHERE session_id = %s",
+        (session_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    return row
+
+
+@app.post("/api/sessions", response_model=CopilotSession, status_code=201, tags=["Chat"],
+          dependencies=[Depends(verify_api_key)])
+def create_session():
+    """Create a new copilot session."""
+    now = datetime.now(timezone.utc).isoformat()
+    session_id = str(uuid.uuid4())
+    new_session: Dict[str, Any] = {
+        "session_id":    session_id,
+        "created_at":    now,
+        "last_active":   now,
+        "message_count": 0,
+        "total_tokens":  0,
+        "messages":      [],
+        "rating":        None,
+    }
+
+    if MOCK_MODE:
+        _MOCK_SESSIONS[session_id] = new_session
+        return new_session
+
+    try:
+        _lakebase.upsert(
+            table="public.copilot_sessions",
+            data={
+                "session_id":    session_id,
+                "created_at":    now,
+                "last_active":   now,
+                "message_count": 0,
+                "total_tokens":  0,
+                "messages":      json.dumps([]),
+                "rating":        None,
+            },
+            conflict_cols=["session_id"],
+        )
+    except Exception as exc:
+        logger.exception("Failed to persist session to Lakebase")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+
+    return new_session
+
+
+@app.patch("/api/sessions/{session_id}/rating", tags=["Chat"],
+           dependencies=[Depends(verify_api_key)])
+def rate_session(session_id: str, body: SessionRatingRequest):
+    """Rate a copilot session (1-5 stars)."""
+    if MOCK_MODE:
+        if session_id not in _MOCK_SESSIONS:
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        _MOCK_SESSIONS[session_id]["rating"] = body.rating
+        return {"session_id": session_id, "rating": body.rating}
+
+    row = _lakebase.execute_one(
+        "SELECT session_id FROM public.copilot_sessions WHERE session_id = %s",
+        (session_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    try:
+        _lakebase.execute(
+            "UPDATE public.copilot_sessions SET rating = %s WHERE session_id = %s",
+            (body.rating, session_id),
+        )
+    except Exception as exc:
+        logger.exception("Failed to update session rating in Lakebase")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+
+    return {"session_id": session_id, "rating": body.rating}
+
+
+@app.delete("/api/sessions/{session_id}", status_code=204, tags=["Chat"],
+            dependencies=[Depends(verify_api_key)])
+def delete_session(session_id: str):
+    """Delete a copilot session."""
+    if MOCK_MODE:
+        if session_id not in _MOCK_SESSIONS:
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        del _MOCK_SESSIONS[session_id]
+        return
+
+    row = _lakebase.execute_one(
+        "SELECT session_id FROM public.copilot_sessions WHERE session_id = %s",
+        (session_id,),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    try:
+        _lakebase.execute(
+            "DELETE FROM public.copilot_sessions WHERE session_id = %s",
+            (session_id,),
+        )
+    except Exception as exc:
+        logger.exception("Failed to delete session from Lakebase")
+        raise HTTPException(status_code=503, detail={"error": "Database unavailable", "detail": str(exc)})
+
+# ---------------------------------------------------------------------------
 # Alerts CRUD — backed by Lakebase (psycopg2)
 # ---------------------------------------------------------------------------
 
@@ -1144,7 +1410,7 @@ async def _stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     messages = [
-        {"role": msg.role, "content": msg.content}
+        {"role": msg["role"], "content": msg["content"]}
         for msg in request.history
     ]
     messages.append({"role": "user", "content": request.message})
@@ -1245,8 +1511,67 @@ async def chat(request: ChatRequest):
       - {type: 'tool_result', tool: '<name>'}
       - {type: 'done'}
       - {type: 'error',       content: '<message>'}
+
+    When session_id is provided, the user message and assistant response
+    are appended to the corresponding session record.
     """
-    return EventSourceResponse(_stream_chat(request))
+    async def _stream_and_persist() -> AsyncGenerator[str, None]:
+        full_response = ""
+        now = datetime.now(timezone.utc).isoformat()
+
+        async for chunk in _stream_chat(request):
+            yield chunk
+            # Collect assistant text from SSE events
+            try:
+                if chunk.startswith("data: "):
+                    evt = json.loads(chunk[6:].strip())
+                    if evt.get("type") == "text":
+                        full_response += evt.get("content", "")
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Persist to session if session_id provided
+        if request.session_id:
+            user_msg: Dict[str, Any] = {
+                "role": "user",
+                "content": request.message,
+                "timestamp": now,
+            }
+            asst_msg: Dict[str, Any] = {
+                "role": "assistant",
+                "content": full_response,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            if MOCK_MODE:
+                sess = _MOCK_SESSIONS.get(request.session_id)
+                if sess:
+                    existing = sess.get("messages") or []
+                    existing.extend([user_msg, asst_msg])
+                    sess["messages"] = existing
+                    sess["message_count"] = sess.get("message_count", 0) + 2
+                    sess["last_active"] = asst_msg["timestamp"]
+            else:
+                try:
+                    row = _lakebase.execute_one(
+                        "SELECT messages, message_count FROM public.copilot_sessions WHERE session_id = %s",
+                        (request.session_id,),
+                    )
+                    if row:
+                        existing_msgs = row.get("messages") or []
+                        if isinstance(existing_msgs, str):
+                            existing_msgs = json.loads(existing_msgs)
+                        existing_msgs.extend([user_msg, asst_msg])
+                        new_count = (row.get("message_count") or 0) + 2
+                        _lakebase.execute(
+                            "UPDATE public.copilot_sessions SET messages = %s, message_count = %s, "
+                            "last_active = %s WHERE session_id = %s",
+                            (json.dumps(existing_msgs), new_count,
+                             asst_msg["timestamp"], request.session_id),
+                        )
+                except Exception:
+                    logger.exception("Failed to persist chat messages to session")
+
+    return EventSourceResponse(_stream_and_persist())
 
 # ---------------------------------------------------------------------------
 # Health check

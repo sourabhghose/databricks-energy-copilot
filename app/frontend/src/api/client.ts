@@ -89,6 +89,32 @@ export interface SystemHealthResponse {
   model_details: ModelHealthRecord[];
 }
 
+export interface RegionComparisonPoint {
+  timestamp: string;
+  NSW1?: number;
+  QLD1?: number;
+  VIC1?: number;
+  SA1?: number;
+  TAS1?: number;
+}
+
+export interface SessionMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  tokens_used?: number;
+}
+
+export interface CopilotSession {
+  session_id: string;
+  created_at: string;
+  last_active: string;
+  message_count: number;
+  total_tokens: number;
+  messages?: SessionMessage[];
+  rating?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -248,4 +274,84 @@ export const api = {
   getSystemHealth(): Promise<SystemHealthResponse> {
     return get<SystemHealthResponse>('/api/system/health')
   },
+
+  /**
+   * List recent copilot sessions, sorted by last_active descending.
+   * @param limit  Maximum number of sessions to return (default 20)
+   */
+  listSessions(limit?: number): Promise<CopilotSession[]> {
+    const params = limit ? `?limit=${limit}` : ''
+    return get<CopilotSession[]>(`/api/sessions${params}`)
+  },
+
+  /**
+   * Get a full session record including message history.
+   * @param sessionId  Session UUID
+   */
+  getSession(sessionId: string): Promise<CopilotSession> {
+    return get<CopilotSession>(`/api/sessions/${sessionId}`)
+  },
+
+  /**
+   * Create a new copilot session.
+   * @returns  The newly created CopilotSession (HTTP 201)
+   */
+  createSession(): Promise<CopilotSession> {
+    return post<Record<string, never>, CopilotSession>('/api/sessions', {})
+  },
+
+  /**
+   * Rate a copilot session (1-5 stars).
+   * @param sessionId  Session UUID
+   * @param rating     Integer rating from 1 to 5
+   */
+  rateSession(sessionId: string, rating: number): Promise<void> {
+    return post<{ rating: number }, void>(`/api/sessions/${sessionId}/rating`, { rating })
+  },
+
+  /**
+   * Delete a copilot session by ID.
+   * @param sessionId  Session UUID
+   */
+  deleteSession(sessionId: string): Promise<void> {
+    return del(`/api/sessions/${sessionId}`)
+  },
+
+  /**
+   * Get multi-region price comparison in pivoted format (one row per timestamp,
+   * one column per NEM region).
+   * @param start           ISO-8601 start datetime
+   * @param end             ISO-8601 end datetime
+   * @param intervalMinutes Aggregation interval in minutes (5, 15, 30, 60)
+   */
+  getPricesCompare(
+    start: string,
+    end: string,
+    intervalMinutes?: number
+  ): Promise<RegionComparisonPoint[]> {
+    const params = new URLSearchParams({ start, end })
+    if (intervalMinutes) params.set('interval_minutes', String(intervalMinutes))
+    return get<RegionComparisonPoint[]>(`/api/prices/compare?${params}`)
+  },
+}
+
+export function exportToCSV(data: Record<string, unknown>[], filename: string): void {
+  if (!data.length) return
+  const headers = Object.keys(data[0])
+  const rows = data.map(row =>
+    headers.map(h => {
+      const val = row[h]
+      if (val == null) return ''
+      if (typeof val === 'string' && val.includes(',')) return `"${val}"`
+      return String(val)
+    }).join(',')
+  )
+  const csv = [headers.join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }

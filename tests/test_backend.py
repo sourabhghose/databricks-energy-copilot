@@ -445,3 +445,69 @@ class TestApiKeyAuth:
         """
         response = client.get("/api/prices/latest")
         assert response.status_code == 200
+
+
+# ===========================================================================
+# TestSessionEndpoints
+# ===========================================================================
+
+class TestSessionEndpoints:
+    """Tests for the /api/sessions CRUD endpoints."""
+
+    def test_list_sessions_returns_list(self):
+        """GET /api/sessions returns 200 with a list of session objects.
+
+        In mock_mode the endpoint returns the 3 example sessions from
+        _MOCK_SESSIONS. Each item must contain at least session_id,
+        created_at, last_active, message_count, and total_tokens.
+        """
+        response = client.get("/api/sessions")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        for item in data:
+            assert "session_id" in item
+            assert "created_at" in item
+            assert "last_active" in item
+            assert "message_count" in item
+            assert "total_tokens" in item
+
+    def test_create_session_returns_201(self):
+        """POST /api/sessions returns 201 with a new session including a session_id.
+
+        The endpoint must return HTTP 201 Created and the response body must
+        contain a non-empty session_id string.
+        """
+        response = client.post("/api/sessions")
+        assert response.status_code == 201
+        data = response.json()
+        assert isinstance(data, dict)
+        assert "session_id" in data
+        assert isinstance(data["session_id"], str)
+        assert len(data["session_id"]) > 0
+        assert data["message_count"] == 0
+        assert data["total_tokens"] == 0
+
+    def test_get_session_returns_404_for_unknown(self):
+        """GET /api/sessions/<nonexistent> returns 404 Not Found.
+
+        When the session_id is not in the _MOCK_SESSIONS dict the endpoint
+        must return 404 so the caller can distinguish 'not found' from a
+        successful empty session.
+        """
+        response = client.get("/api/sessions/nonexistent-session-id")
+        assert response.status_code == 404
+
+    def test_rate_session_validation(self):
+        """PATCH /api/sessions/sess-001/rating with rating=6 returns 422.
+
+        The SessionRatingRequest model has ge=1, le=5 constraints on the
+        rating field. Sending rating=6 must fail Pydantic validation with
+        422 Unprocessable Entity.
+        """
+        response = client.patch(
+            "/api/sessions/sess-001/rating",
+            json={"rating": 6},
+        )
+        assert response.status_code == 422

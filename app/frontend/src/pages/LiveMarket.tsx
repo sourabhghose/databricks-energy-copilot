@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { usePriceHistory, useGeneration, useInterconnectors } from '../hooks/useMarketData'
+import { exportToCSV } from '../api/client'
 import { RefreshCw, AlertCircle } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -274,6 +275,17 @@ export default function LiveMarket() {
               />
             </LineChart>
           </ResponsiveContainer>
+        )}
+        {!priceLoading && priceData.length > 0 && (
+          <div className="mt-3 flex justify-end">
+            <button
+              onClick={() => exportToCSV(priceData as unknown as Record<string, unknown>[], 'nem_price_history.csv')}
+              className="px-3 py-1.5 rounded-md text-sm font-medium border border-gray-300
+                         text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              Export CSV
+            </button>
+          </div>
         )}
       </section>
 
