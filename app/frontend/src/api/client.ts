@@ -1562,6 +1562,30 @@ export interface BehindMeterAsset { asset_id: string; asset_type: string; state:
 export interface PpaDashboard { timestamp: string; total_ppa_capacity_gw: number; active_ppas: number; pipeline_ppas: number; avg_ppa_price_aud_mwh: number; tech_mix: Array<{technology: string; capacity_gw: number; pct: number}>; lgc_spot_price: number; rooftop_solar_total_gw: number; ppas: CorporatePpa[]; lgc_market: LgcMarket[]; behind_meter_assets: BehindMeterAsset[] }
 
 // ---------------------------------------------------------------------------
+// Sprint 26b — Pre-dispatch & 5-min settlement interfaces
+// ---------------------------------------------------------------------------
+export interface PredispatchInterval { interval: string; region: string; predispatch_price: number; actual_price: number; price_error: number; predispatch_demand_mw: number; actual_demand_mw: number; demand_error_mw: number; predispatch_generation_mw: number; actual_generation_mw: number; generation_error_mw: number; constraint_active: boolean }
+export interface FiveMinuteSettlementSummary { region: string; trading_period: string; num_intervals: number; min_price: number; max_price: number; avg_price: number; trading_price: number; five_min_vs_30min_diff: number; high_volatility: boolean }
+export interface DispatchAccuracyStats { region: string; date: string; mean_absolute_error_aud: number; root_mean_square_error_aud: number; bias_aud: number; accuracy_within_10pct: number; spike_detection_rate_pct: number; predispatch_horizon: string }
+export interface DispatchDashboard { timestamp: string; region: string; today_avg_price_error: number; today_max_price_error: number; five_min_settlement_advantage_generators: number; intervals_with_spikes: number; intervals_with_negative_prices: number; accuracy_stats: DispatchAccuracyStats[]; predispatch_intervals: PredispatchInterval[]; five_min_summary: FiveMinuteSettlementSummary[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 26a — Regulatory interfaces
+// ---------------------------------------------------------------------------
+export interface RuleChangeRequest { rcr_id: string; title: string; proponent: string; category: string; status: string; lodged_date: string; consultation_close: string | null; determination_date: string | null; effective_date: string | null; description: string; impact_level: string; affected_parties: string[]; aemc_link: string | null }
+export interface AerDetermination { determination_id: string; title: string; body: string; determination_type: string; network_business: string; state: string; decision_date: string; effective_period: string; allowed_revenue_m_aud: number | null; capex_allowance_m_aud: number | null; opex_allowance_m_aud: number | null; wacc_pct: number | null; status: string }
+export interface RegulatoryCalendarEvent { event_id: string; event_type: string; title: string; body: string; date: string; days_from_now: number; urgency: string; related_rcr: string | null }
+export interface RegulatoryDashboard { timestamp: string; open_consultations: number; draft_rules: number; final_rules_this_year: number; transformative_changes: number; upcoming_deadlines: number; rule_changes: RuleChangeRequest[]; aer_determinations: AerDetermination[]; calendar_events: RegulatoryCalendarEvent[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 26c — ISP Transmission Tracker interfaces
+// ---------------------------------------------------------------------------
+export interface IspProjectMilestone { milestone_id: string; milestone_name: string; planned_date: string; actual_date: string | null; status: string; delay_months: number }
+export interface IspMajorProject { project_id: string; project_name: string; tnsp: string; regions_connected: string[]; project_type: string; isp_action: string; total_capex_m_aud: number; sunk_cost_to_date_m_aud: number; committed_capex_m_aud: number; circuit_km: number; voltage_kv: number; thermal_limit_mw: number; construction_start: string | null; commissioning_date: string; current_status: string; rit_t_complete: boolean; overall_progress_pct: number; milestones: IspProjectMilestone[]; net_market_benefit_m_aud: number; bcr: number }
+export interface TnspCapexProgram { tnsp: string; regulatory_period: string; states: string[]; total_approved_capex_m_aud: number; spent_to_date_m_aud: number; remaining_m_aud: number; spend_rate_pct: number; major_projects: string[]; regulatory_body: string }
+export interface IspDashboard { timestamp: string; total_pipeline_capex_bn_aud: number; committed_projects: number; projects_under_construction: number; total_new_km: number; total_new_capacity_mw: number; delayed_projects: number; isp_projects: IspMajorProject[]; tnsp_programs: TnspCapexProgram[] }
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2712,6 +2736,62 @@ export const api = {
   },
 
   getLgcMarket: () => get<LgcMarket[]>('/api/ppa/lgc-market'),
+
+  // Sprint 26b — Pre-dispatch & 5-min settlement
+  getDispatchDashboard: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<DispatchDashboard>(`/api/dispatch/dashboard${query}`)
+  },
+
+  getPredispatchIntervals: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<PredispatchInterval[]>(`/api/dispatch/predispatch${query}`)
+  },
+
+  getDispatchAccuracy: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<DispatchAccuracyStats[]>(`/api/dispatch/accuracy${query}`)
+  },
+
+  // Sprint 26a — Regulatory
+  getRegulatoryDashboard: () => get<RegulatoryDashboard>('/api/regulatory/dashboard'),
+
+  getRuleChanges: (params?: { category?: string; status?: string; impact_level?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.category) qs.append('category', params.category)
+    if (params?.status) qs.append('status', params.status)
+    if (params?.impact_level) qs.append('impact_level', params.impact_level)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<RuleChangeRequest[]>(`/api/regulatory/rule-changes${query}`)
+  },
+
+  getRegulatoryCalendar: (params?: { body?: string; urgency?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.body) qs.append('body', params.body)
+    if (params?.urgency) qs.append('urgency', params.urgency)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<RegulatoryCalendarEvent[]>(`/api/regulatory/calendar${query}`)
+  },
+
+  // Sprint 26c — ISP Transmission Tracker
+  getIspDashboard: () => get<IspDashboard>('/api/isp/dashboard'),
+
+  getIspProjects: (params?: { tnsp?: string; current_status?: string; isp_action?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.tnsp) qs.append('tnsp', params.tnsp)
+    if (params?.current_status) qs.append('current_status', params.current_status)
+    if (params?.isp_action) qs.append('isp_action', params.isp_action)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<IspMajorProject[]>(`/api/isp/projects${query}`)
+  },
+
+  getTnspPrograms: () => get<TnspCapexProgram[]>('/api/isp/tnsp-programs'),
 }
 
 export function exportToCSV(data: Record<string, unknown>[], filename: string): void {

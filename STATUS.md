@@ -508,3 +508,24 @@
 - GET /api/ppa/dashboard, /contracts, /lgc-market
 - PpaMarket.tsx (~520 lines): tech mix PieChart, LGC trend AreaChart, PPA table, behind-meter assets
 - 4 tests in TestPpaEndpoints
+
+## Sprint 26c — AEMO ISP Transmission Investment Tracker (2026-02-19)
+**Status**: COMPLETE
+- IspProjectMilestone, IspMajorProject, TnspCapexProgram, IspDashboard models
+- GET /api/isp/dashboard, /projects, /tnsp-programs
+- IspTracker.tsx (~540 lines): capex BarChart, projects table with milestone timeline, TNSP programs
+- 4 tests in TestIspTrackerEndpoints
+
+## Sprint 26b — Pre-dispatch Accuracy & 5-Minute Settlement Analytics (2026-02-19)
+**Status**: COMPLETE
+- PredispatchInterval, FiveMinuteSettlementSummary, DispatchAccuracyStats, DispatchDashboard models
+- GET /api/dispatch/dashboard, /predispatch, /accuracy
+- DispatchAccuracy.tsx (~500 lines): pre-dispatch vs actual ComposedChart, 5-min settlement table, accuracy stats
+- 4 tests in TestDispatchAccuracyEndpoints
+
+## Sprint 26a — NEM Rule Change & Regulatory Reform Tracker (2026-02-19)
+**Status**: COMPLETE
+- RuleChangeRequest, AerDetermination, RegulatoryCalendarEvent, RegulatoryDashboard models
+- GET /api/regulatory/dashboard, /rule-changes, /calendar
+- RegulatoryTracker.tsx (~510 lines): calendar timeline, rule changes table, AER determinations, pipeline BarChart
+- 4 tests in TestRegulatoryEndpoints

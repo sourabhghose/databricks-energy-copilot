@@ -15475,3 +15475,1187 @@ def get_lgc_market():
     data = _make_lgc_market()
     _cache_set("ppa:lgc-market", data, _TTL_PPA)
     return data
+
+
+# ===========================================================================
+# Sprint 26a — NEM Rule Change & Regulatory Reform Tracker
+# ===========================================================================
+
+_TTL_REGULATORY = 3600
+
+
+class RuleChangeRequest(BaseModel):
+    rcr_id: str
+    title: str
+    proponent: str
+    category: str
+    status: str
+    lodged_date: str
+    consultation_close: Optional[str]
+    determination_date: Optional[str]
+    effective_date: Optional[str]
+    description: str
+    impact_level: str
+    affected_parties: List[str]
+    aemc_link: Optional[str]
+
+
+class AerDetermination(BaseModel):
+    determination_id: str
+    title: str
+    body: str
+    determination_type: str
+    network_business: str
+    state: str
+    decision_date: str
+    effective_period: str
+    allowed_revenue_m_aud: Optional[float]
+    capex_allowance_m_aud: Optional[float]
+    opex_allowance_m_aud: Optional[float]
+    wacc_pct: Optional[float]
+    status: str
+
+
+class RegulatoryCalendarEvent(BaseModel):
+    event_id: str
+    event_type: str
+    title: str
+    body: str
+    date: str
+    days_from_now: int
+    urgency: str
+    related_rcr: Optional[str]
+
+
+class RegulatoryDashboard(BaseModel):
+    timestamp: str
+    open_consultations: int
+    draft_rules: int
+    final_rules_this_year: int
+    transformative_changes: int
+    upcoming_deadlines: int
+    rule_changes: List[RuleChangeRequest]
+    aer_determinations: List[AerDetermination]
+    calendar_events: List[RegulatoryCalendarEvent]
+
+
+def _make_rule_changes() -> List[RuleChangeRequest]:
+    return [
+        RuleChangeRequest(
+            rcr_id="ERC0341",
+            title="Five Minute Settlement — FCAS Improvements",
+            proponent="AEMO",
+            category="MARKETS",
+            status="FINAL_RULE",
+            lodged_date="2022-03-15",
+            consultation_close="2022-08-31",
+            determination_date="2023-01-19",
+            effective_date="2023-10-01",
+            description="Amendments to FCAS settlement and dispatch algorithms following the transition to five-minute settlement to improve market efficiency and price signal accuracy.",
+            impact_level="LOW",
+            affected_parties=["GENERATORS", "RETAILERS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0341",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0338",
+            title="Integrating Energy Storage Systems",
+            proponent="AEMO",
+            category="MARKETS",
+            status="OPEN_CONSULTATION",
+            lodged_date="2023-11-01",
+            consultation_close="2024-06-30",
+            determination_date=None,
+            effective_date=None,
+            description="Rule change to create a new participant category and regulatory framework for large-scale stand-alone energy storage systems, enabling batteries and pumped hydro to participate directly in all NEM markets.",
+            impact_level="TRANSFORMATIVE",
+            affected_parties=["GENERATORS", "NETWORKS", "RETAILERS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0338",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0335",
+            title="Transmission Planning and Investment",
+            proponent="Industry Group",
+            category="NETWORK",
+            status="DRAFT_RULE",
+            lodged_date="2023-05-10",
+            consultation_close="2024-02-28",
+            determination_date=None,
+            effective_date=None,
+            description="Proposed reforms to the regulatory investment test for transmission (RIT-T) and actionable ISP project assessment processes to streamline approval of priority transmission projects identified in the Integrated System Plan.",
+            impact_level="HIGH",
+            affected_parties=["NETWORKS", "GENERATORS", "CONSUMERS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0335",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0329",
+            title="Directions and Local Emergency Management",
+            proponent="AEMO",
+            category="RELIABILITY",
+            status="FINAL_RULE",
+            lodged_date="2021-09-20",
+            consultation_close="2022-04-15",
+            determination_date="2022-09-30",
+            effective_date="2023-01-05",
+            description="Amendments to the NER to clarify AEMO's authority to issue directions during local emergency events and improve coordination with state emergency management frameworks.",
+            impact_level="MEDIUM",
+            affected_parties=["GENERATORS", "NETWORKS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0329",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0322",
+            title="Global Settlement and Market Reconciliation",
+            proponent="AER",
+            category="MARKETS",
+            status="FINAL_RULE",
+            lodged_date="2020-08-01",
+            consultation_close="2021-03-31",
+            determination_date="2021-11-25",
+            effective_date="2022-11-01",
+            description="Introduction of global settlement methodology replacing the previous regional settlement approach, reducing settlement residues and improving cost allocation accuracy across the NEM.",
+            impact_level="HIGH",
+            affected_parties=["GENERATORS", "RETAILERS", "NETWORKS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0322",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0318",
+            title="Retailer Reliability Obligation",
+            proponent="ARENA",
+            category="RELIABILITY",
+            status="RULE_DETERMINATION",
+            lodged_date="2019-06-12",
+            consultation_close="2020-01-31",
+            determination_date="2024-03-14",
+            effective_date=None,
+            description="Amendments to the Retailer Reliability Obligation (RRO) framework to expand the trigger mechanism and broaden the range of qualifying contracts, improving incentives for retailers to contract adequate dispatchable capacity.",
+            impact_level="HIGH",
+            affected_parties=["RETAILERS", "GENERATORS", "CONSUMERS"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0318",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0315",
+            title="Consumer Energy Resources — Metering Coordination",
+            proponent="Industry Group",
+            category="METERING",
+            status="OPEN_CONSULTATION",
+            lodged_date="2023-07-18",
+            consultation_close="2024-04-30",
+            determination_date=None,
+            effective_date=None,
+            description="Rule change to improve coordination between metering providers and network operators for consumer energy resources including rooftop solar, batteries, and EV chargers.",
+            impact_level="HIGH",
+            affected_parties=["CONSUMERS", "NETWORKS", "RETAILERS"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0315",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0311",
+            title="Access and Pricing Reform for Distributed Energy Resources",
+            proponent="AER",
+            category="CONSUMERS",
+            status="DRAFT_RULE",
+            lodged_date="2022-11-30",
+            consultation_close="2023-09-15",
+            determination_date=None,
+            effective_date=None,
+            description="Reforms to network tariff structures and access arrangements to enable greater participation of distributed energy resources in wholesale and ancillary services markets.",
+            impact_level="TRANSFORMATIVE",
+            affected_parties=["CONSUMERS", "NETWORKS", "RETAILERS", "GENERATORS"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0311",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0307",
+            title="Frequency Control Frameworks Review",
+            proponent="AEMO",
+            category="SECURITY",
+            status="FINAL_RULE",
+            lodged_date="2020-02-14",
+            consultation_close="2021-01-31",
+            determination_date="2021-07-15",
+            effective_date="2022-02-01",
+            description="Comprehensive review and reform of frequency control frameworks in the NEM, including new primary frequency response obligations and enhanced contingency FCAS arrangements.",
+            impact_level="HIGH",
+            affected_parties=["GENERATORS", "AEMO", "NETWORKS"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0307",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0302",
+            title="Network Visibility and Advanced Metering Infrastructure",
+            proponent="Industry Group",
+            category="METERING",
+            status="WITHDRAWN",
+            lodged_date="2019-11-05",
+            consultation_close="2020-06-30",
+            determination_date=None,
+            effective_date=None,
+            description="Proposed mandatory rollout of advanced metering infrastructure to all residential customers. Withdrawn following stakeholder concerns about cost-benefit analysis.",
+            impact_level="MEDIUM",
+            affected_parties=["CONSUMERS", "NETWORKS", "RETAILERS"],
+            aemc_link=None,
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0296",
+            title="Day-Ahead Auctions and Intraday Markets",
+            proponent="AER",
+            category="MARKETS",
+            status="OPEN_CONSULTATION",
+            lodged_date="2023-09-22",
+            consultation_close="2024-05-31",
+            determination_date=None,
+            effective_date=None,
+            description="Rule change to introduce structured day-ahead auctions and intraday trading mechanisms in the NEM, improving forward price discovery and reducing volatility.",
+            impact_level="TRANSFORMATIVE",
+            affected_parties=["GENERATORS", "RETAILERS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0296",
+        ),
+        RuleChangeRequest(
+            rcr_id="ERC0289",
+            title="Network Support and Control Ancillary Services Review",
+            proponent="AEMO",
+            category="SECURITY",
+            status="FINAL_RULE",
+            lodged_date="2018-08-30",
+            consultation_close="2019-05-31",
+            determination_date="2019-12-19",
+            effective_date="2020-07-01",
+            description="Review and reform of the Network Support and Control Ancillary Services (NSCAS) framework to improve procurement efficiency and expand eligible technologies.",
+            impact_level="MEDIUM",
+            affected_parties=["GENERATORS", "NETWORKS", "AEMO"],
+            aemc_link="https://www.aemc.gov.au/rule-changes/ERC0289",
+        ),
+    ]
+
+
+def _make_aer_determinations() -> List[AerDetermination]:
+    return [
+        AerDetermination(
+            determination_id="AER-2024-NSW-001",
+            title="Ausgrid Distribution Determination 2024-29",
+            body="AER",
+            determination_type="REVENUE_RESET",
+            network_business="Ausgrid",
+            state="NSW",
+            decision_date="2024-04-30",
+            effective_period="2024-2029",
+            allowed_revenue_m_aud=4700.0,
+            capex_allowance_m_aud=2100.0,
+            opex_allowance_m_aud=1850.0,
+            wacc_pct=5.37,
+            status="FINAL",
+        ),
+        AerDetermination(
+            determination_id="AER-2025-SA-001",
+            title="SA Power Networks Distribution Determination 2025-30",
+            body="AER",
+            determination_type="REVENUE_RESET",
+            network_business="SAPN",
+            state="SA",
+            decision_date="2025-04-15",
+            effective_period="2025-2030",
+            allowed_revenue_m_aud=3200.0,
+            capex_allowance_m_aud=1450.0,
+            opex_allowance_m_aud=1100.0,
+            wacc_pct=5.52,
+            status="FINAL",
+        ),
+        AerDetermination(
+            determination_id="AER-2022-VIC-001",
+            title="AusNet Services Electricity Transmission Determination 2022-27",
+            body="AER",
+            determination_type="REVENUE_RESET",
+            network_business="AusNet",
+            state="VIC",
+            decision_date="2022-06-09",
+            effective_period="2022-2027",
+            allowed_revenue_m_aud=2850.0,
+            capex_allowance_m_aud=1250.0,
+            opex_allowance_m_aud=980.0,
+            wacc_pct=4.89,
+            status="FINAL",
+        ),
+        AerDetermination(
+            determination_id="AER-2020-QLD-001",
+            title="Energex Distribution Determination 2020-25",
+            body="AER",
+            determination_type="REVENUE_RESET",
+            network_business="Energex",
+            state="QLD",
+            decision_date="2020-04-30",
+            effective_period="2020-2025",
+            allowed_revenue_m_aud=5100.0,
+            capex_allowance_m_aud=2300.0,
+            opex_allowance_m_aud=1700.0,
+            wacc_pct=5.80,
+            status="FINAL",
+        ),
+        AerDetermination(
+            determination_id="AER-2020-QLD-002",
+            title="Ergon Energy Distribution Determination 2020-25",
+            body="AER",
+            determination_type="REVENUE_RESET",
+            network_business="Ergon Energy",
+            state="QLD",
+            decision_date="2020-04-30",
+            effective_period="2020-2025",
+            allowed_revenue_m_aud=4200.0,
+            capex_allowance_m_aud=1900.0,
+            opex_allowance_m_aud=1400.0,
+            wacc_pct=5.80,
+            status="FINAL",
+        ),
+        AerDetermination(
+            determination_id="AER-2024-TAS-001",
+            title="TasNetworks Distribution Determination 2024-29",
+            body="AER",
+            determination_type="REVENUE_RESET",
+            network_business="TasNetworks",
+            state="TAS",
+            decision_date="2024-09-30",
+            effective_period="2024-2029",
+            allowed_revenue_m_aud=1850.0,
+            capex_allowance_m_aud=820.0,
+            opex_allowance_m_aud=650.0,
+            wacc_pct=5.44,
+            status="DRAFT",
+        ),
+    ]
+
+
+def _make_regulatory_calendar() -> List[RegulatoryCalendarEvent]:
+    from datetime import datetime, timedelta
+    today = datetime.utcnow()
+
+    def _event(eid, etype, title, body, delta_days, related_rcr=None):
+        d = today + timedelta(days=delta_days)
+        if delta_days <= 7:
+            urgency = "IMMEDIATE"
+        elif delta_days <= 30:
+            urgency = "SOON"
+        elif delta_days <= 90:
+            urgency = "UPCOMING"
+        else:
+            urgency = "FUTURE"
+        return RegulatoryCalendarEvent(
+            event_id=eid,
+            event_type=etype,
+            title=title,
+            body=body,
+            date=d.strftime("%Y-%m-%d"),
+            days_from_now=delta_days,
+            urgency=urgency,
+            related_rcr=related_rcr,
+        )
+
+    return [
+        _event("CAL-001", "SUBMISSION_DUE", "ERC0338 Integrating Energy Storage — Submissions Close", "AEMC", 5, "ERC0338"),
+        _event("CAL-002", "CONSULTATION_OPEN", "ERC0296 Day-Ahead Auctions — Draft Rule Published for Comment", "AEMC", 7, "ERC0296"),
+        _event("CAL-003", "HEARING", "ERC0318 Retailer Reliability Obligation — Public Forum", "AEMC", 14, "ERC0318"),
+        _event("CAL-004", "SUBMISSION_DUE", "ERC0315 CER Metering Coordination — Consultation Closes", "AEMC", 21, "ERC0315"),
+        _event("CAL-005", "DETERMINATION", "AER TasNetworks Distribution Determination 2024-29 — Final Decision", "AER", 28, None),
+        _event("CAL-006", "EFFECTIVE_DATE", "ERC0311 DER Access Reform — Draft Rule Takes Effect", "AEMC", 35, "ERC0311"),
+        _event("CAL-007", "CONSULTATION_OPEN", "AEMO Frequency Operating Standards Review — Consultation Opens", "AEMO", 45, None),
+        _event("CAL-008", "SUBMISSION_DUE", "AER Network Tariff Guideline Review — Submissions Due", "AER", 60, None),
+        _event("CAL-009", "DETERMINATION", "ERC0335 Transmission Planning — Draft Rule Determination", "AEMC", 75, "ERC0335"),
+        _event("CAL-010", "EFFECTIVE_DATE", "ERC0296 Day-Ahead Auctions — Rule Commencement", "AEMC", 120, "ERC0296"),
+    ]
+
+
+def _make_regulatory_dashboard() -> RegulatoryDashboard:
+    from datetime import datetime
+    rule_changes = _make_rule_changes()
+    aer_determinations = _make_aer_determinations()
+    calendar_events = _make_regulatory_calendar()
+    open_consultations = sum(1 for rc in rule_changes if rc.status == "OPEN_CONSULTATION")
+    draft_rules = sum(1 for rc in rule_changes if rc.status == "DRAFT_RULE")
+    final_rules_this_year = sum(
+        1 for rc in rule_changes
+        if rc.status == "FINAL_RULE" and (
+            "2023" in (rc.effective_date or "") or "2024" in (rc.effective_date or "")
+        )
+    )
+    transformative_changes = sum(1 for rc in rule_changes if rc.impact_level == "TRANSFORMATIVE")
+    upcoming_deadlines = sum(1 for ev in calendar_events if ev.days_from_now <= 30)
+    return RegulatoryDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        open_consultations=open_consultations,
+        draft_rules=draft_rules,
+        final_rules_this_year=final_rules_this_year,
+        transformative_changes=transformative_changes,
+        upcoming_deadlines=upcoming_deadlines,
+        rule_changes=rule_changes,
+        aer_determinations=aer_determinations,
+        calendar_events=calendar_events,
+    )
+
+
+@app.get(
+    "/api/regulatory/dashboard",
+    response_model=RegulatoryDashboard,
+    summary="NEM regulatory reform dashboard — rule changes, AER determinations, calendar",
+    tags=["Regulatory"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_regulatory_dashboard():
+    """Return regulatory dashboard with open consultations, draft rules, AER determinations
+    and upcoming calendar events. Cached 3600 s."""
+    cached = _cache_get("regulatory:dashboard")
+    if cached:
+        return cached
+    data = _make_regulatory_dashboard()
+    _cache_set("regulatory:dashboard", data, _TTL_REGULATORY)
+    return data
+
+
+@app.get(
+    "/api/regulatory/rule-changes",
+    response_model=List[RuleChangeRequest],
+    summary="AEMC rule change requests — filterable by category, status, impact_level",
+    tags=["Regulatory"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rule_changes(
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    impact_level: Optional[str] = None,
+):
+    """Return AEMC rule change requests with optional filters. Cached 3600 s."""
+    cache_key = f"regulatory:rule-changes:{category}:{status}:{impact_level}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    rcs = _make_rule_changes()
+    if category:
+        rcs = [rc for rc in rcs if rc.category == category]
+    if status:
+        rcs = [rc for rc in rcs if rc.status == status]
+    if impact_level:
+        rcs = [rc for rc in rcs if rc.impact_level == impact_level]
+    _cache_set(cache_key, rcs, _TTL_REGULATORY)
+    return rcs
+
+
+@app.get(
+    "/api/regulatory/calendar",
+    response_model=List[RegulatoryCalendarEvent],
+    summary="Regulatory calendar events — filterable by body, urgency",
+    tags=["Regulatory"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_regulatory_calendar(
+    body: Optional[str] = None,
+    urgency: Optional[str] = None,
+):
+    """Return upcoming regulatory calendar events. Cached 3600 s."""
+    cache_key = f"regulatory:calendar:{body}:{urgency}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    events = _make_regulatory_calendar()
+    if body:
+        events = [ev for ev in events if ev.body == body]
+    if urgency:
+        events = [ev for ev in events if ev.urgency == urgency]
+    _cache_set(cache_key, events, _TTL_REGULATORY)
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Sprint 26b — Pre-dispatch Accuracy & 5-Minute Settlement Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_DISPATCH = 30
+_TTL_DISPATCH_ACCURACY = 300
+
+
+class PredispatchInterval(BaseModel):
+    interval: str                    # "HH:MM"
+    region: str
+    predispatch_price: float         # $/MWh forecast from pre-dispatch
+    actual_price: float              # $/MWh actual dispatch price
+    price_error: float               # actual - predispatch
+    predispatch_demand_mw: float
+    actual_demand_mw: float
+    demand_error_mw: float
+    predispatch_generation_mw: float
+    actual_generation_mw: float
+    generation_error_mw: float
+    constraint_active: bool          # was a binding constraint active?
+
+
+class FiveMinuteSettlementSummary(BaseModel):
+    region: str
+    trading_period: str              # "TP12" (30-min trading period), "TP13", etc.
+    num_intervals: int               # should be 6
+    min_price: float
+    max_price: float
+    avg_price: float
+    trading_price: float             # 30-min volume-weighted average (old settlement)
+    five_min_vs_30min_diff: float    # how much generators gain/lose vs old regime
+    high_volatility: bool            # max/min spread > $200
+
+
+class DispatchAccuracyStats(BaseModel):
+    region: str
+    date: str
+    mean_absolute_error_aud: float      # MAE of price forecasts
+    root_mean_square_error_aud: float   # RMSE
+    bias_aud: float                     # systematic over/under forecast
+    accuracy_within_10pct: float        # % of intervals forecast within 10%
+    spike_detection_rate_pct: float     # % of price spikes correctly flagged
+    predispatch_horizon: str            # "30-min", "1-hour", "2-hour"
+
+
+class DispatchDashboard(BaseModel):
+    timestamp: str
+    region: str
+    today_avg_price_error: float
+    today_max_price_error: float
+    five_min_settlement_advantage_generators: float  # $M gained vs old 30-min settlement
+    intervals_with_spikes: int
+    intervals_with_negative_prices: int
+    accuracy_stats: List[DispatchAccuracyStats]
+    predispatch_intervals: List[PredispatchInterval]
+    five_min_summary: List[FiveMinuteSettlementSummary]
+
+
+def _make_predispatch_intervals() -> List[PredispatchInterval]:
+    """24 intervals (one per hour, 00:00-23:00) for SA1.
+    Pre-dispatch tracks closely overnight, but afternoon peak has large errors.
+    Negative prices overnight 05:00-07:00. Constraint active for 4 intervals."""
+    raw = [
+        # hour, predispatch_price, actual_price, pd_demand, act_demand, pd_gen, act_gen, constraint
+        (0,   45.0,   48.0,  1420, 1430, 1435, 1440, False),
+        (1,   42.0,   40.0,  1380, 1375, 1395, 1388, False),
+        (2,   38.0,   36.0,  1340, 1330, 1355, 1345, False),
+        (3,   35.0,   33.0,  1310, 1300, 1325, 1312, False),
+        (4,   30.0,   28.0,  1290, 1285, 1305, 1298, False),
+        (5,  -15.0,  -45.0,  1280, 1275, 1680, 1720, False),  # negative price — solar flood
+        (6,  -15.0,  -42.0,  1300, 1295, 1720, 1758, False),  # negative price
+        (7,  -15.0,  -38.0,  1340, 1338, 1700, 1735, False),  # negative price
+        (8,   55.0,   58.0,  1480, 1492, 1620, 1628, False),
+        (9,   72.0,   68.0,  1560, 1548, 1580, 1572, False),
+        (10,  85.0,   82.0,  1640, 1625, 1660, 1648, False),
+        (11,  90.0,   95.0,  1700, 1712, 1720, 1730, False),
+        (12,  95.0,  100.0,  1740, 1755, 1760, 1772, False),
+        (13, 105.0,  110.0,  1760, 1775, 1778, 1790, False),
+        (14, 115.0,  135.0,  1780, 1798, 1800, 1815, True),   # constraint active
+        (15, 120.0,  180.0,  1800, 1825, 1820, 1840, True),   # constraint active, error $60
+        (16, 130.0,  220.0,  1820, 1850, 1840, 1860, True),   # constraint active, error $90
+        (17, 145.0,  445.0,  1850, 1880, 1870, 1885, True),   # constraint active — spike, error $300
+        (18, 200.0,  280.0,  1840, 1858, 1860, 1875, False),
+        (19, 160.0,  195.0,  1800, 1815, 1820, 1832, False),
+        (20, 130.0,  145.0,  1740, 1750, 1758, 1765, False),
+        (21, 100.0,  105.0,  1650, 1658, 1668, 1674, False),
+        (22,  72.0,   75.0,  1560, 1565, 1578, 1582, False),
+        (23,  50.0,   52.0,  1480, 1483, 1495, 1498, False),
+    ]
+    intervals = []
+    for hour, pd_p, act_p, pd_d, act_d, pd_g, act_g, constraint in raw:
+        price_error = round(act_p - pd_p, 2)
+        intervals.append(
+            PredispatchInterval(
+                interval=f"{hour:02d}:00",
+                region="SA1",
+                predispatch_price=pd_p,
+                actual_price=act_p,
+                price_error=price_error,
+                predispatch_demand_mw=float(pd_d),
+                actual_demand_mw=float(act_d),
+                demand_error_mw=round(float(act_d) - float(pd_d), 2),
+                predispatch_generation_mw=float(pd_g),
+                actual_generation_mw=float(act_g),
+                generation_error_mw=round(float(act_g) - float(pd_g), 2),
+                constraint_active=constraint,
+            )
+        )
+    return intervals
+
+
+def _make_five_min_summary() -> List[FiveMinuteSettlementSummary]:
+    """6 trading periods TP10-TP15 (midday to afternoon) showing 5-minute interval spread.
+    TP14 (14:00-14:30) has high_volatility=True. Most show positive 5-min vs 30-min diff."""
+    data = [
+        # tp, min_p, max_p, avg_p, trading_p, 5min_diff, high_vol
+        ("TP10",  78.0,  112.0,  94.5,  91.2,   3.3, False),
+        ("TP11",  85.0,  130.0, 107.2, 103.8,   3.4, False),
+        ("TP12",  92.0,  155.0, 118.6, 114.0,   4.6, False),
+        ("TP13", 105.0,  210.0, 142.3, 135.5,   6.8, True),   # spread $105, high vol
+        ("TP14", -45.0,  850.0, 185.0, 156.2,  28.8, True),   # spread $895, high vol
+        ("TP15", 110.0,  320.0, 198.4, 180.0,  18.4, False),
+    ]
+    summaries = []
+    for tp, min_p, max_p, avg_p, trading_p, diff, high_vol in data:
+        summaries.append(
+            FiveMinuteSettlementSummary(
+                region="SA1",
+                trading_period=tp,
+                num_intervals=6,
+                min_price=min_p,
+                max_price=max_p,
+                avg_price=avg_p,
+                trading_price=trading_p,
+                five_min_vs_30min_diff=diff,
+                high_volatility=high_vol,
+            )
+        )
+    return summaries
+
+
+def _make_dispatch_accuracy_stats() -> List[DispatchAccuracyStats]:
+    """5 accuracy records — one per NEM region. SA1 worst (MAE $42, spike 65%).
+    TAS1 best (MAE $8). NSW1 and QLD1 moderate. NSW1 has 3 forecast horizons."""
+    today = "2026-02-19"
+    records = [
+        # region, mae, rmse, bias, within_10pct, spike_det, horizon
+        ("SA1",  42.0,  88.5,  12.4,  62.0,  65.0, "30-min"),
+        ("NSW1", 18.5,  34.2,   4.1,  78.5,  82.0, "30-min"),
+        ("NSW1", 24.8,  45.6,   6.3,  72.0,  78.0, "1-hour"),
+        ("NSW1", 32.1,  58.9,   9.2,  65.5,  71.0, "2-hour"),
+        ("QLD1", 22.0,  41.8,   5.8,  74.0,  79.0, "30-min"),
+        ("VIC1", 15.5,  29.4,   3.2,  81.0,  85.0, "30-min"),
+        ("TAS1",  8.2,  15.6,   1.5,  91.5,  93.0, "30-min"),
+    ]
+    stats = []
+    for region, mae, rmse, bias, within10, spike_det, horizon in records:
+        stats.append(
+            DispatchAccuracyStats(
+                region=region,
+                date=today,
+                mean_absolute_error_aud=mae,
+                root_mean_square_error_aud=rmse,
+                bias_aud=bias,
+                accuracy_within_10pct=within10,
+                spike_detection_rate_pct=spike_det,
+                predispatch_horizon=horizon,
+            )
+        )
+    return stats
+
+
+def _make_dispatch_dashboard() -> DispatchDashboard:
+    """Aggregate dashboard for SA1."""
+    intervals = _make_predispatch_intervals()
+    errors = [abs(iv.price_error) for iv in intervals]
+    max_error = max(abs(iv.price_error) for iv in intervals)
+    avg_error = round(sum(errors) / len(errors), 2)
+    spikes = sum(1 for iv in intervals if iv.actual_price > 300)
+    negatives = sum(1 for iv in intervals if iv.actual_price < 0)
+    # 5-min settlement advantage: sum of positive diffs for TP10-TP15
+    five_min = _make_five_min_summary()
+    advantage = round(sum(s.five_min_vs_30min_diff for s in five_min if s.five_min_vs_30min_diff > 0) / 1_000, 3)
+    return DispatchDashboard(
+        timestamp="2026-02-19T14:30:00+10:00",
+        region="SA1",
+        today_avg_price_error=avg_error,
+        today_max_price_error=max_error,
+        five_min_settlement_advantage_generators=advantage,
+        intervals_with_spikes=spikes,
+        intervals_with_negative_prices=negatives,
+        accuracy_stats=_make_dispatch_accuracy_stats(),
+        predispatch_intervals=intervals,
+        five_min_summary=five_min,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Dispatch Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/dispatch/dashboard",
+    response_model=DispatchDashboard,
+    summary="Pre-dispatch accuracy & 5-minute settlement dashboard for SA1",
+    tags=["Dispatch Accuracy"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dispatch_dashboard():
+    """Return the full dispatch dashboard: pre-dispatch vs actual, 5-min settlement,
+    and accuracy statistics. Cached 30 s."""
+    cached = _cache_get("dispatch:dashboard")
+    if cached:
+        return cached
+    data = _make_dispatch_dashboard()
+    _cache_set("dispatch:dashboard", data, _TTL_DISPATCH)
+    return data
+
+
+@app.get(
+    "/api/dispatch/predispatch",
+    response_model=List[PredispatchInterval],
+    summary="Pre-dispatch vs actual price intervals, filterable by region",
+    tags=["Dispatch Accuracy"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_predispatch_intervals(region: Optional[str] = None):
+    """Return 24-hour pre-dispatch vs actual price intervals. Optionally filter by region.
+    Cached 30 s."""
+    cache_key = f"dispatch:predispatch:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    intervals = _make_predispatch_intervals()
+    if region:
+        intervals = [iv for iv in intervals if iv.region == region]
+    _cache_set(cache_key, intervals, _TTL_DISPATCH)
+    return intervals
+
+
+@app.get(
+    "/api/dispatch/accuracy",
+    response_model=List[DispatchAccuracyStats],
+    summary="Dispatch forecast accuracy statistics, filterable by region",
+    tags=["Dispatch Accuracy"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dispatch_accuracy(region: Optional[str] = None):
+    """Return dispatch accuracy stats (MAE, RMSE, spike detection) per region and horizon.
+    Optionally filter by region. Cached 300 s."""
+    cache_key = f"dispatch:accuracy:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    stats = _make_dispatch_accuracy_stats()
+    if region:
+        stats = [s for s in stats if s.region == region]
+    _cache_set(cache_key, stats, _TTL_DISPATCH_ACCURACY)
+    return stats
+
+
+# ---------------------------------------------------------------------------
+# Sprint 26c — AEMO ISP Transmission Investment Tracker
+# ---------------------------------------------------------------------------
+
+_TTL_ISP = 3600
+
+
+class IspProjectMilestone(BaseModel):
+    milestone_id: str
+    milestone_name: str
+    planned_date: str
+    actual_date: Optional[str]
+    status: str
+    delay_months: int
+
+
+class IspMajorProject(BaseModel):
+    project_id: str
+    project_name: str
+    tnsp: str
+    regions_connected: List[str]
+    project_type: str
+    isp_action: str
+    total_capex_m_aud: float
+    sunk_cost_to_date_m_aud: float
+    committed_capex_m_aud: float
+    circuit_km: float
+    voltage_kv: float
+    thermal_limit_mw: float
+    construction_start: Optional[str]
+    commissioning_date: str
+    current_status: str
+    rit_t_complete: bool
+    overall_progress_pct: float
+    milestones: List[IspProjectMilestone]
+    net_market_benefit_m_aud: float
+    bcr: float
+
+
+class TnspCapexProgram(BaseModel):
+    tnsp: str
+    regulatory_period: str
+    states: List[str]
+    total_approved_capex_m_aud: float
+    spent_to_date_m_aud: float
+    remaining_m_aud: float
+    spend_rate_pct: float
+    major_projects: List[str]
+    regulatory_body: str
+
+
+class IspDashboard(BaseModel):
+    timestamp: str
+    total_pipeline_capex_bn_aud: float
+    committed_projects: int
+    projects_under_construction: int
+    total_new_km: float
+    total_new_capacity_mw: float
+    delayed_projects: int
+    isp_projects: List[IspMajorProject]
+    tnsp_programs: List[TnspCapexProgram]
+
+
+def _make_isp_projects() -> List[IspMajorProject]:
+    return [
+        IspMajorProject(
+            project_id="humelink",
+            project_name="HumeLink",
+            tnsp="TransGrid",
+            regions_connected=["NSW1", "VIC1"],
+            project_type="NEW_LINE",
+            isp_action="COMMITTED",
+            total_capex_m_aud=3300.0,
+            sunk_cost_to_date_m_aud=820.0,
+            committed_capex_m_aud=3300.0,
+            circuit_km=360.0,
+            voltage_kv=500.0,
+            thermal_limit_mw=3800.0,
+            construction_start="2023-07",
+            commissioning_date="2026-12",
+            current_status="UNDER_CONSTRUCTION",
+            rit_t_complete=True,
+            overall_progress_pct=32.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="humelink-m1", milestone_name="PADR Published", planned_date="2020-06", actual_date="2020-06", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="humelink-m2", milestone_name="PACR Published", planned_date="2021-09", actual_date="2021-09", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="humelink-m3", milestone_name="RIT-T Complete", planned_date="2022-06", actual_date="2022-08", status="COMPLETE", delay_months=2),
+                IspProjectMilestone(milestone_id="humelink-m4", milestone_name="FID", planned_date="2023-04", actual_date="2023-07", status="COMPLETE", delay_months=3),
+                IspProjectMilestone(milestone_id="humelink-m5", milestone_name="Commissioning", planned_date="2026-06", actual_date=None, status="IN_PROGRESS", delay_months=6),
+            ],
+            net_market_benefit_m_aud=7590.0,
+            bcr=2.3,
+        ),
+        IspMajorProject(
+            project_id="vni-west",
+            project_name="VNI West",
+            tnsp="AusNet",
+            regions_connected=["VIC1", "NSW1"],
+            project_type="NEW_LINE",
+            isp_action="ACTIONABLE_ISP",
+            total_capex_m_aud=4800.0,
+            sunk_cost_to_date_m_aud=120.0,
+            committed_capex_m_aud=4800.0,
+            circuit_km=800.0,
+            voltage_kv=500.0,
+            thermal_limit_mw=3900.0,
+            construction_start="2026-01",
+            commissioning_date="2029-12",
+            current_status="APPROVED",
+            rit_t_complete=True,
+            overall_progress_pct=8.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="vniw-m1", milestone_name="PADR Published", planned_date="2022-03", actual_date="2022-03", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="vniw-m2", milestone_name="PACR Published", planned_date="2023-06", actual_date="2023-08", status="COMPLETE", delay_months=2),
+                IspProjectMilestone(milestone_id="vniw-m3", milestone_name="RIT-T Complete", planned_date="2024-06", actual_date="2024-09", status="COMPLETE", delay_months=3),
+                IspProjectMilestone(milestone_id="vniw-m4", milestone_name="FID", planned_date="2025-06", actual_date=None, status="IN_PROGRESS", delay_months=0),
+                IspProjectMilestone(milestone_id="vniw-m5", milestone_name="Commissioning", planned_date="2029-12", actual_date=None, status="UPCOMING", delay_months=0),
+            ],
+            net_market_benefit_m_aud=8640.0,
+            bcr=1.8,
+        ),
+        IspMajorProject(
+            project_id="project-energyconnect",
+            project_name="Project EnergyConnect",
+            tnsp="ElectraNet",
+            regions_connected=["SA1", "NSW1", "VIC1"],
+            project_type="NEW_LINE",
+            isp_action="COMMITTED",
+            total_capex_m_aud=2400.0,
+            sunk_cost_to_date_m_aud=2280.0,
+            committed_capex_m_aud=2400.0,
+            circuit_km=900.0,
+            voltage_kv=330.0,
+            thermal_limit_mw=800.0,
+            construction_start="2021-06",
+            commissioning_date="2024-03",
+            current_status="COMMISSIONING",
+            rit_t_complete=True,
+            overall_progress_pct=95.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="pec-m1", milestone_name="PADR Published", planned_date="2018-12", actual_date="2018-12", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="pec-m2", milestone_name="PACR Published", planned_date="2019-09", actual_date="2019-09", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="pec-m3", milestone_name="RIT-T Complete", planned_date="2020-06", actual_date="2020-06", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="pec-m4", milestone_name="FID", planned_date="2021-03", actual_date="2021-06", status="COMPLETE", delay_months=3),
+                IspProjectMilestone(milestone_id="pec-m5", milestone_name="Commissioning", planned_date="2023-12", actual_date=None, status="IN_PROGRESS", delay_months=3),
+            ],
+            net_market_benefit_m_aud=3960.0,
+            bcr=1.65,
+        ),
+        IspMajorProject(
+            project_id="sydney-ring",
+            project_name="Sydney Ring",
+            tnsp="TransGrid",
+            regions_connected=["NSW1"],
+            project_type="UPGRADE",
+            isp_action="ACTIONABLE_ISP",
+            total_capex_m_aud=1800.0,
+            sunk_cost_to_date_m_aud=45.0,
+            committed_capex_m_aud=1800.0,
+            circuit_km=140.0,
+            voltage_kv=500.0,
+            thermal_limit_mw=3000.0,
+            construction_start=None,
+            commissioning_date="2029-06",
+            current_status="PLANNING",
+            rit_t_complete=False,
+            overall_progress_pct=5.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="sr-m1", milestone_name="PADR Published", planned_date="2023-12", actual_date="2024-02", status="COMPLETE", delay_months=2),
+                IspProjectMilestone(milestone_id="sr-m2", milestone_name="PACR Published", planned_date="2025-06", actual_date=None, status="IN_PROGRESS", delay_months=0),
+                IspProjectMilestone(milestone_id="sr-m3", milestone_name="RIT-T Complete", planned_date="2026-06", actual_date=None, status="UPCOMING", delay_months=0),
+                IspProjectMilestone(milestone_id="sr-m4", milestone_name="FID", planned_date="2027-01", actual_date=None, status="UPCOMING", delay_months=0),
+                IspProjectMilestone(milestone_id="sr-m5", milestone_name="Commissioning", planned_date="2029-06", actual_date=None, status="UPCOMING", delay_months=0),
+            ],
+            net_market_benefit_m_aud=3060.0,
+            bcr=1.7,
+        ),
+        IspMajorProject(
+            project_id="marinus-link",
+            project_name="Marinus Link",
+            tnsp="TasNetworks",
+            regions_connected=["TAS1", "VIC1"],
+            project_type="SUBSEA_HVDC",
+            isp_action="COMMITTED",
+            total_capex_m_aud=3500.0,
+            sunk_cost_to_date_m_aud=180.0,
+            committed_capex_m_aud=3500.0,
+            circuit_km=255.0,
+            voltage_kv=600.0,
+            thermal_limit_mw=1500.0,
+            construction_start=None,
+            commissioning_date="2030-06",
+            current_status="PLANNING",
+            rit_t_complete=False,
+            overall_progress_pct=10.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="ml-m1", milestone_name="PADR Published", planned_date="2021-06", actual_date="2021-08", status="COMPLETE", delay_months=2),
+                IspProjectMilestone(milestone_id="ml-m2", milestone_name="PACR Published", planned_date="2023-03", actual_date="2023-06", status="COMPLETE", delay_months=3),
+                IspProjectMilestone(milestone_id="ml-m3", milestone_name="RIT-T Complete", planned_date="2025-06", actual_date=None, status="DELAYED", delay_months=6),
+                IspProjectMilestone(milestone_id="ml-m4", milestone_name="FID", planned_date="2026-12", actual_date=None, status="UPCOMING", delay_months=0),
+                IspProjectMilestone(milestone_id="ml-m5", milestone_name="Commissioning", planned_date="2030-06", actual_date=None, status="UPCOMING", delay_months=0),
+            ],
+            net_market_benefit_m_aud=5250.0,
+            bcr=1.5,
+        ),
+        IspMajorProject(
+            project_id="vni-minor",
+            project_name="VNI Minor",
+            tnsp="AusNet",
+            regions_connected=["VIC1"],
+            project_type="UPGRADE",
+            isp_action="COMMITTED",
+            total_capex_m_aud=290.0,
+            sunk_cost_to_date_m_aud=240.0,
+            committed_capex_m_aud=290.0,
+            circuit_km=30.0,
+            voltage_kv=220.0,
+            thermal_limit_mw=540.0,
+            construction_start="2023-01",
+            commissioning_date="2025-06",
+            current_status="UNDER_CONSTRUCTION",
+            rit_t_complete=True,
+            overall_progress_pct=82.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="vnim-m1", milestone_name="PADR Published", planned_date="2021-03", actual_date="2021-03", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="vnim-m2", milestone_name="PACR Published", planned_date="2021-09", actual_date="2021-09", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="vnim-m3", milestone_name="RIT-T Complete", planned_date="2022-06", actual_date="2022-06", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="vnim-m4", milestone_name="FID", planned_date="2022-12", actual_date="2023-01", status="COMPLETE", delay_months=1),
+                IspProjectMilestone(milestone_id="vnim-m5", milestone_name="Commissioning", planned_date="2025-03", actual_date=None, status="IN_PROGRESS", delay_months=3),
+            ],
+            net_market_benefit_m_aud=580.0,
+            bcr=2.0,
+        ),
+        IspMajorProject(
+            project_id="qni-medium",
+            project_name="QNI Medium",
+            tnsp="Powerlink",
+            regions_connected=["QLD1", "NSW1"],
+            project_type="UPGRADE",
+            isp_action="ACTIONABLE_ISP",
+            total_capex_m_aud=1300.0,
+            sunk_cost_to_date_m_aud=65.0,
+            committed_capex_m_aud=1300.0,
+            circuit_km=315.0,
+            voltage_kv=330.0,
+            thermal_limit_mw=950.0,
+            construction_start="2025-06",
+            commissioning_date="2027-12",
+            current_status="APPROVED",
+            rit_t_complete=True,
+            overall_progress_pct=15.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="qnim-m1", milestone_name="PADR Published", planned_date="2022-06", actual_date="2022-06", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="qnim-m2", milestone_name="PACR Published", planned_date="2023-03", actual_date="2023-05", status="COMPLETE", delay_months=2),
+                IspProjectMilestone(milestone_id="qnim-m3", milestone_name="RIT-T Complete", planned_date="2024-06", actual_date="2024-06", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="qnim-m4", milestone_name="FID", planned_date="2025-03", actual_date="2025-03", status="COMPLETE", delay_months=0),
+                IspProjectMilestone(milestone_id="qnim-m5", milestone_name="Commissioning", planned_date="2027-12", actual_date=None, status="UPCOMING", delay_months=0),
+            ],
+            net_market_benefit_m_aud=2470.0,
+            bcr=1.9,
+        ),
+        IspMajorProject(
+            project_id="new-england-rez",
+            project_name="New England REZ",
+            tnsp="TransGrid",
+            regions_connected=["NSW1"],
+            project_type="NEW_LINE",
+            isp_action="ACTIONABLE_ISP",
+            total_capex_m_aud=2100.0,
+            sunk_cost_to_date_m_aud=30.0,
+            committed_capex_m_aud=2100.0,
+            circuit_km=500.0,
+            voltage_kv=330.0,
+            thermal_limit_mw=2500.0,
+            construction_start=None,
+            commissioning_date="2028-12",
+            current_status="PLANNING",
+            rit_t_complete=False,
+            overall_progress_pct=3.0,
+            milestones=[
+                IspProjectMilestone(milestone_id="ner-m1", milestone_name="PADR Published", planned_date="2024-06", actual_date=None, status="DELAYED", delay_months=4),
+                IspProjectMilestone(milestone_id="ner-m2", milestone_name="PACR Published", planned_date="2025-12", actual_date=None, status="UPCOMING", delay_months=0),
+                IspProjectMilestone(milestone_id="ner-m3", milestone_name="RIT-T Complete", planned_date="2026-12", actual_date=None, status="UPCOMING", delay_months=0),
+                IspProjectMilestone(milestone_id="ner-m4", milestone_name="FID", planned_date="2027-06", actual_date=None, status="UPCOMING", delay_months=0),
+                IspProjectMilestone(milestone_id="ner-m5", milestone_name="Commissioning", planned_date="2028-12", actual_date=None, status="UPCOMING", delay_months=0),
+            ],
+            net_market_benefit_m_aud=3780.0,
+            bcr=1.8,
+        ),
+    ]
+
+
+def _make_tnsp_programs() -> List[TnspCapexProgram]:
+    return [
+        TnspCapexProgram(
+            tnsp="TransGrid",
+            regulatory_period="2024-2029",
+            states=["NSW", "ACT"],
+            total_approved_capex_m_aud=8200.0,
+            spent_to_date_m_aud=1640.0,
+            remaining_m_aud=6560.0,
+            spend_rate_pct=40.0,
+            major_projects=["HumeLink", "Sydney Ring", "New England REZ"],
+            regulatory_body="AER",
+        ),
+        TnspCapexProgram(
+            tnsp="AusNet",
+            regulatory_period="2024-2029",
+            states=["VIC"],
+            total_approved_capex_m_aud=5800.0,
+            spent_to_date_m_aud=870.0,
+            remaining_m_aud=4930.0,
+            spend_rate_pct=30.0,
+            major_projects=["VNI West", "VNI Minor"],
+            regulatory_body="AER",
+        ),
+        TnspCapexProgram(
+            tnsp="ElectraNet",
+            regulatory_period="2023-2028",
+            states=["SA"],
+            total_approved_capex_m_aud=2900.0,
+            spent_to_date_m_aud=1740.0,
+            remaining_m_aud=1160.0,
+            spend_rate_pct=80.0,
+            major_projects=["Project EnergyConnect"],
+            regulatory_body="AER",
+        ),
+        TnspCapexProgram(
+            tnsp="Powerlink",
+            regulatory_period="2023-2028",
+            states=["QLD"],
+            total_approved_capex_m_aud=3400.0,
+            spent_to_date_m_aud=680.0,
+            remaining_m_aud=2720.0,
+            spend_rate_pct=35.0,
+            major_projects=["QNI Medium"],
+            regulatory_body="AER",
+        ),
+        TnspCapexProgram(
+            tnsp="TasNetworks",
+            regulatory_period="2024-2029",
+            states=["TAS"],
+            total_approved_capex_m_aud=4200.0,
+            spent_to_date_m_aud=420.0,
+            remaining_m_aud=3780.0,
+            spend_rate_pct=20.0,
+            major_projects=["Marinus Link"],
+            regulatory_body="AER",
+        ),
+    ]
+
+
+def _make_isp_dashboard() -> IspDashboard:
+    projects = _make_isp_projects()
+    programs = _make_tnsp_programs()
+    total_capex_bn = round(sum(p.total_capex_m_aud for p in projects) / 1000.0, 2)
+    committed = sum(1 for p in projects if p.isp_action == "COMMITTED")
+    under_construction = sum(1 for p in projects if p.current_status == "UNDER_CONSTRUCTION")
+    total_km = sum(p.circuit_km for p in projects)
+    total_mw = sum(p.thermal_limit_mw for p in projects)
+    delayed = sum(
+        1 for p in projects
+        if any(m.status == "DELAYED" for m in p.milestones)
+    )
+    return IspDashboard(
+        timestamp=_now_aest(),
+        total_pipeline_capex_bn_aud=total_capex_bn,
+        committed_projects=committed,
+        projects_under_construction=under_construction,
+        total_new_km=total_km,
+        total_new_capacity_mw=total_mw,
+        delayed_projects=delayed,
+        isp_projects=projects,
+        tnsp_programs=programs,
+    )
+
+
+@app.get(
+    "/api/isp/dashboard",
+    response_model=IspDashboard,
+    summary="AEMO ISP Transmission Investment Dashboard",
+    tags=["ISP Tracker"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_dashboard():
+    """Return ISP transmission investment dashboard with KPIs, projects, and TNSP programs.
+    Cached 3600 s."""
+    cached = _cache_get("isp:dashboard")
+    if cached:
+        return cached
+    data = _make_isp_dashboard()
+    _cache_set("isp:dashboard", data, _TTL_ISP)
+    return data
+
+
+@app.get(
+    "/api/isp/projects",
+    response_model=List[IspMajorProject],
+    summary="ISP major transmission projects with milestones",
+    tags=["ISP Tracker"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_projects(
+    tnsp: Optional[str] = Query(None),
+    current_status: Optional[str] = Query(None),
+    isp_action: Optional[str] = Query(None),
+):
+    """Return ISP major projects filterable by TNSP, status, and ISP action.
+    Cached 3600 s."""
+    cache_key = f"isp:projects:{tnsp}:{current_status}:{isp_action}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    projects = _make_isp_projects()
+    if tnsp:
+        projects = [p for p in projects if p.tnsp == tnsp]
+    if current_status:
+        projects = [p for p in projects if p.current_status == current_status]
+    if isp_action:
+        projects = [p for p in projects if p.isp_action == isp_action]
+    _cache_set(cache_key, projects, _TTL_ISP)
+    return projects
+
+
+@app.get(
+    "/api/isp/tnsp-programs",
+    response_model=List[TnspCapexProgram],
+    summary="TNSP regulatory capex programs",
+    tags=["ISP Tracker"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tnsp_programs():
+    """Return TNSP regulatory capex program data.
+    Cached 3600 s."""
+    cached = _cache_get("isp:tnsp-programs")
+    if cached:
+        return cached
+    data = _make_tnsp_programs()
+    _cache_set("isp:tnsp-programs", data, _TTL_ISP)
+    return data

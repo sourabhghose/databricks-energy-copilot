@@ -2244,3 +2244,104 @@ class TestPpaEndpoints:
         years = [d["calendar_year"] for d in lgc_data]
         assert 2025 in years
         assert all(d["lgc_spot_price_aud"] > 0 for d in lgc_data)
+
+
+class TestDispatchAccuracyEndpoints:
+    def test_dispatch_dashboard_returns_200(self, client=client):
+        r = client.get("/api/dispatch/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "predispatch_intervals" in d
+        assert "accuracy_stats" in d
+        assert "five_min_summary" in d
+
+    def test_predispatch_intervals_24_hours(self, client=client):
+        r = client.get("/api/dispatch/predispatch")
+        assert r.status_code == 200
+        intervals = r.json()
+        assert len(intervals) == 24
+        for iv in intervals:
+            assert "price_error" in iv
+            assert iv["price_error"] == round(iv["actual_price"] - iv["predispatch_price"], 2)
+
+    def test_dispatch_accuracy_by_region(self, client=client):
+        r = client.get("/api/dispatch/accuracy")
+        assert r.status_code == 200
+        stats = r.json()
+        assert len(stats) >= 4
+        for s in stats:
+            assert s["mean_absolute_error_aud"] >= 0
+            assert 0 <= s["spike_detection_rate_pct"] <= 100
+
+    def test_five_min_summary_volatility(self, client=client):
+        r = client.get("/api/dispatch/dashboard")
+        assert r.status_code == 200
+        summaries = r.json()["five_min_summary"]
+        assert len(summaries) >= 4
+        # At least one high volatility period
+        assert any(s["high_volatility"] for s in summaries)
+
+
+class TestRegulatoryEndpoints:
+    def test_regulatory_dashboard_returns_200(self, client=client):
+        r = client.get("/api/regulatory/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "rule_changes" in d
+        assert "aer_determinations" in d
+        assert "calendar_events" in d
+        assert d["open_consultations"] >= 0
+
+    def test_rule_changes_list(self, client=client):
+        r = client.get("/api/regulatory/rule-changes")
+        assert r.status_code == 200
+        rcs = r.json()
+        assert len(rcs) >= 8
+        statuses = {rc["status"] for rc in rcs}
+        assert "FINAL_RULE" in statuses
+        assert "OPEN_CONSULTATION" in statuses
+
+    def test_rule_changes_category_filter(self, client=client):
+        r = client.get("/api/regulatory/rule-changes?category=MARKETS")
+        assert r.status_code == 200
+        for rc in r.json():
+            assert rc["category"] == "MARKETS"
+
+    def test_regulatory_calendar_list(self, client=client):
+        r = client.get("/api/regulatory/calendar")
+        assert r.status_code == 200
+        events = r.json()
+        assert len(events) >= 6
+        urgencies = {e["urgency"] for e in events}
+        assert len(urgencies) >= 2
+
+
+class TestIspTrackerEndpoints:
+    def test_isp_dashboard_returns_200(self, client=client):
+        r = client.get("/api/isp/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "isp_projects" in d
+        assert "tnsp_programs" in d
+        assert d["total_pipeline_capex_bn_aud"] > 0
+
+    def test_isp_projects_list(self, client=client):
+        r = client.get("/api/isp/projects")
+        assert r.status_code == 200
+        projects = r.json()
+        assert len(projects) >= 6
+        project_names = {p["project_name"] for p in projects}
+        assert "HumeLink" in project_names
+
+    def test_isp_projects_have_milestones(self, client=client):
+        r = client.get("/api/isp/projects")
+        assert r.status_code == 200
+        for p in r.json():
+            assert len(p["milestones"]) >= 3
+            assert 0 <= p["overall_progress_pct"] <= 100
+
+    def test_isp_projects_status_filter(self, client=client):
+        r = client.get("/api/isp/projects?current_status=UNDER_CONSTRUCTION")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["current_status"] == "UNDER_CONSTRUCTION"

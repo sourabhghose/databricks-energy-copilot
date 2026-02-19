@@ -34,6 +34,8 @@ import {
   FileText,
   Droplets,
   AlertTriangle,
+  Target,
+  MapPin,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -83,6 +85,9 @@ import MarketPower from './pages/MarketPower'
 import PasaAnalytics from './pages/PasaAnalytics'
 import SraAuction from './pages/SraAuction'
 import PpaMarket from './pages/PpaMarket'
+import DispatchAccuracy from './pages/DispatchAccuracy'
+import RegulatoryTracker from './pages/RegulatoryTracker'
+import IspTracker from './pages/IspTracker'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -132,6 +137,9 @@ const NAV_ITEMS = [
   { to: '/pasa',          label: 'PASA & Adequacy',    Icon: Activity       },
   { to: '/sra',           label: 'SRA Auctions',       Icon: ArrowRightLeft },
   { to: '/ppa',           label: 'PPA Market',         Icon: Sun            },
+  { to: '/dispatch',      label: 'Dispatch Accuracy',  Icon: Target         },
+  { to: '/regulatory',    label: 'Regulatory',         Icon: FileText       },
+  { to: '/isp-tracker',   label: 'ISP Tracker',        Icon: MapPin         },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -256,6 +264,9 @@ export default function App() {
               <Route path="/pasa"         element={<PasaAnalytics />}      />
               <Route path="/sra"          element={<SraAuction />}         />
               <Route path="/ppa"          element={<PpaMarket />}          />
+              <Route path="/dispatch"     element={<DispatchAccuracy />}   />
+              <Route path="/regulatory"   element={<RegulatoryTracker />}  />
+              <Route path="/isp-tracker"  element={<IspTracker />}         />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>
