@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
-import { Activity, BarChart2, Clock } from 'lucide-react'
+import { Activity, BarChart2, Clock, Zap } from 'lucide-react'
 import { useLatestPrices, usePriceHistory } from '../hooks/useMarketData'
 import PriceTicker from '../components/PriceTicker'
+import { api, MarketSummaryRecord } from '../api/client'
 
 const REGIONS = ['NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'] as const
 type Region = typeof REGIONS[number]
@@ -125,6 +126,99 @@ function DemandCard({ region, avgDemandMw, peakDemandMw }: DemandCardProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Daily AI Market Summary widget
+// ---------------------------------------------------------------------------
+function MarketSummaryWidget() {
+  const [summary, setSummary] = useState<MarketSummaryRecord | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .getMarketSummary()
+      .then(data => {
+        if (!cancelled) {
+          setSummary(data)
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err))
+          setLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-56 mb-3" />
+        <div className="space-y-2">
+          <div className="h-3 bg-gray-200 rounded w-full" />
+          <div className="h-3 bg-gray-200 rounded w-5/6" />
+          <div className="h-3 bg-gray-200 rounded w-4/6" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !summary) {
+    return (
+      <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
+        <p className="text-sm text-gray-400 italic">Summary unavailable</p>
+      </div>
+    )
+  }
+
+  const wordCount = summary.word_count ?? 0
+  const formattedDate = new Date(summary.summary_date).toLocaleDateString('en-AU', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Australia/Sydney',
+  })
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+      {/* Widget header */}
+      <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Daily AI Market Summary</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{formattedDate}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Word count badge */}
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-100">
+            {wordCount.toLocaleString()} words
+          </span>
+          {/* Model ID badge */}
+          <span className="text-xs text-gray-400 font-mono">{summary.model_id}</span>
+        </div>
+      </div>
+
+      {/* Narrative text */}
+      <div className="max-h-48 overflow-y-auto">
+        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+          {summary.narrative}
+        </p>
+      </div>
+
+      {/* Attribution footer */}
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-1.5">
+        <Zap size={12} className="text-amber-500" />
+        <span className="text-xs text-gray-400">Powered by Claude Sonnet 4.5</span>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 export default function Home() {
@@ -230,6 +324,11 @@ export default function Home() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* Daily AI Market Summary widget */}
+      <section>
+        <MarketSummaryWidget />
       </section>
 
       {/* NEM Demand Summary — one card per region */}

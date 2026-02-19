@@ -1,49 +1,52 @@
-# ============================================================
-# Databricks Apps configuration — AUS Energy Copilot
-# ============================================================
-# Deploy with: databricks apps deploy energy-copilot --source-code-path /app
-# ============================================================
+# Databricks Apps deployment configuration for AUS Energy Copilot
+# Deploy with: databricks apps deploy energy-copilot --source-code-path /Workspace/Shared/energy_copilot/app
 
 command:
   - uvicorn
   - main:app
   - --host
-  - 0.0.0.0
+  - "0.0.0.0"
   - --port
   - "8000"
+  - --workers
+  - "2"
 
-# Environment variables are injected by Databricks Apps from the
-# secret scope configured at deploy time.
 env:
   - name: DATABRICKS_HOST
     valueFrom:
-      secretKeyRef:
-        scope: energy-copilot-secrets
-        key: databricks-host
+      fieldRef:
+        fieldPath: metadata.databricks.host
   - name: DATABRICKS_TOKEN
     valueFrom:
-      secretKeyRef:
-        scope: energy-copilot-secrets
-        key: databricks-token
-  - name: DATABRICKS_WAREHOUSE_ID
-    valueFrom:
-      secretKeyRef:
-        scope: energy-copilot-secrets
-        key: warehouse-id
-  - name: DATABRICKS_CATALOG
-    value: energy_copilot
+      fieldRef:
+        fieldPath: metadata.databricks.token
   - name: ANTHROPIC_API_KEY
     valueFrom:
-      secretKeyRef:
-        scope: energy-copilot-secrets
-        key: anthropic-api-key
+      secretRef:
+        scope: energy_copilot
+        key: anthropic_api_key
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom:
+      secretRef:
+        scope: energy_copilot
+        key: sql_warehouse_id
   - name: LAKEBASE_HOST
     valueFrom:
-      secretKeyRef:
-        scope: energy-copilot-secrets
-        key: lakebase-host
+      secretRef:
+        scope: energy_copilot
+        key: lakebase_host
+  - name: LAKEBASE_DATABASE
+    value: energy_copilot
+  - name: LAKEBASE_USER
+    value: energy_copilot_app
   - name: LAKEBASE_PASSWORD
     valueFrom:
-      secretKeyRef:
-        scope: energy-copilot-secrets
-        key: lakebase-password
+      secretRef:
+        scope: energy_copilot
+        key: lakebase_password
+  - name: DATABRICKS_CATALOG
+    value: energy_copilot
+  - name: LOG_LEVEL
+    value: INFO
+  - name: PYTHONPATH
+    value: /app

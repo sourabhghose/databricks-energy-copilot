@@ -1,0 +1,44 @@
+# Local development: backend API + frontend dev server
+# Requires .env.local with Databricks creds (see app/backend/.env.example)
+#
+# Usage:
+#   cp app/backend/.env.example .env.local   # then fill in real values
+#   docker-compose up --build
+#
+# The backend image is built from the repo root so that agent/ and models/
+# directories can be copied into the container (see app/backend/Dockerfile).
+version: '3.9'
+services:
+  backend:
+    build:
+      context: ./
+      dockerfile: app/backend/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.local
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./agent:/app/agent
+      - ./models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./app/frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    volumes:
+      - ./app/frontend/src:/app/src
+      - ./app/frontend/public:/app/public
+    depends_on:
+      backend:
+        condition: service_healthy
