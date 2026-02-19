@@ -19,6 +19,8 @@ import {
   Database,
   Clock,
   Radio,
+  Building2,
+  Wrench,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -44,6 +46,9 @@ import ScenarioAnalysis from './pages/ScenarioAnalysis'
 import LoadDuration from './pages/LoadDuration'
 import HistoricalTrends from './pages/HistoricalTrends'
 import FrequencyAnalytics from './pages/FrequencyAnalytics'
+import EnergyFutures from './pages/EnergyFutures'
+import ParticipantRegistry from './pages/ParticipantRegistry'
+import OutageSchedule from './pages/OutageSchedule'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -70,6 +75,9 @@ const NAV_ITEMS = [
   { to: '/load-duration',  label: 'Load Statistics',  Icon: BarChart2      },
   { to: '/trends',         label: 'Historical Trends', Icon: Clock          },
   { to: '/frequency',      label: 'Frequency',         Icon: Radio          },
+  { to: '/futures',        label: 'Energy Futures',    Icon: TrendingUp     },
+  { to: '/registry',       label: 'Participants',      Icon: Building2      },
+  { to: '/outages',        label: 'Outage Schedule',   Icon: Wrench         },
 ]
 
 function Sidebar() {
@@ -170,6 +178,9 @@ export default function App() {
               <Route path="/load-duration" element={<LoadDuration />}      />
               <Route path="/trends"       element={<HistoricalTrends />}  />
               <Route path="/frequency"    element={<FrequencyAnalytics />} />
+              <Route path="/futures"      element={<EnergyFutures />}      />
+              <Route path="/registry"     element={<ParticipantRegistry />} />
+              <Route path="/outages"      element={<OutageSchedule />}     />
             </Routes>
           </main>
         </div>

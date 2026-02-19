@@ -115,6 +115,7 @@ _TTL_GENERATION      = 30
 _TTL_INTERCONNECTORS = 30
 _TTL_FORECASTS       = 60
 _TTL_MARKET_SUMMARY  = 3600  # summary only regenerates once per day
+_TTL_REGISTRY        = 3600  # participant registry changes infrequently
 RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))  # per window
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
@@ -6952,3 +6953,1063 @@ def get_frequency_history(
     result = _make_frequency_series(region=region, num_points=minutes, interval_seconds=60)
     _cache_set(cache_key, result, _TTL_FREQUENCY_HISTORY)
     return result
+
+
+# ===========================================================================
+# Sprint 18a — ASX Energy Futures & Hedge Market
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Futures
+# ---------------------------------------------------------------------------
+
+class FuturesContract(BaseModel):
+    contract_code: str          # e.g. "NSW CAL 2025", "VIC Q4 2025"
+    region: str
+    contract_type: str          # "CAL" (calendar year) or "Q1"/"Q2"/"Q3"/"Q4" (quarterly)
+    year: int
+    quarter: Optional[int] = None  # None for CAL, 1-4 for quarterly
+    settlement_price: float     # $/MWh (base load)
+    peak_price: Optional[float] = None   # peak load futures
+    change_1d: float            # daily change $/MWh
+    change_1w: float
+    open_interest: int          # number of outstanding contracts (MWh equivalent)
+    volume_today: int
+    last_trade: str             # ISO timestamp of last trade
+
+
+class ForwardCurvePoint(BaseModel):
+    date: str                   # "2025-Q1", "2025-Q2", "2026-CAL" etc
+    base_price: float
+    peak_price: Optional[float] = None
+    implied_volatility: float   # %
+
+
+class HedgeEffectivenessRecord(BaseModel):
+    hedge_type: str             # "CAL_SWAP", "CAL_CAP", "QUARTERLY_SWAP"
+    region: str
+    contract: str               # contract code hedged
+    notional_mwh: float
+    hedge_price: float
+    spot_realised: float        # average spot price over hedged period
+    pnl_aud: float              # hedge P&L
+    effectiveness_pct: float    # how well the hedge offset spot exposure
+
+
+class FuturesDashboard(BaseModel):
+    timestamp: str
+    region: str
+    contracts: List[FuturesContract]
+    forward_curve: List[ForwardCurvePoint]
+    hedge_effectiveness: List[HedgeEffectivenessRecord]
+    market_summary: Dict[str, float]  # "cal_2025": price, "q4_2025": price, etc.
+
+
+# ---------------------------------------------------------------------------
+# Sprint 18c — Market Participant Registry & Credit Analytics models
+# ---------------------------------------------------------------------------
+
+class MarketParticipant(BaseModel):
+    participant_id: str        # e.g. "AGLQLD", "ORIGIN", "ERM_POWER"
+    company_name: str
+    participant_type: str      # "GENERATOR", "RETAILER", "TRADER", "NETWORK", "MARKET_CUSTOMER"
+    regions: List[str]
+    registration_date: str
+    credit_limit_aud: float    # default credit limit with AEMO
+    credit_used_pct: float     # % of credit limit currently used
+    assets_count: int          # number of registered units/NMIs
+    total_capacity_mw: float   # for generators
+    market_share_pct: float    # generation market share
+    compliance_status: str     # "COMPLIANT", "NOTICE", "SUSPENDED"
+    last_settlement_aud: float # last trading period settlement amount
+
+
+class ParticipantAsset(BaseModel):
+    duid: str
+    participant_id: str
+    asset_name: str
+    asset_type: str            # "SCHEDULED_GENERATOR", "SEMI_SCHEDULED", "LOAD", "NETWORK"
+    region: str
+    registered_capacity_mw: float
+    fuel_type: str
+    commissioning_date: str
+    current_output_mw: float
+    status: str                # "COMMISSIONED", "DECOMMISSIONED", "MOTHBALLED"
+
+
+class ParticipantRegistry(BaseModel):
+    timestamp: str
+    total_participants: int
+    total_registered_capacity_mw: float
+    market_concentration_hhi: float    # Herfindahl-Hirschman Index (higher = more concentrated)
+    largest_participant: str
+    participants: List[MarketParticipant]
+
+
+# ---------------------------------------------------------------------------
+# Cache TTLs — Futures
+# ---------------------------------------------------------------------------
+
+_TTL_FUTURES_DASHBOARD = 60   # 60-second cache for futures data
+_TTL_FUTURES_CONTRACTS = 60   # 60-second cache for contract list
+
+
+# ---------------------------------------------------------------------------
+# Helpers — ASX Energy futures mock data generation
+# ---------------------------------------------------------------------------
+
+# Regional base prices for CAL 2025 ($/MWh)
+_FUTURES_BASE_PRICES: Dict[str, float] = {
+    "NSW1": 85.0,
+    "QLD1": 80.0,
+    "VIC1": 90.0,
+    "SA1":  110.0,
+    "TAS1": 72.0,
+}
+
+# Forward discount per year (renewables growth drives prices lower over time)
+_FUTURES_ANNUAL_DISCOUNT: Dict[str, float] = {
+    "NSW1": 6.0,
+    "QLD1": 5.5,
+    "VIC1": 7.0,
+    "SA1":  8.0,
+    "TAS1": 4.0,
+}
+
+
+def _make_futures_contracts(region: str) -> List[FuturesContract]:
+    """Generate realistic ASX Energy futures contracts for CAL and quarterly strips."""
+    import random
+    rng = random.Random(42 + hash(region) % 1000)
+
+    base_cal = _FUTURES_BASE_PRICES.get(region, 85.0)
+    discount = _FUTURES_ANNUAL_DISCOUNT.get(region, 6.0)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    contracts: List[FuturesContract] = []
+
+    # ---- CAL contracts: 2025, 2026, 2027, 2028 ----------------------------
+    for year in range(2025, 2029):
+        years_out = year - 2025
+        cal_price = base_cal - discount * years_out + rng.uniform(-1.5, 1.5)
+        peak_adj = rng.uniform(15.0, 25.0)  # peak premium over base
+        change_1d = rng.uniform(-2.5, 2.5)
+        change_1w = rng.uniform(-5.0, 5.0)
+        # Open interest decreases for far-dated contracts
+        oi_base = 180_000 - years_out * 35_000
+        oi = int(oi_base + rng.randint(-20_000, 20_000))
+        vol = int(rng.randint(500, 4_000))
+        contracts.append(FuturesContract(
+            contract_code=f"{region[:3]} CAL {year}",
+            region=region,
+            contract_type="CAL",
+            year=year,
+            quarter=None,
+            settlement_price=round(cal_price, 2),
+            peak_price=round(cal_price + peak_adj, 2),
+            change_1d=round(change_1d, 2),
+            change_1w=round(change_1w, 2),
+            open_interest=max(oi, 5_000),
+            volume_today=vol,
+            last_trade=now_iso,
+        ))
+
+    # ---- Quarterly contracts: Q1-Q4 for 2025 and 2026 --------------------
+    # Seasonal adjustments: NSW1/QLD1 peak in summer (Q1/Q4), VIC1/SA1 peak winter (Q3)
+    summer_regions = {"NSW1", "QLD1"}
+    for year in range(2025, 2027):
+        years_out = year - 2025
+        cal_price = base_cal - discount * years_out
+
+        for q in range(1, 5):
+            if region in summer_regions:
+                # Summer (Q1=Jan-Mar, Q4=Oct-Dec) higher for NSW/QLD
+                seasonal = {1: 8.0, 2: -4.0, 3: -6.0, 4: 10.0}[q]
+            else:
+                # Winter (Q3=Jul-Sep) higher for VIC/SA/TAS
+                seasonal = {1: -3.0, 2: 2.0, 3: 12.0, 4: 3.0}[q]
+
+            q_price = cal_price + seasonal + rng.uniform(-1.0, 1.0)
+            peak_adj = rng.uniform(18.0, 30.0)
+            change_1d = rng.uniform(-3.0, 3.0)
+            change_1w = rng.uniform(-6.0, 6.0)
+            oi_base = 80_000 - years_out * 15_000 - (q - 1) * 5_000
+            oi = int(oi_base + rng.randint(-10_000, 10_000))
+            vol = int(rng.randint(200, 2_000))
+            contracts.append(FuturesContract(
+                contract_code=f"{region[:3]} Q{q} {year}",
+                region=region,
+                contract_type=f"Q{q}",
+                year=year,
+                quarter=q,
+                settlement_price=round(q_price, 2),
+                peak_price=round(q_price + peak_adj, 2),
+                change_1d=round(change_1d, 2),
+                change_1w=round(change_1w, 2),
+                open_interest=max(oi, 2_000),
+                volume_today=vol,
+                last_trade=now_iso,
+            ))
+
+    return contracts
+
+
+def _make_forward_curve(region: str) -> List[ForwardCurvePoint]:
+    """Generate a quarterly forward curve from Q1 2025 to Q4 2028."""
+    import random
+    rng = random.Random(99 + hash(region) % 1000)
+
+    base_cal = _FUTURES_BASE_PRICES.get(region, 85.0)
+    discount = _FUTURES_ANNUAL_DISCOUNT.get(region, 6.0)
+    summer_regions = {"NSW1", "QLD1"}
+
+    points: List[ForwardCurvePoint] = []
+    for year in range(2025, 2029):
+        years_out = year - 2025
+        annual_base = base_cal - discount * years_out
+
+        for q in range(1, 5):
+            if region in summer_regions:
+                seasonal = {1: 8.0, 2: -4.0, 3: -6.0, 4: 10.0}[q]
+            else:
+                seasonal = {1: -3.0, 2: 2.0, 3: 12.0, 4: 3.0}[q]
+
+            base_price = annual_base + seasonal + rng.uniform(-0.5, 0.5)
+            peak_price = base_price + rng.uniform(16.0, 26.0)
+            # Near-term IV lower (~15-20%), far-term higher (~20-30%)
+            iv = 15.0 + years_out * 3.5 + rng.uniform(-1.0, 2.0)
+
+            points.append(ForwardCurvePoint(
+                date=f"{year}-Q{q}",
+                base_price=round(base_price, 2),
+                peak_price=round(peak_price, 2),
+                implied_volatility=round(iv, 1),
+            ))
+
+    return points
+
+
+def _make_hedge_effectiveness(region: str) -> List[HedgeEffectivenessRecord]:
+    """Generate sample hedge effectiveness records for 3 hedge types."""
+    import random
+    rng = random.Random(77 + hash(region) % 1000)
+
+    base = _FUTURES_BASE_PRICES.get(region, 85.0)
+    records = []
+
+    hedge_defs = [
+        ("CAL_SWAP",      region, f"{region[:3]} CAL 2025", 87_600.0,  base + rng.uniform(-2, 2)),
+        ("CAL_CAP",       region, f"{region[:3]} CAL 2025", 43_800.0,  base + rng.uniform(5, 15)),
+        ("QUARTERLY_SWAP", region, f"{region[:3]} Q3 2025", 21_900.0,  base + rng.uniform(-5, 5) + 8),
+    ]
+
+    for hedge_type, rgn, contract, notional, hedge_price in hedge_defs:
+        spot_realised = hedge_price + rng.uniform(-12.0, 12.0)
+        pnl = (hedge_price - spot_realised) * notional
+        # Effectiveness: how much of spot exposure was offset (max 100%)
+        eff = max(0.0, min(100.0, 80.0 + rng.uniform(-15.0, 15.0)))
+        records.append(HedgeEffectivenessRecord(
+            hedge_type=hedge_type,
+            region=rgn,
+            contract=contract,
+            notional_mwh=notional,
+            hedge_price=round(hedge_price, 2),
+            spot_realised=round(spot_realised, 2),
+            pnl_aud=round(pnl, 0),
+            effectiveness_pct=round(eff, 1),
+        ))
+
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Futures
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/futures/dashboard",
+    response_model=FuturesDashboard,
+    summary="ASX Energy Futures Dashboard",
+    tags=["Futures"],
+    response_description="Full futures dashboard with CAL+quarterly contracts, forward curve, and hedge analytics",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_dashboard(
+    region: str = Query("NSW1", description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+) -> FuturesDashboard:
+    """
+    Return the ASX Energy futures dashboard for a NEM region.
+
+    Includes:
+    - CAL (calendar year) and quarterly (Q1-Q4) strip contracts for 2025-2028
+    - Forward curve from Q1 2025 to Q4 2028 with implied volatility
+    - Hedge effectiveness analytics for CAL swap, CAL cap, and quarterly swap
+    - Market summary with near-term contract prices
+
+    Cached for 60 seconds.
+    """
+    cache_key = f"futures_dashboard:{region}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    contracts = _make_futures_contracts(region)
+    forward_curve = _make_forward_curve(region)
+    hedge_effectiveness = _make_hedge_effectiveness(region)
+
+    # Build market_summary from selected near-term contracts
+    market_summary: Dict[str, float] = {}
+    for c in contracts:
+        if c.contract_type == "CAL" and c.year == 2025:
+            market_summary["cal_2025"] = c.settlement_price
+        elif c.contract_type == "CAL" and c.year == 2026:
+            market_summary["cal_2026"] = c.settlement_price
+        elif c.contract_type == "Q4" and c.year == 2025:
+            market_summary["q4_2025"] = c.settlement_price
+        elif c.contract_type == "Q1" and c.year == 2026:
+            market_summary["q1_2026"] = c.settlement_price
+
+    result = FuturesDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        region=region,
+        contracts=contracts,
+        forward_curve=forward_curve,
+        hedge_effectiveness=hedge_effectiveness,
+        market_summary=market_summary,
+    )
+
+    _cache_set(cache_key, result, _TTL_FUTURES_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/futures/contracts",
+    response_model=List[FuturesContract],
+    summary="ASX Energy Futures Contracts",
+    tags=["Futures"],
+    response_description="Filtered list of ASX Energy futures contracts",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_futures_contracts(
+    region: str = Query("NSW1", description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    contract_type: Optional[str] = Query(None, description="Filter by contract type: CAL, Q1, Q2, Q3, Q4"),
+) -> List[FuturesContract]:
+    """
+    Return a filtered list of ASX Energy futures contracts for a NEM region.
+
+    Optionally filter by contract_type (CAL or Qn).
+    Cached for 60 seconds (cache key includes region and contract_type).
+    """
+    cache_key = f"futures_contracts:{region}:{contract_type}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    contracts = _make_futures_contracts(region)
+    if contract_type is not None:
+        contracts = [c for c in contracts if c.contract_type == contract_type]
+
+    _cache_set(cache_key, contracts, _TTL_FUTURES_CONTRACTS)
+    return contracts
+
+
+# ---------------------------------------------------------------------------
+# Sprint 18c — Market Participant Registry helpers
+# ---------------------------------------------------------------------------
+
+def _make_registry_participants() -> List[MarketParticipant]:
+    """Return mock NEM market participants with realistic data."""
+    return [
+        MarketParticipant(
+            participant_id="AGLQLD",
+            company_name="AGL Energy",
+            participant_type="GENERATOR",
+            regions=["NSW1", "QLD1", "VIC1", "SA1"],
+            registration_date="1998-10-01",
+            credit_limit_aud=250_000_000.0,
+            credit_used_pct=61.2,
+            assets_count=18,
+            total_capacity_mw=4500.0,
+            market_share_pct=22.0,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=1_843_200.0,
+        ),
+        MarketParticipant(
+            participant_id="ORIGIN",
+            company_name="Origin Energy",
+            participant_type="GENERATOR",
+            regions=["NSW1", "QLD1", "VIC1", "SA1"],
+            registration_date="1999-03-15",
+            credit_limit_aud=200_000_000.0,
+            credit_used_pct=54.8,
+            assets_count=14,
+            total_capacity_mw=3500.0,
+            market_share_pct=18.0,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=1_425_600.0,
+        ),
+        MarketParticipant(
+            participant_id="SNOWYH",
+            company_name="Snowy Hydro",
+            participant_type="GENERATOR",
+            regions=["NSW1", "VIC1"],
+            registration_date="2002-06-01",
+            credit_limit_aud=180_000_000.0,
+            credit_used_pct=42.3,
+            assets_count=9,
+            total_capacity_mw=4100.0,
+            market_share_pct=16.5,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=1_689_600.0,
+        ),
+        MarketParticipant(
+            participant_id="CSENERGYQ",
+            company_name="CS Energy (QLD)",
+            participant_type="GENERATOR",
+            regions=["QLD1"],
+            registration_date="2001-01-01",
+            credit_limit_aud=160_000_000.0,
+            credit_used_pct=49.7,
+            assets_count=7,
+            total_capacity_mw=4000.0,
+            market_share_pct=12.0,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=982_400.0,
+        ),
+        MarketParticipant(
+            participant_id="ENGYAUS",
+            company_name="Energy Australia",
+            participant_type="GENERATOR",
+            regions=["NSW1", "VIC1", "SA1"],
+            registration_date="2012-03-01",
+            credit_limit_aud=150_000_000.0,
+            credit_used_pct=67.4,
+            assets_count=12,
+            total_capacity_mw=3200.0,
+            market_share_pct=11.0,
+            compliance_status="NOTICE",
+            last_settlement_aud=876_800.0,
+        ),
+        MarketParticipant(
+            participant_id="ERM_POWER",
+            company_name="ERM Power",
+            participant_type="RETAILER",
+            regions=["NSW1", "QLD1", "VIC1", "SA1"],
+            registration_date="2007-08-20",
+            credit_limit_aud=80_000_000.0,
+            credit_used_pct=38.1,
+            assets_count=5,
+            total_capacity_mw=800.0,
+            market_share_pct=4.5,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=324_000.0,
+        ),
+        MarketParticipant(
+            participant_id="TILTREN",
+            company_name="Tilt Renewables",
+            participant_type="GENERATOR",
+            regions=["VIC1", "SA1"],
+            registration_date="2017-10-01",
+            credit_limit_aud=50_000_000.0,
+            credit_used_pct=29.6,
+            assets_count=4,
+            total_capacity_mw=820.0,
+            market_share_pct=3.5,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=215_600.0,
+        ),
+        MarketParticipant(
+            participant_id="NEOEN",
+            company_name="Neoen Australia",
+            participant_type="GENERATOR",
+            regions=["SA1", "VIC1", "NSW1"],
+            registration_date="2012-09-01",
+            credit_limit_aud=60_000_000.0,
+            credit_used_pct=44.2,
+            assets_count=6,
+            total_capacity_mw=950.0,
+            market_share_pct=3.8,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=312_000.0,
+        ),
+        MarketParticipant(
+            participant_id="ALINTA",
+            company_name="Alinta Energy",
+            participant_type="GENERATOR",
+            regions=["SA1", "VIC1"],
+            registration_date="2000-11-15",
+            credit_limit_aud=70_000_000.0,
+            credit_used_pct=55.0,
+            assets_count=5,
+            total_capacity_mw=1200.0,
+            market_share_pct=3.2,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=264_000.0,
+        ),
+        MarketParticipant(
+            participant_id="GLENCORE",
+            company_name="Glencore Energy",
+            participant_type="GENERATOR",
+            regions=["NSW1"],
+            registration_date="2005-04-01",
+            credit_limit_aud=90_000_000.0,
+            credit_used_pct=72.8,
+            assets_count=4,
+            total_capacity_mw=1200.0,
+            market_share_pct=2.8,
+            compliance_status="NOTICE",
+            last_settlement_aud=229_600.0,
+        ),
+        MarketParticipant(
+            participant_id="IBERDROLA",
+            company_name="Iberdrola Australia",
+            participant_type="GENERATOR",
+            regions=["VIC1"],
+            registration_date="2009-06-01",
+            credit_limit_aud=40_000_000.0,
+            credit_used_pct=23.4,
+            assets_count=3,
+            total_capacity_mw=500.0,
+            market_share_pct=1.8,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=147_200.0,
+        ),
+        MarketParticipant(
+            participant_id="MERIDIAN",
+            company_name="Meridian Energy Australia",
+            participant_type="RETAILER",
+            regions=["TAS1", "VIC1"],
+            registration_date="2015-01-01",
+            credit_limit_aud=30_000_000.0,
+            credit_used_pct=18.7,
+            assets_count=2,
+            total_capacity_mw=200.0,
+            market_share_pct=0.9,
+            compliance_status="COMPLIANT",
+            last_settlement_aud=73_600.0,
+        ),
+    ]
+
+
+def _make_participant_assets(
+    participant_id: Optional[str],
+    region: Optional[str],
+    fuel_type: Optional[str],
+) -> List[ParticipantAsset]:
+    """Return mock participant assets with optional filters."""
+    all_assets: List[ParticipantAsset] = [
+        # AGL Energy
+        ParticipantAsset(duid="AGLHAL", participant_id="AGLQLD", asset_name="Hallett Power Station", asset_type="SCHEDULED_GENERATOR", region="SA1", registered_capacity_mw=228.0, fuel_type="Gas", commissioning_date="2008-11-01", current_output_mw=185.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="AGLSOM", participant_id="AGLQLD", asset_name="Somerton Power Station", asset_type="SCHEDULED_GENERATOR", region="VIC1", registered_capacity_mw=160.0, fuel_type="Gas", commissioning_date="2007-01-01", current_output_mw=0.0, status="MOTHBALLED"),
+        ParticipantAsset(duid="BAYSW", participant_id="AGLQLD", asset_name="Bayswater Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=2640.0, fuel_type="Coal", commissioning_date="1985-01-01", current_output_mw=1980.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="LIDDELL", participant_id="AGLQLD", asset_name="Liddell Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=0.0, fuel_type="Coal", commissioning_date="1971-01-01", current_output_mw=0.0, status="DECOMMISSIONED"),
+        # Origin Energy
+        ParticipantAsset(duid="ERARING", participant_id="ORIGIN", asset_name="Eraring Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=2880.0, fuel_type="Coal", commissioning_date="1982-01-01", current_output_mw=2160.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="ORIGQLD", participant_id="ORIGIN", asset_name="Darling Downs Power Station", asset_type="SCHEDULED_GENERATOR", region="QLD1", registered_capacity_mw=630.0, fuel_type="Gas", commissioning_date="2010-01-01", current_output_mw=420.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="MORTLAKE", participant_id="ORIGIN", asset_name="Mortlake Power Station", asset_type="SCHEDULED_GENERATOR", region="VIC1", registered_capacity_mw=566.0, fuel_type="Gas", commissioning_date="2012-01-01", current_output_mw=340.0, status="COMMISSIONED"),
+        # Snowy Hydro
+        ParticipantAsset(duid="SNOWYH1", participant_id="SNOWYH", asset_name="Tumut 3 Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=1500.0, fuel_type="Hydro", commissioning_date="1973-01-01", current_output_mw=900.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="SNOWYH2", participant_id="SNOWYH", asset_name="Murray Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=1500.0, fuel_type="Hydro", commissioning_date="1968-01-01", current_output_mw=750.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="SNOWYH3", participant_id="SNOWYH", asset_name="Guthega Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=60.0, fuel_type="Hydro", commissioning_date="1955-01-01", current_output_mw=40.0, status="COMMISSIONED"),
+        # CS Energy
+        ParticipantAsset(duid="CALLIDE", participant_id="CSENERGYQ", asset_name="Callide Power Plant", asset_type="SCHEDULED_GENERATOR", region="QLD1", registered_capacity_mw=1680.0, fuel_type="Coal", commissioning_date="1965-01-01", current_output_mw=1260.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="KOGAN", participant_id="CSENERGYQ", asset_name="Kogan Creek Power Station", asset_type="SCHEDULED_GENERATOR", region="QLD1", registered_capacity_mw=744.0, fuel_type="Coal", commissioning_date="2007-01-01", current_output_mw=600.0, status="COMMISSIONED"),
+        # Energy Australia
+        ParticipantAsset(duid="YALLOURN", participant_id="ENGYAUS", asset_name="Yallourn W Power Station", asset_type="SCHEDULED_GENERATOR", region="VIC1", registered_capacity_mw=0.0, fuel_type="Coal", commissioning_date="1975-01-01", current_output_mw=0.0, status="DECOMMISSIONED"),
+        ParticipantAsset(duid="MT_PIPER", participant_id="ENGYAUS", asset_name="Mt Piper Power Station", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=1400.0, fuel_type="Coal", commissioning_date="1993-01-01", current_output_mw=980.0, status="COMMISSIONED"),
+        # Tilt Renewables
+        ParticipantAsset(duid="SNOWTWN1", participant_id="TILTREN", asset_name="Snowtown Wind Farm Stage 2", asset_type="SEMI_SCHEDULED", region="SA1", registered_capacity_mw=270.0, fuel_type="Wind", commissioning_date="2014-01-01", current_output_mw=175.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="DUNDONNL", participant_id="TILTREN", asset_name="Dundonnell Wind Farm", asset_type="SEMI_SCHEDULED", region="VIC1", registered_capacity_mw=336.0, fuel_type="Wind", commissioning_date="2022-01-01", current_output_mw=280.0, status="COMMISSIONED"),
+        # Neoen
+        ParticipantAsset(duid="HPRG1", participant_id="NEOEN", asset_name="Hornsdale Power Reserve (Big Battery)", asset_type="SCHEDULED_GENERATOR", region="SA1", registered_capacity_mw=150.0, fuel_type="Battery", commissioning_date="2017-12-01", current_output_mw=80.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="HPWF", participant_id="NEOEN", asset_name="Hornsdale Wind Farm", asset_type="SEMI_SCHEDULED", region="SA1", registered_capacity_mw=315.0, fuel_type="Wind", commissioning_date="2016-01-01", current_output_mw=210.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="CAPWIND1", participant_id="NEOEN", asset_name="Capital Wind Farm", asset_type="SEMI_SCHEDULED", region="NSW1", registered_capacity_mw=140.0, fuel_type="Wind", commissioning_date="2009-01-01", current_output_mw=95.0, status="COMMISSIONED"),
+        # Alinta
+        ParticipantAsset(duid="ALINTA_NPS", participant_id="ALINTA", asset_name="Northern Power Station", asset_type="SCHEDULED_GENERATOR", region="SA1", registered_capacity_mw=546.0, fuel_type="Coal", commissioning_date="1985-01-01", current_output_mw=0.0, status="DECOMMISSIONED"),
+        ParticipantAsset(duid="ALINTA_WGP", participant_id="ALINTA", asset_name="Wagerup Gas Peaker", asset_type="SCHEDULED_GENERATOR", region="VIC1", registered_capacity_mw=432.0, fuel_type="Gas", commissioning_date="2011-01-01", current_output_mw=310.0, status="COMMISSIONED"),
+        # Glencore
+        ParticipantAsset(duid="MUDGEE1", participant_id="GLENCORE", asset_name="Liddell (Glencore stake)", asset_type="SCHEDULED_GENERATOR", region="NSW1", registered_capacity_mw=600.0, fuel_type="Coal", commissioning_date="2000-01-01", current_output_mw=420.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="GLENMN1", participant_id="GLENCORE", asset_name="Mangoola Coal Mine Load", asset_type="LOAD", region="NSW1", registered_capacity_mw=85.0, fuel_type="Load", commissioning_date="2012-01-01", current_output_mw=70.0, status="COMMISSIONED"),
+        # Iberdrola
+        ParticipantAsset(duid="CROOKWF2", participant_id="IBERDROLA", asset_name="Crookwell 2 Wind Farm", asset_type="SEMI_SCHEDULED", region="NSW1", registered_capacity_mw=91.0, fuel_type="Wind", commissioning_date="2011-01-01", current_output_mw=55.0, status="COMMISSIONED"),
+        ParticipantAsset(duid="CHALLHWF", participant_id="IBERDROLA", asset_name="Challicum Hills Wind Farm", asset_type="SEMI_SCHEDULED", region="VIC1", registered_capacity_mw=52.5, fuel_type="Wind", commissioning_date="2003-01-01", current_output_mw=35.0, status="COMMISSIONED"),
+    ]
+
+    if participant_id is not None:
+        all_assets = [a for a in all_assets if a.participant_id == participant_id]
+    if region is not None:
+        all_assets = [a for a in all_assets if a.region == region]
+    if fuel_type is not None:
+        all_assets = [a for a in all_assets if a.fuel_type == fuel_type]
+    return all_assets
+
+
+# ---------------------------------------------------------------------------
+# Sprint 18c — Market Participant Registry endpoints
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/registry/participants",
+    response_model=ParticipantRegistry,
+    summary="NEM Market Participant Registry",
+    tags=["Registry"],
+    response_description="Registry of NEM market participants with credit and portfolio data",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_participant_registry() -> ParticipantRegistry:
+    """
+    Return the NEM market participant registry with credit analytics.
+
+    Includes 12+ major Australian energy market participants covering
+    generators, retailers, and traders.  HHI index reflects market
+    concentration (< 1500 = competitive, 1500-2500 = moderate, > 2500 = concentrated).
+
+    Cached for 3600 seconds.
+    """
+    cache_key = "registry:participants"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    participants = _make_registry_participants()
+    total_capacity = sum(p.total_capacity_mw for p in participants)
+    # HHI = sum of squared market shares
+    hhi = sum(p.market_share_pct ** 2 for p in participants)
+    largest = max(participants, key=lambda p: p.market_share_pct)
+
+    result = ParticipantRegistry(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_participants=len(participants),
+        total_registered_capacity_mw=total_capacity,
+        market_concentration_hhi=round(hhi, 1),
+        largest_participant=largest.company_name,
+        participants=participants,
+    )
+    _cache_set(cache_key, result, _TTL_REGISTRY)
+    return result
+
+
+@app.get(
+    "/api/registry/assets",
+    response_model=List[ParticipantAsset],
+    summary="NEM Participant Asset Registry",
+    tags=["Registry"],
+    response_description="Registered generation/load units for NEM participants",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_participant_assets(
+    participant_id: Optional[str] = Query(None, description="Filter by participant ID, e.g. AGLQLD"),
+    region: Optional[str] = Query(None, description="Filter by NEM region code, e.g. NSW1"),
+    fuel_type: Optional[str] = Query(None, description="Filter by fuel type, e.g. Wind, Coal, Gas"),
+) -> List[ParticipantAsset]:
+    """
+    Return registered generation and load units (DUIDs) for NEM participants.
+
+    Optionally filter by participant_id, region, or fuel_type.
+    Cached for 3600 seconds (cache key includes all filter params).
+    """
+    cache_key = f"registry:assets:{participant_id}:{region}:{fuel_type}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    assets = _make_participant_assets(participant_id, region, fuel_type)
+    _cache_set(cache_key, assets, _TTL_REGISTRY)
+    return assets
+
+
+# ===========================================================================
+# Sprint 18b — Outage Schedule & PASA Adequacy Assessment
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Outages & PASA
+# ---------------------------------------------------------------------------
+
+class OutageRecord(BaseModel):
+    outage_id: str
+    duid: str
+    station_name: str
+    region: str
+    fuel_type: str
+    outage_type: str          # "PLANNED", "FORCED", "PARTIAL"
+    start_time: str
+    end_time: Optional[str]   # None if ongoing (forced outage)
+    duration_hours: Optional[float]
+    capacity_lost_mw: float
+    reason: str               # e.g. "Scheduled maintenance", "Boiler tube failure"
+    status: str               # "ACTIVE", "UPCOMING", "RETURNED"
+
+
+class PasaRecord(BaseModel):
+    interval_date: str        # date string
+    region: str
+    available_capacity_mw: float
+    forecast_demand_mw: float
+    reserve_mw: float         # available - demand
+    reserve_status: str       # "SURPLUS", "ADEQUATE", "LOR1", "LOR2", "LOR3"
+    surplus_pct: float        # reserve / demand * 100
+
+
+class PasaDashboard(BaseModel):
+    timestamp: str
+    active_outages: List[OutageRecord]
+    upcoming_outages: List[OutageRecord]     # next 14 days
+    recent_returns: List[OutageRecord]       # returned in last 24h
+    total_capacity_lost_mw: float
+    pasa_outlook: List[PasaRecord]           # next 7 days
+    worst_reserve_day: str
+    worst_reserve_mw: float
+
+
+# ---------------------------------------------------------------------------
+# Cache TTLs — Outages & PASA
+# ---------------------------------------------------------------------------
+
+_TTL_OUTAGE_DASHBOARD = 60   # 60 seconds
+_TTL_OUTAGE_LIST      = 30   # 30 seconds
+
+
+# ---------------------------------------------------------------------------
+# Helpers — build mock outage and PASA data
+# ---------------------------------------------------------------------------
+
+def _make_outage_records() -> Dict[str, List[OutageRecord]]:
+    """Return dict with keys 'active', 'upcoming', 'recent_returns'."""
+    now = datetime.now(timezone.utc)
+
+    active_outages: List[OutageRecord] = [
+        OutageRecord(
+            outage_id="OUT-2026-0219-001",
+            duid="YALLOURN_W3",
+            station_name="Yallourn W",
+            region="VIC1",
+            fuel_type="Brown Coal",
+            outage_type="FORCED",
+            start_time=(now - timedelta(hours=18, minutes=30)).isoformat(),
+            end_time=None,
+            duration_hours=None,
+            capacity_lost_mw=380.0,
+            reason="Boiler tube failure — emergency shutdown",
+            status="ACTIVE",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0219-002",
+            duid="CALLIDE_C4",
+            station_name="Callide C",
+            region="QLD1",
+            fuel_type="Black Coal",
+            outage_type="FORCED",
+            start_time=(now - timedelta(hours=6, minutes=15)).isoformat(),
+            end_time=None,
+            duration_hours=None,
+            capacity_lost_mw=460.0,
+            reason="Transformer fault — unit isolated",
+            status="ACTIVE",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0219-003",
+            duid="ERARING_2",
+            station_name="Eraring",
+            region="NSW1",
+            fuel_type="Black Coal",
+            outage_type="PLANNED",
+            start_time=(now - timedelta(days=2)).isoformat(),
+            end_time=(now + timedelta(days=12)).isoformat(),
+            duration_hours=336.0,
+            capacity_lost_mw=720.0,
+            reason="Scheduled annual maintenance — Unit 2 major overhaul",
+            status="ACTIVE",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0219-004",
+            duid="TORRENS_B2",
+            station_name="Torrens Island B",
+            region="SA1",
+            fuel_type="Gas",
+            outage_type="PARTIAL",
+            start_time=(now - timedelta(hours=4)).isoformat(),
+            end_time=(now + timedelta(hours=20)).isoformat(),
+            duration_hours=24.0,
+            capacity_lost_mw=95.0,
+            reason="Partial derating — gas turbine blade inspection",
+            status="ACTIVE",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0219-005",
+            duid="LOY_YANG_B2",
+            station_name="Loy Yang B",
+            region="VIC1",
+            fuel_type="Brown Coal",
+            outage_type="PARTIAL",
+            start_time=(now - timedelta(hours=30)).isoformat(),
+            end_time=(now + timedelta(hours=18)).isoformat(),
+            duration_hours=48.0,
+            capacity_lost_mw=130.0,
+            reason="Derating — cooling system maintenance",
+            status="ACTIVE",
+        ),
+    ]
+
+    upcoming_outages: List[OutageRecord] = [
+        OutageRecord(
+            outage_id="OUT-2026-0226-001",
+            duid="LOY_YANG_A1",
+            station_name="Loy Yang A",
+            region="VIC1",
+            fuel_type="Brown Coal",
+            outage_type="PLANNED",
+            start_time=(now + timedelta(days=7)).isoformat(),
+            end_time=(now + timedelta(days=21)).isoformat(),
+            duration_hours=336.0,
+            capacity_lost_mw=500.0,
+            reason="Boiler inspection and tube replacement",
+            status="UPCOMING",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0305-001",
+            duid="TORRENS_B1",
+            station_name="Torrens Island B",
+            region="SA1",
+            fuel_type="Gas",
+            outage_type="PLANNED",
+            start_time=(now + timedelta(days=14)).isoformat(),
+            end_time=(now + timedelta(days=21)).isoformat(),
+            duration_hours=168.0,
+            capacity_lost_mw=200.0,
+            reason="Routine maintenance — Unit 1 service interval",
+            status="UPCOMING",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0222-001",
+            duid="BAYSWATER_3",
+            station_name="Bayswater",
+            region="NSW1",
+            fuel_type="Black Coal",
+            outage_type="PLANNED",
+            start_time=(now + timedelta(days=3)).isoformat(),
+            end_time=(now + timedelta(days=10)).isoformat(),
+            duration_hours=168.0,
+            capacity_lost_mw=660.0,
+            reason="Scheduled turbine inspection and generator rewind",
+            status="UPCOMING",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0224-001",
+            duid="TARONG_2",
+            station_name="Tarong",
+            region="QLD1",
+            fuel_type="Black Coal",
+            outage_type="PARTIAL",
+            start_time=(now + timedelta(days=5)).isoformat(),
+            end_time=(now + timedelta(days=8)).isoformat(),
+            duration_hours=72.0,
+            capacity_lost_mw=180.0,
+            reason="Partial derating — feedwater heater bypass",
+            status="UPCOMING",
+        ),
+    ]
+
+    recent_returns: List[OutageRecord] = [
+        OutageRecord(
+            outage_id="OUT-2026-0218-001",
+            duid="HAZELWOOD_3",
+            station_name="Hazelwood",
+            region="VIC1",
+            fuel_type="Brown Coal",
+            outage_type="PLANNED",
+            start_time=(now - timedelta(days=5)).isoformat(),
+            end_time=(now - timedelta(hours=8)).isoformat(),
+            duration_hours=112.0,
+            capacity_lost_mw=200.0,
+            reason="Scheduled maintenance — returned to service",
+            status="RETURNED",
+        ),
+        OutageRecord(
+            outage_id="OUT-2026-0218-002",
+            duid="GLADSTONE_4",
+            station_name="Gladstone",
+            region="QLD1",
+            fuel_type="Black Coal",
+            outage_type="FORCED",
+            start_time=(now - timedelta(hours=36)).isoformat(),
+            end_time=(now - timedelta(hours=2)).isoformat(),
+            duration_hours=34.0,
+            capacity_lost_mw=280.0,
+            reason="Boiler tube leak — repaired and returned",
+            status="RETURNED",
+        ),
+    ]
+
+    return {
+        "active": active_outages,
+        "upcoming": upcoming_outages,
+        "recent_returns": recent_returns,
+    }
+
+
+def _make_pasa_outlook() -> List[PasaRecord]:
+    """Generate a 7-day PASA outlook with realistic NEM reserve margins."""
+    now = datetime.now(timezone.utc)
+    records: List[PasaRecord] = []
+
+    # Daily profiles: available capacity and demand vary by weekday/weekend
+    # NEM-wide totals: ~50GW available capacity; demand 20-30 GW
+    day_configs = [
+        # (demand_mw, available_mw) — day 0 is today
+        (27500.0, 34200.0),   # Today — weekday, moderate
+        (28800.0, 33800.0),   # Tomorrow — weekday, tighter (outages building)
+        (30200.0, 33500.0),   # Day+2 — peak weekday demand, LOR1 territory
+        (24500.0, 34800.0),   # Day+3 — weekend, relaxed
+        (23800.0, 35200.0),   # Day+4 — weekend, comfortable
+        (29600.0, 33600.0),   # Day+5 — Monday, tighter
+        (31200.0, 33400.0),   # Day+6 — Tuesday, very tight — LOR1
+    ]
+
+    def _reserve_status(reserve_mw: float, demand_mw: float) -> str:
+        pct = reserve_mw / demand_mw * 100
+        if pct > 25:
+            return "SURPLUS"
+        elif reserve_mw >= 750:
+            return "ADEQUATE"
+        elif reserve_mw >= 450:
+            return "LOR1"
+        elif reserve_mw >= 0:
+            return "LOR2"
+        else:
+            return "LOR3"
+
+    for day_offset, (demand_mw, available_mw) in enumerate(day_configs):
+        target_date = (now + timedelta(days=day_offset)).date()
+        reserve_mw = round(available_mw - demand_mw, 1)
+        surplus_pct = round(reserve_mw / demand_mw * 100, 2)
+        status = _reserve_status(reserve_mw, demand_mw)
+
+        records.append(PasaRecord(
+            interval_date=target_date.isoformat(),
+            region="NEM",
+            available_capacity_mw=available_mw,
+            forecast_demand_mw=demand_mw,
+            reserve_mw=reserve_mw,
+            reserve_status=status,
+            surplus_pct=surplus_pct,
+        ))
+
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Endpoints — Outage Schedule & PASA
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/api/outages/dashboard",
+    response_model=PasaDashboard,
+    summary="Outage Schedule & PASA Dashboard",
+    tags=["Outages"],
+    response_description=(
+        "Active and upcoming generator outages plus the 7-day PASA adequacy outlook"
+    ),
+    dependencies=[Depends(verify_api_key)],
+)
+def get_outage_dashboard() -> PasaDashboard:
+    """
+    Return the Outage Schedule and PASA (Projected Assessment of System Adequacy) dashboard.
+
+    Includes:
+    - Active forced and planned outages across the NEM
+    - Upcoming outages in the next 14 days
+    - Units that returned to service in the last 24 hours
+    - 7-day PASA outlook with reserve status (SURPLUS/ADEQUATE/LOR1/LOR2/LOR3)
+
+    Reserve status thresholds:
+    - SURPLUS: reserve > 25% of demand
+    - ADEQUATE: reserve >= 750 MW
+    - LOR1: reserve >= 450 MW but < 750 MW
+    - LOR2: reserve >= 0 MW but < 450 MW
+    - LOR3: reserve < 0 MW (potential load shedding)
+
+    Cached for 60 seconds.
+    """
+    cache_key = "outage_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    outage_data = _make_outage_records()
+    pasa_outlook = _make_pasa_outlook()
+
+    active_outages = outage_data["active"]
+    upcoming_outages = outage_data["upcoming"]
+    recent_returns = outage_data["recent_returns"]
+
+    total_capacity_lost_mw = round(
+        sum(o.capacity_lost_mw for o in active_outages), 1
+    )
+
+    # Find worst reserve day in the PASA outlook
+    worst_record = min(pasa_outlook, key=lambda r: r.reserve_mw)
+
+    result = PasaDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        active_outages=active_outages,
+        upcoming_outages=upcoming_outages,
+        recent_returns=recent_returns,
+        total_capacity_lost_mw=total_capacity_lost_mw,
+        pasa_outlook=pasa_outlook,
+        worst_reserve_day=worst_record.interval_date,
+        worst_reserve_mw=worst_record.reserve_mw,
+    )
+
+    _cache_set(cache_key, result, _TTL_OUTAGE_DASHBOARD)
+    return result
+
+
+@app.get(
+    "/api/outages/list",
+    response_model=List[OutageRecord],
+    summary="Outage List (filterable)",
+    tags=["Outages"],
+    response_description="Filtered list of generator outage records",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_outage_list(
+    region: Optional[str] = Query(None, description="NEM region code (NSW1, QLD1, VIC1, SA1, TAS1)"),
+    outage_type: Optional[str] = Query(None, description="Outage type filter: PLANNED, FORCED, PARTIAL"),
+    status: str = Query("ACTIVE", description="Status filter: ACTIVE, UPCOMING, RETURNED"),
+) -> List[OutageRecord]:
+    """
+    Return a filtered list of generator outage records.
+
+    Filters:
+    - **region**: NEM region code (NSW1, QLD1, VIC1, SA1, TAS1). Omit for all regions.
+    - **outage_type**: PLANNED, FORCED, or PARTIAL. Omit for all types.
+    - **status**: ACTIVE (default), UPCOMING, or RETURNED.
+
+    Cached for 30 seconds (cache key includes all filter parameters).
+    """
+    cache_key = f"outage_list:{region}:{outage_type}:{status}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    outage_data = _make_outage_records()
+    all_outages = (
+        outage_data["active"]
+        + outage_data["upcoming"]
+        + outage_data["recent_returns"]
+    )
+
+    # Filter by status
+    filtered = [o for o in all_outages if o.status == status.upper()]
+
+    # Filter by region if provided
+    if region:
+        filtered = [o for o in filtered if o.region == region.upper()]
+
+    # Filter by outage_type if provided
+    if outage_type:
+        filtered = [o for o in filtered if o.outage_type == outage_type.upper()]
+
+    _cache_set(cache_key, filtered, _TTL_OUTAGE_LIST)
+    return filtered

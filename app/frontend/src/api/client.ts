@@ -511,6 +511,93 @@ export interface MlDashboardData {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 18c — Market Participant Registry & Credit Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface MarketParticipant {
+  participant_id: string
+  company_name: string
+  participant_type: string
+  regions: string[]
+  registration_date: string
+  credit_limit_aud: number
+  credit_used_pct: number
+  assets_count: number
+  total_capacity_mw: number
+  market_share_pct: number
+  compliance_status: string
+  last_settlement_aud: number
+}
+
+export interface ParticipantAsset {
+  duid: string
+  participant_id: string
+  asset_name: string
+  asset_type: string
+  region: string
+  registered_capacity_mw: number
+  fuel_type: string
+  commissioning_date: string
+  current_output_mw: number
+  status: string
+}
+
+export interface ParticipantRegistry {
+  timestamp: string
+  total_participants: number
+  total_registered_capacity_mw: number
+  market_concentration_hhi: number
+  largest_participant: string
+  participants: MarketParticipant[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 18a — ASX Energy Futures & Hedge Market interfaces
+// ---------------------------------------------------------------------------
+
+export interface FuturesContract {
+  contract_code: string
+  region: string
+  contract_type: string
+  year: number
+  quarter?: number
+  settlement_price: number
+  peak_price?: number
+  change_1d: number
+  change_1w: number
+  open_interest: number
+  volume_today: number
+  last_trade: string
+}
+
+export interface ForwardCurvePoint {
+  date: string
+  base_price: number
+  peak_price?: number
+  implied_volatility: number
+}
+
+export interface HedgeEffectivenessRecord {
+  hedge_type: string
+  region: string
+  contract: string
+  notional_mwh: number
+  hedge_price: number
+  spot_realised: number
+  pnl_aud: number
+  effectiveness_pct: number
+}
+
+export interface FuturesDashboard {
+  timestamp: string
+  region: string
+  contracts: FuturesContract[]
+  forward_curve: ForwardCurvePoint[]
+  hedge_effectiveness: HedgeEffectivenessRecord[]
+  market_summary: Record<string, number>
+}
+
+// ---------------------------------------------------------------------------
 // Sprint 17c — Historical Trend & Long-Run Analysis interfaces
 // ---------------------------------------------------------------------------
 
@@ -746,6 +833,46 @@ export interface FrequencyDashboard {
   recent_frequency: FrequencyRecord[]
   inertia_by_region: InertiaRecord[]
   recent_events: FrequencyEventRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 18b — Outage Schedule & PASA Adequacy Assessment interfaces
+// ---------------------------------------------------------------------------
+
+export interface OutageRecord {
+  outage_id: string
+  duid: string
+  station_name: string
+  region: string
+  fuel_type: string
+  outage_type: string
+  start_time: string
+  end_time?: string
+  duration_hours?: number
+  capacity_lost_mw: number
+  reason: string
+  status: string
+}
+
+export interface PasaRecord {
+  interval_date: string
+  region: string
+  available_capacity_mw: number
+  forecast_demand_mw: number
+  reserve_mw: number
+  reserve_status: string
+  surplus_pct: number
+}
+
+export interface PasaDashboard {
+  timestamp: string
+  active_outages: OutageRecord[]
+  upcoming_outages: OutageRecord[]
+  recent_returns: OutageRecord[]
+  total_capacity_lost_mw: number
+  pasa_outlook: PasaRecord[]
+  worst_reserve_day: string
+  worst_reserve_mw: number
 }
 
 // ---------------------------------------------------------------------------
@@ -1371,6 +1498,81 @@ export const api = {
   getFrequencyHistory: async (region = 'NSW1', minutes = 60): Promise<FrequencyRecord[]> => {
     const res = await fetch(`${BASE_URL}/api/frequency/history?region=${region}&minutes=${minutes}`, { headers })
     if (!res.ok) throw new Error('Failed to fetch frequency history')
+    return res.json()
+  },
+
+  /**
+   * Get the ASX Energy Futures dashboard for a NEM region.
+   * Includes CAL and quarterly contracts, forward curve, and hedge effectiveness analytics.
+   * @param region  NEM region code (default: NSW1)
+   */
+  getFuturesDashboard: async (region = 'NSW1'): Promise<FuturesDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/futures/dashboard?region=${region}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch futures dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of ASX Energy futures contracts for a NEM region.
+   * @param region        NEM region code (default: NSW1)
+   * @param contractType  Optional filter: "CAL" | "Q1" | "Q2" | "Q3" | "Q4"
+   */
+  getFuturesContracts: async (region = 'NSW1', contractType?: string): Promise<FuturesContract[]> => {
+    const params = new URLSearchParams({ region })
+    if (contractType) params.set('contract_type', contractType)
+    const res = await fetch(`${BASE_URL}/api/futures/contracts?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch futures contracts')
+    return res.json()
+  },
+
+  /**
+   * Get the NEM market participant registry with credit analytics and HHI concentration metrics.
+   */
+  getParticipantRegistry: async (): Promise<ParticipantRegistry> => {
+    const res = await fetch(`${BASE_URL}/api/registry/participants`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch participant registry')
+    return res.json()
+  },
+
+  /**
+   * Get registered generation and load assets for NEM participants.
+   * @param participantId  Optional participant ID filter, e.g. "AGLQLD"
+   * @param region         Optional NEM region filter, e.g. "NSW1"
+   * @param fuelType       Optional fuel type filter, e.g. "Wind", "Coal"
+   */
+  getParticipantAssets: async (participantId?: string, region?: string, fuelType?: string): Promise<ParticipantAsset[]> => {
+    const params = new URLSearchParams()
+    if (participantId) params.set('participant_id', participantId)
+    if (region) params.set('region', region)
+    if (fuelType) params.set('fuel_type', fuelType)
+    const res = await fetch(`${BASE_URL}/api/registry/assets?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch participant assets')
+    return res.json()
+  },
+
+  /**
+   * Get the Outage Schedule and PASA adequacy dashboard.
+   * Returns active/upcoming outages and 7-day PASA reserve outlook.
+   * Cache TTL: 60 seconds on the backend.
+   */
+  getOutageDashboard: async (): Promise<PasaDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/outages/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch outage dashboard')
+    return res.json()
+  },
+
+  /**
+   * Get a filtered list of generator outage records.
+   * @param region      Optional NEM region code filter, e.g. "NSW1"
+   * @param outageType  Optional outage type filter: "PLANNED" | "FORCED" | "PARTIAL"
+   * @param status      Status filter: "ACTIVE" (default) | "UPCOMING" | "RETURNED"
+   */
+  getOutageList: async (region?: string, outageType?: string, status = 'ACTIVE'): Promise<OutageRecord[]> => {
+    const params = new URLSearchParams({ status })
+    if (region) params.set('region', region)
+    if (outageType) params.set('outage_type', outageType)
+    const res = await fetch(`${BASE_URL}/api/outages/list?${params}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch outage list')
     return res.json()
   },
 }

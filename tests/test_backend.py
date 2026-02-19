@@ -17,6 +17,8 @@ from __future__ import annotations
 import json
 import os
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Environment stubs — must be set BEFORE importing app.backend.main so that
 # DatabricksSQLClient and LakebaseClient initialise in mock_mode=True.
@@ -1309,3 +1311,114 @@ class TestFrequencyEndpoints:
             # Adequate flag should match whether total exceeds minimum
             if region["inertia_adequate"]:
                 assert region["total_inertia_mws"] >= region["min_inertia_requirement_mws"]
+
+
+class TestRegistryEndpoints:
+    def test_registry_structure(self, client):
+        r = client.get("/api/registry/participants")
+        assert r.status_code == 200
+        data = r.json()
+        assert "participants" in data
+        assert len(data["participants"]) >= 10
+        assert data["market_concentration_hhi"] > 0
+        # Market shares should sum to ~100%
+        total_share = sum(p["market_share_pct"] for p in data["participants"])
+        assert 95 <= total_share <= 105  # allow small rounding
+
+    def test_compliance_status_valid(self, client):
+        r = client.get("/api/registry/participants")
+        for p in r.json()["participants"]:
+            assert p["compliance_status"] in ("COMPLIANT", "NOTICE", "SUSPENDED")
+            assert 0 <= p["credit_used_pct"] <= 100
+
+    def test_assets_filter(self, client):
+        r = client.get("/api/registry/assets?fuel_type=Wind")
+        assert r.status_code == 200
+        for asset in r.json():
+            assert asset["fuel_type"] == "Wind"
+
+
+# ===========================================================================
+# TestFuturesEndpoints
+# ===========================================================================
+
+class TestFuturesEndpoints:
+    """Tests for /api/futures/* endpoints."""
+
+    def test_futures_dashboard_structure(self, client=client):
+        """GET /api/futures/dashboard must return 200 with contracts and forward curve."""
+        r = client.get("/api/futures/dashboard?region=NSW1")
+        assert r.status_code == 200
+        data = r.json()
+        assert "contracts" in data
+        assert "forward_curve" in data
+        assert len(data["contracts"]) > 0
+        assert len(data["forward_curve"]) > 0
+
+    def test_forward_curve_ordering(self, client=client):
+        """Forward curve for VIC1 must have at least 8 quarterly/annual points."""
+        r = client.get("/api/futures/dashboard?region=VIC1")
+        assert r.status_code == 200
+        data = r.json()
+        # Forward curve should cover multiple periods
+        assert len(data["forward_curve"]) >= 8  # at least 8 quarterly/annual points
+
+    def test_contracts_change_format(self, client=client):
+        """GET /api/futures/contracts must return valid contract fields and contract_type values."""
+        r = client.get("/api/futures/contracts?region=QLD1")
+        assert r.status_code == 200
+        contracts = r.json()
+        for c in contracts:
+            assert "settlement_price" in c
+            assert "change_1d" in c
+            assert c["contract_type"] in ("CAL", "Q1", "Q2", "Q3", "Q4")
+
+
+# ===========================================================================
+# TestOutageEndpoints  (Sprint 18b)
+# ===========================================================================
+
+class TestOutageEndpoints:
+    """Tests for GET /api/outages/dashboard and GET /api/outages/list endpoints."""
+
+    def test_outage_dashboard_structure(self, client=client):
+        """GET /api/outages/dashboard returns 200 with required top-level keys.
+
+        The response must include active_outages, pasa_outlook (exactly 7 records),
+        and a positive total_capacity_lost_mw value. All three active forced/planned
+        outages must be present in the active_outages list.
+        """
+        r = client.get("/api/outages/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "active_outages" in data
+        assert "pasa_outlook" in data
+        assert len(data["pasa_outlook"]) == 7
+        assert data["total_capacity_lost_mw"] > 0
+
+    def test_pasa_status_values(self, client=client):
+        """All pasa_outlook records must have a valid reserve_status and consistent arithmetic.
+
+        reserve_mw must equal available_capacity_mw - forecast_demand_mw within 1 MW.
+        All reserve_status values must be from the allowed PASA status set.
+        """
+        r = client.get("/api/outages/dashboard")
+        data = r.json()
+        valid_statuses = {"SURPLUS", "ADEQUATE", "LOR1", "LOR2", "LOR3"}
+        for rec in data["pasa_outlook"]:
+            assert rec["reserve_status"] in valid_statuses
+            assert rec["reserve_mw"] == pytest.approx(
+                rec["available_capacity_mw"] - rec["forecast_demand_mw"], abs=1
+            )
+
+    def test_outage_list_filter(self, client=client):
+        """GET /api/outages/list?outage_type=FORCED returns only FORCED outages.
+
+        When the outage_type query parameter is set to FORCED, every outage in
+        the response must have outage_type == 'FORCED'. The default status filter
+        is ACTIVE, so only active forced outages are returned.
+        """
+        r = client.get("/api/outages/list?outage_type=FORCED")
+        assert r.status_code == 200
+        for o in r.json():
+            assert o["outage_type"] == "FORCED"
