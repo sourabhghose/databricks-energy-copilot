@@ -1174,6 +1174,166 @@ export interface RezDashboard {
 }
 
 // ---------------------------------------------------------------------------
+// Sprint 21a — Renewable Curtailment & Integration interfaces
+// ---------------------------------------------------------------------------
+
+export interface CurtailmentEvent {
+  event_id: string
+  date: string
+  region: string
+  technology: string
+  curtailed_mwh: number
+  curtailed_pct: number
+  duration_minutes: number
+  cause: string
+  peak_available_mw: number
+}
+
+export interface MinimumOperationalDemandRecord {
+  date: string
+  region: string
+  min_demand_mw: number
+  min_demand_time: string
+  renewable_share_pct: number
+  instantaneous_renewable_mw: number
+  storage_charging_mw: number
+  exports_mw: number
+  record_broken: boolean
+}
+
+export interface RenewableIntegrationLimit {
+  region: string
+  limit_type: string
+  current_limit_mw: number
+  headroom_mw: number
+  mitigation_project: string
+  mitigation_year: number
+  description: string
+}
+
+export interface CurtailmentDashboard {
+  timestamp: string
+  total_curtailment_gwh_ytd: number
+  curtailment_events_ytd: number
+  worst_region: string
+  lowest_mod_record_mw: number
+  lowest_mod_date: string
+  renewable_penetration_record_pct: number
+  renewable_penetration_record_date: string
+  curtailment_events: CurtailmentEvent[]
+  mod_records: MinimumOperationalDemandRecord[]
+  integration_limits: RenewableIntegrationLimit[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 21b — Demand Side Participation interfaces
+// ---------------------------------------------------------------------------
+
+export interface DspParticipant {
+  duid: string
+  participant_name: string
+  industry_sector: string
+  region: string
+  registered_capacity_mw: number
+  response_time_minutes: number
+  dsp_program: string
+  min_activation_duration_hrs: number
+  payment_type: string
+  avg_activations_per_year: number
+  reliability_score_pct: number
+}
+
+export interface DspActivationEvent {
+  event_id: string
+  date: string
+  region: string
+  trigger: string
+  activated_mw: number
+  delivered_mw: number
+  delivery_pct: number
+  duration_minutes: number
+  average_price_mwh: number
+  participants_called: number
+  season: string
+}
+
+export interface LoadCurtailmentRecord {
+  date: string
+  region: string
+  curtailment_type: string
+  total_load_shed_mwh: number
+  customers_affected: number
+  duration_minutes: number
+  trigger_event: string
+}
+
+export interface DspDashboard {
+  timestamp: string
+  total_registered_capacity_mw: number
+  total_participants: number
+  activations_ytd: number
+  total_delivered_mwh_ytd: number
+  avg_delivery_reliability_pct: number
+  top_sector_by_capacity: string
+  participants: DspParticipant[]
+  activations: DspActivationEvent[]
+  curtailment_records: LoadCurtailmentRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 21c — Power System Security & Inertia interfaces
+// ---------------------------------------------------------------------------
+
+export interface PssInertiaRecord {
+  region: string
+  timestamp: string
+  total_inertia_mws: number
+  synchronous_generation_mw: number
+  non_synchronous_pct: number
+  rocof_limit_hz_s: number
+  min_inertia_requirement_mws: number
+  inertia_headroom_mws: number
+  status: string
+}
+
+export interface SynchronousCondenserRecord {
+  unit_id: string
+  site_name: string
+  region: string
+  operator: string
+  rated_mvar: number
+  inertia_contribution_mws: number
+  status: string
+  commissioning_year: number
+  purpose: string
+}
+
+export interface FcasDispatchRecord {
+  service: string
+  region: string
+  requirement_mw: number
+  dispatched_mw: number
+  price_mwh: number
+  enablement_pct: number
+  primary_provider: string
+  timestamp: string
+}
+
+export interface PowerSystemSecurityDashboard {
+  timestamp: string
+  nem_inertia_total_mws: number
+  lowest_inertia_region: string
+  synchronous_condensers_online: number
+  total_syncon_capacity_mvar: number
+  fcas_raise_total_mw: number
+  fcas_lower_total_mw: number
+  system_strength_status: string
+  inertia_records: PssInertiaRecord[]
+  synchronous_condensers: SynchronousCondenserRecord[]
+  fcas_dispatch: FcasDispatchRecord[]
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -2055,6 +2215,50 @@ export const api = {
     const qs = params.toString() ? `?${params.toString()}` : ''
     const res = await fetch(`${BASE_URL}/api/rez/cis_contracts${qs}`, { headers })
     if (!res.ok) throw new Error('Failed to fetch CIS contracts')
+    return res.json()
+  },
+
+  getCurtailmentDashboard: async (): Promise<CurtailmentDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/curtailment/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch curtailment dashboard')
+    return res.json()
+  },
+
+  getCurtailmentEvents: async (region?: string, cause?: string): Promise<CurtailmentEvent[]> => {
+    const params = new URLSearchParams()
+    if (region) params.append('region', region)
+    if (cause) params.append('cause', cause)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/curtailment/events${qs}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch curtailment events')
+    return res.json()
+  },
+
+  getDspDashboard: async (): Promise<DspDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/dsp/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch DSP dashboard')
+    return res.json()
+  },
+
+  getDspParticipants: async (region?: string, sector?: string): Promise<DspParticipant[]> => {
+    const params = new URLSearchParams()
+    if (region) params.append('region', region)
+    if (sector) params.append('sector', sector)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetch(`${BASE_URL}/api/dsp/participants${qs}`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch DSP participants')
+    return res.json()
+  },
+
+  getPssDashboard: async (): Promise<PowerSystemSecurityDashboard> => {
+    const res = await fetch(`${BASE_URL}/api/pss/dashboard`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch power system security dashboard')
+    return res.json()
+  },
+
+  getFcasDispatch: async (): Promise<FcasDispatchRecord[]> => {
+    const res = await fetch(`${BASE_URL}/api/pss/fcas`, { headers })
+    if (!res.ok) throw new Error('Failed to fetch FCAS dispatch')
     return res.json()
   },
 }

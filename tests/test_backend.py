@@ -1721,3 +1721,100 @@ class TestNetworkEndpoints:
         for elem in data["network_elements"]:
             assert 0 <= elem["loading_pct"] <= 150  # can exceed 100% temporarily
             assert abs(elem["loading_pct"] - elem["current_flow_mva"] / elem["thermal_limit_mva"] * 100) < 0.1
+
+
+# ===========================================================================
+# TestPowerSystemSecurityEndpoints
+# ===========================================================================
+
+class TestPowerSystemSecurityEndpoints:
+    """Tests for Sprint 21c Power System Security endpoints."""
+
+    def test_pss_dashboard_returns_200(self, client=client):
+        r = client.get("/api/pss/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "inertia_records" in data
+        assert "fcas_dispatch" in data
+        assert data["nem_inertia_total_mws"] > 0
+
+    def test_inertia_records_all_regions(self, client=client):
+        r = client.get("/api/pss/dashboard")
+        assert r.status_code == 200
+        regions = {rec["region"] for rec in r.json()["inertia_records"]}
+        for region in ("SA1", "VIC1", "NSW1", "QLD1", "TAS1"):
+            assert region in regions
+
+    def test_fcas_dispatch_eight_services(self, client=client):
+        r = client.get("/api/pss/fcas")
+        assert r.status_code == 200
+        services = r.json()
+        assert len(services) == 8
+        service_codes = {s["service"] for s in services}
+        for code in ("R6S", "R60S", "R5M", "R5RE", "L6S", "L60S", "L5M", "L5RE"):
+            assert code in service_codes
+        for s in services:
+            assert 0 < s["enablement_pct"] <= 100
+
+
+# ===========================================================================
+# TestDspEndpoints
+# ===========================================================================
+
+class TestDspEndpoints:
+    """Tests for Sprint 21b Demand Side Participation endpoints."""
+
+    def test_dsp_dashboard_returns_200(self, client=client):
+        r = client.get("/api/dsp/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "participants" in data
+        assert "activations" in data
+        assert data["total_registered_capacity_mw"] > 0
+
+    def test_dsp_participants_list(self, client=client):
+        r = client.get("/api/dsp/participants")
+        assert r.status_code == 200
+        participants = r.json()
+        assert len(participants) >= 5
+        for p in participants:
+            assert p["registered_capacity_mw"] > 0
+            assert 0 < p["reliability_score_pct"] <= 100
+
+    def test_dsp_region_filter(self, client=client):
+        r = client.get("/api/dsp/participants?region=SA1")
+        assert r.status_code == 200
+        for p in r.json():
+            assert p["region"] == "SA1"
+
+
+# ===========================================================================
+# TestCurtailmentEndpoints
+# ===========================================================================
+
+class TestCurtailmentEndpoints:
+    """Tests for Sprint 21a Renewable Curtailment endpoints."""
+
+    def test_curtailment_dashboard_returns_200(self, client=client):
+        r = client.get("/api/curtailment/dashboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert "curtailment_events" in data
+        assert "mod_records" in data
+        assert "integration_limits" in data
+        assert data["curtailment_events_ytd"] > 0
+
+    def test_curtailment_events_list(self, client=client):
+        r = client.get("/api/curtailment/events")
+        assert r.status_code == 200
+        events = r.json()
+        assert len(events) >= 5
+        for e in events:
+            assert 0 < e["curtailed_pct"] <= 100
+            assert e["region"] in ("NSW1", "QLD1", "VIC1", "SA1", "TAS1")
+
+    def test_curtailment_region_filter(self, client=client):
+        r = client.get("/api/curtailment/events?region=SA1")
+        assert r.status_code == 200
+        for e in r.json():
+            assert e["region"] == "SA1"

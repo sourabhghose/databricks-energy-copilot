@@ -391,3 +391,27 @@
 - Added TypeScript interfaces and API methods to client.ts
 - Added /rez route to App.tsx
 - Added TestRezInfrastructureEndpoints tests to test_backend.py
+
+## Sprint 21a — Renewable Curtailment & Integration Analytics (2026-02-19)
+- Added CurtailmentEvent, MinimumOperationalDemandRecord, RenewableIntegrationLimit, CurtailmentDashboard Pydantic models
+- Created /api/curtailment/dashboard and /api/curtailment/events endpoints
+- Created CurtailmentAnalytics.tsx with curtailment events table, MOD records table, integration limits table
+- Added TypeScript interfaces and API methods to client.ts
+- Added /curtailment route to App.tsx
+- Added TestCurtailmentEndpoints tests to test_backend.py
+
+## Sprint 21b — Demand Side Participation & Load Curtailment Analytics (2026-02-19)
+- Added DspParticipant, DspActivationEvent, LoadCurtailmentRecord, DspDashboard Pydantic models
+- Created /api/dsp/dashboard and /api/dsp/participants endpoints
+- Created DemandResponse.tsx with participants table, sector capacity chart, activation events table, curtailment table
+- Added TypeScript interfaces and API methods to client.ts
+- Added /dsp route to App.tsx
+- Added TestDspEndpoints tests to test_backend.py
+
+## Sprint 21c — Power System Security & Inertia Analytics (2026-02-19)
+- Added PssInertiaRecord, SynchronousCondenserRecord, FcasDispatchRecord, PowerSystemSecurityDashboard Pydantic models
+- Created /api/pss/dashboard and /api/pss/fcas endpoints
+- Created SystemSecurity.tsx with inertia table, synchronous condenser table, FCAS dispatch table
+- Added TypeScript interfaces and API methods to client.ts
+- Added /security route to App.tsx
+- Added TestPowerSystemSecurityEndpoints tests to test_backend.py

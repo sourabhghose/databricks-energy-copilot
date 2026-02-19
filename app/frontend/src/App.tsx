@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Zap,
   TrendingUp,
+  TrendingDown,
   MessageSquare,
   Sparkles,
   Bell,
@@ -26,6 +27,7 @@ import {
   Flame,
   Users,
   Network,
+  Shield,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -60,6 +62,9 @@ import GasMarket from './pages/GasMarket'
 import RetailMarket from './pages/RetailMarket'
 import NetworkAnalytics from './pages/NetworkAnalytics'
 import RezInfrastructure from './pages/RezInfrastructure'
+import CurtailmentAnalytics from './pages/CurtailmentAnalytics'
+import DemandResponse from './pages/DemandResponse'
+import SystemSecurity from './pages/SystemSecurity'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -94,6 +99,9 @@ const NAV_ITEMS = [
   { to: '/retail',         label: 'Retail Market',     Icon: Users          },
   { to: '/network',        label: 'Network & MLF',     Icon: Network        },
   { to: '/rez',            label: 'REZ & Infrastructure', Icon: Zap         },
+  { to: '/curtailment',    label: 'Curtailment',       Icon: TrendingDown   },
+  { to: '/dsp',            label: 'Demand Response',   Icon: Users          },
+  { to: '/security',       label: 'System Security',   Icon: Shield         },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -203,6 +211,9 @@ export default function App() {
               <Route path="/retail"       element={<RetailMarket />}       />
               <Route path="/network"      element={<NetworkAnalytics />}   />
               <Route path="/rez"          element={<RezInfrastructure />}  />
+              <Route path="/curtailment"  element={<CurtailmentAnalytics />} />
+              <Route path="/dsp"          element={<DemandResponse />}     />
+              <Route path="/security"     element={<SystemSecurity />}     />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

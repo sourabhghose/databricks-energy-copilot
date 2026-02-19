@@ -10031,3 +10031,616 @@ def get_cis_contracts(
         contracts = [c for c in contracts if c.state.upper() == state.upper()]
     _cache_set(cache_key, contracts, _TTL_CIS_CONTRACTS)
     return contracts
+
+
+# ---------------------------------------------------------------------------
+# Sprint 21a — Renewable Curtailment & Integration Analytics models
+# ---------------------------------------------------------------------------
+
+class CurtailmentEvent(BaseModel):
+    event_id: str
+    date: str                        # YYYY-MM-DD
+    region: str                      # NSW1, QLD1, VIC1, SA1, TAS1
+    technology: str                  # "Wind", "Solar", "Hybrid"
+    curtailed_mwh: float             # MWh curtailed during event
+    curtailed_pct: float             # % of available generation curtailed
+    duration_minutes: int
+    cause: str                       # "System Strength", "Thermal Limit", "Voltage", "Frequency"
+    peak_available_mw: float
+
+class MinimumOperationalDemandRecord(BaseModel):
+    date: str
+    region: str
+    min_demand_mw: float             # actual minimum operational demand hit
+    min_demand_time: str             # e.g. "13:30"
+    renewable_share_pct: float       # % of demand from renewables at that moment
+    instantaneous_renewable_mw: float
+    storage_charging_mw: float       # storage absorbing excess
+    exports_mw: float                # interconnector exports at that time
+    record_broken: bool              # was this a new record?
+
+class RenewableIntegrationLimit(BaseModel):
+    region: str
+    limit_type: str                  # "System Strength", "Frequency Control", "Thermal", "Voltage"
+    current_limit_mw: float          # current binding limit in MW of renewables
+    headroom_mw: float               # additional capacity before limit is hit
+    mitigation_project: str          # project resolving the limit, e.g. "HumeLink", "Synchronous Condensers"
+    mitigation_year: int
+    description: str
+
+class CurtailmentDashboard(BaseModel):
+    timestamp: str
+    total_curtailment_gwh_ytd: float   # GWh curtailed year-to-date
+    curtailment_events_ytd: int
+    worst_region: str                  # region with most curtailment
+    lowest_mod_record_mw: float        # NEM's all-time lowest minimum operational demand
+    lowest_mod_date: str
+    renewable_penetration_record_pct: float  # highest instantaneous renewable %
+    renewable_penetration_record_date: str
+    curtailment_events: list[CurtailmentEvent]
+    mod_records: list[MinimumOperationalDemandRecord]
+    integration_limits: list[RenewableIntegrationLimit]
+
+
+_TTL_CURTAILMENT_DASHBOARD = 300
+_TTL_CURTAILMENT_EVENTS = 120
+
+
+def _make_curtailment_events() -> List[CurtailmentEvent]:
+    """Return mock renewable curtailment events for the last 30 days."""
+    import random
+    rng = random.Random(99)
+    events = [
+        {"event_id": "CE-2025-0842", "date": "2025-10-14", "region": "SA1", "technology": "Wind",
+         "curtailed_mwh": 842.0, "curtailed_pct": 38.2, "duration_minutes": 95,
+         "cause": "System Strength", "peak_available_mw": 1580.0},
+        {"event_id": "CE-2025-0831", "date": "2025-10-13", "region": "VIC1", "technology": "Solar",
+         "curtailed_mwh": 312.0, "curtailed_pct": 18.5, "duration_minutes": 45,
+         "cause": "Thermal Limit", "peak_available_mw": 1890.0},
+        {"event_id": "CE-2025-0819", "date": "2025-10-11", "region": "QLD1", "technology": "Solar",
+         "curtailed_mwh": 1240.0, "curtailed_pct": 42.1, "duration_minutes": 135,
+         "cause": "Voltage", "peak_available_mw": 4200.0},
+        {"event_id": "CE-2025-0808", "date": "2025-10-10", "region": "SA1", "technology": "Wind",
+         "curtailed_mwh": 620.0, "curtailed_pct": 29.8, "duration_minutes": 72,
+         "cause": "Frequency Control", "peak_available_mw": 1460.0},
+        {"event_id": "CE-2025-0795", "date": "2025-10-08", "region": "NSW1", "technology": "Solar",
+         "curtailed_mwh": 480.0, "curtailed_pct": 22.4, "duration_minutes": 60,
+         "cause": "Thermal Limit", "peak_available_mw": 2800.0},
+        {"event_id": "CE-2025-0781", "date": "2025-10-07", "region": "VIC1", "technology": "Wind",
+         "curtailed_mwh": 950.0, "curtailed_pct": 35.6, "duration_minutes": 110,
+         "cause": "System Strength", "peak_available_mw": 2650.0},
+        {"event_id": "CE-2025-0770", "date": "2025-10-06", "region": "SA1", "technology": "Hybrid",
+         "curtailed_mwh": 1580.0, "curtailed_pct": 51.3, "duration_minutes": 180,
+         "cause": "System Strength", "peak_available_mw": 2800.0},
+        {"event_id": "CE-2025-0755", "date": "2025-10-04", "region": "QLD1", "technology": "Wind",
+         "curtailed_mwh": 380.0, "curtailed_pct": 16.8, "duration_minutes": 48,
+         "cause": "Voltage", "peak_available_mw": 1920.0},
+        {"event_id": "CE-2025-0742", "date": "2025-10-02", "region": "NSW1", "technology": "Solar",
+         "curtailed_mwh": 720.0, "curtailed_pct": 28.1, "duration_minutes": 90,
+         "cause": "Thermal Limit", "peak_available_mw": 3100.0},
+        {"event_id": "CE-2025-0731", "date": "2025-10-01", "region": "VIC1", "technology": "Solar",
+         "curtailed_mwh": 460.0, "curtailed_pct": 21.6, "duration_minutes": 65,
+         "cause": "Voltage", "peak_available_mw": 2400.0},
+    ]
+    return [CurtailmentEvent(**e) for e in events]
+
+
+def _make_mod_records() -> List[MinimumOperationalDemandRecord]:
+    """Return minimum operational demand records for NEM regions (spring/summer peaks)."""
+    records = [
+        {"date": "2025-10-13", "region": "SA1", "min_demand_mw": 312.0,
+         "min_demand_time": "13:00", "renewable_share_pct": 92.4,
+         "instantaneous_renewable_mw": 1820.0, "storage_charging_mw": 680.0,
+         "exports_mw": 420.0, "record_broken": True},
+        {"date": "2025-10-12", "region": "VIC1", "min_demand_mw": 2840.0,
+         "min_demand_time": "12:30", "renewable_share_pct": 78.2,
+         "instantaneous_renewable_mw": 5180.0, "storage_charging_mw": 420.0,
+         "exports_mw": 1200.0, "record_broken": False},
+        {"date": "2025-09-28", "region": "QLD1", "min_demand_mw": 2120.0,
+         "min_demand_time": "13:30", "renewable_share_pct": 85.6,
+         "instantaneous_renewable_mw": 6840.0, "storage_charging_mw": 950.0,
+         "exports_mw": 380.0, "record_broken": True},
+        {"date": "2025-09-21", "region": "NSW1", "min_demand_mw": 3280.0,
+         "min_demand_time": "13:00", "renewable_share_pct": 72.8,
+         "instantaneous_renewable_mw": 7420.0, "storage_charging_mw": 840.0,
+         "exports_mw": 620.0, "record_broken": False},
+        {"date": "2025-10-05", "region": "SA1", "min_demand_mw": 340.0,
+         "min_demand_time": "12:30", "renewable_share_pct": 89.1,
+         "instantaneous_renewable_mw": 1760.0, "storage_charging_mw": 520.0,
+         "exports_mw": 380.0, "record_broken": False},
+    ]
+    return [MinimumOperationalDemandRecord(**r) for r in records]
+
+
+def _make_integration_limits() -> List[RenewableIntegrationLimit]:
+    """Return current renewable integration limits by type and region."""
+    limits = [
+        {"region": "SA1", "limit_type": "System Strength", "current_limit_mw": 2200.0,
+         "headroom_mw": 380.0, "mitigation_project": "Synchronous Condensers (Davenport)",
+         "mitigation_year": 2026, "description": "SA system strength limits non-synchronous renewable infeed. Managed via minimum synchronous generation (MSGs) and synchronous condensers."},
+        {"region": "SA1", "limit_type": "Frequency Control", "current_limit_mw": 2800.0,
+         "headroom_mw": -200.0, "mitigation_project": "Hornsdale Power Reserve + Virtual Inertia",
+         "mitigation_year": 2025, "description": "Frequency regulation limit on non-synchronous generation. Negative headroom means limit currently binding."},
+        {"region": "VIC1", "limit_type": "System Strength", "current_limit_mw": 6000.0,
+         "headroom_mw": 1200.0, "mitigation_project": "VNI West Transmission Upgrade",
+         "mitigation_year": 2030, "description": "VIC system strength mainly constrained near Latrobe Valley as coal retires. Synchronous condensers being installed at Moorabool."},
+        {"region": "QLD1", "limit_type": "Thermal Limit", "current_limit_mw": 8500.0,
+         "headroom_mw": 2400.0, "mitigation_project": "QNI Upgrade + Central QLD REZ",
+         "mitigation_year": 2029, "description": "North Queensland solar/wind export limited by 275kV thermal constraints between Townsville and Brisbane."},
+        {"region": "NSW1", "limit_type": "Thermal Limit", "current_limit_mw": 9200.0,
+         "headroom_mw": 3100.0, "mitigation_project": "HumeLink + CWO REZ Transmission",
+         "mitigation_year": 2027, "description": "NSW solar export limits on Transgrid 330kV network between Orange/Dubbo and Sydney load centres."},
+        {"region": "TAS1", "limit_type": "Voltage", "current_limit_mw": 1200.0,
+         "headroom_mw": -80.0, "mitigation_project": "Marinus Link (Stage 1)",
+         "mitigation_year": 2030, "description": "Tasmania renewable capacity limited by Basslink capacity (600MW) and island system voltage stability."},
+    ]
+    return [RenewableIntegrationLimit(**l) for l in limits]
+
+
+@app.get("/api/curtailment/dashboard", response_model=CurtailmentDashboard,
+         summary="Renewable Curtailment & Integration Dashboard", tags=["Curtailment"],
+         dependencies=[Depends(verify_api_key)])
+def get_curtailment_dashboard() -> CurtailmentDashboard:
+    """Curtailment events, minimum operational demand records, and integration limits. Cached 300s."""
+    cache_key = "curtailment_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    events = _make_curtailment_events()
+    mod_records = _make_mod_records()
+    limits = _make_integration_limits()
+    total_gwh = sum(e.curtailed_mwh for e in events) / 1000
+    region_counts: dict = {}
+    for e in events:
+        region_counts[e.region] = region_counts.get(e.region, 0) + e.curtailed_mwh
+    worst_region = max(region_counts, key=lambda r: region_counts[r]) if region_counts else "SA1"
+    result = CurtailmentDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_curtailment_gwh_ytd=round(total_gwh, 2),
+        curtailment_events_ytd=len(events),
+        worst_region=worst_region,
+        lowest_mod_record_mw=312.0,   # SA1 record
+        lowest_mod_date="2025-10-13",
+        renewable_penetration_record_pct=92.4,
+        renewable_penetration_record_date="2025-10-13",
+        curtailment_events=events,
+        mod_records=mod_records,
+        integration_limits=limits,
+    )
+    _cache_set(cache_key, result, _TTL_CURTAILMENT_DASHBOARD)
+    return result
+
+
+@app.get("/api/curtailment/events", response_model=List[CurtailmentEvent],
+         summary="Curtailment Events (filterable by region/cause)", tags=["Curtailment"],
+         dependencies=[Depends(verify_api_key)])
+def get_curtailment_events(
+    region: Optional[str] = Query(None, description="Filter by NEM region"),
+    cause: Optional[str] = Query(None, description="Filter by cause: System Strength, Thermal Limit, Voltage, Frequency Control"),
+) -> List[CurtailmentEvent]:
+    """Return curtailment events with optional filters. Cached 120s."""
+    cache_key = f"curtailment_events:{region or 'all'}:{cause or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    events = _make_curtailment_events()
+    if region:
+        events = [e for e in events if e.region.upper() == region.upper()]
+    if cause:
+        events = [e for e in events if e.cause.lower() == cause.lower()]
+    _cache_set(cache_key, events, _TTL_CURTAILMENT_EVENTS)
+    return events
+
+
+# ---------------------------------------------------------------------------
+# Sprint 21b — Demand Side Participation & Load Curtailment models
+# ---------------------------------------------------------------------------
+
+class DspParticipant(BaseModel):
+    duid: str                        # Dispatchable Unit ID
+    participant_name: str
+    industry_sector: str             # "Mining", "Manufacturing", "Commercial", "Water/Wastewater"
+    region: str
+    registered_capacity_mw: float   # MW of dispatchable load reduction
+    response_time_minutes: int      # how fast they can respond
+    dsp_program: str                # "RERT", "ILRP", "DSP Mechanism", "VPP DR"
+    min_activation_duration_hrs: float
+    payment_type: str               # "Availability", "Usage", "Both"
+    avg_activations_per_year: float
+    reliability_score_pct: float    # % of activations successfully delivered
+
+class DspActivationEvent(BaseModel):
+    event_id: str
+    date: str
+    region: str
+    trigger: str                    # "High Price", "Emergency", "Market Trial", "Testing"
+    activated_mw: float             # total MW called
+    delivered_mw: float             # actual MW delivered
+    delivery_pct: float             # delivered / activated
+    duration_minutes: int
+    average_price_mwh: float        # $/MWh for activation
+    participants_called: int
+    season: str                     # "Summer", "Autumn", "Winter", "Spring"
+
+class LoadCurtailmentRecord(BaseModel):
+    date: str
+    region: str
+    curtailment_type: str           # "Voluntary", "Emergency", "Rolling Blackout"
+    total_load_shed_mwh: float
+    customers_affected: int
+    duration_minutes: int
+    trigger_event: str              # what caused it
+
+class DspDashboard(BaseModel):
+    timestamp: str
+    total_registered_capacity_mw: float
+    total_participants: int
+    activations_ytd: int
+    total_delivered_mwh_ytd: float
+    avg_delivery_reliability_pct: float
+    top_sector_by_capacity: str
+    participants: list[DspParticipant]
+    activations: list[DspActivationEvent]
+    curtailment_records: list[LoadCurtailmentRecord]
+
+
+_TTL_DSP_DASHBOARD = 600
+_TTL_DSP_PARTICIPANTS = 1800
+
+
+def _make_dsp_participants() -> List[DspParticipant]:
+    """Return mock DSP participant data across NEM regions."""
+    participants = [
+        {"duid": "DSP001", "participant_name": "BHP Olympic Dam", "industry_sector": "Mining",
+         "region": "SA1", "registered_capacity_mw": 120.0, "response_time_minutes": 10,
+         "dsp_program": "RERT", "min_activation_duration_hrs": 1.0,
+         "payment_type": "Both", "avg_activations_per_year": 3.2, "reliability_score_pct": 97.8},
+        {"duid": "DSP002", "participant_name": "Tomago Aluminium", "industry_sector": "Manufacturing",
+         "region": "NSW1", "registered_capacity_mw": 180.0, "response_time_minutes": 30,
+         "dsp_program": "ILRP", "min_activation_duration_hrs": 2.0,
+         "payment_type": "Availability", "avg_activations_per_year": 2.1, "reliability_score_pct": 94.2},
+        {"duid": "DSP003", "participant_name": "Portland Aluminium", "industry_sector": "Manufacturing",
+         "region": "VIC1", "registered_capacity_mw": 95.0, "response_time_minutes": 15,
+         "dsp_program": "DSP Mechanism", "min_activation_duration_hrs": 1.0,
+         "payment_type": "Both", "avg_activations_per_year": 4.8, "reliability_score_pct": 99.1},
+        {"duid": "DSP004", "participant_name": "Boyne Smelters", "industry_sector": "Manufacturing",
+         "region": "QLD1", "registered_capacity_mw": 85.0, "response_time_minutes": 20,
+         "dsp_program": "RERT", "min_activation_duration_hrs": 1.5,
+         "payment_type": "Usage", "avg_activations_per_year": 1.9, "reliability_score_pct": 92.6},
+        {"duid": "DSP005", "participant_name": "SA Water Pumping", "industry_sector": "Water/Wastewater",
+         "region": "SA1", "registered_capacity_mw": 45.0, "response_time_minutes": 5,
+         "dsp_program": "VPP DR", "min_activation_duration_hrs": 0.5,
+         "payment_type": "Both", "avg_activations_per_year": 12.4, "reliability_score_pct": 98.8},
+        {"duid": "DSP006", "participant_name": "Sydney Water Pumping", "industry_sector": "Water/Wastewater",
+         "region": "NSW1", "registered_capacity_mw": 62.0, "response_time_minutes": 5,
+         "dsp_program": "VPP DR", "min_activation_duration_hrs": 0.5,
+         "payment_type": "Both", "avg_activations_per_year": 9.8, "reliability_score_pct": 99.5},
+        {"duid": "DSP007", "participant_name": "Queensland Alumina (QAL)", "industry_sector": "Mining",
+         "region": "QLD1", "registered_capacity_mw": 75.0, "response_time_minutes": 25,
+         "dsp_program": "ILRP", "min_activation_duration_hrs": 2.0,
+         "payment_type": "Availability", "avg_activations_per_year": 1.4, "reliability_score_pct": 91.3},
+        {"duid": "DSP008", "participant_name": "Melbourne Metro Water", "industry_sector": "Water/Wastewater",
+         "region": "VIC1", "registered_capacity_mw": 38.0, "response_time_minutes": 8,
+         "dsp_program": "DSP Mechanism", "min_activation_duration_hrs": 0.5,
+         "payment_type": "Both", "avg_activations_per_year": 11.2, "reliability_score_pct": 97.3},
+        {"duid": "DSP009", "participant_name": "Nyrstar Port Pirie", "industry_sector": "Manufacturing",
+         "region": "SA1", "registered_capacity_mw": 42.0, "response_time_minutes": 15,
+         "dsp_program": "RERT", "min_activation_duration_hrs": 1.0,
+         "payment_type": "Both", "avg_activations_per_year": 2.8, "reliability_score_pct": 95.4},
+        {"duid": "DSP010", "participant_name": "Commercial Precinct VPP (SEQ)", "industry_sector": "Commercial",
+         "region": "QLD1", "registered_capacity_mw": 28.0, "response_time_minutes": 2,
+         "dsp_program": "VPP DR", "min_activation_duration_hrs": 0.25,
+         "payment_type": "Usage", "avg_activations_per_year": 18.6, "reliability_score_pct": 96.8},
+    ]
+    return [DspParticipant(**p) for p in participants]
+
+
+def _make_dsp_activations() -> List[DspActivationEvent]:
+    """Return mock DSP activation event history."""
+    activations = [
+        {"event_id": "ACT-2025-148", "date": "2025-10-14", "region": "SA1",
+         "trigger": "High Price", "activated_mw": 165.0, "delivered_mw": 162.0,
+         "delivery_pct": 98.2, "duration_minutes": 45, "average_price_mwh": 3850.0,
+         "participants_called": 3, "season": "Spring"},
+        {"event_id": "ACT-2025-141", "date": "2025-10-08", "region": "VIC1",
+         "trigger": "High Price", "activated_mw": 133.0, "delivered_mw": 129.5,
+         "delivery_pct": 97.4, "duration_minutes": 30, "average_price_mwh": 4200.0,
+         "participants_called": 2, "season": "Spring"},
+        {"event_id": "ACT-2025-139", "date": "2025-10-06", "region": "NSW1",
+         "trigger": "Emergency", "activated_mw": 242.0, "delivered_mw": 236.0,
+         "delivery_pct": 97.5, "duration_minutes": 90, "average_price_mwh": 14500.0,
+         "participants_called": 3, "season": "Spring"},
+        {"event_id": "ACT-2025-122", "date": "2025-09-18", "region": "QLD1",
+         "trigger": "High Price", "activated_mw": 113.0, "delivered_mw": 108.0,
+         "delivery_pct": 95.6, "duration_minutes": 30, "average_price_mwh": 5100.0,
+         "participants_called": 2, "season": "Spring"},
+        {"event_id": "ACT-2025-098", "date": "2025-08-22", "region": "VIC1",
+         "trigger": "Emergency", "activated_mw": 204.0, "delivered_mw": 195.0,
+         "delivery_pct": 95.6, "duration_minutes": 120, "average_price_mwh": 14000.0,
+         "participants_called": 3, "season": "Winter"},
+        {"event_id": "ACT-2025-091", "date": "2025-08-12", "region": "SA1",
+         "trigger": "High Price", "activated_mw": 145.0, "delivered_mw": 140.0,
+         "delivery_pct": 96.6, "duration_minutes": 60, "average_price_mwh": 8900.0,
+         "participants_called": 3, "season": "Winter"},
+        {"event_id": "ACT-2025-074", "date": "2025-07-28", "region": "NSW1",
+         "trigger": "Market Trial", "activated_mw": 62.0, "delivered_mw": 61.0,
+         "delivery_pct": 98.4, "duration_minutes": 30, "average_price_mwh": 280.0,
+         "participants_called": 2, "season": "Winter"},
+        {"event_id": "ACT-2025-052", "date": "2025-06-15", "region": "SA1",
+         "trigger": "Emergency", "activated_mw": 207.0, "delivered_mw": 198.0,
+         "delivery_pct": 95.7, "duration_minutes": 150, "average_price_mwh": 14200.0,
+         "participants_called": 4, "season": "Winter"},
+    ]
+    return [DspActivationEvent(**a) for a in activations]
+
+
+def _make_curtailment_records() -> List[LoadCurtailmentRecord]:
+    """Return mock load curtailment / demand management records."""
+    records = [
+        {"date": "2025-08-22", "region": "VIC1", "curtailment_type": "Emergency",
+         "total_load_shed_mwh": 840.0, "customers_affected": 12000,
+         "duration_minutes": 120, "trigger_event": "Hazelwood trip + VNI import limit"},
+        {"date": "2025-06-15", "region": "SA1", "curtailment_type": "Emergency",
+         "total_load_shed_mwh": 380.0, "customers_affected": 5500,
+         "duration_minutes": 90, "trigger_event": "High demand + Heywood interconnector maintenance"},
+        {"date": "2025-01-28", "region": "NSW1", "curtailment_type": "Voluntary",
+         "total_load_shed_mwh": 240.0, "customers_affected": 0,
+         "duration_minutes": 45, "trigger_event": "AEMO voluntary demand response call: heatwave"},
+        {"date": "2024-12-12", "region": "QLD1", "curtailment_type": "Voluntary",
+         "total_load_shed_mwh": 180.0, "customers_affected": 0,
+         "duration_minutes": 30, "trigger_event": "Extremely high prices - market participant response"},
+    ]
+    return [LoadCurtailmentRecord(**r) for r in records]
+
+
+@app.get("/api/dsp/dashboard", response_model=DspDashboard,
+         summary="Demand Side Participation Dashboard", tags=["DSP"],
+         dependencies=[Depends(verify_api_key)])
+def get_dsp_dashboard() -> DspDashboard:
+    """DSP participants, activation events, and curtailment records. Cached 600s."""
+    cache_key = "dsp_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    participants = _make_dsp_participants()
+    activations = _make_dsp_activations()
+    curtailment_records = _make_curtailment_records()
+    total_capacity = sum(p.registered_capacity_mw for p in participants)
+    delivered_mwh = sum(a.delivered_mw * a.duration_minutes / 60 for a in activations)
+    avg_reliability = sum(p.reliability_score_pct for p in participants) / len(participants)
+    sector_capacity: dict = {}
+    for p in participants:
+        sector_capacity[p.industry_sector] = sector_capacity.get(p.industry_sector, 0) + p.registered_capacity_mw
+    top_sector = max(sector_capacity, key=lambda s: sector_capacity[s])
+    result = DspDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        total_registered_capacity_mw=round(total_capacity, 1),
+        total_participants=len(participants),
+        activations_ytd=len(activations),
+        total_delivered_mwh_ytd=round(delivered_mwh, 1),
+        avg_delivery_reliability_pct=round(avg_reliability, 1),
+        top_sector_by_capacity=top_sector,
+        participants=participants,
+        activations=activations,
+        curtailment_records=curtailment_records,
+    )
+    _cache_set(cache_key, result, _TTL_DSP_DASHBOARD)
+    return result
+
+
+@app.get("/api/dsp/participants", response_model=List[DspParticipant],
+         summary="DSP Participants (filterable)", tags=["DSP"],
+         dependencies=[Depends(verify_api_key)])
+def get_dsp_participants(
+    region: Optional[str] = Query(None, description="Filter by NEM region"),
+    sector: Optional[str] = Query(None, description="Filter by industry sector"),
+) -> List[DspParticipant]:
+    """Return DSP participant list with optional filters. Cached 1800s."""
+    cache_key = f"dsp_participants:{region or 'all'}:{sector or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    participants = _make_dsp_participants()
+    if region:
+        participants = [p for p in participants if p.region.upper() == region.upper()]
+    if sector:
+        participants = [p for p in participants if p.industry_sector.lower() == sector.lower()]
+    _cache_set(cache_key, participants, _TTL_DSP_PARTICIPANTS)
+    return participants
+
+
+# ---------------------------------------------------------------------------
+# Sprint 21c — Power System Security & Inertia Analytics models
+# ---------------------------------------------------------------------------
+
+class PssInertiaRecord(BaseModel):
+    region: str
+    timestamp: str
+    total_inertia_mws: float         # MWs (MW-seconds) of system inertia
+    synchronous_generation_mw: float # MW from synchronous generators
+    non_synchronous_pct: float       # % of generation that is non-synchronous
+    rocof_limit_hz_s: float          # Rate of Change of Frequency limit Hz/s
+    min_inertia_requirement_mws: float
+    inertia_headroom_mws: float      # positive = OK, negative = risk
+    status: str                      # "Secure", "Low Inertia", "Critical"
+
+class SynchronousCondenserRecord(BaseModel):
+    unit_id: str
+    site_name: str
+    region: str
+    operator: str                   # e.g. "ElectraNet", "AusNet", "Transgrid"
+    rated_mvar: float               # MVAr of reactive power capability
+    inertia_contribution_mws: float # MWs of synthetic inertia
+    status: str                     # "Online", "Offline", "Commissioning"
+    commissioning_year: int
+    purpose: str                    # "System Strength", "Voltage Support", "Both"
+
+class FcasDispatchRecord(BaseModel):
+    service: str                    # "R6S", "R60S", "R5M", "R5RE", "L6S", "L60S", "L5M", "L5RE"
+    region: str
+    requirement_mw: float
+    dispatched_mw: float
+    price_mwh: float                # $/MW/hr
+    enablement_pct: float           # dispatched / requirement
+    primary_provider: str           # technology providing most of the service
+    timestamp: str
+
+class PowerSystemSecurityDashboard(BaseModel):
+    timestamp: str
+    nem_inertia_total_mws: float    # total NEM inertia
+    lowest_inertia_region: str
+    synchronous_condensers_online: int
+    total_syncon_capacity_mvar: float
+    fcas_raise_total_mw: float
+    fcas_lower_total_mw: float
+    system_strength_status: str     # "Secure", "Marginal", "At Risk"
+    inertia_records: list[PssInertiaRecord]
+    synchronous_condensers: list[SynchronousCondenserRecord]
+    fcas_dispatch: list[FcasDispatchRecord]
+
+
+_TTL_PSS_DASHBOARD = 30
+_TTL_FCAS_DISPATCH = 30
+
+
+def _make_inertia_records() -> List[PssInertiaRecord]:
+    """Return current inertia levels by NEM region."""
+    import random
+    rng = random.Random(77)
+    records = [
+        {"region": "SA1", "timestamp": datetime.now(timezone.utc).isoformat(),
+         "total_inertia_mws": 4200.0, "synchronous_generation_mw": 480.0,
+         "non_synchronous_pct": 74.2, "rocof_limit_hz_s": 1.0,
+         "min_inertia_requirement_mws": 3500.0, "inertia_headroom_mws": 700.0, "status": "Secure"},
+        {"region": "VIC1", "timestamp": datetime.now(timezone.utc).isoformat(),
+         "total_inertia_mws": 18500.0, "synchronous_generation_mw": 3200.0,
+         "non_synchronous_pct": 52.8, "rocof_limit_hz_s": 0.5,
+         "min_inertia_requirement_mws": 12000.0, "inertia_headroom_mws": 6500.0, "status": "Secure"},
+        {"region": "NSW1", "timestamp": datetime.now(timezone.utc).isoformat(),
+         "total_inertia_mws": 22000.0, "synchronous_generation_mw": 5800.0,
+         "non_synchronous_pct": 44.1, "rocof_limit_hz_s": 0.5,
+         "min_inertia_requirement_mws": 15000.0, "inertia_headroom_mws": 7000.0, "status": "Secure"},
+        {"region": "QLD1", "timestamp": datetime.now(timezone.utc).isoformat(),
+         "total_inertia_mws": 19800.0, "synchronous_generation_mw": 4600.0,
+         "non_synchronous_pct": 49.3, "rocof_limit_hz_s": 0.5,
+         "min_inertia_requirement_mws": 14000.0, "inertia_headroom_mws": 5800.0, "status": "Secure"},
+        {"region": "TAS1", "timestamp": datetime.now(timezone.utc).isoformat(),
+         "total_inertia_mws": 2800.0, "synchronous_generation_mw": 620.0,
+         "non_synchronous_pct": 38.4, "rocof_limit_hz_s": 1.0,
+         "min_inertia_requirement_mws": 2200.0, "inertia_headroom_mws": 600.0, "status": "Secure"},
+    ]
+    return [PssInertiaRecord(**r) for r in records]
+
+
+def _make_synchronous_condensers() -> List[SynchronousCondenserRecord]:
+    """Return synchronous condensers installed or being installed in the NEM."""
+    condensers = [
+        {"unit_id": "SC-SA-001", "site_name": "Davenport Synchronous Condenser 1",
+         "region": "SA1", "operator": "ElectraNet", "rated_mvar": 100.0,
+         "inertia_contribution_mws": 500.0, "status": "Online",
+         "commissioning_year": 2023, "purpose": "Both"},
+        {"unit_id": "SC-SA-002", "site_name": "Davenport Synchronous Condenser 2",
+         "region": "SA1", "operator": "ElectraNet", "rated_mvar": 100.0,
+         "inertia_contribution_mws": 500.0, "status": "Online",
+         "commissioning_year": 2023, "purpose": "Both"},
+        {"unit_id": "SC-SA-003", "site_name": "Robertstown Synchronous Condenser",
+         "region": "SA1", "operator": "ElectraNet", "rated_mvar": 100.0,
+         "inertia_contribution_mws": 500.0, "status": "Online",
+         "commissioning_year": 2022, "purpose": "System Strength"},
+        {"unit_id": "SC-VIC-001", "site_name": "Moorabool Synchronous Condenser 1",
+         "region": "VIC1", "operator": "AusNet Services", "rated_mvar": 200.0,
+         "inertia_contribution_mws": 1000.0, "status": "Commissioning",
+         "commissioning_year": 2026, "purpose": "Both"},
+        {"unit_id": "SC-VIC-002", "site_name": "Moorabool Synchronous Condenser 2",
+         "region": "VIC1", "operator": "AusNet Services", "rated_mvar": 200.0,
+         "inertia_contribution_mws": 1000.0, "status": "Commissioning",
+         "commissioning_year": 2026, "purpose": "Both"},
+        {"unit_id": "SC-NSW-001", "site_name": "Transgrid Tomago Synchronous Condenser",
+         "region": "NSW1", "operator": "Transgrid", "rated_mvar": 250.0,
+         "inertia_contribution_mws": 1200.0, "status": "Online",
+         "commissioning_year": 2024, "purpose": "System Strength"},
+        {"unit_id": "SC-QLD-001", "site_name": "Greenbank Synchronous Condenser",
+         "region": "QLD1", "operator": "Powerlink", "rated_mvar": 160.0,
+         "inertia_contribution_mws": 800.0, "status": "Online",
+         "commissioning_year": 2025, "purpose": "Voltage Support"},
+    ]
+    return [SynchronousCondenserRecord(**c) for c in condensers]
+
+
+def _make_fcas_dispatch() -> List[FcasDispatchRecord]:
+    """Return current FCAS dispatch records for all 8 services."""
+    ts = datetime.now(timezone.utc).isoformat()
+    services = [
+        {"service": "R6S", "region": "NEM", "requirement_mw": 240.0, "dispatched_mw": 240.0,
+         "price_mwh": 12.50, "enablement_pct": 100.0, "primary_provider": "Batteries", "timestamp": ts},
+        {"service": "R60S", "region": "NEM", "requirement_mw": 280.0, "dispatched_mw": 278.0,
+         "price_mwh": 8.20, "enablement_pct": 99.3, "primary_provider": "Batteries + Hydro", "timestamp": ts},
+        {"service": "R5M", "region": "NEM", "requirement_mw": 320.0, "dispatched_mw": 320.0,
+         "price_mwh": 4.80, "enablement_pct": 100.0, "primary_provider": "Gas + Batteries", "timestamp": ts},
+        {"service": "R5RE", "region": "NEM", "requirement_mw": 420.0, "dispatched_mw": 415.0,
+         "price_mwh": 2.40, "enablement_pct": 98.8, "primary_provider": "Gas + DSP", "timestamp": ts},
+        {"service": "L6S", "region": "NEM", "requirement_mw": 210.0, "dispatched_mw": 210.0,
+         "price_mwh": 15.80, "enablement_pct": 100.0, "primary_provider": "Batteries", "timestamp": ts},
+        {"service": "L60S", "region": "NEM", "requirement_mw": 250.0, "dispatched_mw": 248.0,
+         "price_mwh": 9.40, "enablement_pct": 99.2, "primary_provider": "Batteries + DSP", "timestamp": ts},
+        {"service": "L5M", "region": "NEM", "requirement_mw": 300.0, "dispatched_mw": 298.0,
+         "price_mwh": 5.20, "enablement_pct": 99.3, "primary_provider": "Gas + DSP", "timestamp": ts},
+        {"service": "L5RE", "region": "NEM", "requirement_mw": 380.0, "dispatched_mw": 378.0,
+         "price_mwh": 2.80, "enablement_pct": 99.5, "primary_provider": "Gas + Hydro", "timestamp": ts},
+    ]
+    return [FcasDispatchRecord(**s) for s in services]
+
+
+@app.get("/api/pss/dashboard", response_model=PowerSystemSecurityDashboard,
+         summary="Power System Security & Inertia Dashboard", tags=["Power System Security"],
+         dependencies=[Depends(verify_api_key)])
+def get_pss_dashboard() -> PowerSystemSecurityDashboard:
+    """Inertia, synchronous condensers, and FCAS dispatch dashboard. Cached 30s."""
+    cache_key = "pss_dashboard"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    inertia_records = _make_inertia_records()
+    synccons = _make_synchronous_condensers()
+    fcas = _make_fcas_dispatch()
+    total_inertia = sum(r.total_inertia_mws for r in inertia_records)
+    lowest_region = min(inertia_records, key=lambda r: r.inertia_headroom_mws).region
+    online_synccons = [s for s in synccons if s.status == "Online"]
+    total_mvar = sum(s.rated_mvar for s in online_synccons)
+    raise_services = [f for f in fcas if f.service.startswith("R")]
+    lower_services = [f for f in fcas if f.service.startswith("L")]
+    raise_total = sum(f.dispatched_mw for f in raise_services)
+    lower_total = sum(f.dispatched_mw for f in lower_services)
+    # Determine overall system strength status
+    at_risk = any(r.inertia_headroom_mws < 0 for r in inertia_records)
+    marginal = any(r.inertia_headroom_mws < 500 for r in inertia_records)
+    ss_status = "At Risk" if at_risk else ("Marginal" if marginal else "Secure")
+    result = PowerSystemSecurityDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        nem_inertia_total_mws=round(total_inertia, 0),
+        lowest_inertia_region=lowest_region,
+        synchronous_condensers_online=len(online_synccons),
+        total_syncon_capacity_mvar=round(total_mvar, 0),
+        fcas_raise_total_mw=round(raise_total, 0),
+        fcas_lower_total_mw=round(lower_total, 0),
+        system_strength_status=ss_status,
+        inertia_records=inertia_records,
+        synchronous_condensers=synccons,
+        fcas_dispatch=fcas,
+    )
+    _cache_set(cache_key, result, _TTL_PSS_DASHBOARD)
+    return result
+
+
+@app.get("/api/pss/fcas", response_model=List[FcasDispatchRecord],
+         summary="Current FCAS Dispatch", tags=["Power System Security"],
+         dependencies=[Depends(verify_api_key)])
+def get_fcas_dispatch() -> List[FcasDispatchRecord]:
+    """Return current FCAS dispatch for all 8 services. Cached 30s."""
+    cache_key = "fcas_dispatch"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    fcas = _make_fcas_dispatch()
+    _cache_set(cache_key, fcas, _TTL_FCAS_DISPATCH)
+    return fcas
