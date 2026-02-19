@@ -19322,3 +19322,622 @@ def get_wem_facilities(technology: Optional[str] = None):
         facilities = [f for f in facilities if f.technology == technology]
     _cache_set(cache_key, facilities, _TTL_WEM)
     return facilities
+
+
+# ---------------------------------------------------------------------------
+# Sprint 30a — Power System Inertia & System Strength Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_INERTIA = 300
+
+
+class InertiaRecord(BaseModel):
+    region: str
+    timestamp: str
+    total_inertia_mws: float
+    synchronous_inertia_mws: float
+    non_synchronous_inertia_mws: float
+    min_threshold_mws: float
+    secure_threshold_mws: float
+    deficit_mws: float
+    rocof_hz_per_sec: float
+    synchronous_condensers_online: int
+    num_synchronous_generators: int
+
+
+class SystemStrengthRecord(BaseModel):
+    region: str
+    timestamp: str
+    fault_level_mva: float
+    min_fault_level_mva: float
+    scr_ratio: float
+    synchronous_condenser_mva: float
+    inverter_based_resources_pct: float
+    system_strength_status: str  # SECURE / MARGINAL / INSECURE
+
+
+class InertiaDashboard(BaseModel):
+    timestamp: str
+    national_inertia_mws: float
+    regions_below_secure: List[str]
+    regions_below_minimum: List[str]
+    total_synchronous_condensers: int
+    inertia_records: List[InertiaRecord]
+    strength_records: List[SystemStrengthRecord]
+
+
+def _make_inertia_records() -> List[InertiaRecord]:
+    import random as r
+    regions = [
+        ("NSW1", 12000, 9000),
+        ("QLD1", 10000, 7500),
+        ("VIC1", 8000, 6000),
+        ("SA1", 3500, 2500),
+        ("TAS1", 4000, 3000),
+    ]
+    records = []
+    for region, secure, minimum in regions:
+        total = round(r.uniform(minimum * 0.8, secure * 1.3), 1)
+        sync = round(total * r.uniform(0.6, 0.9), 1)
+        nonsync = round(total - sync, 1)
+        deficit = max(0.0, round(minimum - total, 1))
+        records.append(InertiaRecord(
+            region=region,
+            timestamp=_now_aest(),
+            total_inertia_mws=total,
+            synchronous_inertia_mws=sync,
+            non_synchronous_inertia_mws=nonsync,
+            min_threshold_mws=float(minimum),
+            secure_threshold_mws=float(secure),
+            deficit_mws=deficit,
+            rocof_hz_per_sec=round(r.uniform(0.1, 1.2), 3),
+            synchronous_condensers_online=r.randint(0, 4),
+            num_synchronous_generators=r.randint(2, 12),
+        ))
+    return records
+
+
+def _make_system_strength_records() -> List[SystemStrengthRecord]:
+    import random as r
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    statuses = ["SECURE", "SECURE", "MARGINAL", "INSECURE"]
+    records = []
+    for region in regions:
+        fault_level = round(r.uniform(800, 4000), 1)
+        min_fault = round(fault_level * r.uniform(0.5, 0.85), 1)
+        scr = round(fault_level / r.uniform(500, 1500), 3)
+        ibr_pct = round(r.uniform(20, 75), 1)
+        status = "SECURE" if fault_level >= min_fault * 1.3 else ("MARGINAL" if fault_level >= min_fault else "INSECURE")
+        records.append(SystemStrengthRecord(
+            region=region,
+            timestamp=_now_aest(),
+            fault_level_mva=fault_level,
+            min_fault_level_mva=min_fault,
+            scr_ratio=scr,
+            synchronous_condenser_mva=round(r.uniform(0, 500), 1),
+            inverter_based_resources_pct=ibr_pct,
+            system_strength_status=status,
+        ))
+    return records
+
+
+def _make_inertia_dashboard() -> InertiaDashboard:
+    inertia = _make_inertia_records()
+    strength = _make_system_strength_records()
+    national = round(sum(r.total_inertia_mws for r in inertia), 1)
+    below_secure = [r.region for r in inertia if r.total_inertia_mws < r.secure_threshold_mws]
+    below_min = [r.region for r in inertia if r.total_inertia_mws < r.min_threshold_mws]
+    total_sc = sum(r.synchronous_condensers_online for r in inertia)
+    return InertiaDashboard(
+        timestamp=_now_aest(),
+        national_inertia_mws=national,
+        regions_below_secure=below_secure,
+        regions_below_minimum=below_min,
+        total_synchronous_condensers=total_sc,
+        inertia_records=inertia,
+        strength_records=strength,
+    )
+
+
+@app.get(
+    "/api/inertia/dashboard",
+    response_model=InertiaDashboard,
+    summary="Power System Inertia & System Strength dashboard",
+    tags=["Inertia"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_inertia_dashboard():
+    cached = _cache_get("inertia:dashboard")
+    if cached:
+        return cached
+    data = _make_inertia_dashboard()
+    _cache_set("inertia:dashboard", data, _TTL_INERTIA)
+    return data
+
+
+@app.get(
+    "/api/inertia/records",
+    response_model=List[InertiaRecord],
+    summary="Inertia records by region",
+    tags=["Inertia"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_inertia_records(region: Optional[str] = None):
+    cache_key = f"inertia:records:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_inertia_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    _cache_set(cache_key, records, _TTL_INERTIA)
+    return records
+
+
+@app.get(
+    "/api/inertia/strength",
+    response_model=List[SystemStrengthRecord],
+    summary="System strength records by region",
+    tags=["Inertia"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_system_strength(region: Optional[str] = None):
+    cache_key = f"inertia:strength:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_system_strength_records()
+    if region:
+        records = [r for r in records if r.region == region]
+    _cache_set(cache_key, records, _TTL_INERTIA)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Sprint 30b — AEMO Market Surveillance & Compliance Dashboard
+# ---------------------------------------------------------------------------
+
+_TTL_SURVEILLANCE = 600
+
+
+class MarketSurveillanceNotice(BaseModel):
+    notice_id: str
+    notice_type: str  # PRICE_INQUIRY / REBIDDING / MARKET_POWER / DISPATCH_ERROR
+    region: str
+    participant: str
+    trading_date: str
+    description: str
+    status: str  # OPEN / UNDER_INVESTIGATION / REFERRED / CLOSED
+    priority: str  # HIGH / MEDIUM / LOW
+    aemo_team: str
+    resolution_date: Optional[str]
+    outcome: Optional[str]
+
+
+class ComplianceRecord(BaseModel):
+    record_id: str
+    participant: str
+    rule_reference: str
+    rule_description: str
+    breach_type: str  # MINOR / MODERATE / SERIOUS
+    trading_date: str
+    region: str
+    penalty_aud: float
+    status: str  # ALLEGED / PROVEN / DISMISSED
+    referred_to_aer: bool
+    civil_penalty: bool
+
+
+class MarketAnomalyRecord(BaseModel):
+    anomaly_id: str
+    region: str
+    trading_interval: str
+    anomaly_type: str  # PRICE_SPIKE / UNUSUAL_REBID / CONSTRAINT_MANIPULATION / LOW_OFFER
+    spot_price: float
+    expected_price: float
+    deviation_pct: float
+    generator_id: str
+    flagged: bool
+    explanation: Optional[str]
+
+
+class SurveillanceDashboard(BaseModel):
+    timestamp: str
+    open_investigations: int
+    referred_to_aer_ytd: int
+    total_penalties_ytd_aud: float
+    participants_under_review: int
+    notices: List[MarketSurveillanceNotice]
+    compliance_records: List[ComplianceRecord]
+    anomalies: List[MarketAnomalyRecord]
+
+
+def _make_surveillance_notices() -> List[MarketSurveillanceNotice]:
+    import random as r
+    participants = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Alinta Energy",
+                    "Snowy Hydro", "InterGen", "CS Energy", "Delta Electricity"]
+    notice_types = ["PRICE_INQUIRY", "REBIDDING", "MARKET_POWER", "DISPATCH_ERROR"]
+    statuses = ["OPEN", "UNDER_INVESTIGATION", "REFERRED", "CLOSED"]
+    priorities = ["HIGH", "MEDIUM", "LOW"]
+    notices = []
+    for i in range(12):
+        status = r.choice(statuses)
+        notices.append(MarketSurveillanceNotice(
+            notice_id=f"MSN-2025-{i+1:04d}",
+            notice_type=r.choice(notice_types),
+            region=r.choice(["NSW1", "QLD1", "VIC1", "SA1"]),
+            participant=r.choice(participants),
+            trading_date=f"2025-{r.randint(1,12):02d}-{r.randint(1,28):02d}",
+            description=f"Surveillance notice #{i+1}: potential rule breach under clause NER 3.8.{r.randint(1,22)}",
+            status=status,
+            priority=r.choice(priorities),
+            aemo_team="Market Surveillance",
+            resolution_date=f"2025-{r.randint(6,12):02d}-{r.randint(1,28):02d}" if status == "CLOSED" else None,
+            outcome="No further action" if status == "CLOSED" else None,
+        ))
+    return notices
+
+
+def _make_compliance_records() -> List[ComplianceRecord]:
+    import random as r
+    participants = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Alinta Energy", "CS Energy"]
+    rules = [
+        ("NER 3.8.22", "Rebidding close to dispatch"),
+        ("NER 3.7.2", "Offer must reflect short-run marginal cost"),
+        ("NER 4.9.8", "Failure to comply with dispatch instructions"),
+        ("NER 3.11.1", "Ancillary service obligations"),
+        ("NER 5.3.4", "Network reliability reporting"),
+    ]
+    records = []
+    for i in range(8):
+        rule_ref, rule_desc = r.choice(rules)
+        status = r.choice(["ALLEGED", "PROVEN", "DISMISSED"])
+        records.append(ComplianceRecord(
+            record_id=f"COMP-2025-{i+1:03d}",
+            participant=r.choice(participants),
+            rule_reference=rule_ref,
+            rule_description=rule_desc,
+            breach_type=r.choice(["MINOR", "MODERATE", "SERIOUS"]),
+            trading_date=f"2025-{r.randint(1,12):02d}-{r.randint(1,28):02d}",
+            region=r.choice(["NSW1", "QLD1", "VIC1", "SA1"]),
+            penalty_aud=round(r.uniform(5000, 250000), 2) if status == "PROVEN" else 0.0,
+            status=status,
+            referred_to_aer=status == "PROVEN" and r.random() > 0.6,
+            civil_penalty=r.random() > 0.8,
+        ))
+    return records
+
+
+def _make_market_anomalies() -> List[MarketAnomalyRecord]:
+    import random as r
+    anomaly_types = ["PRICE_SPIKE", "UNUSUAL_REBID", "CONSTRAINT_MANIPULATION", "LOW_OFFER"]
+    generators = ["BW01", "ER01", "LY01", "VT01", "SA01", "QLD_GAS", "NSW_COAL"]
+    anomalies = []
+    for i in range(15):
+        spot = round(r.uniform(-100, 14000), 2)
+        expected = round(r.uniform(50, 300), 2)
+        dev = round(abs(spot - expected) / max(expected, 1) * 100, 2)
+        anomalies.append(MarketAnomalyRecord(
+            anomaly_id=f"ANOM-{i+1:04d}",
+            region=r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
+            trading_interval=f"2025-{r.randint(1,12):02d}-{r.randint(1,28):02d}T{r.randint(0,23):02d}:{'00' if r.random() > 0.5 else '30'}:00",
+            anomaly_type=r.choice(anomaly_types),
+            spot_price=spot,
+            expected_price=expected,
+            deviation_pct=dev,
+            generator_id=r.choice(generators),
+            flagged=dev > 200,
+            explanation="Under review" if dev > 200 else None,
+        ))
+    return anomalies
+
+
+def _make_surveillance_dashboard() -> SurveillanceDashboard:
+    notices = _make_surveillance_notices()
+    compliance = _make_compliance_records()
+    anomalies = _make_market_anomalies()
+    open_inv = sum(1 for n in notices if n.status in ("OPEN", "UNDER_INVESTIGATION"))
+    referred = sum(1 for n in notices if n.status == "REFERRED")
+    penalties = sum(c.penalty_aud for c in compliance)
+    participants_review = len({n.participant for n in notices if n.status != "CLOSED"})
+    return SurveillanceDashboard(
+        timestamp=_now_aest(),
+        open_investigations=open_inv,
+        referred_to_aer_ytd=referred,
+        total_penalties_ytd_aud=round(penalties, 2),
+        participants_under_review=participants_review,
+        notices=notices,
+        compliance_records=compliance,
+        anomalies=anomalies,
+    )
+
+
+@app.get(
+    "/api/surveillance/dashboard",
+    response_model=SurveillanceDashboard,
+    summary="AEMO Market Surveillance & Compliance dashboard",
+    tags=["Surveillance"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_surveillance_dashboard():
+    cached = _cache_get("surveillance:dashboard")
+    if cached:
+        return cached
+    data = _make_surveillance_dashboard()
+    _cache_set("surveillance:dashboard", data, _TTL_SURVEILLANCE)
+    return data
+
+
+@app.get(
+    "/api/surveillance/notices",
+    response_model=List[MarketSurveillanceNotice],
+    summary="Market surveillance notices",
+    tags=["Surveillance"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_surveillance_notices(status: Optional[str] = None, region: Optional[str] = None):
+    cache_key = f"surveillance:notices:{status}:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_surveillance_notices()
+    if status:
+        records = [r for r in records if r.status == status]
+    if region:
+        records = [r for r in records if r.region == region]
+    _cache_set(cache_key, records, _TTL_SURVEILLANCE)
+    return records
+
+
+@app.get(
+    "/api/surveillance/anomalies",
+    response_model=List[MarketAnomalyRecord],
+    summary="Market price anomaly detections",
+    tags=["Surveillance"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_anomalies(region: Optional[str] = None):
+    cache_key = f"surveillance:anomalies:{region}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    anomalies = _make_market_anomalies()
+    if region:
+        anomalies = [a for a in anomalies if a.region == region]
+    _cache_set(cache_key, anomalies, _TTL_SURVEILLANCE)
+    return anomalies
+
+# ---------------------------------------------------------------------------
+# Sprint 30c — TNSP Revenue & AER Determinations Analytics
+# ---------------------------------------------------------------------------
+
+_TTL_TNSP = 3600
+
+
+class TnspRevenueRecord(BaseModel):
+    tnsp: str
+    state: str
+    regulatory_period: str
+    year: int
+    approved_revenue_m_aud: float
+    actual_revenue_m_aud: float
+    over_under_recovery_m_aud: float
+    rab_value_m_aud: float
+    wacc_pct: float
+    capex_m_aud: float
+    opex_m_aud: float
+    depreciation_m_aud: float
+    transmission_use_of_system_aud_kwh: float
+
+
+class AerDeterminationRecord(BaseModel):
+    determination_id: str
+    tnsp: str
+    state: str
+    regulatory_period: str
+    start_year: int
+    end_year: int
+    total_revenue_m_aud: float
+    rab_at_start_m_aud: float
+    rab_at_end_m_aud: float
+    allowed_wacc_pct: float
+    approved_capex_m_aud: float
+    approved_opex_m_aud: float
+    appeal_lodged: bool
+    appeal_outcome: Optional[str]
+    key_projects: List[str]
+
+
+class TnspAssetRecord(BaseModel):
+    tnsp: str
+    state: str
+    circuit_km: float
+    substations: int
+    transformer_capacity_mva: float
+    asset_age_yrs_avg: float
+    reliability_target_pct: float
+    actual_reliability_pct: float
+    saidi_minutes: float
+    asset_replacement_rate_pct: float
+
+
+class TnspDashboard(BaseModel):
+    timestamp: str
+    total_tnsp_revenue_ytd_m_aud: float
+    total_rab_value_m_aud: float
+    avg_wacc_pct: float
+    num_tnsps: int
+    revenue_records: List[TnspRevenueRecord]
+    determinations: List[AerDeterminationRecord]
+    asset_records: List[TnspAssetRecord]
+
+
+def _make_tnsp_revenue_records() -> List[TnspRevenueRecord]:
+    import random as r
+    tnsps = [
+        ("TransGrid", "NSW", "2023-2028"),
+        ("Powerlink", "QLD", "2023-2028"),
+        ("AusNet Services", "VIC", "2023-2028"),
+        ("ElectraNet", "SA", "2023-2028"),
+        ("TasNetworks", "TAS", "2023-2028"),
+        ("Transgrid", "NSW", "2023-2028"),
+        ("Powerlink", "QLD", "2023-2028"),
+    ]
+    records = []
+    for tnsp, state, period in tnsps[:5]:  # Use 5 unique TNSPs
+        for year in [2023, 2024, 2025]:
+            approved = round(r.uniform(300, 1200), 2)
+            actual = round(approved * r.uniform(0.92, 1.08), 2)
+            records.append(TnspRevenueRecord(
+                tnsp=tnsp,
+                state=state,
+                regulatory_period=period,
+                year=year,
+                approved_revenue_m_aud=approved,
+                actual_revenue_m_aud=actual,
+                over_under_recovery_m_aud=round(actual - approved, 2),
+                rab_value_m_aud=round(r.uniform(3000, 12000), 2),
+                wacc_pct=round(r.uniform(4.5, 7.5), 3),
+                capex_m_aud=round(r.uniform(150, 600), 2),
+                opex_m_aud=round(r.uniform(80, 250), 2),
+                depreciation_m_aud=round(r.uniform(50, 200), 2),
+                transmission_use_of_system_aud_kwh=round(r.uniform(0.005, 0.025), 5),
+            ))
+    return records
+
+
+def _make_aer_determinations() -> List[AerDeterminationRecord]:
+    import random as r
+    tnsps = [
+        ("TransGrid", "NSW"),
+        ("Powerlink", "QLD"),
+        ("AusNet Services", "VIC"),
+        ("ElectraNet", "SA"),
+        ("TasNetworks", "TAS"),
+    ]
+    records = []
+    for tnsp, state in tnsps:
+        for period_start in [2018, 2023]:
+            total = round(r.uniform(1500, 6000), 2)
+            rab_start = round(r.uniform(3000, 10000), 2)
+            records.append(AerDeterminationRecord(
+                determination_id=f"AER-{tnsp[:3].upper()}-{period_start}",
+                tnsp=tnsp,
+                state=state,
+                regulatory_period=f"{period_start}-{period_start+5}",
+                start_year=period_start,
+                end_year=period_start + 5,
+                total_revenue_m_aud=total,
+                rab_at_start_m_aud=rab_start,
+                rab_at_end_m_aud=round(rab_start * r.uniform(1.05, 1.25), 2),
+                allowed_wacc_pct=round(r.uniform(4.5, 7.5), 3),
+                approved_capex_m_aud=round(r.uniform(500, 2000), 2),
+                approved_opex_m_aud=round(r.uniform(300, 1000), 2),
+                appeal_lodged=r.random() > 0.7,
+                appeal_outcome=r.choice(["Upheld", "Dismissed", "Partially upheld"]) if r.random() > 0.5 else None,
+                key_projects=[f"Project {i+1}" for i in range(r.randint(2, 5))],
+            ))
+    return records
+
+
+def _make_tnsp_asset_records() -> List[TnspAssetRecord]:
+    import random as r
+    tnsps = [
+        ("TransGrid", "NSW", 12500, 130),
+        ("Powerlink", "QLD", 15000, 160),
+        ("AusNet Services", "VIC", 6500, 90),
+        ("ElectraNet", "SA", 5500, 75),
+        ("TasNetworks", "TAS", 3800, 50),
+    ]
+    return [
+        TnspAssetRecord(
+            tnsp=tnsp,
+            state=state,
+            circuit_km=float(km),
+            substations=subs,
+            transformer_capacity_mva=round(r.uniform(5000, 25000), 1),
+            asset_age_yrs_avg=round(r.uniform(20, 45), 1),
+            reliability_target_pct=round(r.uniform(99.0, 99.95), 3),
+            actual_reliability_pct=round(r.uniform(98.5, 99.98), 3),
+            saidi_minutes=round(r.uniform(0.5, 8.0), 2),
+            asset_replacement_rate_pct=round(r.uniform(1.5, 4.5), 2),
+        )
+        for tnsp, state, km, subs in tnsps
+    ]
+
+
+def _make_tnsp_dashboard() -> TnspDashboard:
+    import random as r
+    revenue = _make_tnsp_revenue_records()
+    determinations = _make_aer_determinations()
+    assets = _make_tnsp_asset_records()
+    total_rev = sum(rec.actual_revenue_m_aud for rec in revenue if rec.year == 2025)
+    total_rab = sum(a.rab_value_m_aud for a in assets)  # use assets for RAB proxy
+    wacc_list = [rec.wacc_pct for rec in revenue if rec.year == 2025]
+    avg_wacc = round(sum(wacc_list) / len(wacc_list), 3) if wacc_list else 5.5
+    return TnspDashboard(
+        timestamp=_now_aest(),
+        total_tnsp_revenue_ytd_m_aud=round(total_rev, 2),
+        total_rab_value_m_aud=round(total_rab, 2) if total_rab else round(r.uniform(25000, 50000), 2),
+        avg_wacc_pct=avg_wacc,
+        num_tnsps=len(assets),
+        revenue_records=revenue,
+        determinations=determinations,
+        asset_records=assets,
+    )
+
+
+@app.get(
+    "/api/tnsp/dashboard",
+    response_model=TnspDashboard,
+    summary="TNSP Revenue & AER Determinations dashboard",
+    tags=["TNSP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tnsp_dashboard():
+    cached = _cache_get("tnsp:dashboard")
+    if cached:
+        return cached
+    data = _make_tnsp_dashboard()
+    _cache_set("tnsp:dashboard", data, _TTL_TNSP)
+    return data
+
+
+@app.get(
+    "/api/tnsp/revenue",
+    response_model=List[TnspRevenueRecord],
+    summary="TNSP revenue records",
+    tags=["TNSP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tnsp_revenue(tnsp: Optional[str] = None, year: Optional[int] = None):
+    cache_key = f"tnsp:revenue:{tnsp}:{year}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_tnsp_revenue_records()
+    if tnsp:
+        records = [r for r in records if r.tnsp == tnsp]
+    if year:
+        records = [r for r in records if r.year == year]
+    _cache_set(cache_key, records, _TTL_TNSP)
+    return records
+
+
+@app.get(
+    "/api/tnsp/determinations",
+    response_model=List[AerDeterminationRecord],
+    summary="AER regulatory determinations for TNSPs",
+    tags=["TNSP"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_aer_determinations(tnsp: Optional[str] = None):
+    cache_key = f"tnsp:determinations:{tnsp}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    records = _make_aer_determinations()
+    if tnsp:
+        records = [r for r in records if r.tnsp == tnsp]
+    _cache_set(cache_key, records, _TTL_TNSP)
+    return records

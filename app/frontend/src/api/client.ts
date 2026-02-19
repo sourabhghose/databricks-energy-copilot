@@ -1655,6 +1655,29 @@ export interface FcasPerformanceRecord { unit_id: string; participant_name: stri
 export interface FcasMarketSummary { service: string; region: string; quarter: string; total_volume_mw: number; total_cost_aud: number; avg_price_aud_mwh: number; causer_pays_pool_aud: number; num_providers: number; concentration_hhi: number }
 export interface CauserPaysDashboard { timestamp: string; total_causer_pays_pool_ytd_aud: number; avg_performance_factor: number; num_active_providers: number; highest_performing_participant: string; contributors: CauserPaysContributor[]; performance_records: FcasPerformanceRecord[]; market_summaries: FcasMarketSummary[] }
 
+// ---------------------------------------------------------------------------
+// Sprint 30a — Power System Inertia & System Strength interfaces
+// ---------------------------------------------------------------------------
+export interface InertiaRecord { region: string; timestamp: string; total_inertia_mws: number; synchronous_inertia_mws: number; non_synchronous_inertia_mws: number; min_threshold_mws: number; secure_threshold_mws: number; deficit_mws: number; rocof_hz_per_sec: number; synchronous_condensers_online: number; num_synchronous_generators: number }
+export interface SystemStrengthRecord { region: string; timestamp: string; fault_level_mva: number; min_fault_level_mva: number; scr_ratio: number; synchronous_condenser_mva: number; inverter_based_resources_pct: number; system_strength_status: string }
+export interface InertiaDashboard { timestamp: string; national_inertia_mws: number; regions_below_secure: string[]; regions_below_minimum: string[]; total_synchronous_condensers: number; inertia_records: InertiaRecord[]; strength_records: SystemStrengthRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 30c — TNSP Revenue & AER Determinations interfaces
+// ---------------------------------------------------------------------------
+export interface TnspRevenueRecord { tnsp: string; state: string; regulatory_period: string; year: number; approved_revenue_m_aud: number; actual_revenue_m_aud: number; over_under_recovery_m_aud: number; rab_value_m_aud: number; wacc_pct: number; capex_m_aud: number; opex_m_aud: number; depreciation_m_aud: number; transmission_use_of_system_aud_kwh: number }
+export interface AerDeterminationRecord { determination_id: string; tnsp: string; state: string; regulatory_period: string; start_year: number; end_year: number; total_revenue_m_aud: number; rab_at_start_m_aud: number; rab_at_end_m_aud: number; allowed_wacc_pct: number; approved_capex_m_aud: number; approved_opex_m_aud: number; appeal_lodged: boolean; appeal_outcome: string | null; key_projects: string[] }
+export interface TnspAssetRecord { tnsp: string; state: string; circuit_km: number; substations: number; transformer_capacity_mva: number; asset_age_yrs_avg: number; reliability_target_pct: number; actual_reliability_pct: number; saidi_minutes: number; asset_replacement_rate_pct: number }
+export interface TnspDashboard { timestamp: string; total_tnsp_revenue_ytd_m_aud: number; total_rab_value_m_aud: number; avg_wacc_pct: number; num_tnsps: number; revenue_records: TnspRevenueRecord[]; determinations: AerDeterminationRecord[]; asset_records: TnspAssetRecord[] }
+
+// ---------------------------------------------------------------------------
+// Sprint 30b — AEMO Market Surveillance & Compliance interfaces
+// ---------------------------------------------------------------------------
+export interface MarketSurveillanceNotice { notice_id: string; notice_type: string; region: string; participant: string; trading_date: string; description: string; status: string; priority: string; aemo_team: string; resolution_date: string | null; outcome: string | null }
+export interface ComplianceRecord { record_id: string; participant: string; rule_reference: string; rule_description: string; breach_type: string; trading_date: string; region: string; penalty_aud: number; status: string; referred_to_aer: boolean; civil_penalty: boolean }
+export interface MarketAnomalyRecord { anomaly_id: string; region: string; trading_interval: string; anomaly_type: string; spot_price: number; expected_price: number; deviation_pct: number; generator_id: string; flagged: boolean; explanation: string | null }
+export interface SurveillanceDashboard { timestamp: string; open_investigations: number; referred_to_aer_ytd: number; total_penalties_ytd_aud: number; participants_under_review: number; notices: MarketSurveillanceNotice[]; compliance_records: ComplianceRecord[]; anomalies: MarketAnomalyRecord[] }
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -3010,6 +3033,47 @@ export const api = {
     if (params?.service) qs.append('service', params.service)
     const query = qs.toString() ? `?${qs.toString()}` : ''
     return get<FcasPerformanceRecord[]>(`/api/causer-pays/performance${query}`)
+  },
+  getInertiaDashboard: () => get<InertiaDashboard>('/api/inertia/dashboard'),
+  getInertiaRecords: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<InertiaRecord[]>(`/api/inertia/records${query}`)
+  },
+  getSystemStrength: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<SystemStrengthRecord[]>(`/api/inertia/strength${query}`)
+  },
+  getTnspDashboard: () => get<TnspDashboard>('/api/tnsp/dashboard'),
+  getTnspRevenue: (params?: { tnsp?: string; year?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.tnsp) qs.append('tnsp', params.tnsp)
+    if (params?.year) qs.append('year', String(params.year))
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<TnspRevenueRecord[]>(`/api/tnsp/revenue${query}`)
+  },
+  getAerDeterminations: (params?: { tnsp?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.tnsp) qs.append('tnsp', params.tnsp)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<AerDeterminationRecord[]>(`/api/tnsp/determinations${query}`)
+  },
+  getSurveillanceDashboard: () => get<SurveillanceDashboard>('/api/surveillance/dashboard'),
+  getSurveillanceNotices: (params?: { status?: string; region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.append('status', params.status)
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<MarketSurveillanceNotice[]>(`/api/surveillance/notices${query}`)
+  },
+  getMarketAnomalies: (params?: { region?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.append('region', params.region)
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return get<MarketAnomalyRecord[]>(`/api/surveillance/anomalies${query}`)
   },
 }
 

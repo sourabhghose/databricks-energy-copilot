@@ -586,3 +586,18 @@
 - WemOverview.tsx: balancing price chart, facility table with tech filter, reserve capacity (SRMC) chart
 - /api/wem/dashboard, /prices, /facilities endpoints
 - 4 TestWemEndpoints tests
+
+## Sprint 30a — Power System Inertia & System Strength Analytics [COMPLETE]
+- InertiaAnalytics.tsx: inertia bar chart vs thresholds, system strength table, detail table
+- /api/inertia/dashboard, /records, /strength endpoints
+- 4 TestInertiaEndpoints tests
+
+## Sprint 30c — TNSP Revenue & AER Determinations Analytics [COMPLETE]
+- TnspAnalytics.tsx: revenue vs approved chart, AER determinations table, asset reliability table
+- /api/tnsp/dashboard, /revenue, /determinations endpoints
+- 4 TestTnspEndpoints tests
+
+## Sprint 30b — AEMO Market Surveillance & Compliance Dashboard [COMPLETE]
+- MarketSurveillance.tsx: surveillance notices table, compliance records, anomaly detection
+- /api/surveillance/dashboard, /notices, /anomalies endpoints
+- 4 TestSurveillanceEndpoints tests

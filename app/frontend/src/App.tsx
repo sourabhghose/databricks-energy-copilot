@@ -98,8 +98,11 @@ import PriceSetterAnalytics from './pages/PriceSetterAnalytics'
 import TariffAnalytics from './pages/TariffAnalytics'
 import GridModernisation from './pages/GridModernisation'
 import WemOverview from './pages/WemOverview'
+import MarketSurveillance from './pages/MarketSurveillance'
 import CauserPays from './pages/CauserPays'
 import SpotCapAnalytics from './pages/SpotCapAnalytics'
+import TnspAnalytics from './pages/TnspAnalytics'
+import InertiaAnalytics from './pages/InertiaAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -161,6 +164,9 @@ const NAV_ITEMS = [
   { to: '/spot-cap',       label: 'Price Cap & CPT',   Icon: AlertTriangle  },
   { to: '/causer-pays',    label: 'Causer Pays',        Icon: Gauge          },
   { to: '/wem',            label: 'WEM Market',        Icon: Building2      },
+  { to: '/inertia',         label: 'Inertia & Strength', Icon: Activity       },
+  { to: '/tnsp',           label: 'TNSP & AER',        Icon: Network        },
+  { to: '/surveillance',  label: 'Market Surveillance', Icon: Shield         },
   { to: '/settings',       label: 'Settings',          Icon: SettingsIcon   },
 ]
 
@@ -297,6 +303,9 @@ export default function App() {
               <Route path="/spot-cap"      element={<SpotCapAnalytics />} />
               <Route path="/causer-pays" element={<CauserPays />}       />
               <Route path="/wem"          element={<WemOverview />}         />
+              <Route path="/inertia"      element={<InertiaAnalytics />}   />
+              <Route path="/tnsp"         element={<TnspAnalytics />}      />
+              <Route path="/surveillance" element={<MarketSurveillance />} />
               <Route path="/settings"     element={<Settings />}           />
             </Routes>
           </main>

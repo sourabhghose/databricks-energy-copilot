@@ -2667,3 +2667,112 @@ class TestWemEndpoints:
         assert r.status_code == 200
         for f in r.json():
             assert f["technology"] == "WIND"
+
+
+
+# ---------------------------------------------------------------------------
+# Sprint 30a — Power System Inertia & System Strength Analytics
+# ---------------------------------------------------------------------------
+
+class TestInertiaEndpoints:
+    def test_inertia_dashboard_returns_200(self, client=client):
+        r = client.get("/api/inertia/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "inertia_records" in d
+        assert "strength_records" in d
+        assert d["national_inertia_mws"] > 0
+
+    def test_inertia_records_list(self, client=client):
+        r = client.get("/api/inertia/records")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) == 5
+        for rec in records:
+            assert rec["total_inertia_mws"] > 0
+
+    def test_system_strength_list(self, client=client):
+        r = client.get("/api/inertia/strength")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) == 5
+        for rec in records:
+            assert rec["system_strength_status"] in ["SECURE", "MARGINAL", "INSECURE"]
+
+    def test_inertia_region_filter(self, client=client):
+        r = client.get("/api/inertia/records?region=SA1")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["region"] == "SA1"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 30c — TNSP Revenue & AER Determinations Analytics
+# ---------------------------------------------------------------------------
+
+class TestTnspEndpoints:
+    def test_tnsp_dashboard_returns_200(self, client=client):
+        r = client.get("/api/tnsp/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "revenue_records" in d
+        assert "determinations" in d
+        assert "asset_records" in d
+        assert d["num_tnsps"] == 5
+
+    def test_tnsp_revenue_list(self, client=client):
+        r = client.get("/api/tnsp/revenue")
+        assert r.status_code == 200
+        records = r.json()
+        assert len(records) >= 10
+        for rec in records:
+            assert rec["approved_revenue_m_aud"] > 0
+
+    def test_aer_determinations_list(self, client=client):
+        r = client.get("/api/tnsp/determinations")
+        assert r.status_code == 200
+        dets = r.json()
+        assert len(dets) >= 5
+        for d in dets:
+            assert d["total_revenue_m_aud"] > 0
+
+    def test_tnsp_revenue_year_filter(self, client=client):
+        r = client.get("/api/tnsp/revenue?year=2025")
+        assert r.status_code == 200
+        for rec in r.json():
+            assert rec["year"] == 2025
+
+
+# ---------------------------------------------------------------------------
+# Sprint 30b — AEMO Market Surveillance & Compliance
+# ---------------------------------------------------------------------------
+
+class TestSurveillanceEndpoints:
+    def test_surveillance_dashboard_returns_200(self, client=client):
+        r = client.get("/api/surveillance/dashboard")
+        assert r.status_code == 200
+        d = r.json()
+        assert "notices" in d
+        assert "compliance_records" in d
+        assert "anomalies" in d
+        assert d["open_investigations"] >= 0
+
+    def test_surveillance_notices_list(self, client=client):
+        r = client.get("/api/surveillance/notices")
+        assert r.status_code == 200
+        notices = r.json()
+        assert len(notices) >= 5
+        for n in notices:
+            assert n["status"] in ["OPEN", "UNDER_INVESTIGATION", "REFERRED", "CLOSED"]
+
+    def test_surveillance_status_filter(self, client=client):
+        r = client.get("/api/surveillance/notices?status=OPEN")
+        assert r.status_code == 200
+        for n in r.json():
+            assert n["status"] == "OPEN"
+
+    def test_market_anomalies_list(self, client=client):
+        r = client.get("/api/surveillance/anomalies")
+        assert r.status_code == 200
+        anomalies = r.json()
+        assert len(anomalies) >= 5
