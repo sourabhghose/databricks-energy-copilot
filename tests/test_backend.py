@@ -4588,3 +4588,90 @@ class TestIndustrialDemandFlexEndpoints:
         r = client.get("/api/industrial-demand-flex/aggregate", headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestStorageLcaEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/storage-lca/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "lca_records" in d
+        assert len(d["lca_records"]) > 0
+
+    def test_lca_records(self, client):
+        r = client.get("/api/storage-lca/lca-records", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_critical_minerals(self, client):
+        r = client.get("/api/storage-lca/critical-minerals", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_recycling(self, client):
+        r = client.get("/api/storage-lca/recycling", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_scenarios(self, client):
+        r = client.get("/api/storage-lca/scenarios", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestIFAEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/interconnector-flow-analytics/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "interconnectors" in d
+        assert len(d["interconnectors"]) > 0
+
+    def test_interconnectors(self, client):
+        r = client.get("/api/interconnector-flow-analytics/interconnectors", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_flows(self, client):
+        r = client.get("/api/interconnector-flow-analytics/flows", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_upgrades(self, client):
+        r = client.get("/api/interconnector-flow-analytics/upgrades", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_patterns(self, client):
+        r = client.get("/api/interconnector-flow-analytics/patterns", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestIspProgressEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/isp-progress/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "actionable_projects" in d
+        assert len(d["actionable_projects"]) > 0
+
+    def test_actionable_projects(self, client):
+        r = client.get("/api/isp-progress/actionable-projects", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_capacity_milestones(self, client):
+        r = client.get("/api/isp-progress/capacity-milestones", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_scenarios(self, client):
+        r = client.get("/api/isp-progress/scenarios", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_delivery_risks(self, client):
+        r = client.get("/api/isp-progress/delivery-risks", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)

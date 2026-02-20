@@ -60,6 +60,9 @@ import {
   SunMedium,
   Tornado,
   Factory,
+  RefreshCw,
+  ArrowLeftRight,
+  Map,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -186,6 +189,9 @@ import MicrogridRaps from './pages/MicrogridRaps'
 import MarketLiquidity from './pages/MarketLiquidity'
 import ThermalEfficiency from './pages/ThermalEfficiency'
 import IndustrialDemandFlex from './pages/IndustrialDemandFlex'
+import StorageLca from './pages/StorageLca'
+import InterconnectorFlowAnalytics from './pages/InterconnectorFlowAnalytics'
+import IspProgressTracker from './pages/IspProgressTracker'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -312,6 +318,9 @@ const NAV_ITEMS = [
   { to: '/market-liquidity',  label: 'Market Liquidity',   Icon: BarChart       },
   { to: '/thermal-efficiency', label: 'Thermal Efficiency', Icon: Thermometer   },
   { to: '/industrial-demand-flex', label: 'Industrial Demand Flex', Icon: Factory },
+  { to: '/storage-lca',       label: 'Storage LCA',        Icon: RefreshCw      },
+  { to: '/interconnector-flow-analytics', label: 'Interconnector Flows', Icon: ArrowLeftRight },
+  { to: '/isp-progress',      label: 'ISP Progress',       Icon: Map            },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -513,6 +522,9 @@ export default function App() {
               <Route path="/market-liquidity"  element={<MarketLiquidity />}       />
               <Route path="/thermal-efficiency" element={<ThermalEfficiency />}  />
               <Route path="/industrial-demand-flex" element={<IndustrialDemandFlex />} />
+              <Route path="/storage-lca"       element={<StorageLca />}          />
+              <Route path="/interconnector-flow-analytics" element={<InterconnectorFlowAnalytics />} />
+              <Route path="/isp-progress"      element={<IspProgressTracker />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

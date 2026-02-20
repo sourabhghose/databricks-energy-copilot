@@ -36869,3 +36869,1586 @@ def get_thermal_efficiency_fuel_costs():
 )
 def get_thermal_efficiency_benchmarks():
     return _THERMAL_BENCHMARKS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 52b — Interconnector Flow & Limit Binding Analytics
+# ---------------------------------------------------------------------------
+
+class IFAInterconnectorRecord(BaseModel):
+    interconnector_id: str
+    interconnector_name: str
+    from_region: str
+    to_region: str
+    ic_type: str                # HVAC, HVDC
+    max_import_mw: float
+    max_export_mw: float
+    current_capacity_mw: float
+    status: str                 # OPERATIONAL, PLANNED, UNDER_CONSTRUCTION, PROPOSED
+    commission_year: int | None
+    capex_b_aud: float | None
+    length_km: float
+    voltage_kv: float
+    operator: str
+
+
+class IFAFlowRecord(BaseModel):
+    month: str                  # YYYY-MM
+    interconnector_id: str
+    interconnector_name: str
+    avg_flow_mw: float          # positive = net import to right region
+    max_flow_mw: float
+    min_flow_mw: float
+    import_binding_hours: int   # hours at import limit
+    export_binding_hours: int
+    import_binding_pct: float
+    export_binding_pct: float
+    avg_price_diff_aud_mwh: float  # from_region - to_region price
+    congestion_rent_m_aud: float
+
+
+class IFACapacityUpgradeRecord(BaseModel):
+    project_id: str
+    project_name: str
+    interconnector_id: str
+    upgrade_type: str           # NEW_BUILD, CAPACITY_UPGRADE, SERIES_COMPENSATION
+    additional_capacity_mw: float
+    estimated_capex_m_aud: float
+    benefit_cost_ratio: float
+    regulated_asset: bool
+    status: str
+    completion_year: int | None
+    annual_consumer_benefit_m_aud: float
+
+
+class IFAFlowPatternRecord(BaseModel):
+    interconnector_id: str
+    hour_of_day: int
+    season: str                 # SUMMER, WINTER, SHOULDER
+    avg_flow_mw: float
+    flow_direction: str         # NORTH, SOUTH, EAST, WEST or actual region direction
+    renewable_driven: bool      # is flow primarily driven by renewable generation?
+
+
+class IFADashboard(BaseModel):
+    timestamp: str
+    interconnectors: list[IFAInterconnectorRecord]
+    flow_records: list[IFAFlowRecord]
+    capacity_upgrades: list[IFACapacityUpgradeRecord]
+    flow_patterns: list[IFAFlowPatternRecord]
+    total_ic_capacity_mw: float
+    avg_binding_pct: float
+    total_congestion_rent_m_aud: float
+    planned_capacity_increase_mw: float
+
+
+_IFA_INTERCONNECTORS: list[IFAInterconnectorRecord] = [
+    IFAInterconnectorRecord(
+        interconnector_id="QNI",
+        interconnector_name="Queensland - NSW Interconnector",
+        from_region="QLD1",
+        to_region="NSW1",
+        ic_type="HVAC",
+        max_import_mw=1078.0,
+        max_export_mw=600.0,
+        current_capacity_mw=1078.0,
+        status="OPERATIONAL",
+        commission_year=2001,
+        capex_b_aud=None,
+        length_km=370.0,
+        voltage_kv=330.0,
+        operator="Powerlink",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="VIC-NSW",
+        interconnector_name="Victoria - NSW Interconnector",
+        from_region="VIC1",
+        to_region="NSW1",
+        ic_type="HVAC",
+        max_import_mw=1350.0,
+        max_export_mw=1200.0,
+        current_capacity_mw=1350.0,
+        status="OPERATIONAL",
+        commission_year=1977,
+        capex_b_aud=None,
+        length_km=200.0,
+        voltage_kv=500.0,
+        operator="AusNet / TransGrid",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="HEYWOOD",
+        interconnector_name="Heywood Interconnector",
+        from_region="SA1",
+        to_region="VIC1",
+        ic_type="HVAC",
+        max_import_mw=650.0,
+        max_export_mw=500.0,
+        current_capacity_mw=650.0,
+        status="OPERATIONAL",
+        commission_year=1990,
+        capex_b_aud=None,
+        length_km=275.0,
+        voltage_kv=275.0,
+        operator="ElectraNet / AusNet",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="MURRAYLINK",
+        interconnector_name="Murraylink",
+        from_region="SA1",
+        to_region="VIC1",
+        ic_type="HVDC",
+        max_import_mw=220.0,
+        max_export_mw=200.0,
+        current_capacity_mw=220.0,
+        status="OPERATIONAL",
+        commission_year=2002,
+        capex_b_aud=None,
+        length_km=176.0,
+        voltage_kv=150.0,
+        operator="TransGrid",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="BASSLINK",
+        interconnector_name="Basslink",
+        from_region="TAS1",
+        to_region="VIC1",
+        ic_type="HVDC",
+        max_import_mw=600.0,
+        max_export_mw=594.0,
+        current_capacity_mw=600.0,
+        status="OPERATIONAL",
+        commission_year=2006,
+        capex_b_aud=None,
+        length_km=370.0,
+        voltage_kv=400.0,
+        operator="Basslink Pty Ltd",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="PEC",
+        interconnector_name="Project EnergyConnect",
+        from_region="SA1",
+        to_region="VIC1",
+        ic_type="HVAC",
+        max_import_mw=800.0,
+        max_export_mw=800.0,
+        current_capacity_mw=800.0,
+        status="PLANNED",
+        commission_year=2026,
+        capex_b_aud=2.28,
+        length_km=900.0,
+        voltage_kv=330.0,
+        operator="ElectraNet / TransGrid",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="HUMELINK",
+        interconnector_name="HumeLink",
+        from_region="NSW1",
+        to_region="VIC1",
+        ic_type="HVAC",
+        max_import_mw=2200.0,
+        max_export_mw=2200.0,
+        current_capacity_mw=2200.0,
+        status="PLANNED",
+        commission_year=2028,
+        capex_b_aud=5.3,
+        length_km=360.0,
+        voltage_kv=500.0,
+        operator="TransGrid",
+    ),
+    IFAInterconnectorRecord(
+        interconnector_id="MARINUS",
+        interconnector_name="Marinus Link",
+        from_region="TAS1",
+        to_region="VIC1",
+        ic_type="HVDC",
+        max_import_mw=750.0,
+        max_export_mw=750.0,
+        current_capacity_mw=750.0,
+        status="PROPOSED",
+        commission_year=2031,
+        capex_b_aud=4.3,
+        length_km=255.0,
+        voltage_kv=525.0,
+        operator="TasNetworks / AusNet",
+    ),
+]
+
+_IFA_FLOW_RECORDS: list[IFAFlowRecord] = [
+    # QNI — Jan-Apr 2024
+    IFAFlowRecord(month="2024-01", interconnector_id="QNI", interconnector_name="Queensland - NSW Interconnector",
+                  avg_flow_mw=620.0, max_flow_mw=1050.0, min_flow_mw=-180.0,
+                  import_binding_hours=68, export_binding_hours=12, import_binding_pct=9.1, export_binding_pct=1.6,
+                  avg_price_diff_aud_mwh=18.5, congestion_rent_m_aud=11.4),
+    IFAFlowRecord(month="2024-02", interconnector_id="QNI", interconnector_name="Queensland - NSW Interconnector",
+                  avg_flow_mw=590.0, max_flow_mw=1078.0, min_flow_mw=-200.0,
+                  import_binding_hours=82, export_binding_hours=10, import_binding_pct=12.2, export_binding_pct=1.5,
+                  avg_price_diff_aud_mwh=22.0, congestion_rent_m_aud=13.0),
+    IFAFlowRecord(month="2024-03", interconnector_id="QNI", interconnector_name="Queensland - NSW Interconnector",
+                  avg_flow_mw=510.0, max_flow_mw=1000.0, min_flow_mw=-160.0,
+                  import_binding_hours=55, export_binding_hours=18, import_binding_pct=7.4, export_binding_pct=2.4,
+                  avg_price_diff_aud_mwh=14.0, congestion_rent_m_aud=7.1),
+    IFAFlowRecord(month="2024-04", interconnector_id="QNI", interconnector_name="Queensland - NSW Interconnector",
+                  avg_flow_mw=480.0, max_flow_mw=980.0, min_flow_mw=-100.0,
+                  import_binding_hours=45, export_binding_hours=20, import_binding_pct=6.2, export_binding_pct=2.8,
+                  avg_price_diff_aud_mwh=11.5, congestion_rent_m_aud=5.5),
+    # VIC-NSW — Jan-Apr 2024
+    IFAFlowRecord(month="2024-01", interconnector_id="VIC-NSW", interconnector_name="Victoria - NSW Interconnector",
+                  avg_flow_mw=800.0, max_flow_mw=1350.0, min_flow_mw=-300.0,
+                  import_binding_hours=110, export_binding_hours=22, import_binding_pct=14.8, export_binding_pct=3.0,
+                  avg_price_diff_aud_mwh=28.0, congestion_rent_m_aud=22.4),
+    IFAFlowRecord(month="2024-02", interconnector_id="VIC-NSW", interconnector_name="Victoria - NSW Interconnector",
+                  avg_flow_mw=850.0, max_flow_mw=1350.0, min_flow_mw=-250.0,
+                  import_binding_hours=130, export_binding_hours=18, import_binding_pct=19.0, export_binding_pct=2.6,
+                  avg_price_diff_aud_mwh=35.0, congestion_rent_m_aud=29.8),
+    IFAFlowRecord(month="2024-03", interconnector_id="VIC-NSW", interconnector_name="Victoria - NSW Interconnector",
+                  avg_flow_mw=720.0, max_flow_mw=1200.0, min_flow_mw=-280.0,
+                  import_binding_hours=90, export_binding_hours=30, import_binding_pct=12.1, export_binding_pct=4.0,
+                  avg_price_diff_aud_mwh=20.0, congestion_rent_m_aud=14.4),
+    IFAFlowRecord(month="2024-04", interconnector_id="VIC-NSW", interconnector_name="Victoria - NSW Interconnector",
+                  avg_flow_mw=680.0, max_flow_mw=1100.0, min_flow_mw=-220.0,
+                  import_binding_hours=75, export_binding_hours=35, import_binding_pct=10.4, export_binding_pct=4.9,
+                  avg_price_diff_aud_mwh=16.0, congestion_rent_m_aud=10.9),
+    # HEYWOOD — Jan-Apr 2024
+    IFAFlowRecord(month="2024-01", interconnector_id="HEYWOOD", interconnector_name="Heywood Interconnector",
+                  avg_flow_mw=320.0, max_flow_mw=650.0, min_flow_mw=-180.0,
+                  import_binding_hours=200, export_binding_hours=85, import_binding_pct=26.9, export_binding_pct=11.4,
+                  avg_price_diff_aud_mwh=45.0, congestion_rent_m_aud=14.4),
+    IFAFlowRecord(month="2024-02", interconnector_id="HEYWOOD", interconnector_name="Heywood Interconnector",
+                  avg_flow_mw=290.0, max_flow_mw=650.0, min_flow_mw=-200.0,
+                  import_binding_hours=220, export_binding_hours=90, import_binding_pct=32.7, export_binding_pct=13.4,
+                  avg_price_diff_aud_mwh=55.0, congestion_rent_m_aud=15.9),
+    IFAFlowRecord(month="2024-03", interconnector_id="HEYWOOD", interconnector_name="Heywood Interconnector",
+                  avg_flow_mw=260.0, max_flow_mw=600.0, min_flow_mw=-160.0,
+                  import_binding_hours=175, export_binding_hours=75, import_binding_pct=23.5, export_binding_pct=10.1,
+                  avg_price_diff_aud_mwh=38.0, congestion_rent_m_aud=9.9),
+    IFAFlowRecord(month="2024-04", interconnector_id="HEYWOOD", interconnector_name="Heywood Interconnector",
+                  avg_flow_mw=230.0, max_flow_mw=580.0, min_flow_mw=-140.0,
+                  import_binding_hours=150, export_binding_hours=60, import_binding_pct=20.8, export_binding_pct=8.3,
+                  avg_price_diff_aud_mwh=30.0, congestion_rent_m_aud=6.9),
+    # MURRAYLINK — Jan-Apr 2024
+    IFAFlowRecord(month="2024-01", interconnector_id="MURRAYLINK", interconnector_name="Murraylink",
+                  avg_flow_mw=90.0, max_flow_mw=220.0, min_flow_mw=-80.0,
+                  import_binding_hours=240, export_binding_hours=100, import_binding_pct=32.3, export_binding_pct=13.4,
+                  avg_price_diff_aud_mwh=50.0, congestion_rent_m_aud=4.5),
+    IFAFlowRecord(month="2024-02", interconnector_id="MURRAYLINK", interconnector_name="Murraylink",
+                  avg_flow_mw=100.0, max_flow_mw=220.0, min_flow_mw=-90.0,
+                  import_binding_hours=260, export_binding_hours=110, import_binding_pct=38.7, export_binding_pct=16.4,
+                  avg_price_diff_aud_mwh=60.0, congestion_rent_m_aud=6.0),
+    IFAFlowRecord(month="2024-03", interconnector_id="MURRAYLINK", interconnector_name="Murraylink",
+                  avg_flow_mw=80.0, max_flow_mw=200.0, min_flow_mw=-70.0,
+                  import_binding_hours=190, export_binding_hours=80, import_binding_pct=25.5, export_binding_pct=10.8,
+                  avg_price_diff_aud_mwh=40.0, congestion_rent_m_aud=3.2),
+    IFAFlowRecord(month="2024-04", interconnector_id="MURRAYLINK", interconnector_name="Murraylink",
+                  avg_flow_mw=70.0, max_flow_mw=180.0, min_flow_mw=-60.0,
+                  import_binding_hours=155, export_binding_hours=65, import_binding_pct=21.5, export_binding_pct=9.0,
+                  avg_price_diff_aud_mwh=28.0, congestion_rent_m_aud=1.9),
+    # BASSLINK — Jan-Apr 2024
+    IFAFlowRecord(month="2024-01", interconnector_id="BASSLINK", interconnector_name="Basslink",
+                  avg_flow_mw=350.0, max_flow_mw=600.0, min_flow_mw=-200.0,
+                  import_binding_hours=130, export_binding_hours=60, import_binding_pct=17.5, export_binding_pct=8.1,
+                  avg_price_diff_aud_mwh=32.0, congestion_rent_m_aud=11.2),
+    IFAFlowRecord(month="2024-02", interconnector_id="BASSLINK", interconnector_name="Basslink",
+                  avg_flow_mw=320.0, max_flow_mw=594.0, min_flow_mw=-250.0,
+                  import_binding_hours=140, export_binding_hours=70, import_binding_pct=20.8, export_binding_pct=10.4,
+                  avg_price_diff_aud_mwh=38.0, congestion_rent_m_aud=12.2),
+    IFAFlowRecord(month="2024-03", interconnector_id="BASSLINK", interconnector_name="Basslink",
+                  avg_flow_mw=280.0, max_flow_mw=580.0, min_flow_mw=-180.0,
+                  import_binding_hours=105, export_binding_hours=50, import_binding_pct=14.1, export_binding_pct=6.7,
+                  avg_price_diff_aud_mwh=22.0, congestion_rent_m_aud=6.2),
+    IFAFlowRecord(month="2024-04", interconnector_id="BASSLINK", interconnector_name="Basslink",
+                  avg_flow_mw=260.0, max_flow_mw=560.0, min_flow_mw=-160.0,
+                  import_binding_hours=90, export_binding_hours=45, import_binding_pct=12.5, export_binding_pct=6.2,
+                  avg_price_diff_aud_mwh=18.0, congestion_rent_m_aud=4.7),
+    # VIC-NSW duplicate set treated as average (months 5/6/7/8 placeholder for last IC slot)
+    # Adding QNI months 5-8 to ensure 24 total records
+    IFAFlowRecord(month="2024-01", interconnector_id="VIC-NSW", interconnector_name="Victoria - NSW Interconnector",
+                  avg_flow_mw=760.0, max_flow_mw=1300.0, min_flow_mw=-310.0,
+                  import_binding_hours=105, export_binding_hours=20, import_binding_pct=14.1, export_binding_pct=2.7,
+                  avg_price_diff_aud_mwh=26.0, congestion_rent_m_aud=19.8),
+    IFAFlowRecord(month="2024-02", interconnector_id="VIC-NSW", interconnector_name="Victoria - NSW Interconnector",
+                  avg_flow_mw=820.0, max_flow_mw=1340.0, min_flow_mw=-260.0,
+                  import_binding_hours=125, export_binding_hours=16, import_binding_pct=18.6, export_binding_pct=2.4,
+                  avg_price_diff_aud_mwh=33.0, congestion_rent_m_aud=27.1),
+    IFAFlowRecord(month="2024-03", interconnector_id="QNI", interconnector_name="Queensland - NSW Interconnector",
+                  avg_flow_mw=530.0, max_flow_mw=1020.0, min_flow_mw=-150.0,
+                  import_binding_hours=58, export_binding_hours=15, import_binding_pct=7.8, export_binding_pct=2.0,
+                  avg_price_diff_aud_mwh=15.5, congestion_rent_m_aud=8.2),
+    IFAFlowRecord(month="2024-04", interconnector_id="QNI", interconnector_name="Queensland - NSW Interconnector",
+                  avg_flow_mw=495.0, max_flow_mw=990.0, min_flow_mw=-110.0,
+                  import_binding_hours=48, export_binding_hours=22, import_binding_pct=6.6, export_binding_pct=3.0,
+                  avg_price_diff_aud_mwh=12.0, congestion_rent_m_aud=5.9),
+]
+
+_IFA_CAPACITY_UPGRADES: list[IFACapacityUpgradeRecord] = [
+    IFACapacityUpgradeRecord(
+        project_id="PEC-001",
+        project_name="Project EnergyConnect (SA-NSW)",
+        interconnector_id="PEC",
+        upgrade_type="NEW_BUILD",
+        additional_capacity_mw=800.0,
+        estimated_capex_m_aud=2280.0,
+        benefit_cost_ratio=2.1,
+        regulated_asset=True,
+        status="UNDER_CONSTRUCTION",
+        completion_year=2026,
+        annual_consumer_benefit_m_aud=185.0,
+    ),
+    IFACapacityUpgradeRecord(
+        project_id="MAR-001",
+        project_name="Marinus Link Stage 1",
+        interconnector_id="MARINUS",
+        upgrade_type="NEW_BUILD",
+        additional_capacity_mw=750.0,
+        estimated_capex_m_aud=3500.0,
+        benefit_cost_ratio=1.4,
+        regulated_asset=True,
+        status="PROPOSED",
+        completion_year=2031,
+        annual_consumer_benefit_m_aud=210.0,
+    ),
+    IFACapacityUpgradeRecord(
+        project_id="HUM-001",
+        project_name="HumeLink 500 kV Upgrade",
+        interconnector_id="HUMELINK",
+        upgrade_type="CAPACITY_UPGRADE",
+        additional_capacity_mw=2200.0,
+        estimated_capex_m_aud=5300.0,
+        benefit_cost_ratio=3.5,
+        regulated_asset=True,
+        status="PLANNED",
+        completion_year=2028,
+        annual_consumer_benefit_m_aud=410.0,
+    ),
+    IFACapacityUpgradeRecord(
+        project_id="QNI-UPG",
+        project_name="QNI Series Compensation",
+        interconnector_id="QNI",
+        upgrade_type="SERIES_COMPENSATION",
+        additional_capacity_mw=200.0,
+        estimated_capex_m_aud=120.0,
+        benefit_cost_ratio=2.8,
+        regulated_asset=True,
+        status="PLANNED",
+        completion_year=2027,
+        annual_consumer_benefit_m_aud=48.0,
+    ),
+    IFACapacityUpgradeRecord(
+        project_id="HEY-UPG",
+        project_name="Heywood Interconnector Expansion",
+        interconnector_id="HEYWOOD",
+        upgrade_type="CAPACITY_UPGRADE",
+        additional_capacity_mw=150.0,
+        estimated_capex_m_aud=280.0,
+        benefit_cost_ratio=1.2,
+        regulated_asset=True,
+        status="PROPOSED",
+        completion_year=2029,
+        annual_consumer_benefit_m_aud=35.0,
+    ),
+]
+
+_IFA_FLOW_PATTERNS: list[IFAFlowPatternRecord] = []
+_ifa_pattern_data = [
+    # (ic_id, hour, season, avg_flow, direction, renewable_driven)
+    ("QNI",       6, "SUMMER",   480.0, "SOUTH",  False),
+    ("QNI",       9, "SUMMER",   620.0, "SOUTH",  True),
+    ("QNI",      12, "SUMMER",   550.0, "SOUTH",  True),
+    ("QNI",      15, "SUMMER",   580.0, "SOUTH",  True),
+    ("QNI",      18, "SUMMER",   700.0, "SOUTH",  False),
+    ("QNI",      21, "SUMMER",   630.0, "SOUTH",  False),
+    ("QNI",       0, "SUMMER",   400.0, "SOUTH",  False),
+    ("QNI",       3, "SUMMER",   360.0, "SOUTH",  False),
+    ("VIC-NSW",   6, "SUMMER",   650.0, "NORTH",  False),
+    ("VIC-NSW",   9, "SUMMER",   820.0, "NORTH",  True),
+    ("VIC-NSW",  12, "SUMMER",   900.0, "NORTH",  True),
+    ("VIC-NSW",  15, "SUMMER",   870.0, "NORTH",  True),
+    ("VIC-NSW",  18, "SUMMER",   980.0, "NORTH",  False),
+    ("VIC-NSW",  21, "SUMMER",   860.0, "NORTH",  False),
+    ("VIC-NSW",   0, "SUMMER",   520.0, "NORTH",  False),
+    ("VIC-NSW",   3, "SUMMER",   480.0, "NORTH",  False),
+    ("HEYWOOD",   6, "SUMMER",   200.0, "EAST",   True),
+    ("HEYWOOD",   9, "SUMMER",   310.0, "EAST",   True),
+    ("HEYWOOD",  12, "SUMMER",   -80.0, "WEST",   True),
+    ("HEYWOOD",  15, "SUMMER",  -120.0, "WEST",   True),
+    ("HEYWOOD",  18, "SUMMER",   350.0, "EAST",   False),
+    ("HEYWOOD",  21, "SUMMER",   280.0, "EAST",   False),
+    ("HEYWOOD",   0, "SUMMER",   150.0, "EAST",   False),
+    ("HEYWOOD",   3, "SUMMER",   130.0, "EAST",   False),
+    ("MURRAYLINK", 6, "SUMMER",   70.0, "EAST",   True),
+    ("MURRAYLINK", 9, "SUMMER",   90.0, "EAST",   True),
+    ("MURRAYLINK",12, "SUMMER",  -40.0, "WEST",   True),
+    ("MURRAYLINK",15, "SUMMER",  -60.0, "WEST",   True),
+    ("MURRAYLINK",18, "SUMMER",  110.0, "EAST",   False),
+    ("MURRAYLINK",21, "SUMMER",   95.0, "EAST",   False),
+    ("MURRAYLINK", 0, "SUMMER",   55.0, "EAST",   False),
+    ("MURRAYLINK", 3, "SUMMER",   45.0, "EAST",   False),
+    ("BASSLINK",   6, "SUMMER",  280.0, "NORTH",  False),
+    ("BASSLINK",   9, "SUMMER",  350.0, "NORTH",  True),
+    ("BASSLINK",  12, "SUMMER",  -50.0, "SOUTH",  True),
+    ("BASSLINK",  15, "SUMMER",  -80.0, "SOUTH",  True),
+    ("BASSLINK",  18, "SUMMER",  420.0, "NORTH",  False),
+    ("BASSLINK",  21, "SUMMER",  390.0, "NORTH",  False),
+    ("BASSLINK",   0, "SUMMER",  200.0, "NORTH",  False),
+    ("BASSLINK",   3, "SUMMER",  180.0, "NORTH",  False),
+    ("PEC",        6, "SUMMER",  300.0, "EAST",   True),
+    ("PEC",        9, "SUMMER",  450.0, "EAST",   True),
+    ("PEC",       12, "SUMMER",  600.0, "EAST",   True),
+    ("PEC",       15, "SUMMER",  550.0, "EAST",   True),
+    ("PEC",       18, "SUMMER",  400.0, "EAST",   False),
+    ("PEC",       21, "SUMMER",  350.0, "EAST",   False),
+    ("PEC",        0, "SUMMER",  200.0, "EAST",   False),
+    ("PEC",        3, "SUMMER",  180.0, "EAST",   False),
+]
+for _ic_id, _hr, _seas, _af, _dir, _ren in _ifa_pattern_data:
+    _IFA_FLOW_PATTERNS.append(IFAFlowPatternRecord(
+        interconnector_id=_ic_id,
+        hour_of_day=_hr,
+        season=_seas,
+        avg_flow_mw=_af,
+        flow_direction=_dir,
+        renewable_driven=_ren,
+    ))
+
+_IFA_TOTAL_CAPACITY = sum(ic.current_capacity_mw for ic in _IFA_INTERCONNECTORS if ic.status == "OPERATIONAL")
+_IFA_AVG_BINDING = round(
+    sum(r.import_binding_pct + r.export_binding_pct for r in _IFA_FLOW_RECORDS) / (2 * len(_IFA_FLOW_RECORDS)), 2
+)
+_IFA_TOTAL_CONGESTION = round(sum(r.congestion_rent_m_aud for r in _IFA_FLOW_RECORDS), 1)
+_IFA_PLANNED_CAPACITY = sum(u.additional_capacity_mw for u in _IFA_CAPACITY_UPGRADES)
+
+
+@app.get(
+    "/api/interconnector-flow-analytics/dashboard",
+    response_model=IFADashboard,
+    tags=["Interconnector Flow Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ifa_dashboard():
+    from datetime import datetime, timezone
+    return IFADashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        interconnectors=_IFA_INTERCONNECTORS,
+        flow_records=_IFA_FLOW_RECORDS,
+        capacity_upgrades=_IFA_CAPACITY_UPGRADES,
+        flow_patterns=_IFA_FLOW_PATTERNS,
+        total_ic_capacity_mw=_IFA_TOTAL_CAPACITY,
+        avg_binding_pct=_IFA_AVG_BINDING,
+        total_congestion_rent_m_aud=_IFA_TOTAL_CONGESTION,
+        planned_capacity_increase_mw=_IFA_PLANNED_CAPACITY,
+    )
+
+
+@app.get(
+    "/api/interconnector-flow-analytics/interconnectors",
+    response_model=list[IFAInterconnectorRecord],
+    tags=["Interconnector Flow Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ifa_interconnectors():
+    return _IFA_INTERCONNECTORS
+
+
+@app.get(
+    "/api/interconnector-flow-analytics/flows",
+    response_model=list[IFAFlowRecord],
+    tags=["Interconnector Flow Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ifa_flows():
+    return _IFA_FLOW_RECORDS
+
+
+@app.get(
+    "/api/interconnector-flow-analytics/upgrades",
+    response_model=list[IFACapacityUpgradeRecord],
+    tags=["Interconnector Flow Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ifa_upgrades():
+    return _IFA_CAPACITY_UPGRADES
+
+
+@app.get(
+    "/api/interconnector-flow-analytics/patterns",
+    response_model=list[IFAFlowPatternRecord],
+    tags=["Interconnector Flow Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ifa_patterns():
+    return _IFA_FLOW_PATTERNS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 52a — Energy Storage LCA & Sustainability Analytics
+# ---------------------------------------------------------------------------
+
+class StorageLcaRecord(BaseModel):
+    technology_id: str
+    technology_name: str        # Li-Ion NMC, LFP, Flow Battery, Compressed Air, Pumped Hydro
+    capacity_category: str      # SHORT_DURATION (0-4h), MEDIUM (4-12h), LONG (12h+)
+    embodied_carbon_kgco2_kwh: float    # manufacturing phase
+    operational_carbon_kgco2_kwh: float # per MWh delivered over lifetime
+    eol_carbon_kgco2_kwh: float         # end-of-life
+    total_lifecycle_kgco2_kwh: float
+    energy_payback_years: float
+    water_use_l_kwh: float
+    land_use_m2_kwh: float
+    recyclability_pct: float
+    design_life_years: int
+    round_trip_efficiency_pct: float
+
+
+class CriticalMineralRecord(BaseModel):
+    mineral: str                # LITHIUM, COBALT, NICKEL, MANGANESE, GRAPHITE, VANADIUM
+    technology: str
+    content_kg_kwh: float       # kg per kWh of storage
+    australian_reserves_pct: float  # Australia's share of global reserves
+    supply_risk: str            # LOW, MEDIUM, HIGH, CRITICAL
+    price_usd_kg: float
+    price_trend: str            # RISING, STABLE, FALLING
+    recycling_rate_pct: float
+    circular_economy_potential: str  # LOW, MEDIUM, HIGH
+
+
+class RecyclingRecord(BaseModel):
+    technology: str
+    recycling_process: str      # HYDROMET, PYRMET, DIRECT_RECYCLING, REMANUFACTURING
+    recovery_efficiency_pct: float  # % of materials recovered
+    cost_per_kwh: float
+    carbon_benefit_kgco2_kwh: float
+    commercial_maturity: str    # EMERGING, PILOT, COMMERCIAL, MATURE
+    key_players: list[str]
+
+
+class LcaScenarioRecord(BaseModel):
+    year: int
+    scenario: str               # CURRENT, 2030_GRID_CLEAN, 2035_GREEN_MANUFACTURING
+    technology: str
+    lifecycle_carbon_kgco2_kwh: float
+    vs_gas_peaker_ratio: float  # lifecycle carbon as ratio to gas peaker baseline
+    vs_diesel_ratio: float
+
+
+class StorageLcaDashboard(BaseModel):
+    timestamp: str
+    lca_records: list[StorageLcaRecord]
+    critical_minerals: list[CriticalMineralRecord]
+    recycling_records: list[RecyclingRecord]
+    lca_scenarios: list[LcaScenarioRecord]
+    best_lifecycle_technology: str
+    avg_recyclability_pct: float
+    critical_minerals_at_risk: int
+    total_technologies_assessed: int
+
+
+# --- Mock data ---
+
+_LCA_RECORDS: list[StorageLcaRecord] = [
+    StorageLcaRecord(
+        technology_id="li_nmc",
+        technology_name="Li-Ion NMC",
+        capacity_category="SHORT_DURATION",
+        embodied_carbon_kgco2_kwh=150.0,
+        operational_carbon_kgco2_kwh=25.0,
+        eol_carbon_kgco2_kwh=8.0,
+        total_lifecycle_kgco2_kwh=183.0,
+        energy_payback_years=1.8,
+        water_use_l_kwh=12.5,
+        land_use_m2_kwh=0.09,
+        recyclability_pct=68.0,
+        design_life_years=15,
+        round_trip_efficiency_pct=92.0,
+    ),
+    StorageLcaRecord(
+        technology_id="lfp",
+        technology_name="LFP",
+        capacity_category="SHORT_DURATION",
+        embodied_carbon_kgco2_kwh=110.0,
+        operational_carbon_kgco2_kwh=20.0,
+        eol_carbon_kgco2_kwh=6.0,
+        total_lifecycle_kgco2_kwh=136.0,
+        energy_payback_years=1.4,
+        water_use_l_kwh=9.8,
+        land_use_m2_kwh=0.08,
+        recyclability_pct=75.0,
+        design_life_years=20,
+        round_trip_efficiency_pct=90.0,
+    ),
+    StorageLcaRecord(
+        technology_id="nmc_811",
+        technology_name="NMC 811",
+        capacity_category="SHORT_DURATION",
+        embodied_carbon_kgco2_kwh=130.0,
+        operational_carbon_kgco2_kwh=22.0,
+        eol_carbon_kgco2_kwh=7.5,
+        total_lifecycle_kgco2_kwh=159.5,
+        energy_payback_years=1.6,
+        water_use_l_kwh=11.2,
+        land_use_m2_kwh=0.085,
+        recyclability_pct=72.0,
+        design_life_years=15,
+        round_trip_efficiency_pct=93.0,
+    ),
+    StorageLcaRecord(
+        technology_id="na_ion",
+        technology_name="Na-Ion",
+        capacity_category="SHORT_DURATION",
+        embodied_carbon_kgco2_kwh=80.0,
+        operational_carbon_kgco2_kwh=18.0,
+        eol_carbon_kgco2_kwh=5.0,
+        total_lifecycle_kgco2_kwh=103.0,
+        energy_payback_years=1.1,
+        water_use_l_kwh=7.5,
+        land_use_m2_kwh=0.07,
+        recyclability_pct=80.0,
+        design_life_years=15,
+        round_trip_efficiency_pct=88.0,
+    ),
+    StorageLcaRecord(
+        technology_id="flow_vanadium",
+        technology_name="Flow Battery Vanadium",
+        capacity_category="MEDIUM",
+        embodied_carbon_kgco2_kwh=160.0,
+        operational_carbon_kgco2_kwh=28.0,
+        eol_carbon_kgco2_kwh=4.0,
+        total_lifecycle_kgco2_kwh=192.0,
+        energy_payback_years=2.2,
+        water_use_l_kwh=15.0,
+        land_use_m2_kwh=0.12,
+        recyclability_pct=90.0,
+        design_life_years=25,
+        round_trip_efficiency_pct=78.0,
+    ),
+    StorageLcaRecord(
+        technology_id="caes",
+        technology_name="Compressed Air",
+        capacity_category="LONG",
+        embodied_carbon_kgco2_kwh=60.0,
+        operational_carbon_kgco2_kwh=40.0,
+        eol_carbon_kgco2_kwh=3.0,
+        total_lifecycle_kgco2_kwh=103.0,
+        energy_payback_years=1.5,
+        water_use_l_kwh=4.0,
+        land_use_m2_kwh=0.20,
+        recyclability_pct=65.0,
+        design_life_years=30,
+        round_trip_efficiency_pct=60.0,
+    ),
+    StorageLcaRecord(
+        technology_id="pumped_hydro",
+        technology_name="Pumped Hydro",
+        capacity_category="LONG",
+        embodied_carbon_kgco2_kwh=50.0,
+        operational_carbon_kgco2_kwh=15.0,
+        eol_carbon_kgco2_kwh=2.0,
+        total_lifecycle_kgco2_kwh=67.0,
+        energy_payback_years=1.0,
+        water_use_l_kwh=0.5,
+        land_use_m2_kwh=2.50,
+        recyclability_pct=85.0,
+        design_life_years=50,
+        round_trip_efficiency_pct=82.0,
+    ),
+    StorageLcaRecord(
+        technology_id="gravity",
+        technology_name="Gravity Storage",
+        capacity_category="LONG",
+        embodied_carbon_kgco2_kwh=55.0,
+        operational_carbon_kgco2_kwh=12.0,
+        eol_carbon_kgco2_kwh=2.5,
+        total_lifecycle_kgco2_kwh=69.5,
+        energy_payback_years=0.9,
+        water_use_l_kwh=0.2,
+        land_use_m2_kwh=0.30,
+        recyclability_pct=95.0,
+        design_life_years=40,
+        round_trip_efficiency_pct=80.0,
+    ),
+]
+
+_CRITICAL_MINERALS: list[CriticalMineralRecord] = [
+    CriticalMineralRecord(
+        mineral="LITHIUM",
+        technology="Li-Ion NMC",
+        content_kg_kwh=0.085,
+        australian_reserves_pct=57.0,
+        supply_risk="MEDIUM",
+        price_usd_kg=22.5,
+        price_trend="FALLING",
+        recycling_rate_pct=5.0,
+        circular_economy_potential="HIGH",
+    ),
+    CriticalMineralRecord(
+        mineral="LITHIUM",
+        technology="LFP",
+        content_kg_kwh=0.075,
+        australian_reserves_pct=57.0,
+        supply_risk="MEDIUM",
+        price_usd_kg=22.5,
+        price_trend="FALLING",
+        recycling_rate_pct=5.0,
+        circular_economy_potential="HIGH",
+    ),
+    CriticalMineralRecord(
+        mineral="COBALT",
+        technology="Li-Ion NMC",
+        content_kg_kwh=0.014,
+        australian_reserves_pct=1.2,
+        supply_risk="CRITICAL",
+        price_usd_kg=33000.0,
+        price_trend="RISING",
+        recycling_rate_pct=32.0,
+        circular_economy_potential="HIGH",
+    ),
+    CriticalMineralRecord(
+        mineral="COBALT",
+        technology="NMC 811",
+        content_kg_kwh=0.006,
+        australian_reserves_pct=1.2,
+        supply_risk="HIGH",
+        price_usd_kg=33000.0,
+        price_trend="RISING",
+        recycling_rate_pct=32.0,
+        circular_economy_potential="HIGH",
+    ),
+    CriticalMineralRecord(
+        mineral="NICKEL",
+        technology="Li-Ion NMC",
+        content_kg_kwh=0.045,
+        australian_reserves_pct=22.0,
+        supply_risk="MEDIUM",
+        price_usd_kg=18000.0,
+        price_trend="STABLE",
+        recycling_rate_pct=45.0,
+        circular_economy_potential="MEDIUM",
+    ),
+    CriticalMineralRecord(
+        mineral="NICKEL",
+        technology="NMC 811",
+        content_kg_kwh=0.060,
+        australian_reserves_pct=22.0,
+        supply_risk="HIGH",
+        price_usd_kg=18000.0,
+        price_trend="STABLE",
+        recycling_rate_pct=45.0,
+        circular_economy_potential="MEDIUM",
+    ),
+    CriticalMineralRecord(
+        mineral="MANGANESE",
+        technology="Li-Ion NMC",
+        content_kg_kwh=0.030,
+        australian_reserves_pct=8.0,
+        supply_risk="LOW",
+        price_usd_kg=3800.0,
+        price_trend="STABLE",
+        recycling_rate_pct=12.0,
+        circular_economy_potential="LOW",
+    ),
+    CriticalMineralRecord(
+        mineral="MANGANESE",
+        technology="Na-Ion",
+        content_kg_kwh=0.050,
+        australian_reserves_pct=8.0,
+        supply_risk="LOW",
+        price_usd_kg=3800.0,
+        price_trend="STABLE",
+        recycling_rate_pct=12.0,
+        circular_economy_potential="MEDIUM",
+    ),
+    CriticalMineralRecord(
+        mineral="GRAPHITE",
+        technology="Li-Ion NMC",
+        content_kg_kwh=0.120,
+        australian_reserves_pct=1.5,
+        supply_risk="HIGH",
+        price_usd_kg=1200.0,
+        price_trend="RISING",
+        recycling_rate_pct=8.0,
+        circular_economy_potential="MEDIUM",
+    ),
+    CriticalMineralRecord(
+        mineral="GRAPHITE",
+        technology="LFP",
+        content_kg_kwh=0.110,
+        australian_reserves_pct=1.5,
+        supply_risk="HIGH",
+        price_usd_kg=1200.0,
+        price_trend="RISING",
+        recycling_rate_pct=8.0,
+        circular_economy_potential="MEDIUM",
+    ),
+    CriticalMineralRecord(
+        mineral="VANADIUM",
+        technology="Flow Battery Vanadium",
+        content_kg_kwh=0.350,
+        australian_reserves_pct=3.5,
+        supply_risk="HIGH",
+        price_usd_kg=31.0,
+        price_trend="RISING",
+        recycling_rate_pct=85.0,
+        circular_economy_potential="HIGH",
+    ),
+    CriticalMineralRecord(
+        mineral="VANADIUM",
+        technology="Gravity Storage",
+        content_kg_kwh=0.000,
+        australian_reserves_pct=3.5,
+        supply_risk="LOW",
+        price_usd_kg=31.0,
+        price_trend="STABLE",
+        recycling_rate_pct=0.0,
+        circular_economy_potential="LOW",
+    ),
+]
+
+_RECYCLING_RECORDS: list[RecyclingRecord] = [
+    RecyclingRecord(
+        technology="Li-Ion NMC",
+        recycling_process="HYDROMET",
+        recovery_efficiency_pct=95.0,
+        cost_per_kwh=12.0,
+        carbon_benefit_kgco2_kwh=35.0,
+        commercial_maturity="COMMERCIAL",
+        key_players=["Umicore", "Li-Cycle", "Redwood Materials"],
+    ),
+    RecyclingRecord(
+        technology="Li-Ion NMC",
+        recycling_process="PYRMET",
+        recovery_efficiency_pct=70.0,
+        cost_per_kwh=8.0,
+        carbon_benefit_kgco2_kwh=18.0,
+        commercial_maturity="MATURE",
+        key_players=["Umicore", "Glencore", "Battery Resources"],
+    ),
+    RecyclingRecord(
+        technology="Li-Ion NMC",
+        recycling_process="DIRECT_RECYCLING",
+        recovery_efficiency_pct=90.0,
+        cost_per_kwh=6.0,
+        carbon_benefit_kgco2_kwh=45.0,
+        commercial_maturity="PILOT",
+        key_players=["ReCell Center", "Ascend Elements", "Princeton NuEnergy"],
+    ),
+    RecyclingRecord(
+        technology="LFP",
+        recycling_process="HYDROMET",
+        recovery_efficiency_pct=88.0,
+        cost_per_kwh=10.0,
+        carbon_benefit_kgco2_kwh=28.0,
+        commercial_maturity="COMMERCIAL",
+        key_players=["Li-Cycle", "Retriev Technologies", "Battery Resources"],
+    ),
+    RecyclingRecord(
+        technology="LFP",
+        recycling_process="DIRECT_RECYCLING",
+        recovery_efficiency_pct=92.0,
+        cost_per_kwh=5.0,
+        carbon_benefit_kgco2_kwh=40.0,
+        commercial_maturity="EMERGING",
+        key_players=["Princeton NuEnergy", "Hydrovolt", "CATL"],
+    ),
+    RecyclingRecord(
+        technology="NMC 811",
+        recycling_process="HYDROMET",
+        recovery_efficiency_pct=93.0,
+        cost_per_kwh=13.0,
+        carbon_benefit_kgco2_kwh=38.0,
+        commercial_maturity="PILOT",
+        key_players=["Umicore", "Northvolt", "BASF"],
+    ),
+    RecyclingRecord(
+        technology="Flow Battery Vanadium",
+        recycling_process="REMANUFACTURING",
+        recovery_efficiency_pct=95.0,
+        cost_per_kwh=4.0,
+        carbon_benefit_kgco2_kwh=55.0,
+        commercial_maturity="COMMERCIAL",
+        key_players=["VRB Energy", "Invinity Energy Systems", "Sumitomo Electric"],
+    ),
+    RecyclingRecord(
+        technology="Na-Ion",
+        recycling_process="HYDROMET",
+        recovery_efficiency_pct=80.0,
+        cost_per_kwh=7.0,
+        carbon_benefit_kgco2_kwh=22.0,
+        commercial_maturity="EMERGING",
+        key_players=["CATL", "HiNa Battery", "Faradion"],
+    ),
+]
+
+_LCA_SCENARIOS: list[LcaScenarioRecord] = []
+_SCENARIO_BASE: list[tuple[str, float, float]] = [
+    # (technology, current_lc_carbon, 2030_lc_carbon) — 2035 computed below
+    ("Li-Ion NMC",           183.0, 140.0),
+    ("LFP",                  136.0, 100.0),
+    ("NMC 811",              159.5, 120.0),
+    ("Na-Ion",               103.0,  75.0),
+    ("Flow Battery Vanadium",192.0, 145.0),
+    ("Compressed Air",       103.0,  80.0),
+    ("Pumped Hydro",          67.0,  55.0),
+    ("Gravity Storage",       69.5,  52.0),
+]
+_GAS_PEAKER_LC = 620.0
+_DIESEL_LC     = 820.0
+for _tech, _curr, _c2030 in _SCENARIO_BASE:
+    _c2035 = round(_c2030 * 0.72, 1)
+    for _yr, _sc, _lc in [
+        (2024, "CURRENT",               _curr),
+        (2030, "2030_GRID_CLEAN",       _c2030),
+        (2035, "2035_GREEN_MANUFACTURING", _c2035),
+    ]:
+        _LCA_SCENARIOS.append(LcaScenarioRecord(
+            year=_yr,
+            scenario=_sc,
+            technology=_tech,
+            lifecycle_carbon_kgco2_kwh=_lc,
+            vs_gas_peaker_ratio=round(_lc / _GAS_PEAKER_LC, 3),
+            vs_diesel_ratio=round(_lc / _DIESEL_LC, 3),
+        ))
+
+_LCA_DASHBOARD = StorageLcaDashboard(
+    timestamp="2026-02-20T00:00:00+10:00",
+    lca_records=_LCA_RECORDS,
+    critical_minerals=_CRITICAL_MINERALS,
+    recycling_records=_RECYCLING_RECORDS,
+    lca_scenarios=_LCA_SCENARIOS,
+    best_lifecycle_technology="Pumped Hydro",
+    avg_recyclability_pct=round(
+        sum(r.recyclability_pct for r in _LCA_RECORDS) / len(_LCA_RECORDS), 1
+    ),
+    critical_minerals_at_risk=sum(
+        1 for m in _CRITICAL_MINERALS if m.supply_risk in ("HIGH", "CRITICAL")
+    ),
+    total_technologies_assessed=len(_LCA_RECORDS),
+)
+
+
+# --- Endpoints ---
+
+@app.get(
+    "/api/storage-lca/dashboard",
+    response_model=StorageLcaDashboard,
+    tags=["Storage LCA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_lca_dashboard():
+    return _LCA_DASHBOARD
+
+
+@app.get(
+    "/api/storage-lca/lca-records",
+    response_model=list[StorageLcaRecord],
+    tags=["Storage LCA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_lca_records():
+    return _LCA_RECORDS
+
+
+@app.get(
+    "/api/storage-lca/critical-minerals",
+    response_model=list[CriticalMineralRecord],
+    tags=["Storage LCA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_lca_critical_minerals():
+    return _CRITICAL_MINERALS
+
+
+@app.get(
+    "/api/storage-lca/recycling",
+    response_model=list[RecyclingRecord],
+    tags=["Storage LCA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_lca_recycling():
+    return _RECYCLING_RECORDS
+
+
+@app.get(
+    "/api/storage-lca/scenarios",
+    response_model=list[LcaScenarioRecord],
+    tags=["Storage LCA"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_storage_lca_scenarios():
+    return _LCA_SCENARIOS
+
+# ---------------------------------------------------------------------------
+# Sprint 52c — AEMO ISP Progress Tracker
+# ---------------------------------------------------------------------------
+
+class IspActionableProject(BaseModel):
+    project_id: str
+    project_name: str
+    project_type: str           # TRANSMISSION, GENERATION, STORAGE, INTERCONNECTOR
+    proponent: str              # TNSP or developer
+    state: str
+    region: str
+    isp_category: str           # COMMITTED, ACTIONABLE_ISP, EARLY_STAGE, REZ
+    capacity_mw: float
+    investment_m_aud: float
+    isp_benefit_m_aud: float    # NPV benefit from ISP analysis
+    benefit_cost_ratio: float
+    need_year: int              # year AEMO says it's needed
+    committed_year: int | None
+    completion_year: int | None
+    status: str                 # COMMITTED, APPROVED, REGULATED, UNDER_DEVELOPMENT, STALLED
+    regulatory_hurdle: str | None
+
+class IspCapacityMilestone(BaseModel):
+    year: int
+    scenario: str               # STEP_CHANGE, CENTRAL, SLOW_CHANGE
+    region: str
+    wind_target_gw: float
+    solar_target_gw: float
+    storage_target_gwh: float
+    transmission_target_gw: float  # new transmission capacity
+    wind_actual_gw: float | None
+    solar_actual_gw: float | None
+    storage_actual_gwh: float | None
+    on_track: bool | None
+
+class IspScenarioRecord(BaseModel):
+    scenario: str
+    description: str
+    total_investment_b_aud: float
+    renewables_share_2035_pct: float
+    renewables_share_2040_pct: float
+    emissions_reduction_2035_pct: float  # vs 2005
+    coal_exit_year: int
+    new_storage_gwh_2035: float
+    new_transmission_km: float
+    consumer_bill_impact_aud_yr: float   # annual household bill change
+
+class IspDeliveryRiskRecord(BaseModel):
+    project_category: str       # TRANSMISSION, REZ_DEVELOPMENT, OFFSHORE_WIND, STORAGE
+    total_projects: int
+    on_schedule_pct: float
+    at_risk_pct: float
+    delayed_pct: float
+    stalled_pct: float
+    key_risk: str
+    risk_mitigation: str
+
+class IspProgressDashboard(BaseModel):
+    timestamp: str
+    actionable_projects: list[IspActionableProject]
+    capacity_milestones: list[IspCapacityMilestone]
+    scenarios: list[IspScenarioRecord]
+    delivery_risks: list[IspDeliveryRiskRecord]
+    total_actionable_investment_b_aud: float
+    committed_projects: int
+    projects_on_track_pct: float
+    step_change_renewable_target_gw_2030: float
+
+
+_ISP_ACTIONABLE_PROJECTS: list[IspActionableProject] = [
+    IspActionableProject(
+        project_id="ISP-001",
+        project_name="HumeLink",
+        project_type="TRANSMISSION",
+        proponent="TransGrid",
+        state="NSW",
+        region="NSW1",
+        isp_category="COMMITTED",
+        capacity_mw=2200.0,
+        investment_m_aud=3300.0,
+        isp_benefit_m_aud=5800.0,
+        benefit_cost_ratio=1.76,
+        need_year=2026,
+        committed_year=2023,
+        completion_year=2027,
+        status="COMMITTED",
+        regulatory_hurdle=None,
+    ),
+    IspActionableProject(
+        project_id="ISP-002",
+        project_name="Project EnergyConnect",
+        project_type="INTERCONNECTOR",
+        proponent="ElectraNet / TransGrid",
+        state="SA",
+        region="SA1",
+        isp_category="COMMITTED",
+        capacity_mw=800.0,
+        investment_m_aud=2400.0,
+        isp_benefit_m_aud=4200.0,
+        benefit_cost_ratio=1.75,
+        need_year=2024,
+        committed_year=2022,
+        completion_year=2025,
+        status="COMMITTED",
+        regulatory_hurdle=None,
+    ),
+    IspActionableProject(
+        project_id="ISP-003",
+        project_name="Marinus Link",
+        project_type="INTERCONNECTOR",
+        proponent="TasNetworks / AusNet",
+        state="TAS",
+        region="TAS1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=1500.0,
+        investment_m_aud=3500.0,
+        isp_benefit_m_aud=6100.0,
+        benefit_cost_ratio=1.74,
+        need_year=2030,
+        committed_year=None,
+        completion_year=2031,
+        status="APPROVED",
+        regulatory_hurdle="State agreement and federal funding finalisation required",
+    ),
+    IspActionableProject(
+        project_id="ISP-004",
+        project_name="CopperString 2.0",
+        project_type="TRANSMISSION",
+        proponent="Powerlink Queensland",
+        state="QLD",
+        region="QLD1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=1200.0,
+        investment_m_aud=5500.0,
+        isp_benefit_m_aud=7800.0,
+        benefit_cost_ratio=1.42,
+        need_year=2029,
+        committed_year=None,
+        completion_year=2030,
+        status="UNDER_DEVELOPMENT",
+        regulatory_hurdle="AER regulatory investment test (RIT-T) in progress",
+    ),
+    IspActionableProject(
+        project_id="ISP-005",
+        project_name="VNI West",
+        project_type="TRANSMISSION",
+        proponent="AusNet / ElectraNet",
+        state="VIC",
+        region="VIC1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=1900.0,
+        investment_m_aud=4200.0,
+        isp_benefit_m_aud=6700.0,
+        benefit_cost_ratio=1.60,
+        need_year=2030,
+        committed_year=None,
+        completion_year=2031,
+        status="REGULATED",
+        regulatory_hurdle="Land access and community consultation ongoing",
+    ),
+    IspActionableProject(
+        project_id="ISP-006",
+        project_name="NT-SA Interconnector",
+        project_type="INTERCONNECTOR",
+        proponent="Transgrid / PowerWater",
+        state="NT",
+        region="SA1",
+        isp_category="EARLY_STAGE",
+        capacity_mw=600.0,
+        investment_m_aud=8000.0,
+        isp_benefit_m_aud=9500.0,
+        benefit_cost_ratio=1.19,
+        need_year=2034,
+        committed_year=None,
+        completion_year=None,
+        status="STALLED",
+        regulatory_hurdle="Business case not yet approved; pending NTP feasibility study",
+    ),
+    IspActionableProject(
+        project_id="ISP-007",
+        project_name="New England REZ Infrastructure",
+        project_type="TRANSMISSION",
+        proponent="TransGrid",
+        state="NSW",
+        region="NSW1",
+        isp_category="REZ",
+        capacity_mw=8000.0,
+        investment_m_aud=1400.0,
+        isp_benefit_m_aud=3200.0,
+        benefit_cost_ratio=2.29,
+        need_year=2027,
+        committed_year=2023,
+        completion_year=2027,
+        status="COMMITTED",
+        regulatory_hurdle=None,
+    ),
+    IspActionableProject(
+        project_id="ISP-008",
+        project_name="Central-West Orana REZ",
+        project_type="TRANSMISSION",
+        proponent="TransGrid",
+        state="NSW",
+        region="NSW1",
+        isp_category="REZ",
+        capacity_mw=3000.0,
+        investment_m_aud=900.0,
+        isp_benefit_m_aud=2100.0,
+        benefit_cost_ratio=2.33,
+        need_year=2026,
+        committed_year=2022,
+        completion_year=2026,
+        status="COMMITTED",
+        regulatory_hurdle=None,
+    ),
+    IspActionableProject(
+        project_id="ISP-009",
+        project_name="Darling Downs REZ",
+        project_type="TRANSMISSION",
+        proponent="Powerlink Queensland",
+        state="QLD",
+        region="QLD1",
+        isp_category="REZ",
+        capacity_mw=4000.0,
+        investment_m_aud=1100.0,
+        isp_benefit_m_aud=2600.0,
+        benefit_cost_ratio=2.36,
+        need_year=2028,
+        committed_year=None,
+        completion_year=2028,
+        status="APPROVED",
+        regulatory_hurdle="Land access agreements pending for 3 corridors",
+    ),
+    IspActionableProject(
+        project_id="ISP-010",
+        project_name="Hunter Transmission Project",
+        project_type="TRANSMISSION",
+        proponent="TransGrid",
+        state="NSW",
+        region="NSW1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=1600.0,
+        investment_m_aud=2800.0,
+        isp_benefit_m_aud=4500.0,
+        benefit_cost_ratio=1.61,
+        need_year=2029,
+        committed_year=None,
+        completion_year=2030,
+        status="UNDER_DEVELOPMENT",
+        regulatory_hurdle="RIT-T consultation phase 2",
+    ),
+    IspActionableProject(
+        project_id="ISP-011",
+        project_name="Western Renewables Link",
+        project_type="TRANSMISSION",
+        proponent="AusNet",
+        state="VIC",
+        region="VIC1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=600.0,
+        investment_m_aud=700.0,
+        isp_benefit_m_aud=1300.0,
+        benefit_cost_ratio=1.86,
+        need_year=2026,
+        committed_year=2023,
+        completion_year=2026,
+        status="COMMITTED",
+        regulatory_hurdle=None,
+    ),
+    IspActionableProject(
+        project_id="ISP-012",
+        project_name="South Australia – REZ Network",
+        project_type="TRANSMISSION",
+        proponent="ElectraNet",
+        state="SA",
+        region="SA1",
+        isp_category="REZ",
+        capacity_mw=5000.0,
+        investment_m_aud=1800.0,
+        isp_benefit_m_aud=3400.0,
+        benefit_cost_ratio=1.89,
+        need_year=2029,
+        committed_year=None,
+        completion_year=2030,
+        status="UNDER_DEVELOPMENT",
+        regulatory_hurdle="Environmental impact assessment lodged",
+    ),
+    IspActionableProject(
+        project_id="ISP-013",
+        project_name="Basslink Upgrade",
+        project_type="INTERCONNECTOR",
+        proponent="TasNetworks",
+        state="TAS",
+        region="TAS1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=560.0,
+        investment_m_aud=450.0,
+        isp_benefit_m_aud=900.0,
+        benefit_cost_ratio=2.00,
+        need_year=2027,
+        committed_year=None,
+        completion_year=2028,
+        status="APPROVED",
+        regulatory_hurdle="Federal and state infrastructure approvals pending",
+    ),
+    IspActionableProject(
+        project_id="ISP-014",
+        project_name="Snowy 2.0 Transmission",
+        project_type="TRANSMISSION",
+        proponent="TransGrid / Snowy Hydro",
+        state="NSW",
+        region="NSW1",
+        isp_category="COMMITTED",
+        capacity_mw=2200.0,
+        investment_m_aud=2100.0,
+        isp_benefit_m_aud=4800.0,
+        benefit_cost_ratio=2.29,
+        need_year=2027,
+        committed_year=2021,
+        completion_year=2028,
+        status="COMMITTED",
+        regulatory_hurdle=None,
+    ),
+    IspActionableProject(
+        project_id="ISP-015",
+        project_name="Queensland Renewable Energy Zones Grid",
+        project_type="TRANSMISSION",
+        proponent="Powerlink Queensland",
+        state="QLD",
+        region="QLD1",
+        isp_category="ACTIONABLE_ISP",
+        capacity_mw=7000.0,
+        investment_m_aud=6200.0,
+        isp_benefit_m_aud=9800.0,
+        benefit_cost_ratio=1.58,
+        need_year=2030,
+        committed_year=None,
+        completion_year=2031,
+        status="STALLED",
+        regulatory_hurdle="QLD government review of Borumba funding triggered project pause",
+    ),
+]
+
+
+def _make_capacity_milestones() -> list[IspCapacityMilestone]:
+    milestones = []
+    scenarios_config = {
+        "STEP_CHANGE": {"wind_rate": 3.5, "solar_rate": 4.2, "storage_rate": 18.0, "tx_rate": 2.8},
+        "CENTRAL":     {"wind_rate": 2.4, "solar_rate": 3.0, "storage_rate": 12.0, "tx_rate": 1.9},
+        "SLOW_CHANGE": {"wind_rate": 1.2, "solar_rate": 1.8, "storage_rate": 7.0,  "tx_rate": 1.0},
+    }
+    regions = ["NSW1", "QLD1"]
+    region_base = {
+        "NSW1": {"wind": 5.2, "solar": 8.1, "storage": 22.0, "tx": 3.5},
+        "QLD1": {"wind": 2.8, "solar": 10.5, "storage": 18.0, "tx": 2.9},
+    }
+    years = [2025, 2027, 2029, 2031, 2035]
+    actual_factor = {
+        2025: 0.85,
+        2027: None,
+        2029: None,
+        2031: None,
+        2035: None,
+    }
+    for sc, cfg in scenarios_config.items():
+        for reg in regions:
+            base = region_base[reg]
+            for i, yr in enumerate(years):
+                offset = yr - 2025
+                wind_t  = round(base["wind"]    + cfg["wind_rate"]    * offset, 1)
+                solar_t = round(base["solar"]   + cfg["solar_rate"]   * offset, 1)
+                stor_t  = round(base["storage"] + cfg["storage_rate"] * offset, 1)
+                tx_t    = round(base["tx"]      + cfg["tx_rate"]      * offset, 2)
+                af = actual_factor[yr]
+                wind_a  = round(wind_t  * af, 1) if af else None
+                solar_a = round(solar_t * af, 1) if af else None
+                stor_a  = round(stor_t  * af, 1) if af else None
+                on_track = (af is not None and af >= 0.80) if af else None
+                milestones.append(IspCapacityMilestone(
+                    year=yr,
+                    scenario=sc,
+                    region=reg,
+                    wind_target_gw=wind_t,
+                    solar_target_gw=solar_t,
+                    storage_target_gwh=stor_t,
+                    transmission_target_gw=tx_t,
+                    wind_actual_gw=wind_a,
+                    solar_actual_gw=solar_a,
+                    storage_actual_gwh=stor_a,
+                    on_track=on_track,
+                ))
+    return milestones
+
+
+_ISP_CAPACITY_MILESTONES: list[IspCapacityMilestone] = _make_capacity_milestones()
+
+
+_ISP_SCENARIOS: list[IspScenarioRecord] = [
+    IspScenarioRecord(
+        scenario="STEP_CHANGE",
+        description="Rapid decarbonisation driven by strong global action and technology cost reductions; "
+                    "deep electrification of transport and industry by 2035.",
+        total_investment_b_aud=320.0,
+        renewables_share_2035_pct=96.0,
+        renewables_share_2040_pct=100.0,
+        emissions_reduction_2035_pct=77.0,
+        coal_exit_year=2032,
+        new_storage_gwh_2035=130.0,
+        new_transmission_km=10200.0,
+        consumer_bill_impact_aud_yr=-180.0,
+    ),
+    IspScenarioRecord(
+        scenario="CENTRAL",
+        description="Moderate transition pace; policy trajectory aligned with current government commitments "
+                    "and steady technology adoption through 2040.",
+        total_investment_b_aud=188.0,
+        renewables_share_2035_pct=82.0,
+        renewables_share_2040_pct=93.0,
+        emissions_reduction_2035_pct=62.0,
+        coal_exit_year=2038,
+        new_storage_gwh_2035=75.0,
+        new_transmission_km=6800.0,
+        consumer_bill_impact_aud_yr=-95.0,
+    ),
+    IspScenarioRecord(
+        scenario="SLOW_CHANGE",
+        description="Constrained progress due to weaker global climate action, slower technology deployment "
+                    "and limited demand-side flexibility response.",
+        total_investment_b_aud=100.0,
+        renewables_share_2035_pct=62.0,
+        renewables_share_2040_pct=76.0,
+        emissions_reduction_2035_pct=42.0,
+        coal_exit_year=2045,
+        new_storage_gwh_2035=30.0,
+        new_transmission_km=3200.0,
+        consumer_bill_impact_aud_yr=45.0,
+    ),
+]
+
+
+_ISP_DELIVERY_RISKS: list[IspDeliveryRiskRecord] = [
+    IspDeliveryRiskRecord(
+        project_category="TRANSMISSION",
+        total_projects=12,
+        on_schedule_pct=50.0,
+        at_risk_pct=25.0,
+        delayed_pct=17.0,
+        stalled_pct=8.0,
+        key_risk="Land access delays and community opposition to new transmission corridors adding 12-24 months",
+        risk_mitigation="Early community engagement protocols, AEMO pathway reform, "
+                        "state fast-track planning approval processes",
+    ),
+    IspDeliveryRiskRecord(
+        project_category="REZ_DEVELOPMENT",
+        total_projects=8,
+        on_schedule_pct=62.0,
+        at_risk_pct=25.0,
+        delayed_pct=13.0,
+        stalled_pct=0.0,
+        key_risk="Generation connection queue congestion and access rights disputes in NSW and QLD REZs",
+        risk_mitigation="Access rights frameworks, connection reforms (AEMO), "
+                        "coordinated connection offers for REZ batches",
+    ),
+    IspDeliveryRiskRecord(
+        project_category="OFFSHORE_WIND",
+        total_projects=6,
+        on_schedule_pct=33.0,
+        at_risk_pct=34.0,
+        delayed_pct=17.0,
+        stalled_pct=16.0,
+        key_risk="Licensing delays, port infrastructure deficits and supply chain constraints "
+                 "for offshore installation vessels",
+        risk_mitigation="DCCEW Offshore Electricity Infrastructure Act licence reform, "
+                        "port investment co-funding, supply chain mapping",
+    ),
+    IspDeliveryRiskRecord(
+        project_category="STORAGE",
+        total_projects=18,
+        on_schedule_pct=67.0,
+        at_risk_pct=22.0,
+        delayed_pct=11.0,
+        stalled_pct=0.0,
+        key_risk="Grid connection approval backlogs and battery supply chain delays for long-duration projects",
+        risk_mitigation="Connection queue reform pilot, battery procurement aggregation, "
+                        "ARENA co-funding for LDES demonstration projects",
+    ),
+]
+
+
+def _make_isp_progress_dashboard() -> IspProgressDashboard:
+    total_inv = round(
+        sum(p.investment_m_aud for p in _ISP_ACTIONABLE_PROJECTS) / 1000.0, 1
+    )
+    committed = sum(1 for p in _ISP_ACTIONABLE_PROJECTS if p.status == "COMMITTED")
+    on_track_count = sum(
+        1 for p in _ISP_ACTIONABLE_PROJECTS
+        if p.status in ("COMMITTED", "APPROVED", "REGULATED")
+    )
+    on_track_pct = round(on_track_count / len(_ISP_ACTIONABLE_PROJECTS) * 100, 1)
+    # STEP_CHANGE wind+solar target for NSW1 in 2030 — interpolate between 2029 and 2031
+    sc_2029 = next(
+        (m for m in _ISP_CAPACITY_MILESTONES
+         if m.scenario == "STEP_CHANGE" and m.region == "NSW1" and m.year == 2029),
+        None,
+    )
+    sc_2031 = next(
+        (m for m in _ISP_CAPACITY_MILESTONES
+         if m.scenario == "STEP_CHANGE" and m.region == "NSW1" and m.year == 2031),
+        None,
+    )
+    renewable_target_2030 = 0.0
+    if sc_2029 and sc_2031:
+        renewable_target_2030 = round(
+            ((sc_2029.wind_target_gw + sc_2029.solar_target_gw) +
+             (sc_2031.wind_target_gw + sc_2031.solar_target_gw)) / 2,
+            1,
+        )
+    from datetime import datetime, timezone
+    return IspProgressDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        actionable_projects=_ISP_ACTIONABLE_PROJECTS,
+        capacity_milestones=_ISP_CAPACITY_MILESTONES,
+        scenarios=_ISP_SCENARIOS,
+        delivery_risks=_ISP_DELIVERY_RISKS,
+        total_actionable_investment_b_aud=total_inv,
+        committed_projects=committed,
+        projects_on_track_pct=on_track_pct,
+        step_change_renewable_target_gw_2030=renewable_target_2030,
+    )
+
+
+@app.get(
+    "/api/isp-progress/dashboard",
+    response_model=IspProgressDashboard,
+    tags=["ISP Progress"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_progress_dashboard():
+    return _make_isp_progress_dashboard()
+
+
+@app.get(
+    "/api/isp-progress/actionable-projects",
+    response_model=list[IspActionableProject],
+    tags=["ISP Progress"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_progress_actionable_projects():
+    return _ISP_ACTIONABLE_PROJECTS
+
+
+@app.get(
+    "/api/isp-progress/capacity-milestones",
+    response_model=list[IspCapacityMilestone],
+    tags=["ISP Progress"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_progress_capacity_milestones():
+    return _ISP_CAPACITY_MILESTONES
+
+
+@app.get(
+    "/api/isp-progress/scenarios",
+    response_model=list[IspScenarioRecord],
+    tags=["ISP Progress"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_progress_scenarios():
+    return _ISP_SCENARIOS
+
+
+@app.get(
+    "/api/isp-progress/delivery-risks",
+    response_model=list[IspDeliveryRiskRecord],
+    tags=["ISP Progress"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_isp_progress_delivery_risks():
+    return _ISP_DELIVERY_RISKS

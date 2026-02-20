@@ -5211,6 +5211,42 @@ export const api = {
     get<IndustrialLoadShapeRecord[]>('/api/industrial-demand-flex/load-shapes'),
   getIndustrialDemandFlexAggregate: (): Promise<DemandFlexAggregateRecord[]> =>
     get<DemandFlexAggregateRecord[]>('/api/industrial-demand-flex/aggregate'),
+
+  // Sprint 52a — Energy Storage LCA & Sustainability Analytics
+  getStorageLcaDashboard: (): Promise<StorageLcaDashboard> =>
+    get<StorageLcaDashboard>('/api/storage-lca/dashboard'),
+  getStorageLcaRecords: (): Promise<StorageLcaRecord[]> =>
+    get<StorageLcaRecord[]>('/api/storage-lca/lca-records'),
+  getStorageLcaCriticalMinerals: (): Promise<CriticalMineralRecord[]> =>
+    get<CriticalMineralRecord[]>('/api/storage-lca/critical-minerals'),
+  getStorageLcaRecycling: (): Promise<RecyclingRecord[]> =>
+    get<RecyclingRecord[]>('/api/storage-lca/recycling'),
+  getStorageLcaScenarios: (): Promise<LcaScenarioRecord[]> =>
+    get<LcaScenarioRecord[]>('/api/storage-lca/scenarios'),
+
+  // Sprint 52b — Interconnector Flow & Limit Binding Analytics
+  getIFADashboard: (): Promise<IFADashboard> =>
+    get<IFADashboard>('/api/interconnector-flow-analytics/dashboard'),
+  getIFAInterconnectors: (): Promise<IFAInterconnectorRecord[]> =>
+    get<IFAInterconnectorRecord[]>('/api/interconnector-flow-analytics/interconnectors'),
+  getIFAFlows: (): Promise<IFAFlowRecord[]> =>
+    get<IFAFlowRecord[]>('/api/interconnector-flow-analytics/flows'),
+  getIFAUpgrades: (): Promise<IFACapacityUpgradeRecord[]> =>
+    get<IFACapacityUpgradeRecord[]>('/api/interconnector-flow-analytics/upgrades'),
+  getIFAPatterns: (): Promise<IFAFlowPatternRecord[]> =>
+    get<IFAFlowPatternRecord[]>('/api/interconnector-flow-analytics/patterns'),
+
+  // Sprint 52c — AEMO ISP Progress Tracker
+  getIspProgressDashboard: (): Promise<IspProgressDashboard> =>
+    get<IspProgressDashboard>('/api/isp-progress/dashboard'),
+  getIspProgressActionableProjects: (): Promise<IspActionableProject[]> =>
+    get<IspActionableProject[]>('/api/isp-progress/actionable-projects'),
+  getIspProgressCapacityMilestones: (): Promise<IspCapacityMilestone[]> =>
+    get<IspCapacityMilestone[]>('/api/isp-progress/capacity-milestones'),
+  getIspProgressScenarios: (): Promise<IspScenarioRecord[]> =>
+    get<IspScenarioRecord[]>('/api/isp-progress/scenarios'),
+  getIspProgressDeliveryRisks: (): Promise<IspDeliveryRiskRecord[]> =>
+    get<IspDeliveryRiskRecord[]>('/api/isp-progress/delivery-risks'),
 }
 
 // ---------------------------------------------------------------------------
@@ -6720,4 +6756,211 @@ export interface ThermalEfficiencyDashboard {
   fleet_avg_efficiency_pct: number
   worst_heat_rate_unit: string
   total_fuel_cost_b_aud_yr: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 52a — Energy Storage LCA & Sustainability Analytics
+// ---------------------------------------------------------------------------
+
+export interface StorageLcaRecord {
+  technology_id: string
+  technology_name: string
+  capacity_category: string
+  embodied_carbon_kgco2_kwh: number
+  operational_carbon_kgco2_kwh: number
+  eol_carbon_kgco2_kwh: number
+  total_lifecycle_kgco2_kwh: number
+  energy_payback_years: number
+  water_use_l_kwh: number
+  land_use_m2_kwh: number
+  recyclability_pct: number
+  design_life_years: number
+  round_trip_efficiency_pct: number
+}
+
+export interface CriticalMineralRecord {
+  mineral: string
+  technology: string
+  content_kg_kwh: number
+  australian_reserves_pct: number
+  supply_risk: string
+  price_usd_kg: number
+  price_trend: string
+  recycling_rate_pct: number
+  circular_economy_potential: string
+}
+
+export interface RecyclingRecord {
+  technology: string
+  recycling_process: string
+  recovery_efficiency_pct: number
+  cost_per_kwh: number
+  carbon_benefit_kgco2_kwh: number
+  commercial_maturity: string
+  key_players: string[]
+}
+
+export interface LcaScenarioRecord {
+  year: number
+  scenario: string
+  technology: string
+  lifecycle_carbon_kgco2_kwh: number
+  vs_gas_peaker_ratio: number
+  vs_diesel_ratio: number
+}
+
+export interface StorageLcaDashboard {
+  timestamp: string
+  lca_records: StorageLcaRecord[]
+  critical_minerals: CriticalMineralRecord[]
+  recycling_records: RecyclingRecord[]
+  lca_scenarios: LcaScenarioRecord[]
+  best_lifecycle_technology: string
+  avg_recyclability_pct: number
+  critical_minerals_at_risk: number
+  total_technologies_assessed: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 52b — Interconnector Flow & Limit Binding Analytics
+// ---------------------------------------------------------------------------
+
+export interface IFAInterconnectorRecord {
+  interconnector_id: string
+  interconnector_name: string
+  from_region: string
+  to_region: string
+  ic_type: string
+  max_import_mw: number
+  max_export_mw: number
+  current_capacity_mw: number
+  status: string
+  commission_year: number | null
+  capex_b_aud: number | null
+  length_km: number
+  voltage_kv: number
+  operator: string
+}
+
+export interface IFAFlowRecord {
+  month: string
+  interconnector_id: string
+  interconnector_name: string
+  avg_flow_mw: number
+  max_flow_mw: number
+  min_flow_mw: number
+  import_binding_hours: number
+  export_binding_hours: number
+  import_binding_pct: number
+  export_binding_pct: number
+  avg_price_diff_aud_mwh: number
+  congestion_rent_m_aud: number
+}
+
+export interface IFACapacityUpgradeRecord {
+  project_id: string
+  project_name: string
+  interconnector_id: string
+  upgrade_type: string
+  additional_capacity_mw: number
+  estimated_capex_m_aud: number
+  benefit_cost_ratio: number
+  regulated_asset: boolean
+  status: string
+  completion_year: number | null
+  annual_consumer_benefit_m_aud: number
+}
+
+export interface IFAFlowPatternRecord {
+  interconnector_id: string
+  hour_of_day: number
+  season: string
+  avg_flow_mw: number
+  flow_direction: string
+  renewable_driven: boolean
+}
+
+export interface IFADashboard {
+  timestamp: string
+  interconnectors: IFAInterconnectorRecord[]
+  flow_records: IFAFlowRecord[]
+  capacity_upgrades: IFACapacityUpgradeRecord[]
+  flow_patterns: IFAFlowPatternRecord[]
+  total_ic_capacity_mw: number
+  avg_binding_pct: number
+  total_congestion_rent_m_aud: number
+  planned_capacity_increase_mw: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 52c — AEMO ISP Progress Tracker
+// ---------------------------------------------------------------------------
+
+export interface IspActionableProject {
+  project_id: string
+  project_name: string
+  project_type: string
+  proponent: string
+  state: string
+  region: string
+  isp_category: string
+  capacity_mw: number
+  investment_m_aud: number
+  isp_benefit_m_aud: number
+  benefit_cost_ratio: number
+  need_year: number
+  committed_year: number | null
+  completion_year: number | null
+  status: string
+  regulatory_hurdle: string | null
+}
+
+export interface IspCapacityMilestone {
+  year: number
+  scenario: string
+  region: string
+  wind_target_gw: number
+  solar_target_gw: number
+  storage_target_gwh: number
+  transmission_target_gw: number
+  wind_actual_gw: number | null
+  solar_actual_gw: number | null
+  storage_actual_gwh: number | null
+  on_track: boolean | null
+}
+
+export interface IspScenarioRecord {
+  scenario: string
+  description: string
+  total_investment_b_aud: number
+  renewables_share_2035_pct: number
+  renewables_share_2040_pct: number
+  emissions_reduction_2035_pct: number
+  coal_exit_year: number
+  new_storage_gwh_2035: number
+  new_transmission_km: number
+  consumer_bill_impact_aud_yr: number
+}
+
+export interface IspDeliveryRiskRecord {
+  project_category: string
+  total_projects: number
+  on_schedule_pct: number
+  at_risk_pct: number
+  delayed_pct: number
+  stalled_pct: number
+  key_risk: string
+  risk_mitigation: string
+}
+
+export interface IspProgressDashboard {
+  timestamp: string
+  actionable_projects: IspActionableProject[]
+  capacity_milestones: IspCapacityMilestone[]
+  scenarios: IspScenarioRecord[]
+  delivery_risks: IspDeliveryRiskRecord[]
+  total_actionable_investment_b_aud: number
+  committed_projects: number
+  projects_on_track_pct: number
+  step_change_renewable_target_gw_2030: number
 }

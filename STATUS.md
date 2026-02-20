@@ -1244,3 +1244,23 @@
 **Industry type badge colors:** EAF_STEEL red, ALUMINIUM silver/gray, DATA_CENTRE blue, DESALINATION cyan, CHEMICALS orange, MINING amber, CEMENT gray
 **Contract type badge colors:** RERT red, WHOLESALE_DR blue, NETWORK_DR green, SPOT_RESPONSE amber
 **Event type badge colors:** RERT_ACTIVATION red, PRICE_SIGNAL amber, NETWORK_SUPPORT blue, VOLUNTARY gray
+
+## Sprint 52a — Energy Storage LCA & Sustainability Analytics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Appended 5 Pydantic models (StorageLcaRecord, CriticalMineralRecord, RecyclingRecord, LcaScenarioRecord, StorageLcaDashboard), comprehensive mock data, and 5 endpoints under `/api/storage-lca/*` (dashboard, lca-records, critical-minerals, recycling, scenarios); all protected by `verify_api_key`
+- `app/frontend/src/pages/StorageLca.tsx` — New page (512 lines): RefreshCw icon header with title "Energy Storage Life Cycle Assessment & Sustainability" and embodied carbon / circular economy subtitle; 4 KPI cards (Best Lifecycle Technology, Avg Recyclability %, Critical Minerals at Risk, Technologies Assessed); stacked bar chart for lifecycle carbon by phase (embodied/operational/EOL) sorted by total; multi-line scenario chart showing lifecycle carbon reduction trajectory CURRENT vs 2030_GRID_CLEAN per technology; full LCA detail table sorted by total lifecycle carbon with energy payback / water / land use columns; Critical Mineral Supply Chain table with supply risk, price trend, and circular economy potential badges; End-of-Life Recycling table with process, maturity, and key players
+- `app/frontend/src/api/client.ts` — Added 5 TypeScript interfaces (StorageLcaRecord, CriticalMineralRecord, RecyclingRecord, LcaScenarioRecord, StorageLcaDashboard) appended after existing interfaces; added 5 API methods (getStorageLcaDashboard, getStorageLcaRecords, getStorageLcaCriticalMinerals, getStorageLcaRecycling, getStorageLcaScenarios) inside the `api` object
+- `app/frontend/src/App.tsx` — Imported StorageLca; added `RefreshCw` to lucide-react imports; added `/storage-lca` route and "Storage LCA" nav item (RefreshCw icon) before Settings
+- `tests/test_backend.py` — Appended `TestStorageLcaEndpoints` class with 5 tests (test_dashboard, test_lca_records, test_critical_minerals, test_recycling, test_scenarios)
+
+**Mock data highlights:**
+- 8 LCA records: Li-Ion NMC (183 kgCO2/kWh total, 68% recyclability), LFP (136, 75%), NMC 811 (159.5, 72%), Na-Ion (103, 80%), Flow Battery Vanadium (192, 90%), Compressed Air (103, 65%), Pumped Hydro (67 — best, 85%), Gravity Storage (69.5, 95%)
+- 12 critical mineral records: Lithium (x2 techs, AU 57% reserves, MEDIUM risk, FALLING price), Cobalt (x2, AU 1.2%, CRITICAL/HIGH, RISING), Nickel (x2, AU 22%, MEDIUM/HIGH), Manganese (x2, AU 8%, LOW), Graphite (x2, AU 1.5%, HIGH, RISING), Vanadium (x2, AU 3.5%, HIGH/LOW)
+- 8 recycling records: NMC Hydromet (95% recovery, COMMERCIAL), NMC Pyrmet (70%, MATURE), NMC Direct (90%, PILOT), LFP Hydromet (88%, COMMERCIAL), LFP Direct (92%, EMERGING), NMC 811 Hydromet (93%, PILOT), Flow Vanadium Remanufacturing (95%, COMMERCIAL), Na-Ion Hydromet (80%, EMERGING)
+- 24 LCA scenario records: 8 technologies x 3 scenarios (CURRENT 2024, 2030_GRID_CLEAN, 2035_GREEN_MANUFACTURING); showing progressive carbon reduction; vs_gas_peaker_ratio and vs_diesel_ratio computed vs 620 and 820 kgCO2/kWh baselines
+
+**Technology palette:** Li-Ion NMC blue (#3b82f6), LFP green (#22c55e), NMC 811 teal (#0d9488), Na-Ion purple (#8b5cf6), Flow Battery Vanadium amber (#f59e0b), Compressed Air gray (#6b7280), Pumped Hydro cyan (#06b6d4), Gravity dark (#1e293b)
+**Supply risk badge colors:** LOW green, MEDIUM amber, HIGH orange, CRITICAL red
+**Process badge colors:** all gray-700 (process name shown as human-readable label)
+**Maturity badge colors:** EMERGING blue, PILOT amber, COMMERCIAL green, MATURE gray
