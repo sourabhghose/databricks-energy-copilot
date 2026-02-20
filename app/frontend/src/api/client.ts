@@ -5175,6 +5175,42 @@ export const api = {
     get<PpaPriceTrendRecord[]>('/api/corporate-ppa-market/price-trends'),
   getCorporatePpaMarketSummary: (): Promise<PpaMarketSummaryRecord[]> =>
     get<PpaMarketSummaryRecord[]>('/api/corporate-ppa-market/market-summary'),
+
+  // Sprint 51a — Electricity Market Liquidity & Trading Volume Analytics
+  getMarketLiquidityDashboard: (): Promise<MarketLiquidityDashboard> =>
+    get<MarketLiquidityDashboard>('/api/market-liquidity/dashboard'),
+  getMarketLiquidityTradingVolumes: (): Promise<TradingVolumeRecord[]> =>
+    get<TradingVolumeRecord[]>('/api/market-liquidity/trading-volumes'),
+  getMarketLiquidityBidAskSpreads: (): Promise<BidAskSpreadRecord[]> =>
+    get<BidAskSpreadRecord[]>('/api/market-liquidity/bid-ask-spreads'),
+  getMarketLiquidityMarketDepth: (): Promise<MarketDepthRecord[]> =>
+    get<MarketDepthRecord[]>('/api/market-liquidity/market-depth'),
+  getMarketLiquidityMetrics: (): Promise<LiquidityMetricRecord[]> =>
+    get<LiquidityMetricRecord[]>('/api/market-liquidity/metrics'),
+
+  // Sprint 51c — Thermal Power Plant Heat Rate & Efficiency Analytics
+  getThermalEfficiencyDashboard: (): Promise<ThermalEfficiencyDashboard> =>
+    get<ThermalEfficiencyDashboard>('/api/thermal-efficiency/dashboard'),
+  getThermalEfficiencyUnits: (): Promise<ThermalUnitRecord[]> =>
+    get<ThermalUnitRecord[]>('/api/thermal-efficiency/units'),
+  getThermalEfficiencyHeatRateTrends: (): Promise<HeatRateTrendRecord[]> =>
+    get<HeatRateTrendRecord[]>('/api/thermal-efficiency/heat-rate-trends'),
+  getThermalEfficiencyFuelCosts: (): Promise<FuelCostRecord[]> =>
+    get<FuelCostRecord[]>('/api/thermal-efficiency/fuel-costs'),
+  getThermalEfficiencyBenchmarks: (): Promise<ThermalBenchmarkRecord[]> =>
+    get<ThermalBenchmarkRecord[]>('/api/thermal-efficiency/benchmarks'),
+
+  // Sprint 51b — Industrial Demand Flexibility & Load Management
+  getIndustrialDemandFlexDashboard: (): Promise<IndustrialDemandFlexDashboard> =>
+    get<IndustrialDemandFlexDashboard>('/api/industrial-demand-flex/dashboard'),
+  getIndustrialDemandFlexConsumers: (): Promise<LargeConsumerRecord[]> =>
+    get<LargeConsumerRecord[]>('/api/industrial-demand-flex/consumers'),
+  getIndustrialDemandFlexEvents: (): Promise<FlexibilityEventRecord[]> =>
+    get<FlexibilityEventRecord[]>('/api/industrial-demand-flex/events'),
+  getIndustrialDemandFlexLoadShapes: (): Promise<IndustrialLoadShapeRecord[]> =>
+    get<IndustrialLoadShapeRecord[]>('/api/industrial-demand-flex/load-shapes'),
+  getIndustrialDemandFlexAggregate: (): Promise<DemandFlexAggregateRecord[]> =>
+    get<DemandFlexAggregateRecord[]>('/api/industrial-demand-flex/aggregate'),
 }
 
 // ---------------------------------------------------------------------------
@@ -6471,4 +6507,217 @@ export interface CorporatePpaMarketDashboard {
   avg_ppa_price_mwh: number
   additionality_pct: number
   yoy_growth_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 51a — Electricity Market Liquidity & Trading Volume Analytics
+// ---------------------------------------------------------------------------
+
+export interface TradingVolumeRecord {
+  date: string
+  region: string
+  venue: string
+  product: string
+  volume_mw: number
+  volume_gwh: number
+  num_trades: number
+  avg_trade_size_mw: number
+  vwap_aud_mwh: number
+}
+
+export interface BidAskSpreadRecord {
+  date: string
+  region: string
+  product: string
+  contract_quarter: string
+  bid_price: number
+  ask_price: number
+  mid_price: number
+  spread_aud_mwh: number
+  spread_pct: number
+  market_depth_mw: number
+  num_market_makers: number
+}
+
+export interface MarketDepthRecord {
+  region: string
+  product: string
+  price_level: number
+  bid_volume_mw: number
+  ask_volume_mw: number
+  cumulative_bid_mw: number
+  cumulative_ask_mw: number
+}
+
+export interface LiquidityMetricRecord {
+  year: number
+  quarter: string
+  region: string
+  total_volume_twh: number
+  exchange_share_pct: number
+  otc_share_pct: number
+  bilateral_share_pct: number
+  turnover_ratio: number
+  avg_spread_aud_mwh: number
+  market_maker_count: number
+  herfindahl_index: number
+}
+
+export interface MarketLiquidityDashboard {
+  timestamp: string
+  trading_volumes: TradingVolumeRecord[]
+  bid_ask_spreads: BidAskSpreadRecord[]
+  market_depth: MarketDepthRecord[]
+  liquidity_metrics: LiquidityMetricRecord[]
+  total_daily_volume_gwh: number
+  avg_spread_aud_mwh: number
+  exchange_share_pct: number
+  turnover_ratio: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 51b — Industrial Demand Flexibility & Load Management
+// ---------------------------------------------------------------------------
+
+export interface LargeConsumerRecord {
+  consumer_id: string
+  consumer_name: string
+  industry_type: string
+  state: string
+  region: string
+  peak_demand_mw: number
+  annual_consumption_gwh: number
+  flexibility_mw: number
+  flexibility_duration_hours: number
+  response_time_minutes: number
+  contracted_dr_mw: number
+  contract_type: string
+  annual_dr_revenue_m_aud: number
+  sustainability_score: number
+}
+
+export interface FlexibilityEventRecord {
+  event_id: string
+  consumer_id: string
+  consumer_name: string
+  event_date: string
+  event_type: string
+  trigger_price_mwh: number
+  requested_reduction_mw: number
+  actual_reduction_mw: number
+  response_accuracy_pct: number
+  duration_hours: number
+  settlement_aud: number
+  grid_benefit_mwh: number
+}
+
+export interface IndustrialLoadShapeRecord {
+  consumer_id: string
+  consumer_name: string
+  industry_type: string
+  hour: number
+  season: string
+  baseline_mw: number
+  min_curtailable_mw: number
+  flexibility_band_mw: number
+  spot_response_threshold: number
+}
+
+export interface DemandFlexAggregateRecord {
+  region: string
+  year: number
+  quarter: string
+  enrolled_consumers: number
+  total_flex_capacity_mw: number
+  activated_events: number
+  total_energy_reduced_mwh: number
+  total_revenue_m_aud: number
+  grid_services_value_m_aud: number
+  avg_response_accuracy_pct: number
+}
+
+export interface IndustrialDemandFlexDashboard {
+  timestamp: string
+  large_consumers: LargeConsumerRecord[]
+  flexibility_events: FlexibilityEventRecord[]
+  load_shapes: IndustrialLoadShapeRecord[]
+  aggregate_records: DemandFlexAggregateRecord[]
+  total_flex_capacity_mw: number
+  activated_events_2024: number
+  total_dr_revenue_m_aud: number
+  avg_response_accuracy_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 51c — Thermal Power Plant Heat Rate & Efficiency Analytics
+// ---------------------------------------------------------------------------
+
+export interface ThermalUnitRecord {
+  unit_id: string
+  unit_name: string
+  station_name: string
+  owner: string
+  state: string
+  technology: string
+  installed_capacity_mw: number
+  age_years: number
+  commission_year: number
+  retirement_year: number | null
+  design_heat_rate_gj_mwh: number
+  actual_heat_rate_gj_mwh: number
+  heat_rate_degradation_pct: number
+  gross_efficiency_pct: number
+  net_efficiency_pct: number
+  auxiliary_load_pct: number
+  fuel_type: string
+  co2_intensity_kg_mwh: number
+}
+
+export interface HeatRateTrendRecord {
+  unit_id: string
+  unit_name: string
+  year: number
+  actual_heat_rate_gj_mwh: number
+  benchmark_heat_rate_gj_mwh: number
+  deviation_pct: number
+  capacity_factor_pct: number
+  load_following_cycles: number
+  starts_stops: number
+  major_overhaul: boolean
+}
+
+export interface FuelCostRecord {
+  unit_id: string
+  unit_name: string
+  technology: string
+  year: number
+  fuel_price_gj: number
+  fuel_cost_mwh: number
+  variable_om_mwh: number
+  fixed_om_mw_yr: number
+  total_srmc_mwh: number
+  carbon_cost_mwh: number
+  all_in_cost_mwh: number
+}
+
+export interface ThermalBenchmarkRecord {
+  technology: string
+  benchmark_type: string
+  heat_rate_gj_mwh: number
+  efficiency_pct: number
+  co2_intensity_kg_mwh: number
+  fuel_cost_mwh: number
+  srmc_mwh: number
+}
+
+export interface ThermalEfficiencyDashboard {
+  timestamp: string
+  thermal_units: ThermalUnitRecord[]
+  heat_rate_trends: HeatRateTrendRecord[]
+  fuel_costs: FuelCostRecord[]
+  benchmarks: ThermalBenchmarkRecord[]
+  fleet_avg_heat_rate_gj_mwh: number
+  fleet_avg_efficiency_pct: number
+  worst_heat_rate_unit: string
+  total_fuel_cost_b_aud_yr: number
 }

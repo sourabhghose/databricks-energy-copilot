@@ -36148,3 +36148,724 @@ def get_microgrid_raps_energy_records():
 )
 def get_microgrid_raps_technology_summary():
     return _MG_TECHNOLOGY_SUMMARY
+
+
+# ---------------------------------------------------------------------------
+# Sprint 51a — Electricity Market Liquidity & Trading Volume Analytics
+# ---------------------------------------------------------------------------
+
+class TradingVolumeRecord(BaseModel):
+    date: str
+    region: str
+    venue: str                  # ASX, OTC_BROKER, BILATERAL, EXCHANGE
+    product: str                # BASE_LOAD, PEAK, CAP, FLOOR, SWAP
+    volume_mw: float
+    volume_gwh: float
+    num_trades: int
+    avg_trade_size_mw: float
+    vwap_aud_mwh: float         # Volume-weighted average price
+
+class BidAskSpreadRecord(BaseModel):
+    date: str
+    region: str
+    product: str
+    contract_quarter: str
+    bid_price: float
+    ask_price: float
+    mid_price: float
+    spread_aud_mwh: float
+    spread_pct: float
+    market_depth_mw: float      # MW available within 5% of mid
+    num_market_makers: int
+
+class MarketDepthRecord(BaseModel):
+    region: str
+    product: str
+    price_level: float
+    bid_volume_mw: float
+    ask_volume_mw: float
+    cumulative_bid_mw: float
+    cumulative_ask_mw: float
+
+class LiquidityMetricRecord(BaseModel):
+    year: int
+    quarter: str
+    region: str
+    total_volume_twh: float
+    exchange_share_pct: float
+    otc_share_pct: float
+    bilateral_share_pct: float
+    turnover_ratio: float       # traded volume / physical generation
+    avg_spread_aud_mwh: float
+    market_maker_count: int
+    herfindahl_index: float     # concentration of trading activity
+
+class MarketLiquidityDashboard(BaseModel):
+    timestamp: str
+    trading_volumes: list[TradingVolumeRecord]
+    bid_ask_spreads: list[BidAskSpreadRecord]
+    market_depth: list[MarketDepthRecord]
+    liquidity_metrics: list[LiquidityMetricRecord]
+    total_daily_volume_gwh: float
+    avg_spread_aud_mwh: float
+    exchange_share_pct: float
+    turnover_ratio: float
+
+
+# --- Mock data ---
+
+_LIQUIDITY_REGIONS = ["NSW1", "QLD1", "VIC1", "SA1"]
+_LIQUIDITY_DATES = ["2025-01-15", "2025-01-16", "2025-01-17", "2025-01-18", "2025-01-19"]
+
+_TRADING_VOLUMES: list[TradingVolumeRecord] = []
+for _liq_i, _liq_region in enumerate(_LIQUIDITY_REGIONS):
+    for _liq_j, _liq_date in enumerate(_LIQUIDITY_DATES[:5]):
+        _venue = ["ASX", "OTC_BROKER", "BILATERAL", "EXCHANGE"][_liq_i % 4]
+        _product = ["BASE_LOAD", "PEAK", "CAP", "FLOOR", "SWAP"][_liq_j % 5]
+        _vol_mw = round(200 + _liq_i * 80 + _liq_j * 30, 1)
+        _vol_gwh = round(_vol_mw * 24 / 1000, 2)
+        _vwap = round(50 + _liq_i * 15 + _liq_j * 5, 2)
+        _trades = 5 + _liq_i * 3 + _liq_j * 2
+        _TRADING_VOLUMES.append(TradingVolumeRecord(
+            date=_liq_date,
+            region=_liq_region,
+            venue=_venue,
+            product=_product,
+            volume_mw=_vol_mw,
+            volume_gwh=_vol_gwh,
+            num_trades=_trades,
+            avg_trade_size_mw=round(_vol_mw / _trades, 1),
+            vwap_aud_mwh=_vwap,
+        ))
+
+_PRODUCTS_BA = ["BASE_LOAD", "PEAK", "CAP", "FLOOR", "SWAP"]
+_REGIONS_BA = ["NSW1", "QLD1", "VIC1"]
+_QUARTERS_BA = ["2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4", "2026-Q1"]
+
+_BID_ASK_SPREADS: list[BidAskSpreadRecord] = []
+for _ba_i, _ba_region in enumerate(_REGIONS_BA):
+    for _ba_j, _ba_product in enumerate(_PRODUCTS_BA):
+        _spread = round(0.5 + _ba_i * 1.5 + _ba_j * 1.2, 2)
+        _mid = round(70 + _ba_i * 10 + _ba_j * 8, 2)
+        _bid = round(_mid - _spread / 2, 2)
+        _ask = round(_mid + _spread / 2, 2)
+        _depth = round(50 + _ba_i * 100 + _ba_j * 70, 1)
+        _BID_ASK_SPREADS.append(BidAskSpreadRecord(
+            date="2025-01-19",
+            region=_ba_region,
+            product=_ba_product,
+            contract_quarter=_QUARTERS_BA[_ba_j % 5],
+            bid_price=_bid,
+            ask_price=_ask,
+            mid_price=_mid,
+            spread_aud_mwh=_spread,
+            spread_pct=round(_spread / _mid * 100, 3),
+            market_depth_mw=_depth,
+            num_market_makers=3 + _ba_i + _ba_j,
+        ))
+
+_MARKET_DEPTH: list[MarketDepthRecord] = []
+_PRICE_LEVELS = [60.0, 70.0, 80.0, 90.0, 100.0]
+for _md_i, _md_region in enumerate(_LIQUIDITY_REGIONS):
+    _cum_bid = 0.0
+    _cum_ask = 0.0
+    for _md_j, _price_lvl in enumerate(_PRICE_LEVELS):
+        _bid_vol = round(100 + _md_i * 40 + (4 - _md_j) * 20, 1)
+        _ask_vol = round(90 + _md_i * 35 + _md_j * 20, 1)
+        _cum_bid += _bid_vol
+        _cum_ask += _ask_vol
+        _MARKET_DEPTH.append(MarketDepthRecord(
+            region=_md_region,
+            product="BASE_LOAD",
+            price_level=_price_lvl,
+            bid_volume_mw=_bid_vol,
+            ask_volume_mw=_ask_vol,
+            cumulative_bid_mw=round(_cum_bid, 1),
+            cumulative_ask_mw=round(_cum_ask, 1),
+        ))
+
+_LIQUIDITY_METRICS: list[LiquidityMetricRecord] = []
+_LM_QUARTERS = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4", "2025-Q1"]
+for _lm_i, _lm_region in enumerate(_LIQUIDITY_REGIONS):
+    for _lm_j, _lm_q in enumerate(_LM_QUARTERS):
+        _ex_share = round(30 + _lm_i * 5 + _lm_j * 3, 1)
+        _otc_share = round(40 - _lm_i * 2 - _lm_j * 1.5, 1)
+        _bil_share = round(100 - _ex_share - _otc_share, 1)
+        _turnover = round(0.5 + _lm_i * 0.4 + _lm_j * 0.3, 2)
+        _LIQUIDITY_METRICS.append(LiquidityMetricRecord(
+            year=2024 + (_lm_j // 4),
+            quarter=_lm_q,
+            region=_lm_region,
+            total_volume_twh=round(5 + _lm_i * 2 + _lm_j * 0.8, 2),
+            exchange_share_pct=min(_ex_share, 60.0),
+            otc_share_pct=max(_otc_share, 20.0),
+            bilateral_share_pct=max(_bil_share, 10.0),
+            turnover_ratio=min(_turnover, 3.0),
+            avg_spread_aud_mwh=round(1.5 + _lm_i * 0.8 + _lm_j * 0.2, 2),
+            market_maker_count=4 + _lm_i + _lm_j,
+            herfindahl_index=round(0.15 + _lm_i * 0.03 + _lm_j * 0.01, 4),
+        ))
+
+
+@app.get(
+    "/api/market-liquidity/dashboard",
+    response_model=MarketLiquidityDashboard,
+    tags=["Market Liquidity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_liquidity_dashboard():
+    total_gwh = round(sum(r.volume_gwh for r in _TRADING_VOLUMES[:20]), 2)
+    avg_spread = round(sum(r.spread_aud_mwh for r in _BID_ASK_SPREADS) / len(_BID_ASK_SPREADS), 2)
+    ex_share = round(sum(r.exchange_share_pct for r in _LIQUIDITY_METRICS) / len(_LIQUIDITY_METRICS), 1)
+    turn_ratio = round(sum(r.turnover_ratio for r in _LIQUIDITY_METRICS) / len(_LIQUIDITY_METRICS), 2)
+    return MarketLiquidityDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        trading_volumes=_TRADING_VOLUMES,
+        bid_ask_spreads=_BID_ASK_SPREADS,
+        market_depth=_MARKET_DEPTH,
+        liquidity_metrics=_LIQUIDITY_METRICS,
+        total_daily_volume_gwh=total_gwh,
+        avg_spread_aud_mwh=avg_spread,
+        exchange_share_pct=ex_share,
+        turnover_ratio=turn_ratio,
+    )
+
+
+@app.get(
+    "/api/market-liquidity/trading-volumes",
+    response_model=list[TradingVolumeRecord],
+    tags=["Market Liquidity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_liquidity_trading_volumes():
+    return _TRADING_VOLUMES
+
+
+@app.get(
+    "/api/market-liquidity/bid-ask-spreads",
+    response_model=list[BidAskSpreadRecord],
+    tags=["Market Liquidity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_liquidity_bid_ask_spreads():
+    return _BID_ASK_SPREADS
+
+
+@app.get(
+    "/api/market-liquidity/market-depth",
+    response_model=list[MarketDepthRecord],
+    tags=["Market Liquidity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_liquidity_market_depth():
+    return _MARKET_DEPTH
+
+
+@app.get(
+    "/api/market-liquidity/metrics",
+    response_model=list[LiquidityMetricRecord],
+    tags=["Market Liquidity"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_liquidity_metrics():
+    return _LIQUIDITY_METRICS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 51b — Industrial Demand Flexibility & Load Management
+# ---------------------------------------------------------------------------
+
+class LargeConsumerRecord(BaseModel):
+    consumer_id: str
+    consumer_name: str
+    industry_type: str          # EAF_STEEL, ALUMINIUM, DATA_CENTRE, DESALINATION, CHEMICALS, MINING, CEMENT
+    state: str
+    region: str
+    peak_demand_mw: float
+    annual_consumption_gwh: float
+    flexibility_mw: float       # max interruptible MW
+    flexibility_duration_hours: float
+    response_time_minutes: int
+    contracted_dr_mw: float     # MW under demand response contract
+    contract_type: str          # RERT, WHOLESALE_DR, NETWORK_DR, SPOT_RESPONSE
+    annual_dr_revenue_m_aud: float
+    sustainability_score: float  # 0-10
+
+class FlexibilityEventRecord(BaseModel):
+    event_id: str
+    consumer_id: str
+    consumer_name: str
+    event_date: str
+    event_type: str             # RERT_ACTIVATION, PRICE_SIGNAL, NETWORK_SUPPORT, VOLUNTARY
+    trigger_price_mwh: float
+    requested_reduction_mw: float
+    actual_reduction_mw: float
+    response_accuracy_pct: float
+    duration_hours: float
+    settlement_aud: float
+    grid_benefit_mwh: float
+
+class IndustrialLoadShapeRecord(BaseModel):
+    consumer_id: str
+    consumer_name: str
+    industry_type: str
+    hour: int                   # 0-23
+    season: str                 # SUMMER, WINTER, SHOULDER
+    baseline_mw: float
+    min_curtailable_mw: float   # floor during curtailment
+    flexibility_band_mw: float  # available flexibility
+    spot_response_threshold: float  # price above which they reduce
+
+class DemandFlexAggregateRecord(BaseModel):
+    region: str
+    year: int
+    quarter: str
+    enrolled_consumers: int
+    total_flex_capacity_mw: float
+    activated_events: int
+    total_energy_reduced_mwh: float
+    total_revenue_m_aud: float
+    grid_services_value_m_aud: float
+    avg_response_accuracy_pct: float
+
+class IndustrialDemandFlexDashboard(BaseModel):
+    timestamp: str
+    large_consumers: list[LargeConsumerRecord]
+    flexibility_events: list[FlexibilityEventRecord]
+    load_shapes: list[IndustrialLoadShapeRecord]
+    aggregate_records: list[DemandFlexAggregateRecord]
+    total_flex_capacity_mw: float
+    activated_events_2024: int
+    total_dr_revenue_m_aud: float
+    avg_response_accuracy_pct: float
+
+
+_IDF_CONSUMERS: list[LargeConsumerRecord] = [
+    LargeConsumerRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", state="NSW", region="NSW1", peak_demand_mw=620.0, annual_consumption_gwh=4800.0, flexibility_mw=380.0, flexibility_duration_hours=4.0, response_time_minutes=15, contracted_dr_mw=320.0, contract_type="RERT", annual_dr_revenue_m_aud=18.5, sustainability_score=6.2),
+    LargeConsumerRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", state="NSW", region="NSW1", peak_demand_mw=510.0, annual_consumption_gwh=3900.0, flexibility_mw=210.0, flexibility_duration_hours=2.0, response_time_minutes=10, contracted_dr_mw=180.0, contract_type="WHOLESALE_DR", annual_dr_revenue_m_aud=11.2, sustainability_score=5.8),
+    LargeConsumerRecord(consumer_id="C003", consumer_name="BHP Olympic Dam", industry_type="MINING", state="SA", region="SA1", peak_demand_mw=195.0, annual_consumption_gwh=1620.0, flexibility_mw=60.0, flexibility_duration_hours=3.0, response_time_minutes=20, contracted_dr_mw=50.0, contract_type="NETWORK_DR", annual_dr_revenue_m_aud=3.8, sustainability_score=5.5),
+    LargeConsumerRecord(consumer_id="C004", consumer_name="Santos Moomba Processing", industry_type="CHEMICALS", state="SA", region="SA1", peak_demand_mw=140.0, annual_consumption_gwh=1050.0, flexibility_mw=45.0, flexibility_duration_hours=2.5, response_time_minutes=25, contracted_dr_mw=35.0, contract_type="SPOT_RESPONSE", annual_dr_revenue_m_aud=2.9, sustainability_score=4.7),
+    LargeConsumerRecord(consumer_id="C005", consumer_name="Snowy Hydro Guthega Pumping", industry_type="MINING", state="NSW", region="NSW1", peak_demand_mw=170.0, annual_consumption_gwh=820.0, flexibility_mw=160.0, flexibility_duration_hours=8.0, response_time_minutes=5, contracted_dr_mw=150.0, contract_type="RERT", annual_dr_revenue_m_aud=9.1, sustainability_score=9.4),
+    LargeConsumerRecord(consumer_id="C006", consumer_name="Loy Yang Power Station Aux", industry_type="CHEMICALS", state="VIC", region="VIC1", peak_demand_mw=120.0, annual_consumption_gwh=780.0, flexibility_mw=35.0, flexibility_duration_hours=2.0, response_time_minutes=30, contracted_dr_mw=25.0, contract_type="NETWORK_DR", annual_dr_revenue_m_aud=1.6, sustainability_score=3.2),
+    LargeConsumerRecord(consumer_id="C007", consumer_name="Sydney Desalination Plant", industry_type="DESALINATION", state="NSW", region="NSW1", peak_demand_mw=110.0, annual_consumption_gwh=820.0, flexibility_mw=80.0, flexibility_duration_hours=6.0, response_time_minutes=60, contracted_dr_mw=65.0, contract_type="WHOLESALE_DR", annual_dr_revenue_m_aud=4.2, sustainability_score=7.1),
+    LargeConsumerRecord(consumer_id="C008", consumer_name="Kwinana Industrial Complex", industry_type="CHEMICALS", state="WA", region="WEM", peak_demand_mw=250.0, annual_consumption_gwh=1950.0, flexibility_mw=90.0, flexibility_duration_hours=3.0, response_time_minutes=20, contracted_dr_mw=70.0, contract_type="NETWORK_DR", annual_dr_revenue_m_aud=5.1, sustainability_score=5.0),
+    LargeConsumerRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", state="VIC", region="VIC1", peak_demand_mw=530.0, annual_consumption_gwh=4200.0, flexibility_mw=400.0, flexibility_duration_hours=4.0, response_time_minutes=15, contracted_dr_mw=350.0, contract_type="RERT", annual_dr_revenue_m_aud=21.0, sustainability_score=6.0),
+    LargeConsumerRecord(consumer_id="C010", consumer_name="Rio Tinto Yarwun Alumina", industry_type="ALUMINIUM", state="QLD", region="QLD1", peak_demand_mw=310.0, annual_consumption_gwh=2500.0, flexibility_mw=130.0, flexibility_duration_hours=3.5, response_time_minutes=20, contracted_dr_mw=110.0, contract_type="WHOLESALE_DR", annual_dr_revenue_m_aud=7.4, sustainability_score=5.9),
+    LargeConsumerRecord(consumer_id="C011", consumer_name="BHP Nickel West Kalgoorlie", industry_type="MINING", state="WA", region="WEM", peak_demand_mw=180.0, annual_consumption_gwh=1400.0, flexibility_mw=55.0, flexibility_duration_hours=2.5, response_time_minutes=30, contracted_dr_mw=40.0, contract_type="SPOT_RESPONSE", annual_dr_revenue_m_aud=2.5, sustainability_score=5.3),
+    LargeConsumerRecord(consumer_id="C012", consumer_name="AWS Sydney Data Centre", industry_type="DATA_CENTRE", state="NSW", region="NSW1", peak_demand_mw=95.0, annual_consumption_gwh=780.0, flexibility_mw=25.0, flexibility_duration_hours=1.0, response_time_minutes=5, contracted_dr_mw=20.0, contract_type="WHOLESALE_DR", annual_dr_revenue_m_aud=1.8, sustainability_score=8.5),
+]
+
+_IDF_EVENTS: list[FlexibilityEventRecord] = [
+    FlexibilityEventRecord(event_id="E001", consumer_id="C001", consumer_name="Tomago Aluminium", event_date="2024-01-15", event_type="RERT_ACTIVATION", trigger_price_mwh=14950.0, requested_reduction_mw=320.0, actual_reduction_mw=315.0, response_accuracy_pct=98.4, duration_hours=2.5, settlement_aud=1240000.0, grid_benefit_mwh=787.5),
+    FlexibilityEventRecord(event_id="E002", consumer_id="C009", consumer_name="Alcoa Portland Aluminium", event_date="2024-01-15", event_type="RERT_ACTIVATION", trigger_price_mwh=14950.0, requested_reduction_mw=350.0, actual_reduction_mw=342.0, response_accuracy_pct=97.7, duration_hours=2.5, settlement_aud=1350000.0, grid_benefit_mwh=855.0),
+    FlexibilityEventRecord(event_id="E003", consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", event_date="2024-02-08", event_type="PRICE_SIGNAL", trigger_price_mwh=8200.0, requested_reduction_mw=180.0, actual_reduction_mw=165.0, response_accuracy_pct=91.7, duration_hours=1.5, settlement_aud=320000.0, grid_benefit_mwh=247.5),
+    FlexibilityEventRecord(event_id="E004", consumer_id="C007", consumer_name="Sydney Desalination Plant", event_date="2024-02-19", event_type="PRICE_SIGNAL", trigger_price_mwh=6500.0, requested_reduction_mw=60.0, actual_reduction_mw=58.0, response_accuracy_pct=96.7, duration_hours=3.0, settlement_aud=95000.0, grid_benefit_mwh=174.0),
+    FlexibilityEventRecord(event_id="E005", consumer_id="C005", consumer_name="Snowy Hydro Guthega Pumping", event_date="2024-03-12", event_type="NETWORK_SUPPORT", trigger_price_mwh=0.0, requested_reduction_mw=150.0, actual_reduction_mw=148.0, response_accuracy_pct=98.7, duration_hours=4.0, settlement_aud=210000.0, grid_benefit_mwh=592.0),
+    FlexibilityEventRecord(event_id="E006", consumer_id="C010", consumer_name="Rio Tinto Yarwun Alumina", event_date="2024-04-05", event_type="WHOLESALE_DR", trigger_price_mwh=4800.0, requested_reduction_mw=110.0, actual_reduction_mw=104.0, response_accuracy_pct=94.5, duration_hours=2.0, settlement_aud=142000.0, grid_benefit_mwh=208.0),
+    FlexibilityEventRecord(event_id="E007", consumer_id="C001", consumer_name="Tomago Aluminium", event_date="2024-05-28", event_type="VOLUNTARY", trigger_price_mwh=3200.0, requested_reduction_mw=200.0, actual_reduction_mw=190.0, response_accuracy_pct=95.0, duration_hours=2.0, settlement_aud=175000.0, grid_benefit_mwh=380.0),
+    FlexibilityEventRecord(event_id="E008", consumer_id="C009", consumer_name="Alcoa Portland Aluminium", event_date="2024-06-14", event_type="PRICE_SIGNAL", trigger_price_mwh=7800.0, requested_reduction_mw=300.0, actual_reduction_mw=278.0, response_accuracy_pct=92.7, duration_hours=2.0, settlement_aud=620000.0, grid_benefit_mwh=556.0),
+    FlexibilityEventRecord(event_id="E009", consumer_id="C003", consumer_name="BHP Olympic Dam", event_date="2024-07-03", event_type="NETWORK_SUPPORT", trigger_price_mwh=0.0, requested_reduction_mw=50.0, actual_reduction_mw=47.0, response_accuracy_pct=94.0, duration_hours=3.0, settlement_aud=55000.0, grid_benefit_mwh=141.0),
+    FlexibilityEventRecord(event_id="E010", consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", event_date="2024-07-22", event_type="RERT_ACTIVATION", trigger_price_mwh=15100.0, requested_reduction_mw=180.0, actual_reduction_mw=172.0, response_accuracy_pct=95.6, duration_hours=2.0, settlement_aud=790000.0, grid_benefit_mwh=344.0),
+    FlexibilityEventRecord(event_id="E011", consumer_id="C012", consumer_name="AWS Sydney Data Centre", event_date="2024-08-09", event_type="PRICE_SIGNAL", trigger_price_mwh=5500.0, requested_reduction_mw=20.0, actual_reduction_mw=18.0, response_accuracy_pct=90.0, duration_hours=1.0, settlement_aud=22000.0, grid_benefit_mwh=18.0),
+    FlexibilityEventRecord(event_id="E012", consumer_id="C005", consumer_name="Snowy Hydro Guthega Pumping", event_date="2024-09-18", event_type="RERT_ACTIVATION", trigger_price_mwh=14800.0, requested_reduction_mw=150.0, actual_reduction_mw=149.0, response_accuracy_pct=99.3, duration_hours=3.0, settlement_aud=680000.0, grid_benefit_mwh=447.0),
+    FlexibilityEventRecord(event_id="E013", consumer_id="C007", consumer_name="Sydney Desalination Plant", event_date="2024-10-11", event_type="VOLUNTARY", trigger_price_mwh=2800.0, requested_reduction_mw=65.0, actual_reduction_mw=52.0, response_accuracy_pct=80.0, duration_hours=4.0, settlement_aud=58000.0, grid_benefit_mwh=208.0),
+    FlexibilityEventRecord(event_id="E014", consumer_id="C001", consumer_name="Tomago Aluminium", event_date="2024-11-25", event_type="RERT_ACTIVATION", trigger_price_mwh=15200.0, requested_reduction_mw=320.0, actual_reduction_mw=296.0, response_accuracy_pct=92.5, duration_hours=2.0, settlement_aud=1180000.0, grid_benefit_mwh=592.0),
+    FlexibilityEventRecord(event_id="E015", consumer_id="C008", consumer_name="Kwinana Industrial Complex", event_date="2024-12-04", event_type="NETWORK_SUPPORT", trigger_price_mwh=0.0, requested_reduction_mw=70.0, actual_reduction_mw=65.0, response_accuracy_pct=92.9, duration_hours=2.5, settlement_aud=75000.0, grid_benefit_mwh=162.5),
+]
+
+_IDF_LOAD_SHAPES: list[IndustrialLoadShapeRecord] = [
+    # Tomago Aluminium — seasons
+    IndustrialLoadShapeRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", hour=0, season="SUMMER", baseline_mw=600.0, min_curtailable_mw=220.0, flexibility_band_mw=380.0, spot_response_threshold=3000.0),
+    IndustrialLoadShapeRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", hour=12, season="SUMMER", baseline_mw=615.0, min_curtailable_mw=235.0, flexibility_band_mw=380.0, spot_response_threshold=3000.0),
+    IndustrialLoadShapeRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", hour=0, season="WINTER", baseline_mw=610.0, min_curtailable_mw=230.0, flexibility_band_mw=380.0, spot_response_threshold=2800.0),
+    IndustrialLoadShapeRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", hour=12, season="WINTER", baseline_mw=618.0, min_curtailable_mw=238.0, flexibility_band_mw=380.0, spot_response_threshold=2800.0),
+    IndustrialLoadShapeRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", hour=0, season="SHOULDER", baseline_mw=595.0, min_curtailable_mw=215.0, flexibility_band_mw=380.0, spot_response_threshold=3200.0),
+    IndustrialLoadShapeRecord(consumer_id="C001", consumer_name="Tomago Aluminium", industry_type="ALUMINIUM", hour=12, season="SHOULDER", baseline_mw=605.0, min_curtailable_mw=225.0, flexibility_band_mw=380.0, spot_response_threshold=3200.0),
+    # Alcoa Portland — seasons
+    IndustrialLoadShapeRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", hour=0, season="SUMMER", baseline_mw=510.0, min_curtailable_mw=110.0, flexibility_band_mw=400.0, spot_response_threshold=3500.0),
+    IndustrialLoadShapeRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", hour=12, season="SUMMER", baseline_mw=525.0, min_curtailable_mw=125.0, flexibility_band_mw=400.0, spot_response_threshold=3500.0),
+    IndustrialLoadShapeRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", hour=0, season="WINTER", baseline_mw=520.0, min_curtailable_mw=120.0, flexibility_band_mw=400.0, spot_response_threshold=3200.0),
+    IndustrialLoadShapeRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", hour=12, season="WINTER", baseline_mw=528.0, min_curtailable_mw=128.0, flexibility_band_mw=400.0, spot_response_threshold=3200.0),
+    IndustrialLoadShapeRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", hour=0, season="SHOULDER", baseline_mw=505.0, min_curtailable_mw=105.0, flexibility_band_mw=400.0, spot_response_threshold=3800.0),
+    IndustrialLoadShapeRecord(consumer_id="C009", consumer_name="Alcoa Portland Aluminium", industry_type="ALUMINIUM", hour=12, season="SHOULDER", baseline_mw=515.0, min_curtailable_mw=115.0, flexibility_band_mw=400.0, spot_response_threshold=3800.0),
+    # BlueScope Steel — seasons
+    IndustrialLoadShapeRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", hour=0, season="SUMMER", baseline_mw=480.0, min_curtailable_mw=270.0, flexibility_band_mw=210.0, spot_response_threshold=4000.0),
+    IndustrialLoadShapeRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", hour=12, season="SUMMER", baseline_mw=510.0, min_curtailable_mw=300.0, flexibility_band_mw=210.0, spot_response_threshold=4000.0),
+    IndustrialLoadShapeRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", hour=0, season="WINTER", baseline_mw=490.0, min_curtailable_mw=280.0, flexibility_band_mw=210.0, spot_response_threshold=3800.0),
+    IndustrialLoadShapeRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", hour=12, season="WINTER", baseline_mw=508.0, min_curtailable_mw=298.0, flexibility_band_mw=210.0, spot_response_threshold=3800.0),
+    IndustrialLoadShapeRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", hour=0, season="SHOULDER", baseline_mw=470.0, min_curtailable_mw=260.0, flexibility_band_mw=210.0, spot_response_threshold=4200.0),
+    IndustrialLoadShapeRecord(consumer_id="C002", consumer_name="BlueScope Steel Port Kembla", industry_type="EAF_STEEL", hour=12, season="SHOULDER", baseline_mw=500.0, min_curtailable_mw=290.0, flexibility_band_mw=210.0, spot_response_threshold=4200.0),
+]
+
+_IDF_AGGREGATE: list[DemandFlexAggregateRecord] = [
+    DemandFlexAggregateRecord(region="NSW1", year=2024, quarter="Q1", enrolled_consumers=4, total_flex_capacity_mw=1140.0, activated_events=5, total_energy_reduced_mwh=3820.0, total_revenue_m_aud=4.2, grid_services_value_m_aud=2.1, avg_response_accuracy_pct=96.2),
+    DemandFlexAggregateRecord(region="NSW1", year=2024, quarter="Q2", enrolled_consumers=4, total_flex_capacity_mw=1150.0, activated_events=3, total_energy_reduced_mwh=2140.0, total_revenue_m_aud=2.8, grid_services_value_m_aud=1.4, avg_response_accuracy_pct=95.1),
+    DemandFlexAggregateRecord(region="NSW1", year=2024, quarter="Q3", enrolled_consumers=4, total_flex_capacity_mw=1155.0, activated_events=4, total_energy_reduced_mwh=2950.0, total_revenue_m_aud=3.6, grid_services_value_m_aud=1.8, avg_response_accuracy_pct=94.8),
+    DemandFlexAggregateRecord(region="NSW1", year=2024, quarter="Q4", enrolled_consumers=4, total_flex_capacity_mw=1145.0, activated_events=3, total_energy_reduced_mwh=2480.0, total_revenue_m_aud=3.1, grid_services_value_m_aud=1.6, avg_response_accuracy_pct=93.5),
+    DemandFlexAggregateRecord(region="VIC1", year=2024, quarter="Q1", enrolled_consumers=2, total_flex_capacity_mw=435.0, activated_events=2, total_energy_reduced_mwh=1640.0, total_revenue_m_aud=2.0, grid_services_value_m_aud=1.0, avg_response_accuracy_pct=95.0),
+    DemandFlexAggregateRecord(region="VIC1", year=2024, quarter="Q2", enrolled_consumers=2, total_flex_capacity_mw=438.0, activated_events=4, total_energy_reduced_mwh=2850.0, total_revenue_m_aud=3.2, grid_services_value_m_aud=1.6, avg_response_accuracy_pct=92.7),
+    DemandFlexAggregateRecord(region="VIC1", year=2024, quarter="Q3", enrolled_consumers=2, total_flex_capacity_mw=435.0, activated_events=3, total_energy_reduced_mwh=1960.0, total_revenue_m_aud=2.5, grid_services_value_m_aud=1.2, avg_response_accuracy_pct=93.8),
+    DemandFlexAggregateRecord(region="VIC1", year=2024, quarter="Q4", enrolled_consumers=2, total_flex_capacity_mw=435.0, activated_events=2, total_energy_reduced_mwh=1320.0, total_revenue_m_aud=1.8, grid_services_value_m_aud=0.9, avg_response_accuracy_pct=94.2),
+    DemandFlexAggregateRecord(region="SA1", year=2024, quarter="Q1", enrolled_consumers=2, total_flex_capacity_mw=105.0, activated_events=1, total_energy_reduced_mwh=420.0, total_revenue_m_aud=0.7, grid_services_value_m_aud=0.4, avg_response_accuracy_pct=94.0),
+    DemandFlexAggregateRecord(region="SA1", year=2024, quarter="Q2", enrolled_consumers=2, total_flex_capacity_mw=105.0, activated_events=2, total_energy_reduced_mwh=680.0, total_revenue_m_aud=1.1, grid_services_value_m_aud=0.6, avg_response_accuracy_pct=93.2),
+    DemandFlexAggregateRecord(region="SA1", year=2024, quarter="Q3", enrolled_consumers=2, total_flex_capacity_mw=105.0, activated_events=2, total_energy_reduced_mwh=720.0, total_revenue_m_aud=1.2, grid_services_value_m_aud=0.6, avg_response_accuracy_pct=95.5),
+    DemandFlexAggregateRecord(region="SA1", year=2024, quarter="Q4", enrolled_consumers=2, total_flex_capacity_mw=105.0, activated_events=1, total_energy_reduced_mwh=380.0, total_revenue_m_aud=0.6, grid_services_value_m_aud=0.3, avg_response_accuracy_pct=94.0),
+    DemandFlexAggregateRecord(region="QLD1", year=2024, quarter="Q1", enrolled_consumers=1, total_flex_capacity_mw=130.0, activated_events=1, total_energy_reduced_mwh=415.0, total_revenue_m_aud=0.5, grid_services_value_m_aud=0.3, avg_response_accuracy_pct=94.5),
+    DemandFlexAggregateRecord(region="QLD1", year=2024, quarter="Q2", enrolled_consumers=1, total_flex_capacity_mw=130.0, activated_events=2, total_energy_reduced_mwh=680.0, total_revenue_m_aud=0.9, grid_services_value_m_aud=0.5, avg_response_accuracy_pct=93.0),
+    DemandFlexAggregateRecord(region="QLD1", year=2024, quarter="Q3", enrolled_consumers=1, total_flex_capacity_mw=130.0, activated_events=1, total_energy_reduced_mwh=320.0, total_revenue_m_aud=0.4, grid_services_value_m_aud=0.2, avg_response_accuracy_pct=94.5),
+    DemandFlexAggregateRecord(region="QLD1", year=2024, quarter="Q4", enrolled_consumers=1, total_flex_capacity_mw=130.0, activated_events=0, total_energy_reduced_mwh=0.0, total_revenue_m_aud=0.0, grid_services_value_m_aud=0.0, avg_response_accuracy_pct=0.0),
+    DemandFlexAggregateRecord(region="WEM", year=2024, quarter="Q1", enrolled_consumers=2, total_flex_capacity_mw=145.0, activated_events=1, total_energy_reduced_mwh=412.5, total_revenue_m_aud=0.6, grid_services_value_m_aud=0.3, avg_response_accuracy_pct=92.9),
+    DemandFlexAggregateRecord(region="WEM", year=2024, quarter="Q2", enrolled_consumers=2, total_flex_capacity_mw=145.0, activated_events=0, total_energy_reduced_mwh=0.0, total_revenue_m_aud=0.0, grid_services_value_m_aud=0.0, avg_response_accuracy_pct=0.0),
+    DemandFlexAggregateRecord(region="WEM", year=2024, quarter="Q3", enrolled_consumers=2, total_flex_capacity_mw=145.0, activated_events=1, total_energy_reduced_mwh=325.0, total_revenue_m_aud=0.5, grid_services_value_m_aud=0.2, avg_response_accuracy_pct=90.0),
+    DemandFlexAggregateRecord(region="WEM", year=2024, quarter="Q4", enrolled_consumers=2, total_flex_capacity_mw=145.0, activated_events=1, total_energy_reduced_mwh=325.0, total_revenue_m_aud=0.5, grid_services_value_m_aud=0.2, avg_response_accuracy_pct=92.9),
+]
+
+_IDF_TOTAL_FLEX_MW = sum(c.flexibility_mw for c in _IDF_CONSUMERS)
+_IDF_ACTIVATED_2024 = len(_IDF_EVENTS)
+_IDF_DR_REVENUE = sum(c.annual_dr_revenue_m_aud for c in _IDF_CONSUMERS)
+_IDF_AVG_ACCURACY = sum(e.response_accuracy_pct for e in _IDF_EVENTS) / len(_IDF_EVENTS)
+
+_IDF_DASHBOARD = IndustrialDemandFlexDashboard(
+    timestamp="2024-12-31T23:59:59+10:00",
+    large_consumers=_IDF_CONSUMERS,
+    flexibility_events=_IDF_EVENTS,
+    load_shapes=_IDF_LOAD_SHAPES,
+    aggregate_records=_IDF_AGGREGATE,
+    total_flex_capacity_mw=round(_IDF_TOTAL_FLEX_MW, 1),
+    activated_events_2024=_IDF_ACTIVATED_2024,
+    total_dr_revenue_m_aud=round(_IDF_DR_REVENUE, 2),
+    avg_response_accuracy_pct=round(_IDF_AVG_ACCURACY, 1),
+)
+
+
+@app.get(
+    "/api/industrial-demand-flex/dashboard",
+    response_model=IndustrialDemandFlexDashboard,
+    tags=["Industrial Demand Flex"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_industrial_demand_flex_dashboard():
+    return _IDF_DASHBOARD
+
+
+@app.get(
+    "/api/industrial-demand-flex/consumers",
+    response_model=list[LargeConsumerRecord],
+    tags=["Industrial Demand Flex"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_industrial_demand_flex_consumers():
+    return _IDF_CONSUMERS
+
+
+@app.get(
+    "/api/industrial-demand-flex/events",
+    response_model=list[FlexibilityEventRecord],
+    tags=["Industrial Demand Flex"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_industrial_demand_flex_events():
+    return _IDF_EVENTS
+
+
+@app.get(
+    "/api/industrial-demand-flex/load-shapes",
+    response_model=list[IndustrialLoadShapeRecord],
+    tags=["Industrial Demand Flex"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_industrial_demand_flex_load_shapes():
+    return _IDF_LOAD_SHAPES
+
+
+@app.get(
+    "/api/industrial-demand-flex/aggregate",
+    response_model=list[DemandFlexAggregateRecord],
+    tags=["Industrial Demand Flex"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_industrial_demand_flex_aggregate():
+    return _IDF_AGGREGATE
+
+
+# ---------------------------------------------------------------------------
+# Sprint 51c — Thermal Power Plant Heat Rate & Efficiency Analytics
+# ---------------------------------------------------------------------------
+
+class ThermalUnitRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    station_name: str
+    owner: str
+    state: str
+    technology: str             # BLACK_COAL, BROWN_COAL, GAS_CCGT, GAS_OCGT, GAS_STEAM
+    installed_capacity_mw: float
+    age_years: int
+    commission_year: int
+    retirement_year: int | None
+    design_heat_rate_gj_mwh: float
+    actual_heat_rate_gj_mwh: float
+    heat_rate_degradation_pct: float
+    gross_efficiency_pct: float
+    net_efficiency_pct: float
+    auxiliary_load_pct: float
+    fuel_type: str              # BLACK_COAL, BROWN_COAL, NATURAL_GAS, DIESEL
+    co2_intensity_kg_mwh: float
+
+class HeatRateTrendRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    year: int
+    actual_heat_rate_gj_mwh: float
+    benchmark_heat_rate_gj_mwh: float
+    deviation_pct: float        # positive = worse than benchmark
+    capacity_factor_pct: float
+    load_following_cycles: int
+    starts_stops: int
+    major_overhaul: bool
+
+class FuelCostRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    technology: str
+    year: int
+    fuel_price_gj: float        # $/GJ
+    fuel_cost_mwh: float        # $/MWh
+    variable_om_mwh: float
+    fixed_om_mw_yr: float
+    total_srmc_mwh: float       # Short-run marginal cost
+    carbon_cost_mwh: float
+    all_in_cost_mwh: float
+
+class ThermalBenchmarkRecord(BaseModel):
+    technology: str
+    benchmark_type: str         # BEST_PRACTICE, AVERAGE, FLEET_BOTTOM
+    heat_rate_gj_mwh: float
+    efficiency_pct: float
+    co2_intensity_kg_mwh: float
+    fuel_cost_mwh: float        # at current fuel prices
+    srmc_mwh: float
+
+class ThermalEfficiencyDashboard(BaseModel):
+    timestamp: str
+    thermal_units: list[ThermalUnitRecord]
+    heat_rate_trends: list[HeatRateTrendRecord]
+    fuel_costs: list[FuelCostRecord]
+    benchmarks: list[ThermalBenchmarkRecord]
+    fleet_avg_heat_rate_gj_mwh: float
+    fleet_avg_efficiency_pct: float
+    worst_heat_rate_unit: str
+    total_fuel_cost_b_aud_yr: float
+
+
+# --- Mock data ---
+
+_THERMAL_UNITS: list[ThermalUnitRecord] = [
+    ThermalUnitRecord(unit_id="ERA1", unit_name="Eraring 1", station_name="Eraring", owner="Origin Energy", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=720, age_years=43, commission_year=1982, retirement_year=2025,
+        design_heat_rate_gj_mwh=9.2, actual_heat_rate_gj_mwh=10.1, heat_rate_degradation_pct=9.8,
+        gross_efficiency_pct=35.6, net_efficiency_pct=33.8, auxiliary_load_pct=5.1, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=915),
+    ThermalUnitRecord(unit_id="ERA2", unit_name="Eraring 2", station_name="Eraring", owner="Origin Energy", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=720, age_years=42, commission_year=1983, retirement_year=2025,
+        design_heat_rate_gj_mwh=9.2, actual_heat_rate_gj_mwh=10.3, heat_rate_degradation_pct=11.9,
+        gross_efficiency_pct=34.9, net_efficiency_pct=33.1, auxiliary_load_pct=5.2, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=932),
+    ThermalUnitRecord(unit_id="ERA3", unit_name="Eraring 3", station_name="Eraring", owner="Origin Energy", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=720, age_years=41, commission_year=1984, retirement_year=2025,
+        design_heat_rate_gj_mwh=9.2, actual_heat_rate_gj_mwh=9.8, heat_rate_degradation_pct=6.5,
+        gross_efficiency_pct=36.7, net_efficiency_pct=34.9, auxiliary_load_pct=5.0, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=888),
+    ThermalUnitRecord(unit_id="ERA4", unit_name="Eraring 4", station_name="Eraring", owner="Origin Energy", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=720, age_years=40, commission_year=1985, retirement_year=2025,
+        design_heat_rate_gj_mwh=9.2, actual_heat_rate_gj_mwh=9.6, heat_rate_degradation_pct=4.3,
+        gross_efficiency_pct=37.5, net_efficiency_pct=35.6, auxiliary_load_pct=4.9, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=869),
+    ThermalUnitRecord(unit_id="VP5", unit_name="Vales Point 5", station_name="Vales Point", owner="Delta Electricity", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=660, age_years=55, commission_year=1970, retirement_year=2029,
+        design_heat_rate_gj_mwh=9.8, actual_heat_rate_gj_mwh=12.1, heat_rate_degradation_pct=23.5,
+        gross_efficiency_pct=29.7, net_efficiency_pct=27.8, auxiliary_load_pct=6.4, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=1096),
+    ThermalUnitRecord(unit_id="VP6", unit_name="Vales Point 6", station_name="Vales Point", owner="Delta Electricity", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=660, age_years=54, commission_year=1971, retirement_year=2029,
+        design_heat_rate_gj_mwh=9.8, actual_heat_rate_gj_mwh=11.8, heat_rate_degradation_pct=20.4,
+        gross_efficiency_pct=30.5, net_efficiency_pct=28.6, auxiliary_load_pct=6.2, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=1069),
+    ThermalUnitRecord(unit_id="BAY3", unit_name="Bayswater 3", station_name="Bayswater", owner="AGL Energy", state="NSW",
+        technology="BLACK_COAL", installed_capacity_mw=665, age_years=38, commission_year=1987, retirement_year=2035,
+        design_heat_rate_gj_mwh=9.3, actual_heat_rate_gj_mwh=10.4, heat_rate_degradation_pct=11.8,
+        gross_efficiency_pct=34.6, net_efficiency_pct=32.9, auxiliary_load_pct=5.0, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=942),
+    ThermalUnitRecord(unit_id="LYA1", unit_name="Loy Yang A1", station_name="Loy Yang A", owner="AGL Energy", state="VIC",
+        technology="BROWN_COAL", installed_capacity_mw=560, age_years=41, commission_year=1984, retirement_year=2035,
+        design_heat_rate_gj_mwh=13.0, actual_heat_rate_gj_mwh=14.2, heat_rate_degradation_pct=9.2,
+        gross_efficiency_pct=25.3, net_efficiency_pct=23.9, auxiliary_load_pct=5.5, fuel_type="BROWN_COAL", co2_intensity_kg_mwh=1250),
+    ThermalUnitRecord(unit_id="LYA2", unit_name="Loy Yang A2", station_name="Loy Yang A", owner="AGL Energy", state="VIC",
+        technology="BROWN_COAL", installed_capacity_mw=500, age_years=40, commission_year=1985, retirement_year=2035,
+        design_heat_rate_gj_mwh=13.0, actual_heat_rate_gj_mwh=13.9, heat_rate_degradation_pct=6.9,
+        gross_efficiency_pct=25.9, net_efficiency_pct=24.5, auxiliary_load_pct=5.4, fuel_type="BROWN_COAL", co2_intensity_kg_mwh=1223),
+    ThermalUnitRecord(unit_id="YW3", unit_name="Yallourn W3", station_name="Yallourn", owner="EnergyAustralia", state="VIC",
+        technology="BROWN_COAL", installed_capacity_mw=360, age_years=53, commission_year=1973, retirement_year=2028,
+        design_heat_rate_gj_mwh=13.5, actual_heat_rate_gj_mwh=14.8, heat_rate_degradation_pct=9.6,
+        gross_efficiency_pct=24.3, net_efficiency_pct=22.7, auxiliary_load_pct=6.6, fuel_type="BROWN_COAL", co2_intensity_kg_mwh=1302),
+    ThermalUnitRecord(unit_id="TIB3", unit_name="Torrens Island B3", station_name="Torrens Island B", owner="AGL Energy", state="SA",
+        technology="GAS_STEAM", installed_capacity_mw=200, age_years=52, commission_year=1973, retirement_year=None,
+        design_heat_rate_gj_mwh=10.5, actual_heat_rate_gj_mwh=11.9, heat_rate_degradation_pct=13.3,
+        gross_efficiency_pct=30.2, net_efficiency_pct=28.5, auxiliary_load_pct=5.6, fuel_type="NATURAL_GAS", co2_intensity_kg_mwh=730),
+    ThermalUnitRecord(unit_id="PP1", unit_name="Pelican Point 1", station_name="Pelican Point", owner="Engie", state="SA",
+        technology="GAS_CCGT", installed_capacity_mw=478, age_years=24, commission_year=2001, retirement_year=None,
+        design_heat_rate_gj_mwh=6.8, actual_heat_rate_gj_mwh=7.2, heat_rate_degradation_pct=5.9,
+        gross_efficiency_pct=50.0, net_efficiency_pct=47.5, auxiliary_load_pct=5.0, fuel_type="NATURAL_GAS", co2_intensity_kg_mwh=380),
+    ThermalUnitRecord(unit_id="MOR1", unit_name="Mortlake 1", station_name="Mortlake", owner="Origin Energy", state="VIC",
+        technology="GAS_OCGT", installed_capacity_mw=282, age_years=14, commission_year=2011, retirement_year=None,
+        design_heat_rate_gj_mwh=9.5, actual_heat_rate_gj_mwh=10.2, heat_rate_degradation_pct=7.4,
+        gross_efficiency_pct=35.3, net_efficiency_pct=33.5, auxiliary_load_pct=5.1, fuel_type="NATURAL_GAS", co2_intensity_kg_mwh=550),
+    ThermalUnitRecord(unit_id="DD1", unit_name="Darling Downs 1", station_name="Darling Downs", owner="Origin Energy", state="QLD",
+        technology="GAS_CCGT", installed_capacity_mw=630, age_years=14, commission_year=2011, retirement_year=None,
+        design_heat_rate_gj_mwh=6.5, actual_heat_rate_gj_mwh=6.9, heat_rate_degradation_pct=6.2,
+        gross_efficiency_pct=52.2, net_efficiency_pct=49.5, auxiliary_load_pct=5.2, fuel_type="NATURAL_GAS", co2_intensity_kg_mwh=365),
+    ThermalUnitRecord(unit_id="CAL3", unit_name="Callide C3", station_name="Callide C", owner="CS Energy", state="QLD",
+        technology="BLACK_COAL", installed_capacity_mw=450, age_years=25, commission_year=2000, retirement_year=2040,
+        design_heat_rate_gj_mwh=9.0, actual_heat_rate_gj_mwh=9.5, heat_rate_degradation_pct=5.6,
+        gross_efficiency_pct=37.9, net_efficiency_pct=36.0, auxiliary_load_pct=5.0, fuel_type="BLACK_COAL", co2_intensity_kg_mwh=860),
+]
+
+_HEAT_RATE_TRENDS: list[HeatRateTrendRecord] = [
+    # Eraring 1 (ERA1)
+    HeatRateTrendRecord(unit_id="ERA1", unit_name="Eraring 1", year=2020, actual_heat_rate_gj_mwh=9.6, benchmark_heat_rate_gj_mwh=9.8, deviation_pct=-2.0, capacity_factor_pct=72.3, load_following_cycles=180, starts_stops=12, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="ERA1", unit_name="Eraring 1", year=2021, actual_heat_rate_gj_mwh=9.8, benchmark_heat_rate_gj_mwh=9.8, deviation_pct=0.0, capacity_factor_pct=68.5, load_following_cycles=195, starts_stops=14, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="ERA1", unit_name="Eraring 1", year=2022, actual_heat_rate_gj_mwh=10.4, benchmark_heat_rate_gj_mwh=9.9, deviation_pct=5.1, capacity_factor_pct=65.2, load_following_cycles=210, starts_stops=16, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="ERA1", unit_name="Eraring 1", year=2023, actual_heat_rate_gj_mwh=9.7, benchmark_heat_rate_gj_mwh=9.9, deviation_pct=-2.0, capacity_factor_pct=70.1, load_following_cycles=188, starts_stops=11, major_overhaul=True),
+    HeatRateTrendRecord(unit_id="ERA1", unit_name="Eraring 1", year=2024, actual_heat_rate_gj_mwh=10.1, benchmark_heat_rate_gj_mwh=10.0, deviation_pct=1.0, capacity_factor_pct=66.8, load_following_cycles=201, starts_stops=13, major_overhaul=False),
+    # Vales Point 5 (VP5)
+    HeatRateTrendRecord(unit_id="VP5", unit_name="Vales Point 5", year=2020, actual_heat_rate_gj_mwh=11.2, benchmark_heat_rate_gj_mwh=10.2, deviation_pct=9.8, capacity_factor_pct=55.4, load_following_cycles=230, starts_stops=18, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="VP5", unit_name="Vales Point 5", year=2021, actual_heat_rate_gj_mwh=11.5, benchmark_heat_rate_gj_mwh=10.3, deviation_pct=11.7, capacity_factor_pct=52.1, load_following_cycles=245, starts_stops=20, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="VP5", unit_name="Vales Point 5", year=2022, actual_heat_rate_gj_mwh=12.0, benchmark_heat_rate_gj_mwh=10.4, deviation_pct=15.4, capacity_factor_pct=48.9, load_following_cycles=260, starts_stops=22, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="VP5", unit_name="Vales Point 5", year=2023, actual_heat_rate_gj_mwh=11.4, benchmark_heat_rate_gj_mwh=10.4, deviation_pct=9.6, capacity_factor_pct=57.3, load_following_cycles=218, starts_stops=16, major_overhaul=True),
+    HeatRateTrendRecord(unit_id="VP5", unit_name="Vales Point 5", year=2024, actual_heat_rate_gj_mwh=12.1, benchmark_heat_rate_gj_mwh=10.5, deviation_pct=15.2, capacity_factor_pct=50.2, load_following_cycles=255, starts_stops=21, major_overhaul=False),
+    # Loy Yang A1 (LYA1)
+    HeatRateTrendRecord(unit_id="LYA1", unit_name="Loy Yang A1", year=2020, actual_heat_rate_gj_mwh=13.5, benchmark_heat_rate_gj_mwh=13.8, deviation_pct=-2.2, capacity_factor_pct=78.1, load_following_cycles=95, starts_stops=6, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="LYA1", unit_name="Loy Yang A1", year=2021, actual_heat_rate_gj_mwh=13.7, benchmark_heat_rate_gj_mwh=13.9, deviation_pct=-1.4, capacity_factor_pct=75.6, load_following_cycles=102, starts_stops=7, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="LYA1", unit_name="Loy Yang A1", year=2022, actual_heat_rate_gj_mwh=14.5, benchmark_heat_rate_gj_mwh=14.0, deviation_pct=3.6, capacity_factor_pct=71.2, load_following_cycles=118, starts_stops=8, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="LYA1", unit_name="Loy Yang A1", year=2023, actual_heat_rate_gj_mwh=13.9, benchmark_heat_rate_gj_mwh=14.0, deviation_pct=-0.7, capacity_factor_pct=74.8, load_following_cycles=105, starts_stops=6, major_overhaul=True),
+    HeatRateTrendRecord(unit_id="LYA1", unit_name="Loy Yang A1", year=2024, actual_heat_rate_gj_mwh=14.2, benchmark_heat_rate_gj_mwh=14.1, deviation_pct=0.7, capacity_factor_pct=73.0, load_following_cycles=110, starts_stops=7, major_overhaul=False),
+    # Pelican Point 1 (PP1)
+    HeatRateTrendRecord(unit_id="PP1", unit_name="Pelican Point 1", year=2020, actual_heat_rate_gj_mwh=6.9, benchmark_heat_rate_gj_mwh=6.7, deviation_pct=3.0, capacity_factor_pct=45.2, load_following_cycles=320, starts_stops=35, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="PP1", unit_name="Pelican Point 1", year=2021, actual_heat_rate_gj_mwh=7.0, benchmark_heat_rate_gj_mwh=6.7, deviation_pct=4.5, capacity_factor_pct=42.8, load_following_cycles=335, starts_stops=38, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="PP1", unit_name="Pelican Point 1", year=2022, actual_heat_rate_gj_mwh=7.4, benchmark_heat_rate_gj_mwh=6.8, deviation_pct=8.8, capacity_factor_pct=38.5, load_following_cycles=360, starts_stops=42, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="PP1", unit_name="Pelican Point 1", year=2023, actual_heat_rate_gj_mwh=6.8, benchmark_heat_rate_gj_mwh=6.8, deviation_pct=0.0, capacity_factor_pct=50.1, load_following_cycles=298, starts_stops=30, major_overhaul=True),
+    HeatRateTrendRecord(unit_id="PP1", unit_name="Pelican Point 1", year=2024, actual_heat_rate_gj_mwh=7.2, benchmark_heat_rate_gj_mwh=6.8, deviation_pct=5.9, capacity_factor_pct=44.3, load_following_cycles=330, starts_stops=36, major_overhaul=False),
+    # Darling Downs 1 (DD1)
+    HeatRateTrendRecord(unit_id="DD1", unit_name="Darling Downs 1", year=2020, actual_heat_rate_gj_mwh=6.6, benchmark_heat_rate_gj_mwh=6.6, deviation_pct=0.0, capacity_factor_pct=55.3, load_following_cycles=280, starts_stops=28, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="DD1", unit_name="Darling Downs 1", year=2021, actual_heat_rate_gj_mwh=6.7, benchmark_heat_rate_gj_mwh=6.6, deviation_pct=1.5, capacity_factor_pct=53.1, load_following_cycles=290, starts_stops=30, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="DD1", unit_name="Darling Downs 1", year=2022, actual_heat_rate_gj_mwh=6.9, benchmark_heat_rate_gj_mwh=6.7, deviation_pct=3.0, capacity_factor_pct=49.8, load_following_cycles=310, starts_stops=33, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="DD1", unit_name="Darling Downs 1", year=2023, actual_heat_rate_gj_mwh=6.5, benchmark_heat_rate_gj_mwh=6.7, deviation_pct=-3.0, capacity_factor_pct=58.7, load_following_cycles=265, starts_stops=25, major_overhaul=True),
+    HeatRateTrendRecord(unit_id="DD1", unit_name="Darling Downs 1", year=2024, actual_heat_rate_gj_mwh=6.9, benchmark_heat_rate_gj_mwh=6.7, deviation_pct=3.0, capacity_factor_pct=52.4, load_following_cycles=295, starts_stops=29, major_overhaul=False),
+    # Callide C3 (CAL3)
+    HeatRateTrendRecord(unit_id="CAL3", unit_name="Callide C3", year=2020, actual_heat_rate_gj_mwh=9.1, benchmark_heat_rate_gj_mwh=9.3, deviation_pct=-2.2, capacity_factor_pct=80.5, load_following_cycles=120, starts_stops=8, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="CAL3", unit_name="Callide C3", year=2021, actual_heat_rate_gj_mwh=9.3, benchmark_heat_rate_gj_mwh=9.3, deviation_pct=0.0, capacity_factor_pct=76.2, load_following_cycles=135, starts_stops=9, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="CAL3", unit_name="Callide C3", year=2022, actual_heat_rate_gj_mwh=10.2, benchmark_heat_rate_gj_mwh=9.4, deviation_pct=8.5, capacity_factor_pct=40.1, load_following_cycles=85, starts_stops=5, major_overhaul=False),
+    HeatRateTrendRecord(unit_id="CAL3", unit_name="Callide C3", year=2023, actual_heat_rate_gj_mwh=9.2, benchmark_heat_rate_gj_mwh=9.4, deviation_pct=-2.1, capacity_factor_pct=78.9, load_following_cycles=125, starts_stops=8, major_overhaul=True),
+    HeatRateTrendRecord(unit_id="CAL3", unit_name="Callide C3", year=2024, actual_heat_rate_gj_mwh=9.5, benchmark_heat_rate_gj_mwh=9.4, deviation_pct=1.1, capacity_factor_pct=77.3, load_following_cycles=130, starts_stops=8, major_overhaul=False),
+]
+
+_FUEL_COSTS: list[FuelCostRecord] = [
+    # Eraring 1 — black coal NSW
+    FuelCostRecord(unit_id="ERA1", unit_name="Eraring 1", technology="BLACK_COAL", year=2021, fuel_price_gj=3.5, fuel_cost_mwh=33.6, variable_om_mwh=4.2, fixed_om_mw_yr=45000, total_srmc_mwh=37.8, carbon_cost_mwh=0.0, all_in_cost_mwh=37.8),
+    FuelCostRecord(unit_id="ERA1", unit_name="Eraring 1", technology="BLACK_COAL", year=2022, fuel_price_gj=5.8, fuel_cost_mwh=60.2, variable_om_mwh=4.5, fixed_om_mw_yr=47000, total_srmc_mwh=64.7, carbon_cost_mwh=0.0, all_in_cost_mwh=64.7),
+    FuelCostRecord(unit_id="ERA1", unit_name="Eraring 1", technology="BLACK_COAL", year=2023, fuel_price_gj=6.2, fuel_cost_mwh=60.1, variable_om_mwh=4.8, fixed_om_mw_yr=48000, total_srmc_mwh=64.9, carbon_cost_mwh=0.0, all_in_cost_mwh=64.9),
+    FuelCostRecord(unit_id="ERA1", unit_name="Eraring 1", technology="BLACK_COAL", year=2024, fuel_price_gj=5.5, fuel_cost_mwh=55.5, variable_om_mwh=5.0, fixed_om_mw_yr=49000, total_srmc_mwh=60.5, carbon_cost_mwh=0.0, all_in_cost_mwh=60.5),
+    # Vales Point 5 — old black coal NSW
+    FuelCostRecord(unit_id="VP5", unit_name="Vales Point 5", technology="BLACK_COAL", year=2021, fuel_price_gj=3.0, fuel_cost_mwh=33.6, variable_om_mwh=5.5, fixed_om_mw_yr=38000, total_srmc_mwh=39.1, carbon_cost_mwh=0.0, all_in_cost_mwh=39.1),
+    FuelCostRecord(unit_id="VP5", unit_name="Vales Point 5", technology="BLACK_COAL", year=2022, fuel_price_gj=5.2, fuel_cost_mwh=62.4, variable_om_mwh=5.8, fixed_om_mw_yr=39000, total_srmc_mwh=68.2, carbon_cost_mwh=0.0, all_in_cost_mwh=68.2),
+    FuelCostRecord(unit_id="VP5", unit_name="Vales Point 5", technology="BLACK_COAL", year=2023, fuel_price_gj=5.5, fuel_cost_mwh=66.6, variable_om_mwh=6.0, fixed_om_mw_yr=40000, total_srmc_mwh=72.6, carbon_cost_mwh=0.0, all_in_cost_mwh=72.6),
+    FuelCostRecord(unit_id="VP5", unit_name="Vales Point 5", technology="BLACK_COAL", year=2024, fuel_price_gj=5.0, fuel_cost_mwh=60.5, variable_om_mwh=6.2, fixed_om_mw_yr=41000, total_srmc_mwh=66.7, carbon_cost_mwh=0.0, all_in_cost_mwh=66.7),
+    # Loy Yang A1 — brown coal VIC
+    FuelCostRecord(unit_id="LYA1", unit_name="Loy Yang A1", technology="BROWN_COAL", year=2021, fuel_price_gj=0.5, fuel_cost_mwh=6.8, variable_om_mwh=6.0, fixed_om_mw_yr=55000, total_srmc_mwh=12.8, carbon_cost_mwh=0.0, all_in_cost_mwh=12.8),
+    FuelCostRecord(unit_id="LYA1", unit_name="Loy Yang A1", technology="BROWN_COAL", year=2022, fuel_price_gj=0.6, fuel_cost_mwh=8.7, variable_om_mwh=6.5, fixed_om_mw_yr=57000, total_srmc_mwh=15.2, carbon_cost_mwh=0.0, all_in_cost_mwh=15.2),
+    FuelCostRecord(unit_id="LYA1", unit_name="Loy Yang A1", technology="BROWN_COAL", year=2023, fuel_price_gj=0.6, fuel_cost_mwh=8.3, variable_om_mwh=6.8, fixed_om_mw_yr=58000, total_srmc_mwh=15.1, carbon_cost_mwh=0.0, all_in_cost_mwh=15.1),
+    FuelCostRecord(unit_id="LYA1", unit_name="Loy Yang A1", technology="BROWN_COAL", year=2024, fuel_price_gj=0.7, fuel_cost_mwh=9.9, variable_om_mwh=7.0, fixed_om_mw_yr=60000, total_srmc_mwh=16.9, carbon_cost_mwh=0.0, all_in_cost_mwh=16.9),
+    # Pelican Point 1 — gas CCGT SA
+    FuelCostRecord(unit_id="PP1", unit_name="Pelican Point 1", technology="GAS_CCGT", year=2021, fuel_price_gj=8.5, fuel_cost_mwh=59.5, variable_om_mwh=3.0, fixed_om_mw_yr=30000, total_srmc_mwh=62.5, carbon_cost_mwh=6.2, all_in_cost_mwh=68.7),
+    FuelCostRecord(unit_id="PP1", unit_name="Pelican Point 1", technology="GAS_CCGT", year=2022, fuel_price_gj=18.0, fuel_cost_mwh=129.6, variable_om_mwh=3.2, fixed_om_mw_yr=32000, total_srmc_mwh=132.8, carbon_cost_mwh=6.5, all_in_cost_mwh=139.3),
+    FuelCostRecord(unit_id="PP1", unit_name="Pelican Point 1", technology="GAS_CCGT", year=2023, fuel_price_gj=14.5, fuel_cost_mwh=104.4, variable_om_mwh=3.5, fixed_om_mw_yr=33000, total_srmc_mwh=107.9, carbon_cost_mwh=6.8, all_in_cost_mwh=114.7),
+    FuelCostRecord(unit_id="PP1", unit_name="Pelican Point 1", technology="GAS_CCGT", year=2024, fuel_price_gj=12.0, fuel_cost_mwh=86.4, variable_om_mwh=3.8, fixed_om_mw_yr=34000, total_srmc_mwh=90.2, carbon_cost_mwh=7.0, all_in_cost_mwh=97.2),
+    # Darling Downs 1 — gas CCGT QLD
+    FuelCostRecord(unit_id="DD1", unit_name="Darling Downs 1", technology="GAS_CCGT", year=2021, fuel_price_gj=9.0, fuel_cost_mwh=58.5, variable_om_mwh=2.8, fixed_om_mw_yr=28000, total_srmc_mwh=61.3, carbon_cost_mwh=5.8, all_in_cost_mwh=67.1),
+    FuelCostRecord(unit_id="DD1", unit_name="Darling Downs 1", technology="GAS_CCGT", year=2022, fuel_price_gj=20.0, fuel_cost_mwh=138.0, variable_om_mwh=3.0, fixed_om_mw_yr=30000, total_srmc_mwh=141.0, carbon_cost_mwh=6.0, all_in_cost_mwh=147.0),
+    FuelCostRecord(unit_id="DD1", unit_name="Darling Downs 1", technology="GAS_CCGT", year=2023, fuel_price_gj=15.0, fuel_cost_mwh=103.5, variable_om_mwh=3.2, fixed_om_mw_yr=31000, total_srmc_mwh=106.7, carbon_cost_mwh=6.2, all_in_cost_mwh=112.9),
+    FuelCostRecord(unit_id="DD1", unit_name="Darling Downs 1", technology="GAS_CCGT", year=2024, fuel_price_gj=11.5, fuel_cost_mwh=79.4, variable_om_mwh=3.5, fixed_om_mw_yr=32000, total_srmc_mwh=82.9, carbon_cost_mwh=6.5, all_in_cost_mwh=89.4),
+]
+
+_THERMAL_BENCHMARKS: list[ThermalBenchmarkRecord] = [
+    ThermalBenchmarkRecord(technology="BLACK_COAL", benchmark_type="BEST_PRACTICE", heat_rate_gj_mwh=9.0, efficiency_pct=40.0, co2_intensity_kg_mwh=820, fuel_cost_mwh=45.0, srmc_mwh=49.5),
+    ThermalBenchmarkRecord(technology="BLACK_COAL", benchmark_type="AVERAGE", heat_rate_gj_mwh=10.5, efficiency_pct=34.3, co2_intensity_kg_mwh=955, fuel_cost_mwh=52.5, srmc_mwh=57.7),
+    ThermalBenchmarkRecord(technology="BLACK_COAL", benchmark_type="FLEET_BOTTOM", heat_rate_gj_mwh=13.0, efficiency_pct=27.7, co2_intensity_kg_mwh=1180, fuel_cost_mwh=65.0, srmc_mwh=71.5),
+    ThermalBenchmarkRecord(technology="BROWN_COAL", benchmark_type="BEST_PRACTICE", heat_rate_gj_mwh=11.5, efficiency_pct=31.3, co2_intensity_kg_mwh=1010, fuel_cost_mwh=6.9, srmc_mwh=12.9),
+    ThermalBenchmarkRecord(technology="BROWN_COAL", benchmark_type="AVERAGE", heat_rate_gj_mwh=13.5, efficiency_pct=26.7, co2_intensity_kg_mwh=1190, fuel_cost_mwh=8.1, srmc_mwh=15.1),
+    ThermalBenchmarkRecord(technology="BROWN_COAL", benchmark_type="FLEET_BOTTOM", heat_rate_gj_mwh=15.5, efficiency_pct=23.2, co2_intensity_kg_mwh=1360, fuel_cost_mwh=9.3, srmc_mwh=17.3),
+    ThermalBenchmarkRecord(technology="GAS_CCGT", benchmark_type="BEST_PRACTICE", heat_rate_gj_mwh=6.5, efficiency_pct=55.4, co2_intensity_kg_mwh=340, fuel_cost_mwh=78.0, srmc_mwh=81.5),
+    ThermalBenchmarkRecord(technology="GAS_CCGT", benchmark_type="AVERAGE", heat_rate_gj_mwh=7.2, efficiency_pct=50.0, co2_intensity_kg_mwh=376, fuel_cost_mwh=86.4, srmc_mwh=90.2),
+    ThermalBenchmarkRecord(technology="GAS_CCGT", benchmark_type="FLEET_BOTTOM", heat_rate_gj_mwh=8.0, efficiency_pct=45.0, co2_intensity_kg_mwh=418, fuel_cost_mwh=96.0, srmc_mwh=100.5),
+    ThermalBenchmarkRecord(technology="GAS_OCGT", benchmark_type="BEST_PRACTICE", heat_rate_gj_mwh=9.5, efficiency_pct=37.9, co2_intensity_kg_mwh=496, fuel_cost_mwh=114.0, srmc_mwh=121.0),
+    ThermalBenchmarkRecord(technology="GAS_OCGT", benchmark_type="AVERAGE", heat_rate_gj_mwh=11.0, efficiency_pct=32.7, co2_intensity_kg_mwh=575, fuel_cost_mwh=132.0, srmc_mwh=140.0),
+    ThermalBenchmarkRecord(technology="GAS_OCGT", benchmark_type="FLEET_BOTTOM", heat_rate_gj_mwh=13.0, efficiency_pct=27.7, co2_intensity_kg_mwh=679, fuel_cost_mwh=156.0, srmc_mwh=165.0),
+    ThermalBenchmarkRecord(technology="GAS_STEAM", benchmark_type="BEST_PRACTICE", heat_rate_gj_mwh=10.0, efficiency_pct=36.0, co2_intensity_kg_mwh=522, fuel_cost_mwh=120.0, srmc_mwh=127.0),
+    ThermalBenchmarkRecord(technology="GAS_STEAM", benchmark_type="AVERAGE", heat_rate_gj_mwh=11.5, efficiency_pct=31.3, co2_intensity_kg_mwh=600, fuel_cost_mwh=138.0, srmc_mwh=146.0),
+    ThermalBenchmarkRecord(technology="GAS_STEAM", benchmark_type="FLEET_BOTTOM", heat_rate_gj_mwh=13.5, efficiency_pct=26.7, co2_intensity_kg_mwh=705, fuel_cost_mwh=162.0, srmc_mwh=172.0),
+]
+
+_THERMAL_EFFICIENCY_DASHBOARD = ThermalEfficiencyDashboard(
+    timestamp="2024-12-31T00:00:00",
+    thermal_units=_THERMAL_UNITS,
+    heat_rate_trends=_HEAT_RATE_TRENDS,
+    fuel_costs=_FUEL_COSTS,
+    benchmarks=_THERMAL_BENCHMARKS,
+    fleet_avg_heat_rate_gj_mwh=11.1,
+    fleet_avg_efficiency_pct=33.5,
+    worst_heat_rate_unit="Vales Point 5",
+    total_fuel_cost_b_aud_yr=2.4,
+)
+
+
+@app.get(
+    "/api/thermal-efficiency/dashboard",
+    response_model=ThermalEfficiencyDashboard,
+    tags=["Thermal Efficiency"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_thermal_efficiency_dashboard():
+    return _THERMAL_EFFICIENCY_DASHBOARD
+
+
+@app.get(
+    "/api/thermal-efficiency/units",
+    response_model=list[ThermalUnitRecord],
+    tags=["Thermal Efficiency"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_thermal_efficiency_units():
+    return _THERMAL_UNITS
+
+
+@app.get(
+    "/api/thermal-efficiency/heat-rate-trends",
+    response_model=list[HeatRateTrendRecord],
+    tags=["Thermal Efficiency"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_thermal_efficiency_heat_rate_trends():
+    return _HEAT_RATE_TRENDS
+
+
+@app.get(
+    "/api/thermal-efficiency/fuel-costs",
+    response_model=list[FuelCostRecord],
+    tags=["Thermal Efficiency"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_thermal_efficiency_fuel_costs():
+    return _FUEL_COSTS
+
+
+@app.get(
+    "/api/thermal-efficiency/benchmarks",
+    response_model=list[ThermalBenchmarkRecord],
+    tags=["Thermal Efficiency"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_thermal_efficiency_benchmarks():
+    return _THERMAL_BENCHMARKS

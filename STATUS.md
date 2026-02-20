@@ -1189,3 +1189,58 @@
 - 20 diesel displacement records across QLD, WA, NT, SA, TAS showing quarterly improvement in renewable fraction through 2024
 - 48 monthly energy records for 4 selected microgrids with seasonal solar patterns (high Dec/Jan/Feb, lower Jun/Jul)
 - 6 technology summary records covering SOLAR_PV, WIND, BATTERY, DIESEL, FLYWHEEL, FUEL_CELL
+
+## Sprint 51c — Thermal Power Plant Heat Rate & Efficiency Analytics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Appended 5 Pydantic models (ThermalUnitRecord, HeatRateTrendRecord, FuelCostRecord, ThermalBenchmarkRecord, ThermalEfficiencyDashboard), comprehensive mock data (15 thermal unit records, 30 heat rate trend records, 20 fuel cost records, 15 benchmark records), and 5 endpoints under `/api/thermal-efficiency/*` (dashboard, units, heat-rate-trends, fuel-costs, benchmarks); all protected by `verify_api_key`
+- `app/frontend/src/pages/ThermalEfficiency.tsx` — New page: Thermometer icon header, 4 KPI cards (Fleet Avg Heat Rate GJ/MWh, Fleet Avg Efficiency %, Worst Performing Unit, Total Fuel Cost $B AUD/yr), heat rate scatter chart (design vs actual, diagonal benchmark line, color by technology), heat rate trend multi-line chart (6 units × 2020-2024, overhaul markers via ReferenceLine), thermal units table with technology filter and degradation color coding (red >10%, amber >5%), fuel cost SRMC table sortable by SRMC/all-in/fuel cost/year
+- `app/frontend/src/api/client.ts` — Appended 5 TypeScript interfaces (ThermalUnitRecord, HeatRateTrendRecord, FuelCostRecord, ThermalBenchmarkRecord, ThermalEfficiencyDashboard) and 5 API methods (getThermalEfficiencyDashboard, getThermalEfficiencyUnits, getThermalEfficiencyHeatRateTrends, getThermalEfficiencyFuelCosts, getThermalEfficiencyBenchmarks) added to `api` object
+- `app/frontend/src/App.tsx` — Imported ThermalEfficiency; Thermometer already in lucide-react imports (used by /weather-demand); added `/thermal-efficiency` route and "Thermal Efficiency" nav item (Thermometer icon) before Settings
+- `tests/test_backend.py` — Appended `TestThermalEfficiencyEndpoints` class with 5 tests (test_dashboard, test_units, test_heat_rate_trends, test_fuel_costs, test_benchmarks)
+
+**Mock data highlights:**
+- 15 real-ish Australian thermal units: Eraring 1-4 NSW (720 MW each, black coal), Vales Point 5-6 NSW (660 MW), Bayswater 3 NSW (665 MW), Loy Yang A1-2 VIC (brown coal), Yallourn W3 VIC (360 MW), Torrens Island B3 SA (gas steam), Pelican Point 1 SA (CCGT 478 MW), Mortlake 1 VIC (OCGT 282 MW), Darling Downs 1 QLD (CCGT 630 MW), Callide C3 QLD (black coal 450 MW)
+- Heat rates: black coal 9.6-12.1 GJ/MWh, brown coal 13.9-14.8 GJ/MWh, CCGT 6.9-7.2 GJ/MWh, OCGT 10.2 GJ/MWh, gas steam 11.9 GJ/MWh
+- 30 heat rate trend records: 6 units × 5 years (2020-2024) showing gradual degradation with step improvements after major overhauls (2023 for most units); Callide C3 shows anomalous 2022 degradation reflecting real-world unplanned outage
+- 20 fuel cost records: 5 units × 4 years; coal $3-6.2/GJ, gas $8.5-20/GJ; SRMC ranges from $12.8/MWh (Loy Yang brown coal) to $141/MWh (Darling Downs 2022 gas crisis)
+- 15 benchmark records: 5 technologies × 3 benchmark types (BEST_PRACTICE, AVERAGE, FLEET_BOTTOM); best practice CCGT 6.5 GJ/MWh, best practice black coal 9.0 GJ/MWh
+
+**Technology color scheme:** BLACK_COAL dark gray #4b5563, BROWN_COAL brown #92400e, GAS_CCGT blue #3b82f6, GAS_OCGT gray #6b7280, GAS_STEAM cyan #06b6d4
+
+## Sprint 51a — Electricity Market Liquidity & Trading Volume Analytics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Appended 5 Pydantic models (TradingVolumeRecord, BidAskSpreadRecord, MarketDepthRecord, LiquidityMetricRecord, MarketLiquidityDashboard), comprehensive mock data (20 trading volume records across 4 regions × 5 dates with ASX/OTC/BILATERAL/EXCHANGE venues; 15 bid-ask spread records across 3 regions × 5 products with spreads $0.5-$8/MWh and market depth 50-500 MW; 20 market depth records across 4 regions × 5 price levels showing bid/ask order book; 20 liquidity metric records across 4 regions × 5 quarters with turnover ratio 0.5-3.0 and exchange share 30-60%), and 5 endpoints under `/api/market-liquidity/*` (dashboard, trading-volumes, bid-ask-spreads, market-depth, metrics); all protected by `verify_api_key`
+- `app/frontend/src/pages/MarketLiquidity.tsx` — New page (536 lines): BarChart icon header with title "Electricity Market Liquidity & Trading Volume" and NEM/ASX subtitle; 4 KPI cards (Total Daily Volume GWh, Avg Bid-Ask Spread $/MWh, Exchange Share %, Turnover Ratio); stacked bar + VWAP line ComposedChart for trading volumes by venue; AreaChart for market share evolution by quarter (Exchange/OTC/Bilateral % stack); horizontal RechartsBarChart order book depth visualization (bid blue left / ask red right) with region selector; BidAskSpreadRecord table with product and venue color badges; quarterly LiquidityMetricRecord table with turnover ratio and HHI
+- `app/frontend/src/api/client.ts` — Appended 5 TypeScript interfaces (TradingVolumeRecord, BidAskSpreadRecord, MarketDepthRecord, LiquidityMetricRecord, MarketLiquidityDashboard) and 5 API methods (getMarketLiquidityDashboard, getMarketLiquidityTradingVolumes, getMarketLiquidityBidAskSpreads, getMarketLiquidityMarketDepth, getMarketLiquidityMetrics) added to `api` object
+- `app/frontend/src/App.tsx` — Imported MarketLiquidity; added `BarChart` (without suffix) to lucide-react imports (BarChart2/BarChart3 already used); added `/market-liquidity` route and "Market Liquidity" nav item (BarChart icon) before Settings
+- `tests/test_backend.py` — Appended `TestMarketLiquidityEndpoints` class with 5 tests (test_dashboard, test_trading_volumes, test_bid_ask_spreads, test_market_depth, test_metrics)
+
+**Mock data highlights:**
+- 20 trading volume records: 4 NEM regions (NSW1, QLD1, VIC1, SA1) × 5 dates (Jan 15-19 2025); venue rotates ASX/OTC_BROKER/BILATERAL/EXCHANGE by region; product rotates BASE_LOAD/PEAK/CAP/FLOOR/SWAP by date; VWAP ranges $50-$120/MWh; volumes 200-520 MW per record
+- 15 bid-ask spreads: 3 regions × 5 products; spreads range from $0.5 (NSW BASE_LOAD) to $8+/MWh (SA SWAP); market depth 50-500 MW; 3-9 market makers per product
+- 20 market depth records: 4 regions × 5 price levels ($60-$100); cumulative bid/ask volumes build up the order book ladder for the horizontal chart
+- 20 liquidity metrics: 4 regions × 5 quarters (2024-Q1 to 2025-Q1); exchange share 30-60%, OTC 20-40%, bilateral 10-30%; turnover ratio 0.5-3.0x; HHI 0.15-0.34 (moderate concentration)
+
+**Product badge colors:** BASE_LOAD blue, PEAK amber, CAP red, FLOOR green, SWAP gray
+**Venue badge colors:** ASX blue, OTC_BROKER green, BILATERAL gray, EXCHANGE teal
+
+## Sprint 51b — Industrial Demand Flexibility & Load Management Analytics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Appended 5 Pydantic models (LargeConsumerRecord, FlexibilityEventRecord, IndustrialLoadShapeRecord, DemandFlexAggregateRecord, IndustrialDemandFlexDashboard), comprehensive mock data, and 5 endpoints under `/api/industrial-demand-flex/*` (dashboard, consumers, events, load-shapes, aggregate); all protected by `verify_api_key`
+- `app/frontend/src/pages/IndustrialDemandFlex.tsx` — New page (635 lines): Factory icon header with title "Industrial Demand Flexibility & Load Management" and large industrial consumers subtitle; 4 KPI cards (Total Flex Capacity MW, Activated Events 2024, Total DR Revenue $M, Avg Response Accuracy %); horizontal bar chart for flexibility capacity by consumer with per-industry-type colors (Cell-based coloring); events table with RERT_ACTIVATION/PRICE_SIGNAL/NETWORK_SUPPORT/VOLUNTARY badges, accuracy color-coding, and settlement/grid-benefit columns; large consumers table with industry type and contract type badges, sustainability score 0-10 bar; seasonal load shape chart (multi-line SUMMER/WINTER/SHOULDER baseline + flex band) with consumer toggle buttons
+- `app/frontend/src/api/client.ts` — Appended 5 TypeScript interfaces (LargeConsumerRecord, FlexibilityEventRecord, IndustrialLoadShapeRecord, DemandFlexAggregateRecord, IndustrialDemandFlexDashboard) and 5 API methods (getIndustrialDemandFlexDashboard, getIndustrialDemandFlexConsumers, getIndustrialDemandFlexEvents, getIndustrialDemandFlexLoadShapes, getIndustrialDemandFlexAggregate) added to `api` object
+- `app/frontend/src/App.tsx` — Imported IndustrialDemandFlex; added Factory to lucide-react imports; added `/industrial-demand-flex` route and "Industrial Demand Flex" nav item (Factory icon) before Settings
+- `tests/test_backend.py` — Appended `TestIndustrialDemandFlexEndpoints` class with 5 tests (test_dashboard, test_consumers, test_events, test_load_shapes, test_aggregate)
+
+**Mock data highlights:**
+- 12 large consumer records: Tomago Aluminium NSW (380 MW flex, RERT), BlueScope Steel Port Kembla NSW (210 MW, WHOLESALE_DR), BHP Olympic Dam SA (60 MW, NETWORK_DR), Santos Moomba SA (45 MW, SPOT_RESPONSE), Snowy Hydro Guthega NSW (160 MW pumping, RERT), Loy Yang Power Aux VIC (35 MW, NETWORK_DR), Sydney Desalination Plant NSW (80 MW, WHOLESALE_DR), Kwinana Industrial WA (90 MW, NETWORK_DR), Alcoa Portland VIC (400 MW, RERT), Rio Tinto Yarwun QLD (130 MW, WHOLESALE_DR), BHP Nickel West WA (55 MW, SPOT_RESPONSE), AWS Sydney DC NSW (25 MW, WHOLESALE_DR); sustainability scores 3.2-9.4
+- 15 flexibility event records (2024 Jan-Dec): 4 RERT activations (prices $14,800-$15,200/MWh, settlements $680K-$1.35M), 5 price signals ($3,200-$8,200/MWh), 4 network support events (zero trigger price, paid separately), 2 voluntary reductions; response accuracy 80-99.3%
+- 18 load shape records: 3 consumers (Tomago Al., Alcoa Portland, BlueScope Steel) × 3 seasons × 2 representative hours (00:00 and 12:00); baseline MW, min curtailable MW, flexibility band MW, spot response threshold ($/MWh) per record
+- 20 aggregate records: 5 regions (NSW1, VIC1, SA1, QLD1, WEM) × 4 quarters (Q1-Q4 2024); enrolled consumers 1-4, flex capacity 105-1155 MW, activated events 0-5, revenue $0-4.2M per region/quarter
+
+**Industry type badge colors:** EAF_STEEL red, ALUMINIUM silver/gray, DATA_CENTRE blue, DESALINATION cyan, CHEMICALS orange, MINING amber, CEMENT gray
+**Contract type badge colors:** RERT red, WHOLESALE_DR blue, NETWORK_DR green, SPOT_RESPONSE amber
+**Event type badge colors:** RERT_ACTIVATION red, PRICE_SIGNAL amber, NETWORK_SUPPORT blue, VOLUNTARY gray

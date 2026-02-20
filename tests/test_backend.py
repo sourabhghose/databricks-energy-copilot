@@ -4501,3 +4501,90 @@ class TestMicrogridRapsEndpoints:
         r = client.get("/api/microgrid-raps/technology-summary", headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestMarketLiquidityEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/market-liquidity/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "trading_volumes" in d
+        assert len(d["trading_volumes"]) > 0
+
+    def test_trading_volumes(self, client):
+        r = client.get("/api/market-liquidity/trading-volumes", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_bid_ask_spreads(self, client):
+        r = client.get("/api/market-liquidity/bid-ask-spreads", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_market_depth(self, client):
+        r = client.get("/api/market-liquidity/market-depth", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_metrics(self, client):
+        r = client.get("/api/market-liquidity/metrics", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestThermalEfficiencyEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/thermal-efficiency/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "thermal_units" in d
+        assert len(d["thermal_units"]) > 0
+
+    def test_units(self, client):
+        r = client.get("/api/thermal-efficiency/units", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_heat_rate_trends(self, client):
+        r = client.get("/api/thermal-efficiency/heat-rate-trends", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_fuel_costs(self, client):
+        r = client.get("/api/thermal-efficiency/fuel-costs", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_benchmarks(self, client):
+        r = client.get("/api/thermal-efficiency/benchmarks", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+
+class TestIndustrialDemandFlexEndpoints:
+    def test_dashboard(self, client):
+        r = client.get("/api/industrial-demand-flex/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "large_consumers" in d
+        assert len(d["large_consumers"]) > 0
+
+    def test_consumers(self, client):
+        r = client.get("/api/industrial-demand-flex/consumers", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_events(self, client):
+        r = client.get("/api/industrial-demand-flex/events", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_load_shapes(self, client):
+        r = client.get("/api/industrial-demand-flex/load-shapes", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_aggregate(self, client):
+        r = client.get("/api/industrial-demand-flex/aggregate", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)

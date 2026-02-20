@@ -56,8 +56,10 @@ import {
   Waves,
   CircuitBoard,
   BarChart3,
+  BarChart,
   SunMedium,
   Tornado,
+  Factory,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -181,6 +183,9 @@ import FuturesMarketRisk from './pages/FuturesMarketRisk'
 import WindResourceAnalytics from './pages/WindResourceAnalytics'
 import CorporatePpaMarket from './pages/CorporatePpaMarket'
 import MicrogridRaps from './pages/MicrogridRaps'
+import MarketLiquidity from './pages/MarketLiquidity'
+import ThermalEfficiency from './pages/ThermalEfficiency'
+import IndustrialDemandFlex from './pages/IndustrialDemandFlex'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -304,6 +309,9 @@ const NAV_ITEMS = [
   { to: '/wind-resource',         label: 'Wind Resource',      Icon: Tornado        },
   { to: '/corporate-ppa-market', label: 'Corporate PPA Market', Icon: FileText  },
   { to: '/microgrid-raps',    label: 'Microgrids & RAPS',  Icon: Wifi           },
+  { to: '/market-liquidity',  label: 'Market Liquidity',   Icon: BarChart       },
+  { to: '/thermal-efficiency', label: 'Thermal Efficiency', Icon: Thermometer   },
+  { to: '/industrial-demand-flex', label: 'Industrial Demand Flex', Icon: Factory },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -502,6 +510,9 @@ export default function App() {
               <Route path="/wind-resource"         element={<WindResourceAnalytics />}  />
               <Route path="/corporate-ppa-market" element={<CorporatePpaMarket />}    />
               <Route path="/microgrid-raps"    element={<MicrogridRaps />}         />
+              <Route path="/market-liquidity"  element={<MarketLiquidity />}       />
+              <Route path="/thermal-efficiency" element={<ThermalEfficiency />}  />
+              <Route path="/industrial-demand-flex" element={<IndustrialDemandFlex />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
