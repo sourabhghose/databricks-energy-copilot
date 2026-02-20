@@ -10829,3 +10829,51 @@ class TestBatteryDispatchStrategyEndpoint:
     def test_dispatch_profiles_count_at_least_200(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["dispatch_profiles"]) >= 200
+
+
+class TestGenerationMixTransitionEndpoint:
+    endpoint = "/api/generation-mix-transition/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_annual_mix_count_at_least_60(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["annual_mix"]) >= 60
+
+    def test_capacity_forecast_count_at_least_50(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["capacity_forecast"]) >= 50
+
+
+class TestStorageDurationEconomicsEndpoint:
+    endpoint = "/api/storage-duration-economics/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_technologies_count_equals_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["technologies"]) == 8
+
+    def test_revenue_stacks_count_at_least_60(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["revenue_stacks"]) >= 60
+
+
+class TestAncillaryMarketDepthEndpoint:
+    endpoint = "/api/ancillary-market-depth/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_market_shares_count_at_least_60(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["market_shares"]) >= 60
+
+    def test_price_formation_count_at_least_40(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["price_formation"]) >= 40

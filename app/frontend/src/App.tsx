@@ -280,6 +280,9 @@ import DemandResponseProgramAnalytics from './pages/DemandResponseProgramAnalyti
 import InterconnectorCongestionAnalytics from './pages/InterconnectorCongestionAnalytics'
 import PPAMarketAnalytics from './pages/PPAMarketAnalytics'
 import BatteryDispatchStrategyAnalytics from './pages/BatteryDispatchStrategyAnalytics'
+import GenerationMixTransitionAnalytics from './pages/GenerationMixTransitionAnalytics'
+import StorageDurationEconomicsAnalytics from './pages/StorageDurationEconomicsAnalytics'
+import AncillaryServicesMarketDepthAnalytics from './pages/AncillaryServicesMarketDepthAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -490,6 +493,9 @@ const NAV_ITEMS = [
   { to: '/interconnector-congestion',  label: 'Interconnector Congestion',    Icon: GitMerge       },
   { to: '/ppa-market',                label: 'PPA Market Analytics',         Icon: FileText       },
   { to: '/battery-dispatch-strategy', label: 'Battery Dispatch Strategy',    Icon: Battery        },
+  { to: '/generation-mix-transition', label: 'Generation Mix Transition',    Icon: BarChart       },
+  { to: '/storage-duration-economics', label: 'Storage Duration Economics',  Icon: Clock          },
+  { to: '/ancillary-market-depth',    label: 'FCAS Market Depth Analytics', Icon: Layers         },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -775,6 +781,9 @@ export default function App() {
               <Route path="/interconnector-congestion"   element={<InterconnectorCongestionAnalytics />}  />
               <Route path="/ppa-market"                  element={<PPAMarketAnalytics />}                 />
               <Route path="/battery-dispatch-strategy"   element={<BatteryDispatchStrategyAnalytics />}   />
+              <Route path="/generation-mix-transition"   element={<GenerationMixTransitionAnalytics />}   />
+              <Route path="/storage-duration-economics" element={<StorageDurationEconomicsAnalytics />}  />
+              <Route path="/ancillary-market-depth"    element={<AncillaryServicesMarketDepthAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

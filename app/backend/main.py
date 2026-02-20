@@ -55109,3 +55109,899 @@ async def get_ppa_market_dashboard():
     result = _build_ppa_dashboard()
     _cache_set(_ppa_market_cache, "ppa_market", result)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Generation Mix Transition Analytics  (Sprint 80a)
+# ---------------------------------------------------------------------------
+
+class GMTAnnualMixRecord(BaseModel):
+    year: int
+    region: str
+    coal_pct: float
+    gas_pct: float
+    wind_pct: float
+    solar_utility_pct: float
+    solar_rooftop_pct: float
+    hydro_pct: float
+    battery_pct: float
+    other_pct: float
+    total_generation_twh: float
+    renewable_pct: float
+    emissions_mt_co2: float
+    emission_intensity_kg_per_mwh: float
+
+
+class GMTMilestoneRecord(BaseModel):
+    milestone: str
+    region: str
+    achieved_date: Optional[str]
+    forecast_date: Optional[str]
+    significance: str
+    next_milestone: str
+
+
+class GMTRetirementScheduleRecord(BaseModel):
+    plant_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    expected_retirement_year: int
+    retirement_type: str
+    replacement_technology: str
+    replacement_capacity_mw: float
+    replacement_timeline_years: float
+    net_capacity_gap_mw: float
+
+
+class GMTCapacityForecastRecord(BaseModel):
+    year: int
+    scenario: str
+    region: str
+    coal_gw: float
+    gas_gw: float
+    wind_gw: float
+    solar_utility_gw: float
+    solar_rooftop_gw: float
+    storage_gw: float
+    hydro_gw: float
+    total_gw: float
+    peak_demand_gw: float
+    adequacy_margin_pct: float
+
+
+class GMTInvestmentRecord(BaseModel):
+    year: int
+    technology: str
+    investment_bn: float
+    new_capacity_mw: float
+    jobs_created: int
+    lcoe_per_mwh: float
+
+
+class GMTDashboard(BaseModel):
+    annual_mix: List[GMTAnnualMixRecord]
+    milestones: List[GMTMilestoneRecord]
+    retirement_schedule: List[GMTRetirementScheduleRecord]
+    capacity_forecast: List[GMTCapacityForecastRecord]
+    investment: List[GMTInvestmentRecord]
+    summary: dict
+
+
+def _build_gmt_dashboard() -> GMTDashboard:
+    import random
+    rng = random.Random(4242)
+
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+
+    # --- Annual mix: 5 regions x 15 years (2010-2024) = 75 records ---
+    annual_mix = []
+    for region in regions:
+        for year in range(2010, 2025):
+            progress = (year - 2010) / 14.0
+            coal_base = {"NSW": 68, "VIC": 75, "QLD": 65, "SA": 30, "TAS": 2}[region]
+            coal_pct = max(coal_base * (1 - progress * 0.55) + rng.uniform(-2, 2), 0.0)
+            gas_base = {"NSW": 10, "VIC": 5, "QLD": 12, "SA": 25, "TAS": 3}[region]
+            gas_pct = max(gas_base + progress * 4 + rng.uniform(-1, 1), 0.0)
+            wind_pct = min({"NSW": 3, "VIC": 5, "QLD": 2, "SA": 18, "TAS": 25}[region] + progress * 18 + rng.uniform(-1, 2), 45.0)
+            solar_u_pct = min(max(progress * 14 + rng.uniform(0, 3), 0), 20.0)
+            solar_r_pct = min(max(progress * 10 + rng.uniform(0, 2), 0), 16.0)
+            hydro_pct = {"NSW": 12, "VIC": 8, "QLD": 5, "SA": 5, "TAS": 65}[region] + rng.uniform(-1, 1)
+            hydro_pct = max(hydro_pct, 0.0)
+            battery_pct = max(progress * 2 - 1.5 + rng.uniform(0, 0.5), 0.0) if year >= 2018 else 0.0
+            total_pct = coal_pct + gas_pct + wind_pct + solar_u_pct + solar_r_pct + hydro_pct + battery_pct
+            other_pct = max(100.0 - total_pct, 0.0)
+            total_gen = {"NSW": 65, "VIC": 45, "QLD": 55, "SA": 15, "TAS": 12}[region] + rng.uniform(-3, 3)
+            renewable_pct = wind_pct + solar_u_pct + solar_r_pct + hydro_pct + battery_pct
+            emissions = total_gen * (coal_pct * 0.95 + gas_pct * 0.45) / 100.0
+            intensity = (emissions * 1_000_000) / (total_gen * 1_000_000) if total_gen > 0 else 0
+            annual_mix.append(GMTAnnualMixRecord(
+                year=year,
+                region=region,
+                coal_pct=round(coal_pct, 2),
+                gas_pct=round(gas_pct, 2),
+                wind_pct=round(wind_pct, 2),
+                solar_utility_pct=round(solar_u_pct, 2),
+                solar_rooftop_pct=round(solar_r_pct, 2),
+                hydro_pct=round(hydro_pct, 2),
+                battery_pct=round(battery_pct, 2),
+                other_pct=round(other_pct, 2),
+                total_generation_twh=round(total_gen, 1),
+                renewable_pct=round(renewable_pct, 2),
+                emissions_mt_co2=round(emissions, 2),
+                emission_intensity_kg_per_mwh=round(intensity, 3),
+            ))
+
+    # --- Milestones: 15 records ---
+    milestones_raw = [
+        ("First 30% renewable hour", "SA", "2016-09-28", None, "HIGH", "First 50% renewable hour (achieved 2017)"),
+        ("First 50% renewable hour", "SA", "2017-03-15", None, "HIGH", "First 100% renewable hour"),
+        ("First 100% renewable hour", "SA", "2020-10-11", None, "HIGH", "Sustained 100% renewable period >1h"),
+        ("Coal < 50% of annual generation", "NEM", "2022-01-01", None, "HIGH", "Coal < 30% of annual generation"),
+        ("Rooftop solar > 5 GW installed", "NEM", "2019-06-30", None, "MEDIUM", "Rooftop solar > 10 GW installed"),
+        ("Rooftop solar > 10 GW installed", "NEM", "2021-11-01", None, "MEDIUM", "Rooftop solar > 20 GW installed"),
+        ("Wind generation > 10 GW capacity", "NEM", "2020-04-01", None, "MEDIUM", "Wind generation > 20 GW capacity"),
+        ("Loy Yang A retirement", "VIC", None, "2035-01-01", "HIGH", "Brown coal fully retired from NEM"),
+        ("Eraring closure", "NSW", "2025-08-01", None, "HIGH", "Mount Piper retirement"),
+        ("First utility-scale battery > 300 MW", "SA", "2023-09-01", None, "MEDIUM", "Battery storage > 5 GW NEM-wide"),
+        ("Renewable generation > 50% annual NEM", "NEM", None, "2026-06-30", "HIGH", "Renewable generation > 70% annual NEM"),
+        ("Coal < 20% annual generation NEM", "NEM", None, "2030-01-01", "HIGH", "Coal fully retired NEM"),
+        ("Zero-emissions grid hour SA", "SA", "2020-10-11", None, "HIGH", "Zero-emissions grid day SA"),
+        ("Battery storage > 2 GW NEM", "NEM", None, "2027-06-30", "MEDIUM", "Battery storage > 5 GW NEM"),
+        ("First offshore wind CfD award", "VIC", None, "2027-01-01", "HIGH", "First offshore wind generation"),
+    ]
+    milestones = [
+        GMTMilestoneRecord(
+            milestone=m[0], region=m[1], achieved_date=m[2], forecast_date=m[3],
+            significance=m[4], next_milestone=m[5]
+        )
+        for m in milestones_raw
+    ]
+
+    # --- Retirement schedule: 12 records ---
+    retirements_raw = [
+        ("Eraring", "BLACK_COAL", "NSW", 2880.0, 2025, "SCHEDULED", "WIND", 2400.0, 3.0),
+        ("Loy Yang A Unit 1", "BROWN_COAL", "VIC", 560.0, 2028, "ECONOMIC", "SOLAR", 600.0, 2.5),
+        ("Loy Yang A Unit 2", "BROWN_COAL", "VIC", 560.0, 2030, "ECONOMIC", "STORAGE", 400.0, 3.0),
+        ("Loy Yang A Unit 3", "BROWN_COAL", "VIC", 560.0, 2032, "REGULATORY", "WIND", 700.0, 4.0),
+        ("Loy Yang A Unit 4", "BROWN_COAL", "VIC", 560.0, 2035, "REGULATORY", "MIXED", 600.0, 4.0),
+        ("Loy Yang B", "BROWN_COAL", "VIC", 1000.0, 2033, "ECONOMIC", "WIND", 900.0, 5.0),
+        ("Callide C", "BLACK_COAL", "QLD", 840.0, 2028, "SCHEDULED", "SOLAR", 900.0, 3.5),
+        ("Callide B", "BLACK_COAL", "QLD", 700.0, 2026, "ECONOMIC", "MIXED", 600.0, 2.0),
+        ("Mount Piper", "BLACK_COAL", "NSW", 1400.0, 2030, "SCHEDULED", "WIND", 1500.0, 4.0),
+        ("Vales Point", "BLACK_COAL", "NSW", 1320.0, 2029, "ECONOMIC", "SOLAR", 1200.0, 3.0),
+        ("Origin Eraring Extension", "BLACK_COAL", "NSW", 720.0, 2027, "VOLUNTARY", "GAS_PEAKER", 500.0, 1.5),
+        ("Gladstone", "BLACK_COAL", "QLD", 1680.0, 2027, "ECONOMIC", "SOLAR", 1400.0, 3.0),
+    ]
+    retirement_schedule = [
+        GMTRetirementScheduleRecord(
+            plant_name=r[0], technology=r[1], region=r[2], capacity_mw=r[3],
+            expected_retirement_year=r[4], retirement_type=r[5],
+            replacement_technology=r[6], replacement_capacity_mw=r[7],
+            replacement_timeline_years=r[8],
+            net_capacity_gap_mw=round(r[7] - r[3], 1),
+        )
+        for r in retirements_raw
+    ]
+
+    # --- Capacity forecast: 3 scenarios x 5 regions x 4 years = 60 records ---
+    scenarios = ["STEP_CHANGE", "PROGRESSIVE_CHANGE", "SLOW_CHANGE"]
+    forecast_years = [2030, 2035, 2040, 2050]
+    scenario_multipliers = {"STEP_CHANGE": 1.25, "PROGRESSIVE_CHANGE": 1.0, "SLOW_CHANGE": 0.75}
+    capacity_forecast = []
+    for scenario in scenarios:
+        mult = scenario_multipliers[scenario]
+        for region in regions:
+            for year in forecast_years:
+                yr_prog = (year - 2024) / 26.0
+                coal_gw = max({"NSW": 5.5, "VIC": 4.0, "QLD": 6.0, "SA": 0.5, "TAS": 0.0}[region] * (1 - yr_prog * mult * 1.1), 0.0)
+                gas_gw = {"NSW": 3.0, "VIC": 2.0, "QLD": 3.5, "SA": 2.5, "TAS": 0.5}[region] + yr_prog * 1.5 * mult
+                wind_gw = {"NSW": 4.0, "VIC": 5.0, "QLD": 3.0, "SA": 3.5, "TAS": 3.0}[region] * (1 + yr_prog * 2.5 * mult)
+                sol_u_gw = {"NSW": 3.0, "VIC": 2.5, "QLD": 4.0, "SA": 2.0, "TAS": 0.5}[region] * (1 + yr_prog * 3.0 * mult)
+                sol_r_gw = {"NSW": 5.0, "VIC": 3.5, "QLD": 4.5, "SA": 2.0, "TAS": 0.8}[region] * (1 + yr_prog * 1.5)
+                storage_gw = {"NSW": 1.0, "VIC": 0.8, "QLD": 0.6, "SA": 0.7, "TAS": 2.5}[region] * (1 + yr_prog * 4.0 * mult)
+                hydro_gw = {"NSW": 4.0, "VIC": 3.0, "QLD": 1.0, "SA": 0.5, "TAS": 2.8}[region] + yr_prog * 0.5
+                total_gw = coal_gw + gas_gw + wind_gw + sol_u_gw + sol_r_gw + storage_gw + hydro_gw
+                peak_demand = {"NSW": 14.5, "VIC": 10.0, "QLD": 10.5, "SA": 3.5, "TAS": 1.8}[region] * (1 + yr_prog * 0.2)
+                adequacy_margin = ((total_gw - peak_demand) / peak_demand) * 100
+                capacity_forecast.append(GMTCapacityForecastRecord(
+                    year=year, scenario=scenario, region=region,
+                    coal_gw=round(coal_gw, 2), gas_gw=round(gas_gw, 2),
+                    wind_gw=round(wind_gw, 2), solar_utility_gw=round(sol_u_gw, 2),
+                    solar_rooftop_gw=round(sol_r_gw, 2), storage_gw=round(storage_gw, 2),
+                    hydro_gw=round(hydro_gw, 2), total_gw=round(total_gw, 2),
+                    peak_demand_gw=round(peak_demand, 2),
+                    adequacy_margin_pct=round(adequacy_margin, 1),
+                ))
+
+    # --- Investment: 3 technologies x 10 years (2020-2029) = 30 records ---
+    technologies = ["WIND", "SOLAR_UTILITY", "BATTERY_STORAGE"]
+    lcoe_base = {"WIND": 65, "SOLAR_UTILITY": 55, "BATTERY_STORAGE": 180}
+    capex_decline = {"WIND": 0.03, "SOLAR_UTILITY": 0.06, "BATTERY_STORAGE": 0.10}
+    investment = []
+    for tech in technologies:
+        for yr in range(2020, 2030):
+            yr_offset = yr - 2020
+            inv_bn = {"WIND": 3.5, "SOLAR_UTILITY": 4.2, "BATTERY_STORAGE": 1.8}[tech] * (1 + yr_offset * 0.12) + rng.uniform(-0.3, 0.3)
+            cap_mw = {"WIND": 800, "SOLAR_UTILITY": 1200, "BATTERY_STORAGE": 400}[tech] * (1 + yr_offset * 0.15) + rng.uniform(-50, 50)
+            jobs = int({"WIND": 1200, "SOLAR_UTILITY": 1800, "BATTERY_STORAGE": 600}[tech] * (1 + yr_offset * 0.08))
+            lcoe = max(lcoe_base[tech] * ((1 - capex_decline[tech]) ** yr_offset) + rng.uniform(-3, 3), 20.0)
+            investment.append(GMTInvestmentRecord(
+                year=yr, technology=tech,
+                investment_bn=round(inv_bn, 2),
+                new_capacity_mw=round(cap_mw, 0),
+                jobs_created=jobs,
+                lcoe_per_mwh=round(lcoe, 1),
+            ))
+
+    summary = {
+        "current_renewable_pct_2024": 38.4,
+        "coal_pct_2024": 42.1,
+        "renewable_target_2030_pct": 82,
+        "coal_retirements_by_2030_mw": 8400,
+        "replacement_gap_mw": 1200,
+        "emission_intensity_2024_kg_mwh": 0.52,
+        "peak_renewable_hour_pct": 99.8,
+    }
+
+    return GMTDashboard(
+        annual_mix=annual_mix,
+        milestones=milestones,
+        retirement_schedule=retirement_schedule,
+        capacity_forecast=capacity_forecast,
+        investment=investment,
+        summary=summary,
+    )
+
+
+_gmt_cache: dict = {}
+
+
+@app.get("/api/generation-mix-transition/dashboard", response_model=GMTDashboard, dependencies=[Depends(verify_api_key)])
+async def get_generation_mix_transition_dashboard():
+    cached = _cache_get(_gmt_cache, "gmt")
+    if cached:
+        return cached
+    result = _build_gmt_dashboard()
+    _cache_set(_gmt_cache, "gmt", result)
+    return result
+
+
+# ============================================================
+# Sprint 80c — Energy Storage Duration Economics Analytics
+# ============================================================
+
+class ESDTechnologyRecord(BaseModel):
+    technology: str
+    duration_hr: float
+    capex_per_kwh: float
+    capex_per_kw: float
+    opex_per_kwh_yr: float
+    round_trip_efficiency_pct: float
+    cycle_life: int
+    calendar_life_years: int
+    trl: int
+    commercial_availability: str
+    best_use_case: str
+
+
+class ESDRevenueStackRecord(BaseModel):
+    technology: str
+    duration_hr: float
+    region: str
+    scenario: str
+    arbitrage_revenue_per_mwh_yr: float
+    fcas_raise_revenue_per_mwh_yr: float
+    fcas_lower_revenue_per_mwh_yr: float
+    capacity_market_revenue_per_mwh_yr: float
+    network_services_revenue_per_mwh_yr: float
+    total_revenue_per_mwh_yr: float
+    opex_per_mwh_yr: float
+    net_revenue_per_mwh_yr: float
+    simple_payback_years: float
+
+
+class ESDDurationNeedRecord(BaseModel):
+    region: str
+    vre_penetration_pct: float
+    storage_duration_needed_hr: float
+    peak_storage_need_mw: float
+    energy_storage_need_mwh: float
+    current_storage_mwh: float
+    storage_gap_mwh: float
+    scenario_year: int
+
+
+class ESDArbitrageRecord(BaseModel):
+    region: str
+    duration_hr: float
+    avg_daily_arbitrage_spread: float
+    optimal_charge_hour: int
+    optimal_discharge_hour: int
+    annual_cycles: float
+    revenue_per_mw_yr: float
+    capture_rate_pct: float
+
+
+class ESDCapitalCostRecord(BaseModel):
+    year: int
+    technology: str
+    capex_per_kwh: float
+    capex_per_kw_4hr: float
+    learning_rate_pct: float
+    cumulative_capacity_gwh_global: float
+    market_share_pct: float
+
+
+class ESDDashboard(BaseModel):
+    technologies: List[ESDTechnologyRecord]
+    revenue_stacks: List[ESDRevenueStackRecord]
+    duration_needs: List[ESDDurationNeedRecord]
+    arbitrage: List[ESDArbitrageRecord]
+    capital_costs: List[ESDCapitalCostRecord]
+    summary: dict
+
+
+def _build_esd_dashboard() -> ESDDashboard:
+    import random
+    import math
+
+    rng = random.Random(20240301)
+
+    # ── Technologies: 8 records ──────────────────────────────────────────────
+    technologies: List[ESDTechnologyRecord] = [
+        ESDTechnologyRecord(
+            technology="LFP_BESS",
+            duration_hr=4.0,
+            capex_per_kwh=185.0,
+            capex_per_kw=740.0,
+            opex_per_kwh_yr=4.2,
+            round_trip_efficiency_pct=92.5,
+            cycle_life=6000,
+            calendar_life_years=15,
+            trl=9,
+            commercial_availability="COMMERCIAL",
+            best_use_case="Short-to-medium duration arbitrage and FCAS markets (2–4 h)",
+        ),
+        ESDTechnologyRecord(
+            technology="NMC_BESS",
+            duration_hr=2.0,
+            capex_per_kwh=210.0,
+            capex_per_kw=420.0,
+            opex_per_kwh_yr=5.1,
+            round_trip_efficiency_pct=91.0,
+            cycle_life=4000,
+            calendar_life_years=12,
+            trl=9,
+            commercial_availability="COMMERCIAL",
+            best_use_case="Fast frequency response and peaking capacity (1–2 h)",
+        ),
+        ESDTechnologyRecord(
+            technology="FLOW_VANADIUM",
+            duration_hr=8.0,
+            capex_per_kwh=320.0,
+            capex_per_kw=2560.0,
+            opex_per_kwh_yr=8.0,
+            round_trip_efficiency_pct=75.0,
+            cycle_life=20000,
+            calendar_life_years=25,
+            trl=8,
+            commercial_availability="COMMERCIAL",
+            best_use_case="Long-duration daily shifting and grid firming (6–12 h)",
+        ),
+        ESDTechnologyRecord(
+            technology="PUMPED_HYDRO",
+            duration_hr=24.0,
+            capex_per_kwh=120.0,
+            capex_per_kw=2880.0,
+            opex_per_kwh_yr=2.5,
+            round_trip_efficiency_pct=80.0,
+            cycle_life=50000,
+            calendar_life_years=60,
+            trl=9,
+            commercial_availability="COMMERCIAL",
+            best_use_case="Long-duration weekly balancing and seasonal storage (12–100 h)",
+        ),
+        ESDTechnologyRecord(
+            technology="COMPRESSED_AIR",
+            duration_hr=12.0,
+            capex_per_kwh=95.0,
+            capex_per_kw=1140.0,
+            opex_per_kwh_yr=3.0,
+            round_trip_efficiency_pct=60.0,
+            cycle_life=30000,
+            calendar_life_years=40,
+            trl=7,
+            commercial_availability="DEMONSTRATION",
+            best_use_case="Large-scale grid balancing where geological formations available",
+        ),
+        ESDTechnologyRecord(
+            technology="LIQUID_AIR",
+            duration_hr=8.0,
+            capex_per_kwh=280.0,
+            capex_per_kw=2240.0,
+            opex_per_kwh_yr=7.5,
+            round_trip_efficiency_pct=55.0,
+            cycle_life=25000,
+            calendar_life_years=30,
+            trl=7,
+            commercial_availability="DEMONSTRATION",
+            best_use_case="Urban long-duration storage with no geographic constraints (6–16 h)",
+        ),
+        ESDTechnologyRecord(
+            technology="HYDROGEN_STORAGE",
+            duration_hr=100.0,
+            capex_per_kwh=40.0,
+            capex_per_kw=4000.0,
+            opex_per_kwh_yr=2.0,
+            round_trip_efficiency_pct=38.0,
+            cycle_life=10000,
+            calendar_life_years=25,
+            trl=6,
+            commercial_availability="PILOT",
+            best_use_case="Seasonal and multi-day storage for deep decarbonisation (>24 h)",
+        ),
+        ESDTechnologyRecord(
+            technology="GRAVITY",
+            duration_hr=8.0,
+            capex_per_kwh=150.0,
+            capex_per_kw=1200.0,
+            opex_per_kwh_yr=4.0,
+            round_trip_efficiency_pct=85.0,
+            cycle_life=40000,
+            calendar_life_years=35,
+            trl=6,
+            commercial_availability="PILOT",
+            best_use_case="Modular long-duration storage in urban/industrial areas (4–12 h)",
+        ),
+    ]
+
+    # ── Revenue stacks: 5 techs × 2 durations × 3 regions × 3 scenarios = 90 ─
+    rev_techs = [
+        ("LFP_BESS",       [2.0, 4.0]),
+        ("FLOW_VANADIUM",  [4.0, 8.0]),
+        ("PUMPED_HYDRO",   [8.0, 24.0]),
+        ("COMPRESSED_AIR", [4.0, 8.0]),
+        ("HYDROGEN_STORAGE",[24.0, 100.0]),
+    ]
+    rev_regions   = ["QLD", "NSW", "VIC"]
+    rev_scenarios = ["2024", "2030", "2035"]
+
+    # Base arbitrage and service revenues per duration tier
+    arb_base = {2.0: 42.0, 4.0: 68.0, 8.0: 95.0, 24.0: 120.0, 100.0: 85.0}
+    fcas_raise_base = {2.0: 28.0, 4.0: 22.0, 8.0: 15.0, 24.0: 8.0, 100.0: 3.0}
+    fcas_lower_base = {2.0: 18.0, 4.0: 14.0, 8.0: 9.0, 24.0: 5.0, 100.0: 2.0}
+    cap_mkt_base    = {2.0: 12.0, 4.0: 16.0, 8.0: 22.0, 24.0: 28.0, 100.0: 30.0}
+    net_svc_base    = {2.0: 8.0,  4.0: 10.0, 8.0: 14.0, 24.0: 18.0, 100.0: 12.0}
+    opex_base       = {2.0: 18.0, 4.0: 22.0, 8.0: 28.0, 24.0: 32.0, 100.0: 35.0}
+    capex_kwh       = {
+        "LFP_BESS": 185.0, "FLOW_VANADIUM": 320.0, "PUMPED_HYDRO": 120.0,
+        "COMPRESSED_AIR": 95.0, "HYDROGEN_STORAGE": 40.0,
+    }
+
+    scenario_multipliers = {"2024": 1.0, "2030": 1.35, "2035": 1.62}
+    region_multipliers   = {"QLD": 1.05, "NSW": 1.00, "VIC": 0.95}
+
+    revenue_stacks: List[ESDRevenueStackRecord] = []
+    for tech, durations in rev_techs:
+        for dur in durations:
+            for region in rev_regions:
+                for scenario in rev_scenarios:
+                    sm = scenario_multipliers[scenario]
+                    rm = region_multipliers[region]
+                    noise = lambda: rng.uniform(0.95, 1.05)
+                    arb  = round(arb_base[dur]       * sm * rm * noise(), 2)
+                    fr   = round(fcas_raise_base[dur] * sm * rm * noise(), 2)
+                    fl   = round(fcas_lower_base[dur] * sm * rm * noise(), 2)
+                    cm   = round(cap_mkt_base[dur]    * sm * rm * noise(), 2)
+                    ns   = round(net_svc_base[dur]    * sm * rm * noise(), 2)
+                    total = round(arb + fr + fl + cm + ns, 2)
+                    opex  = round(opex_base[dur] * noise(), 2)
+                    net   = round(total - opex, 2)
+                    # Simple payback = capex_per_kwh * duration / net_revenue_per_mwh_yr
+                    capex_total_mwh = capex_kwh.get(tech, 200.0) * 1000.0  # $/MWh
+                    payback = round(capex_total_mwh / max(net * 1000.0, 1.0), 1) if net > 0 else 99.9
+                    revenue_stacks.append(ESDRevenueStackRecord(
+                        technology=tech,
+                        duration_hr=dur,
+                        region=region,
+                        scenario=scenario,
+                        arbitrage_revenue_per_mwh_yr=arb,
+                        fcas_raise_revenue_per_mwh_yr=fr,
+                        fcas_lower_revenue_per_mwh_yr=fl,
+                        capacity_market_revenue_per_mwh_yr=cm,
+                        network_services_revenue_per_mwh_yr=ns,
+                        total_revenue_per_mwh_yr=total,
+                        opex_per_mwh_yr=opex,
+                        net_revenue_per_mwh_yr=net,
+                        simple_payback_years=payback,
+                    ))
+
+    # ── Duration needs: 5 NEM regions × 4 scenario years = 20 ───────────────
+    dur_need_regions = ["QLD", "NSW", "VIC", "SA", "TAS"]
+    dur_need_years   = [2025, 2030, 2035, 2040]
+
+    region_base_data = {
+        "QLD": {"vre": 32.0, "dur": 4.2, "peak": 9800.0, "current": 850.0,  "growth": 1.0},
+        "NSW": {"vre": 28.0, "dur": 4.5, "peak": 14200.0,"current": 720.0,  "growth": 1.0},
+        "VIC": {"vre": 35.0, "dur": 5.0, "peak": 10500.0,"current": 920.0,  "growth": 1.0},
+        "SA":  {"vre": 68.0, "dur": 6.5, "peak": 3200.0, "current": 1100.0, "growth": 1.0},
+        "TAS": {"vre": 95.0, "dur": 8.0, "peak": 1800.0, "current": 2800.0, "growth": 1.0},
+    }
+    vre_growth_per_yr = 4.5  # pct points per 5-year period
+    dur_growth_per_yr = 0.8  # hrs per 5-year period
+
+    duration_needs: List[ESDDurationNeedRecord] = []
+    for yr in dur_need_years:
+        steps = (yr - 2025) // 5
+        for region, base in region_base_data.items():
+            vre  = round(base["vre"] + steps * vre_growth_per_yr + rng.uniform(-1, 1), 1)
+            dur  = round(base["dur"] + steps * dur_growth_per_yr + rng.uniform(-0.2, 0.2), 1)
+            peak = round(base["peak"] * (1.0 + steps * 0.08), 0)
+            e_need = round(peak * dur * 0.65, 0)  # 65% utilisation factor
+            curr = round(base["current"] * (1.0 + steps * 0.35), 0)
+            gap  = round(max(e_need - curr, 0.0), 0)
+            duration_needs.append(ESDDurationNeedRecord(
+                region=region,
+                vre_penetration_pct=min(vre, 100.0),
+                storage_duration_needed_hr=dur,
+                peak_storage_need_mw=peak,
+                energy_storage_need_mwh=e_need,
+                current_storage_mwh=curr,
+                storage_gap_mwh=gap,
+                scenario_year=yr,
+            ))
+
+    # ── Arbitrage: 5 regions × 4 durations = 20 ─────────────────────────────
+    arb_regions   = ["QLD", "NSW", "VIC", "SA", "TAS"]
+    arb_durations = [2.0, 4.0, 8.0, 24.0]
+
+    spread_base = {"QLD": 68.0, "NSW": 72.0, "VIC": 80.0, "SA": 115.0, "TAS": 42.0}
+    capture_base = {2.0: 82.0, 4.0: 75.0, 8.0: 65.0, 24.0: 48.0}
+
+    arbitrage: List[ESDArbitrageRecord] = []
+    for region in arb_regions:
+        for dur in arb_durations:
+            spread = round(spread_base[region] * (1.0 + (dur - 2.0) * 0.05) + rng.uniform(-5, 5), 2)
+            cap    = round(capture_base[dur] + rng.uniform(-3, 3), 1)
+            cycles = round(365.0 * (1.0 - dur / 100.0) * 0.9, 0)
+            charge_h  = 2   # typical overnight valley
+            discharge_h = 17  # typical evening peak
+            rev_per_mw = round(spread * cycles * cap / 100.0, 0)
+            arbitrage.append(ESDArbitrageRecord(
+                region=region,
+                duration_hr=dur,
+                avg_daily_arbitrage_spread=spread,
+                optimal_charge_hour=charge_h,
+                optimal_discharge_hour=discharge_h,
+                annual_cycles=cycles,
+                revenue_per_mw_yr=rev_per_mw,
+                capture_rate_pct=cap,
+            ))
+
+    # ── Capital costs: 8 technologies × 5 years = 40 ─────────────────────────
+    cap_cost_years = [2024, 2025, 2026, 2027, 2028]
+    tech_capex_2024 = {
+        "LFP_BESS":         {"kwh": 185.0, "lr": 18.0, "gwh": 280.0,  "share": 34.0},
+        "NMC_BESS":         {"kwh": 210.0, "lr": 15.0, "gwh": 160.0,  "share": 19.5},
+        "FLOW_VANADIUM":    {"kwh": 320.0, "lr": 12.0, "gwh": 8.5,    "share": 1.0},
+        "PUMPED_HYDRO":     {"kwh": 120.0, "lr": 3.0,  "gwh": 9200.0, "share": 32.0},
+        "COMPRESSED_AIR":   {"kwh": 95.0,  "lr": 8.0,  "gwh": 3.2,    "share": 0.4},
+        "LIQUID_AIR":       {"kwh": 280.0, "lr": 14.0, "gwh": 1.8,    "share": 0.2},
+        "HYDROGEN_STORAGE": {"kwh": 40.0,  "lr": 20.0, "gwh": 0.8,    "share": 0.1},
+        "GRAVITY":          {"kwh": 150.0, "lr": 15.0, "gwh": 0.5,    "share": 0.05},
+    }
+    # Annual capacity growth assumption: 35% CAGR for BESS, 10% for others
+    gwh_growth = {
+        "LFP_BESS": 0.35, "NMC_BESS": 0.28, "FLOW_VANADIUM": 0.40,
+        "PUMPED_HYDRO": 0.08, "COMPRESSED_AIR": 0.30, "LIQUID_AIR": 0.50,
+        "HYDROGEN_STORAGE": 0.60, "GRAVITY": 0.55,
+    }
+
+    capital_costs: List[ESDCapitalCostRecord] = []
+    for tech, base in tech_capex_2024.items():
+        lr   = base["lr"] / 100.0
+        gwh0 = base["gwh"]
+        for idx, yr in enumerate(cap_cost_years):
+            gwh_cum = round(gwh0 * ((1.0 + gwh_growth[tech]) ** idx), 1)
+            # Wright's law: cost reduction per doubling of cumulative capacity
+            doublings = math.log2(gwh_cum / gwh0) if gwh_cum > gwh0 else 0.0
+            cost_factor = (1.0 - lr) ** doublings
+            kwh_cost = round(base["kwh"] * cost_factor + rng.uniform(-2, 2), 2)
+            kw_4hr   = round(kwh_cost * 4.0, 2)
+            share    = round(base["share"] * (1.0 + idx * 0.02), 2)
+            capital_costs.append(ESDCapitalCostRecord(
+                year=yr,
+                technology=tech,
+                capex_per_kwh=max(kwh_cost, 15.0),
+                capex_per_kw_4hr=max(kw_4hr, 60.0),
+                learning_rate_pct=base["lr"],
+                cumulative_capacity_gwh_global=gwh_cum,
+                market_share_pct=min(share, 100.0),
+            ))
+
+    summary = {
+        "optimal_duration_4hr_pct": 68.2,
+        "long_duration_gap_gwh": 48500,
+        "phes_share_long_duration_pct": 72.4,
+        "avg_4hr_arbitrage_spread": 84.5,
+        "lcoe_best_technology_2030": "LFP_BESS",
+        "capex_reduction_2030_pct": 38.4,
+    }
+
+    return ESDDashboard(
+        technologies=technologies,
+        revenue_stacks=revenue_stacks,
+        duration_needs=duration_needs,
+        arbitrage=arbitrage,
+        capital_costs=capital_costs,
+        summary=summary,
+    )
+
+
+_esd_cache: dict = {}
+
+
+@app.get("/api/storage-duration-economics/dashboard", response_model=ESDDashboard, dependencies=[Depends(verify_api_key)])
+async def get_storage_duration_economics_dashboard():
+    cached = _cache_get(_esd_cache, "esd")
+    if cached:
+        return cached
+    result = _build_esd_dashboard()
+    _cache_set(_esd_cache, "esd", result)
+    return result
+
+
+# ============================================================
+# Sprint 80b — NEM Ancillary Services Market Depth Analytics
+# Endpoint: /api/ancillary-market-depth/dashboard
+# ============================================================
+
+class AMDMarketShareRecord(BaseModel):
+    quarter: str
+    service: str   # RAISE_6SEC / RAISE_60SEC / RAISE_5MIN / LOWER_6SEC / LOWER_60SEC / LOWER_5MIN / CONTINGENCY_RAISE / CONTINGENCY_LOWER
+    region: str
+    company: str
+    technology: str  # BATTERY / HYDRO / GAS / COAL / WIND
+    market_share_pct: float
+    avg_enabled_mw: float
+    avg_price: float
+
+
+class AMDHerfindahlRecord(BaseModel):
+    quarter: str
+    service: str
+    region: str
+    hhi_score: float          # Herfindahl-Hirschman Index 0-10000 (>2500 = highly concentrated)
+    cr3_pct: float            # 3-firm concentration ratio
+    number_of_providers: int
+    market_structure: str     # COMPETITIVE / MODERATELY_CONCENTRATED / HIGHLY_CONCENTRATED
+
+
+class AMDPriceFormationRecord(BaseModel):
+    month: str
+    service: str
+    region: str
+    avg_price: float
+    median_price: float
+    p95_price: float
+    zero_price_pct: float     # % of intervals at $0
+    voll_price_pct: float     # % at or near VoLL
+    avg_volume_mw: float
+    clearing_surplus_mw: float  # surplus enabled above requirement
+
+
+class AMDNewEntrantRecord(BaseModel):
+    technology: str
+    entry_year: int
+    service_capability: List[str]
+    capacity_mw: float
+    market_impact: str          # HIGH / MEDIUM / LOW
+    price_change_est_pct: float  # estimated price reduction from entry
+
+
+class AMDBatteryShareRecord(BaseModel):
+    quarter: str
+    region: str
+    battery_share_raise_6sec_pct: float
+    battery_share_raise_60sec_pct: float
+    battery_share_contingency_pct: float
+    battery_share_lower_pct: float
+    total_battery_fcas_revenue_m: float
+    battery_capacity_fcas_mw: float
+
+
+class AMDDashboard(BaseModel):
+    market_shares: List[AMDMarketShareRecord]
+    herfindahl: List[AMDHerfindahlRecord]
+    price_formation: List[AMDPriceFormationRecord]
+    new_entrants: List[AMDNewEntrantRecord]
+    battery_share: List[AMDBatteryShareRecord]
+    summary: dict
+
+
+def _build_amd_dashboard() -> AMDDashboard:
+    import random
+    rng = random.Random(80)
+
+    SERVICES = [
+        "RAISE_6SEC", "RAISE_60SEC", "RAISE_5MIN",
+        "LOWER_6SEC", "LOWER_60SEC", "LOWER_5MIN",
+        "CONTINGENCY_RAISE", "CONTINGENCY_LOWER",
+    ]
+    REGIONS_2 = ["NSW", "VIC"]
+    REGIONS_5 = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    QUARTERS = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    MONTHS_2024 = ["2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06"]
+
+    PROVIDERS = [
+        ("AGL Energy",     "GAS"),
+        ("Origin Energy",  "HYDRO"),
+        ("Neoen BESS",     "BATTERY"),
+        ("Hornsdale PSP",  "BATTERY"),
+        ("Snowy Hydro",    "HYDRO"),
+    ]
+
+    # Base prices per service ($/MW/h)
+    BASE_PRICES: dict[str, float] = {
+        "RAISE_6SEC": 28.5, "RAISE_60SEC": 14.2, "RAISE_5MIN": 8.6,
+        "LOWER_6SEC": 9.4,  "LOWER_60SEC": 6.1,  "LOWER_5MIN": 4.8,
+        "CONTINGENCY_RAISE": 45.2, "CONTINGENCY_LOWER": 18.7,
+    }
+
+    # --- Market share: 80 records (8 services × 2 regions × 5 providers) ---
+    market_shares: List[AMDMarketShareRecord] = []
+    for svc in SERVICES:
+        for region in REGIONS_2:
+            # Assign shares that sum close to 100 per group
+            raw = [rng.uniform(8, 35) for _ in PROVIDERS]
+            total = sum(raw)
+            shares = [round(v / total * 100, 2) for v in raw]
+            for (company, tech), share in zip(PROVIDERS, shares):
+                base_mw = rng.uniform(50, 300)
+                base_p = BASE_PRICES[svc]
+                market_shares.append(AMDMarketShareRecord(
+                    quarter="2024-Q4",
+                    service=svc,
+                    region=region,
+                    company=company,
+                    technology=tech,
+                    market_share_pct=share,
+                    avg_enabled_mw=round(base_mw + rng.uniform(-20, 20), 1),
+                    avg_price=round(base_p * (1 + rng.uniform(-0.3, 0.5)), 2),
+                ))
+
+    # --- HHI: 32 records (8 services × 4 quarters, single NEM aggregate) ---
+    # Raise 6-sec is highly concentrated, lower services more competitive
+    HHI_BASE: dict[str, float] = {
+        "RAISE_6SEC": 3400.0, "RAISE_60SEC": 2800.0, "RAISE_5MIN": 2200.0,
+        "LOWER_6SEC": 1900.0, "LOWER_60SEC": 1500.0, "LOWER_5MIN": 1200.0,
+        "CONTINGENCY_RAISE": 2600.0, "CONTINGENCY_LOWER": 2100.0,
+    }
+
+    def hhi_to_structure(hhi: float) -> str:
+        if hhi > 2500:
+            return "HIGHLY_CONCENTRATED"
+        if hhi > 1500:
+            return "MODERATELY_CONCENTRATED"
+        return "COMPETITIVE"
+
+    herfindahl: List[AMDHerfindahlRecord] = []
+    for svc in SERVICES:
+        for q in QUARTERS:
+            trend = QUARTERS.index(q) * rng.uniform(-30, 10)
+            hhi = round(HHI_BASE[svc] + trend + rng.uniform(-100, 100), 1)
+            cr3 = round(min(98, hhi / 100 + rng.uniform(10, 25)), 1)
+            n_providers = rng.randint(4, 12)
+            herfindahl.append(AMDHerfindahlRecord(
+                quarter=q,
+                service=svc,
+                region="NEM",
+                hhi_score=hhi,
+                cr3_pct=cr3,
+                number_of_providers=n_providers,
+                market_structure=hhi_to_structure(hhi),
+            ))
+
+    # --- Price formation: 48 records (8 services × 6 months) ---
+    price_formation: List[AMDPriceFormationRecord] = []
+    for svc in SERVICES:
+        for month in MONTHS_2024:
+            base_p = BASE_PRICES[svc]
+            summer_adj = 1.3 if month in ("2024-01", "2024-02") else 1.0
+            avg_p = round(base_p * summer_adj + rng.uniform(-3, 8), 2)
+            med_p = round(avg_p * rng.uniform(0.7, 0.95), 2)
+            p95 = round(avg_p * rng.uniform(2.5, 5.0), 2)
+            zero_pct = round(rng.uniform(5, 35), 1)
+            voll_pct = round(rng.uniform(0.1, 3.0), 2)
+            vol_mw = round(rng.uniform(200, 800), 1)
+            surplus = round(rng.uniform(10, 120), 1)
+            price_formation.append(AMDPriceFormationRecord(
+                month=month,
+                service=svc,
+                region="NEM",
+                avg_price=avg_p,
+                median_price=med_p,
+                p95_price=p95,
+                zero_price_pct=zero_pct,
+                voll_price_pct=voll_pct,
+                avg_volume_mw=vol_mw,
+                clearing_surplus_mw=surplus,
+            ))
+
+    # --- New entrants: 8 battery projects entering FCAS market ---
+    BATTERY_PROJECTS = [
+        ("Waratah Super Battery NSW", 850, ["RAISE_6SEC", "RAISE_60SEC", "CONTINGENCY_RAISE"], "HIGH",   -18.4),
+        ("Big Battery VIC",           300, ["RAISE_6SEC", "LOWER_6SEC", "CONTINGENCY_RAISE"],  "HIGH",   -12.1),
+        ("SA Grid Scale Battery",     250, ["RAISE_6SEC", "RAISE_60SEC", "LOWER_6SEC"],         "MEDIUM", -8.5),
+        ("QLD BESS Project",          200, ["RAISE_60SEC", "LOWER_60SEC"],                      "MEDIUM", -6.3),
+        ("Hunter Valley Storage",     150, ["RAISE_5MIN", "LOWER_5MIN"],                        "LOW",    -3.2),
+        ("Geelong Battery",           100, ["LOWER_6SEC", "LOWER_60SEC"],                       "LOW",    -2.8),
+        ("Broken Hill BESS",           80, ["CONTINGENCY_RAISE", "CONTINGENCY_LOWER"],          "MEDIUM", -5.7),
+        ("Snowy Battery Stage 2",     400, ["RAISE_6SEC", "RAISE_60SEC", "CONTINGENCY_RAISE",
+                                            "CONTINGENCY_LOWER"],                               "HIGH",   -15.0),
+    ]
+    new_entrants: List[AMDNewEntrantRecord] = []
+    for i, (tech, cap, svcs, impact, price_chg) in enumerate(BATTERY_PROJECTS):
+        new_entrants.append(AMDNewEntrantRecord(
+            technology=tech,
+            entry_year=2023 + (i % 3),
+            service_capability=svcs,
+            capacity_mw=float(cap),
+            market_impact=impact,
+            price_change_est_pct=price_chg,
+        ))
+
+    # --- Battery share: 20 records (5 NEM regions × 4 quarters) ---
+    BATT_BASE: dict[str, dict] = {
+        "NSW": {"r6": 52.0, "r60": 44.0, "cont": 48.0, "lower": 35.0, "rev": 42.0, "cap": 1850},
+        "VIC": {"r6": 61.0, "r60": 55.0, "cont": 58.0, "lower": 42.0, "rev": 38.0, "cap": 1200},
+        "QLD": {"r6": 38.0, "r60": 32.0, "cont": 35.0, "lower": 28.0, "rev": 28.0, "cap": 820},
+        "SA":  {"r6": 71.0, "r60": 68.0, "cont": 72.0, "lower": 60.0, "rev": 22.0, "cap": 550},
+        "TAS": {"r6": 18.0, "r60": 12.0, "cont": 15.0, "lower": 10.0, "rev": 8.0,  "cap": 150},
+    }
+    battery_share: List[AMDBatteryShareRecord] = []
+    for region, base in BATT_BASE.items():
+        for qi, q in enumerate(QUARTERS):
+            growth = 1 + qi * 0.04
+            battery_share.append(AMDBatteryShareRecord(
+                quarter=q,
+                region=region,
+                battery_share_raise_6sec_pct=round(min(95, base["r6"] * growth + rng.uniform(-2, 2)), 1),
+                battery_share_raise_60sec_pct=round(min(95, base["r60"] * growth + rng.uniform(-2, 2)), 1),
+                battery_share_contingency_pct=round(min(95, base["cont"] * growth + rng.uniform(-2, 2)), 1),
+                battery_share_lower_pct=round(min(95, base["lower"] * growth + rng.uniform(-2, 2)), 1),
+                total_battery_fcas_revenue_m=round(base["rev"] * growth + rng.uniform(-2, 4), 2),
+                battery_capacity_fcas_mw=round(base["cap"] * growth + rng.uniform(-30, 50), 0),
+            ))
+
+    summary = {
+        "most_concentrated_service": "RAISE_6SEC",
+        "avg_hhi_raise": 3240,
+        "battery_share_raise_6sec_pct": 68.4,
+        "total_fcas_cost_m": 892,
+        "number_of_providers_all_services": 28,
+        "competitive_services_count": 4,
+    }
+
+    return AMDDashboard(
+        market_shares=market_shares,
+        herfindahl=herfindahl,
+        price_formation=price_formation,
+        new_entrants=new_entrants,
+        battery_share=battery_share,
+        summary=summary,
+    )
+
+
+_amd_cache: dict = {}
+
+
+@app.get("/api/ancillary-market-depth/dashboard", response_model=AMDDashboard, dependencies=[Depends(verify_api_key)])
+async def get_ancillary_market_depth_dashboard():
+    cached = _cache_get(_amd_cache, "amd")
+    if cached:
+        return cached
+    result = _build_amd_dashboard()
+    _cache_set(_amd_cache, "amd", result)
+    return result

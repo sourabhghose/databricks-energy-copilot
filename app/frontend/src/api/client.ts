@@ -12119,3 +12119,229 @@ export interface PPADashboard {
 
 export const getPPAMarketDashboard = (): Promise<PPADashboard> =>
   get<PPADashboard>('/api/ppa-market/dashboard');
+
+// ---------------------------------------------------------------------------
+// Generation Mix Transition Analytics  (Sprint 80a)
+// ---------------------------------------------------------------------------
+
+export interface GMTAnnualMixRecord {
+  year: number;
+  region: string;
+  coal_pct: number;
+  gas_pct: number;
+  wind_pct: number;
+  solar_utility_pct: number;
+  solar_rooftop_pct: number;
+  hydro_pct: number;
+  battery_pct: number;
+  other_pct: number;
+  total_generation_twh: number;
+  renewable_pct: number;
+  emissions_mt_co2: number;
+  emission_intensity_kg_per_mwh: number;
+}
+
+export interface GMTMilestoneRecord {
+  milestone: string;
+  region: string;
+  achieved_date: string | null;
+  forecast_date: string | null;
+  significance: string;
+  next_milestone: string;
+}
+
+export interface GMTRetirementScheduleRecord {
+  plant_name: string;
+  technology: string;
+  region: string;
+  capacity_mw: number;
+  expected_retirement_year: number;
+  retirement_type: string;
+  replacement_technology: string;
+  replacement_capacity_mw: number;
+  replacement_timeline_years: number;
+  net_capacity_gap_mw: number;
+}
+
+export interface GMTCapacityForecastRecord {
+  year: number;
+  scenario: string;
+  region: string;
+  coal_gw: number;
+  gas_gw: number;
+  wind_gw: number;
+  solar_utility_gw: number;
+  solar_rooftop_gw: number;
+  storage_gw: number;
+  hydro_gw: number;
+  total_gw: number;
+  peak_demand_gw: number;
+  adequacy_margin_pct: number;
+}
+
+export interface GMTInvestmentRecord {
+  year: number;
+  technology: string;
+  investment_bn: number;
+  new_capacity_mw: number;
+  jobs_created: number;
+  lcoe_per_mwh: number;
+}
+
+export interface GMTDashboard {
+  annual_mix: GMTAnnualMixRecord[];
+  milestones: GMTMilestoneRecord[];
+  retirement_schedule: GMTRetirementScheduleRecord[];
+  capacity_forecast: GMTCapacityForecastRecord[];
+  investment: GMTInvestmentRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getGenerationMixTransitionDashboard = (): Promise<GMTDashboard> =>
+  get<GMTDashboard>('/api/generation-mix-transition/dashboard');
+
+// ── Sprint 80c — Energy Storage Duration Economics ──────────────────────────
+
+export interface ESDTechnologyRecord {
+  technology: string;
+  duration_hr: number;
+  capex_per_kwh: number;
+  capex_per_kw: number;
+  opex_per_kwh_yr: number;
+  round_trip_efficiency_pct: number;
+  cycle_life: number;
+  calendar_life_years: number;
+  trl: number;
+  commercial_availability: string;
+  best_use_case: string;
+}
+
+export interface ESDRevenueStackRecord {
+  technology: string;
+  duration_hr: number;
+  region: string;
+  scenario: string;
+  arbitrage_revenue_per_mwh_yr: number;
+  fcas_raise_revenue_per_mwh_yr: number;
+  fcas_lower_revenue_per_mwh_yr: number;
+  capacity_market_revenue_per_mwh_yr: number;
+  network_services_revenue_per_mwh_yr: number;
+  total_revenue_per_mwh_yr: number;
+  opex_per_mwh_yr: number;
+  net_revenue_per_mwh_yr: number;
+  simple_payback_years: number;
+}
+
+export interface ESDDurationNeedRecord {
+  region: string;
+  vre_penetration_pct: number;
+  storage_duration_needed_hr: number;
+  peak_storage_need_mw: number;
+  energy_storage_need_mwh: number;
+  current_storage_mwh: number;
+  storage_gap_mwh: number;
+  scenario_year: number;
+}
+
+export interface ESDArbitrageRecord {
+  region: string;
+  duration_hr: number;
+  avg_daily_arbitrage_spread: number;
+  optimal_charge_hour: number;
+  optimal_discharge_hour: number;
+  annual_cycles: number;
+  revenue_per_mw_yr: number;
+  capture_rate_pct: number;
+}
+
+export interface ESDCapitalCostRecord {
+  year: number;
+  technology: string;
+  capex_per_kwh: number;
+  capex_per_kw_4hr: number;
+  learning_rate_pct: number;
+  cumulative_capacity_gwh_global: number;
+  market_share_pct: number;
+}
+
+export interface ESDDashboard {
+  technologies: ESDTechnologyRecord[];
+  revenue_stacks: ESDRevenueStackRecord[];
+  duration_needs: ESDDurationNeedRecord[];
+  arbitrage: ESDArbitrageRecord[];
+  capital_costs: ESDCapitalCostRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getStorageDurationEconomicsDashboard = (): Promise<ESDDashboard> =>
+  get<ESDDashboard>('/api/storage-duration-economics/dashboard');
+
+// ============================================================
+// Sprint 80b — NEM Ancillary Services Market Depth Analytics
+// ============================================================
+
+export interface AMDMarketShareRecord {
+  quarter: string;
+  service: string;
+  region: string;
+  company: string;
+  technology: string;
+  market_share_pct: number;
+  avg_enabled_mw: number;
+  avg_price: number;
+}
+
+export interface AMDHerfindahlRecord {
+  quarter: string;
+  service: string;
+  region: string;
+  hhi_score: number;
+  cr3_pct: number;
+  number_of_providers: number;
+  market_structure: string;
+}
+
+export interface AMDPriceFormationRecord {
+  month: string;
+  service: string;
+  region: string;
+  avg_price: number;
+  median_price: number;
+  p95_price: number;
+  zero_price_pct: number;
+  voll_price_pct: number;
+  avg_volume_mw: number;
+  clearing_surplus_mw: number;
+}
+
+export interface AMDNewEntrantRecord {
+  technology: string;
+  entry_year: number;
+  service_capability: string[];
+  capacity_mw: number;
+  market_impact: string;
+  price_change_est_pct: number;
+}
+
+export interface AMDBatteryShareRecord {
+  quarter: string;
+  region: string;
+  battery_share_raise_6sec_pct: number;
+  battery_share_raise_60sec_pct: number;
+  battery_share_contingency_pct: number;
+  battery_share_lower_pct: number;
+  total_battery_fcas_revenue_m: number;
+  battery_capacity_fcas_mw: number;
+}
+
+export interface AMDDashboard {
+  market_shares: AMDMarketShareRecord[];
+  herfindahl: AMDHerfindahlRecord[];
+  price_formation: AMDPriceFormationRecord[];
+  new_entrants: AMDNewEntrantRecord[];
+  battery_share: AMDBatteryShareRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getAncillaryMarketDepthDashboard = (): Promise<AMDDashboard> =>
+  get<AMDDashboard>('/api/ancillary-market-depth/dashboard');
