@@ -14663,3 +14663,219 @@ export interface BDGDashboard {
 
 export const getBESSDegradationDashboard = (): Promise<BDGDashboard> =>
   get<BDGDashboard>('/api/bess-degradation/dashboard');
+
+// ===== PPA Structuring Analytics (Sprint 92a) =====
+export interface PPASContractRecord {
+  contract_id: string;
+  buyer: string;
+  seller: string;
+  technology: string;
+  region: string;
+  volume_mwh_per_year: number;
+  strike_price_aud_per_mwh: number;
+  contract_term_years: number;
+  start_year: number;
+  structure: string;
+  indexation_pct: number;
+  discount_to_spot_pct: number;
+}
+
+export interface PPASPricingModelRecord {
+  scenario: string;
+  technology: string;
+  region: string;
+  year: number;
+  fair_value_aud_per_mwh: number;
+  merchant_floor_aud_per_mwh: number;
+  cap_price_aud_per_mwh: number;
+  discount_to_forward_pct: number;
+  buyer_irr_pct: number;
+  seller_irr_pct: number;
+}
+
+export interface PPASRiskRecord {
+  risk_type: string;
+  severity: string;
+  probability_pct: number;
+  financial_impact_aud_m: number;
+  mitigation: string;
+  residual_risk_score: number;
+}
+
+export interface PPASBuyerProfileRecord {
+  buyer_type: string;
+  typical_volume_gwh: number;
+  price_sensitivity: string;
+  preferred_structure: string;
+  credit_rating: string;
+  renewable_target_pct: number;
+  avg_term_years: number;
+}
+
+export interface PPASSettlementRecord {
+  contract_id: string;
+  settlement_month: string;
+  metered_mwh: number;
+  contracted_mwh: number;
+  shortfall_mwh: number;
+  settlement_price_aud_per_mwh: number;
+  net_payment_aud_k: number;
+  shape_factor: number;
+}
+
+export interface PPASDashboard {
+  contracts: PPASContractRecord[];
+  pricing_models: PPASPricingModelRecord[];
+  risks: PPASRiskRecord[];
+  buyer_profiles: PPASBuyerProfileRecord[];
+  settlements: PPASSettlementRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getPPAStructuringDashboard = (): Promise<PPASDashboard> =>
+  get<PPASDashboard>('/api/ppa-structuring/dashboard');
+
+// ===== Clean Hydrogen Production Cost Analytics (Sprint 92b) =====
+export interface LCOHProductionRouteRecord {
+  route_id: string;
+  name: string;
+  feedstock: string;
+  energy_source: string;
+  colour: string;
+  lcoh_aud_per_kg: number;
+  electricity_kwh_per_kg: number;
+  water_l_per_kg: number;
+  co2_intensity_kgco2_per_kg: number;
+  trl: number;
+}
+
+export interface LCOHElectrolyserRecord {
+  manufacturer: string;
+  technology: string;
+  capacity_mw: number;
+  efficiency_pct: number;
+  stack_lifetime_hours: number;
+  capex_aud_per_kw: number;
+  opex_pct_capex: number;
+  degradation_pct_per_year: number;
+  h2_output_kg_per_hour: number;
+  australia_projects: number;
+}
+
+export interface LCOHCostBreakdownRecord {
+  route: string;
+  region: string;
+  year: number;
+  electricity_cost_aud_per_kg: number;
+  capex_cost_aud_per_kg: number;
+  opex_cost_aud_per_kg: number;
+  water_cost_aud_per_kg: number;
+  co2_cost_aud_per_kg: number;
+  total_lcoh_aud_per_kg: number;
+  capacity_factor_pct: number;
+}
+
+export interface LCOHProjectRecord {
+  project_id: string;
+  name: string;
+  state: string;
+  proponent: string;
+  capacity_tpd: number;
+  technology: string;
+  status: string;
+  target_year: number | null;
+  lcoh_target_aud_per_kg: number | null;
+  funding_aud_m: number;
+  offtake_secured: boolean;
+}
+
+export interface LCOHDemandProjectionRecord {
+  sector: string;
+  year: number;
+  demand_tpa: number;
+  willingness_to_pay_aud_per_kg: number;
+  current_supply_tpa: number;
+  supply_gap_tpa: number;
+}
+
+export interface LCOHDashboard {
+  production_routes: LCOHProductionRouteRecord[];
+  electrolysers: LCOHElectrolyserRecord[];
+  cost_breakdowns: LCOHCostBreakdownRecord[];
+  projects: LCOHProjectRecord[];
+  demand_projections: LCOHDemandProjectionRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getCleanHydrogenProductionCostDashboard = (): Promise<LCOHDashboard> =>
+  get<LCOHDashboard>('/api/clean-hydrogen-production-cost/dashboard');
+
+// ===== Ancillary Services Procurement Analytics (Sprint 92c) =====
+export interface ASPServiceRecord {
+  service: string;
+  region: string;
+  requirement_mw: number;
+  enabled_mw: number;
+  local_requirement_mw: number;
+  market_clearing: boolean;
+  interconnector_sharing: boolean;
+}
+
+export interface ASPEnablementRecord {
+  service: string;
+  region: string;
+  month: string;
+  avg_enabled_mw: number;
+  max_enabled_mw: number;
+  min_enabled_mw: number;
+  battery_share_pct: number;
+  hydro_share_pct: number;
+  gas_share_pct: number;
+  demand_response_pct: number;
+}
+
+export interface ASPPriceRecord {
+  service: string;
+  region: string;
+  quarter: string;
+  avg_price_aud_mwh: number;
+  max_price_aud_mwh: number;
+  min_price_aud_mwh: number;
+  volatility_pct: number;
+  market_revenue_aud_m: number;
+}
+
+export interface ASPProviderRecord {
+  provider: string;
+  provider_type: string;
+  region: string;
+  service: string;
+  enabled_mw: number;
+  market_share_pct: number;
+  avg_price_aud_mwh: number;
+  response_time_sec: number;
+  compliance_pct: number;
+}
+
+export interface ASPCostAllocationRecord {
+  region: string;
+  quarter: string;
+  total_as_cost_aud_m: number;
+  generator_share_pct: number;
+  load_share_pct: number;
+  raise_cost_aud_m: number;
+  lower_cost_aud_m: number;
+  regulation_cost_aud_m: number;
+}
+
+export interface ASPDashboard {
+  services: ASPServiceRecord[];
+  enablements: ASPEnablementRecord[];
+  prices: ASPPriceRecord[];
+  providers: ASPProviderRecord[];
+  cost_allocations: ASPCostAllocationRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getAncillaryServicesProcurementDashboard = (): Promise<ASPDashboard> =>
+  get<ASPDashboard>('/api/ancillary-services-procurement/dashboard');

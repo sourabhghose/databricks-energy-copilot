@@ -284,6 +284,7 @@ import CBAMTradeExposureAnalytics from './pages/CBAMTradeExposureAnalytics'
 import DemandResponseProgramAnalytics from './pages/DemandResponseProgramAnalytics'
 import InterconnectorCongestionAnalytics from './pages/InterconnectorCongestionAnalytics'
 import PPAMarketAnalytics from './pages/PPAMarketAnalytics'
+import PPAStructuringAnalytics from './pages/PPAStructuringAnalytics'
 import BatteryDispatchStrategyAnalytics from './pages/BatteryDispatchStrategyAnalytics'
 import GenerationMixTransitionAnalytics from './pages/GenerationMixTransitionAnalytics'
 import StorageDurationEconomicsAnalytics from './pages/StorageDurationEconomicsAnalytics'
@@ -319,6 +320,8 @@ import LargeIndustrialDemandAnalytics from './pages/LargeIndustrialDemandAnalyti
 import SpotPriceSpikePredictionAnalytics from './pages/SpotPriceSpikePredictionAnalytics'
 import GridEdgeTechnologyAnalytics from './pages/GridEdgeTechnologyAnalytics'
 import EnergyStorageDegradationAnalytics from './pages/EnergyStorageDegradationAnalytics'
+import CleanHydrogenProductionCostAnalytics from './pages/CleanHydrogenProductionCostAnalytics'
+import AncillaryServicesProcurementAnalytics from './pages/AncillaryServicesProcurementAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -529,6 +532,7 @@ const NAV_ITEMS = [
   { to: '/demand-response-programs',   label: 'Demand Response Programs',     Icon: Sliders        },
   { to: '/interconnector-congestion',  label: 'Interconnector Congestion',    Icon: GitMerge       },
   { to: '/ppa-market',                label: 'PPA Market Analytics',         Icon: FileText       },
+  { to: '/ppa-structuring',           label: 'PPA Structuring',              Icon: FileText       },
   { to: '/battery-dispatch-strategy', label: 'Battery Dispatch Strategy',    Icon: Battery        },
   { to: '/generation-mix-transition', label: 'Generation Mix Transition',    Icon: BarChart       },
   { to: '/storage-duration-economics', label: 'Storage Duration Economics',  Icon: Clock          },
@@ -564,6 +568,8 @@ const NAV_ITEMS = [
   { to: '/spot-price-spike-prediction', label: 'Spike Price Prediction', Icon: AlertOctagon },
   { to: '/grid-edge-technology', label: 'Grid Edge Technology', Icon: Cpu },
   { to: '/bess-degradation', label: 'Storage Degradation', Icon: Battery },
+  { to: '/clean-hydrogen-production-cost', label: 'H2 Production Cost', Icon: Flame },
+  { to: '/ancillary-services-procurement', label: 'AS Procurement', Icon: Radio },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -849,6 +855,7 @@ export default function App() {
               <Route path="/demand-response-programs"   element={<DemandResponseProgramAnalytics />}     />
               <Route path="/interconnector-congestion"   element={<InterconnectorCongestionAnalytics />}  />
               <Route path="/ppa-market"                  element={<PPAMarketAnalytics />}                 />
+              <Route path="/ppa-structuring"             element={<PPAStructuringAnalytics />}            />
               <Route path="/battery-dispatch-strategy"   element={<BatteryDispatchStrategyAnalytics />}   />
               <Route path="/generation-mix-transition"   element={<GenerationMixTransitionAnalytics />}   />
               <Route path="/storage-duration-economics" element={<StorageDurationEconomicsAnalytics />}  />
@@ -884,6 +891,8 @@ export default function App() {
               <Route path="/spot-price-spike-prediction" element={<SpotPriceSpikePredictionAnalytics />} />
               <Route path="/grid-edge-technology" element={<GridEdgeTechnologyAnalytics />} />
               <Route path="/bess-degradation" element={<EnergyStorageDegradationAnalytics />} />
+              <Route path="/clean-hydrogen-production-cost" element={<CleanHydrogenProductionCostAnalytics />} />
+              <Route path="/ancillary-services-procurement" element={<AncillaryServicesProcurementAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

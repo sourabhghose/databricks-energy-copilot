@@ -63931,3 +63931,636 @@ def get_bess_degradation_dashboard():
     )
     _cache_set(_bdg_cache, cache_key, result)
     return result
+
+
+# ===== PPA Structuring Analytics (Sprint 92a) =====
+
+class PPASContractRecord(BaseModel):
+    contract_id: str
+    buyer: str
+    seller: str
+    technology: str  # SOLAR, WIND, HYBRID, HYDRO
+    region: str
+    volume_mwh_per_year: float
+    strike_price_aud_per_mwh: float
+    contract_term_years: int
+    start_year: int
+    structure: str  # FIRMED, SHAPED, PAY_AS_PRODUCED, BASELOAD, FLOOR_PRICE
+    indexation_pct: float  # annual price escalation
+    discount_to_spot_pct: float
+
+class PPASPricingModelRecord(BaseModel):
+    scenario: str
+    technology: str
+    region: str
+    year: int
+    fair_value_aud_per_mwh: float
+    merchant_floor_aud_per_mwh: float
+    cap_price_aud_per_mwh: float
+    discount_to_forward_pct: float
+    buyer_irr_pct: float
+    seller_irr_pct: float
+
+class PPASRiskRecord(BaseModel):
+    risk_type: str  # VOLUME, PRICE, SHAPE, COUNTERPARTY, REGULATORY, CURTAILMENT, BASIS
+    severity: str   # LOW, MEDIUM, HIGH, CRITICAL
+    probability_pct: float
+    financial_impact_aud_m: float
+    mitigation: str
+    residual_risk_score: float  # 1-10
+
+class PPASBuyerProfileRecord(BaseModel):
+    buyer_type: str  # CORPORATE, GOVERNMENT, RETAILER, UTILITY, INDUSTRIAL
+    typical_volume_gwh: float
+    price_sensitivity: str  # HIGH, MEDIUM, LOW
+    preferred_structure: str
+    credit_rating: str  # AAA, AA, A, BBB, BB, NR
+    renewable_target_pct: float
+    avg_term_years: float
+
+class PPASSettlementRecord(BaseModel):
+    contract_id: str
+    settlement_month: str
+    metered_mwh: float
+    contracted_mwh: float
+    shortfall_mwh: float
+    settlement_price_aud_per_mwh: float
+    net_payment_aud_k: float
+    shape_factor: float
+
+class PPASDashboard(BaseModel):
+    contracts: List[PPASContractRecord]
+    pricing_models: List[PPASPricingModelRecord]
+    risks: List[PPASRiskRecord]
+    buyer_profiles: List[PPASBuyerProfileRecord]
+    settlements: List[PPASSettlementRecord]
+    summary: Dict[str, Any]
+
+
+_ppas_cache: Dict[str, Any] = {}
+
+@app.get("/api/ppa-structuring/dashboard", response_model=PPASDashboard, dependencies=[Depends(verify_api_key)])
+def get_ppa_structuring_dashboard():
+    import random
+    cache_key = "ppas_dashboard"
+    cached = _cache_get(_ppas_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    technologies = ["SOLAR", "WIND", "HYBRID", "HYDRO"]
+    structures = ["FIRMED", "SHAPED", "PAY_AS_PRODUCED", "BASELOAD", "FLOOR_PRICE"]
+
+    buyers = ["BHP", "Rio Tinto", "Woolworths", "Telstra", "Commonwealth Bank", "AGL Retail",
+              "Origin Retail", "NSW Government", "Queensland Health", "Amazon AWS",
+              "Google Australia", "Meta Pacific", "Coles Group", "Wesfarmers"]
+
+    sellers = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Neoen", "Tilt Renewables",
+               "Amp Energy", "BlueScope Steel PPA", "Akaysha Energy", "Windlab"]
+
+    contracts = []
+    for i in range(20):
+        contracts.append(PPASContractRecord(
+            contract_id=f"PPAS-{i+1:03d}",
+            buyer=random.choice(buyers),
+            seller=random.choice(sellers),
+            technology=random.choice(technologies),
+            region=random.choice(regions),
+            volume_mwh_per_year=round(random.uniform(5000.0, 500000.0), 0),
+            strike_price_aud_per_mwh=round(random.uniform(55.0, 120.0), 2),
+            contract_term_years=random.choice([7, 10, 12, 15, 20]),
+            start_year=random.randint(2022, 2027),
+            structure=random.choice(structures),
+            indexation_pct=round(random.uniform(0.0, 3.5), 2),
+            discount_to_spot_pct=round(random.uniform(-15.0, 25.0), 1)
+        ))
+
+    scenarios = ["Base Case", "High Renewables Build", "Low Gas Price", "High Demand Growth"]
+    pricing_models = []
+    for sc in scenarios:
+        for tech in technologies:
+            for r in regions[:3]:
+                for yr in [2025, 2028, 2030, 2035]:
+                    base = {"SOLAR": 72.0, "WIND": 68.0, "HYBRID": 78.0, "HYDRO": 95.0}.get(tech, 75.0)
+                    progress = (yr - 2025) / 10.0
+                    fv = round(base * (1 - 0.05 * progress) + random.uniform(-8, 8), 2)
+                    pricing_models.append(PPASPricingModelRecord(
+                        scenario=sc, technology=tech, region=r, year=yr,
+                        fair_value_aud_per_mwh=fv,
+                        merchant_floor_aud_per_mwh=round(fv * 0.65, 2),
+                        cap_price_aud_per_mwh=round(fv * 1.45, 2),
+                        discount_to_forward_pct=round(random.uniform(-10.0, 20.0), 1),
+                        buyer_irr_pct=round(random.uniform(8.0, 18.0), 2),
+                        seller_irr_pct=round(random.uniform(10.0, 22.0), 2)
+                    ))
+
+    risk_data = [
+        ("VOLUME", "HIGH", 35.0, 8.5, "Weather insurance, diversified portfolio", 4.5),
+        ("PRICE", "HIGH", 40.0, 12.0, "Fixed-for-floating swap, floor price", 5.0),
+        ("SHAPE", "MEDIUM", 55.0, 6.5, "Firming product, storage addition", 3.5),
+        ("COUNTERPARTY", "MEDIUM", 20.0, 15.0, "Credit support, escrow", 3.0),
+        ("REGULATORY", "LOW", 15.0, 10.0, "Policy risk buffer, step-in rights", 2.5),
+        ("CURTAILMENT", "HIGH", 45.0, 7.5, "Grid connection agreement", 4.0),
+        ("BASIS", "MEDIUM", 30.0, 5.0, "Node-level pricing agreement", 3.5),
+    ]
+
+    risks = []
+    for rd in risk_data:
+        risks.append(PPASRiskRecord(
+            risk_type=rd[0], severity=rd[1], probability_pct=rd[2],
+            financial_impact_aud_m=rd[3], mitigation=rd[4], residual_risk_score=rd[5]
+        ))
+
+    buyer_profiles_data = [
+        ("CORPORATE", 85.0, "HIGH", "FLOOR_PRICE", "A", 100.0, 10.0),
+        ("GOVERNMENT", 120.0, "LOW", "BASELOAD", "AAA", 20.0, 12.0),
+        ("RETAILER", 500.0, "HIGH", "PAY_AS_PRODUCED", "BBB", 30.0, 7.0),
+        ("UTILITY", 2000.0, "MEDIUM", "SHAPED", "AA", 50.0, 15.0),
+        ("INDUSTRIAL", 200.0, "HIGH", "FIRMED", "BBB", 75.0, 10.0),
+    ]
+
+    buyer_profiles = []
+    for bp in buyer_profiles_data:
+        buyer_profiles.append(PPASBuyerProfileRecord(
+            buyer_type=bp[0], typical_volume_gwh=bp[1], price_sensitivity=bp[2],
+            preferred_structure=bp[3], credit_rating=bp[4],
+            renewable_target_pct=bp[5], avg_term_years=bp[6]
+        ))
+
+    months = [f"2024-{m:02d}" for m in range(1, 13)]
+    settlements = []
+    for c in contracts[:10]:
+        for month in months:
+            contracted = round(c.volume_mwh_per_year / 12.0, 0)
+            metered = round(contracted * random.uniform(0.70, 1.15), 0)
+            shortfall = max(0.0, contracted - metered)
+            spot_price = round(random.uniform(50.0, 250.0), 2)
+            settlements.append(PPASSettlementRecord(
+                contract_id=c.contract_id,
+                settlement_month=month,
+                metered_mwh=metered,
+                contracted_mwh=contracted,
+                shortfall_mwh=shortfall,
+                settlement_price_aud_per_mwh=spot_price,
+                net_payment_aud_k=round((metered * c.strike_price_aud_per_mwh - contracted * spot_price) / 1000, 2),
+                shape_factor=round(random.uniform(0.85, 1.15), 4)
+            ))
+
+    result = PPASDashboard(
+        contracts=contracts,
+        pricing_models=pricing_models,
+        risks=risks,
+        buyer_profiles=buyer_profiles,
+        settlements=settlements,
+        summary={
+            "total_contracts": len(contracts),
+            "avg_strike_price_aud_mwh": round(sum(c.strike_price_aud_per_mwh for c in contracts) / len(contracts), 2),
+            "total_contracted_gwh_per_year": round(sum(c.volume_mwh_per_year for c in contracts) / 1e6, 2),
+            "most_common_structure": "FLOOR_PRICE",
+            "avg_contract_term_years": round(sum(c.contract_term_years for c in contracts) / len(contracts), 1),
+            "buyer_types": len(buyer_profiles),
+            "highest_risk": "PRICE",
+            "scenarios_modelled": len(scenarios)
+        }
+    )
+    _cache_set(_ppas_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# Clean Hydrogen Production Cost Analytics (Sprint 92b)
+# ============================================================
+
+class LCOHProductionRouteRecord(BaseModel):
+    route_id: str
+    name: str
+    feedstock: str  # WATER_ELECTROLYSIS, NATURAL_GAS_SMR, COAL_GASIFICATION, BIOMASS
+    energy_source: str  # SOLAR, WIND, GRID, FOSSIL, HYBRID
+    colour: str  # GREEN, BLUE, GREY, TURQUOISE
+    lcoh_aud_per_kg: float
+    electricity_kwh_per_kg: float
+    water_l_per_kg: float
+    co2_intensity_kgco2_per_kg: float
+    trl: int
+
+class LCOHElectrolyserRecord(BaseModel):
+    manufacturer: str
+    technology: str  # PEM, ALK, SOEC, AEM
+    capacity_mw: float
+    efficiency_pct: float
+    stack_lifetime_hours: int
+    capex_aud_per_kw: float
+    opex_pct_capex: float
+    degradation_pct_per_year: float
+    h2_output_kg_per_hour: float
+    australia_projects: int
+
+class LCOHCostBreakdownRecord(BaseModel):
+    route: str
+    region: str
+    year: int
+    electricity_cost_aud_per_kg: float
+    capex_cost_aud_per_kg: float
+    opex_cost_aud_per_kg: float
+    water_cost_aud_per_kg: float
+    co2_cost_aud_per_kg: float
+    total_lcoh_aud_per_kg: float
+    capacity_factor_pct: float
+
+class LCOHProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    state: str
+    proponent: str
+    capacity_tpd: float  # tonnes per day
+    technology: str
+    status: str  # OPERATIONAL, CONSTRUCTION, APPROVED, FEASIBILITY, PROPOSED
+    target_year: Optional[int]
+    lcoh_target_aud_per_kg: Optional[float]
+    funding_aud_m: float
+    offtake_secured: bool
+
+class LCOHDemandProjectionRecord(BaseModel):
+    sector: str  # EXPORT, INDUSTRIAL, TRANSPORT, POWER, STEEL, AMMONIA
+    year: int
+    demand_tpa: float  # tonnes per annum
+    willingness_to_pay_aud_per_kg: float
+    current_supply_tpa: float
+    supply_gap_tpa: float
+
+class LCOHDashboard(BaseModel):
+    production_routes: List[LCOHProductionRouteRecord]
+    electrolysers: List[LCOHElectrolyserRecord]
+    cost_breakdowns: List[LCOHCostBreakdownRecord]
+    projects: List[LCOHProjectRecord]
+    demand_projections: List[LCOHDemandProjectionRecord]
+    summary: Dict[str, Any]
+
+
+_lcoh_cache: Dict[str, Any] = {}
+
+@app.get("/api/clean-hydrogen-production-cost/dashboard", response_model=LCOHDashboard, dependencies=[Depends(verify_api_key)])
+def get_clean_hydrogen_production_cost_dashboard():
+    import random
+    cache_key = "lcoh_dashboard"
+    cached = _cache_get(_lcoh_cache, cache_key)
+    if cached:
+        return cached
+
+    routes_data = [
+        ("PR-001", "Green H2 - PEM Electrolysis", "WATER_ELECTROLYSIS", "SOLAR", "GREEN", 6.8, 55.0, 9.0, 0.5, 8),
+        ("PR-002", "Green H2 - ALK Electrolysis", "WATER_ELECTROLYSIS", "WIND", "GREEN", 5.9, 52.0, 10.0, 0.5, 8),
+        ("PR-003", "Green H2 - SOEC Electrolysis", "WATER_ELECTROLYSIS", "HYBRID", "GREEN", 7.5, 40.0, 8.0, 0.3, 6),
+        ("PR-004", "Blue H2 - SMR + CCS", "NATURAL_GAS_SMR", "FOSSIL", "BLUE", 3.2, 0.0, 15.0, 1.8, 9),
+        ("PR-005", "Grey H2 - SMR no CCS", "NATURAL_GAS_SMR", "FOSSIL", "GREY", 2.1, 0.0, 15.0, 9.5, 9),
+        ("PR-006", "Blue H2 - Coal + CCS", "COAL_GASIFICATION", "FOSSIL", "BLUE", 2.8, 0.0, 8.0, 2.5, 8),
+        ("PR-007", "Turquoise H2 - Methane Pyrolysis", "NATURAL_GAS_SMR", "GRID", "TURQUOISE", 4.2, 5.0, 2.0, 0.8, 5),
+        ("PR-008", "Green H2 - Grid + Renewables", "WATER_ELECTROLYSIS", "GRID", "GREEN", 8.5, 55.0, 9.0, 2.0, 8),
+    ]
+
+    production_routes = []
+    for r in routes_data:
+        production_routes.append(LCOHProductionRouteRecord(
+            route_id=r[0], name=r[1], feedstock=r[2], energy_source=r[3], colour=r[4],
+            lcoh_aud_per_kg=r[5], electricity_kwh_per_kg=r[6], water_l_per_kg=r[7],
+            co2_intensity_kgco2_per_kg=r[8], trl=r[9]
+        ))
+
+    electrolyser_data = [
+        ("ITM Power", "PEM", 5.0, 75.0, 80000, 2200.0, 3.0, 1.5, 2.3, 12),
+        ("Nel Hydrogen", "ALK", 20.0, 72.0, 90000, 1400.0, 2.5, 1.2, 8.5, 8),
+        ("Sunfire", "SOEC", 1.0, 85.0, 40000, 3800.0, 4.0, 2.0, 0.8, 3),
+        ("Bloom Energy", "SOEC", 5.0, 83.0, 50000, 3500.0, 3.5, 1.8, 3.8, 2),
+        ("Hysata", "AEM", 2.0, 95.0, 60000, 1800.0, 2.0, 0.8, 1.8, 4),
+        ("Fortescue", "PEM", 50.0, 78.0, 80000, 2000.0, 2.8, 1.4, 21.0, 6),
+        ("ThyssenKrupp", "ALK", 100.0, 70.0, 100000, 1200.0, 2.2, 1.0, 41.5, 5),
+        ("Plug Power", "PEM", 5.0, 74.0, 80000, 2400.0, 3.2, 1.6, 2.2, 9),
+    ]
+
+    electrolysers = []
+    for e in electrolyser_data:
+        electrolysers.append(LCOHElectrolyserRecord(
+            manufacturer=e[0], technology=e[1], capacity_mw=e[2],
+            efficiency_pct=e[3], stack_lifetime_hours=e[4], capex_aud_per_kw=e[5],
+            opex_pct_capex=e[6], degradation_pct_per_year=e[7],
+            h2_output_kg_per_hour=e[8], australia_projects=e[9]
+        ))
+
+    regions = ["WA", "SA", "QLD", "NT", "NSW"]
+    routes = ["Green H2 - PEM", "Green H2 - ALK", "Blue H2 - SMR + CCS"]
+    cost_breakdowns = []
+    for route in routes:
+        for r in regions:
+            for yr in range(2024, 2036):
+                progress = (yr - 2024) / 11.0
+                if "Green" in route:
+                    elec_cost = round(3.5 * (1 - 0.15 * progress), 2)
+                    capex_cost = round(2.0 * (1 - 0.20 * progress), 2)
+                    opex_cost = round(0.8, 2)
+                    water_cost = round(0.05, 2)
+                    co2_cost = 0.0
+                elif "Blue" in route:
+                    elec_cost = 0.0
+                    capex_cost = round(0.8, 2)
+                    opex_cost = round(0.5, 2)
+                    water_cost = round(0.1, 2)
+                    co2_cost = round(0.5 * (1 - 0.05 * progress), 2)
+                else:
+                    elec_cost = round(0.5, 2)
+                    capex_cost = round(1.2, 2)
+                    opex_cost = round(0.4, 2)
+                    water_cost = round(0.08, 2)
+                    co2_cost = round(1.5, 2)
+                total = round(elec_cost + capex_cost + opex_cost + water_cost + co2_cost + random.uniform(-0.2, 0.2), 2)
+                cost_breakdowns.append(LCOHCostBreakdownRecord(
+                    route=route, region=r, year=yr,
+                    electricity_cost_aud_per_kg=elec_cost,
+                    capex_cost_aud_per_kg=capex_cost,
+                    opex_cost_aud_per_kg=opex_cost,
+                    water_cost_aud_per_kg=water_cost,
+                    co2_cost_aud_per_kg=co2_cost,
+                    total_lcoh_aud_per_kg=max(1.5, total),
+                    capacity_factor_pct=round(random.uniform(30.0, 80.0), 1)
+                ))
+
+    project_names = [
+        ("HYD-001", "Fortescue Green H2", "WA", "Fortescue Future Industries", 250.0),
+        ("HYD-002", "Neoen Whyalla H2", "SA", "Neoen", 15.0),
+        ("HYD-003", "H2U Eyre Peninsula", "SA", "H2U", 8.0),
+        ("HYD-004", "Sun Hydrogen NQ", "QLD", "Sun Hydrogen", 5.0),
+        ("HYD-005", "Hydrogen Park SA", "SA", "AGIG", 1.25),
+        ("HYD-006", "HIF eFuels Tiwi", "NT", "HIF Global", 100.0),
+        ("HYD-007", "Verdant H2 Melbourne", "VIC", "Verdant Earth", 10.0),
+        ("HYD-008", "Origin H2 NSW", "NSW", "Origin Energy", 500.0),
+        ("HYD-009", "Yuri Solar H2 WA", "WA", "Engie", 10.0),
+        ("HYD-010", "NQ Hydrogen Project", "QLD", "CSIRO", 2.5),
+        ("HYD-011", "Western Green H2", "WA", "Wesfarmers", 1200.0),
+        ("HYD-012", "Adelaide H2 Hub", "SA", "ARENA", 20.0),
+    ]
+
+    projects = []
+    statuses = ["OPERATIONAL", "CONSTRUCTION", "APPROVED", "FEASIBILITY", "PROPOSED"]
+    for p in project_names:
+        projects.append(LCOHProjectRecord(
+            project_id=p[0], name=p[1], state=p[2], proponent=p[3],
+            capacity_tpd=p[4],
+            technology=random.choice(["PEM", "ALK", "SOEC"]),
+            status=random.choice(statuses),
+            target_year=random.choice([2025, 2026, 2027, 2028, 2030, None]),
+            lcoh_target_aud_per_kg=round(random.uniform(2.0, 6.0), 2),
+            funding_aud_m=round(random.uniform(10.0, 2000.0), 1),
+            offtake_secured=random.choice([True, False])
+        ))
+
+    sectors_demand = [
+        ("EXPORT", [2025, 2030, 2035, 2040], [0.0, 200000.0, 1500000.0, 5000000.0], [3.0, 4.0, 5.0, 6.0]),
+        ("AMMONIA", [2025, 2030, 2035, 2040], [50000.0, 150000.0, 400000.0, 800000.0], [2.5, 3.5, 4.5, 5.5]),
+        ("STEEL", [2025, 2030, 2035, 2040], [5000.0, 50000.0, 200000.0, 500000.0], [3.0, 4.0, 5.5, 7.0]),
+        ("TRANSPORT", [2025, 2030, 2035, 2040], [1000.0, 10000.0, 80000.0, 300000.0], [5.0, 6.0, 8.0, 10.0]),
+        ("POWER", [2025, 2030, 2035, 2040], [500.0, 5000.0, 30000.0, 100000.0], [2.0, 3.0, 4.0, 5.0]),
+        ("INDUSTRIAL", [2025, 2030, 2035, 2040], [10000.0, 40000.0, 120000.0, 300000.0], [2.5, 3.5, 5.0, 6.5]),
+    ]
+
+    demand_projections = []
+    for sec, years, demands, prices in sectors_demand:
+        for i, yr in enumerate(years):
+            current_supply = round(demands[i] * random.uniform(0.05, 0.40), 0)
+            demand_projections.append(LCOHDemandProjectionRecord(
+                sector=sec, year=yr, demand_tpa=demands[i],
+                willingness_to_pay_aud_per_kg=prices[i],
+                current_supply_tpa=current_supply,
+                supply_gap_tpa=max(0.0, demands[i] - current_supply)
+            ))
+
+    result = LCOHDashboard(
+        production_routes=production_routes,
+        electrolysers=electrolysers,
+        cost_breakdowns=cost_breakdowns,
+        projects=projects,
+        demand_projections=demand_projections,
+        summary={
+            "total_projects": len(projects),
+            "cheapest_green_lcoh_aud_per_kg": 5.9,
+            "cheapest_grey_lcoh_aud_per_kg": 2.1,
+            "green_parity_year": 2030,
+            "total_project_capacity_tpd": round(sum(p.capacity_tpd for p in projects), 0),
+            "electrolyser_types": len(set(e.technology for e in electrolysers)),
+            "export_demand_2040_tpa": 5000000.0,
+            "australia_lcoh_target_aud_per_kg": 2.0
+        }
+    )
+    _cache_set(_lcoh_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# Sprint 92c — Ancillary Services Procurement Analytics (ASP)
+# ============================================================
+
+class ASPServiceRecord(BaseModel):
+    service: str  # RAISE_6SEC, LOWER_6SEC, RAISE_60SEC, LOWER_60SEC, RAISE_5MIN, LOWER_5MIN, RAISE_REG, LOWER_REG
+    region: str
+    requirement_mw: float
+    enabled_mw: float
+    local_requirement_mw: float
+    market_clearing: bool  # True = market-cleared, False = AEMO procured
+    interconnector_sharing: bool
+
+class ASPEnablementRecord(BaseModel):
+    service: str
+    region: str
+    month: str
+    avg_enabled_mw: float
+    max_enabled_mw: float
+    min_enabled_mw: float
+    battery_share_pct: float
+    hydro_share_pct: float
+    gas_share_pct: float
+    demand_response_pct: float
+
+class ASPPriceRecord(BaseModel):
+    service: str
+    region: str
+    quarter: str
+    avg_price_aud_mwh: float
+    max_price_aud_mwh: float
+    min_price_aud_mwh: float
+    volatility_pct: float
+    market_revenue_aud_m: float
+
+class ASPProviderRecord(BaseModel):
+    provider: str
+    provider_type: str  # BESS, HYDRO, GAS_PEAKER, DEMAND_RESPONSE, PUMPED_HYDRO
+    region: str
+    service: str
+    enabled_mw: float
+    market_share_pct: float
+    avg_price_aud_mwh: float
+    response_time_sec: float
+    compliance_pct: float
+
+class ASPCostAllocationRecord(BaseModel):
+    region: str
+    quarter: str
+    total_as_cost_aud_m: float
+    generator_share_pct: float
+    load_share_pct: float
+    raise_cost_aud_m: float
+    lower_cost_aud_m: float
+    regulation_cost_aud_m: float
+
+class ASPDashboard(BaseModel):
+    services: List[ASPServiceRecord]
+    enablements: List[ASPEnablementRecord]
+    prices: List[ASPPriceRecord]
+    providers: List[ASPProviderRecord]
+    cost_allocations: List[ASPCostAllocationRecord]
+    summary: Dict[str, Any]
+
+
+_asp_cache: Dict[str, Any] = {}
+
+@app.get("/api/ancillary-services-procurement/dashboard", response_model=ASPDashboard, dependencies=[Depends(verify_api_key)])
+def get_ancillary_services_procurement_dashboard():
+    import random
+    cache_key = "asp_dashboard"
+    cached = _cache_get(_asp_cache, cache_key)
+    if cached:
+        return cached
+
+    service_names = ["RAISE_6SEC", "LOWER_6SEC", "RAISE_60SEC", "LOWER_60SEC",
+                     "RAISE_5MIN", "LOWER_5MIN", "RAISE_REG", "LOWER_REG"]
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+
+    service_requirements = {
+        "RAISE_6SEC": 120.0, "LOWER_6SEC": 120.0,
+        "RAISE_60SEC": 300.0, "LOWER_60SEC": 300.0,
+        "RAISE_5MIN": 550.0, "LOWER_5MIN": 550.0,
+        "RAISE_REG": 250.0, "LOWER_REG": 250.0
+    }
+
+    services = []
+    for svc in service_names:
+        for r in regions:
+            req = service_requirements[svc]
+            services.append(ASPServiceRecord(
+                service=svc, region=r,
+                requirement_mw=req,
+                enabled_mw=round(req * random.uniform(0.9, 1.3), 1),
+                local_requirement_mw=round(req * random.uniform(0.1, 0.4), 1),
+                market_clearing=True,
+                interconnector_sharing=random.choice([True, False])
+            ))
+
+    months = ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024",
+              "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024"]
+
+    enablements = []
+    for svc in service_names:
+        for r in regions[:3]:
+            for month in months:
+                base_mw = service_requirements[svc]
+                avg_enabled = round(base_mw * random.uniform(0.85, 1.25), 1)
+                battery_share = round(random.uniform(15.0, 55.0), 1)
+                hydro_share = round(random.uniform(10.0, 40.0), 1)
+                gas_share = round(max(0.0, 100.0 - battery_share - hydro_share - random.uniform(2, 8)), 1)
+                enablements.append(ASPEnablementRecord(
+                    service=svc, region=r, month=month,
+                    avg_enabled_mw=avg_enabled,
+                    max_enabled_mw=round(avg_enabled * 1.3, 1),
+                    min_enabled_mw=round(avg_enabled * 0.75, 1),
+                    battery_share_pct=battery_share,
+                    hydro_share_pct=hydro_share,
+                    gas_share_pct=gas_share,
+                    demand_response_pct=round(random.uniform(0.0, 8.0), 1)
+                ))
+
+    quarters = ["Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023", "Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024"]
+
+    base_prices = {
+        "RAISE_6SEC": 18.0, "LOWER_6SEC": 5.0,
+        "RAISE_60SEC": 8.0, "LOWER_60SEC": 3.0,
+        "RAISE_5MIN": 5.0, "LOWER_5MIN": 2.5,
+        "RAISE_REG": 25.0, "LOWER_REG": 15.0
+    }
+
+    prices = []
+    for svc in service_names:
+        for r in regions:
+            for q in quarters:
+                base = base_prices[svc]
+                avg_p = round(base * random.uniform(0.6, 2.5), 2)
+                prices.append(ASPPriceRecord(
+                    service=svc, region=r, quarter=q,
+                    avg_price_aud_mwh=avg_p,
+                    max_price_aud_mwh=round(avg_p * random.uniform(2.0, 15.0), 2),
+                    min_price_aud_mwh=round(avg_p * random.uniform(0.01, 0.5), 4),
+                    volatility_pct=round(random.uniform(20.0, 250.0), 1),
+                    market_revenue_aud_m=round(avg_p * service_requirements[svc] * 8760 / 1e6 * random.uniform(0.8, 1.2), 2)
+                ))
+
+    providers_data = [
+        ("Hornsdale Power Reserve", "BESS", "SA1", "RAISE_6SEC", 30.0),
+        ("Victorian Big Battery", "BESS", "VIC1", "RAISE_6SEC", 250.0),
+        ("Snowy Hydro Murray", "HYDRO", "NSW1", "RAISE_5MIN", 400.0),
+        ("Snowy Hydro Tumut", "HYDRO", "NSW1", "LOWER_5MIN", 600.0),
+        ("Origin Darlington Point", "BESS", "NSW1", "RAISE_REG", 100.0),
+        ("AGL Liddell Peakers", "GAS_PEAKER", "NSW1", "RAISE_60SEC", 300.0),
+        ("CS Energy Callide", "GAS_PEAKER", "QLD1", "RAISE_60SEC", 450.0),
+        ("EnergyAustralia Hallett", "GAS_PEAKER", "SA1", "LOWER_REG", 200.0),
+        ("Engie Pelican Point", "GAS_PEAKER", "SA1", "RAISE_5MIN", 240.0),
+        ("AGL Torrens Island", "GAS_PEAKER", "SA1", "LOWER_60SEC", 380.0),
+        ("TasNetworks Battery", "BESS", "TAS1", "RAISE_REG", 25.0),
+        ("Hydro Tasmania Gordon", "HYDRO", "TAS1", "RAISE_5MIN", 432.0),
+        ("Demand Response Pool NSW", "DEMAND_RESPONSE", "NSW1", "LOWER_5MIN", 120.0),
+        ("Wivenhoe Pumped Hydro", "PUMPED_HYDRO", "QLD1", "RAISE_60SEC", 500.0),
+        ("Gannawarra BESS", "BESS", "VIC1", "LOWER_REG", 25.0),
+    ]
+
+    providers = []
+    for p in providers_data:
+        providers.append(ASPProviderRecord(
+            provider=p[0], provider_type=p[1], region=p[2], service=p[3],
+            enabled_mw=p[4],
+            market_share_pct=round(p[4] / service_requirements.get(p[3], 300) * 100, 1),
+            avg_price_aud_mwh=round(random.uniform(2.0, 40.0), 2),
+            response_time_sec={"RAISE_6SEC": 6.0, "LOWER_6SEC": 6.0, "RAISE_60SEC": 60.0,
+                               "LOWER_60SEC": 60.0, "RAISE_5MIN": 300.0, "LOWER_5MIN": 300.0,
+                               "RAISE_REG": 5.0, "LOWER_REG": 5.0}.get(p[3], 60.0),
+            compliance_pct=round(random.uniform(92.0, 99.5), 2)
+        ))
+
+    cost_allocations = []
+    for r in regions:
+        for q in quarters:
+            total = round(random.uniform(15.0, 120.0), 2)
+            gen_share = round(random.uniform(30.0, 60.0), 1)
+            cost_allocations.append(ASPCostAllocationRecord(
+                region=r, quarter=q,
+                total_as_cost_aud_m=total,
+                generator_share_pct=gen_share,
+                load_share_pct=round(100.0 - gen_share, 1),
+                raise_cost_aud_m=round(total * 0.45, 2),
+                lower_cost_aud_m=round(total * 0.25, 2),
+                regulation_cost_aud_m=round(total * 0.30, 2)
+            ))
+
+    result = ASPDashboard(
+        services=services,
+        enablements=enablements,
+        prices=prices,
+        providers=providers,
+        cost_allocations=cost_allocations,
+        summary={
+            "total_service_types": len(service_names),
+            "regions": len(regions),
+            "total_as_market_revenue_aud_m": 2850.0,
+            "battery_share_pct_trend": 42.5,
+            "highest_price_service": "RAISE_REG",
+            "largest_provider": "Snowy Hydro Tumut",
+            "raise_regulation_avg_price_aud_mwh": 25.0,
+            "quarters_analysed": len(quarters)
+        }
+    )
+    _cache_set(_asp_cache, cache_key, result)
+    return result

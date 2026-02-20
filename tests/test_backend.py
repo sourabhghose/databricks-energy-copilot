@@ -11826,3 +11826,132 @@ class TestBESSDegradationEndpoint:
         r1 = client.get("/api/bess-degradation/dashboard", headers=auth_headers)
         r2 = client.get("/api/bess-degradation/dashboard", headers=auth_headers)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestPPAStructuringEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/ppa-structuring/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_contracts_present(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        assert len(data["contracts"]) >= 15
+
+    def test_pricing_models_present(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        assert len(data["pricing_models"]) >= 50
+
+    def test_risks_present(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        assert len(data["risks"]) >= 6
+
+    def test_buyer_profiles_present(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        assert len(data["buyer_profiles"]) >= 4
+
+    def test_settlements_present(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        assert len(data["settlements"]) >= 80
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        assert "avg_strike_price_aud_mwh" in data["summary"]
+        assert "most_common_structure" in data["summary"]
+
+    def test_contract_fields(self, client, auth_headers):
+        data = client.get("/api/ppa-structuring/dashboard", headers=auth_headers).json()
+        c = data["contracts"][0]
+        assert "strike_price_aud_per_mwh" in c
+        assert "structure" in c
+        assert "contract_term_years" in c
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/ppa-structuring/dashboard", headers=auth_headers)
+        r2 = client.get("/api/ppa-structuring/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCleanHydrogenProductionCostEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_production_routes_present(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        assert len(data["production_routes"]) >= 6
+
+    def test_electrolysers_present(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        assert len(data["electrolysers"]) >= 6
+
+    def test_cost_breakdowns_present(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        assert len(data["cost_breakdowns"]) >= 100
+
+    def test_projects_present(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        assert len(data["projects"]) >= 10
+
+    def test_demand_projections_present(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        assert len(data["demand_projections"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        assert "cheapest_green_lcoh_aud_per_kg" in data["summary"]
+        assert "green_parity_year" in data["summary"]
+
+    def test_production_route_fields(self, client, auth_headers):
+        data = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers).json()
+        r = data["production_routes"][0]
+        assert "colour" in r
+        assert "lcoh_aud_per_kg" in r
+        assert "co2_intensity_kgco2_per_kg" in r
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers)
+        r2 = client.get("/api/clean-hydrogen-production-cost/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestAncillaryServicesProcurementEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_services_present(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        assert len(data["services"]) >= 30
+
+    def test_enablements_present(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        assert len(data["enablements"]) >= 100
+
+    def test_prices_present(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        assert len(data["prices"]) >= 100
+
+    def test_providers_present(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        assert len(data["providers"]) >= 12
+
+    def test_cost_allocations_present(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        assert len(data["cost_allocations"]) >= 30
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        assert "highest_price_service" in data["summary"]
+        assert "battery_share_pct_trend" in data["summary"]
+
+    def test_service_fields(self, client, auth_headers):
+        data = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers).json()
+        s = data["services"][0]
+        assert "requirement_mw" in s
+        assert "enabled_mw" in s
+        assert "market_clearing" in s
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers)
+        r2 = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
