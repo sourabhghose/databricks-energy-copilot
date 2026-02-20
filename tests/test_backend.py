@@ -10671,3 +10671,57 @@ class TestHydrogenEconomyAnalyticsEndpoint:
     def test_cost_projections_count_at_least_30(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["cost_projections"]) >= 30
+
+
+class TestRECMarketEndpoint:
+    """Sprint 77c — Renewable Energy Certificates (LGC & STC) Analytics (prefix REC)"""
+
+    endpoint = "/api/rec-market-analytics/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_lgc_prices_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["lgc_prices"]) >= 30
+
+    def test_creation_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["creation"]) >= 30
+
+
+class TestRooftopSolarGridEndpoint:
+    """Sprint 77a — Rooftop Solar Adoption & Grid Integration Analytics (prefix RGA)"""
+
+    endpoint = "/api/rooftop-solar-grid/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_adoption_count_at_least_35(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["adoption"]) >= 35
+
+    def test_generation_count_at_least_100(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["generation"]) >= 100
+
+
+class TestEnergyPovertyEndpoint:
+    """Sprint 77b — Energy Poverty & Vulnerable Customer Analytics (prefix EPV)"""
+
+    endpoint = "/api/epv/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_affordability_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["affordability"]) >= 25
+
+    def test_stress_indicators_count_at_least_35(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["stress_indicators"]) >= 35

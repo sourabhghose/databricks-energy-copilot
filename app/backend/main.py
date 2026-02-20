@@ -52373,3 +52373,776 @@ def get_nem_market_microstructure_dashboard(api_key: str = Depends(verify_api_ke
             "price_setter_gas_pct": 38.2,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 77c — Renewable Energy Certificates (LGC & STC) Analytics
+# Prefix: REC  |  Endpoint: /api/rec-market-analytics/dashboard
+# ---------------------------------------------------------------------------
+
+class RECLGCPriceRecord(BaseModel):
+    month: str
+    spot_price: float  # $/certificate
+    forward_1yr_price: float
+    forward_2yr_price: float
+    forward_3yr_price: float
+    volume_traded_thousands: int
+    open_interest_thousands: int
+    clearing_house_surrenders: int
+
+
+class RECSTCRecord(BaseModel):
+    quarter: str
+    clearing_price: float  # STC deeming price at clearing
+    stc_created_thousands: int
+    stc_surrendered_thousands: int
+    stc_clearing_house_balance_thousands: int
+    small_scale_target_gj: float
+    compliance_shortfall_pct: float
+
+
+class RECCreationRecord(BaseModel):
+    year: int
+    technology: str  # WIND / SOLAR_FARM / HYDRO / BIOMASS / GEOTHERMAL / WAVE / LANDFILL_GAS
+    region: str
+    lgcs_created_thousands: int
+    accredited_capacity_mw: float
+    avg_capacity_factor_pct: float
+    new_accreditations: int
+
+
+class RECLiableEntityRecord(BaseModel):
+    entity: str
+    year: int
+    surrender_obligation_thousands: int
+    lgcs_surrendered_thousands: int
+    stcs_surrendered_thousands: int
+    compliance_pct: float
+    lgc_shortfall_charges_m: float  # penalty if undercompliant
+    renewable_content_pct: float    # % of their electricity from renewables
+
+
+class RECVoluntaryRecord(BaseModel):
+    scheme: str          # GreenPower / REGO / Corporate_PPA_RECs / GEC / Climate_Active
+    year: int
+    volume_thousands: int
+    price_per_cert: float
+    buyer_type: str      # CORPORATE / GOVERNMENT / HOUSEHOLD / INDUSTRIAL
+    underlying_technology: str  # WIND / SOLAR / HYDRO / MIXED
+
+
+class RECDashboard(BaseModel):
+    lgc_prices: List[RECLGCPriceRecord]
+    stc_records: List[RECSTCRecord]
+    creation: List[RECCreationRecord]
+    liable_entities: List[RECLiableEntityRecord]
+    voluntary: List[RECVoluntaryRecord]
+    summary: dict
+
+
+def _make_rec_market_analytics_dashboard() -> RECDashboard:
+    import random
+    rng = random.Random(77)
+
+    # --- LGC price records: 36 months (Jan 2022 – Dec 2024) ---
+    lgc_prices: List[RECLGCPriceRecord] = []
+    base_spot = 38.0
+    months_list = []
+    for yr in range(2022, 2025):
+        for mo in range(1, 13):
+            months_list.append(f"{yr}-{mo:02d}")
+
+    for i, month in enumerate(months_list):
+        spot = round(base_spot + rng.uniform(-3.0, 3.5) + i * 0.12, 2)
+        fwd1 = round(spot + rng.uniform(1.5, 4.0), 2)
+        fwd2 = round(fwd1 + rng.uniform(1.0, 3.5), 2)
+        fwd3 = round(fwd2 + rng.uniform(0.5, 3.0), 2)
+        vol  = rng.randint(180, 620)
+        oi   = rng.randint(400, 1200)
+        surr = rng.randint(50, 320)
+        lgc_prices.append(RECLGCPriceRecord(
+            month=month,
+            spot_price=spot,
+            forward_1yr_price=fwd1,
+            forward_2yr_price=fwd2,
+            forward_3yr_price=fwd3,
+            volume_traded_thousands=vol,
+            open_interest_thousands=oi,
+            clearing_house_surrenders=surr,
+        ))
+
+    # --- STC quarterly records: Q1 2022 – Q4 2024 (12 quarters) ---
+    stc_records: List[RECSTCRecord] = []
+    quarters = [f"Q{q} {yr}" for yr in range(2022, 2025) for q in range(1, 5)]
+    stc_base_price = 36.5
+    for i, quarter in enumerate(quarters):
+        price   = round(stc_base_price + rng.uniform(-1.5, 2.0) + i * 0.08, 2)
+        created = rng.randint(12000, 22000)
+        surrend = rng.randint(10000, 20000)
+        balance = rng.randint(5000, 18000)
+        target  = round(rng.uniform(12000.0, 18000.0), 1)
+        shortfall = round(rng.uniform(0.0, 4.5), 2)
+        stc_records.append(RECSTCRecord(
+            quarter=quarter,
+            clearing_price=price,
+            stc_created_thousands=created,
+            stc_surrendered_thousands=surrend,
+            stc_clearing_house_balance_thousands=balance,
+            small_scale_target_gj=target,
+            compliance_shortfall_pct=shortfall,
+        ))
+
+    # --- Certificate creation: 7 technologies × 5 regions = 35 records (year 2024) ---
+    technologies = ["WIND", "SOLAR_FARM", "HYDRO", "BIOMASS", "GEOTHERMAL", "WAVE", "LANDFILL_GAS"]
+    regions_c = ["QLD", "NSW", "VIC", "SA", "WA"]
+    creation: List[RECCreationRecord] = []
+    tech_base = {
+        "WIND":        (15000, 3200, 38.0),
+        "SOLAR_FARM":  (12000, 4500, 28.0),
+        "HYDRO":       (4500,  1800, 55.0),
+        "BIOMASS":     (1200,  350,  72.0),
+        "GEOTHERMAL":  (80,    15,   88.0),
+        "WAVE":        (20,    5,    30.0),
+        "LANDFILL_GAS":(600,   110,  65.0),
+    }
+    for tech in technologies:
+        base_lgc, base_cap, base_cf = tech_base[tech]
+        for region in regions_c:
+            region_mult = {"QLD": 1.2, "NSW": 1.0, "VIC": 0.9, "SA": 1.1, "WA": 0.8}[region]
+            lgcs  = int(base_lgc * region_mult * rng.uniform(0.85, 1.15))
+            cap   = round(base_cap * region_mult * rng.uniform(0.9, 1.1), 1)
+            cf    = round(base_cf + rng.uniform(-4.0, 4.0), 1)
+            accred = rng.randint(1, 18)
+            creation.append(RECCreationRecord(
+                year=2024,
+                technology=tech,
+                region=region,
+                lgcs_created_thousands=lgcs,
+                accredited_capacity_mw=cap,
+                avg_capacity_factor_pct=max(5.0, min(95.0, cf)),
+                new_accreditations=accred,
+            ))
+
+    # --- Liable entities: 5 entities × 3 years = 15 records ---
+    entities = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia",
+        "Red Energy", "Simply Energy",
+    ]
+    liable_entities: List[RECLiableEntityRecord] = []
+    entity_size = {
+        "AGL Energy":       28000,
+        "Origin Energy":    24000,
+        "EnergyAustralia":  18000,
+        "Red Energy":       8000,
+        "Simply Energy":    6000,
+    }
+    for entity in entities:
+        base_oblig = entity_size[entity]
+        for year in [2022, 2023, 2024]:
+            oblig = int(base_oblig * rng.uniform(0.95, 1.05))
+            lgcs_surr = int(oblig * rng.uniform(0.88, 1.0))
+            stcs_surr = int(oblig * rng.uniform(0.10, 0.20))
+            comp_pct  = round(min(100.0, (lgcs_surr / oblig) * 100), 2)
+            shortfall = round(max(0.0, (1.0 - lgcs_surr / oblig) * oblig * 65.0 / 1000), 2)
+            renew_pct = round(rng.uniform(18.0, 52.0), 1)
+            liable_entities.append(RECLiableEntityRecord(
+                entity=entity,
+                year=year,
+                surrender_obligation_thousands=oblig,
+                lgcs_surrendered_thousands=lgcs_surr,
+                stcs_surrendered_thousands=stcs_surr,
+                compliance_pct=comp_pct,
+                lgc_shortfall_charges_m=shortfall,
+                renewable_content_pct=renew_pct,
+            ))
+
+    # --- Voluntary scheme records: 5 schemes × 3 years = 15 records ---
+    schemes = [
+        "GreenPower", "REGO", "Corporate_PPA_RECs", "GEC", "Climate_Active",
+    ]
+    scheme_cfg = {
+        "GreenPower":        ("HOUSEHOLD",  "MIXED",  6.5,  35.0),
+        "REGO":              ("CORPORATE",  "WIND",   4.2,  42.0),
+        "Corporate_PPA_RECs":("CORPORATE",  "SOLAR",  12.0, 55.0),
+        "GEC":               ("INDUSTRIAL", "HYDRO",  2.8,  28.0),
+        "Climate_Active":    ("GOVERNMENT", "MIXED",  3.5,  38.0),
+    }
+    voluntary: List[RECVoluntaryRecord] = []
+    for scheme in schemes:
+        buyer_type, tech, base_vol, base_price = scheme_cfg[scheme]
+        for year in [2022, 2023, 2024]:
+            vol   = int(base_vol * 1000 * rng.uniform(0.9, 1.15))
+            price = round(base_price + rng.uniform(-3.0, 4.0) + (year - 2022) * 1.5, 2)
+            voluntary.append(RECVoluntaryRecord(
+                scheme=scheme,
+                year=year,
+                volume_thousands=vol,
+                price_per_cert=price,
+                buyer_type=buyer_type,
+                underlying_technology=tech,
+            ))
+
+    return RECDashboard(
+        lgc_prices=lgc_prices,
+        stc_records=stc_records,
+        creation=creation,
+        liable_entities=liable_entities,
+        voluntary=voluntary,
+        summary={
+            "current_lgc_spot": 42.5,
+            "current_stc_clearing_price": 38.2,
+            "total_lgcs_created_2024_thousands": 38400,
+            "lret_target_achievement_pct": 96.4,
+            "voluntary_market_size_m": 284,
+            "non_compliant_entities_2024": 2,
+            "largest_creator_technology": "WIND",
+        },
+    )
+
+
+@app.get(
+    "/api/rec-market-analytics/dashboard",
+    response_model=RECDashboard,
+    tags=["RECMarketAnalytics"],
+    summary="Sprint 77c — REC Market Analytics (LGC & STC) dashboard",
+)
+def get_rec_market_analytics_dashboard():
+    cache_key = "rec_market_analytics:dashboard"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+    result = _make_rec_market_analytics_dashboard()
+    _cache_set(cache_key, result, 600)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 77a — Rooftop Solar Adoption & Grid Integration Analytics (prefix RGA)
+# ---------------------------------------------------------------------------
+
+class RGAAdoptionRecord(BaseModel):
+    state: str
+    quarter: str
+    residential_systems: int
+    commercial_systems: int
+    total_capacity_mw: float
+    avg_system_size_kw: float
+    penetration_pct: float  # % of premises with solar
+    new_installations_quarter: int
+    avg_payback_years: float
+    feed_in_tariff_c_per_kwh: float
+
+
+class RGAGenerationRecord(BaseModel):
+    date: str
+    region: str
+    hour: int
+    rooftop_generation_mw: float
+    behind_meter_consumption_mw: float
+    net_export_to_grid_mw: float
+    curtailed_mw: float
+    curtailment_pct: float
+    system_demand_mw: float
+    solar_fraction_pct: float  # rooftop / total demand
+
+
+class RGADuckCurveRecord(BaseModel):
+    region: str
+    season: str  # SUMMER / AUTUMN / WINTER / SPRING
+    hour: int
+    net_demand_2020_mw: float
+    net_demand_2024_mw: float
+    net_demand_2030_mw: float
+    net_demand_2035_mw: float
+    ramp_rate_mw_per_hr: float  # evening ramp (hour 15-19)
+
+
+class RGAHostingCapacityRecord(BaseModel):
+    distributor: str
+    feeder_class: str  # URBAN_DENSE / URBAN / SUBURBAN / RURAL
+    avg_hosting_capacity_pct: float  # % of feeders above hosting limit
+    additional_capacity_available_mw: float
+    constraint_type: str  # VOLTAGE / THERMAL / PROTECTION
+    dynamic_export_limit_applied: bool
+    upgrade_cost_per_mw_m: float
+
+
+class RGAExportManagementRecord(BaseModel):
+    state: str
+    scheme: str  # ZERO_EXPORT / DYNAMIC_EXPORT / STATIC_LIMIT_1KW / STATIC_LIMIT_5KW / UNLIMITED
+    penetration_pct: float  # % of systems on this scheme
+    avg_curtailment_pct: float
+    customer_satisfaction_score: float  # 0-10
+    network_benefit_m_yr: float
+
+
+class RGADashboard(BaseModel):
+    adoption: List[RGAAdoptionRecord]
+    generation: List[RGAGenerationRecord]
+    duck_curve: List[RGADuckCurveRecord]
+    hosting_capacity: List[RGAHostingCapacityRecord]
+    export_management: List[RGAExportManagementRecord]
+    summary: dict
+
+
+@app.get("/api/rooftop-solar-grid/dashboard", response_model=RGADashboard)
+def get_rooftop_solar_grid_dashboard():
+    import random
+    rng = random.Random(20240101)
+
+    states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    quarters = [
+        "Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023",
+        "Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024",
+    ]
+
+    # Base penetration and capacity by state (reflecting real-world differences)
+    state_base = {
+        "NSW": {"pen": 26.0, "cap": 4800.0, "res": 420000, "com": 18000, "fit": 6.0},
+        "VIC": {"pen": 22.0, "cap": 3900.0, "res": 360000, "com": 14000, "fit": 5.2},
+        "QLD": {"pen": 38.0, "cap": 6200.0, "res": 520000, "com": 22000, "fit": 6.8},
+        "SA":  {"pen": 42.0, "cap": 3100.0, "res": 290000, "com": 10000, "fit": 7.2},
+        "WA":  {"pen": 35.0, "cap": 4200.0, "res": 380000, "com": 16000, "fit": 7.5},
+    }
+
+    # --- 40 adoption records (5 states x 8 quarters) ---
+    adoption: list = []
+    for state in states:
+        base = state_base[state]
+        for q_idx, quarter in enumerate(quarters):
+            growth = 1.0 + q_idx * 0.03
+            pen = round(base["pen"] + q_idx * 0.8 + rng.uniform(-0.3, 0.3), 2)
+            cap = round(base["cap"] * growth + rng.uniform(-50, 50), 1)
+            res = int(base["res"] * growth + rng.randint(-2000, 2000))
+            com = int(base["com"] * growth + rng.randint(-200, 200))
+            new_inst = int((res + com) * 0.04 + rng.randint(-500, 500))
+            avg_sz = round(cap * 1000 / (res + com), 2) if (res + com) > 0 else 10.0
+            payback = round(rng.uniform(3.5, 5.5) - q_idx * 0.05, 2)
+            fit = round(base["fit"] + rng.uniform(-0.5, 0.5), 2)
+            adoption.append(RGAAdoptionRecord(
+                state=state,
+                quarter=quarter,
+                residential_systems=res,
+                commercial_systems=com,
+                total_capacity_mw=cap,
+                avg_system_size_kw=avg_sz,
+                penetration_pct=pen,
+                new_installations_quarter=max(new_inst, 0),
+                avg_payback_years=payback,
+                feed_in_tariff_c_per_kwh=fit,
+            ))
+
+    # --- 120 generation records (5 regions x 24 hours, summer peak day) ---
+    regions = ["NSW", "VIC", "QLD", "SA", "WA"]
+    region_peak = {
+        "NSW": 9200, "VIC": 7800, "QLD": 8400, "SA": 4100, "WA": 5600,
+    }
+    generation: list = []
+    for region in regions:
+        peak = region_peak[region]
+        for hour in range(24):
+            # Solar generation bell curve centred around noon
+            solar_factor = max(0.0, -0.044 * (hour - 12) ** 2 + 1.0)
+            solar_mw = round(peak * 0.18 * solar_factor + rng.uniform(-30, 30), 1)
+            solar_mw = max(solar_mw, 0.0)
+            # Demand: base + morning/evening peaks
+            demand_factor = (
+                0.75 + 0.15 * (1 if 7 <= hour <= 9 else 0)
+                + 0.20 * (1 if 17 <= hour <= 20 else 0)
+                - 0.10 * solar_factor
+            )
+            demand_mw = round(peak * demand_factor + rng.uniform(-100, 100), 1)
+            btm_consumption = round(solar_mw * rng.uniform(0.55, 0.70), 1)
+            net_export = round(solar_mw - btm_consumption, 1)
+            curtail_pct = round(rng.uniform(0, 3.5) if solar_mw > 0 else 0.0, 2)
+            curtailed = round(solar_mw * curtail_pct / 100.0, 1)
+            sf = round(solar_mw / demand_mw * 100.0, 2) if demand_mw > 0 else 0.0
+            generation.append(RGAGenerationRecord(
+                date="2024-01-15",
+                region=region,
+                hour=hour,
+                rooftop_generation_mw=solar_mw,
+                behind_meter_consumption_mw=btm_consumption,
+                net_export_to_grid_mw=max(net_export, 0.0),
+                curtailed_mw=curtailed,
+                curtailment_pct=curtail_pct,
+                system_demand_mw=demand_mw,
+                solar_fraction_pct=sf,
+            ))
+
+    # --- 80 duck curve records (4 regions x 4 seasons x 5 key hours) ---
+    dc_regions = ["NSW", "VIC", "QLD", "SA"]
+    seasons = ["SUMMER", "AUTUMN", "WINTER", "SPRING"]
+    key_hours = [8, 12, 15, 18, 20]  # morning, noon, afternoon, evening ramp, night
+    region_base_demand = {"NSW": 8500, "VIC": 7200, "QLD": 7800, "SA": 3800}
+    duck_curve: list = []
+    for region in dc_regions:
+        base_d = region_base_demand[region]
+        for season in seasons:
+            season_factor = {"SUMMER": 1.15, "AUTUMN": 0.92, "WINTER": 1.05, "SPRING": 0.88}[season]
+            for hour in key_hours:
+                solar_h = max(0.0, -0.044 * (hour - 12) ** 2 + 1.0)
+                solar_scale_2020 = base_d * 0.04
+                solar_scale_2024 = base_d * 0.20
+                solar_scale_2030 = base_d * 0.42
+                solar_scale_2035 = base_d * 0.58
+                gross = base_d * season_factor * (0.70 + 0.15 * (1 if 7 <= hour <= 9 or 17 <= hour <= 20 else 0))
+                nd_2020 = round(gross - solar_scale_2020 * solar_h + rng.uniform(-80, 80), 0)
+                nd_2024 = round(gross - solar_scale_2024 * solar_h + rng.uniform(-80, 80), 0)
+                nd_2030 = round(gross - solar_scale_2030 * solar_h + rng.uniform(-100, 100), 0)
+                nd_2035 = round(gross - solar_scale_2035 * solar_h + rng.uniform(-100, 100), 0)
+                # Evening ramp rate only meaningful for afternoon hours
+                ramp = round(rng.uniform(200, 800) if 15 <= hour <= 19 else rng.uniform(50, 200), 1)
+                duck_curve.append(RGADuckCurveRecord(
+                    region=region,
+                    season=season,
+                    hour=hour,
+                    net_demand_2020_mw=max(nd_2020, 500.0),
+                    net_demand_2024_mw=max(nd_2024, 300.0),
+                    net_demand_2030_mw=max(nd_2030, 100.0),
+                    net_demand_2035_mw=max(nd_2035, 50.0),
+                    ramp_rate_mw_per_hr=ramp,
+                ))
+
+    # --- 12 hosting capacity records (3 distributors x 4 feeder classes) ---
+    distributors = ["Ausgrid", "Endeavour Energy", "Energex"]
+    feeder_classes = ["URBAN_DENSE", "URBAN", "SUBURBAN", "RURAL"]
+    constraint_map = {
+        "URBAN_DENSE": "VOLTAGE",
+        "URBAN": "VOLTAGE",
+        "SUBURBAN": "THERMAL",
+        "RURAL": "PROTECTION",
+    }
+    dynamic_map = {
+        "URBAN_DENSE": True,
+        "URBAN": True,
+        "SUBURBAN": False,
+        "RURAL": False,
+    }
+    hosting_capacity: list = []
+    for distributor in distributors:
+        for fc in feeder_classes:
+            hc_pct = round(rng.uniform(18, 55) if fc in ["URBAN_DENSE", "URBAN"] else rng.uniform(5, 25), 1)
+            add_cap = round(rng.uniform(50, 400) if fc == "RURAL" else rng.uniform(20, 150), 1)
+            upgrade_cost = round(rng.uniform(0.8, 2.5) if fc in ["URBAN_DENSE", "URBAN"] else rng.uniform(0.3, 1.2), 3)
+            hosting_capacity.append(RGAHostingCapacityRecord(
+                distributor=distributor,
+                feeder_class=fc,
+                avg_hosting_capacity_pct=hc_pct,
+                additional_capacity_available_mw=add_cap,
+                constraint_type=constraint_map[fc],
+                dynamic_export_limit_applied=dynamic_map[fc],
+                upgrade_cost_per_mw_m=upgrade_cost,
+            ))
+
+    # --- 15 export management records (5 states x 3 schemes each) ---
+    state_schemes = {
+        "NSW": ["DYNAMIC_EXPORT", "STATIC_LIMIT_5KW", "UNLIMITED"],
+        "VIC": ["DYNAMIC_EXPORT", "STATIC_LIMIT_5KW", "STATIC_LIMIT_1KW"],
+        "QLD": ["DYNAMIC_EXPORT", "STATIC_LIMIT_5KW", "ZERO_EXPORT"],
+        "SA":  ["DYNAMIC_EXPORT", "ZERO_EXPORT", "STATIC_LIMIT_1KW"],
+        "WA":  ["DYNAMIC_EXPORT", "STATIC_LIMIT_5KW", "UNLIMITED"],
+    }
+    curtailment_by_scheme = {
+        "ZERO_EXPORT": 35.0,
+        "STATIC_LIMIT_1KW": 22.0,
+        "STATIC_LIMIT_5KW": 12.0,
+        "DYNAMIC_EXPORT": 8.0,
+        "UNLIMITED": 2.0,
+    }
+    satisfaction_by_scheme = {
+        "ZERO_EXPORT": 4.2,
+        "STATIC_LIMIT_1KW": 5.5,
+        "STATIC_LIMIT_5KW": 6.8,
+        "DYNAMIC_EXPORT": 7.5,
+        "UNLIMITED": 8.9,
+    }
+    export_management: list = []
+    for state in states:
+        schemes = state_schemes[state]
+        # Penetration across 3 schemes sums to 100
+        p1 = round(rng.uniform(20, 50), 1)
+        p2 = round(rng.uniform(15, 40), 1)
+        p3 = round(100.0 - p1 - p2, 1)
+        pens = [p1, p2, max(p3, 5.0)]
+        for scheme, pen in zip(schemes, pens):
+            curt = round(curtailment_by_scheme[scheme] + rng.uniform(-2, 2), 2)
+            sat = round(satisfaction_by_scheme[scheme] + rng.uniform(-0.5, 0.5), 2)
+            net_ben = round(rng.uniform(5, 60), 1)
+            export_management.append(RGAExportManagementRecord(
+                state=state,
+                scheme=scheme,
+                penetration_pct=pen,
+                avg_curtailment_pct=max(curt, 0.0),
+                customer_satisfaction_score=min(max(sat, 0.0), 10.0),
+                network_benefit_m_yr=net_ben,
+            ))
+
+    return RGADashboard(
+        adoption=adoption,
+        generation=generation,
+        duck_curve=duck_curve,
+        hosting_capacity=hosting_capacity,
+        export_management=export_management,
+        summary={
+            "total_rooftop_mw_2024": 23800,
+            "total_systems_2024": 3850000,
+            "avg_penetration_pct": 34.2,
+            "peak_curtailment_pct": 18.4,
+            "min_net_demand_2024_mw": 4200,
+            "min_net_demand_2030_mw": 1800,
+            "avg_payback_years": 4.2,
+        },
+    )
+
+
+# ── Sprint 77b: Energy Poverty & Vulnerable Customer Analytics (prefix EPV) ──
+
+class EPVAffordabilityRecord(BaseModel):
+    state: str
+    year: int
+    avg_annual_bill: float
+    median_household_income: float
+    energy_burden_pct: float
+    low_income_energy_burden_pct: float
+    real_bill_change_pct_5yr: float
+    cpi_energy_component: float
+    concession_coverage_pct: float
+
+class EPVStressIndicatorRecord(BaseModel):
+    state: str
+    quarter: str
+    households_in_stress_thousands: float
+    disconnections_residential: int
+    payment_plan_entrants: int
+    hardship_program_entrants: int
+    energy_ombudsman_complaints: int
+    unmet_energy_need_pct: float
+
+class EPVConcessionRecord(BaseModel):
+    state: str
+    concession_type: str
+    annual_value: float
+    eligible_households_thousands: int
+    uptake_pct: float
+    govt_cost_m_yr: float
+    effectiveness_score: float
+
+class EPVRegionRecord(BaseModel):
+    sa4_region: str
+    state: str
+    energy_poverty_rate_pct: float
+    avg_energy_burden_pct: float
+    solar_access_pct: float
+    social_housing_pct: float
+    avg_star_rating: float
+    digital_access_pct: float
+
+class EPVPolicyRecord(BaseModel):
+    policy: str
+    jurisdiction: str
+    policy_type: str
+    annual_beneficiaries_thousands: int
+    govt_cost_m_yr: float
+    energy_saving_per_household_kwh: float
+    bill_reduction_per_household: float
+    implementation_status: str
+
+class EPVDashboard(BaseModel):
+    affordability: List[EPVAffordabilityRecord]
+    stress_indicators: List[EPVStressIndicatorRecord]
+    concessions: List[EPVConcessionRecord]
+    regions: List[EPVRegionRecord]
+    policies: List[EPVPolicyRecord]
+    summary: dict
+
+
+def _build_epv_dashboard() -> EPVDashboard:
+    import random
+    rng = random.Random(42)
+
+    states = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    years = list(range(2019, 2025))
+
+    base_burden = {"NSW": 3.8, "VIC": 4.2, "QLD": 3.6, "SA": 5.1, "TAS": 6.4}
+    base_low_income = {"NSW": 7.9, "VIC": 8.6, "QLD": 7.4, "SA": 10.2, "TAS": 12.8}
+    base_income = {"NSW": 95000, "VIC": 88000, "QLD": 82000, "SA": 75000, "TAS": 68000}
+    base_bill = {"NSW": 1750, "VIC": 1620, "QLD": 1580, "SA": 2050, "TAS": 1980}
+
+    affordability: list[EPVAffordabilityRecord] = []
+    for state in states:
+        for yr in years:
+            offset = (yr - 2019) * 0.08
+            bill = base_bill[state] * (1 + offset + rng.uniform(-0.03, 0.05))
+            income = base_income[state] * (1 + (yr - 2019) * 0.025 + rng.uniform(-0.01, 0.02))
+            burden = base_burden[state] + offset + rng.uniform(-0.2, 0.3)
+            low_burden = base_low_income[state] + offset * 1.5 + rng.uniform(-0.3, 0.4)
+            bill_5yr = ((yr - 2019) * 2.1 + rng.uniform(-0.5, 1.5)) if yr >= 2022 else rng.uniform(3.0, 8.0)
+            cpi = 120.0 + (yr - 2019) * 6.5 + rng.uniform(-2.0, 3.0)
+            concession_cov = rng.uniform(68.0, 88.0)
+            affordability.append(EPVAffordabilityRecord(
+                state=state,
+                year=yr,
+                avg_annual_bill=round(bill, 2),
+                median_household_income=round(income, 0),
+                energy_burden_pct=round(burden, 2),
+                low_income_energy_burden_pct=round(low_burden, 2),
+                real_bill_change_pct_5yr=round(bill_5yr, 2),
+                cpi_energy_component=round(cpi, 1),
+                concession_coverage_pct=round(concession_cov, 1),
+            ))
+
+    quarters = ["Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023",
+                "Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024"]
+    base_stress = {"NSW": 148, "VIC": 132, "QLD": 118, "SA": 62, "TAS": 28}
+    base_disconn = {"NSW": 9800, "VIC": 8600, "QLD": 7400, "SA": 4200, "TAS": 1600}
+
+    stress_indicators: list[EPVStressIndicatorRecord] = []
+    for state in states:
+        for q in quarters:
+            q_offset = quarters.index(q) * 0.03
+            stress = base_stress[state] * (1 + q_offset + rng.uniform(-0.05, 0.08))
+            disconn = int(base_disconn[state] * (1 + q_offset + rng.uniform(-0.06, 0.09)))
+            pp_entrants = int(disconn * rng.uniform(3.5, 5.5))
+            hp_entrants = int(disconn * rng.uniform(0.8, 1.4))
+            complaints = int(disconn * rng.uniform(0.3, 0.6))
+            unmet = rng.uniform(3.5, 12.0)
+            stress_indicators.append(EPVStressIndicatorRecord(
+                state=state,
+                quarter=q,
+                households_in_stress_thousands=round(stress, 1),
+                disconnections_residential=disconn,
+                payment_plan_entrants=pp_entrants,
+                hardship_program_entrants=hp_entrants,
+                energy_ombudsman_complaints=complaints,
+                unmet_energy_need_pct=round(unmet, 2),
+            ))
+
+    concession_types = [
+        "PENSIONER", "LOW_INCOME", "MEDICAL_COOLING", "LIFE_SUPPORT", "FAMILY_ENERGY_REBATE"
+    ]
+    concession_states = ["NSW", "VIC", "QLD", "SA"]
+    base_annual_value = {
+        "PENSIONER": 285.0, "LOW_INCOME": 180.0, "MEDICAL_COOLING": 420.0,
+        "LIFE_SUPPORT": 650.0, "FAMILY_ENERGY_REBATE": 160.0
+    }
+    base_eligible = {
+        "PENSIONER": 620, "LOW_INCOME": 480, "MEDICAL_COOLING": 45,
+        "LIFE_SUPPORT": 18, "FAMILY_ENERGY_REBATE": 320
+    }
+
+    concessions: list[EPVConcessionRecord] = []
+    for state in concession_states:
+        state_mult = {"NSW": 1.0, "VIC": 0.92, "QLD": 0.88, "SA": 1.08}[state]
+        for ct in concession_types:
+            val = base_annual_value[ct] * state_mult * rng.uniform(0.95, 1.05)
+            elig = int(base_eligible[ct] * state_mult * rng.uniform(0.9, 1.1))
+            uptake = rng.uniform(55.0, 85.0)
+            cost = round(val * elig * uptake / 100 / 1000, 1)
+            eff = rng.uniform(4.5, 8.5)
+            concessions.append(EPVConcessionRecord(
+                state=state,
+                concession_type=ct,
+                annual_value=round(val, 2),
+                eligible_households_thousands=elig,
+                uptake_pct=round(uptake, 1),
+                govt_cost_m_yr=cost,
+                effectiveness_score=round(eff, 1),
+            ))
+
+    sa4_data = [
+        ("Western Sydney", "NSW", 8.9, 6.8, 9.2, 14.5, 2.1, 72.0),
+        ("South Western Sydney", "NSW", 9.4, 7.2, 8.8, 16.0, 2.0, 68.5),
+        ("Canterbury-Bankstown", "NSW", 8.1, 6.4, 11.5, 12.8, 2.3, 74.2),
+        ("Hunter Valley ex Newcastle", "NSW", 7.6, 5.9, 14.2, 10.2, 2.5, 70.8),
+        ("Melbourne - South East", "VIC", 5.8, 4.9, 15.6, 8.4, 2.8, 82.1),
+        ("Melbourne - West", "VIC", 7.2, 5.8, 12.4, 11.2, 2.4, 79.5),
+        ("Latrobe - Gippsland", "VIC", 8.8, 7.1, 11.8, 13.6, 2.2, 65.3),
+        ("Ballarat", "VIC", 7.4, 6.0, 13.5, 12.1, 2.3, 71.8),
+        ("Brisbane Inner City", "QLD", 5.1, 4.2, 18.5, 6.8, 2.9, 88.4),
+        ("Logan - Beaudesert", "QLD", 9.2, 7.6, 10.8, 15.4, 2.1, 67.2),
+        ("Townsville", "QLD", 10.4, 8.3, 9.4, 16.8, 2.0, 62.5),
+        ("Cairns", "QLD", 11.2, 9.1, 8.2, 18.2, 1.9, 58.4),
+        ("Adelaide - Central and Hills", "SA", 7.8, 6.5, 13.2, 10.6, 2.6, 80.3),
+        ("Playford", "SA", 11.8, 9.8, 8.5, 20.4, 1.8, 61.2),
+        ("Barossa - Yorke - Mid North", "SA", 9.6, 8.0, 10.2, 14.8, 2.0, 58.8),
+        ("South Australia - Outback", "SA", 13.2, 11.4, 6.8, 22.6, 1.7, 45.2),
+        ("Hobart", "TAS", 10.2, 8.8, 7.5, 18.6, 2.2, 74.5),
+        ("Launceston and North East", "TAS", 12.4, 10.6, 6.2, 20.8, 2.0, 64.8),
+        ("South East", "TAS", 13.8, 11.9, 5.8, 22.4, 1.9, 58.6),
+        ("West and North West", "TAS", 15.2, 13.1, 4.9, 25.6, 1.7, 48.2),
+    ]
+
+    regions: list[EPVRegionRecord] = []
+    for sa4, state, pov_rate, burden, solar, soc_housing, star, digital in sa4_data:
+        regions.append(EPVRegionRecord(
+            sa4_region=sa4,
+            state=state,
+            energy_poverty_rate_pct=pov_rate,
+            avg_energy_burden_pct=burden,
+            solar_access_pct=solar,
+            social_housing_pct=soc_housing,
+            avg_star_rating=star,
+            digital_access_pct=digital,
+        ))
+
+    policies_data = [
+        ("Energy Bill Relief Fund", "FED", "REBATE", 5200, 1500.0, 0.0, 300.0, "OPERATING"),
+        ("Low Income Energy Efficiency Program", "FED", "EFFICIENCY_UPGRADE", 85, 420.0, 1200.0, 480.0, "OPERATING"),
+        ("Solar for Renters Pilot", "FED", "SOLAR_FOR_RENTERS", 12, 45.0, 1800.0, 620.0, "CONSULTATION"),
+        ("Energy Accounts Payment Assistance", "NSW", "REBATE", 380, 165.0, 0.0, 275.0, "OPERATING"),
+        ("Low Income Household Rebate", "NSW", "REBATE", 890, 320.0, 0.0, 285.0, "OPERATING"),
+        ("Empowering Homes Program", "NSW", "SOLAR_FOR_RENTERS", 48, 280.0, 2200.0, 780.0, "OPERATING"),
+        ("Default Offer Protections", "NSW", "TARIFF_REFORM", 2100, 0.0, 0.0, 180.0, "OPERATING"),
+        ("Victorian Default Offer", "VIC", "TARIFF_REFORM", 1800, 0.0, 0.0, 210.0, "OPERATING"),
+        ("Solar Homes Program - Rentals", "VIC", "SOLAR_FOR_RENTERS", 32, 185.0, 2400.0, 850.0, "ANNOUNCED"),
+        ("Utility Relief Grant Scheme", "VIC", "REBATE", 125, 95.0, 0.0, 320.0, "OPERATING"),
+        ("Community Energy Hubs", "VIC", "COMMUNITY_ENERGY", 18, 62.0, 1500.0, 420.0, "ANNOUNCED"),
+        ("Home Energy Emergency Assistance Scheme", "QLD", "REBATE", 42, 28.0, 0.0, 280.0, "OPERATING"),
+        ("Affordable Energy Plan", "QLD", "TARIFF_REFORM", 920, 0.0, 0.0, 195.0, "OPERATING"),
+        ("Home Battery Scheme", "SA", "EFFICIENCY_UPGRADE", 8, 55.0, 2800.0, 980.0, "OPERATING"),
+        ("Concession Card Holder Energy Bill Relief", "SA", "REBATE", 290, 185.0, 0.0, 310.0, "OPERATING"),
+    ]
+
+    policies: list[EPVPolicyRecord] = []
+    for policy, jur, ptype, bene, cost, saving, bill_red, status in policies_data:
+        policies.append(EPVPolicyRecord(
+            policy=policy,
+            jurisdiction=jur,
+            policy_type=ptype,
+            annual_beneficiaries_thousands=bene,
+            govt_cost_m_yr=cost,
+            energy_saving_per_household_kwh=saving,
+            bill_reduction_per_household=bill_red,
+            implementation_status=status,
+        ))
+
+    return EPVDashboard(
+        affordability=affordability,
+        stress_indicators=stress_indicators,
+        concessions=concessions,
+        regions=regions,
+        policies=policies,
+        summary={
+            "avg_energy_burden_pct": 4.8,
+            "low_income_energy_burden_pct": 9.2,
+            "households_in_stress_thousands": 620,
+            "total_concession_spend_m": 1840,
+            "highest_burden_state": "TAS",
+            "disconnections_2024": 42000,
+            "avg_solar_access_low_income_pct": 12.3,
+        },
+    )
+
+
+_epv_cache: dict = {}
+
+
+@app.get("/api/epv/dashboard", response_model=EPVDashboard, dependencies=[Depends(verify_api_key)])
+async def get_epv_dashboard():
+    cached = _cache_get(_epv_cache, "epv")
+    if cached:
+        return cached
+    result = _build_epv_dashboard()
+    _cache_set(_epv_cache, "epv", result)
+    return result

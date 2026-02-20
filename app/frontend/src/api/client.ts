@@ -11454,3 +11454,214 @@ export interface HEADashboard {
 
 export const getHydrogenEconomyAnalyticsDashboard = (): Promise<HEADashboard> =>
   get<HEADashboard>('/api/hydrogen-economy-analytics/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 77c — Renewable Energy Certificates (LGC & STC) Analytics
+// Prefix: REC  |  Endpoint: /api/rec-market-analytics/dashboard
+// ---------------------------------------------------------------------------
+
+export interface RECLGCPriceRecord {
+  month: string;
+  spot_price: number;
+  forward_1yr_price: number;
+  forward_2yr_price: number;
+  forward_3yr_price: number;
+  volume_traded_thousands: number;
+  open_interest_thousands: number;
+  clearing_house_surrenders: number;
+}
+
+export interface RECSTCRecord {
+  quarter: string;
+  clearing_price: number;
+  stc_created_thousands: number;
+  stc_surrendered_thousands: number;
+  stc_clearing_house_balance_thousands: number;
+  small_scale_target_gj: number;
+  compliance_shortfall_pct: number;
+}
+
+export interface RECCreationRecord {
+  year: number;
+  technology: string;
+  region: string;
+  lgcs_created_thousands: number;
+  accredited_capacity_mw: number;
+  avg_capacity_factor_pct: number;
+  new_accreditations: number;
+}
+
+export interface RECLiableEntityRecord {
+  entity: string;
+  year: number;
+  surrender_obligation_thousands: number;
+  lgcs_surrendered_thousands: number;
+  stcs_surrendered_thousands: number;
+  compliance_pct: number;
+  lgc_shortfall_charges_m: number;
+  renewable_content_pct: number;
+}
+
+export interface RECVoluntaryRecord {
+  scheme: string;
+  year: number;
+  volume_thousands: number;
+  price_per_cert: number;
+  buyer_type: string;
+  underlying_technology: string;
+}
+
+export interface RECDashboard {
+  lgc_prices: RECLGCPriceRecord[];
+  stc_records: RECSTCRecord[];
+  creation: RECCreationRecord[];
+  liable_entities: RECLiableEntityRecord[];
+  voluntary: RECVoluntaryRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getRECMarketDashboard = (): Promise<RECDashboard> =>
+  get<RECDashboard>('/api/rec-market-analytics/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 77a — Rooftop Solar Adoption & Grid Integration Analytics (prefix RGA)
+// ---------------------------------------------------------------------------
+
+export interface RGAAdoptionRecord {
+  state: string;
+  quarter: string;
+  residential_systems: number;
+  commercial_systems: number;
+  total_capacity_mw: number;
+  avg_system_size_kw: number;
+  penetration_pct: number;
+  new_installations_quarter: number;
+  avg_payback_years: number;
+  feed_in_tariff_c_per_kwh: number;
+}
+
+export interface RGAGenerationRecord {
+  date: string;
+  region: string;
+  hour: number;
+  rooftop_generation_mw: number;
+  behind_meter_consumption_mw: number;
+  net_export_to_grid_mw: number;
+  curtailed_mw: number;
+  curtailment_pct: number;
+  system_demand_mw: number;
+  solar_fraction_pct: number;
+}
+
+export interface RGADuckCurveRecord {
+  region: string;
+  season: string;
+  hour: number;
+  net_demand_2020_mw: number;
+  net_demand_2024_mw: number;
+  net_demand_2030_mw: number;
+  net_demand_2035_mw: number;
+  ramp_rate_mw_per_hr: number;
+}
+
+export interface RGAHostingCapacityRecord {
+  distributor: string;
+  feeder_class: string;
+  avg_hosting_capacity_pct: number;
+  additional_capacity_available_mw: number;
+  constraint_type: string;
+  dynamic_export_limit_applied: boolean;
+  upgrade_cost_per_mw_m: number;
+}
+
+export interface RGAExportManagementRecord {
+  state: string;
+  scheme: string;
+  penetration_pct: number;
+  avg_curtailment_pct: number;
+  customer_satisfaction_score: number;
+  network_benefit_m_yr: number;
+}
+
+export interface RGADashboard {
+  adoption: RGAAdoptionRecord[];
+  generation: RGAGenerationRecord[];
+  duck_curve: RGADuckCurveRecord[];
+  hosting_capacity: RGAHostingCapacityRecord[];
+  export_management: RGAExportManagementRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getRooftopSolarGridDashboard = (): Promise<RGADashboard> =>
+  get<RGADashboard>('/api/rooftop-solar-grid/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 77b — Energy Poverty & Vulnerable Customer Analytics (prefix EPV)
+// ---------------------------------------------------------------------------
+
+export interface EPVAffordabilityRecord {
+  state: string;
+  year: number;
+  avg_annual_bill: number;
+  median_household_income: number;
+  energy_burden_pct: number;
+  low_income_energy_burden_pct: number;
+  real_bill_change_pct_5yr: number;
+  cpi_energy_component: number;
+  concession_coverage_pct: number;
+}
+
+export interface EPVStressIndicatorRecord {
+  state: string;
+  quarter: string;
+  households_in_stress_thousands: number;
+  disconnections_residential: number;
+  payment_plan_entrants: number;
+  hardship_program_entrants: number;
+  energy_ombudsman_complaints: number;
+  unmet_energy_need_pct: number;
+}
+
+export interface EPVConcessionRecord {
+  state: string;
+  concession_type: string;
+  annual_value: number;
+  eligible_households_thousands: number;
+  uptake_pct: number;
+  govt_cost_m_yr: number;
+  effectiveness_score: number;
+}
+
+export interface EPVRegionRecord {
+  sa4_region: string;
+  state: string;
+  energy_poverty_rate_pct: number;
+  avg_energy_burden_pct: number;
+  solar_access_pct: number;
+  social_housing_pct: number;
+  avg_star_rating: number;
+  digital_access_pct: number;
+}
+
+export interface EPVPolicyRecord {
+  policy: string;
+  jurisdiction: string;
+  policy_type: string;
+  annual_beneficiaries_thousands: number;
+  govt_cost_m_yr: number;
+  energy_saving_per_household_kwh: number;
+  bill_reduction_per_household: number;
+  implementation_status: string;
+}
+
+export interface EPVDashboard {
+  affordability: EPVAffordabilityRecord[];
+  stress_indicators: EPVStressIndicatorRecord[];
+  concessions: EPVConcessionRecord[];
+  regions: EPVRegionRecord[];
+  policies: EPVPolicyRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getEPVDashboard = (): Promise<EPVDashboard> =>
+  get<EPVDashboard>('/api/epv/dashboard');

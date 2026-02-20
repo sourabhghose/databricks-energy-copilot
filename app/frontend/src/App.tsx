@@ -271,6 +271,9 @@ import CostReflectiveTariffReformAnalytics from './pages/CostReflectiveTariffRef
 import NEMMarketMicrostructureAnalytics from './pages/NEMMarketMicrostructureAnalytics'
 import EVFleetGridImpactAnalytics from './pages/EVFleetGridImpactAnalytics'
 import HydrogenEconomyAnalytics from './pages/HydrogenEconomyAnalytics'
+import RooftopSolarGridAnalytics from './pages/RooftopSolarGridAnalytics'
+import RECMarketAnalytics from './pages/RECMarketAnalytics'
+import EnergyPovertyAnalytics from './pages/EnergyPovertyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -472,6 +475,9 @@ const NAV_ITEMS = [
   { to: '/cost-reflective-tariff-reform', label: 'Cost-Reflective Tariff Reform', Icon: BarChart2 },
   { to: '/ev-fleet-grid-impact',          label: 'EV Fleet Grid Impact',          Icon: Car          },
   { to: '/nem-market-microstructure',     label: 'NEM Market Microstructure',     Icon: TrendingUp   },
+  { to: '/rooftop-solar-grid',           label: 'Rooftop Solar Grid Analytics',  Icon: Sun          },
+  { to: '/rec-market-analytics',         label: 'REC Analytics (LGC & STC)',     Icon: Award        },
+  { to: '/energy-poverty-analytics',    label: 'Energy Poverty Analytics',      Icon: Heart        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -748,6 +754,9 @@ export default function App() {
               <Route path="/cost-reflective-tariff-reform" element={<CostReflectiveTariffReformAnalytics />} />
               <Route path="/ev-fleet-grid-impact"          element={<EVFleetGridImpactAnalytics />}          />
               <Route path="/nem-market-microstructure"     element={<NEMMarketMicrostructureAnalytics />}     />
+              <Route path="/rooftop-solar-grid"            element={<RooftopSolarGridAnalytics />}            />
+              <Route path="/rec-market-analytics"          element={<RECMarketAnalytics />}                   />
+              <Route path="/energy-poverty-analytics"    element={<EnergyPovertyAnalytics />}              />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
