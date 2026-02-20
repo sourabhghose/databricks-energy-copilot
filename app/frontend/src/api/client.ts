@@ -12345,3 +12345,229 @@ export interface AMDDashboard {
 
 export const getAncillaryMarketDepthDashboard = (): Promise<AMDDashboard> =>
   get<AMDDashboard>('/api/ancillary-market-depth/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 81a — NEM Settlement Residue Auction (SRA) Analytics
+// ---------------------------------------------------------------------------
+
+export interface SRAAuctionResultRecord {
+  auction_id: string;
+  quarter: string;
+  interconnector_id: string;
+  direction: string;
+  units_offered: number;
+  units_sold: number;
+  clearing_price: number;
+  revenue_m: number;
+  participants: number;
+  oversubscription_ratio: number;
+}
+
+export interface SRAAHolderRecord {
+  holder_id: string;
+  company: string;
+  holder_type: string;
+  quarter: string;
+  interconnector_id: string;
+  units_held: number;
+  purchase_price: number;
+  settlement_value: number;
+  profit_loss: number;
+  return_pct: number;
+}
+
+export interface SRAAResidueRecord {
+  quarter: string;
+  interconnector_id: string;
+  total_congestion_revenue_m: number;
+  sra_auction_revenue_m: number;
+  residual_m: number;
+  residual_distribution: string;
+  avg_spot_price_differential: number;
+}
+
+export interface SRAAInterconnectorRecord {
+  interconnector_id: string;
+  year: number;
+  total_sra_revenue_m: number;
+  avg_clearing_price_import: number;
+  avg_clearing_price_export: number;
+  utilisation_pct: number;
+  congestion_hours: number;
+  sra_cover_ratio: number;
+}
+
+export interface SRAAParticipantBehaviourRecord {
+  quarter: string;
+  participant_type: string;
+  avg_units_purchased: number;
+  avg_purchase_price: number;
+  avg_return_pct: number;
+  participation_rate_pct: number;
+  strategy: string;
+}
+
+export interface SRAADashboard {
+  auction_results: SRAAuctionResultRecord[];
+  holders: SRAAHolderRecord[];
+  residues: SRAAResidueRecord[];
+  interconnectors: SRAAInterconnectorRecord[];
+  participant_behaviour: SRAAParticipantBehaviourRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getSRAAnalyticsDashboard = (): Promise<SRAADashboard> =>
+  get<SRAADashboard>('/api/sra-analytics/dashboard');
+
+// ============================================================
+// Sprint 81c — NEM Spot Market Stress Testing Analytics (SST)
+// ============================================================
+
+export interface SSTScenarioRecord {
+  scenario_id: string
+  scenario_name: string
+  category: string
+  description: string
+  probability_annual_pct: number
+  severity: string
+  affected_regions: string[]
+  duration_days: number
+  peak_price_impact: number
+  avg_price_impact_pct: number
+  energy_cost_impact_m: number
+}
+
+export interface SSTTailRiskRecord {
+  region: string
+  metric: string
+  lookback_years: number
+  value: number
+  percentile_pct: number
+  return_period_years: number
+  historical_worst: number
+  stress_test_worst: number
+}
+
+export interface SSTResilenceMetricRecord {
+  region: string
+  metric: string
+  current_value: number
+  adequate_threshold: number
+  stress_threshold: number
+  status: string
+  trend: string
+}
+
+export interface SSTHistoricalEventRecord {
+  event_name: string
+  date: string
+  region: string
+  category: string
+  peak_price: number
+  avg_price_during: number
+  duration_hrs: number
+  total_cost_m: number
+  load_shed_mwh: number
+  market_intervention: boolean
+  lesson_learned: string
+}
+
+export interface SSTSensitivityRecord {
+  factor: string
+  region: string
+  magnitude: string
+  price_response: number
+  probability_annual_pct: number
+  risk_contribution_pct: number
+}
+
+export interface SSTDashboard {
+  scenarios: SSTScenarioRecord[]
+  tail_risks: SSTTailRiskRecord[]
+  resilience: SSTResilenceMetricRecord[]
+  historical_events: SSTHistoricalEventRecord[]
+  sensitivity: SSTSensitivityRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getSpotMarketStressDashboard = (): Promise<SSTDashboard> =>
+  get<SSTDashboard>('/api/spot-market-stress/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 81b — Electricity Sector Workforce & Skills Analytics (ESW)
+// ---------------------------------------------------------------------------
+
+export interface ESWEmploymentRecord {
+  sector: string
+  state: string
+  year: number
+  direct_jobs: number
+  indirect_jobs: number
+  induced_jobs: number
+  total_jobs: number
+  avg_salary: number
+  job_quality_index: number
+  female_pct: number
+  indigenous_pct: number
+}
+
+export interface ESWSkillsGapRecord {
+  occupation: string
+  demand_2024: number
+  demand_2030: number
+  demand_2035: number
+  current_supply: number
+  gap_2030: number
+  gap_2035: number
+  training_pipeline_per_yr: number
+  avg_training_time_months: number
+  avg_wage: number
+}
+
+export interface ESWTransitionRecord {
+  region: string
+  retiring_sector: string
+  retiring_jobs: number
+  transition_year: number
+  transferable_skills_pct: number
+  retraining_needed_pct: number
+  retraining_cost_per_worker: number
+  new_sector: string
+  new_jobs_created: number
+  net_job_impact: number
+  geographic_match_pct: number
+}
+
+export interface ESWTrainingRecord {
+  program: string
+  operator: string
+  state: string
+  annual_graduates: number
+  completion_rate_pct: number
+  employment_rate_pct: number
+  govt_funding_m: number
+  target_occupation: string
+}
+
+export interface ESWDiversityRecord {
+  sector: string
+  year: number
+  female_leadership_pct: number
+  female_technical_pct: number
+  indigenous_employment_pct: number
+  under_30_pct: number
+  apprenticeship_pct: number
+  diversity_target_achieved: boolean
+}
+
+export interface ESWDashboard {
+  employment: ESWEmploymentRecord[]
+  skills_gaps: ESWSkillsGapRecord[]
+  transition: ESWTransitionRecord[]
+  training: ESWTrainingRecord[]
+  diversity: ESWDiversityRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getElectricityWorkforceDashboard = (): Promise<ESWDashboard> =>
+  get<ESWDashboard>('/api/electricity-workforce/dashboard');

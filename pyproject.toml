@@ -15,7 +15,7 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-pythonpath = ["."]
+pythonpath = [".", "app/backend"]
 markers = [
     "integration: Requires live Databricks (set ENERGY_COPILOT_INTEGRATION_TEST=1)",
 ]

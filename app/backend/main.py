@@ -18,7 +18,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from enum import Enum
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional
 
 import anthropic
 import httpx
@@ -97,17 +97,39 @@ ALLOW_ORIGINS: List[str] = os.getenv("ALLOW_ORIGINS", "*").split(",")
 # Structure: { cache_key: {"data": ..., "expires_at": float} }
 _cache: Dict[str, Dict[str, Any]] = {}
 
-def _cache_get(key: str) -> Optional[Any]:
-    entry = _cache.get(key)
+def _cache_get(key_or_dict, key: str = "") -> Optional[Any]:
+    """Retrieve a cached value.
+
+    Supports two calling conventions:
+    - _cache_get("some_key")                  — uses the global _cache dict
+    - _cache_get(local_cache_dict, "some_key") — uses a per-endpoint dict
+    """
+    if isinstance(key_or_dict, dict):
+        store, cache_key = key_or_dict, key
+    else:
+        store, cache_key = _cache, key_or_dict
+    entry = store.get(cache_key)
     if entry is None:
         return None
     if time.monotonic() > entry["expires_at"]:
-        del _cache[key]
+        del store[cache_key]
         return None
     return entry["data"]
 
-def _cache_set(key: str, data: Any, ttl_seconds: float) -> None:
-    _cache[key] = {"data": data, "expires_at": time.monotonic() + ttl_seconds}
+def _cache_set(key_or_dict, key_or_data, data_or_ttl=None, ttl_seconds: float = 3600.0) -> None:
+    """Store a value in the cache.
+
+    Supports two calling conventions:
+    - _cache_set("some_key", data, ttl_seconds)          — uses the global _cache dict
+    - _cache_set(local_cache_dict, "some_key", data)     — uses a per-endpoint dict (TTL=3600s)
+    """
+    if isinstance(key_or_dict, dict):
+        store, cache_key, data = key_or_dict, key_or_data, data_or_ttl
+    else:
+        store, cache_key, data = _cache, key_or_dict, key_or_data
+        if data_or_ttl is not None:
+            ttl_seconds = float(data_or_ttl)
+    store[cache_key] = {"data": data, "expires_at": time.monotonic() + ttl_seconds}
 
 # Cache TTLs (seconds)
 _TTL_LATEST_PRICES   = 10
@@ -56004,4 +56026,1145 @@ async def get_ancillary_market_depth_dashboard():
         return cached
     result = _build_amd_dashboard()
     _cache_set(_amd_cache, "amd", result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 81a — NEM Settlement Residue Auction (SRA) Analytics
+# ---------------------------------------------------------------------------
+
+class SRAAuctionResultRecord(BaseModel):
+    auction_id: str
+    quarter: str
+    interconnector_id: str
+    direction: str  # IMPORT / EXPORT
+    units_offered: int
+    units_sold: int
+    clearing_price: float  # $/MWh
+    revenue_m: float
+    participants: int
+    oversubscription_ratio: float  # bid MW / offered MW
+
+
+class SRAAHolderRecord(BaseModel):
+    holder_id: str
+    company: str
+    holder_type: str  # GENERATOR / RETAILER / TRADER / FINANCIAL
+    quarter: str
+    interconnector_id: str
+    units_held: int
+    purchase_price: float
+    settlement_value: float  # actual congestion revenue received
+    profit_loss: float
+    return_pct: float
+
+
+class SRAAResidueRecord(BaseModel):
+    quarter: str
+    interconnector_id: str
+    total_congestion_revenue_m: float
+    sra_auction_revenue_m: float  # paid by unit buyers at auction
+    residual_m: float  # congestion_revenue - auction_revenue
+    residual_distribution: str  # TO_PARTICIPANTS / TO_MARKET / TO_TNSP
+    avg_spot_price_differential: float
+
+
+class SRAAInterconnectorRecord(BaseModel):
+    interconnector_id: str
+    year: int
+    total_sra_revenue_m: float
+    avg_clearing_price_import: float
+    avg_clearing_price_export: float
+    utilisation_pct: float
+    congestion_hours: int
+    sra_cover_ratio: float  # % of congestion hours covered by SRA
+
+
+class SRAAParticipantBehaviourRecord(BaseModel):
+    quarter: str
+    participant_type: str  # GENERATOR / RETAILER / TRADER / FINANCIAL
+    avg_units_purchased: float
+    avg_purchase_price: float
+    avg_return_pct: float
+    participation_rate_pct: float  # % of auctions participated in
+    strategy: str  # HEDGING / SPECULATIVE / MIXED
+
+
+class SRAADashboard(BaseModel):
+    auction_results: List[SRAAuctionResultRecord]
+    holders: List[SRAAHolderRecord]
+    residues: List[SRAAResidueRecord]
+    interconnectors: List[SRAAInterconnectorRecord]
+    participant_behaviour: List[SRAAParticipantBehaviourRecord]
+    summary: dict
+
+
+def _build_sraa_dashboard() -> SRAADashboard:
+    import random
+    rng = random.Random(42)
+
+    interconnectors = ["VIC1-NSW1", "NSW1-QLD1", "V-SA", "V-MNSP1", "T-V-MNSP1", "N-Q-MNSP1", "NSW1-VIC1"]
+    quarters = ["Q1-2024", "Q2-2024", "Q3-2024", "Q4-2024"]
+    directions = ["IMPORT", "EXPORT"]
+    holder_types = ["GENERATOR", "RETAILER", "TRADER", "FINANCIAL"]
+    companies = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Alinta Energy",
+        "Shell Energy", "Snowy Hydro", "Neoen", "Pacific Blue", "Trafigura", "Macquarie"
+    ]
+    residual_distributions = ["TO_PARTICIPANTS", "TO_MARKET", "TO_TNSP"]
+    strategies = ["HEDGING", "SPECULATIVE", "MIXED"]
+
+    # --- Interconnector clearing price and revenue base parameters ---
+    ic_params = {
+        "VIC1-NSW1":  {"import_price": 18.5, "export_price": 12.3, "util": 72.4, "cong_hours": 1842, "cover": 68.2, "annual_rev": 48.5},
+        "NSW1-QLD1":  {"import_price": 14.2, "export_price": 9.8,  "util": 65.1, "cong_hours": 1423, "cover": 61.8, "annual_rev": 34.2},
+        "V-SA":       {"import_price": 32.4, "export_price": 24.1, "util": 58.3, "cong_hours": 2104, "cover": 74.5, "annual_rev": 62.8},
+        "V-MNSP1":    {"import_price": 8.7,  "export_price": 6.2,  "util": 81.2, "cong_hours": 980,  "cover": 55.3, "annual_rev": 18.4},
+        "T-V-MNSP1":  {"import_price": 11.3, "export_price": 8.9,  "util": 78.6, "cong_hours": 1256, "cover": 63.4, "annual_rev": 22.6},
+        "N-Q-MNSP1":  {"import_price": 6.4,  "export_price": 4.8,  "util": 69.4, "cong_hours": 742,  "cover": 48.9, "annual_rev": 12.3},
+        "NSW1-VIC1":  {"import_price": 16.8, "export_price": 11.5, "util": 70.1, "cong_hours": 1688, "cover": 66.1, "annual_rev": 44.2},
+    }
+
+    # 28 auction result records: 7 interconnectors × 4 quarters
+    auction_results: List[SRAAuctionResultRecord] = []
+    for ic in interconnectors:
+        p = ic_params[ic]
+        for idx, q in enumerate(quarters):
+            direction = "IMPORT" if idx % 2 == 0 else "EXPORT"
+            base_price = p["import_price"] if direction == "IMPORT" else p["export_price"]
+            units_offered = rng.randint(400, 1200)
+            oversubscription = round(rng.uniform(1.4, 3.8), 2)
+            units_sold = min(units_offered, int(units_offered * rng.uniform(0.85, 1.0)))
+            clearing_price = round(base_price + rng.uniform(-2.0, 4.0), 2)
+            revenue_m = round(units_sold * clearing_price / 1000, 2)
+            auction_results.append(SRAAuctionResultRecord(
+                auction_id=f"SRA-{ic.replace('-', '')}-{q}",
+                quarter=q,
+                interconnector_id=ic,
+                direction=direction,
+                units_offered=units_offered,
+                units_sold=units_sold,
+                clearing_price=clearing_price,
+                revenue_m=revenue_m,
+                participants=rng.randint(8, 25),
+                oversubscription_ratio=oversubscription,
+            ))
+
+    # 30 holder records: 10 companies × 3 quarters for 2 interconnectors (VIC1-NSW1, V-SA)
+    holders: List[SRAAHolderRecord] = []
+    holder_ics = ["VIC1-NSW1", "V-SA"]
+    holder_quarters = ["Q2-2024", "Q3-2024", "Q4-2024"]
+    holder_type_map = {
+        "AGL Energy": "RETAILER", "Origin Energy": "RETAILER", "EnergyAustralia": "RETAILER",
+        "Alinta Energy": "RETAILER", "Shell Energy": "TRADER", "Snowy Hydro": "GENERATOR",
+        "Neoen": "GENERATOR", "Pacific Blue": "TRADER", "Trafigura": "FINANCIAL", "Macquarie": "FINANCIAL",
+    }
+    for idx, co in enumerate(companies):
+        ic = holder_ics[idx % 2]
+        q = holder_quarters[idx % 3]
+        htype = holder_type_map[co]
+        p_price = round(ic_params[ic]["import_price"] + rng.uniform(-3, 5), 2)
+        units_held = rng.randint(50, 350)
+        settlement_value = round(units_held * (p_price + rng.uniform(-2, 8)) / 1000, 2)
+        purchase_cost = round(units_held * p_price / 1000, 2)
+        profit_loss = round(settlement_value - purchase_cost, 2)
+        return_pct = round((profit_loss / max(purchase_cost, 0.01)) * 100, 1)
+        holders.append(SRAAHolderRecord(
+            holder_id=f"H-{co[:3].upper()}-{ic[:3]}-{q}",
+            company=co,
+            holder_type=htype,
+            quarter=q,
+            interconnector_id=ic,
+            units_held=units_held,
+            purchase_price=p_price,
+            settlement_value=settlement_value,
+            profit_loss=profit_loss,
+            return_pct=return_pct,
+        ))
+
+    # 28 residue records: 7 interconnectors × 4 quarters
+    residues: List[SRAAResidueRecord] = []
+    for ic in interconnectors:
+        p = ic_params[ic]
+        for q in quarters:
+            total_cong = round(p["annual_rev"] / 4 + rng.uniform(-3, 5), 2)
+            sra_rev = round(total_cong * rng.uniform(0.68, 0.82), 2)
+            residual = round(total_cong - sra_rev, 2)
+            residues.append(SRAAResidueRecord(
+                quarter=q,
+                interconnector_id=ic,
+                total_congestion_revenue_m=total_cong,
+                sra_auction_revenue_m=sra_rev,
+                residual_m=residual,
+                residual_distribution=rng.choice(residual_distributions),
+                avg_spot_price_differential=round(rng.uniform(4.5, 28.0), 2),
+            ))
+
+    # 14 interconnector annual records: 7 interconnectors × 2 years (2023 / 2024)
+    interconnector_records: List[SRAAInterconnectorRecord] = []
+    for ic in interconnectors:
+        p = ic_params[ic]
+        for yr_idx, yr in enumerate([2023, 2024]):
+            growth = 1.0 + yr_idx * rng.uniform(0.04, 0.12)
+            interconnector_records.append(SRAAInterconnectorRecord(
+                interconnector_id=ic,
+                year=yr,
+                total_sra_revenue_m=round(p["annual_rev"] * growth + rng.uniform(-2, 3), 2),
+                avg_clearing_price_import=round(p["import_price"] * growth + rng.uniform(-1, 2), 2),
+                avg_clearing_price_export=round(p["export_price"] * growth + rng.uniform(-0.5, 1.5), 2),
+                utilisation_pct=round(min(95, p["util"] * growth + rng.uniform(-2, 2)), 1),
+                congestion_hours=int(p["cong_hours"] * growth + rng.uniform(-50, 80)),
+                sra_cover_ratio=round(min(95, p["cover"] * growth + rng.uniform(-2, 3)), 1),
+            ))
+
+    # 20 participant behaviour records: 5 participant types × 4 quarters
+    participant_behaviour: List[SRAAParticipantBehaviourRecord] = []
+    type_params = {
+        "GENERATOR":  {"units": 180, "price": 14.2, "ret": 8.4,  "part": 72.0, "strat": "HEDGING"},
+        "RETAILER":   {"units": 220, "price": 16.8, "ret": 11.2, "part": 88.0, "strat": "HEDGING"},
+        "TRADER":     {"units": 95,  "price": 12.4, "ret": 18.6, "part": 64.0, "strat": "SPECULATIVE"},
+        "FINANCIAL":  {"units": 68,  "price": 10.8, "ret": 22.4, "part": 48.0, "strat": "SPECULATIVE"},
+        "INTEGRATED": {"units": 145, "price": 15.1, "ret": 13.8, "part": 76.0, "strat": "MIXED"},
+    }
+    for ptype, tp in type_params.items():
+        for q in quarters:
+            participant_behaviour.append(SRAAParticipantBehaviourRecord(
+                quarter=q,
+                participant_type=ptype,
+                avg_units_purchased=round(tp["units"] + rng.uniform(-15, 20), 1),
+                avg_purchase_price=round(tp["price"] + rng.uniform(-1.5, 2.5), 2),
+                avg_return_pct=round(tp["ret"] + rng.uniform(-3, 4), 1),
+                participation_rate_pct=round(min(100, tp["part"] + rng.uniform(-5, 5)), 1),
+                strategy=tp["strat"],
+            ))
+
+    summary = {
+        "total_sra_revenue_2024_m": 284,
+        "most_valuable_interconnector": "V-SA",
+        "avg_oversubscription_ratio": 2.4,
+        "avg_sra_holder_return_pct": 12.8,
+        "total_congestion_revenue_m": 384,
+        "residual_pct": 26.0,
+    }
+
+    return SRAADashboard(
+        auction_results=auction_results,
+        holders=holders,
+        residues=residues,
+        interconnectors=interconnector_records,
+        participant_behaviour=participant_behaviour,
+        summary=summary,
+    )
+
+
+_sraa_cache: dict = {}
+
+
+@app.get("/api/sra-analytics/dashboard", response_model=SRAADashboard, dependencies=[Depends(verify_api_key)])
+async def get_sra_analytics_dashboard():
+    cached = _cache_get(_sraa_cache, "sraa")
+    if cached:
+        return cached
+    result = _build_sraa_dashboard()
+    _cache_set(_sraa_cache, "sraa", result)
+    return result
+
+
+# ============================================================
+# Sprint 81c — NEM Spot Market Stress Testing Analytics (SST)
+# ============================================================
+
+class SSTScenarioRecord(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    category: str  # WEATHER / GEOPOLITICAL / INFRASTRUCTURE / MARKET / CYBER / COMBINED
+    description: str
+    probability_annual_pct: float
+    severity: str  # MILD / MODERATE / SEVERE / EXTREME
+    affected_regions: List[str]
+    duration_days: float
+    peak_price_impact: float  # $/MWh spike
+    avg_price_impact_pct: float  # % above normal
+    energy_cost_impact_m: float
+
+
+class SSTTailRiskRecord(BaseModel):
+    region: str
+    metric: str  # VAR_95 / VAR_99 / CVAR_95 / CVAR_99 / MAX_DRAWDOWN / STRESS_VaR
+    lookback_years: int
+    value: float  # $/MWh for price metrics
+    percentile_pct: float
+    return_period_years: float
+    historical_worst: float
+    stress_test_worst: float
+
+
+class SSTResilenceMetricRecord(BaseModel):
+    region: str
+    metric: str  # PRICE_SPIKE_RECOVERY_HRS / SUPPLY_ADEQUACY_MARGIN_PCT / INTERCONNECTOR_REDUNDANCY_PCT / FCAS_HEADROOM_MW / RAMP_CAPABILITY_MW_MIN
+    current_value: float
+    adequate_threshold: float
+    stress_threshold: float
+    status: str  # ADEQUATE / MARGINAL / STRESSED
+    trend: str  # IMPROVING / STABLE / DETERIORATING
+
+
+class SSTHistoricalEventRecord(BaseModel):
+    event_name: str
+    date: str
+    region: str
+    category: str
+    peak_price: float
+    avg_price_during: float
+    duration_hrs: float
+    total_cost_m: float
+    load_shed_mwh: float
+    market_intervention: bool
+    lesson_learned: str
+
+
+class SSTSensitivityRecord(BaseModel):
+    factor: str  # WIND_DROP / SOLAR_DROP / COAL_OUTAGE / GAS_SHORTAGE / HEATWAVE_DEMAND / INTERCONNECTOR_TRIP
+    region: str
+    magnitude: str  # 1_SIGMA / 2_SIGMA / 3_SIGMA
+    price_response: float  # $/MWh change
+    probability_annual_pct: float
+    risk_contribution_pct: float  # % of total market risk
+
+
+class SSTDashboard(BaseModel):
+    scenarios: List[SSTScenarioRecord]
+    tail_risks: List[SSTTailRiskRecord]
+    resilience: List[SSTResilenceMetricRecord]
+    historical_events: List[SSTHistoricalEventRecord]
+    sensitivity: List[SSTSensitivityRecord]
+    summary: dict
+
+
+def _build_sst_dashboard() -> SSTDashboard:
+    import random
+    rng = random.Random(8142)
+
+    # ------------------------------------------------------------------
+    # 12 Scenario Records
+    # ------------------------------------------------------------------
+    SCENARIOS_RAW = [
+        {
+            "scenario_id": "SCN_001",
+            "scenario_name": "EXTREME_HEATWAVE_COAL_OUTAGE",
+            "category": "COMBINED",
+            "description": "Sustained 5-day heatwave >45°C across SE Australia concurrent with 3 GW coal unit forced outages. Demand exceeds historical peak by 12%.",
+            "probability_annual_pct": 3.2,
+            "severity": "EXTREME",
+            "affected_regions": ["NSW1", "VIC1", "SA1", "QLD1"],
+            "duration_days": 5.0,
+            "peak_price_impact": 15100.0,
+            "avg_price_impact_pct": 420.0,
+            "energy_cost_impact_m": 1840.0,
+        },
+        {
+            "scenario_id": "SCN_002",
+            "scenario_name": "SA_SYSTEM_BLACK",
+            "category": "INFRASTRUCTURE",
+            "description": "Total SA grid islanding triggered by multiple interconnector trips during severe storm. Full system restart required over 30 hours.",
+            "probability_annual_pct": 1.8,
+            "severity": "EXTREME",
+            "affected_regions": ["SA1"],
+            "duration_days": 2.5,
+            "peak_price_impact": 14500.0,
+            "avg_price_impact_pct": 380.0,
+            "energy_cost_impact_m": 620.0,
+        },
+        {
+            "scenario_id": "SCN_003",
+            "scenario_name": "QLD_MONSOON_FLOOD_GENERATION_LOSS",
+            "category": "WEATHER",
+            "description": "Exceptional flooding disables 2.4 GW of QLD thermal generation and damages transmission infrastructure for 8 days.",
+            "probability_annual_pct": 2.5,
+            "severity": "SEVERE",
+            "affected_regions": ["QLD1"],
+            "duration_days": 8.0,
+            "peak_price_impact": 8200.0,
+            "avg_price_impact_pct": 185.0,
+            "energy_cost_impact_m": 490.0,
+        },
+        {
+            "scenario_id": "SCN_004",
+            "scenario_name": "MARKET_MANIPULATION_WITHHOLDING",
+            "category": "MARKET",
+            "description": "Strategic capacity withholding by dominant generator during tight supply period, driving sustained above-cap rebidding.",
+            "probability_annual_pct": 4.1,
+            "severity": "SEVERE",
+            "affected_regions": ["NSW1", "VIC1"],
+            "duration_days": 3.0,
+            "peak_price_impact": 14200.0,
+            "avg_price_impact_pct": 210.0,
+            "energy_cost_impact_m": 380.0,
+        },
+        {
+            "scenario_id": "SCN_005",
+            "scenario_name": "GAS_SUPPLY_DISRUPTION",
+            "category": "GEOPOLITICAL",
+            "description": "East coast gas pipeline rupture reduces gas-fired generation by 60% for 14 days during winter peak period.",
+            "probability_annual_pct": 2.2,
+            "severity": "SEVERE",
+            "affected_regions": ["NSW1", "VIC1", "SA1"],
+            "duration_days": 14.0,
+            "peak_price_impact": 9800.0,
+            "avg_price_impact_pct": 160.0,
+            "energy_cost_impact_m": 720.0,
+        },
+        {
+            "scenario_id": "SCN_006",
+            "scenario_name": "CYBER_ATTACK_EMS_DISRUPTION",
+            "category": "CYBER",
+            "description": "Coordinated cyber attack on AEMO Energy Management System disrupts dispatch for 18 hours, requiring manual operation protocols.",
+            "probability_annual_pct": 1.2,
+            "severity": "EXTREME",
+            "affected_regions": ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"],
+            "duration_days": 1.5,
+            "peak_price_impact": 14500.0,
+            "avg_price_impact_pct": 290.0,
+            "energy_cost_impact_m": 340.0,
+        },
+        {
+            "scenario_id": "SCN_007",
+            "scenario_name": "WIND_GENERATION_DROUGHT_4WEEKS",
+            "category": "WEATHER",
+            "description": "Prolonged wind drought (capacity factor <8%) across SA, VIC, NSW simultaneously for 28 days during shoulder period.",
+            "probability_annual_pct": 5.8,
+            "severity": "MODERATE",
+            "affected_regions": ["SA1", "VIC1", "NSW1"],
+            "duration_days": 28.0,
+            "peak_price_impact": 4200.0,
+            "avg_price_impact_pct": 95.0,
+            "energy_cost_impact_m": 920.0,
+        },
+        {
+            "scenario_id": "SCN_008",
+            "scenario_name": "SNOWY_HYDRO_DROUGHT",
+            "category": "WEATHER",
+            "description": "Severe multi-year drought reduces Snowy scheme inflows to 25% of average, limiting hydro dispatch for 90 days.",
+            "probability_annual_pct": 3.4,
+            "severity": "SEVERE",
+            "affected_regions": ["NSW1", "VIC1"],
+            "duration_days": 90.0,
+            "peak_price_impact": 5600.0,
+            "avg_price_impact_pct": 140.0,
+            "energy_cost_impact_m": 1280.0,
+        },
+        {
+            "scenario_id": "SCN_009",
+            "scenario_name": "SIMULTANEOUS_INTERCONNECTOR_FAILURES",
+            "category": "INFRASTRUCTURE",
+            "description": "Concurrent failure of Heywood and Murraylink interconnectors isolates SA from the mainland for 5 days.",
+            "probability_annual_pct": 0.9,
+            "severity": "SEVERE",
+            "affected_regions": ["SA1", "VIC1"],
+            "duration_days": 5.0,
+            "peak_price_impact": 12400.0,
+            "avg_price_impact_pct": 280.0,
+            "energy_cost_impact_m": 430.0,
+        },
+        {
+            "scenario_id": "SCN_010",
+            "scenario_name": "COAL_SUPPLY_CHAIN_STRIKE",
+            "category": "GEOPOLITICAL",
+            "description": "Extended industrial action at major Hunter Valley coal mines reduces NSW coal plant fuel supply by 45% for 21 days.",
+            "probability_annual_pct": 2.8,
+            "severity": "MODERATE",
+            "affected_regions": ["NSW1", "QLD1"],
+            "duration_days": 21.0,
+            "peak_price_impact": 3800.0,
+            "avg_price_impact_pct": 85.0,
+            "energy_cost_impact_m": 560.0,
+        },
+        {
+            "scenario_id": "SCN_011",
+            "scenario_name": "SUMMER_PEAK_DEMAND_RECORD",
+            "category": "WEATHER",
+            "description": "Record summer demand 15% above historical peak driven by extreme heat and rising EV charging load during afternoon peak.",
+            "probability_annual_pct": 6.2,
+            "severity": "MODERATE",
+            "affected_regions": ["NSW1", "VIC1", "QLD1"],
+            "duration_days": 2.0,
+            "peak_price_impact": 6800.0,
+            "avg_price_impact_pct": 120.0,
+            "energy_cost_impact_m": 280.0,
+        },
+        {
+            "scenario_id": "SCN_012",
+            "scenario_name": "RAPID_COAL_EXIT_UNPLANNED",
+            "category": "MARKET",
+            "description": "Sudden closure of 3 major coal plants (4.5 GW) due to regulatory intervention, creating sustained supply gap over 6 months.",
+            "probability_annual_pct": 1.5,
+            "severity": "SEVERE",
+            "affected_regions": ["NSW1", "VIC1", "QLD1"],
+            "duration_days": 180.0,
+            "peak_price_impact": 7200.0,
+            "avg_price_impact_pct": 175.0,
+            "energy_cost_impact_m": 4200.0,
+        },
+    ]
+    scenarios = [SSTScenarioRecord(**s) for s in SCENARIOS_RAW]
+
+    # ------------------------------------------------------------------
+    # 30 Tail Risk Records — 5 regions × 6 metrics
+    # ------------------------------------------------------------------
+    REGIONS = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    METRICS = ["VAR_95", "VAR_99", "CVAR_95", "CVAR_99", "MAX_DRAWDOWN", "STRESS_VaR"]
+
+    TAIL_BASE = {
+        "NSW1": {"VAR_95": 180.0, "VAR_99": 248.0, "CVAR_95": 312.0, "CVAR_99": 420.0, "MAX_DRAWDOWN": 14500.0, "STRESS_VaR": 580.0},
+        "VIC1": {"VAR_95": 195.0, "VAR_99": 268.0, "CVAR_95": 335.0, "CVAR_99": 450.0, "MAX_DRAWDOWN": 14200.0, "STRESS_VaR": 620.0},
+        "QLD1": {"VAR_95": 165.0, "VAR_99": 228.0, "CVAR_95": 290.0, "CVAR_99": 395.0, "MAX_DRAWDOWN": 12800.0, "STRESS_VaR": 510.0},
+        "SA1":  {"VAR_95": 230.0, "VAR_99": 318.0, "CVAR_95": 398.0, "CVAR_99": 530.0, "MAX_DRAWDOWN": 14800.0, "STRESS_VaR": 740.0},
+        "TAS1": {"VAR_95": 120.0, "VAR_99": 168.0, "CVAR_95": 215.0, "CVAR_99": 290.0, "MAX_DRAWDOWN": 8200.0,  "STRESS_VaR": 360.0},
+    }
+    METRIC_PERCENTILE = {
+        "VAR_95": 95.0, "VAR_99": 99.0, "CVAR_95": 97.5,
+        "CVAR_99": 99.5, "MAX_DRAWDOWN": 100.0, "STRESS_VaR": 99.9,
+    }
+    METRIC_RETURN = {
+        "VAR_95": 20.0, "VAR_99": 100.0, "CVAR_95": 40.0,
+        "CVAR_99": 200.0, "MAX_DRAWDOWN": 500.0, "STRESS_VaR": 1000.0,
+    }
+    tail_risks: List[SSTTailRiskRecord] = []
+    for region in REGIONS:
+        for metric in METRICS:
+            base = TAIL_BASE[region][metric]
+            noise = rng.uniform(-0.05, 0.05)
+            val = round(base * (1 + noise), 1)
+            hist_worst = round(val * rng.uniform(1.2, 1.5), 1)
+            stress_worst = round(val * rng.uniform(1.6, 2.2), 1)
+            tail_risks.append(SSTTailRiskRecord(
+                region=region,
+                metric=metric,
+                lookback_years=10,
+                value=val,
+                percentile_pct=METRIC_PERCENTILE[metric],
+                return_period_years=METRIC_RETURN[metric],
+                historical_worst=hist_worst,
+                stress_test_worst=stress_worst,
+            ))
+
+    # ------------------------------------------------------------------
+    # 25 Resilience Metric Records — 5 regions × 5 metrics
+    # ------------------------------------------------------------------
+    RES_METRICS = [
+        "PRICE_SPIKE_RECOVERY_HRS",
+        "SUPPLY_ADEQUACY_MARGIN_PCT",
+        "INTERCONNECTOR_REDUNDANCY_PCT",
+        "FCAS_HEADROOM_MW",
+        "RAMP_CAPABILITY_MW_MIN",
+    ]
+    RES_BASE = {
+        "NSW1": {
+            "PRICE_SPIKE_RECOVERY_HRS":       {"val": 4.2,  "adeq": 6.0,   "stress": 12.0,  "status": "ADEQUATE",  "trend": "STABLE"},
+            "SUPPLY_ADEQUACY_MARGIN_PCT":      {"val": 14.8, "adeq": 15.0,  "stress": 8.0,   "status": "MARGINAL",  "trend": "DETERIORATING"},
+            "INTERCONNECTOR_REDUNDANCY_PCT":   {"val": 82.0, "adeq": 80.0,  "stress": 60.0,  "status": "ADEQUATE",  "trend": "STABLE"},
+            "FCAS_HEADROOM_MW":                {"val": 420.0,"adeq": 350.0, "stress": 200.0, "status": "ADEQUATE",  "trend": "IMPROVING"},
+            "RAMP_CAPABILITY_MW_MIN":          {"val": 185.0,"adeq": 150.0, "stress": 80.0,  "status": "ADEQUATE",  "trend": "STABLE"},
+        },
+        "VIC1": {
+            "PRICE_SPIKE_RECOVERY_HRS":       {"val": 5.8,  "adeq": 6.0,   "stress": 12.0,  "status": "ADEQUATE",  "trend": "STABLE"},
+            "SUPPLY_ADEQUACY_MARGIN_PCT":      {"val": 11.2, "adeq": 15.0,  "stress": 8.0,   "status": "STRESSED",  "trend": "DETERIORATING"},
+            "INTERCONNECTOR_REDUNDANCY_PCT":   {"val": 75.0, "adeq": 80.0,  "stress": 60.0,  "status": "MARGINAL",  "trend": "STABLE"},
+            "FCAS_HEADROOM_MW":                {"val": 310.0,"adeq": 350.0, "stress": 200.0, "status": "MARGINAL",  "trend": "DETERIORATING"},
+            "RAMP_CAPABILITY_MW_MIN":          {"val": 162.0,"adeq": 150.0, "stress": 80.0,  "status": "ADEQUATE",  "trend": "STABLE"},
+        },
+        "QLD1": {
+            "PRICE_SPIKE_RECOVERY_HRS":       {"val": 3.9,  "adeq": 6.0,   "stress": 12.0,  "status": "ADEQUATE",  "trend": "IMPROVING"},
+            "SUPPLY_ADEQUACY_MARGIN_PCT":      {"val": 18.4, "adeq": 15.0,  "stress": 8.0,   "status": "ADEQUATE",  "trend": "STABLE"},
+            "INTERCONNECTOR_REDUNDANCY_PCT":   {"val": 88.0, "adeq": 80.0,  "stress": 60.0,  "status": "ADEQUATE",  "trend": "IMPROVING"},
+            "FCAS_HEADROOM_MW":                {"val": 380.0,"adeq": 350.0, "stress": 200.0, "status": "ADEQUATE",  "trend": "STABLE"},
+            "RAMP_CAPABILITY_MW_MIN":          {"val": 210.0,"adeq": 150.0, "stress": 80.0,  "status": "ADEQUATE",  "trend": "IMPROVING"},
+        },
+        "SA1": {
+            "PRICE_SPIKE_RECOVERY_HRS":       {"val": 9.2,  "adeq": 6.0,   "stress": 12.0,  "status": "STRESSED",  "trend": "STABLE"},
+            "SUPPLY_ADEQUACY_MARGIN_PCT":      {"val": 9.6,  "adeq": 15.0,  "stress": 8.0,   "status": "STRESSED",  "trend": "DETERIORATING"},
+            "INTERCONNECTOR_REDUNDANCY_PCT":   {"val": 58.0, "adeq": 80.0,  "stress": 60.0,  "status": "STRESSED",  "trend": "STABLE"},
+            "FCAS_HEADROOM_MW":                {"val": 180.0,"adeq": 350.0, "stress": 200.0, "status": "STRESSED",  "trend": "IMPROVING"},
+            "RAMP_CAPABILITY_MW_MIN":          {"val": 95.0, "adeq": 150.0, "stress": 80.0,  "status": "MARGINAL",  "trend": "IMPROVING"},
+        },
+        "TAS1": {
+            "PRICE_SPIKE_RECOVERY_HRS":       {"val": 3.2,  "adeq": 6.0,   "stress": 12.0,  "status": "ADEQUATE",  "trend": "STABLE"},
+            "SUPPLY_ADEQUACY_MARGIN_PCT":      {"val": 22.8, "adeq": 15.0,  "stress": 8.0,   "status": "ADEQUATE",  "trend": "STABLE"},
+            "INTERCONNECTOR_REDUNDANCY_PCT":   {"val": 45.0, "adeq": 80.0,  "stress": 60.0,  "status": "STRESSED",  "trend": "IMPROVING"},
+            "FCAS_HEADROOM_MW":                {"val": 95.0, "adeq": 350.0, "stress": 200.0, "status": "STRESSED",  "trend": "STABLE"},
+            "RAMP_CAPABILITY_MW_MIN":          {"val": 68.0, "adeq": 150.0, "stress": 80.0,  "status": "MARGINAL",  "trend": "STABLE"},
+        },
+    }
+    resilience: List[SSTResilenceMetricRecord] = []
+    for region in REGIONS:
+        for metric in RES_METRICS:
+            b = RES_BASE[region][metric]
+            resilience.append(SSTResilenceMetricRecord(
+                region=region,
+                metric=metric,
+                current_value=round(b["val"] + rng.uniform(-0.02, 0.02) * b["val"], 2),
+                adequate_threshold=b["adeq"],
+                stress_threshold=b["stress"],
+                status=b["status"],
+                trend=b["trend"],
+            ))
+
+    # ------------------------------------------------------------------
+    # 15 Historical Events
+    # ------------------------------------------------------------------
+    HISTORICAL_RAW = [
+        {
+            "event_name": "SA System Black",
+            "date": "2016-09-28",
+            "region": "SA1",
+            "category": "INFRASTRUCTURE",
+            "peak_price": 14000.0,
+            "avg_price_during": 9800.0,
+            "duration_hrs": 30.0,
+            "total_cost_m": 367.0,
+            "load_shed_mwh": 850000.0,
+            "market_intervention": True,
+            "lesson_learned": "Single-event islanding risk; need for synchronous condensers and SIPS enhancements.",
+        },
+        {
+            "event_name": "QLD/NSW 2019 January Heatwave",
+            "date": "2019-01-24",
+            "region": "QLD1",
+            "category": "WEATHER",
+            "peak_price": 14200.0,
+            "avg_price_during": 6800.0,
+            "duration_hrs": 72.0,
+            "total_cost_m": 520.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": False,
+            "lesson_learned": "Demand response activation critical; new DSP framework accelerated post-event.",
+        },
+        {
+            "event_name": "VIC Heatwave Demand Record 2009",
+            "date": "2009-01-29",
+            "region": "VIC1",
+            "category": "WEATHER",
+            "peak_price": 10000.0,
+            "avg_price_during": 5200.0,
+            "duration_hrs": 96.0,
+            "total_cost_m": 310.0,
+            "load_shed_mwh": 420000.0,
+            "market_intervention": True,
+            "lesson_learned": "Distribution network load shedding exposed need for coordinated TNSP/DNSP response plans.",
+        },
+        {
+            "event_name": "NEM Market Suspension June 2022",
+            "date": "2022-06-15",
+            "region": "NSW1",
+            "category": "MARKET",
+            "peak_price": 14200.0,
+            "avg_price_during": 300.0,
+            "duration_hrs": 216.0,
+            "total_cost_m": 680.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": True,
+            "lesson_learned": "Administered pricing mechanism gaps exposed; Market Price Cap review initiated.",
+        },
+        {
+            "event_name": "SA Separation Event August 2018",
+            "date": "2018-08-25",
+            "region": "SA1",
+            "category": "INFRASTRUCTURE",
+            "peak_price": 14000.0,
+            "avg_price_during": 8200.0,
+            "duration_hrs": 8.0,
+            "total_cost_m": 85.0,
+            "load_shed_mwh": 120000.0,
+            "market_intervention": False,
+            "lesson_learned": "Hornsdale Power Reserve FCAS response demonstrated battery value in islanding events.",
+        },
+        {
+            "event_name": "NSW Bushfire Transmission Damage 2020",
+            "date": "2020-01-04",
+            "region": "NSW1",
+            "category": "WEATHER",
+            "peak_price": 8200.0,
+            "avg_price_during": 3800.0,
+            "duration_hrs": 48.0,
+            "total_cost_m": 145.0,
+            "load_shed_mwh": 380000.0,
+            "market_intervention": False,
+            "lesson_learned": "Bushfire-resilient transmission corridors and alternative routing investment required.",
+        },
+        {
+            "event_name": "TAS Basslink Outage 2015-2016",
+            "date": "2015-12-20",
+            "region": "TAS1",
+            "category": "INFRASTRUCTURE",
+            "peak_price": 13000.0,
+            "avg_price_during": 4200.0,
+            "duration_hrs": 2880.0,
+            "total_cost_m": 390.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": True,
+            "lesson_learned": "Single undersea cable dependency risk; TasNetworks Marinus Link fast-tracked for redundancy.",
+        },
+        {
+            "event_name": "QLD Cyclone Debbie Generation Impact 2017",
+            "date": "2017-03-28",
+            "region": "QLD1",
+            "category": "WEATHER",
+            "peak_price": 6800.0,
+            "avg_price_during": 2800.0,
+            "duration_hrs": 168.0,
+            "total_cost_m": 210.0,
+            "load_shed_mwh": 650000.0,
+            "market_intervention": False,
+            "lesson_learned": "Cyclone hardening standards for north QLD transmission infrastructure upgraded.",
+        },
+        {
+            "event_name": "SA Renewable Integration Crisis 2016 July",
+            "date": "2016-07-07",
+            "region": "SA1",
+            "category": "MARKET",
+            "peak_price": 9000.0,
+            "avg_price_during": 5600.0,
+            "duration_hrs": 36.0,
+            "total_cost_m": 156.0,
+            "load_shed_mwh": 280000.0,
+            "market_intervention": False,
+            "lesson_learned": "Minimum system strength requirements formalised; synchronous compensator procurement began.",
+        },
+        {
+            "event_name": "NSW Liddell Retirement Price Shock 2023",
+            "date": "2023-05-01",
+            "region": "NSW1",
+            "category": "MARKET",
+            "peak_price": 4800.0,
+            "avg_price_during": 1950.0,
+            "duration_hrs": 720.0,
+            "total_cost_m": 285.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": False,
+            "lesson_learned": "Replacement capacity procurement timeline must precede retirement by at least 18 months.",
+        },
+        {
+            "event_name": "VIC Wind Drought August 2021",
+            "date": "2021-08-10",
+            "region": "VIC1",
+            "category": "WEATHER",
+            "peak_price": 5200.0,
+            "avg_price_during": 2100.0,
+            "duration_hrs": 504.0,
+            "total_cost_m": 198.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": False,
+            "lesson_learned": "Firming capacity requirements for high VRE systems quantified; storage tender accelerated.",
+        },
+        {
+            "event_name": "SA Gas Shortage Winter 2022",
+            "date": "2022-07-12",
+            "region": "SA1",
+            "category": "GEOPOLITICAL",
+            "peak_price": 7400.0,
+            "avg_price_during": 3200.0,
+            "duration_hrs": 336.0,
+            "total_cost_m": 162.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": False,
+            "lesson_learned": "Gas storage and reserve contracts for peakers mandatory under new reliability standard.",
+        },
+        {
+            "event_name": "NEM Frequency Event March 2018",
+            "date": "2018-03-25",
+            "region": "NSW1",
+            "category": "INFRASTRUCTURE",
+            "peak_price": 14000.0,
+            "avg_price_during": 11200.0,
+            "duration_hrs": 2.0,
+            "total_cost_m": 42.0,
+            "load_shed_mwh": 85000.0,
+            "market_intervention": False,
+            "lesson_learned": "Fast frequency response market introduced; battery FCAS expanded following under-frequency load shedding.",
+        },
+        {
+            "event_name": "NSW Drought Snowy Hydro Curtailment 2019",
+            "date": "2019-03-01",
+            "region": "NSW1",
+            "category": "WEATHER",
+            "peak_price": 4200.0,
+            "avg_price_during": 1820.0,
+            "duration_hrs": 2160.0,
+            "total_cost_m": 380.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": False,
+            "lesson_learned": "Climate-driven hydro output variability embedded in reliability forecasting scenarios.",
+        },
+        {
+            "event_name": "QLD Solar Duck Curve Overcorrection 2024",
+            "date": "2024-10-15",
+            "region": "QLD1",
+            "category": "MARKET",
+            "peak_price": -96.0,
+            "avg_price_during": -42.0,
+            "duration_hrs": 240.0,
+            "total_cost_m": 50.0,
+            "load_shed_mwh": 0.0,
+            "market_intervention": False,
+            "lesson_learned": "Negative price frequency exceeding 35% of intervals; demand flexibility programs accelerated.",
+        },
+    ]
+    historical_events = [SSTHistoricalEventRecord(**e) for e in HISTORICAL_RAW]
+
+    # ------------------------------------------------------------------
+    # 30 Sensitivity Records — 6 factors × 5 regions × 1 magnitude each
+    # Then duplicate with 2 more magnitudes to reach 30 (6 × 5 = 30 using each factor once per region)
+    # Spec: 6 factors × 5 magnitudes = 30, so we use 5 regions as magnitudes proxy
+    # Using 6 factors × 5 regions = 30 records, each with a unique magnitude per region rank
+    # ------------------------------------------------------------------
+    FACTORS = [
+        "WIND_DROP", "SOLAR_DROP", "COAL_OUTAGE",
+        "GAS_SHORTAGE", "HEATWAVE_DEMAND", "INTERCONNECTOR_TRIP",
+    ]
+    # Treat the 5 regions as the 5 magnitude tiers (proxy for 5 magnitude levels)
+    MAGNITUDES = ["1_SIGMA", "2_SIGMA", "3_SIGMA", "4_SIGMA", "5_SIGMA"]
+    FACTOR_BASE_PRICE = {
+        "WIND_DROP": 85.0,
+        "SOLAR_DROP": 60.0,
+        "COAL_OUTAGE": 145.0,
+        "GAS_SHORTAGE": 120.0,
+        "HEATWAVE_DEMAND": 200.0,
+        "INTERCONNECTOR_TRIP": 175.0,
+    }
+    FACTOR_BASE_PROB = {
+        "WIND_DROP": 18.0,
+        "SOLAR_DROP": 14.0,
+        "COAL_OUTAGE": 8.0,
+        "GAS_SHORTAGE": 5.0,
+        "HEATWAVE_DEMAND": 12.0,
+        "INTERCONNECTOR_TRIP": 6.0,
+    }
+    FACTOR_RISK_CONTRIB = {
+        "WIND_DROP": 22.0,
+        "SOLAR_DROP": 12.0,
+        "COAL_OUTAGE": 28.0,
+        "GAS_SHORTAGE": 18.0,
+        "HEATWAVE_DEMAND": 14.0,
+        "INTERCONNECTOR_TRIP": 6.0,
+    }
+    sensitivity: List[SSTSensitivityRecord] = []
+    for factor in FACTORS:
+        for i, magnitude in enumerate(MAGNITUDES):
+            scale = 1.0 + i * 0.45
+            sensitivity.append(SSTSensitivityRecord(
+                factor=factor,
+                region=REGIONS[i],
+                magnitude=magnitude,
+                price_response=round(FACTOR_BASE_PRICE[factor] * scale + rng.uniform(-5, 5), 1),
+                probability_annual_pct=round(FACTOR_BASE_PROB[factor] / (i + 1) + rng.uniform(-0.5, 0.5), 1),
+                risk_contribution_pct=round(FACTOR_RISK_CONTRIB[factor] * scale / sum(1.0 + j * 0.45 for j in range(5)) + rng.uniform(-0.3, 0.3), 2),
+            ))
+
+    summary = {
+        "scenarios_count": 12,
+        "highest_risk_scenario": "EXTREME_HEATWAVE_COAL_OUTAGE",
+        "avg_var_99_nsw1": 284.5,
+        "stressed_regions_count": 2,
+        "resilience_adequate_pct": 68.0,
+        "historical_events_analyzed": 15,
+        "total_historical_cost_m": 4280,
+    }
+
+    return SSTDashboard(
+        scenarios=scenarios,
+        tail_risks=tail_risks,
+        resilience=resilience,
+        historical_events=historical_events,
+        sensitivity=sensitivity,
+        summary=summary,
+    )
+
+
+_sst_cache: dict = {}
+
+
+@app.get("/api/spot-market-stress/dashboard", response_model=SSTDashboard, dependencies=[Depends(verify_api_key)])
+async def get_spot_market_stress_dashboard():
+    cached = _cache_get(_sst_cache, "sst")
+    if cached:
+        return cached
+    result = _build_sst_dashboard()
+    _cache_set(_sst_cache, "sst", result)
+    return result
+
+
+# ===========================================================================
+# Sprint 81b — Electricity Sector Workforce & Skills Analytics (ESW)
+# ===========================================================================
+
+class ESWEmploymentRecord(BaseModel):
+    sector: str        # COAL_MINING / GAS_EXTRACTION / ELECTRICITY_GENERATION / TRANSMISSION / DISTRIBUTION / RENEWABLES / STORAGE / EFFICIENCY_SERVICES
+    state: str
+    year: int
+    direct_jobs: int
+    indirect_jobs: int
+    induced_jobs: int
+    total_jobs: int
+    avg_salary: float
+    job_quality_index: float   # 0-10 (full-time, permanent, skilled)
+    female_pct: float
+    indigenous_pct: float
+
+
+class ESWSkillsGapRecord(BaseModel):
+    occupation: str    # ELECTRICIAN / ELECTRICAL_ENGINEER / WIND_TURBINE_TECH / SOLAR_INSTALLER / BATTERY_TECH / GRID_OPERATOR / DATA_SCIENTIST / PROJECT_MANAGER
+    demand_2024: int
+    demand_2030: int
+    demand_2035: int
+    current_supply: int
+    gap_2030: int
+    gap_2035: int
+    training_pipeline_per_yr: int
+    avg_training_time_months: int
+    avg_wage: float
+
+
+class ESWTransitionRecord(BaseModel):
+    region: str
+    retiring_sector: str   # COAL / GAS
+    retiring_jobs: int
+    transition_year: int
+    transferable_skills_pct: float
+    retraining_needed_pct: float
+    retraining_cost_per_worker: float
+    new_sector: str
+    new_jobs_created: int
+    net_job_impact: int        # new - retiring
+    geographic_match_pct: float   # % where new jobs are in same region
+
+
+class ESWTrainingRecord(BaseModel):
+    program: str
+    operator: str   # TAFE / UNIVERSITY / INDUSTRY / GOVERNMENT
+    state: str
+    annual_graduates: int
+    completion_rate_pct: float
+    employment_rate_pct: float   # % employed in sector within 1 year
+    govt_funding_m: float
+    target_occupation: str
+
+
+class ESWDiversityRecord(BaseModel):
+    sector: str
+    year: int
+    female_leadership_pct: float
+    female_technical_pct: float
+    indigenous_employment_pct: float
+    under_30_pct: float
+    apprenticeship_pct: float
+    diversity_target_achieved: bool
+
+
+class ESWDashboard(BaseModel):
+    employment: List[ESWEmploymentRecord]
+    skills_gaps: List[ESWSkillsGapRecord]
+    transition: List[ESWTransitionRecord]
+    training: List[ESWTrainingRecord]
+    diversity: List[ESWDiversityRecord]
+    summary: dict
+
+
+def _build_esw_dashboard() -> ESWDashboard:
+    import random
+    rng = random.Random(20240101)
+
+    SECTORS = [
+        "COAL_MINING", "GAS_EXTRACTION", "ELECTRICITY_GENERATION",
+        "TRANSMISSION", "DISTRIBUTION", "RENEWABLES", "STORAGE", "EFFICIENCY_SERVICES",
+    ]
+    STATES = ["NSW", "VIC", "QLD", "SA", "WA"]
+
+    # Sector baseline parameters: (direct_base, indirect_mult, induced_mult, salary_base, quality_base, female_base, indigenous_base)
+    SECTOR_PARAMS = {
+        "COAL_MINING":            (3800,  0.85, 0.70, 112000, 6.2, 12.0, 4.5),
+        "GAS_EXTRACTION":         (2100,  0.78, 0.65, 118000, 6.5, 14.0, 3.8),
+        "ELECTRICITY_GENERATION": (8200,  1.20, 1.05, 98000,  7.4, 22.0, 3.2),
+        "TRANSMISSION":           (4100,  0.95, 0.80, 104000, 7.8, 18.5, 2.9),
+        "DISTRIBUTION":           (14000, 1.10, 0.95, 88000,  7.1, 20.0, 3.5),
+        "RENEWABLES":             (9600,  1.15, 1.00, 92000,  7.6, 32.0, 4.1),
+        "STORAGE":                (2400,  0.90, 0.78, 96000,  8.0, 28.0, 3.6),
+        "EFFICIENCY_SERVICES":    (5800,  1.05, 0.90, 85000,  7.2, 35.0, 4.0),
+    }
+
+    # --- 40 Employment Records (8 sectors × 5 states, year 2024) ---
+    employment: List[ESWEmploymentRecord] = []
+    for sector in SECTORS:
+        base_d, i_mult, ind_mult, sal_base, qual_base, fem_base, indig_base = SECTOR_PARAMS[sector]
+        for state in STATES:
+            state_scale = {"NSW": 1.30, "VIC": 1.10, "QLD": 1.15, "SA": 0.65, "WA": 0.80}[state]
+            direct = int(base_d * state_scale * rng.uniform(0.92, 1.08))
+            indirect = int(direct * i_mult * rng.uniform(0.90, 1.10))
+            induced = int(direct * ind_mult * rng.uniform(0.88, 1.12))
+            total = direct + indirect + induced
+            salary = round(sal_base * state_scale * rng.uniform(0.96, 1.04), 0)
+            quality = round(min(10.0, qual_base + rng.uniform(-0.4, 0.4)), 1)
+            female = round(fem_base + rng.uniform(-2.0, 2.0), 1)
+            indigenous = round(indig_base + rng.uniform(-0.5, 0.5), 1)
+            employment.append(ESWEmploymentRecord(
+                sector=sector, state=state, year=2024,
+                direct_jobs=direct, indirect_jobs=indirect,
+                induced_jobs=induced, total_jobs=total,
+                avg_salary=salary, job_quality_index=quality,
+                female_pct=female, indigenous_pct=indigenous,
+            ))
+
+    # --- 10 Skills Gap Records ---
+    OCCUPATIONS = [
+        ("ELECTRICIAN",          45000, 68000,  88000, 42000,  26000, 46000, 3800, 48, 88000),
+        ("ELECTRICAL_ENGINEER",  18000, 28000,  36000, 16500,   9500, 17500, 1200, 48, 118000),
+        ("WIND_TURBINE_TECH",     4200,  9800,  15000,  3800,   5200, 10800,  600, 18,  82000),
+        ("SOLAR_INSTALLER",      12000, 22000,  30000, 11200,   8200, 16800, 1400, 12,  72000),
+        ("BATTERY_TECH",          2800,  8400,  14000,  2400,   5600, 11200,  420, 24,  86000),
+        ("GRID_OPERATOR",         3600,  5200,   6800,  3400,   1600,  3000,  280, 36,  96000),
+        ("DATA_SCIENTIST",        2200,  6800,  10400,  2000,   4000,  7600,  380, 24, 104000),
+        ("PROJECT_MANAGER",       5800,  9200,  12800,  5400,   3200,  6600,  520, 24, 112000),
+        ("CABLE_JOINER",          8200, 12000,  15600,  7800,   3800,  7400,  680, 36,  78000),
+        ("SUBSTATION_TECH",       3400,  5800,   8200,  3200,   2200,  4800,  360, 30,  92000),
+    ]
+
+    skills_gaps: List[ESWSkillsGapRecord] = []
+    for (occ, d24, d30, d35, supply, g30, g35, pipe, train_t, wage) in OCCUPATIONS:
+        skills_gaps.append(ESWSkillsGapRecord(
+            occupation=occ,
+            demand_2024=d24, demand_2030=d30, demand_2035=d35,
+            current_supply=supply,
+            gap_2030=g30, gap_2035=g35,
+            training_pipeline_per_yr=pipe,
+            avg_training_time_months=train_t,
+            avg_wage=float(wage),
+        ))
+
+    # --- 12 Transition Records (4 coal regions × 3 transition scenarios) ---
+    COAL_REGIONS = ["Hunter Valley NSW", "Latrobe Valley VIC", "Bowen Basin QLD", "Collie WA"]
+    TRANSITION_SCENARIOS = [
+        ("COAL", 2028, "RENEWABLES",    0.58, 0.42, 14200, 0.72),
+        ("COAL", 2030, "STORAGE",       0.52, 0.48, 15800, 0.65),
+        ("COAL", 2032, "TRANSMISSION",  0.60, 0.40, 13600, 0.80),
+    ]
+
+    REGION_JOBS = {
+        "Hunter Valley NSW": 5800,
+        "Latrobe Valley VIC": 4200,
+        "Bowen Basin QLD": 7600,
+        "Collie WA": 2100,
+    }
+
+    transition: List[ESWTransitionRecord] = []
+    for region in COAL_REGIONS:
+        retiring = REGION_JOBS[region]
+        for (ret_sec, yr, new_sec, trans_pct, retrain_pct, retrain_cost, geo_match) in TRANSITION_SCENARIOS:
+            new_jobs = int(retiring * rng.uniform(0.80, 1.20))
+            net = new_jobs - retiring
+            transition.append(ESWTransitionRecord(
+                region=region,
+                retiring_sector=ret_sec,
+                retiring_jobs=retiring,
+                transition_year=yr,
+                transferable_skills_pct=round(trans_pct + rng.uniform(-0.04, 0.04), 2),
+                retraining_needed_pct=round(retrain_pct + rng.uniform(-0.04, 0.04), 2),
+                retraining_cost_per_worker=round(retrain_cost * rng.uniform(0.95, 1.05), 0),
+                new_sector=new_sec,
+                new_jobs_created=new_jobs,
+                net_job_impact=net,
+                geographic_match_pct=round(geo_match + rng.uniform(-0.05, 0.05), 2),
+            ))
+
+    # --- 15 Training Program Records ---
+    PROGRAMS_RAW = [
+        ("Cert III Electrotechnology",    "TAFE",       "NSW", 1800, 78.0, 88.0, 12.4, "ELECTRICIAN"),
+        ("Renewable Energy Tech Diploma", "TAFE",       "VIC", 820,  82.0, 84.0,  8.6, "SOLAR_INSTALLER"),
+        ("Wind Turbine Technician Cert",  "INDUSTRY",   "QLD", 340,  74.0, 91.0,  4.2, "WIND_TURBINE_TECH"),
+        ("BE Electrical Engineering",     "UNIVERSITY", "NSW", 1240, 88.0, 82.0, 18.8, "ELECTRICAL_ENGINEER"),
+        ("Battery Storage Systems Cert",  "TAFE",       "SA",  280,  80.0, 86.0,  3.6, "BATTERY_TECH"),
+        ("Grid Operations Diploma",       "INDUSTRY",   "VIC", 180,  85.0, 94.0,  2.8, "GRID_OPERATOR"),
+        ("Energy Data Analytics",         "UNIVERSITY", "NSW", 420,  90.0, 80.0,  6.4, "DATA_SCIENTIST"),
+        ("Project Mgmt in Energy Sector", "UNIVERSITY", "QLD", 560,  86.0, 78.0,  5.2, "PROJECT_MANAGER"),
+        ("Solar PV Installation Cert",    "TAFE",       "WA",  640,  76.0, 89.0,  4.8, "SOLAR_INSTALLER"),
+        ("HV Electrical Apprenticeship",  "INDUSTRY",   "NSW", 920,  71.0, 92.0,  9.6, "ELECTRICIAN"),
+        ("Advanced Cable Jointing",       "TAFE",       "VIC", 380,  79.0, 87.0,  3.2, "CABLE_JOINER"),
+        ("Substation Maintenance Cert",   "INDUSTRY",   "QLD", 260,  83.0, 90.0,  2.6, "SUBSTATION_TECH"),
+        ("Just Transition Upskilling",    "GOVERNMENT", "VIC", 480,  70.0, 74.0,  8.0, "ELECTRICIAN"),
+        ("Indigenous Energy Pathways",    "GOVERNMENT", "WA",  120,  68.0, 76.0,  3.4, "SOLAR_INSTALLER"),
+        ("Women in Energy Leadership",    "INDUSTRY",   "NSW", 200,  92.0, 82.0,  1.8, "PROJECT_MANAGER"),
+    ]
+
+    training: List[ESWTrainingRecord] = []
+    for (prog, op, st, grads, comp, emp, fund, occ) in PROGRAMS_RAW:
+        training.append(ESWTrainingRecord(
+            program=prog, operator=op, state=st,
+            annual_graduates=int(grads * rng.uniform(0.95, 1.05)),
+            completion_rate_pct=round(comp + rng.uniform(-1.5, 1.5), 1),
+            employment_rate_pct=round(emp + rng.uniform(-1.5, 1.5), 1),
+            govt_funding_m=round(fund * rng.uniform(0.95, 1.05), 1),
+            target_occupation=occ,
+        ))
+
+    # --- 24 Diversity Records (8 sectors × 3 years: 2020/2022/2024) ---
+    DIVERSITY_BASE = {
+        "COAL_MINING":            (10.0, 6.0,  3.5, 18.0, 5.0),
+        "GAS_EXTRACTION":         (12.0, 8.0,  2.8, 20.0, 4.5),
+        "ELECTRICITY_GENERATION": (18.0, 14.0, 2.5, 22.0, 7.0),
+        "TRANSMISSION":           (16.0, 12.0, 2.2, 20.0, 6.5),
+        "DISTRIBUTION":           (17.0, 13.0, 2.8, 24.0, 8.0),
+        "RENEWABLES":             (28.0, 24.0, 3.2, 32.0, 9.0),
+        "STORAGE":                (24.0, 20.0, 3.0, 35.0, 8.5),
+        "EFFICIENCY_SERVICES":    (30.0, 26.0, 3.5, 30.0, 7.5),
+    }
+    YEAR_UPLIFT = {2020: 0.0, 2022: 0.04, 2024: 0.08}
+
+    diversity: List[ESWDiversityRecord] = []
+    for sector in SECTORS:
+        fl_base, ft_base, indig_base, u30_base, app_base = DIVERSITY_BASE[sector]
+        for year in [2020, 2022, 2024]:
+            uplift = YEAR_UPLIFT[year]
+            fl = round(fl_base * (1 + uplift) + rng.uniform(-0.5, 0.5), 1)
+            ft = round(ft_base * (1 + uplift) + rng.uniform(-0.5, 0.5), 1)
+            indig = round(indig_base * (1 + uplift * 0.5) + rng.uniform(-0.1, 0.1), 1)
+            u30 = round(u30_base + rng.uniform(-1.0, 1.0), 1)
+            app = round(app_base + rng.uniform(-0.5, 0.5), 1)
+            target_met = (fl >= 25.0 and indig >= 3.0) if year == 2024 else (fl >= 20.0)
+            diversity.append(ESWDiversityRecord(
+                sector=sector, year=year,
+                female_leadership_pct=fl,
+                female_technical_pct=ft,
+                indigenous_employment_pct=indig,
+                under_30_pct=u30,
+                apprenticeship_pct=app,
+                diversity_target_achieved=target_met,
+            ))
+
+    summary = {
+        "total_electricity_jobs_2024": 285000,
+        "renewable_jobs_2024": 48000,
+        "coal_jobs_at_risk_by_2030": 22000,
+        "skills_gap_2030_total": 68400,
+        "avg_retraining_cost": 12400,
+        "female_sector_pct": 28.4,
+    }
+
+    return ESWDashboard(
+        employment=employment,
+        skills_gaps=skills_gaps,
+        transition=transition,
+        training=training,
+        diversity=diversity,
+        summary=summary,
+    )
+
+
+_esw_cache: dict = {}
+
+
+@app.get("/api/electricity-workforce/dashboard", response_model=ESWDashboard, dependencies=[Depends(verify_api_key)])
+async def get_electricity_workforce_dashboard():
+    cached = _cache_get(_esw_cache, "esw")
+    if cached:
+        return cached
+    result = _build_esw_dashboard()
+    _cache_set(_esw_cache, "esw", result)
     return result

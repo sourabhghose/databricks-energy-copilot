@@ -283,6 +283,9 @@ import BatteryDispatchStrategyAnalytics from './pages/BatteryDispatchStrategyAna
 import GenerationMixTransitionAnalytics from './pages/GenerationMixTransitionAnalytics'
 import StorageDurationEconomicsAnalytics from './pages/StorageDurationEconomicsAnalytics'
 import AncillaryServicesMarketDepthAnalytics from './pages/AncillaryServicesMarketDepthAnalytics'
+import SRAAnalyticsPage from './pages/SRAAnalyticsPage'
+import SpotMarketStressAnalytics from './pages/SpotMarketStressAnalytics'
+import ElectricityWorkforceAnalytics from './pages/ElectricityWorkforceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -496,6 +499,9 @@ const NAV_ITEMS = [
   { to: '/generation-mix-transition', label: 'Generation Mix Transition',    Icon: BarChart       },
   { to: '/storage-duration-economics', label: 'Storage Duration Economics',  Icon: Clock          },
   { to: '/ancillary-market-depth',    label: 'FCAS Market Depth Analytics', Icon: Layers         },
+  { to: '/sra-analytics',            label: 'SRA Settlement Analytics',    Icon: DollarSign     },
+  { to: '/spot-market-stress',       label: 'NEM Spot Market Stress Testing', Icon: AlertTriangle  },
+  { to: '/electricity-workforce',   label: 'Electricity Workforce & Skills', Icon: Users          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -784,6 +790,9 @@ export default function App() {
               <Route path="/generation-mix-transition"   element={<GenerationMixTransitionAnalytics />}   />
               <Route path="/storage-duration-economics" element={<StorageDurationEconomicsAnalytics />}  />
               <Route path="/ancillary-market-depth"    element={<AncillaryServicesMarketDepthAnalytics />} />
+              <Route path="/sra-analytics"             element={<SRAAnalyticsPage />}                      />
+              <Route path="/spot-market-stress"        element={<SpotMarketStressAnalytics />}             />
+              <Route path="/electricity-workforce"     element={<ElectricityWorkforceAnalytics />}         />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
