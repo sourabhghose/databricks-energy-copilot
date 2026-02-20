@@ -216,6 +216,8 @@ import EnergyAffordabilityAnalytics from './pages/EnergyAffordabilityAnalytics'
 import ElectrificationAnalytics from './pages/ElectrificationAnalytics'
 import ElectricityExportInfra from './pages/ElectricityExportInfra'
 import LdesEconomicsAnalytics from './pages/LdesEconomicsAnalytics'
+import GasTransitionAnalytics from './pages/GasTransitionAnalytics'
+import ProsumerAnalytics from './pages/ProsumerAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -366,6 +368,9 @@ const NAV_ITEMS = [
   { to: '/electrification-analytics',  label: 'Building Electrification',     Icon: Flame          },
   { to: '/electricity-export-infra',   label: 'Electricity Export Infra',     Icon: Globe2         },
   { to: '/ldes-economics',             label: 'LDES Economics',               Icon: Database       },
+  { to: '/prosumer-analytics',         label: 'Prosumer & BTM Analytics',     Icon: Sun            },
+  { to: '/gas-transition-analytics',  label: 'Gas Transition Analytics',     Icon: Fuel           },
+  { to: '/tnsp-analytics',           label: 'TNSP Revenue & Investment',    Icon: Building2      },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -591,6 +596,9 @@ export default function App() {
               <Route path="/electrification-analytics"   element={<ElectrificationAnalytics />}     />
               <Route path="/electricity-export-infra"    element={<ElectricityExportInfra />}       />
               <Route path="/ldes-economics"              element={<LdesEconomicsAnalytics />}       />
+              <Route path="/gas-transition-analytics"    element={<GasTransitionAnalytics />}       />
+              <Route path="/prosumer-analytics"          element={<ProsumerAnalytics />}            />
+              <Route path="/tnsp-analytics"             element={<TnspAnalytics />}               />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -8188,3 +8188,189 @@ export interface ElectrificationDashboard {
 
 export const getElectrificationDashboard = (): Promise<ElectrificationDashboard> =>
   get<ElectrificationDashboard>('/api/electrification/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 60a — Gas-Fired Generation Transition Analytics
+// ---------------------------------------------------------------------------
+
+export interface GFTGeneratorRecord {
+  unit_id: string
+  unit_name: string
+  technology: 'OCGT' | 'CCGT' | 'RECIP' | 'STEAM'
+  region: string
+  capacity_mw: number
+  commissioning_year: number
+  h2_capable: boolean
+  h2_ready_year: number | null
+  gas_contract_expiry: number
+  srmc_aud_mwh: number
+  capacity_factor_pct: number
+  exit_year: number | null
+  exit_trigger: 'ECONOMICS' | 'FUEL' | 'POLICY' | 'AGE' | null
+}
+
+export interface GFTGasSupplyRecord {
+  basin: string
+  region: string
+  reserves_pj: number
+  production_pj_yr: number
+  reserve_life_years: number
+  domestic_reservation_pct: number
+  price_aud_gj: number
+  price_trend: 'RISING' | 'STABLE' | 'FALLING'
+  pipeline_connected: boolean
+}
+
+export interface GFTHydrogenBlendRecord {
+  unit_id: string
+  blend_pct_2025: number
+  blend_pct_2030: number
+  blend_pct_2035: number
+  conversion_cost_m_aud: number
+  operational_risk: string
+  derating_pct: number
+}
+
+export interface GFTCapacityOutlookRecord {
+  year: number
+  ocgt_mw: number
+  ccgt_mw: number
+  h2_turbine_mw: number
+  total_gas_mw: number
+  retirements_mw: number
+  gas_generation_twh: number
+  role_in_nem: string
+}
+
+export interface GasTransitionDashboard {
+  timestamp: string
+  generators: GFTGeneratorRecord[]
+  gas_supply: GFTGasSupplyRecord[]
+  hydrogen_blending: GFTHydrogenBlendRecord[]
+  capacity_outlook: GFTCapacityOutlookRecord[]
+}
+
+export const getGasTransitionDashboard = (): Promise<GasTransitionDashboard> =>
+  get<GasTransitionDashboard>('/api/gas-transition/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 60c — Prosumer & Behind-the-Meter (BTM) Analytics
+// ---------------------------------------------------------------------------
+
+export interface BTMInstallationRecord {
+  state: string
+  year: number
+  rooftop_solar_systems_k: number
+  rooftop_solar_mw: number
+  btm_battery_systems_k: number
+  btm_battery_mwh: number
+  avg_system_size_kw: number
+  avg_battery_size_kwh: number
+  export_capable_pct: number
+  smart_meter_pct: number
+}
+
+export interface BTMNetLoadRecord {
+  state: string
+  month: string
+  gross_demand_gwh: number
+  btm_solar_generation_gwh: number
+  btm_battery_discharge_gwh: number
+  net_demand_gwh: number
+  min_net_demand_mw: number
+  duck_curve_depth_mw: number
+  evening_ramp_mw_hr: number
+}
+
+export interface BTMExportRecord {
+  state: string
+  year: number
+  total_exports_gwh: number
+  fit_payments_m_aud: number
+  avg_fit_rate_aud_kwh: number
+  export_curtailment_gwh: number
+  curtailment_pct: number
+  grid_constraint_triggered: boolean
+}
+
+export interface BTMVppRecord {
+  vpp_name: string
+  state: string
+  enrolled_customers_k: number
+  total_battery_mwh: number
+  peak_dispatch_mw: number
+  annual_events: number
+  avg_event_duration_hr: number
+  revenue_per_customer_aud: number
+  operator: string
+}
+
+export interface ProsumerDashboard {
+  timestamp: string
+  installations: BTMInstallationRecord[]
+  net_load: BTMNetLoadRecord[]
+  exports: BTMExportRecord[]
+  vpps: BTMVppRecord[]
+}
+
+export const getProsumerDashboard = (): Promise<ProsumerDashboard> =>
+  get<ProsumerDashboard>('/api/prosumer/dashboard')
+
+// ── Sprint 60b: TNSP Revenue & Investment Analytics ──────────────────────────
+
+export interface TNATnspRecord {
+  tnsp_id: string
+  tnsp_name: string
+  state: string
+  regulated_asset_base_bn_aud: number
+  revenue_determination_bn_aud: number
+  determination_period: string
+  capex_m_aud_yr: number
+  opex_m_aud_yr: number
+  network_length_km: number
+  substations: number
+  wacc_real_pct: number
+}
+
+export interface TNAReliabilityRecord {
+  tnsp: string
+  year: number
+  system_minutes_lost: number
+  circuit_outages: number
+  unplanned_outage_rate_pct: number
+  saidi_minutes: number
+  transmission_constraint_hours: number
+  asset_age_avg_years: number
+}
+
+export interface TNAProjectRecord {
+  project_name: string
+  tnsp: string
+  project_type: string
+  investment_m_aud: number
+  commissioning_year: number
+  status: string
+  primary_driver: string
+  vre_enabled_mw: number
+}
+
+export interface TNARegulatoryRecord {
+  tnsp: string
+  regulatory_period: string
+  allowed_revenue_m_aud: number
+  actual_revenue_m_aud: number
+  efficiency_carryover_m_aud: number
+  cpi_escalator_pct: number
+  aer_decision: string
+}
+
+export interface TnspAnalyticsDashboard {
+  timestamp: string
+  tnsps: TNATnspRecord[]
+  reliability: TNAReliabilityRecord[]
+  projects: TNAProjectRecord[]
+  regulatory: TNARegulatoryRecord[]
+}
+
+export const getTnspAnalyticsDashboard = (): Promise<TnspAnalyticsDashboard> =>
+  get<TnspAnalyticsDashboard>('/api/tnsp-analytics/dashboard')

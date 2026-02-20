@@ -6744,3 +6744,402 @@ class TestLdesEconomicsAnalytics:
         # Summer should have higher VRE surplus than winter
         assert by_month["Jan"]["vre_surplus_gwh"] > by_month["Jun"]["vre_surplus_gwh"]
         assert by_month["Dec"]["vre_surplus_gwh"] > by_month["Jul"]["vre_surplus_gwh"]
+
+
+class TestProsumerAnalytics:
+    """Sprint 60c — Prosumer & Behind-the-Meter Analytics endpoint tests."""
+
+    def test_prosumer_dashboard(self, client):
+        resp = client.get("/api/prosumer/dashboard", headers={"x-api-key": "test-key"})
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "installations", "net_load", "exports", "vpps"):
+            assert key in d, f"Missing top-level key: {key}"
+
+        # ---- Installations ----
+        installs = d["installations"]
+        assert len(installs) == 25, f"Expected 25 installation records, got {len(installs)}"
+
+        states_seen = {r["state"] for r in installs}
+        assert states_seen == {"NSW", "VIC", "QLD", "SA", "WA"}
+
+        years_seen = {r["year"] for r in installs}
+        assert years_seen == {2020, 2021, 2022, 2023, 2024}
+
+        for r in installs:
+            assert r["rooftop_solar_mw"] > 0
+            assert r["btm_battery_mwh"] >= 0
+            assert 0 < r["avg_system_size_kw"] <= 50
+            assert 0 <= r["export_capable_pct"] <= 100
+            assert 0 <= r["smart_meter_pct"] <= 100
+
+        # 2024 solar should exceed 2020 for every state
+        by_state_year = {(r["state"], r["year"]): r for r in installs}
+        for st in ("NSW", "VIC", "QLD", "SA", "WA"):
+            assert by_state_year[(st, 2024)]["rooftop_solar_mw"] > by_state_year[(st, 2020)]["rooftop_solar_mw"], (
+                f"{st}: 2024 rooftop solar should exceed 2020"
+            )
+
+        # ---- Net Load ----
+        net_load = d["net_load"]
+        assert len(net_load) == 30, f"Expected 30 net load records, got {len(net_load)}"
+
+        nl_states = {r["state"] for r in net_load}
+        assert nl_states == {"NSW", "VIC", "QLD", "SA", "WA"}
+
+        nl_months = {r["month"] for r in net_load}
+        assert nl_months == {"Jan", "Mar", "May", "Jul", "Sep", "Nov"}
+
+        for r in net_load:
+            assert r["gross_demand_gwh"] > 0
+            assert r["btm_solar_generation_gwh"] >= 0
+            assert r["net_demand_gwh"] < r["gross_demand_gwh"], (
+                "Net demand must be less than gross demand"
+            )
+            assert r["duck_curve_depth_mw"] >= 0
+            assert r["evening_ramp_mw_hr"] >= 0
+
+        # Summer (Jan) BTM solar should exceed winter (Jul) for each state
+        nl_by = {(r["state"], r["month"]): r for r in net_load}
+        for st in ("NSW", "VIC", "QLD", "SA", "WA"):
+            assert nl_by[(st, "Jan")]["btm_solar_generation_gwh"] > nl_by[(st, "Jul")]["btm_solar_generation_gwh"], (
+                f"{st}: January solar generation should exceed July"
+            )
+
+        # ---- Exports ----
+        exports = d["exports"]
+        assert len(exports) == 20, f"Expected 20 export records, got {len(exports)}"
+
+        exp_states = {r["state"] for r in exports}
+        assert exp_states == {"NSW", "VIC", "QLD", "SA", "WA"}
+
+        exp_years = {r["year"] for r in exports}
+        assert exp_years == {2021, 2022, 2023, 2024}
+
+        for r in exports:
+            assert r["total_exports_gwh"] > 0
+            assert r["avg_fit_rate_aud_kwh"] > 0
+            assert 0 <= r["curtailment_pct"] <= 100
+            assert isinstance(r["grid_constraint_triggered"], bool)
+
+        # 2024 exports should exceed 2021 for each state
+        exp_by = {(r["state"], r["year"]): r for r in exports}
+        for st in ("NSW", "VIC", "QLD", "SA", "WA"):
+            assert exp_by[(st, 2024)]["total_exports_gwh"] > exp_by[(st, 2021)]["total_exports_gwh"], (
+                f"{st}: 2024 exports should exceed 2021"
+            )
+
+        # SA should have highest curtailment in 2024 (most constrained)
+        curtailments_2024 = {r["state"]: r["curtailment_pct"] for r in exports if r["year"] == 2024}
+        assert curtailments_2024["SA"] == max(curtailments_2024.values()), (
+            "SA should have the highest export curtailment in 2024"
+        )
+
+        # ---- VPPs ----
+        vpps = d["vpps"]
+        assert len(vpps) == 8, f"Expected 8 VPP records, got {len(vpps)}"
+
+        vpp_states = {r["state"] for r in vpps}
+        assert vpp_states.issubset({"NSW", "VIC", "QLD", "SA", "WA"})
+
+        for r in vpps:
+            assert r["enrolled_customers_k"] > 0
+            assert r["total_battery_mwh"] > 0
+            assert r["peak_dispatch_mw"] > 0
+            assert r["annual_events"] > 0
+            assert r["avg_event_duration_hr"] > 0
+            assert r["revenue_per_customer_aud"] > 0
+            assert len(r["operator"]) > 0
+
+        # Total VPP battery capacity should exceed 500 MWh
+        total_mwh = sum(r["total_battery_mwh"] for r in vpps)
+        assert total_mwh > 500, f"Total VPP battery capacity {total_mwh} MWh should exceed 500 MWh"
+
+        # Synergy Home Battery Scheme should be the largest by battery MWh (WA)
+        largest = max(vpps, key=lambda r: r["total_battery_mwh"])
+        assert largest["state"] == "WA", "Largest VPP by battery MWh should be in WA"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 60a — Gas-Fired Generation Transition Analytics
+# ---------------------------------------------------------------------------
+
+class TestGasTransitionAnalytics:
+    """Tests for GET /api/gas-transition/dashboard (Sprint 60a)."""
+
+    def test_gas_transition_dashboard(self):
+        """Validates structure, record counts, enums and key data invariants."""
+        resp = client.get(
+            "/api/gas-transition/dashboard",
+            headers={"X-API-Key": "test-api-key"},
+        )
+        assert resp.status_code == 200, resp.text
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "generators", "gas_supply", "hydrogen_blending", "capacity_outlook"):
+            assert key in d, f"Missing top-level key: {key}"
+
+        # --- generators: exactly 12 records ---
+        generators = d["generators"]
+        assert len(generators) == 12, (
+            f"Expected 12 generator records, got {len(generators)}"
+        )
+        valid_technologies = {"OCGT", "CCGT", "RECIP", "STEAM"}
+        valid_exit_triggers = {"ECONOMICS", "FUEL", "POLICY", "AGE", None}
+        for g in generators:
+            assert g["unit_id"], "unit_id must not be empty"
+            assert g["unit_name"], "unit_name must not be empty"
+            assert g["technology"] in valid_technologies, f"Unknown technology: {g['technology']}"
+            assert g["region"], "region must not be empty"
+            assert g["capacity_mw"] > 0, "capacity_mw must be positive"
+            assert 1950 <= g["commissioning_year"] <= 2030
+            assert isinstance(g["h2_capable"], bool)
+            assert g["gas_contract_expiry"] >= 2024
+            assert g["srmc_aud_mwh"] > 0
+            assert 0 <= g["capacity_factor_pct"] <= 100
+            assert g["exit_trigger"] in valid_exit_triggers, f"Unknown exit_trigger: {g['exit_trigger']}"
+
+        # At least 3 CCGT units
+        ccgt_count = sum(1 for g in generators if g["technology"] == "CCGT")
+        assert ccgt_count >= 3, f"Expected at least 3 CCGT units, got {ccgt_count}"
+
+        # At least 1 H2-capable unit
+        h2_capable_count = sum(1 for g in generators if g["h2_capable"])
+        assert h2_capable_count >= 1, "At least 1 generator must be H2-capable"
+
+        # H2-capable units must have an h2_ready_year set
+        for g in generators:
+            if g["h2_capable"]:
+                assert g["h2_ready_year"] is not None, (
+                    f"H2-capable unit {g['unit_id']} must have h2_ready_year set"
+                )
+
+        # Exit year units must have exit_trigger set
+        for g in generators:
+            if g["exit_year"] is not None:
+                assert g["exit_trigger"] is not None, (
+                    f"Unit {g['unit_id']} has exit_year but no exit_trigger"
+                )
+
+        # --- gas_supply: exactly 8 basin records ---
+        gas_supply = d["gas_supply"]
+        assert len(gas_supply) == 8, (
+            f"Expected 8 gas supply records, got {len(gas_supply)}"
+        )
+        valid_price_trends = {"RISING", "STABLE", "FALLING"}
+        for b in gas_supply:
+            assert b["basin"], "basin must not be empty"
+            assert b["region"], "region must not be empty"
+            assert b["reserves_pj"] > 0
+            assert b["reserve_life_years"] > 0
+            assert 0 <= b["domestic_reservation_pct"] <= 100
+            assert b["price_aud_gj"] > 0
+            assert b["price_trend"] in valid_price_trends, f"Unknown price_trend: {b['price_trend']}"
+            assert isinstance(b["pipeline_connected"], bool)
+
+        # Carnarvon Basin should be the largest by reserves
+        largest_basin = max(gas_supply, key=lambda b: b["reserves_pj"])
+        assert "Carnarvon" in largest_basin["basin"] or "Browse" in largest_basin["basin"], (
+            "Largest basin by reserves should be Carnarvon or Browse"
+        )
+
+        # At least 1 basin with pipeline_connected = False (undeveloped basins)
+        unconnected = [b for b in gas_supply if not b["pipeline_connected"]]
+        assert len(unconnected) >= 1, "At least 1 basin should not have pipeline connectivity"
+
+        # Gippsland should be 100% domestically reserved
+        gippsland = next((b for b in gas_supply if "Gippsland" in b["basin"]), None)
+        assert gippsland is not None, "Gippsland Basin must be present"
+        assert gippsland["domestic_reservation_pct"] == 100.0, (
+            "Gippsland should be 100% domestically reserved"
+        )
+
+        # --- hydrogen_blending: exactly 8 records ---
+        h2_blending = d["hydrogen_blending"]
+        assert len(h2_blending) == 8, (
+            f"Expected 8 hydrogen blending records, got {len(h2_blending)}"
+        )
+        valid_risks = {"LOW", "MEDIUM", "HIGH"}
+        for r in h2_blending:
+            assert r["unit_id"], "unit_id must not be empty"
+            assert 0 <= r["blend_pct_2025"] <= 100
+            assert 0 <= r["blend_pct_2030"] <= 100
+            assert 0 <= r["blend_pct_2035"] <= 100
+            # Blend should be non-decreasing over time
+            assert r["blend_pct_2030"] >= r["blend_pct_2025"], (
+                f"{r['unit_id']}: 2030 blend must be >= 2025 blend"
+            )
+            assert r["blend_pct_2035"] >= r["blend_pct_2030"], (
+                f"{r['unit_id']}: 2035 blend must be >= 2030 blend"
+            )
+            assert r["conversion_cost_m_aud"] >= 0
+            assert r["operational_risk"] in valid_risks, f"Unknown operational_risk: {r['operational_risk']}"
+            assert r["derating_pct"] >= 0
+
+        # TALWB1 (H2-ready unit) should have highest 2035 blend pct
+        talwb = next((r for r in h2_blending if r["unit_id"] == "TALWB1"), None)
+        assert talwb is not None, "TALWB1 must be in hydrogen_blending records"
+        max_2035 = max(r["blend_pct_2035"] for r in h2_blending)
+        assert talwb["blend_pct_2035"] == max_2035 or talwb["blend_pct_2035"] >= 40.0, (
+            "TALWB1 (H2-ready) should have a high 2035 blend percentage"
+        )
+
+        # --- capacity_outlook: exactly 8 records (2024-2031) ---
+        outlook = d["capacity_outlook"]
+        assert len(outlook) == 8, (
+            f"Expected 8 capacity outlook records, got {len(outlook)}"
+        )
+        years_seen = set()
+        for o in outlook:
+            assert 2024 <= o["year"] <= 2031
+            assert o["ocgt_mw"] >= 0
+            assert o["ccgt_mw"] >= 0
+            assert o["h2_turbine_mw"] >= 0
+            assert o["total_gas_mw"] > 0
+            assert o["retirements_mw"] >= 0
+            assert o["gas_generation_twh"] > 0
+            assert o["role_in_nem"], "role_in_nem must not be empty"
+            years_seen.add(o["year"])
+        expected_years = set(range(2024, 2032))
+        assert years_seen == expected_years, f"Expected years 2024-2031, got {years_seen}"
+
+        # H2 turbine capacity should grow monotonically from 2024 to 2031
+        by_year = {o["year"]: o for o in outlook}
+        assert by_year[2031]["h2_turbine_mw"] >= by_year[2027]["h2_turbine_mw"], (
+            "H2 turbine capacity should grow over time"
+        )
+        assert by_year[2024]["h2_turbine_mw"] == 0.0, (
+            "H2 turbine capacity should be zero in 2024"
+        )
+
+        # Gas generation (TWh) should decline from 2024 to 2031 (energy transition)
+        assert by_year[2031]["gas_generation_twh"] < by_year[2024]["gas_generation_twh"], (
+            "Gas generation should decline from 2024 to 2031"
+        )
+
+
+class TestTnspAnalytics:
+    """Sprint 60b — TNSP Revenue & Investment Analytics endpoint tests."""
+
+    def test_tnsp_analytics_dashboard(self, client, auth_headers):
+        resp = client.get("/api/tnsp-analytics/dashboard", headers=auth_headers)
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "tnsps", "reliability", "projects", "regulatory"):
+            assert key in d, f"Missing key: {key}"
+
+        # ── TNSP records ──────────────────────────────────────────────────────
+        tnsps = d["tnsps"]
+        assert len(tnsps) == 5, f"Expected 5 TNSPs, got {len(tnsps)}"
+
+        expected_ids = {"TRANSGRID", "ELECTRANET", "TASNETWORKS", "POWERLINK", "AUSNET_TX"}
+        actual_ids = {t["tnsp_id"] for t in tnsps}
+        assert actual_ids == expected_ids, f"TNSP ID mismatch: {actual_ids}"
+
+        for t in tnsps:
+            assert t["regulated_asset_base_bn_aud"] > 0, "RAB must be positive"
+            assert t["revenue_determination_bn_aud"] > 0, "Revenue must be positive"
+            assert 0 < t["wacc_real_pct"] < 10, f"WACC out of range: {t['wacc_real_pct']}"
+            assert t["network_length_km"] > 0
+            assert t["substations"] > 0
+            assert t["capex_m_aud_yr"] > 0
+            assert t["opex_m_aud_yr"] > 0
+            assert t["determination_period"]
+
+        # TransGrid should have largest RAB
+        rab_by_id = {t["tnsp_id"]: t["regulated_asset_base_bn_aud"] for t in tnsps}
+        assert rab_by_id["TRANSGRID"] == max(rab_by_id.values()), \
+            "TransGrid should have largest RAB"
+
+        # ── Reliability records ───────────────────────────────────────────────
+        reliability = d["reliability"]
+        assert len(reliability) == 15, f"Expected 15 reliability records (5 TNSPs x 3 years), got {len(reliability)}"
+
+        years_seen = {r["year"] for r in reliability}
+        assert years_seen == {2022, 2023, 2024}, f"Expected years 2022-2024, got {years_seen}"
+
+        tnsps_seen = {r["tnsp"] for r in reliability}
+        assert len(tnsps_seen) == 5, f"Expected 5 TNSPs in reliability, got {len(tnsps_seen)}"
+
+        for r in reliability:
+            assert r["saidi_minutes"] > 0, "SAIDI must be positive"
+            assert r["system_minutes_lost"] > 0
+            assert r["circuit_outages"] > 0
+            assert 0 < r["unplanned_outage_rate_pct"] < 10
+            assert r["transmission_constraint_hours"] > 0
+            assert r["asset_age_avg_years"] > 0
+
+        # ElectraNet should be most constrained (highest SAIDI) in latest year
+        latest_year = max(r["year"] for r in reliability)
+        latest = [r for r in reliability if r["year"] == latest_year]
+        most_constrained = max(latest, key=lambda r: r["saidi_minutes"])
+        assert most_constrained["tnsp"] == "ElectraNet", \
+            f"ElectraNet should be most constrained, got {most_constrained['tnsp']}"
+
+        # Reliability should improve year-over-year for TransGrid
+        tg = sorted([r for r in reliability if r["tnsp"] == "TransGrid"], key=lambda r: r["year"])
+        assert tg[0]["saidi_minutes"] > tg[-1]["saidi_minutes"], \
+            "TransGrid SAIDI should improve over the period"
+
+        # ── Project records ───────────────────────────────────────────────────
+        projects = d["projects"]
+        assert len(projects) == 12, f"Expected 12 project records, got {len(projects)}"
+
+        valid_statuses = {"COMPLETE", "CONSTRUCTION", "APPROVED", "PROPOSED"}
+        valid_types    = {"AUGMENTATION", "REPLACEMENT", "UPGRADE", "NEW_BUILD"}
+        valid_drivers  = {"NETWORK_SECURITY", "LOAD_GROWTH", "RENEWABLE_CONNECTION", "RELIABILITY", "ISP"}
+
+        for p in projects:
+            assert p["status"] in valid_statuses, f"Invalid status: {p['status']}"
+            assert p["project_type"] in valid_types, f"Invalid type: {p['project_type']}"
+            assert p["primary_driver"] in valid_drivers, f"Invalid driver: {p['primary_driver']}"
+            assert p["investment_m_aud"] > 0
+            assert p["commissioning_year"] >= 2020
+            assert p["vre_enabled_mw"] >= 0
+
+        # All 4 statuses should be present
+        statuses_present = {p["status"] for p in projects}
+        assert statuses_present == valid_statuses, f"Missing statuses: {valid_statuses - statuses_present}"
+
+        # CopperString should be the largest project by investment
+        largest = max(projects, key=lambda p: p["investment_m_aud"])
+        assert "CopperString" in largest["project_name"], \
+            f"CopperString should be largest project, got {largest['project_name']}"
+
+        # At least 3 ISP-driven projects
+        isp_count = sum(1 for p in projects if p["primary_driver"] == "ISP")
+        assert isp_count >= 3, f"Expected at least 3 ISP-driven projects, got {isp_count}"
+
+        # ── Regulatory records ────────────────────────────────────────────────
+        regulatory = d["regulatory"]
+        assert len(regulatory) == 10, f"Expected 10 regulatory records, got {len(regulatory)}"
+
+        valid_decisions = {"ACCEPTED", "REVISED", "REJECTED"}
+        for r in regulatory:
+            assert r["aer_decision"] in valid_decisions, f"Invalid AER decision: {r['aer_decision']}"
+            assert r["allowed_revenue_m_aud"] > 0
+            assert r["actual_revenue_m_aud"] > 0
+            assert r["efficiency_carryover_m_aud"] >= 0
+            assert 0 < r["cpi_escalator_pct"] < 10
+            assert r["regulatory_period"]
+            assert r["tnsp"]
+
+        # All 5 TNSPs should have regulatory records
+        reg_tnsps = {r["tnsp"] for r in regulatory}
+        assert len(reg_tnsps) == 5, f"Expected 5 TNSPs in regulatory, got {len(reg_tnsps)}"
+
+        # Actual revenue should always be below allowed (efficiency delivered)
+        for r in regulatory:
+            assert r["actual_revenue_m_aud"] <= r["allowed_revenue_m_aud"], \
+                f"{r['tnsp']} {r['regulatory_period']}: actual revenue exceeds allowed"
+
+        # Majority of decisions should be ACCEPTED or REVISED (not REJECTED)
+        accepted_or_revised = sum(1 for r in regulatory if r["aer_decision"] in {"ACCEPTED", "REVISED"})
+        assert accepted_or_revised == len(regulatory), \
+            "No regulatory records should have REJECTED decision in mock data"

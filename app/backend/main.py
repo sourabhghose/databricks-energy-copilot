@@ -42949,3 +42949,576 @@ def get_ldes_economics_dashboard() -> LdesEconomicsDashboard:
         projects=_LDE_PROJECTS,
         seasonal_patterns=_LDE_SEASONAL,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 60a — Gas-Fired Generation Transition Analytics
+# ---------------------------------------------------------------------------
+
+class _GFTTechnology(str, Enum):
+    OCGT  = "OCGT"
+    CCGT  = "CCGT"
+    RECIP = "RECIP"
+    STEAM = "STEAM"
+
+class _GFTExitTrigger(str, Enum):
+    ECONOMICS = "ECONOMICS"
+    FUEL      = "FUEL"
+    POLICY    = "POLICY"
+    AGE       = "AGE"
+
+class _GFTPriceTrend(str, Enum):
+    RISING  = "RISING"
+    STABLE  = "STABLE"
+    FALLING = "FALLING"
+
+class GFTGeneratorRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    commissioning_year: int
+    h2_capable: bool
+    h2_ready_year: Optional[int]
+    gas_contract_expiry: int
+    srmc_aud_mwh: float
+    capacity_factor_pct: float
+    exit_year: Optional[int]
+    exit_trigger: Optional[str]
+
+class GFTGasSupplyRecord(BaseModel):
+    basin: str
+    region: str
+    reserves_pj: float
+    production_pj_yr: float
+    reserve_life_years: float
+    domestic_reservation_pct: float
+    price_aud_gj: float
+    price_trend: str
+    pipeline_connected: bool
+
+class GFTHydrogenBlendRecord(BaseModel):
+    unit_id: str
+    blend_pct_2025: float
+    blend_pct_2030: float
+    blend_pct_2035: float
+    conversion_cost_m_aud: float
+    operational_risk: str
+    derating_pct: float
+
+class GFTCapacityOutlookRecord(BaseModel):
+    year: int
+    ocgt_mw: float
+    ccgt_mw: float
+    h2_turbine_mw: float
+    total_gas_mw: float
+    retirements_mw: float
+    gas_generation_twh: float
+    role_in_nem: str
+
+class GasTransitionDashboard(BaseModel):
+    timestamp: str
+    generators: List[GFTGeneratorRecord]
+    gas_supply: List[GFTGasSupplyRecord]
+    hydrogen_blending: List[GFTHydrogenBlendRecord]
+    capacity_outlook: List[GFTCapacityOutlookRecord]
+
+
+_GFT_GENERATORS: List[GFTGeneratorRecord] = [
+    GFTGeneratorRecord(unit_id="DDBTH1",   unit_name="Darling Downs CCGT Unit 1",     technology="CCGT",  region="QLD", capacity_mw=630.0,  commissioning_year=2011, h2_capable=False, h2_ready_year=2030, gas_contract_expiry=2028, srmc_aud_mwh=72.0,  capacity_factor_pct=42.0, exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="DDBTH2",   unit_name="Darling Downs CCGT Unit 2",     technology="CCGT",  region="QLD", capacity_mw=630.0,  commissioning_year=2012, h2_capable=False, h2_ready_year=2030, gas_contract_expiry=2028, srmc_aud_mwh=72.0,  capacity_factor_pct=40.0, exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="LBBG1",    unit_name="Loy Yang B Gas Peaker 1",       technology="OCGT",  region="VIC", capacity_mw=150.0,  commissioning_year=2001, h2_capable=False, h2_ready_year=None, gas_contract_expiry=2026, srmc_aud_mwh=145.0, capacity_factor_pct=5.0,  exit_year=2027, exit_trigger="ECONOMICS"),
+    GFTGeneratorRecord(unit_id="AGLHALL",  unit_name="Hallett OCGT",                  technology="OCGT",  region="SA",  capacity_mw=228.0,  commissioning_year=2008, h2_capable=False, h2_ready_year=2032, gas_contract_expiry=2030, srmc_aud_mwh=138.0, capacity_factor_pct=8.0,  exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="TORRB1",   unit_name="Torrens Island B Unit 1",       technology="STEAM", region="SA",  capacity_mw=200.0,  commissioning_year=1978, h2_capable=False, h2_ready_year=None, gas_contract_expiry=2025, srmc_aud_mwh=95.0,  capacity_factor_pct=10.0, exit_year=2026, exit_trigger="AGE"),
+    GFTGeneratorRecord(unit_id="TALWA1",   unit_name="Tallawarra A CCGT",             technology="CCGT",  region="NSW", capacity_mw=435.0,  commissioning_year=2009, h2_capable=False, h2_ready_year=2031, gas_contract_expiry=2029, srmc_aud_mwh=78.0,  capacity_factor_pct=35.0, exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="TALWB1",   unit_name="Tallawarra B CCGT H2-Ready",    technology="CCGT",  region="NSW", capacity_mw=316.0,  commissioning_year=2023, h2_capable=True,  h2_ready_year=2025, gas_contract_expiry=2040, srmc_aud_mwh=82.0,  capacity_factor_pct=38.0, exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="LADBROK1", unit_name="Ladbroke Grove OCGT 1",         technology="OCGT",  region="SA",  capacity_mw=80.0,   commissioning_year=2001, h2_capable=False, h2_ready_year=None, gas_contract_expiry=2027, srmc_aud_mwh=155.0, capacity_factor_pct=4.0,  exit_year=2028, exit_trigger="ECONOMICS"),
+    GFTGeneratorRecord(unit_id="KWINANA1", unit_name="Kwinana CCGT Unit 1",           technology="CCGT",  region="WA",  capacity_mw=640.0,  commissioning_year=2017, h2_capable=True,  h2_ready_year=2028, gas_contract_expiry=2035, srmc_aud_mwh=68.0,  capacity_factor_pct=55.0, exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="COLLIE1",  unit_name="Collie GT1 OCGT",               technology="OCGT",  region="WA",  capacity_mw=110.0,  commissioning_year=2000, h2_capable=False, h2_ready_year=None, gas_contract_expiry=2025, srmc_aud_mwh=162.0, capacity_factor_pct=3.0,  exit_year=2026, exit_trigger="AGE"),
+    GFTGeneratorRecord(unit_id="SNCRK1",   unit_name="Spring Creek OCGT",             technology="OCGT",  region="VIC", capacity_mw=278.0,  commissioning_year=2005, h2_capable=False, h2_ready_year=2033, gas_contract_expiry=2030, srmc_aud_mwh=132.0, capacity_factor_pct=7.0,  exit_year=None, exit_trigger=None),
+    GFTGeneratorRecord(unit_id="MORTLK1",  unit_name="Mortlake OCGT Unit 1",          technology="OCGT",  region="VIC", capacity_mw=282.0,  commissioning_year=2012, h2_capable=True,  h2_ready_year=2029, gas_contract_expiry=2032, srmc_aud_mwh=128.0, capacity_factor_pct=9.0,  exit_year=None, exit_trigger=None),
+]
+
+_GFT_GAS_SUPPLY: List[GFTGasSupplyRecord] = [
+    GFTGasSupplyRecord(basin="Cooper Basin",          region="SA/QLD", reserves_pj=1800.0,  production_pj_yr=90.0,  reserve_life_years=20.0, domestic_reservation_pct=60.0, price_aud_gj=8.50,  price_trend="RISING",  pipeline_connected=True),
+    GFTGasSupplyRecord(basin="Surat/Bowen CSG",       region="QLD",    reserves_pj=42000.0, production_pj_yr=1600.0,reserve_life_years=26.3, domestic_reservation_pct=15.0, price_aud_gj=7.20,  price_trend="STABLE",  pipeline_connected=True),
+    GFTGasSupplyRecord(basin="Gippsland Basin",       region="VIC",    reserves_pj=2200.0,  production_pj_yr=220.0, reserve_life_years=10.0, domestic_reservation_pct=100.0,price_aud_gj=9.80,  price_trend="RISING",  pipeline_connected=True),
+    GFTGasSupplyRecord(basin="Otway Basin",           region="VIC/SA", reserves_pj=900.0,   production_pj_yr=75.0,  reserve_life_years=12.0, domestic_reservation_pct=80.0, price_aud_gj=9.20,  price_trend="RISING",  pipeline_connected=True),
+    GFTGasSupplyRecord(basin="Carnarvon Basin",       region="WA",     reserves_pj=85000.0, production_pj_yr=3200.0,reserve_life_years=26.6, domestic_reservation_pct=15.0, price_aud_gj=5.80,  price_trend="STABLE",  pipeline_connected=True),
+    GFTGasSupplyRecord(basin="Perth Basin",           region="WA",     reserves_pj=1200.0,  production_pj_yr=95.0,  reserve_life_years=12.6, domestic_reservation_pct=100.0,price_aud_gj=8.10,  price_trend="RISING",  pipeline_connected=True),
+    GFTGasSupplyRecord(basin="Beetaloo Sub-basin",    region="NT",     reserves_pj=28000.0, production_pj_yr=0.0,   reserve_life_years=999.0,domestic_reservation_pct=10.0, price_aud_gj=6.50,  price_trend="FALLING", pipeline_connected=False),
+    GFTGasSupplyRecord(basin="Browse Basin",          region="WA",     reserves_pj=95000.0, production_pj_yr=0.0,   reserve_life_years=999.0,domestic_reservation_pct=10.0, price_aud_gj=6.20,  price_trend="FALLING", pipeline_connected=False),
+]
+
+_GFT_HYDROGEN_BLENDING: List[GFTHydrogenBlendRecord] = [
+    GFTHydrogenBlendRecord(unit_id="TALWB1",   blend_pct_2025=5.0,  blend_pct_2030=20.0, blend_pct_2035=50.0, conversion_cost_m_aud=18.0,  operational_risk="LOW",    derating_pct=1.5),
+    GFTHydrogenBlendRecord(unit_id="KWINANA1", blend_pct_2025=5.0,  blend_pct_2030=20.0, blend_pct_2035=50.0, conversion_cost_m_aud=22.0,  operational_risk="LOW",    derating_pct=1.8),
+    GFTHydrogenBlendRecord(unit_id="MORTLK1",  blend_pct_2025=3.0,  blend_pct_2030=15.0, blend_pct_2035=30.0, conversion_cost_m_aud=14.0,  operational_risk="MEDIUM", derating_pct=2.5),
+    GFTHydrogenBlendRecord(unit_id="DDBTH1",   blend_pct_2025=2.0,  blend_pct_2030=10.0, blend_pct_2035=20.0, conversion_cost_m_aud=35.0,  operational_risk="MEDIUM", derating_pct=3.0),
+    GFTHydrogenBlendRecord(unit_id="DDBTH2",   blend_pct_2025=2.0,  blend_pct_2030=10.0, blend_pct_2035=20.0, conversion_cost_m_aud=35.0,  operational_risk="MEDIUM", derating_pct=3.0),
+    GFTHydrogenBlendRecord(unit_id="TALWA1",   blend_pct_2025=1.0,  blend_pct_2030=8.0,  blend_pct_2035=15.0, conversion_cost_m_aud=28.0,  operational_risk="HIGH",   derating_pct=4.0),
+    GFTHydrogenBlendRecord(unit_id="SNCRK1",   blend_pct_2025=0.0,  blend_pct_2030=5.0,  blend_pct_2035=15.0, conversion_cost_m_aud=12.0,  operational_risk="MEDIUM", derating_pct=2.0),
+    GFTHydrogenBlendRecord(unit_id="AGLHALL",  blend_pct_2025=0.0,  blend_pct_2030=5.0,  blend_pct_2035=10.0, conversion_cost_m_aud=10.0,  operational_risk="MEDIUM", derating_pct=1.5),
+]
+
+_GFT_CAPACITY_OUTLOOK: List[GFTCapacityOutlookRecord] = [
+    GFTCapacityOutlookRecord(year=2024, ocgt_mw=5800.0, ccgt_mw=7200.0, h2_turbine_mw=0.0,   total_gas_mw=13000.0, retirements_mw=0.0,   gas_generation_twh=52.0, role_in_nem="Baseload & Peaking"),
+    GFTCapacityOutlookRecord(year=2025, ocgt_mw=5600.0, ccgt_mw=7200.0, h2_turbine_mw=0.0,   total_gas_mw=12800.0, retirements_mw=310.0, gas_generation_twh=49.0, role_in_nem="Baseload & Peaking"),
+    GFTCapacityOutlookRecord(year=2026, ocgt_mw=5200.0, ccgt_mw=7200.0, h2_turbine_mw=0.0,   total_gas_mw=12400.0, retirements_mw=400.0, gas_generation_twh=46.0, role_in_nem="Firming & Peaking"),
+    GFTCapacityOutlookRecord(year=2027, ocgt_mw=4900.0, ccgt_mw=7200.0, h2_turbine_mw=316.0, total_gas_mw=12415.0, retirements_mw=300.0, gas_generation_twh=44.0, role_in_nem="Firming & Peaking"),
+    GFTCapacityOutlookRecord(year=2028, ocgt_mw=4600.0, ccgt_mw=7200.0, h2_turbine_mw=956.0, total_gas_mw=12756.0, retirements_mw=300.0, gas_generation_twh=40.0, role_in_nem="Firming & H2 Blending"),
+    GFTCapacityOutlookRecord(year=2029, ocgt_mw=4300.0, ccgt_mw=6570.0, h2_turbine_mw=956.0, total_gas_mw=11826.0, retirements_mw=630.0, gas_generation_twh=36.0, role_in_nem="Firming & H2 Blending"),
+    GFTCapacityOutlookRecord(year=2030, ocgt_mw=4000.0, ccgt_mw=6570.0, h2_turbine_mw=1596.0,total_gas_mw=12166.0, retirements_mw=300.0, gas_generation_twh=32.0, role_in_nem="Firming & H2 Transition"),
+    GFTCapacityOutlookRecord(year=2031, ocgt_mw=3700.0, ccgt_mw=5940.0, h2_turbine_mw=2200.0,total_gas_mw=11840.0, retirements_mw=630.0, gas_generation_twh=28.0, role_in_nem="H2 Transition & Firming"),
+]
+
+
+@app.get("/api/gas-transition/dashboard", dependencies=[Depends(verify_api_key)])
+def get_gas_transition_dashboard() -> GasTransitionDashboard:
+    """Sprint 60a — Gas-Fired Generation Transition Analytics dashboard."""
+    return GasTransitionDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        generators=_GFT_GENERATORS,
+        gas_supply=_GFT_GAS_SUPPLY,
+        hydrogen_blending=_GFT_HYDROGEN_BLENDING,
+        capacity_outlook=_GFT_CAPACITY_OUTLOOK,
+    )
+
+# ---------------------------------------------------------------------------
+# Sprint 60c — Prosumer & Behind-the-Meter (BTM) Analytics
+# ---------------------------------------------------------------------------
+
+class BTMInstallationRecord(BaseModel):
+    state: str
+    year: int
+    rooftop_solar_systems_k: int
+    rooftop_solar_mw: float
+    btm_battery_systems_k: int
+    btm_battery_mwh: float
+    avg_system_size_kw: float
+    avg_battery_size_kwh: float
+    export_capable_pct: float
+    smart_meter_pct: float
+
+
+class BTMNetLoadRecord(BaseModel):
+    state: str
+    month: str
+    gross_demand_gwh: float
+    btm_solar_generation_gwh: float
+    btm_battery_discharge_gwh: float
+    net_demand_gwh: float
+    min_net_demand_mw: float
+    duck_curve_depth_mw: float
+    evening_ramp_mw_hr: float
+
+
+class BTMExportRecord(BaseModel):
+    state: str
+    year: int
+    total_exports_gwh: float
+    fit_payments_m_aud: float
+    avg_fit_rate_aud_kwh: float
+    export_curtailment_gwh: float
+    curtailment_pct: float
+    grid_constraint_triggered: bool
+
+
+class BTMVppRecord(BaseModel):
+    vpp_name: str
+    state: str
+    enrolled_customers_k: int
+    total_battery_mwh: float
+    peak_dispatch_mw: float
+    annual_events: int
+    avg_event_duration_hr: float
+    revenue_per_customer_aud: float
+    operator: str
+
+
+class ProsumerDashboard(BaseModel):
+    timestamp: str
+    installations: List[BTMInstallationRecord]
+    net_load: List[BTMNetLoadRecord]
+    exports: List[BTMExportRecord]
+    vpps: List[BTMVppRecord]
+
+
+# ---- Mock data ----
+
+_BTM_STATES = ["NSW", "VIC", "QLD", "SA", "WA"]
+_BTM_YEARS = [2020, 2021, 2022, 2023, 2024]
+
+# Solar adoption roughly doubles over 5 years; SA leads per-capita
+_BTM_SOLAR_BASE = {"NSW": 550, "VIC": 380, "QLD": 620, "SA": 230, "WA": 280}  # MW 2020
+_BTM_GROWTH = {"NSW": 1.18, "VIC": 1.17, "QLD": 1.16, "SA": 1.14, "WA": 1.15}
+
+_BTM_INSTALLATIONS: List[BTMInstallationRecord] = []
+for _st in _BTM_STATES:
+    for _idx, _yr in enumerate(_BTM_YEARS):
+        _mw = round(_BTM_SOLAR_BASE[_st] * (_BTM_GROWTH[_st] ** _idx), 1)
+        _systems_k = round(_mw / 8.5)  # ~8.5 kW average 2020 trending to ~10 kW
+        _avg_kw = round(8.0 + 0.4 * _idx, 1)
+        _bat_pct = 0.08 + 0.06 * _idx
+        _bat_k = round(_systems_k * _bat_pct)
+        _bat_mwh = round(_bat_k * 12.5, 1)
+        _export_pct = round(88.0 + _idx * 1.5, 1)
+        _smart_pct = round(55.0 + _idx * 6.0, 1)
+        _BTM_INSTALLATIONS.append(BTMInstallationRecord(
+            state=_st,
+            year=_yr,
+            rooftop_solar_systems_k=_systems_k,
+            rooftop_solar_mw=_mw,
+            btm_battery_systems_k=_bat_k,
+            btm_battery_mwh=_bat_mwh,
+            avg_system_size_kw=_avg_kw,
+            avg_battery_size_kwh=round(11.0 + _idx * 0.5, 1),
+            export_capable_pct=_export_pct,
+            smart_meter_pct=min(_smart_pct, 95.0),
+        ))
+
+# Net load — 5 states × 6 months (representative calendar spread)
+_BTM_MONTHS = ["Jan", "Mar", "May", "Jul", "Sep", "Nov"]
+# Gross demand base GWh/month, solar generation offset (higher summer)
+_BTM_GROSS = {"NSW": 6800, "VIC": 5400, "QLD": 6100, "SA": 1900, "WA": 2600}
+_BTM_SOLAR_SEASONAL = {
+    "Jan": 0.28, "Mar": 0.22, "May": 0.12, "Jul": 0.09, "Sep": 0.16, "Nov": 0.24
+}
+_BTM_NET_LOAD: List[BTMNetLoadRecord] = []
+for _st in _BTM_STATES:
+    _gross_base = _BTM_GROSS[_st]
+    for _mo in _BTM_MONTHS:
+        _solar_frac = _BTM_SOLAR_SEASONAL[_mo]
+        _gross = round(_gross_base * (1.0 + (0.08 if _mo in ["Jan", "Jul"] else 0)), 1)
+        _solar_gen = round(_gross * _solar_frac, 1)
+        _bat_dis = round(_solar_gen * 0.12, 1)
+        _net = round(_gross - _solar_gen - _bat_dis, 1)
+        _min_net = round((_net / 30 / 24) * 0.35 * 1000, 1)  # MW
+        _duck = round(_solar_gen / 30 / 24 * 1000 * 0.65, 1)  # MW depth
+        _ramp = round(_duck * 1.8, 1)  # evening ramp MW/hr
+        _BTM_NET_LOAD.append(BTMNetLoadRecord(
+            state=_st,
+            month=_mo,
+            gross_demand_gwh=_gross,
+            btm_solar_generation_gwh=_solar_gen,
+            btm_battery_discharge_gwh=_bat_dis,
+            net_demand_gwh=_net,
+            min_net_demand_mw=_min_net,
+            duck_curve_depth_mw=_duck,
+            evening_ramp_mw_hr=_ramp,
+        ))
+
+# Export records — 5 states × 4 years (2021-2024)
+_BTM_EXPORT_YEARS = [2021, 2022, 2023, 2024]
+_BTM_EXPORT_BASE = {"NSW": 2200, "VIC": 1600, "QLD": 2500, "SA": 950, "WA": 1100}
+_BTM_EXPORTS: List[BTMExportRecord] = []
+for _st in _BTM_STATES:
+    for _eidx, _yr in enumerate(_BTM_EXPORT_YEARS):
+        _exp_gwh = round(_BTM_EXPORT_BASE[_st] * (1.15 ** _eidx), 1)
+        _fit_rate = round(0.068 - _eidx * 0.004, 4)  # declining FiT rates
+        _fit_pay = round(_exp_gwh * _fit_rate * 1000 * 0.001, 1)  # M AUD
+        _curtail_pct = round(1.5 + _eidx * 1.2 + (3.0 if _st == "SA" else 0), 1)
+        _curtail_gwh = round(_exp_gwh * _curtail_pct / 100, 1)
+        _grid_constraint = _curtail_pct > 6.0
+        _BTM_EXPORTS.append(BTMExportRecord(
+            state=_st,
+            year=_yr,
+            total_exports_gwh=_exp_gwh,
+            fit_payments_m_aud=_fit_pay,
+            avg_fit_rate_aud_kwh=_fit_rate,
+            export_curtailment_gwh=_curtail_gwh,
+            curtailment_pct=_curtail_pct,
+            grid_constraint_triggered=_grid_constraint,
+        ))
+
+# VPP records — 8 programmes across NEM
+_BTM_VPPS: List[BTMVppRecord] = [
+    BTMVppRecord(
+        vpp_name="AGL Virtual Power Plant",
+        state="SA",
+        enrolled_customers_k=8,
+        total_battery_mwh=96.0,
+        peak_dispatch_mw=20.0,
+        annual_events=42,
+        avg_event_duration_hr=2.5,
+        revenue_per_customer_aud=320.0,
+        operator="AGL Energy",
+    ),
+    BTMVppRecord(
+        vpp_name="Tesla Virtual Power Plant SA",
+        state="SA",
+        enrolled_customers_k=4,
+        total_battery_mwh=52.0,
+        peak_dispatch_mw=11.0,
+        annual_events=38,
+        avg_event_duration_hr=2.0,
+        revenue_per_customer_aud=410.0,
+        operator="Tesla Energy",
+    ),
+    BTMVppRecord(
+        vpp_name="Origin Spike Response NSW",
+        state="NSW",
+        enrolled_customers_k=12,
+        total_battery_mwh=144.0,
+        peak_dispatch_mw=30.0,
+        annual_events=28,
+        avg_event_duration_hr=2.2,
+        revenue_per_customer_aud=275.0,
+        operator="Origin Energy",
+    ),
+    BTMVppRecord(
+        vpp_name="Amber Electric SmartShift",
+        state="VIC",
+        enrolled_customers_k=6,
+        total_battery_mwh=66.0,
+        peak_dispatch_mw=14.0,
+        annual_events=52,
+        avg_event_duration_hr=1.8,
+        revenue_per_customer_aud=480.0,
+        operator="Amber Electric",
+        ),
+    BTMVppRecord(
+        vpp_name="EnergyAustralia FlexPower",
+        state="QLD",
+        enrolled_customers_k=9,
+        total_battery_mwh=108.0,
+        peak_dispatch_mw=22.0,
+        annual_events=31,
+        avg_event_duration_hr=2.3,
+        revenue_per_customer_aud=290.0,
+        operator="EnergyAustralia",
+    ),
+    BTMVppRecord(
+        vpp_name="Synergy Home Battery Scheme",
+        state="WA",
+        enrolled_customers_k=15,
+        total_battery_mwh=195.0,
+        peak_dispatch_mw=38.0,
+        annual_events=24,
+        avg_event_duration_hr=3.0,
+        revenue_per_customer_aud=220.0,
+        operator="Synergy",
+    ),
+    BTMVppRecord(
+        vpp_name="Simply Energy EV Grid",
+        state="VIC",
+        enrolled_customers_k=3,
+        total_battery_mwh=24.0,
+        peak_dispatch_mw=8.0,
+        annual_events=19,
+        avg_event_duration_hr=1.5,
+        revenue_per_customer_aud=540.0,
+        operator="Simply Energy",
+    ),
+    BTMVppRecord(
+        vpp_name="Reposit Power GridCredits",
+        state="NSW",
+        enrolled_customers_k=5,
+        total_battery_mwh=62.0,
+        peak_dispatch_mw=13.0,
+        annual_events=60,
+        avg_event_duration_hr=1.2,
+        revenue_per_customer_aud=620.0,
+        operator="Reposit Power",
+    ),
+]
+
+
+@app.get("/api/prosumer/dashboard", dependencies=[Depends(verify_api_key)])
+def get_prosumer_dashboard() -> ProsumerDashboard:
+    return ProsumerDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        installations=_BTM_INSTALLATIONS,
+        net_load=_BTM_NET_LOAD,
+        exports=_BTM_EXPORTS,
+        vpps=_BTM_VPPS,
+    )
+
+
+# ============================================================
+# Sprint 60b — TNSP Revenue & Investment Analytics
+# ============================================================
+
+class TNATnspRecord(BaseModel):
+    tnsp_id: str
+    tnsp_name: str
+    state: str
+    regulated_asset_base_bn_aud: float
+    revenue_determination_bn_aud: float
+    determination_period: str
+    capex_m_aud_yr: float
+    opex_m_aud_yr: float
+    network_length_km: float
+    substations: int
+    wacc_real_pct: float
+
+class TNAReliabilityRecord(BaseModel):
+    tnsp: str
+    year: int
+    system_minutes_lost: float
+    circuit_outages: int
+    unplanned_outage_rate_pct: float
+    saidi_minutes: float
+    transmission_constraint_hours: float
+    asset_age_avg_years: float
+
+class TNAProjectRecord(BaseModel):
+    project_name: str
+    tnsp: str
+    project_type: str   # AUGMENTATION / REPLACEMENT / UPGRADE / NEW_BUILD
+    investment_m_aud: float
+    commissioning_year: int
+    status: str         # COMPLETE / CONSTRUCTION / APPROVED / PROPOSED
+    primary_driver: str # NETWORK_SECURITY / LOAD_GROWTH / RENEWABLE_CONNECTION / RELIABILITY / ISP
+    vre_enabled_mw: float
+
+class TNARegulatoryRecord(BaseModel):
+    tnsp: str
+    regulatory_period: str
+    allowed_revenue_m_aud: float
+    actual_revenue_m_aud: float
+    efficiency_carryover_m_aud: float
+    cpi_escalator_pct: float
+    aer_decision: str   # ACCEPTED / REVISED / REJECTED
+
+class TnspAnalyticsDashboard(BaseModel):
+    timestamp: str
+    tnsps: list
+    reliability: list
+    projects: list
+    regulatory: list
+
+_TNA_TNSPS = [
+    TNATnspRecord(
+        tnsp_id="TRANSGRID",
+        tnsp_name="TransGrid",
+        state="NSW/ACT",
+        regulated_asset_base_bn_aud=6.8,
+        revenue_determination_bn_aud=3.4,
+        determination_period="2023-2028",
+        capex_m_aud_yr=420.0,
+        opex_m_aud_yr=215.0,
+        network_length_km=13000.0,
+        substations=108,
+        wacc_real_pct=4.1,
+    ),
+    TNATnspRecord(
+        tnsp_id="ELECTRANET",
+        tnsp_name="ElectraNet",
+        state="SA",
+        regulated_asset_base_bn_aud=2.1,
+        revenue_determination_bn_aud=1.05,
+        determination_period="2023-2028",
+        capex_m_aud_yr=145.0,
+        opex_m_aud_yr=78.0,
+        network_length_km=5500.0,
+        substations=45,
+        wacc_real_pct=4.3,
+    ),
+    TNATnspRecord(
+        tnsp_id="TASNETWORKS",
+        tnsp_name="TasNetworks",
+        state="TAS",
+        regulated_asset_base_bn_aud=1.3,
+        revenue_determination_bn_aud=0.65,
+        determination_period="2024-2029",
+        capex_m_aud_yr=95.0,
+        opex_m_aud_yr=52.0,
+        network_length_km=3600.0,
+        substations=38,
+        wacc_real_pct=4.0,
+    ),
+    TNATnspRecord(
+        tnsp_id="POWERLINK",
+        tnsp_name="Powerlink",
+        state="QLD",
+        regulated_asset_base_bn_aud=5.2,
+        revenue_determination_bn_aud=2.6,
+        determination_period="2022-2027",
+        capex_m_aud_yr=310.0,
+        opex_m_aud_yr=168.0,
+        network_length_km=15000.0,
+        substations=116,
+        wacc_real_pct=3.9,
+    ),
+    TNATnspRecord(
+        tnsp_id="AUSNET_TX",
+        tnsp_name="AusNet Transmission",
+        state="VIC",
+        regulated_asset_base_bn_aud=3.7,
+        revenue_determination_bn_aud=1.85,
+        determination_period="2023-2028",
+        capex_m_aud_yr=235.0,
+        opex_m_aud_yr=122.0,
+        network_length_km=6500.0,
+        substations=74,
+        wacc_real_pct=4.2,
+    ),
+]
+
+_TNA_RELIABILITY = [
+    # TransGrid
+    TNAReliabilityRecord(tnsp="TransGrid", year=2022, system_minutes_lost=1.8, circuit_outages=42, unplanned_outage_rate_pct=1.4, saidi_minutes=2.1, transmission_constraint_hours=312.0, asset_age_avg_years=31.0),
+    TNAReliabilityRecord(tnsp="TransGrid", year=2023, system_minutes_lost=1.6, circuit_outages=38, unplanned_outage_rate_pct=1.2, saidi_minutes=1.9, transmission_constraint_hours=285.0, asset_age_avg_years=32.0),
+    TNAReliabilityRecord(tnsp="TransGrid", year=2024, system_minutes_lost=1.5, circuit_outages=35, unplanned_outage_rate_pct=1.1, saidi_minutes=1.7, transmission_constraint_hours=260.0, asset_age_avg_years=32.5),
+    # ElectraNet
+    TNAReliabilityRecord(tnsp="ElectraNet", year=2022, system_minutes_lost=2.4, circuit_outages=28, unplanned_outage_rate_pct=2.1, saidi_minutes=2.8, transmission_constraint_hours=520.0, asset_age_avg_years=28.0),
+    TNAReliabilityRecord(tnsp="ElectraNet", year=2023, system_minutes_lost=2.2, circuit_outages=25, unplanned_outage_rate_pct=1.9, saidi_minutes=2.5, transmission_constraint_hours=490.0, asset_age_avg_years=29.0),
+    TNAReliabilityRecord(tnsp="ElectraNet", year=2024, system_minutes_lost=2.0, circuit_outages=22, unplanned_outage_rate_pct=1.7, saidi_minutes=2.3, transmission_constraint_hours=450.0, asset_age_avg_years=29.5),
+    # TasNetworks
+    TNAReliabilityRecord(tnsp="TasNetworks", year=2022, system_minutes_lost=1.2, circuit_outages=18, unplanned_outage_rate_pct=0.9, saidi_minutes=1.4, transmission_constraint_hours=180.0, asset_age_avg_years=25.0),
+    TNAReliabilityRecord(tnsp="TasNetworks", year=2023, system_minutes_lost=1.1, circuit_outages=16, unplanned_outage_rate_pct=0.8, saidi_minutes=1.3, transmission_constraint_hours=165.0, asset_age_avg_years=25.5),
+    TNAReliabilityRecord(tnsp="TasNetworks", year=2024, system_minutes_lost=1.0, circuit_outages=14, unplanned_outage_rate_pct=0.7, saidi_minutes=1.2, transmission_constraint_hours=148.0, asset_age_avg_years=26.0),
+    # Powerlink
+    TNAReliabilityRecord(tnsp="Powerlink", year=2022, system_minutes_lost=1.9, circuit_outages=55, unplanned_outage_rate_pct=1.5, saidi_minutes=2.2, transmission_constraint_hours=295.0, asset_age_avg_years=29.0),
+    TNAReliabilityRecord(tnsp="Powerlink", year=2023, system_minutes_lost=1.7, circuit_outages=50, unplanned_outage_rate_pct=1.3, saidi_minutes=2.0, transmission_constraint_hours=270.0, asset_age_avg_years=30.0),
+    TNAReliabilityRecord(tnsp="Powerlink", year=2024, system_minutes_lost=1.6, circuit_outages=46, unplanned_outage_rate_pct=1.2, saidi_minutes=1.8, transmission_constraint_hours=248.0, asset_age_avg_years=30.5),
+    # AusNet Transmission
+    TNAReliabilityRecord(tnsp="AusNet Transmission", year=2022, system_minutes_lost=2.1, circuit_outages=36, unplanned_outage_rate_pct=1.8, saidi_minutes=2.4, transmission_constraint_hours=380.0, asset_age_avg_years=33.0),
+    TNAReliabilityRecord(tnsp="AusNet Transmission", year=2023, system_minutes_lost=1.9, circuit_outages=32, unplanned_outage_rate_pct=1.6, saidi_minutes=2.2, transmission_constraint_hours=355.0, asset_age_avg_years=34.0),
+    TNAReliabilityRecord(tnsp="AusNet Transmission", year=2024, system_minutes_lost=1.8, circuit_outages=30, unplanned_outage_rate_pct=1.5, saidi_minutes=2.0, transmission_constraint_hours=330.0, asset_age_avg_years=34.5),
+]
+
+_TNA_PROJECTS = [
+    TNAProjectRecord(project_name="HumeLink 500kV", tnsp="TransGrid", project_type="NEW_BUILD", investment_m_aud=3300.0, commissioning_year=2026, status="CONSTRUCTION", primary_driver="RENEWABLE_CONNECTION", vre_enabled_mw=4500.0),
+    TNAProjectRecord(project_name="Sydney Ring Upgrade", tnsp="TransGrid", project_type="AUGMENTATION", investment_m_aud=480.0, commissioning_year=2025, status="APPROVED", primary_driver="NETWORK_SECURITY", vre_enabled_mw=0.0),
+    TNAProjectRecord(project_name="EnergyConnect SA-NSW Interconnector", tnsp="ElectraNet", project_type="NEW_BUILD", investment_m_aud=2400.0, commissioning_year=2026, status="CONSTRUCTION", primary_driver="ISP", vre_enabled_mw=800.0),
+    TNAProjectRecord(project_name="Heywood Interconnector Upgrade", tnsp="ElectraNet", project_type="UPGRADE", investment_m_aud=125.0, commissioning_year=2024, status="COMPLETE", primary_driver="RELIABILITY", vre_enabled_mw=200.0),
+    TNAProjectRecord(project_name="Marinus Link Cable", tnsp="TasNetworks", project_type="NEW_BUILD", investment_m_aud=3500.0, commissioning_year=2029, status="APPROVED", primary_driver="ISP", vre_enabled_mw=1500.0),
+    TNAProjectRecord(project_name="Longford-Latrobe Valley Upgrade", tnsp="TasNetworks", project_type="UPGRADE", investment_m_aud=85.0, commissioning_year=2025, status="APPROVED", primary_driver="RELIABILITY", vre_enabled_mw=0.0),
+    TNAProjectRecord(project_name="CopperString 2032", tnsp="Powerlink", project_type="NEW_BUILD", investment_m_aud=5000.0, commissioning_year=2032, status="PROPOSED", primary_driver="LOAD_GROWTH", vre_enabled_mw=5000.0),
+    TNAProjectRecord(project_name="North Queensland REZ Strengthening", tnsp="Powerlink", project_type="AUGMENTATION", investment_m_aud=380.0, commissioning_year=2026, status="CONSTRUCTION", primary_driver="RENEWABLE_CONNECTION", vre_enabled_mw=2000.0),
+    TNAProjectRecord(project_name="Darlington Point Substation", tnsp="Powerlink", project_type="AUGMENTATION", investment_m_aud=145.0, commissioning_year=2024, status="COMPLETE", primary_driver="RENEWABLE_CONNECTION", vre_enabled_mw=1200.0),
+    TNAProjectRecord(project_name="VNI West (Western Victoria REZ)", tnsp="AusNet Transmission", project_type="NEW_BUILD", investment_m_aud=2800.0, commissioning_year=2028, status="APPROVED", primary_driver="ISP", vre_enabled_mw=6000.0),
+    TNAProjectRecord(project_name="Moorabool-Sydenham 500kV", tnsp="AusNet Transmission", project_type="UPGRADE", investment_m_aud=210.0, commissioning_year=2024, status="COMPLETE", primary_driver="LOAD_GROWTH", vre_enabled_mw=0.0),
+    TNAProjectRecord(project_name="Transmission Vegetation Management", tnsp="AusNet Transmission", project_type="REPLACEMENT", investment_m_aud=55.0, commissioning_year=2025, status="CONSTRUCTION", primary_driver="NETWORK_SECURITY", vre_enabled_mw=0.0),
+]
+
+_TNA_REGULATORY = [
+    TNARegulatoryRecord(tnsp="TransGrid", regulatory_period="2018-2023", allowed_revenue_m_aud=3180.0, actual_revenue_m_aud=3095.0, efficiency_carryover_m_aud=42.5, cpi_escalator_pct=3.8, aer_decision="ACCEPTED"),
+    TNARegulatoryRecord(tnsp="TransGrid", regulatory_period="2023-2028", allowed_revenue_m_aud=3400.0, actual_revenue_m_aud=3210.0, efficiency_carryover_m_aud=38.0, cpi_escalator_pct=4.2, aer_decision="REVISED"),
+    TNARegulatoryRecord(tnsp="ElectraNet", regulatory_period="2018-2023", allowed_revenue_m_aud=995.0, actual_revenue_m_aud=980.0, efficiency_carryover_m_aud=18.5, cpi_escalator_pct=3.6, aer_decision="ACCEPTED"),
+    TNARegulatoryRecord(tnsp="ElectraNet", regulatory_period="2023-2028", allowed_revenue_m_aud=1050.0, actual_revenue_m_aud=1020.0, efficiency_carryover_m_aud=15.0, cpi_escalator_pct=4.1, aer_decision="ACCEPTED"),
+    TNARegulatoryRecord(tnsp="TasNetworks", regulatory_period="2019-2024", allowed_revenue_m_aud=620.0, actual_revenue_m_aud=608.0, efficiency_carryover_m_aud=12.0, cpi_escalator_pct=3.5, aer_decision="ACCEPTED"),
+    TNARegulatoryRecord(tnsp="TasNetworks", regulatory_period="2024-2029", allowed_revenue_m_aud=650.0, actual_revenue_m_aud=635.0, efficiency_carryover_m_aud=8.5, cpi_escalator_pct=4.3, aer_decision="REVISED"),
+    TNARegulatoryRecord(tnsp="Powerlink", regulatory_period="2017-2022", allowed_revenue_m_aud=2450.0, actual_revenue_m_aud=2380.0, efficiency_carryover_m_aud=35.0, cpi_escalator_pct=3.4, aer_decision="ACCEPTED"),
+    TNARegulatoryRecord(tnsp="Powerlink", regulatory_period="2022-2027", allowed_revenue_m_aud=2600.0, actual_revenue_m_aud=2520.0, efficiency_carryover_m_aud=28.0, cpi_escalator_pct=4.0, aer_decision="ACCEPTED"),
+    TNARegulatoryRecord(tnsp="AusNet Transmission", regulatory_period="2018-2023", allowed_revenue_m_aud=1760.0, actual_revenue_m_aud=1690.0, efficiency_carryover_m_aud=22.0, cpi_escalator_pct=3.7, aer_decision="REVISED"),
+    TNARegulatoryRecord(tnsp="AusNet Transmission", regulatory_period="2023-2028", allowed_revenue_m_aud=1850.0, actual_revenue_m_aud=1780.0, efficiency_carryover_m_aud=19.5, cpi_escalator_pct=4.2, aer_decision="ACCEPTED"),
+]
+
+@app.get(
+    "/api/tnsp-analytics/dashboard",
+    dependencies=[Depends(verify_api_key)],
+)
+def get_tnsp_analytics_dashboard() -> TnspAnalyticsDashboard:
+    """Return TNSP Revenue & Investment Analytics dashboard data."""
+    import datetime as _dt
+    return TnspAnalyticsDashboard(
+        timestamp=_dt.datetime.utcnow().isoformat() + "Z",
+        tnsps=[r.dict() for r in _TNA_TNSPS],
+        reliability=[r.dict() for r in _TNA_RELIABILITY],
+        projects=[r.dict() for r in _TNA_PROJECTS],
+        regulatory=[r.dict() for r in _TNA_REGULATORY],
+    )
