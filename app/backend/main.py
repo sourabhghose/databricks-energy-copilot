@@ -60869,3 +60869,773 @@ async def get_carbon_accounting_dashboard():
     result = _build_eca_dashboard()
     _cache_set(_eca_cache, "eca", result)
     return result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Sprint 87b — NEM Wholesale Market Participant Bidding Strategy Analytics
+# ══════════════════════════════════════════════════════════════════════════════
+
+class WBSPortfolioRecord(BaseModel):
+    company: str
+    region: str
+    fuel_mix: str  # COAL_DOMINANT / GAS_PEAKER / RENEWABLES / MIXED / STORAGE_SPECIALIST
+    total_portfolio_mw: float
+    baseload_mw: float
+    peaking_mw: float
+    renewable_mw: float
+    storage_mw: float
+    market_share_pct: float
+    hedged_position_pct: float
+    retail_load_mw: float  # load they own to self-supply
+    net_position_mw: float  # positive = net generator
+
+
+class WBSStrategyRecord(BaseModel):
+    company: str
+    strategy: str  # COST_PLUS / SCARCITY_PRICING / PORTFOLIO_OPTIMISATION / MIXED / FINANCIAL_HEDGE_DRIVEN
+    avg_band_1_price: float  # lowest price band
+    avg_band_10_price: float  # highest price band
+    pct_volume_below_srmc: float  # % of volume bid below Short Run Marginal Cost
+    pct_volume_at_voll: float  # % of volume bid at VoLL ($16,600)
+    rebid_rate_per_day: float
+    price_stability_score: float  # 0-10, higher = more stable bidding
+    responsive_to_forecast_pct: float  # % bids that respond to pre-dispatch
+
+
+class WBSDispatchRankRecord(BaseModel):
+    region: str
+    technology: str
+    quarter: str
+    avg_dispatch_rank: float  # lower = dispatched more often
+    capacity_factor_pct: float
+    price_setter_pct: float  # % of intervals setting price
+    avg_marginal_cost: float
+    avg_dispatch_price: float
+    infra_marginal_rent_m: float  # profit above marginal cost
+
+
+class WBSRiskRecord(BaseModel):
+    company: str
+    risk_type: str  # VOLUME / PRICE / FUEL / COUNTERPARTY / REGULATORY / MARKET_DESIGN
+    exposure_m: float
+    hedging_instrument: str  # SWAP / CAP / COLLAR / FORWARD / PPA / SELF_SUPPLY
+    hedge_ratio_pct: float
+    residual_risk_m: float
+
+
+class WBSOptimalBidRecord(BaseModel):
+    technology: str
+    region: str
+    scenario: str  # LOW_DEMAND / NORMAL / HIGH_DEMAND / EXTREME_HEAT / LOW_WIND
+    optimal_band_1_price: float  # bid to maximize profit
+    optimal_band_10_price: float
+    expected_dispatch_pct: float
+    expected_revenue_per_mwh: float
+    value_at_risk_10pct: float  # VaR at 10th percentile outcome
+
+
+class WBSDashboard(BaseModel):
+    portfolios: List[WBSPortfolioRecord]
+    strategies: List[WBSStrategyRecord]
+    dispatch_ranks: List[WBSDispatchRankRecord]
+    risks: List[WBSRiskRecord]
+    optimal_bids: List[WBSOptimalBidRecord]
+    summary: dict
+
+
+_wbs_cache: dict = {}
+
+
+def _build_wbs_dashboard() -> WBSDashboard:
+    import random
+    rng = random.Random(87)
+
+    # ── Portfolio Records (10 major NEM participants) ─────────────────────────
+    _port_data = [
+        # company, region, fuel_mix, total_mw, baseload, peaking, renewable, storage, mkt_share, hedged, retail_load
+        ("AGL Energy",          "NSW", "COAL_DOMINANT",      9200.0, 4200.0, 2800.0, 1600.0,  600.0, 24.8, 72.0, 3800.0),
+        ("Origin Energy",       "QLD", "MIXED",              7800.0, 2600.0, 2400.0, 2200.0,  600.0, 19.2, 68.0, 3200.0),
+        ("EnergyAustralia",     "VIC", "COAL_DOMINANT",      6400.0, 3200.0, 1600.0, 1200.0,  400.0, 16.4, 65.0, 2800.0),
+        ("Alinta Energy",       "WA",  "GAS_PEAKER",         2800.0,  400.0, 1800.0,  400.0,  200.0,  7.2, 58.0,  800.0),
+        ("CS Energy",           "QLD", "COAL_DOMINANT",      3600.0, 2800.0,  400.0,  200.0,  200.0,  9.2, 48.0,  400.0),
+        ("Snowy Hydro",         "NSW", "MIXED",              5200.0,    0.0, 3600.0, 1200.0,  400.0, 13.2, 82.0, 1200.0),
+        ("APA Group",           "VIC", "GAS_PEAKER",         1800.0,    0.0, 1600.0,  200.0,    0.0,  4.6, 42.0,  200.0),
+        ("Neoen",               "SA",  "RENEWABLES",         1600.0,    0.0,    0.0, 1200.0,  400.0,  3.8, 38.0,    0.0),
+        ("Iberdrola Australia", "VIC", "RENEWABLES",         1200.0,    0.0,    0.0, 1000.0,  200.0,  2.8, 44.0,    0.0),
+        ("Macquarie Energy",    "NSW", "STORAGE_SPECIALIST",  800.0,    0.0,  200.0,  200.0,  400.0,  2.0, 92.0,  400.0),
+    ]
+    portfolios = []
+    for r in _port_data:
+        net_pos = r[3] - r[10]  # total_mw - retail_load_mw
+        portfolios.append(WBSPortfolioRecord(
+            company=r[0], region=r[1], fuel_mix=r[2],
+            total_portfolio_mw=r[3], baseload_mw=r[4], peaking_mw=r[5],
+            renewable_mw=r[6], storage_mw=r[7],
+            market_share_pct=r[8], hedged_position_pct=r[9],
+            retail_load_mw=r[10], net_position_mw=round(net_pos, 1),
+        ))
+
+    # ── Strategy Records (10 participants) ───────────────────────────────────
+    _strat_data = [
+        # company, strategy, band1, band10, pct_below_srmc, pct_at_voll, rebid/day, stability, responsive_pct
+        ("AGL Energy",          "PORTFOLIO_OPTIMISATION",   -1000.0, 14800.0,  6.2, 12.4, 18.4, 7.2, 68.4),
+        ("Origin Energy",       "PORTFOLIO_OPTIMISATION",    -500.0, 13600.0,  8.4, 10.8, 22.6, 6.8, 72.8),
+        ("EnergyAustralia",     "MIXED",                     -800.0, 14200.0,  7.6,  9.2, 16.8, 7.6, 64.2),
+        ("Alinta Energy",       "SCARCITY_PRICING",           200.0, 16600.0,  2.4, 22.6, 28.4, 5.4, 82.4),
+        ("CS Energy",           "COST_PLUS",                  800.0,  8400.0,  4.8,  4.2, 12.2, 8.4, 48.8),
+        ("Snowy Hydro",         "FINANCIAL_HEDGE_DRIVEN",  -2000.0, 14000.0, 18.4,  8.4, 14.8, 7.8, 88.4),
+        ("APA Group",           "SCARCITY_PRICING",           400.0, 16600.0,  1.8, 28.4, 32.6, 4.8, 76.4),
+        ("Neoen",               "COST_PLUS",                -1000.0,   200.0, 42.4,  0.8,  8.4, 9.2, 38.4),
+        ("Iberdrola Australia", "MIXED",                     -800.0,   400.0, 38.2,  1.2,  9.6, 8.8, 42.8),
+        ("Macquarie Energy",    "FINANCIAL_HEDGE_DRIVEN",  -2000.0, 14000.0, 12.4, 14.8, 42.8, 5.8, 94.2),
+    ]
+    strategies = [
+        WBSStrategyRecord(
+            company=r[0], strategy=r[1],
+            avg_band_1_price=r[2], avg_band_10_price=r[3],
+            pct_volume_below_srmc=r[4], pct_volume_at_voll=r[5],
+            rebid_rate_per_day=r[6], price_stability_score=r[7],
+            responsive_to_forecast_pct=r[8],
+        )
+        for r in _strat_data
+    ]
+
+    # ── Dispatch Rank Records (5 technologies × 3 regions × 2 quarters = 30) ─
+    _technologies = ["BLACK_COAL", "GAS_CCGT", "GAS_OCGT", "WIND", "UTILITY_SOLAR"]
+    _regions      = ["NSW", "VIC", "QLD"]
+    _quarters     = ["2024-Q3", "2024-Q4"]
+    _tech_params = {
+        # technology: (base_rank, cf_pct, price_setter_pct, marg_cost, dispatch_price, rent_m)
+        "BLACK_COAL":    ( 2.4, 68.4, 38.2, 28.4,  72.8, 184.0),
+        "GAS_CCGT":      ( 4.8, 44.2, 28.4, 68.4,  98.4,  82.4),
+        "GAS_OCGT":      ( 8.4, 12.8, 14.2, 98.4, 184.0,  28.4),
+        "WIND":          ( 1.8, 34.6,  4.2, -8.4,  48.2,  48.4),
+        "UTILITY_SOLAR": ( 2.2, 28.4,  2.8, -4.2,  38.4,  38.4),
+    }
+    dispatch_ranks = []
+    for tech, (rank, cf, ps, mc, dp, rent) in _tech_params.items():
+        for region in _regions:
+            for qi, quarter in enumerate(_quarters):
+                seasonal = 1.0 + (qi * 0.04) + rng.uniform(-0.02, 0.02)
+                dispatch_ranks.append(WBSDispatchRankRecord(
+                    region=region, technology=tech, quarter=quarter,
+                    avg_dispatch_rank=round(rank * (1.0 + rng.uniform(-0.1, 0.1)), 2),
+                    capacity_factor_pct=round(cf * seasonal + rng.uniform(-2.0, 2.0), 1),
+                    price_setter_pct=round(ps + rng.uniform(-1.0, 1.0), 1),
+                    avg_marginal_cost=round(mc + rng.uniform(-2.0, 2.0), 1),
+                    avg_dispatch_price=round(dp * seasonal + rng.uniform(-5.0, 5.0), 1),
+                    infra_marginal_rent_m=round(rent * seasonal + rng.uniform(-8.0, 8.0), 1),
+                ))
+
+    # ── Risk Records (5 companies × 4 risk types = 20) ───────────────────────
+    _risk_companies = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Snowy Hydro", "Alinta Energy"
+    ]
+    _risk_types = [
+        # risk_type, exposure_m, instrument, hedge_ratio_pct, residual_m
+        ("VOLUME",          284.0, "SWAP",        72.0,  79.5),
+        ("PRICE",           428.0, "CAP",         68.0, 137.0),
+        ("FUEL",            142.0, "FORWARD",     58.0,  59.6),
+        ("COUNTERPARTY",     84.0, "COLLAR",      48.0,  43.7),
+    ]
+    risks = []
+    for company in _risk_companies:
+        for (risk_type, exp_m, instr, hedge_pct, resid_m) in _risk_types:
+            company_factor = 1.0 + rng.uniform(-0.2, 0.2)
+            risks.append(WBSRiskRecord(
+                company=company, risk_type=risk_type,
+                exposure_m=round(exp_m * company_factor, 1),
+                hedging_instrument=instr,
+                hedge_ratio_pct=round(hedge_pct + rng.uniform(-5.0, 5.0), 1),
+                residual_risk_m=round(resid_m * company_factor, 1),
+            ))
+
+    # ── Optimal Bid Records (5 technologies × 5 scenarios = 25) ─────────────
+    _opt_technologies = ["BLACK_COAL", "GAS_CCGT", "GAS_OCGT", "WIND", "UTILITY_SOLAR"]
+    _scenarios = ["LOW_DEMAND", "NORMAL", "HIGH_DEMAND", "EXTREME_HEAT", "LOW_WIND"]
+    _opt_params = {
+        # technology: (band1_base, band10_base, dispatch_pct, revenue, var_10pct)
+        "BLACK_COAL":    ( 24.0,  8400.0, 82.4, 68.4,  42.0),
+        "GAS_CCGT":      ( 64.0, 12400.0, 44.2, 98.4,  28.4),
+        "GAS_OCGT":      ( 92.0, 16600.0, 14.8, 184.0, 12.4),
+        "WIND":          (-10.0,   200.0, 38.4,  48.2,  18.4),
+        "UTILITY_SOLAR": ( -8.0,   200.0, 32.4,  42.4,  14.2),
+    }
+    _scenario_multipliers = {
+        "LOW_DEMAND":  {"dispatch": 0.72, "revenue": 0.64, "band10": 0.68},
+        "NORMAL":      {"dispatch": 1.00, "revenue": 1.00, "band10": 1.00},
+        "HIGH_DEMAND": {"dispatch": 1.18, "revenue": 1.42, "band10": 1.28},
+        "EXTREME_HEAT":{"dispatch": 1.28, "revenue": 2.84, "band10": 1.68},
+        "LOW_WIND":    {"dispatch": 0.88, "revenue": 1.84, "band10": 1.48},
+    }
+    optimal_bids = []
+    for tech, (b1, b10, disp, rev, var) in _opt_params.items():
+        for scenario, mults in _scenario_multipliers.items():
+            optimal_bids.append(WBSOptimalBidRecord(
+                technology=tech,
+                region="NEM",
+                scenario=scenario,
+                optimal_band_1_price=round(b1 * (1.0 + rng.uniform(-0.05, 0.05)), 1),
+                optimal_band_10_price=round(b10 * mults["band10"] + rng.uniform(-100.0, 100.0), 1),
+                expected_dispatch_pct=round(disp * mults["dispatch"] + rng.uniform(-2.0, 2.0), 1),
+                expected_revenue_per_mwh=round(rev * mults["revenue"] + rng.uniform(-4.0, 4.0), 1),
+                value_at_risk_10pct=round(var * (2.0 - mults["dispatch"]) + rng.uniform(-2.0, 2.0), 1),
+            ))
+
+    summary = {
+        "avg_market_concentration_hhi": 2840,
+        "dominant_strategy": "PORTFOLIO_OPTIMISATION",
+        "avg_hedge_ratio_pct": 68.4,
+        "price_setter_frequency_coal_pct": 38.2,
+        "price_setter_frequency_gas_pct": 28.4,
+        "voll_bidding_volume_pct": 8.4,
+    }
+
+    return WBSDashboard(
+        portfolios=portfolios,
+        strategies=strategies,
+        dispatch_ranks=dispatch_ranks,
+        risks=risks,
+        optimal_bids=optimal_bids,
+        summary=summary,
+    )
+
+
+@app.get("/api/wholesale-bidding-strategy/dashboard", response_model=WBSDashboard, dependencies=[Depends(verify_api_key)])
+async def get_wholesale_bidding_strategy_dashboard():
+    cached = _cache_get(_wbs_cache, "wbs")
+    if cached:
+        return cached
+    result = _build_wbs_dashboard()
+    _cache_set(_wbs_cache, "wbs", result)
+    return result
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Sprint 87c — NEM Emergency Management & Contingency Response Analytics (EMC)
+# ════════════════════════════════════════════════════════════════════════════════
+
+class EMCEmergencyRecord(BaseModel):
+    event_id: str
+    name: str
+    date: str
+    region: str
+    emergency_class: str  # SYSTEM_SECURITY / MARKET_EMERGENCY / SUPPLY_SHORTAGE / TRANSMISSION_FAILURE / GENERATION_DEFICIT
+    aemo_power_invoked: str  # e.g. "NER 5.20.5" / "NER 3.14.2" / "Market Suspension" / "None"
+    severity_level: int  # 1-5 (5 = highest)
+    duration_hrs: float
+    mw_at_risk: float
+    load_shed_mwh: float
+    regions_affected: List[str]
+    resolution_mechanism: str  # RERT / DEMAND_RESPONSE / MARKET_SUSPENSION / ISLANDING / MANUAL_DISPATCH
+
+class EMCResponseProtocolRecord(BaseModel):
+    protocol_id: str
+    name: str
+    trigger_condition: str
+    aemo_power_section: str  # NER/NEL section
+    activation_time_target_min: float
+    response_resources: List[str]
+    escalation_path: str
+    test_frequency_per_yr: int
+    last_activation_year: int
+    effectiveness_score: float  # 0-10
+
+class EMCRestorationRecord(BaseModel):
+    event_id: str
+    event_name: str
+    region: str
+    black_start_units: List[str]
+    restoration_phases: int
+    phase_1_time_hrs: float  # time to first supply to critical loads
+    phase_2_time_hrs: float  # time to 50% restoration
+    full_restoration_hrs: float
+    critical_load_priority: str  # list as string
+    lessons_learned: str
+
+class EMCPreparednessRecord(BaseModel):
+    region: str
+    metric: str  # BLACK_START_CAPABILITY_MW / RERT_CONTRACTED_MW / EMERGENCY_INTERC_CAPACITY_MW / ISLANDING_CAPABILITY / DR_RESPONSE_TIME_MIN / COMMS_REDUNDANCY_SCORE
+    current_value: float
+    target_value: float
+    adequacy_status: str  # ADEQUATE / MARGINAL / INSUFFICIENT
+    last_tested_months_ago: float
+    investment_needed_m: float
+
+class EMCDrillRecord(BaseModel):
+    drill_id: str
+    drill_type: str  # TABLETOP / FUNCTIONAL / FULL_SCALE / CYBER_RESPONSE / BLACK_START
+    date: str
+    participants: List[str]
+    scenario: str
+    duration_hrs: float
+    objectives_met_pct: float
+    findings_count: int
+    critical_findings: int
+    remediation_actions: int
+
+class EMCDashboard(BaseModel):
+    emergencies: List[EMCEmergencyRecord]
+    protocols: List[EMCResponseProtocolRecord]
+    restoration: List[EMCRestorationRecord]
+    preparedness: List[EMCPreparednessRecord]
+    drills: List[EMCDrillRecord]
+    summary: dict
+
+
+_emc_cache: dict = {}
+
+
+def _build_emc_dashboard() -> EMCDashboard:
+    import random
+    rng = random.Random(8723)
+
+    # ── 15 Emergency Records (major NEM emergencies 2016-2024) ─────────────────
+    _emerg_data = [
+        ("EMC-2016-001", "SA System Black Event",             "2016-09-28", "SA",  "SYSTEM_SECURITY",     "NER 5.20.5",        5, 18.5,  1800.0, 2840.0, ["SA"],             "MANUAL_DISPATCH"),
+        ("EMC-2017-001", "NSW Summer Peak Supply Shortage",   "2017-02-10", "NSW", "SUPPLY_SHORTAGE",     "NER 3.14.2",        3,  4.2,   650.0,  480.0, ["NSW"],             "RERT"),
+        ("EMC-2017-002", "QLD Extreme Heat Generation Deficit","2017-02-21","QLD", "GENERATION_DEFICIT",  "NER 3.14.2",        3,  3.8,   540.0,  360.0, ["QLD"],             "DEMAND_RESPONSE"),
+        ("EMC-2018-001", "VIC High Demand RERT Activation",   "2018-01-18", "VIC", "SUPPLY_SHORTAGE",     "NER 3.14.2",        2,  2.4,   430.0,  210.0, ["VIC"],             "RERT"),
+        ("EMC-2019-001", "QLD Callide Unit Trip Market Event","2019-03-14", "QLD", "TRANSMISSION_FAILURE","NER 5.20.5",        4,  6.2,   900.0,  540.0, ["QLD","NSW"],       "MANUAL_DISPATCH"),
+        ("EMC-2019-002", "NEM Market Suspension — Jan 2019",  "2019-01-24", "NEM", "MARKET_EMERGENCY",    "Market Suspension", 4, 12.0,     0.0,    0.0, ["NSW","VIC","SA"],  "MARKET_SUSPENSION"),
+        ("EMC-2020-001", "NSW COVID Demand Uncertainty Event","2020-04-08", "NSW", "MARKET_EMERGENCY",    "None",              2,  1.8,   120.0,    0.0, ["NSW"],             "DEMAND_RESPONSE"),
+        ("EMC-2021-001", "Callide C4 Explosion & Separation", "2021-05-25", "QLD", "TRANSMISSION_FAILURE","NER 5.20.5",        5,  8.4,  1800.0, 1020.0, ["QLD"],             "ISLANDING"),
+        ("EMC-2021-002", "NSW High Temperature Supply Event", "2021-01-28", "NSW", "SUPPLY_SHORTAGE",     "NER 3.14.2",        3,  3.2,   480.0,  290.0, ["NSW"],             "RERT"),
+        ("EMC-2022-001", "NEM June 2022 Market Suspension",   "2022-06-15", "NEM", "MARKET_EMERGENCY",    "Market Suspension", 5,  9.0,     0.0,    0.0, ["NSW","VIC","QLD","SA"],"MARKET_SUSPENSION"),
+        ("EMC-2022-002", "VIC System Emergency — Gas Shortage","2022-06-02","VIC", "SUPPLY_SHORTAGE",     "NER 3.14.2",        4,  5.6,   720.0,  480.0, ["VIC","SA"],        "DEMAND_RESPONSE"),
+        ("EMC-2023-001", "SA RERT Activation Summer 2023",    "2023-02-06", "SA",  "SUPPLY_SHORTAGE",     "NER 3.14.2",        2,  2.8,   340.0,  120.0, ["SA"],              "RERT"),
+        ("EMC-2024-001", "NSW Summer 2024 Supply Shortage",   "2024-01-16", "NSW", "SUPPLY_SHORTAGE",     "NER 3.14.2",        3,  3.4,   580.0,  420.0, ["NSW","VIC"],       "RERT"),
+        ("EMC-2024-002", "QLD Transmission Failure Event",    "2024-02-22", "QLD", "TRANSMISSION_FAILURE","NER 5.20.5",        4,  7.2,   940.0,  680.0, ["QLD"],             "MANUAL_DISPATCH"),
+        ("EMC-2024-003", "SA Generation Deficit — Wind Lull", "2024-06-10", "SA",  "GENERATION_DEFICIT",  "NER 3.14.2",        3,  4.0,   460.0,  340.0, ["SA"],              "DEMAND_RESPONSE"),
+    ]
+    emergencies = [
+        EMCEmergencyRecord(
+            event_id=r[0], name=r[1], date=r[2], region=r[3],
+            emergency_class=r[4], aemo_power_invoked=r[5],
+            severity_level=r[6], duration_hrs=r[7],
+            mw_at_risk=r[8], load_shed_mwh=r[9],
+            regions_affected=r[10], resolution_mechanism=r[11],
+        )
+        for r in _emerg_data
+    ]
+
+    # ── 10 Response Protocol Records ───────────────────────────────────────────
+    _proto_data = [
+        ("PROTO-001", "Emergency Reserve Trader (RERT) Activation",
+         "Reserve margin < 700 MW or imminent load shedding risk",
+         "NER 3.20", 15.0,
+         ["RERT Tier 1 — Fast start peakers", "RERT Tier 2 — Demand response aggregators", "RERT Tier 3 — Industrial DR"],
+         "AEMO SO → RERT Coordinator → Pre-contracted providers", 4, 2024, 8.4),
+        ("PROTO-002", "Market Suspension Protocol",
+         "Market price > $1M/MWh sustained or system security compromised",
+         "NER 3.14.2", 30.0,
+         ["Administered pricing regime", "AEMO directed dispatch", "AER notification"],
+         "AEMO SO → AEMO Executive → AER → Traders notification", 2, 2022, 7.6),
+        ("PROTO-003", "Automatic Under-Frequency Load Shedding (AUFLS)",
+         "System frequency < 49.0 Hz for > 0.5 s",
+         "NER 5.1.3", 0.0,
+         ["Zone 1 — 49.0 Hz (5% load)", "Zone 2 — 48.75 Hz (5% load)", "Zone 3 — 48.5 Hz (10% load)"],
+         "Automatic — no human intervention required", 2, 2024, 9.2),
+        ("PROTO-004", "Directions Under System Black Emergency",
+         "Risk of widespread blackout or system collapse",
+         "NER 5.20.5", 5.0,
+         ["Generator directions", "Network service provider instructions", "Load control authorities"],
+         "AEMO SO → AEMO Executive (immediate) → Minister notification within 1 hr", 1, 2021, 8.8),
+        ("PROTO-005", "Black Start Restoration Procedure",
+         "Complete or partial system black in one or more regions",
+         "NER 4.8.9", 10.0,
+         ["Designated black start units", "Cranking path generators", "Critical load prioritisation"],
+         "AEMO SO → Restoration Team → TNSPs → DNSPs → Generators", 1, 2021, 8.2),
+        ("PROTO-006", "Voltage Reduction Notice (VRN)",
+         "Supply shortfall forecast requiring demand reduction of 0.5-1.5%",
+         "NER 3.14.3", 20.0,
+         ["DNSP voltage reduction", "Public appeal for conservation", "Industrial facility requests"],
+         "AEMO SO → DNSP operations → Media release", 3, 2022, 6.8),
+        ("PROTO-007", "Interconnector Emergency Restriction Protocol",
+         "Interconnector overload or N-1 constraint binding at system limit",
+         "NER 5.7.1", 5.0,
+         ["Automatic constraint enforcement", "Directed generation ramp", "Import/export curtailment"],
+         "AEMO EMS → AEMO SO (alert) → TNSP notification", 4, 2024, 8.6),
+        ("PROTO-008", "Cyber Incident Emergency Response",
+         "Confirmed cyber attack on critical energy infrastructure",
+         "NEL s.91A", 10.0,
+         ["AESO Cyber team isolation", "ASD notification", "Manual operations fallback", "ACSC coordination"],
+         "AEMO CISO → AEMO CEO → ASD → AER → Minister", 2, 2023, 7.4),
+        ("PROTO-009", "Gas Supply Emergency Coordination",
+         "Gas curtailment causing generation deficit > 500 MW",
+         "NER 3.14.2 / Gas Supply Protocol", 45.0,
+         ["AEMO gas coordination", "AEMO electricity emergency actions", "GIUA activation"],
+         "AEMO Gas → AEMO Electricity SO → AEMC Gas Emergency Framework", 2, 2022, 7.0),
+        ("PROTO-010", "Demand Response Emergency Mechanism (DREM)",
+         "Voluntary load reduction not sufficient; mandatory DR required",
+         "NER 5.20.6", 15.0,
+         ["Large customer DR contracts", "VPP aggregator dispatch", "Demand response service providers"],
+         "AEMO SO → DR Aggregators → Customer notification", 3, 2023, 7.8),
+    ]
+    protocols = [
+        EMCResponseProtocolRecord(
+            protocol_id=r[0], name=r[1], trigger_condition=r[2],
+            aemo_power_section=r[3], activation_time_target_min=r[4],
+            response_resources=r[5], escalation_path=r[6],
+            test_frequency_per_yr=r[7], last_activation_year=r[8],
+            effectiveness_score=r[9],
+        )
+        for r in _proto_data
+    ]
+
+    # ── 5 Restoration Records ──────────────────────────────────────────────────
+    _restore_data = [
+        ("EMC-2016-001", "SA System Black Event 2016",   "SA",
+         ["Pelican Point CC Unit 1", "Ladbroke Grove GT", "SA-VIC Heywood Interconnector"],
+         4, 1.5, 4.2, 18.5,
+         "Hospitals, water treatment, emergency services, communications",
+         "Gas black start units needed faster start capability; Heywood interconnector proved critical cranking path; communications between AEMO and DNSPs required improvement"),
+        ("EMC-2021-001", "Callide C4 Explosion QLD 2021","QLD",
+         ["Wivenhoe hydro Unit 1", "Stanwell PS Unit 1", "Callide B (restart)"],
+         3, 0.8, 2.4, 8.4,
+         "Hospitals, CBDs, water & sewage, telecommunications hubs",
+         "Islanding of north QLD proved effective; fast-ramping hydro essential; pre-positioned restoration crews reduced phase 2 time significantly"),
+        ("EMC-2022-001", "NEM June 2022 Market Suspension","NEM",
+         ["Market suspension — no physical black"],
+         2, 0.0, 0.0, 9.0,
+         "N/A — market administrative restoration required",
+         "Administered pricing regime activated within 30 min; enhanced gas coordination MOU required; real-time monitoring of gas generation dispatch status needed"),
+        ("EMC-2019-001", "QLD Callide Unit Trip 2019",    "QLD",
+         ["Wivenhoe hydro Unit 2", "Swanbank E GT"],
+         3, 0.5, 1.8, 6.2,
+         "Critical load zones B1-B4 as per QLD restoration plan",
+         "AUFLS operated correctly preventing wider collapse; interconnector flow management improved post-event; communication protocols with Powerlink enhanced"),
+        ("EMC-2024-002", "QLD Transmission Failure 2024", "QLD",
+         ["Stanwell PS Unit 2", "Tarong PS Unit 1"],
+         3, 0.6, 2.2, 7.2,
+         "Priority 1: emergency services; Priority 2: critical infrastructure; Priority 3: residential",
+         "Real-time situational awareness dashboard proved effective; pre-contracted RERT provided backup while generators restarted; improved inter-agency communication protocols"),
+    ]
+    restoration = [
+        EMCRestorationRecord(
+            event_id=r[0], event_name=r[1], region=r[2],
+            black_start_units=r[3], restoration_phases=r[4],
+            phase_1_time_hrs=r[5], phase_2_time_hrs=r[6],
+            full_restoration_hrs=r[7], critical_load_priority=r[8],
+            lessons_learned=r[9],
+        )
+        for r in _restore_data
+    ]
+
+    # ── 25 Preparedness Records (5 regions × 5 metrics) ──────────────────────
+    _prep_region_data = {
+        "NSW": [
+            ("BLACK_START_CAPABILITY_MW",    420.0, 500.0, "MARGINAL",    14.0, 12.0),
+            ("RERT_CONTRACTED_MW",           680.0, 700.0, "MARGINAL",     6.0,  4.0),
+            ("EMERGENCY_INTERC_CAPACITY_MW", 950.0, 900.0, "ADEQUATE",    12.0,  0.0),
+            ("DR_RESPONSE_TIME_MIN",          12.0,  15.0, "ADEQUATE",     3.0,  0.0),
+            ("COMMS_REDUNDANCY_SCORE",         7.8,   8.5, "MARGINAL",    18.0,  6.0),
+        ],
+        "VIC": [
+            ("BLACK_START_CAPABILITY_MW",    380.0, 450.0, "MARGINAL",    16.0, 15.0),
+            ("RERT_CONTRACTED_MW",           520.0, 600.0, "MARGINAL",     6.0,  8.0),
+            ("EMERGENCY_INTERC_CAPACITY_MW", 880.0, 850.0, "ADEQUATE",    12.0,  0.0),
+            ("DR_RESPONSE_TIME_MIN",          14.0,  15.0, "ADEQUATE",     3.0,  0.0),
+            ("COMMS_REDUNDANCY_SCORE",         7.2,   8.5, "MARGINAL",    20.0,  7.0),
+        ],
+        "QLD": [
+            ("BLACK_START_CAPABILITY_MW",    560.0, 500.0, "ADEQUATE",    10.0,  0.0),
+            ("RERT_CONTRACTED_MW",           620.0, 650.0, "MARGINAL",     6.0,  3.0),
+            ("EMERGENCY_INTERC_CAPACITY_MW", 760.0, 700.0, "ADEQUATE",    12.0,  0.0),
+            ("DR_RESPONSE_TIME_MIN",          13.0,  15.0, "ADEQUATE",     3.0,  0.0),
+            ("COMMS_REDUNDANCY_SCORE",         8.1,   8.5, "MARGINAL",    15.0,  4.0),
+        ],
+        "SA": [
+            ("BLACK_START_CAPABILITY_MW",    180.0, 350.0, "INSUFFICIENT", 8.0, 38.0),
+            ("RERT_CONTRACTED_MW",           280.0, 400.0, "INSUFFICIENT", 4.0, 22.0),
+            ("EMERGENCY_INTERC_CAPACITY_MW", 650.0, 650.0, "ADEQUATE",    12.0,  0.0),
+            ("DR_RESPONSE_TIME_MIN",          11.0,  15.0, "ADEQUATE",     2.0,  0.0),
+            ("COMMS_REDUNDANCY_SCORE",         6.4,   8.5, "INSUFFICIENT",24.0, 14.0),
+        ],
+        "TAS": [
+            ("BLACK_START_CAPABILITY_MW",    420.0, 300.0, "ADEQUATE",    10.0,  0.0),
+            ("RERT_CONTRACTED_MW",           120.0, 150.0, "MARGINAL",     6.0,  4.0),
+            ("EMERGENCY_INTERC_CAPACITY_MW", 480.0, 480.0, "ADEQUATE",    12.0,  0.0),
+            ("DR_RESPONSE_TIME_MIN",          10.0,  15.0, "ADEQUATE",     3.0,  0.0),
+            ("COMMS_REDUNDANCY_SCORE",         8.4,   8.5, "ADEQUATE",    12.0,  1.0),
+        ],
+    }
+    preparedness = []
+    for region, metrics in _prep_region_data.items():
+        for m in metrics:
+            preparedness.append(EMCPreparednessRecord(
+                region=region, metric=m[0],
+                current_value=m[1], target_value=m[2],
+                adequacy_status=m[3], last_tested_months_ago=m[4],
+                investment_needed_m=m[5],
+            ))
+
+    # ── 10 Drill Records (2022-2024) ──────────────────────────────────────────
+    _drill_data = [
+        ("DRILL-2022-001", "TABLETOP",     "2022-03-15",
+         ["AEMO Operations", "AER", "NSW DNSPs", "Origin Energy", "AGL"],
+         "Multi-region supply shortage during extreme summer heat event",
+         6.0, 84.0, 12, 2, 8),
+        ("DRILL-2022-002", "BLACK_START",  "2022-05-24",
+         ["AEMO Restoration Team", "TransGrid", "Ausgrid", "Endeavour Energy"],
+         "Complete SA black start and restoration sequence",
+         18.0, 78.0, 18, 4, 12),
+        ("DRILL-2022-003", "CYBER_RESPONSE","2022-09-08",
+         ["AEMO Cyber Team", "ASD", "ACSC", "Critical TNSPs"],
+         "Coordinated cyber attack on AEMO EMS and major TNSP SCADA systems",
+         8.0, 72.0, 24, 6, 16),
+        ("DRILL-2023-001", "FUNCTIONAL",   "2023-02-14",
+         ["AEMO SO Team", "Snowy Hydro", "AGL Loy Yang", "APA Group"],
+         "Gas supply curtailment causing 1,200 MW generation deficit in VIC/SA",
+         10.0, 88.0, 10, 1, 6),
+        ("DRILL-2023-002", "FULL_SCALE",   "2023-04-19",
+         ["AEMO", "AEMC", "AER", "All TNSPs", "Major generators", "AEMC"],
+         "NEM-wide market suspension with simultaneous transmission outages",
+         24.0, 76.0, 28, 5, 18),
+        ("DRILL-2023-003", "TABLETOP",     "2023-08-02",
+         ["AEMO", "QLD DNSP", "Powerlink", "CS Energy", "CleanCo"],
+         "QLD north-south interconnector permanent failure during peak demand",
+         5.0, 90.0, 8, 1, 5),
+        ("DRILL-2023-004", "BLACK_START",  "2023-11-14",
+         ["AEMO Restoration", "ElectraNet", "SA Power Networks", "AGL Torrens"],
+         "SA complete system black with delayed Heywood restoration path",
+         20.0, 82.0, 14, 3, 9),
+        ("DRILL-2024-001", "CYBER_RESPONSE","2024-02-27",
+         ["AEMO Cyber", "ASD", "Critical Energy Infrastructure operators"],
+         "Ransomware attack on AEMO market systems with SCADA compromise",
+         12.0, 80.0, 20, 4, 14),
+        ("DRILL-2024-002", "FUNCTIONAL",   "2024-05-16",
+         ["AEMO SO", "RERT Providers", "Demand Response Aggregators", "AER"],
+         "Simultaneous loss of 2,000 MW generation in NSW during peak demand",
+         8.0, 86.0, 11, 2, 7),
+        ("DRILL-2024-003", "TABLETOP",     "2024-09-10",
+         ["AEMO", "State Emergency Services", "Critical Infrastructure owners"],
+         "Extreme weather event causing cascading transmission failures across NEM",
+         7.0, 88.0, 9, 1, 6),
+    ]
+    drills = [
+        EMCDrillRecord(
+            drill_id=r[0], drill_type=r[1], date=r[2],
+            participants=r[3], scenario=r[4],
+            duration_hrs=r[5], objectives_met_pct=r[6],
+            findings_count=r[7], critical_findings=r[8],
+            remediation_actions=r[9],
+        )
+        for r in _drill_data
+    ]
+
+    summary = {
+        "total_emergencies_2024": 4,
+        "avg_severity_level": 2.8,
+        "load_shed_2024_mwh": 4840,
+        "avg_restoration_hrs": 18.4,
+        "preparedness_adequate_pct": 72.0,
+        "drills_per_yr_avg": 4.2,
+        "rert_activated_2024": 3,
+    }
+
+    return EMCDashboard(
+        emergencies=emergencies,
+        protocols=protocols,
+        restoration=restoration,
+        preparedness=preparedness,
+        drills=drills,
+        summary=summary,
+    )
+
+
+@app.get("/api/emergency-management/dashboard", response_model=EMCDashboard, dependencies=[Depends(verify_api_key)])
+async def get_emergency_management_dashboard():
+    cached = _cache_get(_emc_cache, "emc")
+    if cached:
+        return cached
+    result = _build_emc_dashboard()
+    _cache_set(_emc_cache, "emc", result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 87a — Long Duration Energy Storage (LDES) Technology & Investment Analytics
+# Prefix: LDESA  Endpoint: /api/ldes-analytics/dashboard
+# ---------------------------------------------------------------------------
+
+class LDESATechnologyRecord(BaseModel):
+    technology: str
+    duration_range_hr: str
+    energy_capacity_gwh_installed_global: float
+    lcoe_per_mwh_2024: float
+    lcoe_per_mwh_2030: float
+    lcoe_per_mwh_2040: float
+    capex_per_kwh_2024: float
+    round_trip_efficiency_pct: float
+    cycle_life: int
+    calendar_life_years: int
+    trl: int
+    commercial_status: str
+    scale_potential: str
+
+class LDESAProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    developer: str
+    country: str
+    technology: str
+    power_mw: float
+    energy_mwh: float
+    duration_hr: float
+    status: str
+    commissioning_year: int
+    capex_m: float
+
+class LDESAMarketNeedRecord(BaseModel):
+    region: str
+    vre_penetration_pct: float
+    ldes_needed_gwh: float
+    current_ldes_gwh: float
+    ldes_gap_gwh: float
+    optimal_duration_hr: float
+    cost_without_ldes_m: float
+    cost_with_ldes_m: float
+    savings_from_ldes_m: float
+
+class LDESAInvestmentRecord(BaseModel):
+    year: int
+    technology: str
+    global_investment_bn: float
+    australia_investment_m: float
+    venture_capital_pct: float
+    govt_grants_pct: float
+    project_finance_pct: float
+    corporate_strategic_pct: float
+
+class LDESAPolicyRecord(BaseModel):
+    jurisdiction: str
+    policy_name: str
+    policy_type: str
+    ldes_specific: bool
+    funding_bn: float
+    duration_years: int
+    impact_assessment: str
+
+class LDESADashboard(BaseModel):
+    technologies: List[LDESATechnologyRecord]
+    projects: List[LDESAProjectRecord]
+    market_needs: List[LDESAMarketNeedRecord]
+    investment: List[LDESAInvestmentRecord]
+    policies: List[LDESAPolicyRecord]
+    summary: dict
+
+
+def _build_ldesa_dashboard() -> LDESADashboard:
+    import random
+
+    technologies: List[LDESATechnologyRecord] = [
+        LDESATechnologyRecord(technology="FLOW_BATTERY_VANADIUM", duration_range_hr="8-24", energy_capacity_gwh_installed_global=4.2, lcoe_per_mwh_2024=220.0, lcoe_per_mwh_2030=148.0, lcoe_per_mwh_2040=98.0, capex_per_kwh_2024=340.0, round_trip_efficiency_pct=72.0, cycle_life=20000, calendar_life_years=25, trl=8, commercial_status="COMMERCIAL", scale_potential="HIGH"),
+        LDESATechnologyRecord(technology="FLOW_BATTERY_ZINC", duration_range_hr="6-20", energy_capacity_gwh_installed_global=1.1, lcoe_per_mwh_2024=195.0, lcoe_per_mwh_2030=135.0, lcoe_per_mwh_2040=90.0, capex_per_kwh_2024=290.0, round_trip_efficiency_pct=68.0, cycle_life=15000, calendar_life_years=20, trl=7, commercial_status="COMMERCIAL", scale_potential="HIGH"),
+        LDESATechnologyRecord(technology="IRON_AIR", duration_range_hr="100-200", energy_capacity_gwh_installed_global=0.05, lcoe_per_mwh_2024=380.0, lcoe_per_mwh_2030=140.0, lcoe_per_mwh_2040=72.0, capex_per_kwh_2024=52.0, round_trip_efficiency_pct=40.0, cycle_life=3650, calendar_life_years=20, trl=5, commercial_status="DEMONSTRATION", scale_potential="HIGH"),
+        LDESATechnologyRecord(technology="LIQUID_AIR", duration_range_hr="8-100", energy_capacity_gwh_installed_global=0.7, lcoe_per_mwh_2024=310.0, lcoe_per_mwh_2030=195.0, lcoe_per_mwh_2040=118.0, capex_per_kwh_2024=240.0, round_trip_efficiency_pct=55.0, cycle_life=30000, calendar_life_years=30, trl=6, commercial_status="DEMONSTRATION", scale_potential="MEDIUM"),
+        LDESATechnologyRecord(technology="COMPRESSED_AIR", duration_range_hr="10-30", energy_capacity_gwh_installed_global=2.9, lcoe_per_mwh_2024=168.0, lcoe_per_mwh_2030=120.0, lcoe_per_mwh_2040=82.0, capex_per_kwh_2024=95.0, round_trip_efficiency_pct=64.0, cycle_life=25000, calendar_life_years=30, trl=7, commercial_status="COMMERCIAL", scale_potential="MEDIUM"),
+        LDESATechnologyRecord(technology="GRAVITY", duration_range_hr="4-16", energy_capacity_gwh_installed_global=0.08, lcoe_per_mwh_2024=185.0, lcoe_per_mwh_2030=120.0, lcoe_per_mwh_2040=78.0, capex_per_kwh_2024=110.0, round_trip_efficiency_pct=78.0, cycle_life=50000, calendar_life_years=40, trl=5, commercial_status="PILOT", scale_potential="LOW"),
+        LDESATechnologyRecord(technology="HYDROGEN_STORAGE", duration_range_hr="48-2160", energy_capacity_gwh_installed_global=12.5, lcoe_per_mwh_2024=420.0, lcoe_per_mwh_2030=240.0, lcoe_per_mwh_2040=130.0, capex_per_kwh_2024=68.0, round_trip_efficiency_pct=35.0, cycle_life=10000, calendar_life_years=20, trl=6, commercial_status="DEMONSTRATION", scale_potential="HIGH"),
+        LDESATechnologyRecord(technology="PUMPED_THERMAL", duration_range_hr="8-24", energy_capacity_gwh_installed_global=0.12, lcoe_per_mwh_2024=175.0, lcoe_per_mwh_2030=118.0, lcoe_per_mwh_2040=76.0, capex_per_kwh_2024=130.0, round_trip_efficiency_pct=60.0, cycle_life=30000, calendar_life_years=30, trl=5, commercial_status="PILOT", scale_potential="MEDIUM"),
+        LDESATechnologyRecord(technology="GEOTHERMAL_TES", duration_range_hr="24-720", energy_capacity_gwh_installed_global=0.4, lcoe_per_mwh_2024=280.0, lcoe_per_mwh_2030=165.0, lcoe_per_mwh_2040=95.0, capex_per_kwh_2024=75.0, round_trip_efficiency_pct=85.0, cycle_life=40000, calendar_life_years=40, trl=4, commercial_status="RESEARCH", scale_potential="MEDIUM"),
+        LDESATechnologyRecord(technology="UNDERGROUND_PUMPED_HYDRO", duration_range_hr="10-100", energy_capacity_gwh_installed_global=62.0, lcoe_per_mwh_2024=145.0, lcoe_per_mwh_2030=105.0, lcoe_per_mwh_2040=72.0, capex_per_kwh_2024=160.0, round_trip_efficiency_pct=80.0, cycle_life=50000, calendar_life_years=50, trl=9, commercial_status="COMMERCIAL", scale_potential="HIGH"),
+    ]
+
+    projects: List[LDESAProjectRecord] = [
+        LDESAProjectRecord(project_id="P001", name="Rongke Power Dalian VFB", developer="Rongke Power", country="CHINA", technology="FLOW_BATTERY_VANADIUM", power_mw=200.0, energy_mwh=800.0, duration_hr=4.0, status="OPERATING", commissioning_year=2022, capex_m=180.0),
+        LDESAProjectRecord(project_id="P002", name="Invinity VS3 Minety", developer="Invinity Energy Systems", country="UK", technology="FLOW_BATTERY_VANADIUM", power_mw=5.0, energy_mwh=50.0, duration_hr=10.0, status="OPERATING", commissioning_year=2021, capex_m=22.0),
+        LDESAProjectRecord(project_id="P003", name="Form Energy Iron-Air Pilot", developer="Form Energy", country="USA", technology="IRON_AIR", power_mw=1.0, energy_mwh=100.0, duration_hr=100.0, status="PILOT", commissioning_year=2023, capex_m=25.0),
+        LDESAProjectRecord(project_id="P004", name="Highview Carrington LAES", developer="Highview Power", country="UK", technology="LIQUID_AIR", power_mw=50.0, energy_mwh=250.0, duration_hr=5.0, status="CONSTRUCTION", commissioning_year=2026, capex_m=120.0),
+        LDESAProjectRecord(project_id="P005", name="Hydrostor Augusta CAES", developer="Hydrostor", country="USA", technology="COMPRESSED_AIR", power_mw=400.0, energy_mwh=3200.0, duration_hr=8.0, status="APPROVED", commissioning_year=2028, capex_m=1100.0),
+        LDESAProjectRecord(project_id="P006", name="Energy Vault Newton-E", developer="Energy Vault", country="USA", technology="GRAVITY", power_mw=80.0, energy_mwh=640.0, duration_hr=8.0, status="OPERATING", commissioning_year=2023, capex_m=140.0),
+        LDESAProjectRecord(project_id="P007", name="Hydrogen Park SA", developer="Australian Gas Networks", country="AUSTRALIA", technology="HYDROGEN_STORAGE", power_mw=1.0, energy_mwh=14.0, duration_hr=14.0, status="OPERATING", commissioning_year=2022, capex_m=5.0),
+        LDESAProjectRecord(project_id="P008", name="Whyalla Green Hydrogen Hub", developer="GFG Alliance", country="AUSTRALIA", technology="HYDROGEN_STORAGE", power_mw=200.0, energy_mwh=40000.0, duration_hr=200.0, status="APPROVED", commissioning_year=2029, capex_m=2400.0),
+        LDESAProjectRecord(project_id="P009", name="Malta Inc Pumped Thermal Demo", developer="Malta Inc (Alphabet X)", country="USA", technology="PUMPED_THERMAL", power_mw=10.0, energy_mwh=100.0, duration_hr=10.0, status="PILOT", commissioning_year=2024, capex_m=30.0),
+        LDESAProjectRecord(project_id="P010", name="Rondo Heat Battery Canby", developer="Rondo Energy", country="USA", technology="PUMPED_THERMAL", power_mw=5.0, energy_mwh=40.0, duration_hr=8.0, status="OPERATING", commissioning_year=2023, capex_m=12.0),
+        LDESAProjectRecord(project_id="P011", name="Onslow Vanadium VFB", developer="Invinity Energy", country="AUSTRALIA", technology="FLOW_BATTERY_VANADIUM", power_mw=8.0, energy_mwh=64.0, duration_hr=8.0, status="APPROVED", commissioning_year=2027, capex_m=45.0),
+        LDESAProjectRecord(project_id="P012", name="Hydrostor Quarry CAES Pilot (VIC)", developer="Hydrostor", country="AUSTRALIA", technology="COMPRESSED_AIR", power_mw=5.0, energy_mwh=50.0, duration_hr=10.0, status="APPROVED", commissioning_year=2028, capex_m=30.0),
+        LDESAProjectRecord(project_id="P013", name="Form Energy AU Iron-Air Demo", developer="Form Energy", country="AUSTRALIA", technology="IRON_AIR", power_mw=1.0, energy_mwh=100.0, duration_hr=100.0, status="APPROVED", commissioning_year=2029, capex_m=15.0),
+        LDESAProjectRecord(project_id="P014", name="CEC Zinc-Air Geelong Pilot", developer="Zinc8 Energy", country="AUSTRALIA", technology="FLOW_BATTERY_ZINC", power_mw=2.0, energy_mwh=24.0, duration_hr=12.0, status="PILOT", commissioning_year=2025, capex_m=9.0),
+        LDESAProjectRecord(project_id="P015", name="Sumitomo VFB Hokkaido", developer="Sumitomo Electric", country="JAPAN", technology="FLOW_BATTERY_VANADIUM", power_mw=15.0, energy_mwh=60.0, duration_hr=4.0, status="OPERATING", commissioning_year=2020, capex_m=38.0),
+    ]
+
+    market_needs: List[LDESAMarketNeedRecord] = [
+        LDESAMarketNeedRecord(region="NSW-2030", vre_penetration_pct=72.0, ldes_needed_gwh=38.0, current_ldes_gwh=4.5, ldes_gap_gwh=33.5, optimal_duration_hr=18.0, cost_without_ldes_m=2850.0, cost_with_ldes_m=1640.0, savings_from_ldes_m=1210.0),
+        LDESAMarketNeedRecord(region="QLD-2030", vre_penetration_pct=76.0, ldes_needed_gwh=42.0, current_ldes_gwh=6.2, ldes_gap_gwh=35.8, optimal_duration_hr=20.0, cost_without_ldes_m=3100.0, cost_with_ldes_m=1780.0, savings_from_ldes_m=1320.0),
+        LDESAMarketNeedRecord(region="SA-2030",  vre_penetration_pct=88.0, ldes_needed_gwh=14.0, current_ldes_gwh=1.8, ldes_gap_gwh=12.2, optimal_duration_hr=24.0, cost_without_ldes_m=1240.0, cost_with_ldes_m=680.0,  savings_from_ldes_m=560.0),
+        LDESAMarketNeedRecord(region="VIC-2030", vre_penetration_pct=68.0, ldes_needed_gwh=30.0, current_ldes_gwh=3.1, ldes_gap_gwh=26.9, optimal_duration_hr=16.0, cost_without_ldes_m=2200.0, cost_with_ldes_m=1310.0, savings_from_ldes_m=890.0),
+        LDESAMarketNeedRecord(region="TAS-2030", vre_penetration_pct=95.0, ldes_needed_gwh=8.0,  current_ldes_gwh=7.2, ldes_gap_gwh=0.8,  optimal_duration_hr=12.0, cost_without_ldes_m=420.0,  cost_with_ldes_m=310.0,  savings_from_ldes_m=110.0),
+        LDESAMarketNeedRecord(region="NSW-2050", vre_penetration_pct=92.0, ldes_needed_gwh=120.0, current_ldes_gwh=25.0,  ldes_gap_gwh=95.0,  optimal_duration_hr=48.0, cost_without_ldes_m=8400.0, cost_with_ldes_m=4200.0, savings_from_ldes_m=4200.0),
+        LDESAMarketNeedRecord(region="QLD-2050", vre_penetration_pct=94.0, ldes_needed_gwh=135.0, current_ldes_gwh=28.0,  ldes_gap_gwh=107.0, optimal_duration_hr=52.0, cost_without_ldes_m=9200.0, cost_with_ldes_m=4600.0, savings_from_ldes_m=4600.0),
+        LDESAMarketNeedRecord(region="SA-2050",  vre_penetration_pct=98.0, ldes_needed_gwh=44.0,  current_ldes_gwh=8.0,   ldes_gap_gwh=36.0,  optimal_duration_hr=72.0, cost_without_ldes_m=3600.0, cost_with_ldes_m=1750.0, savings_from_ldes_m=1850.0),
+        LDESAMarketNeedRecord(region="VIC-2050", vre_penetration_pct=90.0, ldes_needed_gwh=95.0,  current_ldes_gwh=18.0,  ldes_gap_gwh=77.0,  optimal_duration_hr=40.0, cost_without_ldes_m=7100.0, cost_with_ldes_m=3600.0, savings_from_ldes_m=3500.0),
+        LDESAMarketNeedRecord(region="TAS-2050", vre_penetration_pct=100.0, ldes_needed_gwh=20.0, current_ldes_gwh=14.0,  ldes_gap_gwh=6.0,   optimal_duration_hr=24.0, cost_without_ldes_m=980.0,  cost_with_ldes_m=560.0,  savings_from_ldes_m=420.0),
+    ]
+
+    _inv_base = {
+        "FLOW_BATTERY_VANADIUM": (1.2, 42.0),
+        "IRON_AIR":              (0.3, 8.0),
+        "LIQUID_AIR":            (0.4, 12.0),
+        "COMPRESSED_AIR":        (0.8, 28.0),
+        "HYDROGEN_STORAGE":      (2.8, 95.0),
+        "PUMPED_THERMAL":        (0.2, 6.0),
+    }
+    _inv_growth = [1.0, 1.28, 1.62, 2.05, 2.58]
+
+    investment: List[LDESAInvestmentRecord] = []
+    for tech, (gib_base, au_base) in _inv_base.items():
+        for i, year in enumerate([2020, 2021, 2022, 2023, 2024]):
+            g = _inv_growth[i]
+            investment.append(LDESAInvestmentRecord(
+                year=year,
+                technology=tech,
+                global_investment_bn=round(gib_base * g, 2),
+                australia_investment_m=round(au_base * g, 1),
+                venture_capital_pct=round(28.0 - i * 1.5, 1),
+                govt_grants_pct=round(35.0 + i * 1.2, 1),
+                project_finance_pct=round(22.0 + i * 0.8, 1),
+                corporate_strategic_pct=round(15.0 + i * 0.5, 1),
+            ))
+
+    policies: List[LDESAPolicyRecord] = [
+        LDESAPolicyRecord(jurisdiction="USA", policy_name="Inflation Reduction Act - ITC/PTC for Storage", policy_type="TAX_CREDIT", ldes_specific=False, funding_bn=40.0, duration_years=10, impact_assessment="HIGH"),
+        LDESAPolicyRecord(jurisdiction="USA", policy_name="DOE Long Duration Storage Earthshots", policy_type="RD_PROGRAM", ldes_specific=True, funding_bn=2.5, duration_years=10, impact_assessment="HIGH"),
+        LDESAPolicyRecord(jurisdiction="EU", policy_name="Innovation Fund - LDES Projects", policy_type="GRANT", ldes_specific=True, funding_bn=3.8, duration_years=7, impact_assessment="HIGH"),
+        LDESAPolicyRecord(jurisdiction="AUSTRALIA", policy_name="CEFC LDES Investment Mandate", policy_type="LOAN_GUARANTEE", ldes_specific=True, funding_bn=1.0, duration_years=5, impact_assessment="MEDIUM"),
+        LDESAPolicyRecord(jurisdiction="AUSTRALIA", policy_name="ARENA Storage Research Program", policy_type="GRANT", ldes_specific=False, funding_bn=0.18, duration_years=4, impact_assessment="MEDIUM"),
+        LDESAPolicyRecord(jurisdiction="UK", policy_name="Long Duration Energy Storage Cap and Floor", policy_type="REGULATION", ldes_specific=True, funding_bn=0.75, duration_years=25, impact_assessment="HIGH"),
+        LDESAPolicyRecord(jurisdiction="JAPAN", policy_name="Green Innovation Fund - Storage", policy_type="GRANT", ldes_specific=False, funding_bn=4.5, duration_years=10, impact_assessment="MEDIUM"),
+        LDESAPolicyRecord(jurisdiction="CHINA", policy_name="NDRC New-Type Energy Storage Mandate", policy_type="PROCUREMENT", ldes_specific=False, funding_bn=12.0, duration_years=5, impact_assessment="HIGH"),
+    ]
+
+    summary = {
+        "total_global_ldes_gwh": 84,
+        "australian_ldes_gwh": 4.2,
+        "avg_lcoe_2024": 184.0,
+        "avg_lcoe_2030": 124.0,
+        "avg_lcoe_2040": 84.0,
+        "total_investment_2024_bn": 18.4,
+        "commercial_technologies_count": 3,
+    }
+
+    return LDESADashboard(
+        technologies=technologies,
+        projects=projects,
+        market_needs=market_needs,
+        investment=investment,
+        policies=policies,
+        summary=summary,
+    )
+
+
+_ldesa_cache: dict = {}
+
+@app.get("/api/ldes-analytics/dashboard", response_model=LDESADashboard, dependencies=[Depends(verify_api_key)])
+async def get_ldes_analytics_dashboard():
+    cached = _cache_get(_ldesa_cache, "ldesa")
+    if cached:
+        return cached
+    result = _build_ldesa_dashboard()
+    _cache_set(_ldesa_cache, "ldesa", result)
+    return result

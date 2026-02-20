@@ -13613,3 +13613,233 @@ export interface ECADashboard {
 
 export const getCarbonAccountingDashboard = (): Promise<ECADashboard> =>
   get<ECADashboard>('/api/carbon-accounting/dashboard')
+
+// ── Sprint 87b: NEM Wholesale Market Participant Bidding Strategy Analytics ──
+
+export interface WBSPortfolioRecord {
+  company: string
+  region: string
+  fuel_mix: string
+  total_portfolio_mw: number
+  baseload_mw: number
+  peaking_mw: number
+  renewable_mw: number
+  storage_mw: number
+  market_share_pct: number
+  hedged_position_pct: number
+  retail_load_mw: number
+  net_position_mw: number
+}
+
+export interface WBSStrategyRecord {
+  company: string
+  strategy: string
+  avg_band_1_price: number
+  avg_band_10_price: number
+  pct_volume_below_srmc: number
+  pct_volume_at_voll: number
+  rebid_rate_per_day: number
+  price_stability_score: number
+  responsive_to_forecast_pct: number
+}
+
+export interface WBSDispatchRankRecord {
+  region: string
+  technology: string
+  quarter: string
+  avg_dispatch_rank: number
+  capacity_factor_pct: number
+  price_setter_pct: number
+  avg_marginal_cost: number
+  avg_dispatch_price: number
+  infra_marginal_rent_m: number
+}
+
+export interface WBSRiskRecord {
+  company: string
+  risk_type: string
+  exposure_m: number
+  hedging_instrument: string
+  hedge_ratio_pct: number
+  residual_risk_m: number
+}
+
+export interface WBSOptimalBidRecord {
+  technology: string
+  region: string
+  scenario: string
+  optimal_band_1_price: number
+  optimal_band_10_price: number
+  expected_dispatch_pct: number
+  expected_revenue_per_mwh: number
+  value_at_risk_10pct: number
+}
+
+export interface WBSDashboard {
+  portfolios: WBSPortfolioRecord[]
+  strategies: WBSStrategyRecord[]
+  dispatch_ranks: WBSDispatchRankRecord[]
+  risks: WBSRiskRecord[]
+  optimal_bids: WBSOptimalBidRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getWholesaleBiddingStrategyDashboard = (): Promise<WBSDashboard> =>
+  get<WBSDashboard>('/api/wholesale-bidding-strategy/dashboard')
+
+// ── Sprint 87c: NEM Emergency Management & Contingency Response Analytics ─────
+
+export interface EMCEmergencyRecord {
+  event_id: string
+  name: string
+  date: string
+  region: string
+  emergency_class: string
+  aemo_power_invoked: string
+  severity_level: number
+  duration_hrs: number
+  mw_at_risk: number
+  load_shed_mwh: number
+  regions_affected: string[]
+  resolution_mechanism: string
+}
+
+export interface EMCResponseProtocolRecord {
+  protocol_id: string
+  name: string
+  trigger_condition: string
+  aemo_power_section: string
+  activation_time_target_min: number
+  response_resources: string[]
+  escalation_path: string
+  test_frequency_per_yr: number
+  last_activation_year: number
+  effectiveness_score: number
+}
+
+export interface EMCRestorationRecord {
+  event_id: string
+  event_name: string
+  region: string
+  black_start_units: string[]
+  restoration_phases: number
+  phase_1_time_hrs: number
+  phase_2_time_hrs: number
+  full_restoration_hrs: number
+  critical_load_priority: string
+  lessons_learned: string
+}
+
+export interface EMCPreparednessRecord {
+  region: string
+  metric: string
+  current_value: number
+  target_value: number
+  adequacy_status: string
+  last_tested_months_ago: number
+  investment_needed_m: number
+}
+
+export interface EMCDrillRecord {
+  drill_id: string
+  drill_type: string
+  date: string
+  participants: string[]
+  scenario: string
+  duration_hrs: number
+  objectives_met_pct: number
+  findings_count: number
+  critical_findings: number
+  remediation_actions: number
+}
+
+export interface EMCDashboard {
+  emergencies: EMCEmergencyRecord[]
+  protocols: EMCResponseProtocolRecord[]
+  restoration: EMCRestorationRecord[]
+  preparedness: EMCPreparednessRecord[]
+  drills: EMCDrillRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getEmergencyManagementDashboard = (): Promise<EMCDashboard> =>
+  get<EMCDashboard>('/api/emergency-management/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 87a — LDES Technology & Investment Analytics
+// ---------------------------------------------------------------------------
+
+export interface LDESATechnologyRecord {
+  technology: string
+  duration_range_hr: string
+  energy_capacity_gwh_installed_global: number
+  lcoe_per_mwh_2024: number
+  lcoe_per_mwh_2030: number
+  lcoe_per_mwh_2040: number
+  capex_per_kwh_2024: number
+  round_trip_efficiency_pct: number
+  cycle_life: number
+  calendar_life_years: number
+  trl: number
+  commercial_status: string
+  scale_potential: string
+}
+
+export interface LDESAProjectRecord {
+  project_id: string
+  name: string
+  developer: string
+  country: string
+  technology: string
+  power_mw: number
+  energy_mwh: number
+  duration_hr: number
+  status: string
+  commissioning_year: number
+  capex_m: number
+}
+
+export interface LDESAMarketNeedRecord {
+  region: string
+  vre_penetration_pct: number
+  ldes_needed_gwh: number
+  current_ldes_gwh: number
+  ldes_gap_gwh: number
+  optimal_duration_hr: number
+  cost_without_ldes_m: number
+  cost_with_ldes_m: number
+  savings_from_ldes_m: number
+}
+
+export interface LDESAInvestmentRecord {
+  year: number
+  technology: string
+  global_investment_bn: number
+  australia_investment_m: number
+  venture_capital_pct: number
+  govt_grants_pct: number
+  project_finance_pct: number
+  corporate_strategic_pct: number
+}
+
+export interface LDESAPolicyRecord {
+  jurisdiction: string
+  policy_name: string
+  policy_type: string
+  ldes_specific: boolean
+  funding_bn: number
+  duration_years: number
+  impact_assessment: string
+}
+
+export interface LDESADashboard {
+  technologies: LDESATechnologyRecord[]
+  projects: LDESAProjectRecord[]
+  market_needs: LDESAMarketNeedRecord[]
+  investment: LDESAInvestmentRecord[]
+  policies: LDESAPolicyRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getLDESAnalyticsDashboard = (): Promise<LDESADashboard> =>
+  get<LDESADashboard>('/api/ldes-analytics/dashboard')

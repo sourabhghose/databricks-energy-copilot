@@ -11156,3 +11156,151 @@ class TestRenewableAuctionEndpoint:
     def test_summary_avg_strike_price_2024(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert data["summary"]["avg_strike_price_2024"] == 68.4
+
+
+class TestWholesaleBiddingStrategyEndpoint:
+    endpoint = "/api/wholesale-bidding-strategy/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_portfolios_count_at_least_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["portfolios"]) >= 8
+
+    def test_dispatch_ranks_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["dispatch_ranks"]) >= 25
+
+    def test_strategies_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["strategies"]) >= 8
+
+    def test_risks_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["risks"]) >= 16
+
+    def test_optimal_bids_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["optimal_bids"]) >= 20
+
+    def test_summary_has_required_fields(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        for k in ("avg_market_concentration_hhi", "dominant_strategy", "avg_hedge_ratio_pct",
+                  "price_setter_frequency_coal_pct", "price_setter_frequency_gas_pct",
+                  "voll_bidding_volume_pct"):
+            assert k in data["summary"], f"Missing summary key: {k}"
+
+    def test_summary_hhi_value(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["avg_market_concentration_hhi"] == 2840
+
+    def test_summary_dominant_strategy(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["dominant_strategy"] == "PORTFOLIO_OPTIMISATION"
+
+class TestLDESAnalyticsEndpoint:
+    """Sprint 87a — LDES Technology & Investment Analytics"""
+
+    endpoint = "/api/ldes-analytics/dashboard"
+
+    def test_http_200(self, client):
+        resp = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert resp.status_code == 200
+
+    def test_technologies_count_at_least_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["technologies"]) >= 8
+
+    def test_investment_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["investment"]) >= 25
+
+    def test_projects_count_at_least_10(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["projects"]) >= 10
+
+    def test_market_needs_count_at_least_5(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["market_needs"]) >= 5
+
+    def test_policies_count_at_least_4(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["policies"]) >= 4
+
+    def test_summary_has_required_fields(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        for k in ("total_global_ldes_gwh", "australian_ldes_gwh", "avg_lcoe_2024",
+                  "avg_lcoe_2030", "avg_lcoe_2040", "total_investment_2024_bn",
+                  "commercial_technologies_count"):
+            assert k in data["summary"], f"Missing summary key: {k}"
+
+    def test_summary_total_global_ldes_gwh(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["total_global_ldes_gwh"] == 84
+
+    def test_summary_avg_lcoe_2024(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["avg_lcoe_2024"] == 184.0
+
+    def test_technology_fields_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        tech = data["technologies"][0]
+        for field in ("technology", "duration_range_hr", "lcoe_per_mwh_2024",
+                      "lcoe_per_mwh_2030", "lcoe_per_mwh_2040", "trl",
+                      "commercial_status", "scale_potential"):
+            assert field in tech, f"Missing technology field: {field}"
+
+    def test_project_australian_entries_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        au_projects = [p for p in data["projects"] if p["country"] == "AUSTRALIA"]
+        assert len(au_projects) >= 3, "Expected at least 3 Australian LDES projects"
+
+    def test_investment_covers_five_years(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        years = {r["year"] for r in data["investment"]}
+        assert years >= {2020, 2021, 2022, 2023, 2024}
+
+
+class TestEmergencyManagementEndpoint:
+    endpoint = "/api/emergency-management/dashboard"
+
+    def test_http_200(self, client):
+        r = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert r.status_code == 200
+
+    def test_emergencies_count_at_least_12(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["emergencies"]) >= 12
+
+    def test_preparedness_count_at_least_20(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["preparedness"]) >= 20
+
+    def test_protocols_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["protocols"]) >= 10
+
+    def test_drills_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["drills"]) >= 10
+
+    def test_restoration_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["restoration"]) >= 5
+
+    def test_summary_required_keys(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        for k in ("total_emergencies_2024", "avg_severity_level", "load_shed_2024_mwh",
+                  "avg_restoration_hrs", "preparedness_adequate_pct",
+                  "drills_per_yr_avg", "rert_activated_2024"):
+            assert k in data["summary"], f"Missing summary key: {k}"
+
+    def test_summary_total_emergencies_2024(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["total_emergencies_2024"] == 4
+
+    def test_summary_rert_activated_2024(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["rert_activated_2024"] == 3

@@ -303,6 +303,9 @@ import CEROrchestrationAnalytics from './pages/CEROrchestrationAnalytics'
 import EnergyTransitionFinanceAnalytics from './pages/EnergyTransitionFinanceAnalytics'
 import SystemLoadBalancingAnalytics from './pages/SystemLoadBalancingAnalytics'
 import CarbonAccountingAnalytics from './pages/CarbonAccountingAnalytics'
+import WholesaleBiddingStrategyAnalytics from './pages/WholesaleBiddingStrategyAnalytics'
+import EmergencyManagementAnalytics from './pages/EmergencyManagementAnalytics'
+import LDESAnalytics from './pages/LDESAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -533,6 +536,9 @@ const NAV_ITEMS = [
   { to: '/cer-orchestration',           label: 'CER Orchestration Analytics',        Icon: Wifi          },
   { to: '/system-load-balancing',       label: 'System Load Balancing & Reserve Adequacy', Icon: BarChart2 },
   { to: '/carbon-accounting',           label: 'Carbon Accounting & Scope 2 Analytics',    Icon: Leaf       },
+  { to: '/wholesale-bidding-strategy',  label: 'NEM Wholesale Bidding Strategy Analytics',  Icon: TrendingUp },
+  { to: '/ldes-analytics',             label: 'LDES Technology & Investment Analytics',     Icon: Database   },
+  { to: '/emergency-management',        label: 'NEM Emergency Management & Contingency Response', Icon: AlertTriangle },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -838,6 +844,9 @@ export default function App() {
               <Route path="/cer-orchestration"             element={<CEROrchestrationAnalytics />}            />
               <Route path="/system-load-balancing"         element={<SystemLoadBalancingAnalytics />}          />
               <Route path="/carbon-accounting"             element={<CarbonAccountingAnalytics />}             />
+              <Route path="/wholesale-bidding-strategy"    element={<WholesaleBiddingStrategyAnalytics />}     />
+              <Route path="/ldes-analytics"                element={<LDESAnalytics />}                         />
+              <Route path="/emergency-management"          element={<EmergencyManagementAnalytics />}           />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
