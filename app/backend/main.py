@@ -63328,3 +63328,606 @@ def get_hydrogen_fuel_cell_vehicles_dashboard():
     )
     _cache_set(_hfv_cache, cache_key, result)
     return result
+
+
+# ============================================================
+# Sprint 91a — Spot Price Spike Prediction Analytics
+# ============================================================
+
+class SPPPredictionRecord(BaseModel):
+    prediction_id: str
+    region: str
+    dispatch_interval: str
+    predicted_spike_probability: float  # 0-1
+    predicted_price_aud_mwh: float
+    actual_price_aud_mwh: Optional[float]
+    threshold_aud_mwh: float
+    correct_prediction: Optional[bool]
+    confidence_interval_low: float
+    confidence_interval_high: float
+
+class SPPModelPerformanceRecord(BaseModel):
+    model_name: str
+    region: str
+    period: str  # Q1 2024, Q2 2024, etc.
+    precision: float
+    recall: float
+    f1_score: float
+    auc_roc: float
+    false_positive_rate: float
+    spike_threshold_aud_mwh: float
+    total_spikes: int
+    predicted_spikes: int
+
+class SPPFeatureRecord(BaseModel):
+    feature: str
+    importance: float
+    category: str  # MARKET, WEATHER, GRID, TEMPORAL, FUEL
+    spike_correlation: float  # correlation with spike events
+    lag_minutes: int  # look-back window
+
+class SPPAlertRecord(BaseModel):
+    alert_id: str
+    region: str
+    issued_at: str
+    forecast_window_minutes: int
+    spike_probability: float
+    expected_price_aud_mwh: float
+    trigger_factors: List[str]
+    status: str  # ACTIVE, RESOLVED_SPIKE, RESOLVED_NO_SPIKE, EXPIRED
+
+class SPPSpikeHistoryRecord(BaseModel):
+    region: str
+    date: str
+    hour: int
+    max_price_aud_mwh: float
+    duration_intervals: int
+    cause: str
+    predicted: bool
+    warning_lead_time_minutes: Optional[float]
+
+class SPPDashboard(BaseModel):
+    predictions: List[SPPPredictionRecord]
+    model_performance: List[SPPModelPerformanceRecord]
+    features: List[SPPFeatureRecord]
+    alerts: List[SPPAlertRecord]
+    spike_history: List[SPPSpikeHistoryRecord]
+    summary: Dict[str, Any]
+
+
+_spp_cache: Dict[str, Any] = {}
+
+@app.get("/api/spot-price-spike-prediction/dashboard", response_model=SPPDashboard, dependencies=[Depends(verify_api_key)])
+def get_spot_price_spike_prediction_dashboard():
+    import random
+    cache_key = "spp_dashboard"
+    cached = _cache_get(_spp_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    threshold = 300.0  # AUD/MWh spike threshold
+
+    predictions = []
+    intervals = [f"2024-11-{d:02d} {h:02d}:00" for d in range(1, 11) for h in range(0, 24, 2)]
+    for i, interval in enumerate(intervals[:60]):
+        for r in regions[:3]:
+            prob = round(random.uniform(0.0, 1.0), 4)
+            predicted_price = round(threshold * prob * random.uniform(0.8, 3.0) if prob > 0.5 else random.uniform(50.0, 200.0), 2)
+            actual = round(predicted_price * random.uniform(0.7, 1.3), 2) if i < 40 else None
+            predictions.append(SPPPredictionRecord(
+                prediction_id=f"PRED-{i+1:04d}-{r}",
+                region=r, dispatch_interval=interval,
+                predicted_spike_probability=prob,
+                predicted_price_aud_mwh=predicted_price,
+                actual_price_aud_mwh=actual,
+                threshold_aud_mwh=threshold,
+                correct_prediction=(actual > threshold) == (prob > 0.5) if actual is not None else None,
+                confidence_interval_low=round(predicted_price * 0.75, 2),
+                confidence_interval_high=round(predicted_price * 1.35, 2)
+            ))
+
+    models = ["XGBoost-Spike", "LightGBM-Spike", "LSTM-Spike", "Ensemble-Spike"]
+    periods = ["Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024"]
+
+    model_performance = []
+    for model in models:
+        for r in regions:
+            for period in periods[:2]:
+                spikes_total = random.randint(15, 80)
+                predicted = random.randint(10, spikes_total + 5)
+                model_performance.append(SPPModelPerformanceRecord(
+                    model_name=model, region=r, period=period,
+                    precision=round(random.uniform(0.65, 0.92), 4),
+                    recall=round(random.uniform(0.60, 0.88), 4),
+                    f1_score=round(random.uniform(0.62, 0.90), 4),
+                    auc_roc=round(random.uniform(0.80, 0.97), 4),
+                    false_positive_rate=round(random.uniform(0.05, 0.25), 4),
+                    spike_threshold_aud_mwh=threshold,
+                    total_spikes=spikes_total,
+                    predicted_spikes=predicted
+                ))
+
+    features_data = [
+        ("temperature_forecast", 0.185, "WEATHER", 0.62, 60),
+        ("prev_price_30min", 0.172, "MARKET", 0.78, 30),
+        ("prev_price_5min", 0.145, "MARKET", 0.82, 5),
+        ("available_capacity", 0.132, "GRID", 0.71, 0),
+        ("demand_forecast_next_30min", 0.118, "MARKET", 0.65, 0),
+        ("interconnector_flow", 0.095, "GRID", 0.58, 0),
+        ("wind_generation", 0.088, "WEATHER", 0.52, 0),
+        ("time_of_day", 0.075, "TEMPORAL", 0.45, 0),
+        ("gas_price_spot", 0.065, "FUEL", 0.48, 60),
+        ("rooftop_solar_forecast", 0.058, "WEATHER", 0.42, 30),
+        ("reserve_margin", 0.048, "GRID", 0.68, 0),
+        ("day_of_week", 0.025, "TEMPORAL", 0.31, 0),
+        ("month", 0.018, "TEMPORAL", 0.28, 0),
+        ("coal_unit_availability", 0.042, "GRID", 0.55, 60),
+        ("recent_rebids", 0.035, "MARKET", 0.60, 30),
+    ]
+
+    features = []
+    for f in features_data:
+        features.append(SPPFeatureRecord(
+            feature=f[0], importance=f[1], category=f[2],
+            spike_correlation=f[3], lag_minutes=f[4]
+        ))
+
+    trigger_options = [
+        "Low wind generation", "High temperature forecast", "Unit forced outage",
+        "Demand exceeding forecast", "Gas supply constraint", "Interconnector limit",
+        "Low reserve margin", "High gas prices", "Extended hot weather"
+    ]
+
+    alerts = []
+    for i in range(20):
+        r = random.choice(regions)
+        prob = round(random.uniform(0.55, 0.99), 3)
+        alerts.append(SPPAlertRecord(
+            alert_id=f"ALERT-{i+1:04d}",
+            region=r,
+            issued_at=f"2024-11-{random.randint(1,30):02d} {random.randint(6,22):02d}:{random.randint(0,5)*10:02d}",
+            forecast_window_minutes=random.choice([30, 60, 120, 240]),
+            spike_probability=prob,
+            expected_price_aud_mwh=round(random.uniform(300.0, 15000.0), 0),
+            trigger_factors=random.sample(trigger_options, k=random.randint(2, 4)),
+            status=random.choice(["ACTIVE", "RESOLVED_SPIKE", "RESOLVED_NO_SPIKE", "EXPIRED"])
+        ))
+
+    spike_causes = [
+        "Extreme heat wave", "Low wind/solar", "Major unit outage", "Gas constraint",
+        "Interconnector failure", "Demand surge", "Market power", "Bidding anomaly"
+    ]
+
+    spike_history = []
+    for i in range(35):
+        r = random.choice(regions)
+        predicted = random.choice([True, True, False])
+        spike_history.append(SPPSpikeHistoryRecord(
+            region=r,
+            date=f"2024-{random.randint(1,11):02d}-{random.randint(1,28):02d}",
+            hour=random.randint(6, 22),
+            max_price_aud_mwh=round(random.uniform(300.0, 15000.0), 0),
+            duration_intervals=random.randint(1, 12),
+            cause=random.choice(spike_causes),
+            predicted=predicted,
+            warning_lead_time_minutes=round(random.uniform(5.0, 120.0), 0) if predicted else None
+        ))
+
+    result = SPPDashboard(
+        predictions=predictions,
+        model_performance=model_performance,
+        features=features,
+        alerts=alerts,
+        spike_history=spike_history,
+        summary={
+            "total_predictions": len(predictions),
+            "active_alerts": len([a for a in alerts if a.status == "ACTIVE"]),
+            "best_model": "Ensemble-Spike",
+            "best_auc_roc": 0.954,
+            "spike_detection_rate_pct": 82.5,
+            "false_positive_rate_pct": 12.3,
+            "avg_warning_lead_time_minutes": 45.0,
+            "total_spikes_ytd": len(spike_history)
+        }
+    )
+    _cache_set(_spp_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# Sprint 91b — Grid Edge Technology Analytics
+# ============================================================
+
+class GEDTechnologyRecord(BaseModel):
+    tech_id: str
+    name: str
+    category: str  # SMART_INVERTER, GRID_FORMING, MICROGRID, EDGE_COMPUTING, V2G, AGGREGATION
+    trl: int  # Technology Readiness Level 1-9
+    deployments_australia: int
+    market_size_aud_m: float
+    cagr_pct: float
+    key_capability: str
+    grid_service: str  # VOLTAGE_SUPPORT, FREQUENCY, INERTIA, ISLANDING, DEMAND_RESPONSE
+
+class GEDMicrogridRecord(BaseModel):
+    microgrid_id: str
+    name: str
+    state: str
+    type: str  # COMMUNITY, INDUSTRIAL, REMOTE, CAMPUS, MILITARY
+    capacity_mw: float
+    storage_mwh: float
+    renewable_pct: float
+    islanding_capable: bool
+    annual_savings_aud_k: float
+    resilience_hours: float
+
+class GEDSmartInverterRecord(BaseModel):
+    manufacturer: str
+    model: str
+    capacity_kva: float
+    grid_forming: bool
+    volt_var_capable: bool
+    freq_watt_capable: bool
+    australia_installs: int
+    compliance_standard: str  # AS4777.2:2020
+    export_limit_w: Optional[int]
+
+class GEDEdgeDeploymentRecord(BaseModel):
+    state: str
+    year: int
+    smart_inverters_k: float  # thousands
+    grid_forming_k: float
+    microgrids: int
+    v2g_units: int
+    edge_controllers: int
+    total_capacity_mw: float
+
+class GEDGridServiceRecord(BaseModel):
+    service: str
+    technology: str
+    region: str
+    capacity_mw: float
+    response_time_ms: float
+    revenue_aud_per_mw_year: float
+    current_providers: int
+    growth_potential_mw: float
+
+class GEDDashboard(BaseModel):
+    technologies: List[GEDTechnologyRecord]
+    microgrids: List[GEDMicrogridRecord]
+    smart_inverters: List[GEDSmartInverterRecord]
+    edge_deployments: List[GEDEdgeDeploymentRecord]
+    grid_services: List[GEDGridServiceRecord]
+    summary: Dict[str, Any]
+
+
+_ged_cache: Dict[str, Any] = {}
+
+@app.get("/api/grid-edge-technology/dashboard", response_model=GEDDashboard, dependencies=[Depends(verify_api_key)])
+def get_grid_edge_technology_dashboard():
+    import random
+    cache_key = "ged_dashboard"
+    cached = _cache_get(_ged_cache, cache_key)
+    if cached:
+        return cached
+
+    tech_data = [
+        ("GED-001", "Grid-Forming Inverters", "GRID_FORMING", 7, 850, 280.0, 35.0, "Synthetic inertia provision", "INERTIA"),
+        ("GED-002", "Smart Inverters (AS4777.2)", "SMART_INVERTER", 9, 2800000, 1200.0, 18.0, "Volt-Var control", "VOLTAGE_SUPPORT"),
+        ("GED-003", "Community Microgrids", "MICROGRID", 8, 45, 180.0, 25.0, "Islanded operation", "ISLANDING"),
+        ("GED-004", "V2G Bidirectional Charging", "V2G", 6, 2800, 95.0, 85.0, "Vehicle-to-grid power export", "DEMAND_RESPONSE"),
+        ("GED-005", "DER Aggregation Platforms", "AGGREGATION", 8, 120, 350.0, 42.0, "Virtual power plant control", "FREQUENCY"),
+        ("GED-006", "Edge AI Controllers", "EDGE_COMPUTING", 7, 35000, 220.0, 55.0, "Real-time local optimisation", "VOLTAGE_SUPPORT"),
+        ("GED-007", "Peer-to-Peer Trading", "AGGREGATION", 6, 8, 45.0, 65.0, "Local energy markets", "DEMAND_RESPONSE"),
+        ("GED-008", "Microgrid Controllers", "MICROGRID", 8, 280, 95.0, 28.0, "Autonomous islanding control", "ISLANDING"),
+        ("GED-009", "Dynamic Export Control", "SMART_INVERTER", 9, 180000, 320.0, 22.0, "Zero export management", "VOLTAGE_SUPPORT"),
+        ("GED-010", "Frequency Response Inverters", "GRID_FORMING", 8, 1200, 185.0, 40.0, "Fast frequency response", "FREQUENCY"),
+    ]
+
+    technologies = []
+    for t in tech_data:
+        technologies.append(GEDTechnologyRecord(
+            tech_id=t[0], name=t[1], category=t[2], trl=t[3],
+            deployments_australia=t[4], market_size_aud_m=t[5],
+            cagr_pct=t[6], key_capability=t[7], grid_service=t[8]
+        ))
+
+    microgrid_data = [
+        ("MG-001", "Esperance Microgrid", "WA", "REMOTE", 5.2, 18.0, 85.0, True, 450.0, 72.0),
+        ("MG-002", "Mooroolbark Community", "VIC", "COMMUNITY", 1.8, 4.0, 78.0, True, 180.0, 24.0),
+        ("MG-003", "Olympic Dam Mining Grid", "SA", "INDUSTRIAL", 35.0, 80.0, 45.0, True, 2800.0, 48.0),
+        ("MG-004", "HMAS Stirling", "WA", "MILITARY", 3.5, 12.0, 70.0, True, 320.0, 96.0),
+        ("MG-005", "Latrobe Valley Tech Park", "VIC", "CAMPUS", 2.5, 8.0, 88.0, False, 210.0, 0.0),
+        ("MG-006", "King Island Renewable", "TAS", "REMOTE", 6.0, 28.0, 65.0, True, 580.0, 168.0),
+        ("MG-007", "Coober Pedy Hybrid", "SA", "REMOTE", 4.0, 15.0, 72.0, True, 380.0, 96.0),
+        ("MG-008", "Flinders Island", "TAS", "REMOTE", 2.8, 10.0, 60.0, True, 250.0, 48.0),
+        ("MG-009", "Newstead Community", "QLD", "COMMUNITY", 1.2, 2.5, 95.0, False, 120.0, 0.0),
+        ("MG-010", "Alice Springs Grid", "NT", "REMOTE", 12.0, 50.0, 38.0, True, 1100.0, 24.0),
+        ("MG-011", "Deception Bay Industrial", "QLD", "INDUSTRIAL", 8.5, 22.0, 55.0, False, 680.0, 0.0),
+        ("MG-012", "Wiluna Gold Mine", "WA", "INDUSTRIAL", 15.0, 45.0, 68.0, True, 1350.0, 72.0),
+    ]
+
+    microgrids = []
+    for m in microgrid_data:
+        microgrids.append(GEDMicrogridRecord(
+            microgrid_id=m[0], name=m[1], state=m[2], type=m[3],
+            capacity_mw=m[4], storage_mwh=m[5], renewable_pct=m[6],
+            islanding_capable=m[7], annual_savings_aud_k=m[8], resilience_hours=m[9]
+        ))
+
+    inverter_models = [
+        ("Fronius", "Symo GEN24 Plus", 10.0, True, True, True, 850000, "AS4777.2:2020", 5000),
+        ("SMA", "Sunny Tripower X", 25.0, True, True, True, 420000, "AS4777.2:2020", 10000),
+        ("SolarEdge", "SE10K-RWB", 10.0, False, True, True, 680000, "AS4777.2:2020", None),
+        ("Enphase", "IQ8 Microinverter", 0.3, True, True, True, 1200000, "AS4777.2:2020", None),
+        ("GoodWe", "DNS Series", 5.0, False, True, True, 380000, "AS4777.2:2020", 3000),
+        ("Sungrow", "SG10RT", 10.0, False, True, True, 290000, "AS4777.2:2020", 5000),
+        ("Delta", "E6 Plus M", 6.0, False, True, True, 180000, "AS4777.2:2020", None),
+        ("ABB", "TRIO-50.0-TL", 50.0, True, True, True, 45000, "AS4777.2:2020", None),
+    ]
+
+    smart_inverters = []
+    for inv in inverter_models:
+        smart_inverters.append(GEDSmartInverterRecord(
+            manufacturer=inv[0], model=inv[1], capacity_kva=inv[2],
+            grid_forming=inv[3], volt_var_capable=inv[4], freq_watt_capable=inv[5],
+            australia_installs=inv[6], compliance_standard=inv[7], export_limit_w=inv[8]
+        ))
+
+    states = ["NSW", "VIC", "QLD", "SA", "WA", "TAS"]
+    edge_deployments = []
+    for state in states:
+        for yr in range(2022, 2031):
+            progress = (yr - 2022) / 8.0
+            base_inv = {"NSW": 800, "VIC": 650, "QLD": 600, "SA": 180, "WA": 250, "TAS": 80}.get(state, 300)
+            edge_deployments.append(GEDEdgeDeploymentRecord(
+                state=state, year=yr,
+                smart_inverters_k=round(base_inv * (1 + 0.15 * (yr - 2022)) / 1000, 1),
+                grid_forming_k=round(base_inv * 0.005 * (1 + 0.80 * progress), 2),
+                microgrids=random.randint(2, 25),
+                v2g_units=random.randint(50, 5000),
+                edge_controllers=random.randint(500, 50000),
+                total_capacity_mw=round(base_inv * 0.005 * (1 + 0.20 * (yr - 2022)), 1)
+            ))
+
+    grid_service_data = [
+        ("Synthetic Inertia", "GRID_FORMING", "SA1", 250.0, 50.0, 85000.0, 8, 800.0),
+        ("Fast Frequency Response", "SMART_INVERTER", "NSW1", 800.0, 200.0, 65000.0, 25, 2000.0),
+        ("Volt-Var Support", "SMART_INVERTER", "VIC1", 1200.0, 100.0, 35000.0, 150, 3000.0),
+        ("Demand Response", "AGGREGATION", "QLD1", 500.0, 1000.0, 55000.0, 45, 1500.0),
+        ("Islanding Service", "MICROGRID", "TAS1", 80.0, 5000.0, 120000.0, 5, 200.0),
+        ("V2G Grid Support", "V2G", "NSW1", 150.0, 500.0, 42000.0, 12, 2500.0),
+        ("Edge Load Control", "EDGE_COMPUTING", "SA1", 180.0, 200.0, 48000.0, 20, 600.0),
+    ]
+
+    grid_services = []
+    for gs in grid_service_data:
+        grid_services.append(GEDGridServiceRecord(
+            service=gs[0], technology=gs[1], region=gs[2],
+            capacity_mw=gs[3], response_time_ms=gs[4],
+            revenue_aud_per_mw_year=gs[5], current_providers=gs[6],
+            growth_potential_mw=gs[7]
+        ))
+
+    result = GEDDashboard(
+        technologies=technologies,
+        microgrids=microgrids,
+        smart_inverters=smart_inverters,
+        edge_deployments=edge_deployments,
+        grid_services=grid_services,
+        summary={
+            "total_technologies": len(technologies),
+            "total_microgrids": len(microgrids),
+            "smart_inverters_installed_m": 2.8,
+            "total_market_size_aud_m": round(sum(t.market_size_aud_m for t in technologies), 0),
+            "fastest_growing_technology": "V2G Bidirectional Charging",
+            "highest_trl_count": len([t for t in technologies if t.trl >= 8]),
+            "grid_forming_deployments": 850,
+            "total_microgrid_capacity_mw": round(sum(m.capacity_mw for m in microgrids), 1)
+        }
+    )
+    _cache_set(_ged_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# Sprint 91c — EnergyStorageDegradationAnalytics (BDG prefix)
+# ============================================================
+
+class BDGAssetRecord(BaseModel):
+    asset_id: str
+    name: str
+    technology: str  # LFP, NMC, NCA, LTO, VRFB, ZNBR
+    region: str
+    capacity_mwh_nameplate: float
+    capacity_mwh_current: float
+    capacity_degradation_pct: float
+    age_years: float
+    cycles_completed: int
+    dod_avg_pct: float  # average depth of discharge
+    roundtrip_efficiency_pct: float
+    soh_pct: float  # state of health
+    expected_eol_year: int
+
+class BDGDegradationCurveRecord(BaseModel):
+    technology: str
+    year: int
+    dod_pct: float  # depth of discharge
+    capacity_retention_pct: float
+    efficiency_retention_pct: float
+    cycle_life: int
+    calendar_life_years: int
+    temperature_factor: float  # impact of temperature on degradation
+
+class BDGMaintenanceRecord(BaseModel):
+    asset_id: str
+    maintenance_type: str  # PREVENTIVE, CORRECTIVE, PREDICTIVE, REPLACEMENT
+    date: str
+    cost_aud_k: float
+    capacity_restored_mwh: float
+    downtime_hours: float
+    technician_count: int
+    root_cause: Optional[str]
+
+class BDGLifecycleEconomicsRecord(BaseModel):
+    technology: str
+    scenario: str  # AGGRESSIVE, MODERATE, CONSERVATIVE
+    year: int
+    capex_aud_per_kwh: float
+    replacement_cost_aud_per_kwh: float
+    opex_aud_per_mwh: float
+    degradation_loss_pct: float
+    lcoe_aud_per_mwh: float
+    optimal_replacement_year: int
+
+class BDGHealthIndicatorRecord(BaseModel):
+    asset_id: str
+    timestamp: str
+    internal_resistance_mohm: float
+    self_discharge_pct_per_day: float
+    capacity_fade_pct: float
+    voltage_deviation_mv: float
+    thermal_anomaly: bool
+    soh_pct: float
+    predicted_rul_cycles: int  # remaining useful life
+
+class BDGDashboard(BaseModel):
+    assets: List[BDGAssetRecord]
+    degradation_curves: List[BDGDegradationCurveRecord]
+    maintenance_records: List[BDGMaintenanceRecord]
+    lifecycle_economics: List[BDGLifecycleEconomicsRecord]
+    health_indicators: List[BDGHealthIndicatorRecord]
+    summary: Dict[str, Any]
+
+
+_bdg_cache: Dict[str, Any] = {}
+
+@app.get("/api/bess-degradation/dashboard", response_model=BDGDashboard, dependencies=[Depends(verify_api_key)])
+def get_bess_degradation_dashboard():
+    import random
+    cache_key = "bdg_dashboard"
+    cached = _cache_get(_bdg_cache, cache_key)
+    if cached:
+        return cached
+
+    technologies = ["LFP", "NMC", "NCA", "LTO", "VRFB", "ZNBR"]
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+
+    asset_names = [
+        "Hornsdale Power Reserve", "Victorian Big Battery", "Torrens Island BESS",
+        "Wallgrove Grid Battery", "Lake Bonney BESS", "Gannawarra Energy Storage",
+        "Bulgana Green Power Hub", "Bomen Solar Farm Battery", "Darlington Point BESS",
+        "Neoen Collie Battery", "Origin Eraring BESS", "AGL Broken Hill Battery",
+        "TransGrid Sydney BESS", "Snowy Energy Storage", "SA Government BESS"
+    ]
+
+    assets = []
+    for i, name in enumerate(asset_names):
+        tech = technologies[i % len(technologies)]
+        age = round(random.uniform(0.5, 7.0), 1)
+        nameplate = round(random.uniform(50.0, 300.0), 1)
+        deg_rate = {"LFP": 0.02, "NMC": 0.03, "NCA": 0.035, "LTO": 0.01, "VRFB": 0.005, "ZNBR": 0.008}.get(tech, 0.025)
+        cap_deg = round(deg_rate * age * 100, 1)
+        soh = round(100.0 - cap_deg, 1)
+        assets.append(BDGAssetRecord(
+            asset_id=f"BESS-{i+1:03d}",
+            name=name, technology=tech,
+            region=regions[i % len(regions)],
+            capacity_mwh_nameplate=nameplate,
+            capacity_mwh_current=round(nameplate * soh / 100, 1),
+            capacity_degradation_pct=cap_deg,
+            age_years=age,
+            cycles_completed=round(age * random.uniform(200, 500)),
+            dod_avg_pct=round(random.uniform(60.0, 90.0), 1),
+            roundtrip_efficiency_pct=round(random.uniform(88.0, 97.0), 2),
+            soh_pct=soh,
+            expected_eol_year=round(2024 + (100.0 - soh) / deg_rate / 100 * 0.7)
+        ))
+
+    degradation_curves = []
+    dod_levels = [50, 70, 90, 100]
+    for tech in technologies:
+        for yr in range(0, 16):
+            for dod in dod_levels:
+                deg_base = {"LFP": 0.015, "NMC": 0.025, "NCA": 0.030, "LTO": 0.008, "VRFB": 0.003, "ZNBR": 0.006}.get(tech, 0.020)
+                dod_factor = (dod / 80.0) ** 1.5
+                cap_ret = round(max(70.0, 100.0 - deg_base * dod_factor * yr * 100), 2)
+                degradation_curves.append(BDGDegradationCurveRecord(
+                    technology=tech, year=yr, dod_pct=float(dod),
+                    capacity_retention_pct=cap_ret,
+                    efficiency_retention_pct=round(max(85.0, 100.0 - deg_base * 0.5 * yr * 100), 2),
+                    cycle_life={"LFP": 4000, "NMC": 2000, "NCA": 1500, "LTO": 8000, "VRFB": 20000, "ZNBR": 10000}.get(tech, 3000),
+                    calendar_life_years={"LFP": 15, "NMC": 12, "NCA": 10, "LTO": 20, "VRFB": 25, "ZNBR": 20}.get(tech, 15),
+                    temperature_factor=round(random.uniform(0.8, 1.5), 3)
+                ))
+
+    maintenance_types = ["PREVENTIVE", "CORRECTIVE", "PREDICTIVE", "REPLACEMENT"]
+    maintenance_records = []
+    for i in range(30):
+        asset = random.choice(assets)
+        mtype = random.choice(maintenance_types)
+        maintenance_records.append(BDGMaintenanceRecord(
+            asset_id=asset.asset_id,
+            maintenance_type=mtype,
+            date=f"202{random.randint(2,4)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
+            cost_aud_k=round(random.uniform(10.0, 500.0), 1),
+            capacity_restored_mwh=round(random.uniform(0.0, 20.0), 1) if mtype in ["CORRECTIVE", "REPLACEMENT"] else 0.0,
+            downtime_hours=round(random.uniform(2.0, 48.0), 1),
+            technician_count=random.randint(2, 10),
+            root_cause=random.choice(["Cell imbalance", "BMS fault", "Thermal event", "Cycle fatigue", "Calendar aging", None])
+        ))
+
+    scenarios = ["AGGRESSIVE", "MODERATE", "CONSERVATIVE"]
+    lifecycle_economics = []
+    for tech in technologies:
+        base_cost = {"LFP": 350, "NMC": 420, "NCA": 460, "LTO": 650, "VRFB": 800, "ZNBR": 700}.get(tech, 450)
+        for sc in scenarios:
+            growth = {"AGGRESSIVE": -0.08, "MODERATE": -0.06, "CONSERVATIVE": -0.04}.get(sc, -0.06)
+            for yr in range(2024, 2036):
+                progress = yr - 2024
+                cost = round(base_cost * (1 + growth) ** progress, 0)
+                lifecycle_economics.append(BDGLifecycleEconomicsRecord(
+                    technology=tech, scenario=sc, year=yr,
+                    capex_aud_per_kwh=cost,
+                    replacement_cost_aud_per_kwh=round(cost * 0.85, 0),
+                    opex_aud_per_mwh=round(random.uniform(3.0, 8.0), 2),
+                    degradation_loss_pct=round(progress * 1.5, 1),
+                    lcoe_aud_per_mwh=round(cost / 1000 * 15 + random.uniform(20, 50), 1),
+                    optimal_replacement_year=2034 + random.randint(-2, 3)
+                ))
+
+    health_indicators = []
+    for asset in assets[:10]:
+        for i in range(3):
+            health_indicators.append(BDGHealthIndicatorRecord(
+                asset_id=asset.asset_id,
+                timestamp=f"2024-11-{(i+1)*8:02d} 12:00:00",
+                internal_resistance_mohm=round(random.uniform(1.0, 8.0), 3),
+                self_discharge_pct_per_day=round(random.uniform(0.01, 0.5), 4),
+                capacity_fade_pct=round(asset.capacity_degradation_pct + random.uniform(-1, 1), 2),
+                voltage_deviation_mv=round(random.uniform(-50, 50), 1),
+                thermal_anomaly=random.choice([False, False, False, True]),
+                soh_pct=asset.soh_pct,
+                predicted_rul_cycles=round(asset.cycles_completed * random.uniform(1.0, 3.0))
+            ))
+
+    result = BDGDashboard(
+        assets=assets,
+        degradation_curves=degradation_curves,
+        maintenance_records=maintenance_records,
+        lifecycle_economics=lifecycle_economics,
+        health_indicators=health_indicators,
+        summary={
+            "total_assets": len(assets),
+            "avg_soh_pct": round(sum(a.soh_pct for a in assets) / len(assets), 1),
+            "total_nameplate_mwh": round(sum(a.capacity_mwh_nameplate for a in assets), 0),
+            "total_current_mwh": round(sum(a.capacity_mwh_current for a in assets), 0),
+            "assets_below_80_soh": len([a for a in assets if a.soh_pct < 80.0]),
+            "lowest_cost_technology": "LFP",
+            "most_cycle_durable": "VRFB",
+            "thermal_anomalies": len([h for h in health_indicators if h.thermal_anomaly])
+        }
+    )
+    _cache_set(_bdg_cache, cache_key, result)
+    return result

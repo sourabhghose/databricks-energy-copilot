@@ -11697,3 +11697,132 @@ class TestHydrogenFuelCellVehiclesEndpoint:
         r1 = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers)
         r2 = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestSpotPriceSpikePredictionEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_predictions_present(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        assert len(data["predictions"]) >= 50
+
+    def test_model_performance_present(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        assert len(data["model_performance"]) >= 20
+
+    def test_features_present(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        assert len(data["features"]) >= 10
+
+    def test_alerts_present(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        assert len(data["alerts"]) >= 15
+
+    def test_spike_history_present(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        assert len(data["spike_history"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        assert "best_model" in data["summary"]
+        assert "spike_detection_rate_pct" in data["summary"]
+
+    def test_prediction_fields(self, client, auth_headers):
+        data = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers).json()
+        p = data["predictions"][0]
+        assert "predicted_spike_probability" in p
+        assert "threshold_aud_mwh" in p
+        assert "confidence_interval_low" in p
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers)
+        r2 = client.get("/api/spot-price-spike-prediction/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestGridEdgeTechnologyEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_technologies_present(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        assert len(data["technologies"]) >= 8
+
+    def test_microgrids_present(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        assert len(data["microgrids"]) >= 10
+
+    def test_smart_inverters_present(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        assert len(data["smart_inverters"]) >= 6
+
+    def test_edge_deployments_present(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        assert len(data["edge_deployments"]) >= 30
+
+    def test_grid_services_present(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        assert len(data["grid_services"]) >= 5
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        assert "fastest_growing_technology" in data["summary"]
+        assert "total_microgrid_capacity_mw" in data["summary"]
+
+    def test_technology_fields(self, client, auth_headers):
+        data = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers).json()
+        t = data["technologies"][0]
+        assert "trl" in t
+        assert "cagr_pct" in t
+        assert "grid_service" in t
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers)
+        r2 = client.get("/api/grid-edge-technology/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestBESSDegradationEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/bess-degradation/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_assets_present(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        assert len(data["assets"]) >= 12
+
+    def test_degradation_curves_present(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        assert len(data["degradation_curves"]) >= 100
+
+    def test_maintenance_records_present(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        assert len(data["maintenance_records"]) >= 20
+
+    def test_lifecycle_economics_present(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        assert len(data["lifecycle_economics"]) >= 50
+
+    def test_health_indicators_present(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        assert len(data["health_indicators"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        assert "avg_soh_pct" in data["summary"]
+        assert "lowest_cost_technology" in data["summary"]
+
+    def test_asset_fields(self, client, auth_headers):
+        data = client.get("/api/bess-degradation/dashboard", headers=auth_headers).json()
+        a = data["assets"][0]
+        assert "soh_pct" in a
+        assert "cycles_completed" in a
+        assert "expected_eol_year" in a
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/bess-degradation/dashboard", headers=auth_headers)
+        r2 = client.get("/api/bess-degradation/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]

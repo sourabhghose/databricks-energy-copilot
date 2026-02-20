@@ -14446,3 +14446,220 @@ export interface HFVDashboard {
 
 export const getHydrogenFuelCellVehiclesDashboard = (): Promise<HFVDashboard> =>
   get<HFVDashboard>('/api/hydrogen-fuel-cell-vehicles/dashboard');
+
+// ===== Spot Price Spike Prediction Analytics (Sprint 91a) =====
+export interface SPPPredictionRecord {
+  prediction_id: string;
+  region: string;
+  dispatch_interval: string;
+  predicted_spike_probability: number;
+  predicted_price_aud_mwh: number;
+  actual_price_aud_mwh: number | null;
+  threshold_aud_mwh: number;
+  correct_prediction: boolean | null;
+  confidence_interval_low: number;
+  confidence_interval_high: number;
+}
+
+export interface SPPModelPerformanceRecord {
+  model_name: string;
+  region: string;
+  period: string;
+  precision: number;
+  recall: number;
+  f1_score: number;
+  auc_roc: number;
+  false_positive_rate: number;
+  spike_threshold_aud_mwh: number;
+  total_spikes: number;
+  predicted_spikes: number;
+}
+
+export interface SPPFeatureRecord {
+  feature: string;
+  importance: number;
+  category: string;
+  spike_correlation: number;
+  lag_minutes: number;
+}
+
+export interface SPPAlertRecord {
+  alert_id: string;
+  region: string;
+  issued_at: string;
+  forecast_window_minutes: number;
+  spike_probability: number;
+  expected_price_aud_mwh: number;
+  trigger_factors: string[];
+  status: string;
+}
+
+export interface SPPSpikeHistoryRecord {
+  region: string;
+  date: string;
+  hour: number;
+  max_price_aud_mwh: number;
+  duration_intervals: number;
+  cause: string;
+  predicted: boolean;
+  warning_lead_time_minutes: number | null;
+}
+
+export interface SPPDashboard {
+  predictions: SPPPredictionRecord[];
+  model_performance: SPPModelPerformanceRecord[];
+  features: SPPFeatureRecord[];
+  alerts: SPPAlertRecord[];
+  spike_history: SPPSpikeHistoryRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getSpotPriceSpikePredictionDashboard = (): Promise<SPPDashboard> =>
+  get<SPPDashboard>('/api/spot-price-spike-prediction/dashboard');
+
+// ===== Grid Edge Technology Analytics (Sprint 91b) =====
+export interface GEDTechnologyRecord {
+  tech_id: string;
+  name: string;
+  category: string;
+  trl: number;
+  deployments_australia: number;
+  market_size_aud_m: number;
+  cagr_pct: number;
+  key_capability: string;
+  grid_service: string;
+}
+
+export interface GEDMicrogridRecord {
+  microgrid_id: string;
+  name: string;
+  state: string;
+  type: string;
+  capacity_mw: number;
+  storage_mwh: number;
+  renewable_pct: number;
+  islanding_capable: boolean;
+  annual_savings_aud_k: number;
+  resilience_hours: number;
+}
+
+export interface GEDSmartInverterRecord {
+  manufacturer: string;
+  model: string;
+  capacity_kva: number;
+  grid_forming: boolean;
+  volt_var_capable: boolean;
+  freq_watt_capable: boolean;
+  australia_installs: number;
+  compliance_standard: string;
+  export_limit_w: number | null;
+}
+
+export interface GEDEdgeDeploymentRecord {
+  state: string;
+  year: number;
+  smart_inverters_k: number;
+  grid_forming_k: number;
+  microgrids: number;
+  v2g_units: number;
+  edge_controllers: number;
+  total_capacity_mw: number;
+}
+
+export interface GEDGridServiceRecord {
+  service: string;
+  technology: string;
+  region: string;
+  capacity_mw: number;
+  response_time_ms: number;
+  revenue_aud_per_mw_year: number;
+  current_providers: number;
+  growth_potential_mw: number;
+}
+
+export interface GEDDashboard {
+  technologies: GEDTechnologyRecord[];
+  microgrids: GEDMicrogridRecord[];
+  smart_inverters: GEDSmartInverterRecord[];
+  edge_deployments: GEDEdgeDeploymentRecord[];
+  grid_services: GEDGridServiceRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getGridEdgeTechnologyDashboard = (): Promise<GEDDashboard> =>
+  get<GEDDashboard>('/api/grid-edge-technology/dashboard');
+
+// ===== Energy Storage Degradation Analytics (Sprint 91c) =====
+export interface BDGAssetRecord {
+  asset_id: string;
+  name: string;
+  technology: string;
+  region: string;
+  capacity_mwh_nameplate: number;
+  capacity_mwh_current: number;
+  capacity_degradation_pct: number;
+  age_years: number;
+  cycles_completed: number;
+  dod_avg_pct: number;
+  roundtrip_efficiency_pct: number;
+  soh_pct: number;
+  expected_eol_year: number;
+}
+
+export interface BDGDegradationCurveRecord {
+  technology: string;
+  year: number;
+  dod_pct: number;
+  capacity_retention_pct: number;
+  efficiency_retention_pct: number;
+  cycle_life: number;
+  calendar_life_years: number;
+  temperature_factor: number;
+}
+
+export interface BDGMaintenanceRecord {
+  asset_id: string;
+  maintenance_type: string;
+  date: string;
+  cost_aud_k: number;
+  capacity_restored_mwh: number;
+  downtime_hours: number;
+  technician_count: number;
+  root_cause: string | null;
+}
+
+export interface BDGLifecycleEconomicsRecord {
+  technology: string;
+  scenario: string;
+  year: number;
+  capex_aud_per_kwh: number;
+  replacement_cost_aud_per_kwh: number;
+  opex_aud_per_mwh: number;
+  degradation_loss_pct: number;
+  lcoe_aud_per_mwh: number;
+  optimal_replacement_year: number;
+}
+
+export interface BDGHealthIndicatorRecord {
+  asset_id: string;
+  timestamp: string;
+  internal_resistance_mohm: number;
+  self_discharge_pct_per_day: number;
+  capacity_fade_pct: number;
+  voltage_deviation_mv: number;
+  thermal_anomaly: boolean;
+  soh_pct: number;
+  predicted_rul_cycles: number;
+}
+
+export interface BDGDashboard {
+  assets: BDGAssetRecord[];
+  degradation_curves: BDGDegradationCurveRecord[];
+  maintenance_records: BDGMaintenanceRecord[];
+  lifecycle_economics: BDGLifecycleEconomicsRecord[];
+  health_indicators: BDGHealthIndicatorRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getBESSDegradationDashboard = (): Promise<BDGDashboard> =>
+  get<BDGDashboard>('/api/bess-degradation/dashboard');

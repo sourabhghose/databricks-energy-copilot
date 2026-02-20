@@ -316,6 +316,9 @@ import SolarThermalCSPAnalytics from './pages/SolarThermalCSPAnalytics'
 import NEMPostReformMarketDesignAnalytics from './pages/NEMPostReformMarketDesignAnalytics'
 import ElectricityPriceForecastingModelAnalytics from './pages/ElectricityPriceForecastingModelAnalytics'
 import LargeIndustrialDemandAnalytics from './pages/LargeIndustrialDemandAnalytics'
+import SpotPriceSpikePredictionAnalytics from './pages/SpotPriceSpikePredictionAnalytics'
+import GridEdgeTechnologyAnalytics from './pages/GridEdgeTechnologyAnalytics'
+import EnergyStorageDegradationAnalytics from './pages/EnergyStorageDegradationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -558,6 +561,9 @@ const NAV_ITEMS = [
   { to: '/network-investment-pipeline', label: 'Network Investment Pipeline', Icon: GitBranch },
   { to: '/nem-demand-forecast', label: 'NEM Demand Forecast', Icon: TrendingUp },
   { to: '/hydrogen-fuel-cell-vehicles', label: 'Hydrogen Fuel Cell Vehicles', Icon: Truck },
+  { to: '/spot-price-spike-prediction', label: 'Spike Price Prediction', Icon: AlertOctagon },
+  { to: '/grid-edge-technology', label: 'Grid Edge Technology', Icon: Cpu },
+  { to: '/bess-degradation', label: 'Storage Degradation', Icon: Battery },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -875,6 +881,9 @@ export default function App() {
               <Route path="/network-investment-pipeline" element={<NetworkInvestmentPipelineAnalytics />} />
               <Route path="/nem-demand-forecast" element={<NEMDemandForecastAnalytics />} />
               <Route path="/hydrogen-fuel-cell-vehicles" element={<HydrogenFuelCellVehicleAnalytics />} />
+              <Route path="/spot-price-spike-prediction" element={<SpotPriceSpikePredictionAnalytics />} />
+              <Route path="/grid-edge-technology" element={<GridEdgeTechnologyAnalytics />} />
+              <Route path="/bess-degradation" element={<EnergyStorageDegradationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
