@@ -68,6 +68,7 @@ import {
   Globe2,
   ShieldCheck,
   CreditCard,
+  ShoppingCart,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -229,6 +230,9 @@ import RenewableAuctionAnalytics from './pages/RenewableAuctionAnalytics'
 import VollAnalytics from './pages/VollAnalytics'
 import DemandFlexibilityAnalytics from './pages/DemandFlexibilityAnalytics'
 import FuturesPriceDiscovery from './pages/FuturesPriceDiscovery'
+import ElectricityPriceIndex from './pages/ElectricityPriceIndex'
+import InterconnectorUpgradeAnalytics from './pages/InterconnectorUpgradeAnalytics'
+import MlfAnalytics from './pages/MlfAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -391,6 +395,9 @@ const NAV_ITEMS = [
   { to: '/voll-analytics',               label: 'VoLL Outage Cost Analytics',   Icon: AlertTriangle },
   { to: '/demand-flexibility-analytics', label: 'Demand Flexibility & ILM',     Icon: Gauge      },
   { to: '/futures-price-discovery',      label: 'Futures Price Discovery',       Icon: TrendingUp },
+  { to: '/electricity-price-index',     label: 'Electricity CPI & Retail',      Icon: ShoppingCart },
+  { to: '/interconnector-upgrade-analytics', label: 'Interconnector Upgrade Business Case', Icon: ArrowLeftRight },
+  { to: '/mlf-analytics',                   label: 'MLF Deep Dive Analytics',              Icon: TrendingDown   },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -628,6 +635,9 @@ export default function App() {
               <Route path="/voll-analytics"              element={<VollAnalytics />}                />
               <Route path="/demand-flexibility-analytics" element={<DemandFlexibilityAnalytics />} />
               <Route path="/futures-price-discovery"      element={<FuturesPriceDiscovery />}      />
+              <Route path="/electricity-price-index"    element={<ElectricityPriceIndex />}      />
+              <Route path="/interconnector-upgrade-analytics" element={<InterconnectorUpgradeAnalytics />} />
+              <Route path="/mlf-analytics"               element={<MlfAnalytics />}               />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

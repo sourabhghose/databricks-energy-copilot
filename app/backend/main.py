@@ -45293,3 +45293,614 @@ def get_futures_price_discovery_dashboard() -> FuturesPriceDiscoveryDashboard:
         carry_records=[r.dict() for r in _FPD_CARRY_RECORDS],
         curve_shapes=[r.dict() for r in _FPD_CURVE_SHAPES],
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 64b — Interconnector Upgrade Business Case Analytics
+# ---------------------------------------------------------------------------
+
+from enum import Enum as _PyEnum
+
+
+class ICBStatus(_PyEnum):
+    OPERATING = "OPERATING"
+    CONSTRUCTION = "CONSTRUCTION"
+    APPROVED = "APPROVED"
+    PROPOSED = "PROPOSED"
+
+
+class ICBRegulatoryOutcome(_PyEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    PENDING = "PENDING"
+
+
+class ICBBenefitType(_PyEnum):
+    CONGESTION_RENT = "CONGESTION_RENT"
+    FUEL_COST_SAVING = "FUEL_COST_SAVING"
+    RELIABILITY = "RELIABILITY"
+    RENEWABLE_FIRMING = "RENEWABLE_FIRMING"
+    AVOIDED_INVESTMENT = "AVOIDED_INVESTMENT"
+    CONSUMER_SURPLUS = "CONSUMER_SURPLUS"
+
+
+class ICBConfidence(_PyEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class ICBScenarioType(_PyEnum):
+    STEP_CHANGE = "STEP_CHANGE"
+    CENTRAL = "CENTRAL"
+    SLOW_CHANGE = "SLOW_CHANGE"
+
+
+class ICBProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    from_region: str
+    to_region: str
+    capacity_increase_mw: float
+    capex_bn_aud: float
+    opex_m_aud_yr: float
+    commissioning_year: int
+    status: str
+    aer_approved: bool
+    regulatory_test_outcome: str
+    bcr: float
+    npv_bn_aud: float
+
+
+class ICBBenefitRecord(BaseModel):
+    project_id: str
+    benefit_type: str
+    benefit_m_aud_yr: float
+    confidence: str
+    beneficiary_region: str
+    quantification_method: str
+
+
+class ICBScenarioRecord(BaseModel):
+    project_id: str
+    scenario: str
+    npv_bn_aud: float
+    bcr: float
+    consumer_benefit_bn_aud: float
+    renewable_firming_mw: float
+    breakeven_price_aud_mwh: float
+
+
+class ICBFlowAnalysisRecord(BaseModel):
+    project_id: str
+    year: int
+    annual_flow_twh: float
+    peak_flow_mw: float
+    avg_utilisation_pct: float
+    congestion_hours_pct: float
+    marginal_value_aud_mwh: float
+
+
+class InterconnectorUpgradeDashboard(BaseModel):
+    timestamp: str
+    projects: list
+    benefits: list
+    scenarios: list
+    flow_analysis: list
+
+
+# ---- mock data ----
+
+_ICB_PROJECTS: list[ICBProjectRecord] = [
+    ICBProjectRecord(
+        project_id="HUMELINK",
+        project_name="HumeLink",
+        from_region="NSW",
+        to_region="VIC",
+        capacity_increase_mw=1800,
+        capex_bn_aud=3.3,
+        opex_m_aud_yr=28.5,
+        commissioning_year=2027,
+        status="APPROVED",
+        aer_approved=True,
+        regulatory_test_outcome="PASS",
+        bcr=1.42,
+        npv_bn_aud=1.87,
+    ),
+    ICBProjectRecord(
+        project_id="VNI_WEST",
+        project_name="VNI-West",
+        from_region="VIC",
+        to_region="NSW",
+        capacity_increase_mw=2600,
+        capex_bn_aud=4.9,
+        opex_m_aud_yr=41.2,
+        commissioning_year=2030,
+        status="APPROVED",
+        aer_approved=True,
+        regulatory_test_outcome="PASS",
+        bcr=1.35,
+        npv_bn_aud=2.54,
+    ),
+    ICBProjectRecord(
+        project_id="QNI_MIDDLEWARE",
+        project_name="QNI-Middleware",
+        from_region="QLD",
+        to_region="NSW",
+        capacity_increase_mw=1400,
+        capex_bn_aud=2.1,
+        opex_m_aud_yr=18.7,
+        commissioning_year=2029,
+        status="PROPOSED",
+        aer_approved=False,
+        regulatory_test_outcome="PENDING",
+        bcr=1.18,
+        npv_bn_aud=0.92,
+    ),
+    ICBProjectRecord(
+        project_id="ENERGY_CONNECT",
+        project_name="EnergyConnect",
+        from_region="SA",
+        to_region="NSW",
+        capacity_increase_mw=800,
+        capex_bn_aud=2.28,
+        opex_m_aud_yr=19.5,
+        commissioning_year=2024,
+        status="OPERATING",
+        aer_approved=True,
+        regulatory_test_outcome="PASS",
+        bcr=1.62,
+        npv_bn_aud=1.43,
+    ),
+    ICBProjectRecord(
+        project_id="MARINUS_1",
+        project_name="Marinus Link Stage 1",
+        from_region="TAS",
+        to_region="VIC",
+        capacity_increase_mw=750,
+        capex_bn_aud=3.1,
+        opex_m_aud_yr=26.8,
+        commissioning_year=2031,
+        status="APPROVED",
+        aer_approved=True,
+        regulatory_test_outcome="PASS",
+        bcr=1.21,
+        npv_bn_aud=0.78,
+    ),
+    ICBProjectRecord(
+        project_id="COPPERSTRING",
+        project_name="CopperString 2.0",
+        from_region="QLD",
+        to_region="QLD",
+        capacity_increase_mw=1200,
+        capex_bn_aud=5.6,
+        opex_m_aud_yr=47.3,
+        commissioning_year=2029,
+        status="CONSTRUCTION",
+        aer_approved=True,
+        regulatory_test_outcome="PASS",
+        bcr=1.09,
+        npv_bn_aud=0.51,
+    ),
+]
+
+_ICB_BENEFITS_RAW = [
+    # HumeLink
+    ("HUMELINK", "CONGESTION_RENT", 145.2, "HIGH", "NSW", "NEM settlement data regression"),
+    ("HUMELINK", "FUEL_COST_SAVING", 112.8, "HIGH", "VIC", "PLEXOS dispatch simulation"),
+    ("HUMELINK", "RENEWABLE_FIRMING", 98.5, "MEDIUM", "NSW", "ISP modelling v4.0"),
+    ("HUMELINK", "AVOIDED_INVESTMENT", 67.3, "MEDIUM", "NSW", "WACC-adjusted NPV"),
+    # VNI-West
+    ("VNI_WEST", "CONGESTION_RENT", 198.4, "HIGH", "VIC", "NEM settlement data regression"),
+    ("VNI_WEST", "FUEL_COST_SAVING", 165.7, "HIGH", "NSW", "PLEXOS dispatch simulation"),
+    ("VNI_WEST", "RENEWABLE_FIRMING", 142.3, "HIGH", "VIC", "ISP modelling v4.0"),
+    ("VNI_WEST", "CONSUMER_SURPLUS", 89.6, "MEDIUM", "NSW", "CGE welfare modelling"),
+    # QNI-Middleware
+    ("QNI_MIDDLEWARE", "CONGESTION_RENT", 87.5, "MEDIUM", "QLD", "NEM settlement data regression"),
+    ("QNI_MIDDLEWARE", "FUEL_COST_SAVING", 63.2, "MEDIUM", "NSW", "PLEXOS dispatch simulation"),
+    ("QNI_MIDDLEWARE", "RELIABILITY", 45.8, "LOW", "QLD", "LOLP/VOLL methodology"),
+    # EnergyConnect
+    ("ENERGY_CONNECT", "CONGESTION_RENT", 167.3, "HIGH", "SA", "NEM settlement data regression"),
+    ("ENERGY_CONNECT", "FUEL_COST_SAVING", 134.6, "HIGH", "NSW", "PLEXOS dispatch simulation"),
+    ("ENERGY_CONNECT", "RENEWABLE_FIRMING", 118.9, "HIGH", "SA", "ISP modelling v4.0"),
+    ("ENERGY_CONNECT", "CONSUMER_SURPLUS", 72.4, "MEDIUM", "SA", "CGE welfare modelling"),
+    # Marinus Link 1
+    ("MARINUS_1", "CONGESTION_RENT", 89.4, "MEDIUM", "TAS", "NEM settlement data regression"),
+    ("MARINUS_1", "RENEWABLE_FIRMING", 125.7, "HIGH", "VIC", "ISP modelling v4.0"),
+    ("MARINUS_1", "RELIABILITY", 67.8, "MEDIUM", "TAS", "LOLP/VOLL methodology"),
+    # CopperString
+    ("COPPERSTRING", "RELIABILITY", 156.3, "HIGH", "QLD", "LOLP/VOLL methodology"),
+    ("COPPERSTRING", "AVOIDED_INVESTMENT", 89.2, "MEDIUM", "QLD", "WACC-adjusted NPV"),
+]
+
+_ICB_BENEFITS: list[ICBBenefitRecord] = [
+    ICBBenefitRecord(
+        project_id=r[0], benefit_type=r[1], benefit_m_aud_yr=r[2],
+        confidence=r[3], beneficiary_region=r[4], quantification_method=r[5],
+    )
+    for r in _ICB_BENEFITS_RAW
+]
+
+_ICB_SCENARIO_RAW = [
+    # project_id, scenario, npv_bn, bcr, consumer_bn, firming_mw, breakeven
+    ("HUMELINK",       "STEP_CHANGE",  2.54, 1.77, 3.12, 2200, 61.5),
+    ("HUMELINK",       "CENTRAL",      1.87, 1.42, 2.34, 1850, 74.2),
+    ("HUMELINK",       "SLOW_CHANGE",  0.92, 1.08, 1.12, 1100, 98.7),
+    ("VNI_WEST",       "STEP_CHANGE",  3.87, 1.79, 4.65, 3100, 58.3),
+    ("VNI_WEST",       "CENTRAL",      2.54, 1.35, 3.21, 2600, 71.8),
+    ("VNI_WEST",       "SLOW_CHANGE",  1.03, 0.98, 1.45, 1450, 102.4),
+    ("QNI_MIDDLEWARE", "STEP_CHANGE",  1.64, 1.54, 1.98, 1800, 55.6),
+    ("QNI_MIDDLEWARE", "CENTRAL",      0.92, 1.18, 1.23, 1400, 68.9),
+    ("QNI_MIDDLEWARE", "SLOW_CHANGE",  0.21, 0.87, 0.54, 720, 89.3),
+    ("ENERGY_CONNECT", "STEP_CHANGE",  2.18, 1.95, 2.78, 1200, 48.2),
+    ("ENERGY_CONNECT", "CENTRAL",      1.43, 1.62, 1.89, 850, 58.7),
+    ("ENERGY_CONNECT", "SLOW_CHANGE",  0.67, 1.21, 0.92, 520, 78.4),
+    ("MARINUS_1",      "STEP_CHANGE",  1.42, 1.45, 1.67, 1100, 62.8),
+    ("MARINUS_1",      "CENTRAL",      0.78, 1.21, 1.02, 780, 79.5),
+    ("MARINUS_1",      "SLOW_CHANGE", -0.12, 0.95, 0.38, 350, 108.3),
+    ("COPPERSTRING",   "STEP_CHANGE",  1.23, 1.32, 1.45, 1650, 78.4),
+    ("COPPERSTRING",   "CENTRAL",      0.51, 1.09, 0.89, 1200, 95.7),
+    ("COPPERSTRING",   "SLOW_CHANGE", -0.34, 0.88, 0.32, 620, 128.6),
+]
+
+_ICB_SCENARIOS: list[ICBScenarioRecord] = [
+    ICBScenarioRecord(
+        project_id=r[0], scenario=r[1], npv_bn_aud=r[2], bcr=r[3],
+        consumer_benefit_bn_aud=r[4], renewable_firming_mw=r[5], breakeven_price_aud_mwh=r[6],
+    )
+    for r in _ICB_SCENARIO_RAW
+]
+
+_ICB_FLOW_RAW = [
+    # project_id, year, flow_twh, peak_mw, utilisation_pct, congestion_pct, marginal_value
+    ("HUMELINK",       2026,  8.4,  1750, 62.5, 18.3, 34.2),
+    ("HUMELINK",       2028, 11.2,  1800, 71.3, 12.4, 27.8),
+    ("HUMELINK",       2030, 13.7,  1800, 87.1,  7.6, 19.5),
+    ("VNI_WEST",       2030, 14.5,  2450, 63.8, 21.2, 42.3),
+    ("VNI_WEST",       2032, 18.9,  2580, 74.2, 14.8, 31.6),
+    ("VNI_WEST",       2035, 22.4,  2600, 88.5,  8.2, 22.1),
+    ("QNI_MIDDLEWARE", 2029,  6.8,  1320, 55.4, 24.7, 38.9),
+    ("QNI_MIDDLEWARE", 2031,  9.1,  1390, 66.8, 17.3, 29.4),
+    ("QNI_MIDDLEWARE", 2033, 11.3,  1400, 81.4, 10.6, 21.7),
+    ("ENERGY_CONNECT", 2024,  5.2,   780, 74.3, 14.2, 28.6),
+    ("ENERGY_CONNECT", 2026,  6.8,   800, 82.7,  9.8, 22.4),
+    ("ENERGY_CONNECT", 2028,  7.5,   800, 89.1,  6.3, 16.8),
+    ("MARINUS_1",      2031,  4.1,   720, 61.5, 22.8, 41.7),
+    ("MARINUS_1",      2033,  5.6,   745, 73.4, 15.6, 32.3),
+    ("MARINUS_1",      2035,  6.8,   750, 84.2,  9.4, 23.8),
+    ("COPPERSTRING",   2029,  5.9,  1150, 56.3, 28.4, 45.2),
+    ("COPPERSTRING",   2031,  8.2,  1185, 68.7, 19.7, 35.8),
+    ("COPPERSTRING",   2033, 10.1,  1200, 79.8, 12.3, 26.4),
+]
+
+_ICB_FLOW_ANALYSIS: list[ICBFlowAnalysisRecord] = [
+    ICBFlowAnalysisRecord(
+        project_id=r[0], year=r[1], annual_flow_twh=r[2], peak_flow_mw=r[3],
+        avg_utilisation_pct=r[4], congestion_hours_pct=r[5], marginal_value_aud_mwh=r[6],
+    )
+    for r in _ICB_FLOW_RAW
+]
+
+
+@app.get("/api/interconnector-upgrade/dashboard", dependencies=[Depends(verify_api_key)])
+def get_interconnector_upgrade_dashboard() -> InterconnectorUpgradeDashboard:
+    return InterconnectorUpgradeDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        projects=[r.dict() for r in _ICB_PROJECTS],
+        benefits=[r.dict() for r in _ICB_BENEFITS],
+        scenarios=[r.dict() for r in _ICB_SCENARIOS],
+        flow_analysis=[r.dict() for r in _ICB_FLOW_ANALYSIS],
+    )
+
+# ---------------------------------------------------------------------------
+# Sprint 64a — Marginal Loss Factor (MLF) Deep Dive Analytics
+# ---------------------------------------------------------------------------
+
+class MLFConnectionPointRecord(BaseModel):
+    connection_point: str
+    generator_name: str
+    technology: str
+    region: str
+    mlf_2024: float
+    mlf_2023: float
+    mlf_2022: float
+    mlf_trend: Literal["IMPROVING", "DECLINING", "STABLE"]
+    revenue_impact_pct: float
+    reason: str
+
+
+class MLFRezRecord(BaseModel):
+    rez_id: str
+    rez_name: str
+    region: str
+    projected_mlf_2028: float
+    current_mlf: float
+    mlf_deterioration_pct: float
+    connected_capacity_mw: float
+    pipeline_capacity_mw: float
+    risk_level: Literal["HIGH", "MEDIUM", "LOW"]
+    aemo_mitigation: str
+
+
+class MLFRevenueImpactRecord(BaseModel):
+    generator_name: str
+    technology: str
+    capacity_mw: float
+    annual_generation_gwh: float
+    mlf_value: float
+    spot_price_aud_mwh: float
+    effective_price_aud_mwh: float
+    revenue_loss_m_aud: float
+    revenue_loss_pct: float
+
+
+class MLFHistoricalRecord(BaseModel):
+    year: int
+    region: str
+    avg_mlf: float
+    min_mlf: float
+    max_mlf: float
+    generators_below_095: int
+    total_generators: int
+    avg_revenue_impact_pct: float
+
+
+class MlfAnalyticsDashboard(BaseModel):
+    timestamp: str
+    connection_points: list
+    rez_mlfs: list
+    revenue_impacts: list
+    historical: list
+
+
+_MLF_CONNECTION_POINTS: list[MLFConnectionPointRecord] = [
+    MLFConnectionPointRecord(connection_point="WEMEN", generator_name="Wemen Solar Farm", technology="Solar", region="VIC", mlf_2024=0.871, mlf_2023=0.893, mlf_2022=0.912, mlf_trend="DECLINING", revenue_impact_pct=-4.7, reason="High solar penetration in north-west VIC corridor"),
+    MLFConnectionPointRecord(connection_point="SNOWBYS1", generator_name="Snowy 2.0", technology="Hydro Pumped", region="NSW", mlf_2024=0.978, mlf_2023=0.975, mlf_2022=0.971, mlf_trend="IMPROVING", revenue_impact_pct=-0.5, reason="Network upgrades in Snowy Mountains zone"),
+    MLFConnectionPointRecord(connection_point="ARWF1", generator_name="Ararat Wind Farm", technology="Wind", region="VIC", mlf_2024=0.943, mlf_2023=0.951, mlf_2022=0.958, mlf_trend="DECLINING", revenue_impact_pct=-2.1, reason="Increased wind generation in western VIC"),
+    MLFConnectionPointRecord(connection_point="LKBONNY1", generator_name="Lake Bonney Wind 1", technology="Wind", region="SA", mlf_2024=0.892, mlf_2023=0.905, mlf_2022=0.918, mlf_trend="DECLINING", revenue_impact_pct=-3.6, reason="Concentrated wind zone in south-east SA"),
+    MLFConnectionPointRecord(connection_point="DAYDSF1", generator_name="Darlington Point Solar", technology="Solar", region="NSW", mlf_2024=0.908, mlf_2023=0.921, mlf_2022=0.938, mlf_trend="DECLINING", revenue_impact_pct=-3.2, reason="Riverina solar zone congestion"),
+    MLFConnectionPointRecord(connection_point="HDGPS1", generator_name="Haughton Solar Farm", technology="Solar", region="QLD", mlf_2024=0.961, mlf_2023=0.958, mlf_2022=0.963, mlf_trend="STABLE", revenue_impact_pct=-1.1, reason="Moderate north QLD network constraints"),
+    MLFConnectionPointRecord(connection_point="CAPTL_WF", generator_name="Capital Wind Farm", technology="Wind", region="NSW", mlf_2024=1.023, mlf_2023=1.018, mlf_2022=1.015, mlf_trend="IMPROVING", revenue_impact_pct=0.6, reason="Close to load centres near ACT"),
+    MLFConnectionPointRecord(connection_point="MEWF1", generator_name="Macarthur Wind Farm", technology="Wind", region="VIC", mlf_2024=0.934, mlf_2023=0.940, mlf_2022=0.946, mlf_trend="DECLINING", revenue_impact_pct=-2.7, reason="South-west VIC wind concentration"),
+    MLFConnectionPointRecord(connection_point="GANGARRI1", generator_name="Gangarri Solar Farm", technology="Solar", region="QLD", mlf_2024=0.953, mlf_2023=0.947, mlf_2022=0.944, mlf_trend="IMPROVING", revenue_impact_pct=-1.5, reason="Central QLD network investment"),
+    MLFConnectionPointRecord(connection_point="TAILEM2", generator_name="Tailem Bend 2 Solar", technology="Solar", region="SA", mlf_2024=0.876, mlf_2023=0.901, mlf_2022=0.923, mlf_trend="DECLINING", revenue_impact_pct=-5.2, reason="Murray Bridge corridor oversaturation"),
+    MLFConnectionPointRecord(connection_point="DUNDONNLL", generator_name="Dundonnell Wind Farm", technology="Wind", region="VIC", mlf_2024=0.887, mlf_2023=0.899, mlf_2022=0.911, mlf_trend="DECLINING", revenue_impact_pct=-4.1, reason="Western VIC REZ network limitations"),
+    MLFConnectionPointRecord(connection_point="CULLERIN1", generator_name="Cullerin Range Wind", technology="Wind", region="NSW", mlf_2024=1.008, mlf_2023=1.005, mlf_2022=1.002, mlf_trend="STABLE", revenue_impact_pct=0.2, reason="Central tablelands proximity to load"),
+    MLFConnectionPointRecord(connection_point="MUSSELR1", generator_name="Musselroe Wind Farm", technology="Wind", region="TAS", mlf_2024=0.982, mlf_2023=0.979, mlf_2022=0.977, mlf_trend="STABLE", revenue_impact_pct=-0.4, reason="Basslink transfer capacity limits"),
+    MLFConnectionPointRecord(connection_point="CETHANA1", generator_name="Cethana Hydro", technology="Hydro", region="TAS", mlf_2024=1.012, mlf_2023=1.009, mlf_2022=1.008, mlf_trend="IMPROVING", revenue_impact_pct=0.3, reason="Hydro Tasmania network proximity benefit"),
+    MLFConnectionPointRecord(connection_point="SPARKTF1", generator_name="Bungala One Solar", technology="Solar", region="SA", mlf_2024=0.917, mlf_2023=0.929, mlf_2022=0.942, mlf_trend="DECLINING", revenue_impact_pct=-2.9, reason="Eyre Peninsula solar build-out congestion"),
+]
+
+_MLF_REZ_RECORDS: list[MLFRezRecord] = [
+    MLFRezRecord(rez_id="N1", rez_name="New England REZ", region="NSW", projected_mlf_2028=0.831, current_mlf=0.912, mlf_deterioration_pct=-8.9, connected_capacity_mw=1850, pipeline_capacity_mw=4200, risk_level="HIGH", aemo_mitigation="HumeLink transmission upgrade prioritised"),
+    MLFRezRecord(rez_id="N2", rez_name="Central-West Orana REZ", region="NSW", projected_mlf_2028=0.851, current_mlf=0.907, mlf_deterioration_pct=-6.2, connected_capacity_mw=1200, pipeline_capacity_mw=3800, risk_level="HIGH", aemo_mitigation="EnergyConnect and CWORZ network upgrade"),
+    MLFRezRecord(rez_id="V1", rez_name="Western Victoria REZ", region="VIC", projected_mlf_2028=0.843, current_mlf=0.891, mlf_deterioration_pct=-5.4, connected_capacity_mw=2100, pipeline_capacity_mw=5600, risk_level="HIGH", aemo_mitigation="VNI West transmission project"),
+    MLFRezRecord(rez_id="V2", rez_name="Gippsland REZ", region="VIC", projected_mlf_2028=0.908, current_mlf=0.943, mlf_deterioration_pct=-3.7, connected_capacity_mw=780, pipeline_capacity_mw=1900, risk_level="MEDIUM", aemo_mitigation="Latrobe Valley network modernisation"),
+    MLFRezRecord(rez_id="Q1", rez_name="Southern Queensland REZ", region="QLD", projected_mlf_2028=0.882, current_mlf=0.941, mlf_deterioration_pct=-6.3, connected_capacity_mw=1650, pipeline_capacity_mw=3200, risk_level="HIGH", aemo_mitigation="QNI upgrade and Darling Downs reinforcement"),
+    MLFRezRecord(rez_id="Q2", rez_name="Central Queensland REZ", region="QLD", projected_mlf_2028=0.921, current_mlf=0.958, mlf_deterioration_pct=-3.9, connected_capacity_mw=940, pipeline_capacity_mw=2100, risk_level="MEDIUM", aemo_mitigation="Callide to Tarong transmission upgrade"),
+    MLFRezRecord(rez_id="S1", rez_name="South Australian REZ", region="SA", projected_mlf_2028=0.812, current_mlf=0.879, mlf_deterioration_pct=-7.6, connected_capacity_mw=1420, pipeline_capacity_mw=4800, risk_level="HIGH", aemo_mitigation="SA-NSW Interconnector and ElectraNet upgrades"),
+    MLFRezRecord(rez_id="T1", rez_name="Tasmanian REZ", region="TAS", projected_mlf_2028=0.961, current_mlf=0.981, mlf_deterioration_pct=-2.0, connected_capacity_mw=520, pipeline_capacity_mw=900, risk_level="LOW", aemo_mitigation="Marinus Link Bass Strait cable project"),
+]
+
+_MLF_REVENUE_IMPACTS: list[MLFRevenueImpactRecord] = [
+    MLFRevenueImpactRecord(generator_name="Wemen Solar Farm", technology="Solar", capacity_mw=275, annual_generation_gwh=542, mlf_value=0.871, spot_price_aud_mwh=87.5, effective_price_aud_mwh=76.2, revenue_loss_m_aud=6.1, revenue_loss_pct=12.9),
+    MLFRevenueImpactRecord(generator_name="Tailem Bend 2 Solar", technology="Solar", capacity_mw=200, annual_generation_gwh=378, mlf_value=0.876, spot_price_aud_mwh=89.2, effective_price_aud_mwh=78.1, revenue_loss_m_aud=4.2, revenue_loss_pct=12.4),
+    MLFRevenueImpactRecord(generator_name="Dundonnell Wind Farm", technology="Wind", capacity_mw=336, annual_generation_gwh=1120, mlf_value=0.887, spot_price_aud_mwh=82.3, effective_price_aud_mwh=73.0, revenue_loss_m_aud=10.4, revenue_loss_pct=11.3),
+    MLFRevenueImpactRecord(generator_name="Lake Bonney Wind 1", technology="Wind", capacity_mw=180, annual_generation_gwh=591, mlf_value=0.892, spot_price_aud_mwh=91.0, effective_price_aud_mwh=81.2, revenue_loss_m_aud=5.8, revenue_loss_pct=10.8),
+    MLFRevenueImpactRecord(generator_name="Darlington Point Solar", technology="Solar", capacity_mw=420, annual_generation_gwh=823, mlf_value=0.908, spot_price_aud_mwh=86.4, effective_price_aud_mwh=78.5, revenue_loss_m_aud=6.5, revenue_loss_pct=9.2),
+    MLFRevenueImpactRecord(generator_name="Bungala One Solar", technology="Solar", capacity_mw=220, annual_generation_gwh=412, mlf_value=0.917, spot_price_aud_mwh=88.7, effective_price_aud_mwh=81.3, revenue_loss_m_aud=3.1, revenue_loss_pct=8.3),
+    MLFRevenueImpactRecord(generator_name="Ararat Wind Farm", technology="Wind", capacity_mw=240, annual_generation_gwh=792, mlf_value=0.943, spot_price_aud_mwh=83.1, effective_price_aud_mwh=78.4, revenue_loss_m_aud=3.7, revenue_loss_pct=5.7),
+    MLFRevenueImpactRecord(generator_name="Macarthur Wind Farm", technology="Wind", capacity_mw=420, annual_generation_gwh=1386, mlf_value=0.934, spot_price_aud_mwh=82.5, effective_price_aud_mwh=77.1, revenue_loss_m_aud=7.5, revenue_loss_pct=6.5),
+    MLFRevenueImpactRecord(generator_name="Gangarri Solar Farm", technology="Solar", capacity_mw=150, annual_generation_gwh=290, mlf_value=0.953, spot_price_aud_mwh=85.0, effective_price_aud_mwh=81.0, revenue_loss_m_aud=1.2, revenue_loss_pct=4.7),
+    MLFRevenueImpactRecord(generator_name="Haughton Solar Farm", technology="Solar", capacity_mw=102, annual_generation_gwh=198, mlf_value=0.961, spot_price_aud_mwh=80.3, effective_price_aud_mwh=77.2, revenue_loss_m_aud=0.6, revenue_loss_pct=3.9),
+    MLFRevenueImpactRecord(generator_name="Musselroe Wind Farm", technology="Wind", capacity_mw=168, annual_generation_gwh=554, mlf_value=0.982, spot_price_aud_mwh=78.6, effective_price_aud_mwh=77.2, revenue_loss_m_aud=0.8, revenue_loss_pct=1.8),
+    MLFRevenueImpactRecord(generator_name="Capital Wind Farm", technology="Wind", capacity_mw=140, annual_generation_gwh=462, mlf_value=1.023, spot_price_aud_mwh=82.0, effective_price_aud_mwh=83.9, revenue_loss_m_aud=-0.9, revenue_loss_pct=-2.3),
+]
+
+_MLF_HISTORICAL: list[MLFHistoricalRecord] = [
+    # NSW
+    MLFHistoricalRecord(year=2021, region="NSW", avg_mlf=0.971, min_mlf=0.942, max_mlf=1.028, generators_below_095=2, total_generators=18, avg_revenue_impact_pct=-0.8),
+    MLFHistoricalRecord(year=2022, region="NSW", avg_mlf=0.963, min_mlf=0.931, max_mlf=1.023, generators_below_095=4, total_generators=21, avg_revenue_impact_pct=-1.4),
+    MLFHistoricalRecord(year=2023, region="NSW", avg_mlf=0.951, min_mlf=0.908, max_mlf=1.019, generators_below_095=7, total_generators=26, avg_revenue_impact_pct=-2.3),
+    MLFHistoricalRecord(year=2024, region="NSW", avg_mlf=0.938, min_mlf=0.891, max_mlf=1.023, generators_below_095=11, total_generators=31, avg_revenue_impact_pct=-3.5),
+    # VIC
+    MLFHistoricalRecord(year=2021, region="VIC", avg_mlf=0.958, min_mlf=0.921, max_mlf=1.011, generators_below_095=3, total_generators=22, avg_revenue_impact_pct=-1.2),
+    MLFHistoricalRecord(year=2022, region="VIC", avg_mlf=0.943, min_mlf=0.907, max_mlf=1.008, generators_below_095=6, total_generators=27, avg_revenue_impact_pct=-2.1),
+    MLFHistoricalRecord(year=2023, region="VIC", avg_mlf=0.928, min_mlf=0.882, max_mlf=1.005, generators_below_095=9, total_generators=33, avg_revenue_impact_pct=-3.4),
+    MLFHistoricalRecord(year=2024, region="VIC", avg_mlf=0.911, min_mlf=0.871, max_mlf=1.003, generators_below_095=14, total_generators=38, avg_revenue_impact_pct=-4.8),
+    # QLD
+    MLFHistoricalRecord(year=2021, region="QLD", avg_mlf=0.974, min_mlf=0.948, max_mlf=1.015, generators_below_095=1, total_generators=16, avg_revenue_impact_pct=-0.5),
+    MLFHistoricalRecord(year=2022, region="QLD", avg_mlf=0.968, min_mlf=0.939, max_mlf=1.012, generators_below_095=2, total_generators=19, avg_revenue_impact_pct=-0.9),
+    MLFHistoricalRecord(year=2023, region="QLD", avg_mlf=0.959, min_mlf=0.924, max_mlf=1.009, generators_below_095=4, total_generators=23, avg_revenue_impact_pct=-1.6),
+    MLFHistoricalRecord(year=2024, region="QLD", avg_mlf=0.948, min_mlf=0.907, max_mlf=1.007, generators_below_095=7, total_generators=28, avg_revenue_impact_pct=-2.4),
+    # SA
+    MLFHistoricalRecord(year=2021, region="SA", avg_mlf=0.943, min_mlf=0.908, max_mlf=1.005, generators_below_095=4, total_generators=14, avg_revenue_impact_pct=-2.3),
+    MLFHistoricalRecord(year=2022, region="SA", avg_mlf=0.927, min_mlf=0.891, max_mlf=1.002, generators_below_095=6, total_generators=17, avg_revenue_impact_pct=-3.2),
+    MLFHistoricalRecord(year=2023, region="SA", avg_mlf=0.908, min_mlf=0.871, max_mlf=0.998, generators_below_095=9, total_generators=21, avg_revenue_impact_pct=-4.8),
+    MLFHistoricalRecord(year=2024, region="SA", avg_mlf=0.889, min_mlf=0.848, max_mlf=0.997, generators_below_095=14, total_generators=25, avg_revenue_impact_pct=-6.1),
+    # TAS
+    MLFHistoricalRecord(year=2021, region="TAS", avg_mlf=0.991, min_mlf=0.974, max_mlf=1.018, generators_below_095=0, total_generators=8, avg_revenue_impact_pct=-0.2),
+    MLFHistoricalRecord(year=2022, region="TAS", avg_mlf=0.989, min_mlf=0.971, max_mlf=1.015, generators_below_095=0, total_generators=9, avg_revenue_impact_pct=-0.3),
+    MLFHistoricalRecord(year=2023, region="TAS", avg_mlf=0.986, min_mlf=0.968, max_mlf=1.013, generators_below_095=0, total_generators=10, avg_revenue_impact_pct=-0.4),
+    MLFHistoricalRecord(year=2024, region="TAS", avg_mlf=0.983, min_mlf=0.964, max_mlf=1.012, generators_below_095=0, total_generators=11, avg_revenue_impact_pct=-0.4),
+]
+
+
+@app.get("/api/mlf-analytics/dashboard", dependencies=[Depends(verify_api_key)])
+def get_mlf_analytics_dashboard() -> MlfAnalyticsDashboard:
+    return MlfAnalyticsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        connection_points=[r.dict() for r in _MLF_CONNECTION_POINTS],
+        rez_mlfs=[r.dict() for r in _MLF_REZ_RECORDS],
+        revenue_impacts=[r.dict() for r in _MLF_REVENUE_IMPACTS],
+        historical=[r.dict() for r in _MLF_HISTORICAL],
+    )
+
+# ---------------------------------------------------------------------------
+# Sprint 64c — Electricity Consumer Price Index & Retail Market Analytics
+# ---------------------------------------------------------------------------
+
+class EPICpiRecord(BaseModel):
+    quarter: str
+    electricity_cpi_index: float
+    electricity_cpi_yoy_pct: float
+    all_cpi_index: float
+    all_cpi_yoy_pct: float
+    electricity_vs_all_cpi_diff_pct: float
+    state: str
+    key_driver: str
+
+class EPIDmoRecord(BaseModel):
+    year: int
+    state: str
+    distribution_zone: str
+    annual_usage_kwh: float
+    dmo_price_aud: float
+    dmo_change_pct: float
+    market_offer_avg_aud: float
+    market_offer_avg_change_pct: float
+    best_market_offer_aud: float
+    potential_saving_aud: float
+
+class EPITariffComponentRecord(BaseModel):
+    state: str
+    year: int
+    network_charges_aud_kwh: float
+    wholesale_charges_aud_kwh: float
+    environmental_charges_aud_kwh: float
+    retail_margin_aud_kwh: float
+    metering_aud_kwh: float
+    total_tariff_aud_kwh: float
+
+class EPIRetailerRecord(BaseModel):
+    retailer: str
+    state: str
+    market_share_pct: float
+    avg_offer_aud: float
+    cheapest_offer_aud: float
+    customer_satisfaction_score: float
+    complaints_per_1000: float
+    churn_rate_pct: float
+
+class ElectricityPriceIndexDashboard(BaseModel):
+    timestamp: str
+    cpi_records: list
+    dmo_records: list
+    tariff_components: list
+    retailers: list
+
+_EPI_CPI_RECORDS: list[EPICpiRecord] = [
+    # NSW
+    EPICpiRecord(quarter="2023-Q1", electricity_cpi_index=155.2, electricity_cpi_yoy_pct=14.8, all_cpi_index=113.4, all_cpi_yoy_pct=7.0, electricity_vs_all_cpi_diff_pct=7.8, state="NSW", key_driver="Wholesale price surge"),
+    EPICpiRecord(quarter="2023-Q2", electricity_cpi_index=161.7, electricity_cpi_yoy_pct=16.2, all_cpi_index=114.1, all_cpi_yoy_pct=6.0, electricity_vs_all_cpi_diff_pct=10.2, state="NSW", key_driver="Network tariff increase"),
+    EPICpiRecord(quarter="2023-Q3", electricity_cpi_index=158.4, electricity_cpi_yoy_pct=15.1, all_cpi_index=114.8, all_cpi_yoy_pct=5.4, electricity_vs_all_cpi_diff_pct=9.7, state="NSW", key_driver="Renewable integration costs"),
+    EPICpiRecord(quarter="2023-Q4", electricity_cpi_index=162.9, electricity_cpi_yoy_pct=13.5, all_cpi_index=115.3, all_cpi_yoy_pct=4.1, electricity_vs_all_cpi_diff_pct=9.4, state="NSW", key_driver="Winter demand spike"),
+    EPICpiRecord(quarter="2024-Q1", electricity_cpi_index=168.5, electricity_cpi_yoy_pct=8.6, all_cpi_index=115.9, all_cpi_yoy_pct=3.6, electricity_vs_all_cpi_diff_pct=5.0, state="NSW", key_driver="Carbon scheme costs"),
+    EPICpiRecord(quarter="2024-Q2", electricity_cpi_index=172.3, electricity_cpi_yoy_pct=6.6, all_cpi_index=116.4, all_cpi_yoy_pct=2.0, electricity_vs_all_cpi_diff_pct=4.6, state="NSW", key_driver="Retail margin expansion"),
+    # VIC
+    EPICpiRecord(quarter="2023-Q1", electricity_cpi_index=151.8, electricity_cpi_yoy_pct=13.2, all_cpi_index=113.4, all_cpi_yoy_pct=7.0, electricity_vs_all_cpi_diff_pct=6.2, state="VIC", key_driver="Gas fuel cost pass-through"),
+    EPICpiRecord(quarter="2023-Q2", electricity_cpi_index=157.4, electricity_cpi_yoy_pct=14.8, all_cpi_index=114.1, all_cpi_yoy_pct=6.0, electricity_vs_all_cpi_diff_pct=8.8, state="VIC", key_driver="Network augmentation"),
+    EPICpiRecord(quarter="2023-Q3", electricity_cpi_index=154.9, electricity_cpi_yoy_pct=13.9, all_cpi_index=114.8, all_cpi_yoy_pct=5.4, electricity_vs_all_cpi_diff_pct=8.5, state="VIC", key_driver="LRET costs"),
+    EPICpiRecord(quarter="2023-Q4", electricity_cpi_index=159.2, electricity_cpi_yoy_pct=12.1, all_cpi_index=115.3, all_cpi_yoy_pct=4.1, electricity_vs_all_cpi_diff_pct=8.0, state="VIC", key_driver="Wholesale spot pass-through"),
+    EPICpiRecord(quarter="2024-Q1", electricity_cpi_index=163.7, electricity_cpi_yoy_pct=7.8, all_cpi_index=115.9, all_cpi_yoy_pct=3.6, electricity_vs_all_cpi_diff_pct=4.2, state="VIC", key_driver="Victorian Default Offer reset"),
+    EPICpiRecord(quarter="2024-Q2", electricity_cpi_index=167.1, electricity_cpi_yoy_pct=6.2, all_cpi_index=116.4, all_cpi_yoy_pct=2.0, electricity_vs_all_cpi_diff_pct=4.2, state="VIC", key_driver="Carbon scheme costs"),
+    # QLD
+    EPICpiRecord(quarter="2023-Q1", electricity_cpi_index=148.6, electricity_cpi_yoy_pct=11.9, all_cpi_index=113.4, all_cpi_yoy_pct=7.0, electricity_vs_all_cpi_diff_pct=4.9, state="QLD", key_driver="Coal generation cost rise"),
+    EPICpiRecord(quarter="2023-Q2", electricity_cpi_index=154.1, electricity_cpi_yoy_pct=13.4, all_cpi_index=114.1, all_cpi_yoy_pct=6.0, electricity_vs_all_cpi_diff_pct=7.4, state="QLD", key_driver="Tariff rebalancing"),
+    EPICpiRecord(quarter="2023-Q3", electricity_cpi_index=151.7, electricity_cpi_yoy_pct=12.8, all_cpi_index=114.8, all_cpi_yoy_pct=5.4, electricity_vs_all_cpi_diff_pct=7.4, state="QLD", key_driver="Network spend recovery"),
+    EPICpiRecord(quarter="2023-Q4", electricity_cpi_index=156.3, electricity_cpi_yoy_pct=11.5, all_cpi_index=115.3, all_cpi_yoy_pct=4.1, electricity_vs_all_cpi_diff_pct=7.4, state="QLD", key_driver="Renewable surcharge"),
+    EPICpiRecord(quarter="2024-Q1", electricity_cpi_index=159.8, electricity_cpi_yoy_pct=7.5, all_cpi_index=115.9, all_cpi_yoy_pct=3.6, electricity_vs_all_cpi_diff_pct=3.9, state="QLD", key_driver="Government rebate offset"),
+    EPICpiRecord(quarter="2024-Q2", electricity_cpi_index=163.4, electricity_cpi_yoy_pct=6.0, all_cpi_index=116.4, all_cpi_yoy_pct=2.0, electricity_vs_all_cpi_diff_pct=4.0, state="QLD", key_driver="Wholesale cost moderation"),
+    # SA
+    EPICpiRecord(quarter="2023-Q1", electricity_cpi_index=168.4, electricity_cpi_yoy_pct=18.2, all_cpi_index=113.4, all_cpi_yoy_pct=7.0, electricity_vs_all_cpi_diff_pct=11.2, state="SA", key_driver="Gas peaker reliance"),
+    EPICpiRecord(quarter="2023-Q2", electricity_cpi_index=175.2, electricity_cpi_yoy_pct=19.7, all_cpi_index=114.1, all_cpi_yoy_pct=6.0, electricity_vs_all_cpi_diff_pct=13.7, state="SA", key_driver="High renewables integration cost"),
+    EPICpiRecord(quarter="2023-Q3", electricity_cpi_index=171.9, electricity_cpi_yoy_pct=17.4, all_cpi_index=114.8, all_cpi_yoy_pct=5.4, electricity_vs_all_cpi_diff_pct=12.0, state="SA", key_driver="Network constraint costs"),
+    EPICpiRecord(quarter="2023-Q4", electricity_cpi_index=178.6, electricity_cpi_yoy_pct=15.8, all_cpi_index=115.3, all_cpi_yoy_pct=4.1, electricity_vs_all_cpi_diff_pct=11.7, state="SA", key_driver="Gas spot exposure"),
+    EPICpiRecord(quarter="2024-Q1", electricity_cpi_index=183.1, electricity_cpi_yoy_pct=8.7, all_cpi_index=115.9, all_cpi_yoy_pct=3.6, electricity_vs_all_cpi_diff_pct=5.1, state="SA", key_driver="Battery storage cost reduction"),
+    EPICpiRecord(quarter="2024-Q2", electricity_cpi_index=187.4, electricity_cpi_yoy_pct=6.9, all_cpi_index=116.4, all_cpi_yoy_pct=2.0, electricity_vs_all_cpi_diff_pct=4.9, state="SA", key_driver="Solar export curtailment costs"),
+]
+
+_EPI_DMO_RECORDS: list[EPIDmoRecord] = [
+    # NSW
+    EPIDmoRecord(year=2021, state="NSW", distribution_zone="Ausgrid", annual_usage_kwh=3900.0, dmo_price_aud=1655.0, dmo_change_pct=1.9, market_offer_avg_aud=1520.0, market_offer_avg_change_pct=-2.1, best_market_offer_aud=1380.0, potential_saving_aud=275.0),
+    EPIDmoRecord(year=2022, state="NSW", distribution_zone="Ausgrid", annual_usage_kwh=3900.0, dmo_price_aud=1701.0, dmo_change_pct=2.8, market_offer_avg_aud=1590.0, market_offer_avg_change_pct=4.6, best_market_offer_aud=1425.0, potential_saving_aud=276.0),
+    EPIDmoRecord(year=2023, state="NSW", distribution_zone="Ausgrid", annual_usage_kwh=3900.0, dmo_price_aud=1912.0, dmo_change_pct=12.4, market_offer_avg_aud=1820.0, market_offer_avg_change_pct=14.5, best_market_offer_aud=1650.0, potential_saving_aud=262.0),
+    EPIDmoRecord(year=2024, state="NSW", distribution_zone="Ausgrid", annual_usage_kwh=3900.0, dmo_price_aud=1958.0, dmo_change_pct=2.4, market_offer_avg_aud=1851.0, market_offer_avg_change_pct=1.7, best_market_offer_aud=1695.0, potential_saving_aud=263.0),
+    # VIC
+    EPIDmoRecord(year=2021, state="VIC", distribution_zone="CitiPower", annual_usage_kwh=4000.0, dmo_price_aud=1220.0, dmo_change_pct=-4.8, market_offer_avg_aud=1095.0, market_offer_avg_change_pct=-5.2, best_market_offer_aud=970.0, potential_saving_aud=250.0),
+    EPIDmoRecord(year=2022, state="VIC", distribution_zone="CitiPower", annual_usage_kwh=4000.0, dmo_price_aud=1269.0, dmo_change_pct=4.0, market_offer_avg_aud=1145.0, market_offer_avg_change_pct=4.6, best_market_offer_aud=1018.0, potential_saving_aud=251.0),
+    EPIDmoRecord(year=2023, state="VIC", distribution_zone="CitiPower", annual_usage_kwh=4000.0, dmo_price_aud=1448.0, dmo_change_pct=14.1, market_offer_avg_aud=1340.0, market_offer_avg_change_pct=17.0, best_market_offer_aud=1190.0, potential_saving_aud=258.0),
+    EPIDmoRecord(year=2024, state="VIC", distribution_zone="CitiPower", annual_usage_kwh=4000.0, dmo_price_aud=1487.0, dmo_change_pct=2.7, market_offer_avg_aud=1395.0, market_offer_avg_change_pct=4.1, best_market_offer_aud=1235.0, potential_saving_aud=252.0),
+    # QLD
+    EPIDmoRecord(year=2021, state="QLD", distribution_zone="Energex SEQ", annual_usage_kwh=4500.0, dmo_price_aud=1672.0, dmo_change_pct=1.2, market_offer_avg_aud=1545.0, market_offer_avg_change_pct=-1.5, best_market_offer_aud=1405.0, potential_saving_aud=267.0),
+    EPIDmoRecord(year=2022, state="QLD", distribution_zone="Energex SEQ", annual_usage_kwh=4500.0, dmo_price_aud=1724.0, dmo_change_pct=3.1, market_offer_avg_aud=1602.0, market_offer_avg_change_pct=3.7, best_market_offer_aud=1455.0, potential_saving_aud=269.0),
+    EPIDmoRecord(year=2023, state="QLD", distribution_zone="Energex SEQ", annual_usage_kwh=4500.0, dmo_price_aud=1938.0, dmo_change_pct=12.4, market_offer_avg_aud=1825.0, market_offer_avg_change_pct=13.9, best_market_offer_aud=1660.0, potential_saving_aud=278.0),
+    EPIDmoRecord(year=2024, state="QLD", distribution_zone="Energex SEQ", annual_usage_kwh=4500.0, dmo_price_aud=1981.0, dmo_change_pct=2.2, market_offer_avg_aud=1866.0, market_offer_avg_change_pct=2.3, best_market_offer_aud=1695.0, potential_saving_aud=286.0),
+    # SA
+    EPIDmoRecord(year=2021, state="SA", distribution_zone="SA Power Networks", annual_usage_kwh=4200.0, dmo_price_aud=1910.0, dmo_change_pct=-4.1, market_offer_avg_aud=1770.0, market_offer_avg_change_pct=-5.0, best_market_offer_aud=1590.0, potential_saving_aud=320.0),
+    EPIDmoRecord(year=2022, state="SA", distribution_zone="SA Power Networks", annual_usage_kwh=4200.0, dmo_price_aud=1982.0, dmo_change_pct=3.8, market_offer_avg_aud=1848.0, market_offer_avg_change_pct=4.4, best_market_offer_aud=1658.0, potential_saving_aud=324.0),
+    EPIDmoRecord(year=2023, state="SA", distribution_zone="SA Power Networks", annual_usage_kwh=4200.0, dmo_price_aud=2254.0, dmo_change_pct=13.7, market_offer_avg_aud=2110.0, market_offer_avg_change_pct=14.2, best_market_offer_aud=1895.0, potential_saving_aud=359.0),
+    EPIDmoRecord(year=2024, state="SA", distribution_zone="SA Power Networks", annual_usage_kwh=4200.0, dmo_price_aud=2311.0, dmo_change_pct=2.5, market_offer_avg_aud=2165.0, market_offer_avg_change_pct=2.6, best_market_offer_aud=1945.0, potential_saving_aud=366.0),
+    # WA
+    EPIDmoRecord(year=2021, state="WA", distribution_zone="Synergy Metro", annual_usage_kwh=4800.0, dmo_price_aud=1580.0, dmo_change_pct=2.5, market_offer_avg_aud=1460.0, market_offer_avg_change_pct=1.8, best_market_offer_aud=1320.0, potential_saving_aud=260.0),
+    EPIDmoRecord(year=2022, state="WA", distribution_zone="Synergy Metro", annual_usage_kwh=4800.0, dmo_price_aud=1625.0, dmo_change_pct=2.8, market_offer_avg_aud=1508.0, market_offer_avg_change_pct=3.3, best_market_offer_aud=1365.0, potential_saving_aud=260.0),
+    EPIDmoRecord(year=2023, state="WA", distribution_zone="Synergy Metro", annual_usage_kwh=4800.0, dmo_price_aud=1814.0, dmo_change_pct=11.6, market_offer_avg_aud=1702.0, market_offer_avg_change_pct=12.9, best_market_offer_aud=1542.0, potential_saving_aud=272.0),
+    EPIDmoRecord(year=2024, state="WA", distribution_zone="Synergy Metro", annual_usage_kwh=4800.0, dmo_price_aud=1858.0, dmo_change_pct=2.4, market_offer_avg_aud=1748.0, market_offer_avg_change_pct=2.7, best_market_offer_aud=1581.0, potential_saving_aud=277.0),
+]
+
+_EPI_TARIFF_COMPONENTS: list[EPITariffComponentRecord] = [
+    # NSW
+    EPITariffComponentRecord(state="NSW", year=2021, network_charges_aud_kwh=0.118, wholesale_charges_aud_kwh=0.082, environmental_charges_aud_kwh=0.028, retail_margin_aud_kwh=0.032, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.271),
+    EPITariffComponentRecord(state="NSW", year=2022, network_charges_aud_kwh=0.121, wholesale_charges_aud_kwh=0.090, environmental_charges_aud_kwh=0.031, retail_margin_aud_kwh=0.034, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.287),
+    EPITariffComponentRecord(state="NSW", year=2023, network_charges_aud_kwh=0.125, wholesale_charges_aud_kwh=0.115, environmental_charges_aud_kwh=0.034, retail_margin_aud_kwh=0.038, metering_aud_kwh=0.012, total_tariff_aud_kwh=0.324),
+    EPITariffComponentRecord(state="NSW", year=2024, network_charges_aud_kwh=0.128, wholesale_charges_aud_kwh=0.118, environmental_charges_aud_kwh=0.036, retail_margin_aud_kwh=0.039, metering_aud_kwh=0.012, total_tariff_aud_kwh=0.333),
+    # VIC
+    EPITariffComponentRecord(state="VIC", year=2021, network_charges_aud_kwh=0.101, wholesale_charges_aud_kwh=0.075, environmental_charges_aud_kwh=0.025, retail_margin_aud_kwh=0.028, metering_aud_kwh=0.010, total_tariff_aud_kwh=0.239),
+    EPITariffComponentRecord(state="VIC", year=2022, network_charges_aud_kwh=0.104, wholesale_charges_aud_kwh=0.082, environmental_charges_aud_kwh=0.027, retail_margin_aud_kwh=0.030, metering_aud_kwh=0.010, total_tariff_aud_kwh=0.253),
+    EPITariffComponentRecord(state="VIC", year=2023, network_charges_aud_kwh=0.108, wholesale_charges_aud_kwh=0.104, environmental_charges_aud_kwh=0.030, retail_margin_aud_kwh=0.033, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.286),
+    EPITariffComponentRecord(state="VIC", year=2024, network_charges_aud_kwh=0.111, wholesale_charges_aud_kwh=0.107, environmental_charges_aud_kwh=0.032, retail_margin_aud_kwh=0.034, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.295),
+    # QLD
+    EPITariffComponentRecord(state="QLD", year=2021, network_charges_aud_kwh=0.124, wholesale_charges_aud_kwh=0.078, environmental_charges_aud_kwh=0.022, retail_margin_aud_kwh=0.030, metering_aud_kwh=0.010, total_tariff_aud_kwh=0.264),
+    EPITariffComponentRecord(state="QLD", year=2022, network_charges_aud_kwh=0.127, wholesale_charges_aud_kwh=0.086, environmental_charges_aud_kwh=0.024, retail_margin_aud_kwh=0.032, metering_aud_kwh=0.010, total_tariff_aud_kwh=0.279),
+    EPITariffComponentRecord(state="QLD", year=2023, network_charges_aud_kwh=0.131, wholesale_charges_aud_kwh=0.109, environmental_charges_aud_kwh=0.027, retail_margin_aud_kwh=0.036, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.314),
+    EPITariffComponentRecord(state="QLD", year=2024, network_charges_aud_kwh=0.134, wholesale_charges_aud_kwh=0.112, environmental_charges_aud_kwh=0.028, retail_margin_aud_kwh=0.037, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.322),
+    # SA
+    EPITariffComponentRecord(state="SA", year=2021, network_charges_aud_kwh=0.138, wholesale_charges_aud_kwh=0.098, environmental_charges_aud_kwh=0.030, retail_margin_aud_kwh=0.038, metering_aud_kwh=0.013, total_tariff_aud_kwh=0.317),
+    EPITariffComponentRecord(state="SA", year=2022, network_charges_aud_kwh=0.142, wholesale_charges_aud_kwh=0.108, environmental_charges_aud_kwh=0.033, retail_margin_aud_kwh=0.041, metering_aud_kwh=0.013, total_tariff_aud_kwh=0.337),
+    EPITariffComponentRecord(state="SA", year=2023, network_charges_aud_kwh=0.147, wholesale_charges_aud_kwh=0.138, environmental_charges_aud_kwh=0.037, retail_margin_aud_kwh=0.045, metering_aud_kwh=0.014, total_tariff_aud_kwh=0.381),
+    EPITariffComponentRecord(state="SA", year=2024, network_charges_aud_kwh=0.151, wholesale_charges_aud_kwh=0.142, environmental_charges_aud_kwh=0.039, retail_margin_aud_kwh=0.047, metering_aud_kwh=0.014, total_tariff_aud_kwh=0.393),
+    # WA
+    EPITariffComponentRecord(state="WA", year=2021, network_charges_aud_kwh=0.112, wholesale_charges_aud_kwh=0.072, environmental_charges_aud_kwh=0.018, retail_margin_aud_kwh=0.026, metering_aud_kwh=0.010, total_tariff_aud_kwh=0.238),
+    EPITariffComponentRecord(state="WA", year=2022, network_charges_aud_kwh=0.115, wholesale_charges_aud_kwh=0.079, environmental_charges_aud_kwh=0.020, retail_margin_aud_kwh=0.028, metering_aud_kwh=0.010, total_tariff_aud_kwh=0.252),
+    EPITariffComponentRecord(state="WA", year=2023, network_charges_aud_kwh=0.119, wholesale_charges_aud_kwh=0.100, environmental_charges_aud_kwh=0.023, retail_margin_aud_kwh=0.031, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.284),
+    EPITariffComponentRecord(state="WA", year=2024, network_charges_aud_kwh=0.122, wholesale_charges_aud_kwh=0.103, environmental_charges_aud_kwh=0.024, retail_margin_aud_kwh=0.032, metering_aud_kwh=0.011, total_tariff_aud_kwh=0.292),
+]
+
+_EPI_RETAILERS: list[EPIRetailerRecord] = [
+    EPIRetailerRecord(retailer="AGL Energy", state="NSW", market_share_pct=28.4, avg_offer_aud=1880.0, cheapest_offer_aud=1710.0, customer_satisfaction_score=6.8, complaints_per_1000=4.2, churn_rate_pct=12.5),
+    EPIRetailerRecord(retailer="Origin Energy", state="NSW", market_share_pct=24.7, avg_offer_aud=1865.0, cheapest_offer_aud=1695.0, customer_satisfaction_score=7.1, complaints_per_1000=3.8, churn_rate_pct=11.9),
+    EPIRetailerRecord(retailer="EnergyAustralia", state="NSW", market_share_pct=19.3, avg_offer_aud=1895.0, cheapest_offer_aud=1720.0, customer_satisfaction_score=6.5, complaints_per_1000=5.1, churn_rate_pct=13.8),
+    EPIRetailerRecord(retailer="Alinta Energy", state="VIC", market_share_pct=14.2, avg_offer_aud=1380.0, cheapest_offer_aud=1245.0, customer_satisfaction_score=7.4, complaints_per_1000=3.2, churn_rate_pct=10.2),
+    EPIRetailerRecord(retailer="Red Energy", state="VIC", market_share_pct=8.6, avg_offer_aud=1365.0, cheapest_offer_aud=1235.0, customer_satisfaction_score=8.2, complaints_per_1000=2.1, churn_rate_pct=8.4),
+    EPIRetailerRecord(retailer="Powershop", state="VIC", market_share_pct=5.4, avg_offer_aud=1340.0, cheapest_offer_aud=1210.0, customer_satisfaction_score=7.9, complaints_per_1000=2.5, churn_rate_pct=9.1),
+    EPIRetailerRecord(retailer="Ergon Energy", state="QLD", market_share_pct=31.5, avg_offer_aud=1875.0, cheapest_offer_aud=1695.0, customer_satisfaction_score=6.6, complaints_per_1000=4.8, churn_rate_pct=7.2),
+    EPIRetailerRecord(retailer="AGL Energy", state="QLD", market_share_pct=18.9, avg_offer_aud=1890.0, cheapest_offer_aud=1705.0, customer_satisfaction_score=6.9, complaints_per_1000=4.0, churn_rate_pct=11.8),
+    EPIRetailerRecord(retailer="Origin Energy", state="QLD", market_share_pct=16.4, avg_offer_aud=1871.0, cheapest_offer_aud=1680.0, customer_satisfaction_score=7.2, complaints_per_1000=3.6, churn_rate_pct=11.3),
+    EPIRetailerRecord(retailer="Energy Locals", state="SA", market_share_pct=4.8, avg_offer_aud=2120.0, cheapest_offer_aud=1960.0, customer_satisfaction_score=8.0, complaints_per_1000=1.9, churn_rate_pct=8.7),
+    EPIRetailerRecord(retailer="AGL Energy", state="SA", market_share_pct=22.6, avg_offer_aud=2155.0, cheapest_offer_aud=1985.0, customer_satisfaction_score=6.7, complaints_per_1000=4.5, churn_rate_pct=13.1),
+    EPIRetailerRecord(retailer="Origin Energy", state="SA", market_share_pct=19.1, avg_offer_aud=2140.0, cheapest_offer_aud=1972.0, customer_satisfaction_score=7.0, complaints_per_1000=3.9, churn_rate_pct=12.4),
+    EPIRetailerRecord(retailer="Synergy", state="WA", market_share_pct=68.2, avg_offer_aud=1760.0, cheapest_offer_aud=1582.0, customer_satisfaction_score=6.4, complaints_per_1000=5.5, churn_rate_pct=4.1),
+    EPIRetailerRecord(retailer="Alinta Energy", state="WA", market_share_pct=18.4, avg_offer_aud=1742.0, cheapest_offer_aud=1567.0, customer_satisfaction_score=7.3, complaints_per_1000=3.3, churn_rate_pct=9.6),
+    EPIRetailerRecord(retailer="Kleenheat", state="WA", market_share_pct=9.7, avg_offer_aud=1748.0, cheapest_offer_aud=1574.0, customer_satisfaction_score=7.6, complaints_per_1000=2.8, churn_rate_pct=8.2),
+]
+
+
+@app.get("/api/electricity-price-index/dashboard", dependencies=[Depends(verify_api_key)])
+def get_electricity_price_index_dashboard() -> ElectricityPriceIndexDashboard:
+    return ElectricityPriceIndexDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        cpi_records=[r.dict() for r in _EPI_CPI_RECORDS],
+        dmo_records=[r.dict() for r in _EPI_DMO_RECORDS],
+        tariff_components=[r.dict() for r in _EPI_TARIFF_COMPONENTS],
+        retailers=[r.dict() for r in _EPI_RETAILERS],
+    )

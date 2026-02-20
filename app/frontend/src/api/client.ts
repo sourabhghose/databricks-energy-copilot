@@ -8901,3 +8901,180 @@ export interface DemandFlexibilityDashboard {
 
 export const getDemandFlexibilityDashboard = (): Promise<DemandFlexibilityDashboard> =>
   get<DemandFlexibilityDashboard>('/api/demand-flexibility/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 64b — Interconnector Upgrade Business Case Analytics
+// ---------------------------------------------------------------------------
+
+export interface ICBProjectRecord {
+  project_id: string
+  project_name: string
+  from_region: string
+  to_region: string
+  capacity_increase_mw: number
+  capex_bn_aud: number
+  opex_m_aud_yr: number
+  commissioning_year: number
+  status: 'OPERATING' | 'CONSTRUCTION' | 'APPROVED' | 'PROPOSED'
+  aer_approved: boolean
+  regulatory_test_outcome: 'PASS' | 'FAIL' | 'PENDING'
+  bcr: number
+  npv_bn_aud: number
+}
+
+export interface ICBBenefitRecord {
+  project_id: string
+  benefit_type: 'CONGESTION_RENT' | 'FUEL_COST_SAVING' | 'RELIABILITY' | 'RENEWABLE_FIRMING' | 'AVOIDED_INVESTMENT' | 'CONSUMER_SURPLUS'
+  benefit_m_aud_yr: number
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW'
+  beneficiary_region: string
+  quantification_method: string
+}
+
+export interface ICBScenarioRecord {
+  project_id: string
+  scenario: 'STEP_CHANGE' | 'CENTRAL' | 'SLOW_CHANGE'
+  npv_bn_aud: number
+  bcr: number
+  consumer_benefit_bn_aud: number
+  renewable_firming_mw: number
+  breakeven_price_aud_mwh: number
+}
+
+export interface ICBFlowAnalysisRecord {
+  project_id: string
+  year: number
+  annual_flow_twh: number
+  peak_flow_mw: number
+  avg_utilisation_pct: number
+  congestion_hours_pct: number
+  marginal_value_aud_mwh: number
+}
+
+export interface InterconnectorUpgradeDashboard {
+  timestamp: string
+  projects: ICBProjectRecord[]
+  benefits: ICBBenefitRecord[]
+  scenarios: ICBScenarioRecord[]
+  flow_analysis: ICBFlowAnalysisRecord[]
+}
+
+export const getInterconnectorUpgradeDashboard = (): Promise<InterconnectorUpgradeDashboard> =>
+  get<InterconnectorUpgradeDashboard>('/api/interconnector-upgrade/dashboard')
+
+export interface EPICpiRecord {
+  quarter: string
+  electricity_cpi_index: number
+  electricity_cpi_yoy_pct: number
+  all_cpi_index: number
+  all_cpi_yoy_pct: number
+  electricity_vs_all_cpi_diff_pct: number
+  state: string
+  key_driver: string
+}
+
+export interface EPIDmoRecord {
+  year: number
+  state: string
+  distribution_zone: string
+  annual_usage_kwh: number
+  dmo_price_aud: number
+  dmo_change_pct: number
+  market_offer_avg_aud: number
+  market_offer_avg_change_pct: number
+  best_market_offer_aud: number
+  potential_saving_aud: number
+}
+
+export interface EPITariffComponentRecord {
+  state: string
+  year: number
+  network_charges_aud_kwh: number
+  wholesale_charges_aud_kwh: number
+  environmental_charges_aud_kwh: number
+  retail_margin_aud_kwh: number
+  metering_aud_kwh: number
+  total_tariff_aud_kwh: number
+}
+
+export interface EPIRetailerRecord {
+  retailer: string
+  state: string
+  market_share_pct: number
+  avg_offer_aud: number
+  cheapest_offer_aud: number
+  customer_satisfaction_score: number
+  complaints_per_1000: number
+  churn_rate_pct: number
+}
+
+export interface ElectricityPriceIndexDashboard {
+  timestamp: string
+  cpi_records: EPICpiRecord[]
+  dmo_records: EPIDmoRecord[]
+  tariff_components: EPITariffComponentRecord[]
+  retailers: EPIRetailerRecord[]
+}
+
+export const getElectricityPriceIndexDashboard = (): Promise<ElectricityPriceIndexDashboard> =>
+  get<ElectricityPriceIndexDashboard>('/api/electricity-price-index/dashboard')
+
+export interface MLFConnectionPointRecord {
+  connection_point: string
+  generator_name: string
+  technology: string
+  region: string
+  mlf_2024: number
+  mlf_2023: number
+  mlf_2022: number
+  mlf_trend: 'IMPROVING' | 'DECLINING' | 'STABLE'
+  revenue_impact_pct: number
+  reason: string
+}
+
+export interface MLFRezRecord {
+  rez_id: string
+  rez_name: string
+  region: string
+  projected_mlf_2028: number
+  current_mlf: number
+  mlf_deterioration_pct: number
+  connected_capacity_mw: number
+  pipeline_capacity_mw: number
+  risk_level: 'HIGH' | 'MEDIUM' | 'LOW'
+  aemo_mitigation: string
+}
+
+export interface MLFRevenueImpactRecord {
+  generator_name: string
+  technology: string
+  capacity_mw: number
+  annual_generation_gwh: number
+  mlf_value: number
+  spot_price_aud_mwh: number
+  effective_price_aud_mwh: number
+  revenue_loss_m_aud: number
+  revenue_loss_pct: number
+}
+
+export interface MLFHistoricalRecord {
+  year: number
+  region: string
+  avg_mlf: number
+  min_mlf: number
+  max_mlf: number
+  generators_below_095: number
+  total_generators: number
+  avg_revenue_impact_pct: number
+}
+
+export interface MlfAnalyticsDashboard {
+  timestamp: string
+  connection_points: MLFConnectionPointRecord[]
+  rez_mlfs: MLFRezRecord[]
+  revenue_impacts: MLFRevenueImpactRecord[]
+  historical: MLFHistoricalRecord[]
+}
+
+export const getMlfAnalyticsDashboard = (): Promise<MlfAnalyticsDashboard> =>
+  get<MlfAnalyticsDashboard>('/api/mlf-analytics/dashboard')

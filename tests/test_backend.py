@@ -8403,3 +8403,343 @@ class TestFuturesPriceDiscovery:
         assert all(s == "KINKED" for s in nsw_shapes), (
             f"NSW should be KINKED, got {nsw_shapes}"
         )
+
+
+class TestElectricityPriceIndex:
+    def test_electricity_price_index_dashboard(self, client):
+        response = client.get(
+            "/api/electricity-price-index/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "cpi_records", "dmo_records", "tariff_components", "retailers"):
+            assert key in body, f"Missing top-level key: {key}"
+
+        # CPI records: 24 records (6 quarters x 4 states)
+        cpi = body["cpi_records"]
+        assert len(cpi) == 24, f"Expected 24 CPI records, got {len(cpi)}"
+        for rec in cpi:
+            assert rec["electricity_cpi_yoy_pct"] > 0, "Electricity CPI YoY should be positive"
+            assert rec["all_cpi_yoy_pct"] > 0, "All CPI YoY should be positive"
+            assert rec["electricity_cpi_index"] > 0, "CPI index should be positive"
+            assert rec["state"] in ("NSW", "VIC", "QLD", "SA"), f"Unexpected state: {rec['state']}"
+            assert rec["quarter"].startswith("202"), f"Unexpected quarter: {rec['quarter']}"
+            assert len(rec["key_driver"]) > 0, "key_driver should not be empty"
+        # SA should have the highest avg electricity_cpi_yoy_pct
+        sa_avg = sum(r["electricity_cpi_yoy_pct"] for r in cpi if r["state"] == "SA") / 6
+        nsw_avg = sum(r["electricity_cpi_yoy_pct"] for r in cpi if r["state"] == "NSW") / 6
+        assert sa_avg > nsw_avg, "SA should have higher avg CPI YoY than NSW"
+
+        # DMO records: 20 records (5 states x 4 years)
+        dmo = body["dmo_records"]
+        assert len(dmo) == 20, f"Expected 20 DMO records, got {len(dmo)}"
+        states_in_dmo = set(r["state"] for r in dmo)
+        assert states_in_dmo == {"NSW", "VIC", "QLD", "SA", "WA"}, f"DMO states mismatch: {states_in_dmo}"
+        years_in_dmo = set(r["year"] for r in dmo)
+        assert years_in_dmo == {2021, 2022, 2023, 2024}, f"DMO years mismatch: {years_in_dmo}"
+        for rec in dmo:
+            assert rec["dmo_price_aud"] > rec["best_market_offer_aud"], "DMO should exceed best market offer"
+            assert rec["potential_saving_aud"] > 0, "Potential saving should be positive"
+            assert rec["annual_usage_kwh"] > 0, "Annual usage should be positive"
+        # SA should have the highest DMO price in 2024
+        sa_2024_dmo = next((r["dmo_price_aud"] for r in dmo if r["state"] == "SA" and r["year"] == 2024), None)
+        vic_2024_dmo = next((r["dmo_price_aud"] for r in dmo if r["state"] == "VIC" and r["year"] == 2024), None)
+        assert sa_2024_dmo is not None and vic_2024_dmo is not None
+        assert sa_2024_dmo > vic_2024_dmo, "SA DMO should be higher than VIC DMO in 2024"
+
+        # Tariff components: 20 records (5 states x 4 years)
+        tariffs = body["tariff_components"]
+        assert len(tariffs) == 20, f"Expected 20 tariff records, got {len(tariffs)}"
+        states_in_tariffs = set(r["state"] for r in tariffs)
+        assert states_in_tariffs == {"NSW", "VIC", "QLD", "SA", "WA"}, f"Tariff states mismatch: {states_in_tariffs}"
+        for rec in tariffs:
+            component_sum = (
+                rec["network_charges_aud_kwh"]
+                + rec["wholesale_charges_aud_kwh"]
+                + rec["environmental_charges_aud_kwh"]
+                + rec["retail_margin_aud_kwh"]
+                + rec["metering_aud_kwh"]
+            )
+            assert abs(component_sum - rec["total_tariff_aud_kwh"]) < 0.005, (
+                f"Component sum {component_sum:.4f} != total {rec['total_tariff_aud_kwh']:.4f} for {rec['state']} {rec['year']}"
+            )
+            # Network should be the largest component
+            assert rec["network_charges_aud_kwh"] > rec["retail_margin_aud_kwh"], (
+                f"Network charges should exceed retail margin for {rec['state']} {rec['year']}"
+            )
+        # 2023 NSW total should exceed 2021 NSW total (price increase)
+        nsw_2021 = next(r["total_tariff_aud_kwh"] for r in tariffs if r["state"] == "NSW" and r["year"] == 2021)
+        nsw_2023 = next(r["total_tariff_aud_kwh"] for r in tariffs if r["state"] == "NSW" and r["year"] == 2023)
+        assert nsw_2023 > nsw_2021, "NSW 2023 tariff should exceed 2021"
+
+        # Retailer records: 15 records
+        retailers = body["retailers"]
+        assert len(retailers) == 15, f"Expected 15 retailer records, got {len(retailers)}"
+        for rec in retailers:
+            assert 0 < rec["market_share_pct"] <= 100, f"market_share_pct out of range: {rec['market_share_pct']}"
+            assert 0 <= rec["customer_satisfaction_score"] <= 10, (
+                f"satisfaction_score out of range: {rec['customer_satisfaction_score']}"
+            )
+            assert rec["avg_offer_aud"] >= rec["cheapest_offer_aud"], (
+                f"avg_offer should >= cheapest_offer for {rec['retailer']}"
+            )
+            assert rec["complaints_per_1000"] >= 0, "Complaints should be non-negative"
+            assert rec["churn_rate_pct"] >= 0, "Churn rate should be non-negative"
+        # Synergy (WA) should have the highest market share
+        synergy = next((r for r in retailers if r["retailer"] == "Synergy"), None)
+        assert synergy is not None, "Synergy retailer not found"
+        max_share = max(r["market_share_pct"] for r in retailers)
+        assert synergy["market_share_pct"] == max_share, (
+            f"Synergy should have the highest market share, got {synergy['market_share_pct']} vs max {max_share}"
+        )
+        # Red Energy should have the highest satisfaction score among VIC retailers
+        vic_retailers = [r for r in retailers if r["state"] == "VIC"]
+        red_energy = next((r for r in vic_retailers if r["retailer"] == "Red Energy"), None)
+        assert red_energy is not None, "Red Energy not found in VIC"
+        vic_max_satisfaction = max(r["customer_satisfaction_score"] for r in vic_retailers)
+        assert red_energy["customer_satisfaction_score"] == vic_max_satisfaction, (
+            "Red Energy should have highest satisfaction in VIC"
+        )
+
+
+class TestMlfAnalytics:
+    def test_mlf_analytics_dashboard(self, client, auth_headers):
+        response = client.get("/api/mlf-analytics/dashboard", headers=auth_headers)
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+        data = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "connection_points", "rez_mlfs", "revenue_impacts", "historical"):
+            assert key in data, f"Missing key: {key}"
+
+        # connection_points: 15 records
+        cps = data["connection_points"]
+        assert len(cps) == 15, f"Expected 15 connection points, got {len(cps)}"
+
+        valid_trends = {"IMPROVING", "DECLINING", "STABLE"}
+        valid_regions = {"NSW", "VIC", "QLD", "SA", "TAS"}
+        for cp in cps:
+            assert cp["mlf_trend"] in valid_trends, f"Invalid mlf_trend: {cp['mlf_trend']}"
+            assert cp["region"] in valid_regions, f"Invalid region: {cp['region']}"
+            assert 0.0 < cp["mlf_2024"] <= 1.1, f"mlf_2024 out of range: {cp['mlf_2024']}"
+            assert 0.0 < cp["mlf_2023"] <= 1.1, f"mlf_2023 out of range: {cp['mlf_2023']}"
+            assert 0.0 < cp["mlf_2022"] <= 1.1, f"mlf_2022 out of range: {cp['mlf_2022']}"
+            assert cp["connection_point"], "connection_point must be non-empty"
+            assert cp["generator_name"], "generator_name must be non-empty"
+
+        # At least one declining and one improving
+        declining = [cp for cp in cps if cp["mlf_trend"] == "DECLINING"]
+        improving = [cp for cp in cps if cp["mlf_trend"] == "IMPROVING"]
+        assert len(declining) >= 1, "Expected at least 1 DECLINING trend"
+        assert len(improving) >= 1, "Expected at least 1 IMPROVING trend"
+
+        # At least one CP with mlf_2024 < 0.95
+        below_095 = [cp for cp in cps if cp["mlf_2024"] < 0.95]
+        assert len(below_095) >= 1, "Expected at least 1 connection point with MLF 2024 below 0.95"
+
+        # rez_mlfs: 8 records
+        rezs = data["rez_mlfs"]
+        assert len(rezs) == 8, f"Expected 8 REZ records, got {len(rezs)}"
+
+        valid_risk = {"HIGH", "MEDIUM", "LOW"}
+        for rez in rezs:
+            assert rez["risk_level"] in valid_risk, f"Invalid risk_level: {rez['risk_level']}"
+            assert rez["region"] in valid_regions, f"Invalid region: {rez['region']}"
+            assert 0.0 < rez["current_mlf"] <= 1.1, f"current_mlf out of range: {rez['current_mlf']}"
+            assert 0.0 < rez["projected_mlf_2028"] <= 1.1, f"projected_mlf_2028 out of range: {rez['projected_mlf_2028']}"
+            assert rez["mlf_deterioration_pct"] <= 0, "Deterioration should be negative or zero"
+            assert rez["connected_capacity_mw"] > 0, "connected_capacity_mw must be positive"
+            assert rez["pipeline_capacity_mw"] > 0, "pipeline_capacity_mw must be positive"
+            assert rez["aemo_mitigation"], "aemo_mitigation must be non-empty"
+
+        # At least 4 HIGH risk REZs
+        high_risk = [r for r in rezs if r["risk_level"] == "HIGH"]
+        assert len(high_risk) >= 4, f"Expected at least 4 HIGH risk REZs, got {len(high_risk)}"
+
+        # revenue_impacts: 12 records
+        impacts = data["revenue_impacts"]
+        assert len(impacts) == 12, f"Expected 12 revenue impact records, got {len(impacts)}"
+
+        for imp in impacts:
+            assert imp["capacity_mw"] > 0, "capacity_mw must be positive"
+            assert imp["annual_generation_gwh"] > 0, "annual_generation_gwh must be positive"
+            assert 0.0 < imp["mlf_value"] <= 1.1, f"mlf_value out of range: {imp['mlf_value']}"
+            assert imp["spot_price_aud_mwh"] > 0, "spot_price_aud_mwh must be positive"
+            assert imp["effective_price_aud_mwh"] > 0, "effective_price_aud_mwh must be positive"
+            # effective price = spot * mlf (approximately)
+            assert abs(imp["effective_price_aud_mwh"] - imp["spot_price_aud_mwh"] * imp["mlf_value"]) < 2.0, (
+                f"effective_price should approximate spot * mlf for {imp['generator_name']}"
+            )
+
+        # At least one generator with revenue_loss_m_aud > 5 M AUD
+        big_loss = [imp for imp in impacts if imp["revenue_loss_m_aud"] > 5.0]
+        assert len(big_loss) >= 1, "Expected at least 1 generator with revenue loss > $5M AUD"
+
+        # historical: 20 records (5 regions × 4 years)
+        hist = data["historical"]
+        assert len(hist) == 20, f"Expected 20 historical records, got {len(hist)}"
+
+        for rec in hist:
+            assert rec["region"] in valid_regions, f"Invalid region: {rec['region']}"
+            assert rec["year"] in (2021, 2022, 2023, 2024), f"Invalid year: {rec['year']}"
+            assert 0.0 < rec["avg_mlf"] <= 1.1, f"avg_mlf out of range: {rec['avg_mlf']}"
+            assert rec["min_mlf"] <= rec["avg_mlf"], "min_mlf must be <= avg_mlf"
+            assert rec["avg_mlf"] <= rec["max_mlf"], "avg_mlf must be <= max_mlf"
+            assert rec["generators_below_095"] >= 0, "generators_below_095 must be non-negative"
+            assert rec["total_generators"] > 0, "total_generators must be positive"
+            assert rec["generators_below_095"] <= rec["total_generators"], (
+                "generators_below_095 must not exceed total_generators"
+            )
+
+        # SA should have the lowest avg_mlf in 2024 (heavy renewable penetration)
+        sa_2024 = next(r for r in hist if r["region"] == "SA" and r["year"] == 2024)
+        tas_2024 = next(r for r in hist if r["region"] == "TAS" and r["year"] == 2024)
+        assert sa_2024["avg_mlf"] < tas_2024["avg_mlf"], (
+            "SA avg_mlf 2024 should be lower than TAS avg_mlf 2024"
+        )
+
+        # TAS should have 0 generators below 0.95 in all years
+        tas_recs = [r for r in hist if r["region"] == "TAS"]
+        for rec in tas_recs:
+            assert rec["generators_below_095"] == 0, (
+                f"TAS generators_below_095 should be 0, got {rec['generators_below_095']} in {rec['year']}"
+            )
+
+
+# ===========================================================================
+# Sprint 64b — Interconnector Upgrade Business Case Analytics
+# ===========================================================================
+
+class TestInterconnectorUpgradeAnalytics:
+    """Tests for GET /api/interconnector-upgrade/dashboard endpoint."""
+
+    def test_interconnector_upgrade_dashboard(self, client):
+        response = client.get(
+            "/api/interconnector-upgrade/dashboard",
+            headers={"X-API-Key": "test-api-key"},
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "projects", "benefits", "scenarios", "flow_analysis"):
+            assert key in body, f"Missing key: {key}"
+
+        # ---- projects: 6 records ----
+        projects = body["projects"]
+        assert len(projects) == 6, f"Expected 6 project records, got {len(projects)}"
+
+        valid_statuses = {"OPERATING", "CONSTRUCTION", "APPROVED", "PROPOSED"}
+        valid_outcomes = {"PASS", "FAIL", "PENDING"}
+        project_ids = {p["project_id"] for p in projects}
+        expected_ids = {"HUMELINK", "VNI_WEST", "QNI_MIDDLEWARE", "ENERGY_CONNECT", "MARINUS_1", "COPPERSTRING"}
+        assert project_ids == expected_ids, f"Unexpected project IDs: {project_ids}"
+
+        for p in projects:
+            assert p["status"] in valid_statuses, f"Invalid status: {p['status']}"
+            assert p["regulatory_test_outcome"] in valid_outcomes, (
+                f"Invalid regulatory test outcome: {p['regulatory_test_outcome']}"
+            )
+            assert p["capex_bn_aud"] > 0, f"capex must be positive for {p['project_id']}"
+            assert p["capacity_increase_mw"] > 0, f"capacity_increase must be positive for {p['project_id']}"
+            assert p["bcr"] > 0, f"BCR must be positive for {p['project_id']}"
+            assert isinstance(p["aer_approved"], bool), f"aer_approved must be bool for {p['project_id']}"
+            assert 2020 <= p["commissioning_year"] <= 2040, (
+                f"commissioning_year out of range: {p['commissioning_year']}"
+            )
+
+        # EnergyConnect should be OPERATING and AER approved
+        ec = next(p for p in projects if p["project_id"] == "ENERGY_CONNECT")
+        assert ec["status"] == "OPERATING"
+        assert ec["aer_approved"] is True
+        assert ec["regulatory_test_outcome"] == "PASS"
+
+        # HumeLink should have the second highest BCR after EnergyConnect
+        ec_bcr = ec["bcr"]
+        assert ec_bcr > 1.5, f"EnergyConnect BCR should be > 1.5, got {ec_bcr}"
+
+        # QNI-Middleware should be PROPOSED and not AER approved
+        qni = next(p for p in projects if p["project_id"] == "QNI_MIDDLEWARE")
+        assert qni["status"] == "PROPOSED"
+        assert qni["aer_approved"] is False
+        assert qni["regulatory_test_outcome"] == "PENDING"
+
+        # ---- benefits: 20 records ----
+        benefits = body["benefits"]
+        assert len(benefits) == 20, f"Expected 20 benefit records, got {len(benefits)}"
+
+        valid_benefit_types = {
+            "CONGESTION_RENT", "FUEL_COST_SAVING", "RELIABILITY",
+            "RENEWABLE_FIRMING", "AVOIDED_INVESTMENT", "CONSUMER_SURPLUS",
+        }
+        valid_confidence = {"HIGH", "MEDIUM", "LOW"}
+
+        for b in benefits:
+            assert b["benefit_type"] in valid_benefit_types, f"Invalid benefit type: {b['benefit_type']}"
+            assert b["confidence"] in valid_confidence, f"Invalid confidence: {b['confidence']}"
+            assert b["benefit_m_aud_yr"] > 0, f"benefit_m_aud_yr must be positive"
+            assert b["project_id"] in expected_ids, f"Unknown project_id in benefit: {b['project_id']}"
+            assert len(b["quantification_method"]) > 0, "quantification_method must not be empty"
+
+        # Every project should have at least one benefit record
+        for pid in expected_ids:
+            count = sum(1 for b in benefits if b["project_id"] == pid)
+            assert count >= 1, f"Project {pid} has no benefit records"
+
+        # ---- scenarios: 18 records (6 projects × 3 scenarios) ----
+        scenarios = body["scenarios"]
+        assert len(scenarios) == 18, f"Expected 18 scenario records, got {len(scenarios)}"
+
+        valid_scenarios = {"STEP_CHANGE", "CENTRAL", "SLOW_CHANGE"}
+
+        for s in scenarios:
+            assert s["scenario"] in valid_scenarios, f"Invalid scenario: {s['scenario']}"
+            assert s["project_id"] in expected_ids, f"Unknown project_id in scenario: {s['project_id']}"
+            assert s["bcr"] > 0, f"Scenario BCR must be positive"
+            assert s["renewable_firming_mw"] >= 0, "renewable_firming_mw must be non-negative"
+            assert s["breakeven_price_aud_mwh"] > 0, "breakeven_price_aud_mwh must be positive"
+
+        # For every project, STEP_CHANGE NPV >= CENTRAL NPV >= SLOW_CHANGE NPV
+        for pid in expected_ids:
+            sc_npv = next(s["npv_bn_aud"] for s in scenarios if s["project_id"] == pid and s["scenario"] == "STEP_CHANGE")
+            cen_npv = next(s["npv_bn_aud"] for s in scenarios if s["project_id"] == pid and s["scenario"] == "CENTRAL")
+            slow_npv = next(s["npv_bn_aud"] for s in scenarios if s["project_id"] == pid and s["scenario"] == "SLOW_CHANGE")
+            assert sc_npv >= cen_npv, (
+                f"{pid}: STEP_CHANGE NPV ({sc_npv}) should be >= CENTRAL NPV ({cen_npv})"
+            )
+            assert cen_npv >= slow_npv, (
+                f"{pid}: CENTRAL NPV ({cen_npv}) should be >= SLOW_CHANGE NPV ({slow_npv})"
+            )
+
+        # ---- flow_analysis: 18 records (6 projects × 3 years) ----
+        flow = body["flow_analysis"]
+        assert len(flow) == 18, f"Expected 18 flow analysis records, got {len(flow)}"
+
+        for f in flow:
+            assert f["project_id"] in expected_ids, f"Unknown project_id in flow: {f['project_id']}"
+            assert 2020 <= f["year"] <= 2040, f"year out of range: {f['year']}"
+            assert f["annual_flow_twh"] > 0, "annual_flow_twh must be positive"
+            assert f["peak_flow_mw"] > 0, "peak_flow_mw must be positive"
+            assert 0 < f["avg_utilisation_pct"] <= 100, (
+                f"avg_utilisation_pct out of range: {f['avg_utilisation_pct']}"
+            )
+            assert 0 <= f["congestion_hours_pct"] <= 100, (
+                f"congestion_hours_pct out of range: {f['congestion_hours_pct']}"
+            )
+            assert f["marginal_value_aud_mwh"] > 0, "marginal_value_aud_mwh must be positive"
+
+        # Utilisation should increase over time for each project (improving)
+        for pid in expected_ids:
+            proj_flows = sorted(
+                [f for f in flow if f["project_id"] == pid],
+                key=lambda x: x["year"],
+            )
+            if len(proj_flows) >= 2:
+                assert proj_flows[-1]["avg_utilisation_pct"] >= proj_flows[0]["avg_utilisation_pct"], (
+                    f"{pid}: utilisation should not decrease over time"
+                )
