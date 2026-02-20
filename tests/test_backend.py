@@ -7143,3 +7143,442 @@ class TestTnspAnalytics:
         accepted_or_revised = sum(1 for r in regulatory if r["aer_decision"] in {"ACCEPTED", "REVISED"})
         assert accepted_or_revised == len(regulatory), \
             "No regulatory records should have REJECTED decision in mock data"
+
+
+class TestReliabilityStandardAnalytics:
+    """Sprint 61a — NEM Reliability Standard & USE Analytics endpoint tests."""
+
+    def test_reliability_standard_dashboard(self, client, auth_headers):
+        resp = client.get("/api/reliability-standard/dashboard", headers=auth_headers)
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "use_records", "reserve_margins", "events", "demand_side"):
+            assert key in d, f"Missing key: {key}"
+
+        # ── USE records ───────────────────────────────────────────────────────
+        use_records = d["use_records"]
+        assert len(use_records) == 15, f"Expected 15 USE records (5 regions x 3 years), got {len(use_records)}"
+
+        regions_seen = {r["region"] for r in use_records}
+        expected_regions = {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+        assert regions_seen == expected_regions, f"Region mismatch: {regions_seen}"
+
+        years_seen = {r["year"] for r in use_records}
+        assert years_seen == {2022, 2023, 2024}, f"Expected years 2022-2024, got {years_seen}"
+
+        valid_compliance = {"COMPLIANT", "BREACH", "AT_RISK"}
+        for r in use_records:
+            assert r["compliance"] in valid_compliance, f"Invalid compliance: {r['compliance']}"
+            assert r["unserved_energy_mwh"] > 0, "USE must be positive"
+            assert 0 < r["use_pct"] < 1, f"USE pct out of range: {r['use_pct']}"
+            assert r["standard_pct"] == 0.002, f"Standard pct should be 0.002, got {r['standard_pct']}"
+            assert r["events"] >= 1, "Events must be at least 1"
+            assert r["max_event_duration_hr"] > 0
+            assert r["economic_cost_m_aud"] > 0
+
+        # BREACH records should have use_pct > standard_pct
+        for r in use_records:
+            if r["compliance"] == "BREACH":
+                assert r["use_pct"] > r["standard_pct"], \
+                    f"BREACH record {r['region']} {r['year']} has use_pct {r['use_pct']} <= standard {r['standard_pct']}"
+
+        # COMPLIANT records should have use_pct <= standard_pct
+        for r in use_records:
+            if r["compliance"] == "COMPLIANT":
+                assert r["use_pct"] <= r["standard_pct"], \
+                    f"COMPLIANT record {r['region']} {r['year']} has use_pct {r['use_pct']} > standard {r['standard_pct']}"
+
+        # SA1 should have at least one BREACH
+        sa1_breaches = [r for r in use_records if r["region"] == "SA1" and r["compliance"] == "BREACH"]
+        assert len(sa1_breaches) >= 1, "SA1 should have at least one BREACH record"
+
+        # NSW1 and QLD1 should be fully COMPLIANT
+        nsw_non_compliant = [r for r in use_records if r["region"] == "NSW1" and r["compliance"] != "COMPLIANT"]
+        assert len(nsw_non_compliant) == 0, f"NSW1 should be fully COMPLIANT, got {nsw_non_compliant}"
+
+        qld_non_compliant = [r for r in use_records if r["region"] == "QLD1" and r["compliance"] != "COMPLIANT"]
+        assert len(qld_non_compliant) == 0, f"QLD1 should be fully COMPLIANT, got {qld_non_compliant}"
+
+        # ── Reserve margin records ─────────────────────────────────────────────
+        reserve_margins = d["reserve_margins"]
+        assert len(reserve_margins) == 15, f"Expected 15 reserve margin records, got {len(reserve_margins)}"
+
+        rm_regions = {r["region"] for r in reserve_margins}
+        assert rm_regions == expected_regions, f"Region mismatch in reserve margins: {rm_regions}"
+
+        rm_years = {r["year"] for r in reserve_margins}
+        assert rm_years == {2022, 2023, 2024}, f"Expected years 2022-2024, got {rm_years}"
+
+        for r in reserve_margins:
+            assert r["peak_demand_mw"] > 0
+            assert r["available_capacity_mw"] > 0
+            assert r["reserve_margin_pct"] >= 0
+            assert r["required_reserve_pct"] == 15.0, f"Required reserve should be 15%, got {r['required_reserve_pct']}"
+            # surplus_deficit should be consistent with reserve margin vs required
+            if r["reserve_margin_pct"] < r["required_reserve_pct"]:
+                assert r["surplus_deficit_mw"] < 0, \
+                    f"Below-standard margin should have negative surplus: {r['region']} {r['year']}"
+            else:
+                assert r["surplus_deficit_mw"] >= 0, \
+                    f"Above-standard margin should have non-negative surplus: {r['region']} {r['year']}"
+
+        # QLD1 should have highest reserve margins (well-resourced)
+        latest_year = max(r["year"] for r in reserve_margins)
+        latest_rm = [r for r in reserve_margins if r["year"] == latest_year]
+        qld_rm = next(r for r in latest_rm if r["region"] == "QLD1")
+        sa1_rm = next(r for r in latest_rm if r["region"] == "SA1")
+        assert qld_rm["reserve_margin_pct"] > sa1_rm["reserve_margin_pct"], \
+            "QLD1 should have higher reserve margin than SA1 in latest year"
+
+        # TAS1 should have very high reserve margin (hydro surplus)
+        tas_rm = next(r for r in latest_rm if r["region"] == "TAS1")
+        assert tas_rm["reserve_margin_pct"] > 50, \
+            f"TAS1 should have >50% reserve margin (hydro), got {tas_rm['reserve_margin_pct']}"
+
+        # ── Reliability event records ──────────────────────────────────────────
+        events = d["events"]
+        assert len(events) == 8, f"Expected 8 reliability events, got {len(events)}"
+
+        valid_causes = {
+            "GENERATION_SHORTFALL", "NETWORK_FAILURE", "EXTREME_WEATHER",
+            "DEMAND_SURGE", "EQUIPMENT_FAILURE",
+        }
+        for ev in events:
+            assert ev["cause"] in valid_causes, f"Invalid cause: {ev['cause']}"
+            assert ev["duration_hr"] > 0
+            assert ev["customers_affected_k"] > 0
+            assert ev["use_mwh"] > 0
+            assert ev["estimated_cost_m_aud"] > 0
+            assert ev["date"], "Event must have a date"
+            assert ev["event_id"], "Event must have an event_id"
+            assert isinstance(ev["nem_intervention"], bool), "nem_intervention must be bool"
+
+        # NEM interventions should be the majority (high-impact events)
+        nem_intervention_count = sum(1 for ev in events if ev["nem_intervention"])
+        assert nem_intervention_count >= 4, \
+            f"Expected at least 4 NEM interventions, got {nem_intervention_count}"
+
+        # SA1 and VIC1 should have the most events (high-risk regions)
+        sa1_events = [ev for ev in events if ev["region"] == "SA1"]
+        vic_events = [ev for ev in events if ev["region"] == "VIC1"]
+        assert len(sa1_events) >= 2, f"Expected at least 2 SA1 events, got {len(sa1_events)}"
+        assert len(vic_events) >= 2, f"Expected at least 2 VIC1 events, got {len(vic_events)}"
+
+        # ── Demand-side records ────────────────────────────────────────────────
+        demand_side = d["demand_side"]
+        assert len(demand_side) == 12, f"Expected 12 demand-side records, got {len(demand_side)}"
+
+        valid_mechanisms = {"RERT", "DSP", "VPP", "INTERRUPTIBLE_LOAD"}
+        mechanisms_seen = {r["mechanism"] for r in demand_side}
+        assert mechanisms_seen == valid_mechanisms, f"Mechanism mismatch: {mechanisms_seen}"
+
+        for r in demand_side:
+            assert r["registered_mw"] > 0
+            assert r["activated_mw"] > 0
+            assert r["activated_mw"] <= r["registered_mw"], \
+                f"Activated MW {r['activated_mw']} exceeds registered {r['registered_mw']} for {r['mechanism']} {r['region']}"
+            assert r["activation_events_yr"] >= 1
+            assert r["cost_m_aud_yr"] > 0
+            assert r["cost_aud_mwh"] > 0
+            assert 0 < r["reliability_contribution_pct"] < 20
+
+        # RERT should have highest average cost per MWh
+        rert_costs = [r["cost_aud_mwh"] for r in demand_side if r["mechanism"] == "RERT"]
+        il_costs = [r["cost_aud_mwh"] for r in demand_side if r["mechanism"] == "INTERRUPTIBLE_LOAD"]
+        assert min(rert_costs) > max(il_costs), \
+            "RERT should be more expensive per MWh than Interruptible Load"
+
+        # SA1 should have highest reliability contribution from VPP (energy transition leader)
+        sa1_vpp = next((r for r in demand_side if r["mechanism"] == "VPP" and r["region"] == "SA1"), None)
+        assert sa1_vpp is not None, "SA1 VPP record should exist"
+        assert sa1_vpp["reliability_contribution_pct"] > 5, \
+            f"SA1 VPP should have >5% reliability contribution, got {sa1_vpp['reliability_contribution_pct']}"
+
+        # Total registered capacity should exceed 3000 MW
+        total_registered = sum(r["registered_mw"] for r in demand_side)
+        assert total_registered > 3000, \
+            f"Total registered demand-side capacity should exceed 3000 MW, got {total_registered}"
+
+
+# ===========================================================================
+# Sprint 61b — DNSP Performance & Investment Analytics
+# ===========================================================================
+
+class TestDnspAnalytics:
+    """Sprint 61b — DNSP Performance & Investment Analytics endpoint tests."""
+
+    def test_dnsp_analytics_dashboard(self, client, auth_headers):
+        resp = client.get("/api/dnsp-analytics/dashboard", headers=auth_headers)
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "dnsps", "reliability", "der_hosting", "investments"):
+            assert key in d, f"Missing key: {key}"
+
+        # ── DNSP records ──────────────────────────────────────────────────────
+        dnsps = d["dnsps"]
+        assert len(dnsps) == 10, f"Expected 10 DNSP records, got {len(dnsps)}"
+
+        expected_ids = {
+            "AUSGRID", "ENDEAVOUR", "ESSENTIAL", "EVOENERGY", "SAPN",
+            "CITIPOWER", "POWERCOR", "UNITEDENERGY", "JEMENA", "TASNETWORKS",
+        }
+        actual_ids = {r["dnsp_id"] for r in dnsps}
+        assert actual_ids == expected_ids, f"DNSP ID mismatch: {actual_ids}"
+
+        for r in dnsps:
+            assert r["regulated_asset_base_bn_aud"] > 0, f"{r['dnsp_id']}: RAB must be positive"
+            assert r["customers_k"] > 0, f"{r['dnsp_id']}: customers must be positive"
+            assert r["network_length_km"] > 0, f"{r['dnsp_id']}: network length must be positive"
+            assert r["substations"] > 0, f"{r['dnsp_id']}: substations must be positive"
+            assert r["annual_capex_m_aud"] > 0, f"{r['dnsp_id']}: capex must be positive"
+            assert r["annual_opex_m_aud"] > 0, f"{r['dnsp_id']}: opex must be positive"
+            assert 0 < r["wacc_pct"] < 10, f"{r['dnsp_id']}: WACC out of range: {r['wacc_pct']}"
+            assert r["determination_period"], f"{r['dnsp_id']}: determination period missing"
+
+        # Ausgrid should have largest RAB
+        rab_by_id = {r["dnsp_id"]: r["regulated_asset_base_bn_aud"] for r in dnsps}
+        assert rab_by_id["AUSGRID"] == max(rab_by_id.values()), \
+            "Ausgrid should have the largest RAB"
+
+        # ── Reliability records ───────────────────────────────────────────────
+        reliability = d["reliability"]
+        assert len(reliability) == 30, f"Expected 30 reliability records (10 DNSPs x 3 years), got {len(reliability)}"
+
+        years_seen = {r["year"] for r in reliability}
+        assert years_seen == {2022, 2023, 2024}, f"Expected years 2022-2024, got {years_seen}"
+
+        dnsps_in_reliability = {r["dnsp"] for r in reliability}
+        assert len(dnsps_in_reliability) == 10, \
+            f"Expected 10 DNSPs in reliability, got {len(dnsps_in_reliability)}"
+
+        for r in reliability:
+            assert r["saidi_minutes"] > 0, f"SAIDI must be positive for {r['dnsp']} {r['year']}"
+            assert r["saifi_interruptions"] > 0, f"SAIFI must be positive for {r['dnsp']} {r['year']}"
+            assert r["caidi_minutes"] > 0, f"CAIDI must be positive for {r['dnsp']} {r['year']}"
+            assert r["planned_outage_saidi"] >= 0
+            assert r["unplanned_outage_saidi"] >= 0
+            # planned + unplanned should approximately equal total SAIDI
+            total_check = r["planned_outage_saidi"] + r["unplanned_outage_saidi"]
+            assert abs(total_check - r["saidi_minutes"]) < 1, \
+                f"Planned+unplanned SAIDI mismatch for {r['dnsp']} {r['year']}: {total_check} vs {r['saidi_minutes']}"
+            assert 0 < r["worst_served_customers_pct"] < 100
+
+        # SAIDI should improve year-over-year for Ausgrid
+        ausgrid = sorted([r for r in reliability if r["dnsp"] == "Ausgrid"], key=lambda r: r["year"])
+        assert ausgrid[0]["saidi_minutes"] > ausgrid[-1]["saidi_minutes"], \
+            "Ausgrid SAIDI should improve (decrease) from 2022 to 2024"
+
+        # CitiPower should have the best (lowest) SAIDI in 2024
+        latest_year = max(r["year"] for r in reliability)
+        latest = [r for r in reliability if r["year"] == latest_year]
+        best = min(latest, key=lambda r: r["saidi_minutes"])
+        assert best["dnsp"] == "CitiPower", \
+            f"CitiPower should have lowest SAIDI in 2024, got {best['dnsp']}"
+
+        # Essential Energy should have worst (highest) SAIDI in 2024
+        worst = max(latest, key=lambda r: r["saidi_minutes"])
+        assert worst["dnsp"] == "Essential Energy", \
+            f"Essential Energy should have highest SAIDI in 2024, got {worst['dnsp']}"
+
+        # ── DER hosting records ───────────────────────────────────────────────
+        der = d["der_hosting"]
+        assert len(der) == 20, f"Expected 20 DER hosting records, got {len(der)}"
+
+        valid_feeder_types   = {"URBAN", "SUBURBAN", "RURAL", "REMOTE"}
+        valid_constraint_types = {"VOLTAGE", "THERMAL", "PROTECTION", "UNCONSTRAINED"}
+
+        for r in der:
+            assert r["feeder_type"] in valid_feeder_types, \
+                f"Invalid feeder_type: {r['feeder_type']}"
+            assert r["constraint_type"] in valid_constraint_types, \
+                f"Invalid constraint_type: {r['constraint_type']}"
+            assert r["hosting_capacity_mw"] > 0, "Hosting capacity must be positive"
+            assert r["connected_der_mw"] > 0, "Connected DER must be positive"
+            assert r["connected_der_mw"] <= r["hosting_capacity_mw"], \
+                f"Connected DER ({r['connected_der_mw']}) exceeds hosting capacity ({r['hosting_capacity_mw']}) for {r['dnsp']}"
+            assert 0 < r["utilisation_pct"] <= 100
+            assert r["upgrade_cost_m_aud"] >= 0
+
+        # All four feeder types must be present
+        feeder_types_seen = {r["feeder_type"] for r in der}
+        assert feeder_types_seen == valid_feeder_types, \
+            f"Not all feeder types present: {feeder_types_seen}"
+
+        # Ausgrid should have highest total connected DER
+        total_by_dnsp = {}
+        for r in der:
+            total_by_dnsp[r["dnsp"]] = total_by_dnsp.get(r["dnsp"], 0) + r["connected_der_mw"]
+        assert total_by_dnsp.get("Ausgrid", 0) == max(total_by_dnsp.values()), \
+            "Ausgrid should have highest total connected DER MW"
+
+        # ── Investment records ────────────────────────────────────────────────
+        investments = d["investments"]
+        assert len(investments) == 30, f"Expected 30 investment records, got {len(investments)}"
+
+        valid_categories = {
+            "RELIABILITY", "GROWTH", "SAFETY",
+            "DER_INTEGRATION", "BUSHFIRE_MITIGATION", "CYBER_SECURITY",
+        }
+
+        for r in investments:
+            assert r["project_category"] in valid_categories, \
+                f"Invalid project_category: {r['project_category']}"
+            assert r["investment_m_aud"] > 0, "Investment must be positive"
+            assert r["year"] == 2024, f"All mock investments should be year 2024, got {r['year']}"
+            assert r["rab_addition_m_aud"] > 0, "RAB addition must be positive"
+            assert r["rab_addition_m_aud"] <= r["investment_m_aud"], \
+                "RAB addition cannot exceed total investment"
+            assert r["customers_benefited_k"] > 0
+
+        # All 6 categories must be present
+        categories_seen = {r["project_category"] for r in investments}
+        assert categories_seen == valid_categories, \
+            f"Not all investment categories present: {categories_seen}"
+
+        # Ausgrid should have highest total investment
+        inv_by_dnsp = {}
+        for r in investments:
+            inv_by_dnsp[r["dnsp"]] = inv_by_dnsp.get(r["dnsp"], 0) + r["investment_m_aud"]
+        assert inv_by_dnsp.get("Ausgrid", 0) == max(inv_by_dnsp.values()), \
+            "Ausgrid should have highest total investment"
+
+        # All 10 DNSPs should appear in investments
+        inv_dnsps = {r["dnsp"] for r in investments}
+        assert len(inv_dnsps) == 10, f"Expected 10 DNSPs in investments, got {len(inv_dnsps)}"
+
+
+class TestStorageOptimisationAnalytics:
+    """Sprint 61c — Battery Storage Revenue Stacking Optimisation endpoint tests."""
+
+    def test_storage_optimisation_dashboard(self, client):
+        resp = client.get(
+            "/api/storage-optimisation/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        d = resp.json()
+
+        # ── Top-level structure ────────────────────────────────────────────
+        for key in ("timestamp", "service_allocations", "price_correlations",
+                    "optimisation_results", "degradation"):
+            assert key in d, f"Missing key: {key}"
+
+        # ── Service allocations ────────────────────────────────────────────
+        allocs = d["service_allocations"]
+        assert len(allocs) == 8, f"Expected 8 service allocation records, got {len(allocs)}"
+
+        valid_regions = {"NSW1", "VIC1", "SA1", "QLD1", "TAS1"}
+        for a in allocs:
+            assert a["capacity_mw"] > 0, "capacity_mw must be positive"
+            assert a["duration_hr"] > 0, "duration_hr must be positive"
+            assert a["region"] in valid_regions, f"Invalid region: {a['region']}"
+            assert a["revenue_per_mw_k_aud"] > 0
+            assert a["total_revenue_m_aud"] > 0
+            pct_sum = (
+                a["energy_arbitrage_pct"] + a["raise_fcas_pct"] + a["lower_fcas_pct"]
+                + a["capacity_market_pct"] + a["demand_response_pct"] + a["idle_pct"]
+            )
+            assert abs(pct_sum - 100.0) < 0.5, (
+                f"Pct allocation for {a['bess_id']} sums to {pct_sum}, expected ~100"
+            )
+
+        # Waratah Super Battery should be largest by revenue
+        revenues = [(a["total_revenue_m_aud"], a["bess_id"]) for a in allocs]
+        largest = max(revenues)[1]
+        assert largest == "WARATAH_BESS", f"Expected WARATAH_BESS as largest, got {largest}"
+
+        # All known real BESS should be present
+        bess_ids = {a["bess_id"] for a in allocs}
+        for expected in ("HORNSDALE1", "VIC_BIG", "WARATAH_BESS"):
+            assert expected in bess_ids, f"Missing BESS: {expected}"
+
+        # ── Price correlations ─────────────────────────────────────────────
+        prices = d["price_correlations"]
+        assert len(prices) == 12, f"Expected 12 monthly price records, got {len(prices)}"
+
+        valid_services = {"ENERGY_ONLY", "FCAS_ONLY", "ENERGY_FCAS", "FULL_STACK", "AI_OPTIMISED"}
+        for p in prices:
+            assert p["region"] == "NSW1", f"Expected NSW1 region, got {p['region']}"
+            assert p["energy_price_aud_mwh"] > 0
+            assert p["arbitrage_spread_aud"] > 0
+            assert p["optimal_service"] in valid_services, f"Invalid service: {p['optimal_service']}"
+
+        # Winter months (Jul, Aug) should have the highest arbitrage spreads
+        summer_avg = sum(p["arbitrage_spread_aud"] for p in prices if p["month"].startswith("Jan") or p["month"].startswith("Feb")) / 2
+        winter_aug = next(p["arbitrage_spread_aud"] for p in prices if p["month"].startswith("Aug"))
+        assert winter_aug > summer_avg, "August spread should exceed summer average"
+
+        # ── Optimisation results ───────────────────────────────────────────
+        results = d["optimisation_results"]
+        assert len(results) == 5, f"Expected 5 optimisation scenarios, got {len(results)}"
+
+        valid_scenarios = {"ENERGY_ONLY", "FCAS_ONLY", "ENERGY_FCAS", "FULL_STACK", "AI_OPTIMISED"}
+        scenario_names = {r["scenario"] for r in results}
+        assert scenario_names == valid_scenarios, f"Missing scenarios: {valid_scenarios - scenario_names}"
+
+        for r in results:
+            assert r["annual_revenue_m_aud"] > 0
+            assert 0 < r["irr_pct"] < 50, f"IRR out of range: {r['irr_pct']}"
+            assert r["payback_years"] > 0
+            assert r["capex_m_aud"] > 0
+            assert r["lcoe_aud_mwh"] > 0
+
+        # AI_OPTIMISED should be best on revenue and IRR
+        ai = next(r for r in results if r["scenario"] == "AI_OPTIMISED")
+        energy_only = next(r for r in results if r["scenario"] == "ENERGY_ONLY")
+        assert ai["annual_revenue_m_aud"] > energy_only["annual_revenue_m_aud"], (
+            "AI_OPTIMISED revenue must exceed ENERGY_ONLY"
+        )
+        assert ai["irr_pct"] > energy_only["irr_pct"], "AI_OPTIMISED IRR must exceed ENERGY_ONLY"
+        assert ai["payback_years"] < energy_only["payback_years"], (
+            "AI_OPTIMISED payback must be shorter than ENERGY_ONLY"
+        )
+
+        # FULL_STACK should outperform single-service scenarios
+        full_stack = next(r for r in results if r["scenario"] == "FULL_STACK")
+        fcas_only = next(r for r in results if r["scenario"] == "FCAS_ONLY")
+        assert full_stack["annual_revenue_m_aud"] > fcas_only["annual_revenue_m_aud"]
+
+        # ── Degradation records ────────────────────────────────────────────
+        degrad = d["degradation"]
+        assert len(degrad) == 8, f"Expected 8 degradation records (2 BESS x 4 years), got {len(degrad)}"
+
+        degrad_ids = {r["bess_id"] for r in degrad}
+        assert "HORNSDALE1" in degrad_ids, "Missing HORNSDALE1 degradation records"
+        assert "VIC_BIG" in degrad_ids, "Missing VIC_BIG degradation records"
+
+        for r in degrad:
+            assert 1 <= r["year"] <= 4, f"Year out of range: {r['year']}"
+            assert 80 < r["capacity_retention_pct"] <= 100, (
+                f"Capacity retention out of range: {r['capacity_retention_pct']}"
+            )
+            assert r["calendar_degradation_pct"] >= 0
+            assert r["cycle_degradation_pct"] >= 0
+            assert r["annual_cycles"] > 0
+            assert r["revenue_impact_m_aud"] >= 0
+            assert r["replacement_schedule"]
+
+        # Capacity should decline monotonically over years for each BESS
+        for bess_id in ("HORNSDALE1", "VIC_BIG"):
+            bess_records = sorted(
+                [r for r in degrad if r["bess_id"] == bess_id],
+                key=lambda x: x["year"],
+            )
+            assert len(bess_records) == 4, f"Expected 4 years for {bess_id}"
+            for i in range(1, len(bess_records)):
+                assert bess_records[i]["capacity_retention_pct"] < bess_records[i - 1]["capacity_retention_pct"], (
+                    f"{bess_id} year {bess_records[i]['year']} capacity did not decline"
+                )
+
+        # Revenue impact should be 0 in year 1 (baseline)
+        year1_records = [r for r in degrad if r["year"] == 1]
+        for r in year1_records:
+            assert r["revenue_impact_m_aud"] == 0.0, (
+                f"{r['bess_id']} year 1 should have zero revenue impact"
+            )

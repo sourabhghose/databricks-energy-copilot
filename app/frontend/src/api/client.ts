@@ -8374,3 +8374,184 @@ export interface TnspAnalyticsDashboard {
 
 export const getTnspAnalyticsDashboard = (): Promise<TnspAnalyticsDashboard> =>
   get<TnspAnalyticsDashboard>('/api/tnsp-analytics/dashboard')
+
+// ── Sprint 61a: NEM Reliability Standard & USE Analytics ─────────────────────
+
+export interface RSAUseRecord {
+  year: number
+  region: string
+  unserved_energy_mwh: number
+  use_pct: number
+  standard_pct: number
+  compliance: string
+  events: number
+  max_event_duration_hr: number
+  economic_cost_m_aud: number
+}
+
+export interface RSAReserveMarginRecord {
+  year: number
+  region: string
+  peak_demand_mw: number
+  available_capacity_mw: number
+  reserve_margin_pct: number
+  required_reserve_pct: number
+  surplus_deficit_mw: number
+  probability_of_exceeding_standard_pct: number
+}
+
+export interface RSAReliabilityEventRecord {
+  event_id: string
+  date: string
+  region: string
+  duration_hr: number
+  customers_affected_k: number
+  use_mwh: number
+  cause: string
+  nem_intervention: boolean
+  estimated_cost_m_aud: number
+}
+
+export interface RSADemandSideRecord {
+  mechanism: string
+  region: string
+  registered_mw: number
+  activated_mw: number
+  activation_events_yr: number
+  cost_m_aud_yr: number
+  cost_aud_mwh: number
+  reliability_contribution_pct: number
+}
+
+export interface ReliabilityStandardDashboard {
+  timestamp: string
+  use_records: RSAUseRecord[]
+  reserve_margins: RSAReserveMarginRecord[]
+  events: RSAReliabilityEventRecord[]
+  demand_side: RSADemandSideRecord[]
+}
+
+export const getReliabilityStandardDashboard = (): Promise<ReliabilityStandardDashboard> =>
+  get<ReliabilityStandardDashboard>('/api/reliability-standard/dashboard')
+
+// ── Sprint 61c: Battery Storage Revenue Stacking Optimisation ───────────────
+
+export interface BSOServiceAllocationRecord {
+  bess_id: string
+  bess_name: string
+  region: string
+  capacity_mw: number
+  duration_hr: number
+  energy_arbitrage_pct: number
+  raise_fcas_pct: number
+  lower_fcas_pct: number
+  capacity_market_pct: number
+  demand_response_pct: number
+  idle_pct: number
+  total_revenue_m_aud: number
+  revenue_per_mw_k_aud: number
+}
+
+export interface BSOPriceCorrelationRecord {
+  month: string
+  region: string
+  energy_price_aud_mwh: number
+  raise_reg_price: number
+  lower_reg_price: number
+  raise_6sec_price: number
+  optimal_service: string
+  arbitrage_spread_aud: number
+}
+
+export interface BSOOptimisationResultRecord {
+  scenario: string
+  capacity_mw: number
+  duration_hr: number
+  annual_revenue_m_aud: number
+  irr_pct: number
+  payback_years: number
+  capex_m_aud: number
+  lcoe_aud_mwh: number
+}
+
+export interface BSODegradationRecord {
+  bess_id: string
+  year: number
+  capacity_retention_pct: number
+  calendar_degradation_pct: number
+  cycle_degradation_pct: number
+  annual_cycles: number
+  revenue_impact_m_aud: number
+  replacement_schedule: string
+}
+
+export interface StorageOptimisationDashboard {
+  timestamp: string
+  service_allocations: BSOServiceAllocationRecord[]
+  price_correlations: BSOPriceCorrelationRecord[]
+  optimisation_results: BSOOptimisationResultRecord[]
+  degradation: BSODegradationRecord[]
+}
+
+export const getStorageOptimisationDashboard = (): Promise<StorageOptimisationDashboard> =>
+  get<StorageOptimisationDashboard>('/api/storage-optimisation/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 61b — DNSP Performance & Investment Analytics
+// ---------------------------------------------------------------------------
+
+export interface DPADnspRecord {
+  dnsp_id: string
+  dnsp_name: string
+  state: string
+  regulated_asset_base_bn_aud: number
+  customers_k: number
+  network_length_km: number
+  substations: number
+  annual_capex_m_aud: number
+  annual_opex_m_aud: number
+  wacc_pct: number
+  determination_period: string
+}
+
+export interface DPAReliabilityRecord {
+  dnsp: string
+  year: number
+  saidi_minutes: number
+  saifi_interruptions: number
+  caidi_minutes: number
+  momentary_interruptions: number
+  planned_outage_saidi: number
+  unplanned_outage_saidi: number
+  worst_served_customers_pct: number
+}
+
+export interface DPADerHostingRecord {
+  dnsp: string
+  feeder_type: string
+  hosting_capacity_mw: number
+  connected_der_mw: number
+  utilisation_pct: number
+  constraint_type: string
+  upgrade_cost_m_aud: number
+}
+
+export interface DPAInvestmentRecord {
+  dnsp: string
+  project_category: string
+  investment_m_aud: number
+  year: number
+  rab_addition_m_aud: number
+  customers_benefited_k: number
+}
+
+export interface DnspAnalyticsDashboard61b {
+  timestamp: string
+  dnsps: DPADnspRecord[]
+  reliability: DPAReliabilityRecord[]
+  der_hosting: DPADerHostingRecord[]
+  investments: DPAInvestmentRecord[]
+}
+
+export const getDnspAnalyticsDashboard = (): Promise<DnspAnalyticsDashboard61b> =>
+  get<DnspAnalyticsDashboard61b>('/api/dnsp-analytics/dashboard')

@@ -43522,3 +43522,656 @@ def get_tnsp_analytics_dashboard() -> TnspAnalyticsDashboard:
         projects=[r.dict() for r in _TNA_PROJECTS],
         regulatory=[r.dict() for r in _TNA_REGULATORY],
     )
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Sprint 61a — NEM Reliability Standard & Unserved Energy (USE) Analytics
+# ──────────────────────────────────────────────────────────────────────────────
+
+class RSAUseRecord(BaseModel):
+    year: int
+    region: str
+    unserved_energy_mwh: float
+    use_pct: float
+    standard_pct: float
+    compliance: str  # COMPLIANT / BREACH / AT_RISK
+    events: int
+    max_event_duration_hr: float
+    economic_cost_m_aud: float
+
+
+class RSAReserveMarginRecord(BaseModel):
+    year: int
+    region: str
+    peak_demand_mw: float
+    available_capacity_mw: float
+    reserve_margin_pct: float
+    required_reserve_pct: float
+    surplus_deficit_mw: float
+    probability_of_exceeding_standard_pct: float
+
+
+class RSAReliabilityEventRecord(BaseModel):
+    event_id: str
+    date: str
+    region: str
+    duration_hr: float
+    customers_affected_k: int
+    use_mwh: float
+    cause: str  # GENERATION_SHORTFALL/NETWORK_FAILURE/EXTREME_WEATHER/DEMAND_SURGE/EQUIPMENT_FAILURE
+    nem_intervention: bool
+    estimated_cost_m_aud: float
+
+
+class RSADemandSideRecord(BaseModel):
+    mechanism: str  # RERT/DSP/VPP/INTERRUPTIBLE_LOAD
+    region: str
+    registered_mw: float
+    activated_mw: float
+    activation_events_yr: int
+    cost_m_aud_yr: float
+    cost_aud_mwh: float
+    reliability_contribution_pct: float
+
+
+class ReliabilityStandardDashboard(BaseModel):
+    timestamp: str
+    use_records: List[RSAUseRecord]
+    reserve_margins: List[RSAReserveMarginRecord]
+    events: List[RSAReliabilityEventRecord]
+    demand_side: List[RSADemandSideRecord]
+
+
+# ── mock data ─────────────────────────────────────────────────────────────────
+
+_RSA_REGIONS = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+
+# 15 USE records (5 regions × 3 years: 2022, 2023, 2024)
+_RSA_USE_RECORDS: List[RSAUseRecord] = [
+    # NSW1
+    RSAUseRecord(year=2022, region="NSW1", unserved_energy_mwh=12.4, use_pct=0.00031,
+                 standard_pct=0.002, compliance="COMPLIANT", events=2, max_event_duration_hr=1.8,
+                 economic_cost_m_aud=3.1),
+    RSAUseRecord(year=2023, region="NSW1", unserved_energy_mwh=8.7, use_pct=0.00022,
+                 standard_pct=0.002, compliance="COMPLIANT", events=1, max_event_duration_hr=1.2,
+                 economic_cost_m_aud=2.2),
+    RSAUseRecord(year=2024, region="NSW1", unserved_energy_mwh=19.3, use_pct=0.00048,
+                 standard_pct=0.002, compliance="COMPLIANT", events=3, max_event_duration_hr=2.4,
+                 economic_cost_m_aud=4.8),
+    # VIC1
+    RSAUseRecord(year=2022, region="VIC1", unserved_energy_mwh=31.6, use_pct=0.00092,
+                 standard_pct=0.002, compliance="COMPLIANT", events=4, max_event_duration_hr=3.1,
+                 economic_cost_m_aud=7.9),
+    RSAUseRecord(year=2023, region="VIC1", unserved_energy_mwh=74.8, use_pct=0.00218,
+                 standard_pct=0.002, compliance="BREACH", events=7, max_event_duration_hr=5.6,
+                 economic_cost_m_aud=18.7),
+    RSAUseRecord(year=2024, region="VIC1", unserved_energy_mwh=58.3, use_pct=0.00170,
+                 standard_pct=0.002, compliance="AT_RISK", events=5, max_event_duration_hr=4.2,
+                 economic_cost_m_aud=14.6),
+    # QLD1
+    RSAUseRecord(year=2022, region="QLD1", unserved_energy_mwh=9.1, use_pct=0.00020,
+                 standard_pct=0.002, compliance="COMPLIANT", events=1, max_event_duration_hr=0.9,
+                 economic_cost_m_aud=2.3),
+    RSAUseRecord(year=2023, region="QLD1", unserved_energy_mwh=15.4, use_pct=0.00034,
+                 standard_pct=0.002, compliance="COMPLIANT", events=2, max_event_duration_hr=1.5,
+                 economic_cost_m_aud=3.9),
+    RSAUseRecord(year=2024, region="QLD1", unserved_energy_mwh=11.2, use_pct=0.00025,
+                 standard_pct=0.002, compliance="COMPLIANT", events=2, max_event_duration_hr=1.1,
+                 economic_cost_m_aud=2.8),
+    # SA1
+    RSAUseRecord(year=2022, region="SA1", unserved_energy_mwh=42.7, use_pct=0.00563,
+                 standard_pct=0.002, compliance="BREACH", events=6, max_event_duration_hr=6.3,
+                 economic_cost_m_aud=10.7),
+    RSAUseRecord(year=2023, region="SA1", unserved_energy_mwh=28.9, use_pct=0.00381,
+                 standard_pct=0.002, compliance="BREACH", events=4, max_event_duration_hr=4.8,
+                 economic_cost_m_aud=7.2),
+    RSAUseRecord(year=2024, region="SA1", unserved_energy_mwh=16.1, use_pct=0.00212,
+                 standard_pct=0.002, compliance="AT_RISK", events=3, max_event_duration_hr=3.2,
+                 economic_cost_m_aud=4.0),
+    # TAS1
+    RSAUseRecord(year=2022, region="TAS1", unserved_energy_mwh=5.3, use_pct=0.00098,
+                 standard_pct=0.002, compliance="COMPLIANT", events=1, max_event_duration_hr=2.1,
+                 economic_cost_m_aud=1.3),
+    RSAUseRecord(year=2023, region="TAS1", unserved_energy_mwh=3.8, use_pct=0.00071,
+                 standard_pct=0.002, compliance="COMPLIANT", events=1, max_event_duration_hr=1.6,
+                 economic_cost_m_aud=0.9),
+    RSAUseRecord(year=2024, region="TAS1", unserved_energy_mwh=7.2, use_pct=0.00134,
+                 standard_pct=0.002, compliance="COMPLIANT", events=2, max_event_duration_hr=2.8,
+                 economic_cost_m_aud=1.8),
+]
+
+# 15 reserve margin records (5 regions × 3 years)
+_RSA_RESERVE_MARGINS: List[RSAReserveMarginRecord] = [
+    # NSW1
+    RSAReserveMarginRecord(year=2022, region="NSW1", peak_demand_mw=13820.0, available_capacity_mw=17200.0,
+                           reserve_margin_pct=24.5, required_reserve_pct=15.0, surplus_deficit_mw=1316.0,
+                           probability_of_exceeding_standard_pct=0.8),
+    RSAReserveMarginRecord(year=2023, region="NSW1", peak_demand_mw=13950.0, available_capacity_mw=16850.0,
+                           reserve_margin_pct=20.8, required_reserve_pct=15.0, surplus_deficit_mw=816.0,
+                           probability_of_exceeding_standard_pct=1.2),
+    RSAReserveMarginRecord(year=2024, region="NSW1", peak_demand_mw=14100.0, available_capacity_mw=16200.0,
+                           reserve_margin_pct=14.9, required_reserve_pct=15.0, surplus_deficit_mw=-14.0,
+                           probability_of_exceeding_standard_pct=2.1),
+    # VIC1
+    RSAReserveMarginRecord(year=2022, region="VIC1", peak_demand_mw=9680.0, available_capacity_mw=12100.0,
+                           reserve_margin_pct=25.0, required_reserve_pct=15.0, surplus_deficit_mw=970.0,
+                           probability_of_exceeding_standard_pct=0.6),
+    RSAReserveMarginRecord(year=2023, region="VIC1", peak_demand_mw=9820.0, available_capacity_mw=11200.0,
+                           reserve_margin_pct=14.1, required_reserve_pct=15.0, surplus_deficit_mw=-88.0,
+                           probability_of_exceeding_standard_pct=2.8),
+    RSAReserveMarginRecord(year=2024, region="VIC1", peak_demand_mw=9950.0, available_capacity_mw=11600.0,
+                           reserve_margin_pct=16.6, required_reserve_pct=15.0, surplus_deficit_mw=159.0,
+                           probability_of_exceeding_standard_pct=1.9),
+    # QLD1
+    RSAReserveMarginRecord(year=2022, region="QLD1", peak_demand_mw=9240.0, available_capacity_mw=12800.0,
+                           reserve_margin_pct=38.5, required_reserve_pct=15.0, surplus_deficit_mw=2174.0,
+                           probability_of_exceeding_standard_pct=0.3),
+    RSAReserveMarginRecord(year=2023, region="QLD1", peak_demand_mw=9410.0, available_capacity_mw=13100.0,
+                           reserve_margin_pct=39.2, required_reserve_pct=15.0, surplus_deficit_mw=2278.0,
+                           probability_of_exceeding_standard_pct=0.2),
+    RSAReserveMarginRecord(year=2024, region="QLD1", peak_demand_mw=9580.0, available_capacity_mw=13400.0,
+                           reserve_margin_pct=39.9, required_reserve_pct=15.0, surplus_deficit_mw=2391.0,
+                           probability_of_exceeding_standard_pct=0.2),
+    # SA1
+    RSAReserveMarginRecord(year=2022, region="SA1", peak_demand_mw=3210.0, available_capacity_mw=3380.0,
+                           reserve_margin_pct=5.3, required_reserve_pct=15.0, surplus_deficit_mw=-314.0,
+                           probability_of_exceeding_standard_pct=8.4),
+    RSAReserveMarginRecord(year=2023, region="SA1", peak_demand_mw=3280.0, available_capacity_mw=3620.0,
+                           reserve_margin_pct=10.4, required_reserve_pct=15.0, surplus_deficit_mw=-151.0,
+                           probability_of_exceeding_standard_pct=6.1),
+    RSAReserveMarginRecord(year=2024, region="SA1", peak_demand_mw=3350.0, available_capacity_mw=3980.0,
+                           reserve_margin_pct=18.8, required_reserve_pct=15.0, surplus_deficit_mw=129.0,
+                           probability_of_exceeding_standard_pct=3.2),
+    # TAS1
+    RSAReserveMarginRecord(year=2022, region="TAS1", peak_demand_mw=1460.0, available_capacity_mw=2640.0,
+                           reserve_margin_pct=80.8, required_reserve_pct=15.0, surplus_deficit_mw=951.0,
+                           probability_of_exceeding_standard_pct=0.1),
+    RSAReserveMarginRecord(year=2023, region="TAS1", peak_demand_mw=1480.0, available_capacity_mw=2720.0,
+                           reserve_margin_pct=83.8, required_reserve_pct=15.0, surplus_deficit_mw=998.0,
+                           probability_of_exceeding_standard_pct=0.1),
+    RSAReserveMarginRecord(year=2024, region="TAS1", peak_demand_mw=1510.0, available_capacity_mw=2780.0,
+                           reserve_margin_pct=84.1, required_reserve_pct=15.0, surplus_deficit_mw=1044.0,
+                           probability_of_exceeding_standard_pct=0.1),
+]
+
+# 8 reliability event records
+_RSA_EVENTS: List[RSAReliabilityEventRecord] = [
+    RSAReliabilityEventRecord(event_id="EVT-2023-001", date="2023-02-14", region="VIC1",
+                               duration_hr=5.6, customers_affected_k=42, use_mwh=28.4,
+                               cause="EXTREME_WEATHER", nem_intervention=True,
+                               estimated_cost_m_aud=7.1),
+    RSAReliabilityEventRecord(event_id="EVT-2023-002", date="2023-07-28", region="SA1",
+                               duration_hr=4.8, customers_affected_k=18, use_mwh=15.7,
+                               cause="GENERATION_SHORTFALL", nem_intervention=True,
+                               estimated_cost_m_aud=3.9),
+    RSAReliabilityEventRecord(event_id="EVT-2022-001", date="2022-01-29", region="SA1",
+                               duration_hr=6.3, customers_affected_k=31, use_mwh=21.6,
+                               cause="DEMAND_SURGE", nem_intervention=True,
+                               estimated_cost_m_aud=5.4),
+    RSAReliabilityEventRecord(event_id="EVT-2024-001", date="2024-01-16", region="NSW1",
+                               duration_hr=2.4, customers_affected_k=12, use_mwh=9.8,
+                               cause="NETWORK_FAILURE", nem_intervention=False,
+                               estimated_cost_m_aud=2.5),
+    RSAReliabilityEventRecord(event_id="EVT-2024-002", date="2024-02-08", region="VIC1",
+                               duration_hr=3.8, customers_affected_k=27, use_mwh=18.2,
+                               cause="GENERATION_SHORTFALL", nem_intervention=True,
+                               estimated_cost_m_aud=4.6),
+    RSAReliabilityEventRecord(event_id="EVT-2022-002", date="2022-12-08", region="NSW1",
+                               duration_hr=1.8, customers_affected_k=8, use_mwh=6.3,
+                               cause="EQUIPMENT_FAILURE", nem_intervention=False,
+                               estimated_cost_m_aud=1.6),
+    RSAReliabilityEventRecord(event_id="EVT-2023-003", date="2023-12-19", region="SA1",
+                               duration_hr=3.2, customers_affected_k=14, use_mwh=11.2,
+                               cause="EXTREME_WEATHER", nem_intervention=True,
+                               estimated_cost_m_aud=2.8),
+    RSAReliabilityEventRecord(event_id="EVT-2024-003", date="2024-01-24", region="VIC1",
+                               duration_hr=2.1, customers_affected_k=19, use_mwh=12.1,
+                               cause="DEMAND_SURGE", nem_intervention=False,
+                               estimated_cost_m_aud=3.0),
+]
+
+# 12 demand-side mechanism records (4 mechanisms × 3 regions)
+_RSA_DEMAND_SIDE: List[RSADemandSideRecord] = [
+    # RERT
+    RSADemandSideRecord(mechanism="RERT", region="NSW1", registered_mw=480.0, activated_mw=320.0,
+                        activation_events_yr=4, cost_m_aud_yr=12.8, cost_aud_mwh=40.0,
+                        reliability_contribution_pct=3.5),
+    RSADemandSideRecord(mechanism="RERT", region="VIC1", registered_mw=360.0, activated_mw=290.0,
+                        activation_events_yr=7, cost_m_aud_yr=11.6, cost_aud_mwh=40.0,
+                        reliability_contribution_pct=3.0),
+    RSADemandSideRecord(mechanism="RERT", region="SA1", registered_mw=210.0, activated_mw=180.0,
+                        activation_events_yr=9, cost_m_aud_yr=8.4, cost_aud_mwh=46.7,
+                        reliability_contribution_pct=5.4),
+    # DSP
+    RSADemandSideRecord(mechanism="DSP", region="NSW1", registered_mw=620.0, activated_mw=180.0,
+                        activation_events_yr=2, cost_m_aud_yr=5.4, cost_aud_mwh=30.0,
+                        reliability_contribution_pct=4.5),
+    RSADemandSideRecord(mechanism="DSP", region="VIC1", registered_mw=510.0, activated_mw=140.0,
+                        activation_events_yr=3, cost_m_aud_yr=4.2, cost_aud_mwh=30.0,
+                        reliability_contribution_pct=3.7),
+    RSADemandSideRecord(mechanism="DSP", region="QLD1", registered_mw=430.0, activated_mw=90.0,
+                        activation_events_yr=1, cost_m_aud_yr=2.7, cost_aud_mwh=30.0,
+                        reliability_contribution_pct=3.1),
+    # VPP
+    RSADemandSideRecord(mechanism="VPP", region="SA1", registered_mw=185.0, activated_mw=142.0,
+                        activation_events_yr=12, cost_m_aud_yr=3.6, cost_aud_mwh=25.4,
+                        reliability_contribution_pct=5.7),
+    RSADemandSideRecord(mechanism="VPP", region="VIC1", registered_mw=140.0, activated_mw=98.0,
+                        activation_events_yr=8, cost_m_aud_yr=2.5, cost_aud_mwh=25.5,
+                        reliability_contribution_pct=2.9),
+    RSADemandSideRecord(mechanism="VPP", region="NSW1", registered_mw=210.0, activated_mw=145.0,
+                        activation_events_yr=6, cost_m_aud_yr=3.7, cost_aud_mwh=25.5,
+                        reliability_contribution_pct=2.1),
+    # INTERRUPTIBLE_LOAD
+    RSADemandSideRecord(mechanism="INTERRUPTIBLE_LOAD", region="QLD1", registered_mw=750.0,
+                        activated_mw=420.0, activation_events_yr=3, cost_m_aud_yr=6.3,
+                        cost_aud_mwh=15.0, reliability_contribution_pct=4.6),
+    RSADemandSideRecord(mechanism="INTERRUPTIBLE_LOAD", region="NSW1", registered_mw=580.0,
+                        activated_mw=310.0, activation_events_yr=2, cost_m_aud_yr=4.7,
+                        cost_aud_mwh=15.2, reliability_contribution_pct=2.2),
+    RSADemandSideRecord(mechanism="INTERRUPTIBLE_LOAD", region="SA1", registered_mw=290.0,
+                        activated_mw=240.0, activation_events_yr=5, cost_m_aud_yr=3.6,
+                        cost_aud_mwh=15.0, reliability_contribution_pct=7.3),
+]
+
+
+@app.get(
+    "/api/reliability-standard/dashboard",
+    response_model=ReliabilityStandardDashboard,
+    dependencies=[Depends(verify_api_key)],
+    tags=["Reliability"],
+)
+async def get_reliability_standard_dashboard() -> ReliabilityStandardDashboard:
+    """NEM Reliability Standard & Unserved Energy (USE) Analytics dashboard."""
+    from datetime import datetime, timezone
+    return ReliabilityStandardDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        use_records=_RSA_USE_RECORDS,
+        reserve_margins=_RSA_RESERVE_MARGINS,
+        events=_RSA_EVENTS,
+        demand_side=_RSA_DEMAND_SIDE,
+    )
+
+
+# ── Sprint 61c: Battery Storage Revenue Stacking Optimisation ────────────────
+
+class BSOServiceAllocationRecord(BaseModel):
+    bess_id: str
+    bess_name: str
+    region: str
+    capacity_mw: float
+    duration_hr: float
+    energy_arbitrage_pct: float
+    raise_fcas_pct: float
+    lower_fcas_pct: float
+    capacity_market_pct: float
+    demand_response_pct: float
+    idle_pct: float
+    total_revenue_m_aud: float
+    revenue_per_mw_k_aud: float
+
+
+class BSOPriceCorrelationRecord(BaseModel):
+    month: str
+    region: str
+    energy_price_aud_mwh: float
+    raise_reg_price: float
+    lower_reg_price: float
+    raise_6sec_price: float
+    optimal_service: str
+    arbitrage_spread_aud: float
+
+
+class BSOOptimisationResultRecord(BaseModel):
+    scenario: str
+    capacity_mw: float
+    duration_hr: float
+    annual_revenue_m_aud: float
+    irr_pct: float
+    payback_years: float
+    capex_m_aud: float
+    lcoe_aud_mwh: float
+
+
+class BSODegradationRecord(BaseModel):
+    bess_id: str
+    year: int
+    capacity_retention_pct: float
+    calendar_degradation_pct: float
+    cycle_degradation_pct: float
+    annual_cycles: int
+    revenue_impact_m_aud: float
+    replacement_schedule: str
+
+
+class StorageOptimisationDashboard(BaseModel):
+    timestamp: str
+    service_allocations: list
+    price_correlations: list
+    optimisation_results: list
+    degradation: list
+
+
+_BSO_SERVICE_ALLOCATIONS: list[BSOServiceAllocationRecord] = [
+    BSOServiceAllocationRecord(
+        bess_id="HORNSDALE1", bess_name="Hornsdale Power Reserve", region="SA1",
+        capacity_mw=150.0, duration_hr=1.0,
+        energy_arbitrage_pct=28.0, raise_fcas_pct=32.0, lower_fcas_pct=18.0,
+        capacity_market_pct=10.0, demand_response_pct=8.0, idle_pct=4.0,
+        total_revenue_m_aud=42.6, revenue_per_mw_k_aud=284.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="VIC_BIG", bess_name="Victorian Big Battery (Geelong)", region="VIC1",
+        capacity_mw=300.0, duration_hr=2.0,
+        energy_arbitrage_pct=35.0, raise_fcas_pct=25.0, lower_fcas_pct=14.0,
+        capacity_market_pct=14.0, demand_response_pct=9.0, idle_pct=3.0,
+        total_revenue_m_aud=88.2, revenue_per_mw_k_aud=294.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="NEOEN_CAPOW", bess_name="Capital Power Station BESS", region="NSW1",
+        capacity_mw=200.0, duration_hr=2.0,
+        energy_arbitrage_pct=40.0, raise_fcas_pct=22.0, lower_fcas_pct=12.0,
+        capacity_market_pct=16.0, demand_response_pct=7.0, idle_pct=3.0,
+        total_revenue_m_aud=61.4, revenue_per_mw_k_aud=307.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="LAKE_BONNEY", bess_name="Lake Bonney BESS", region="SA1",
+        capacity_mw=25.0, duration_hr=1.0,
+        energy_arbitrage_pct=22.0, raise_fcas_pct=38.0, lower_fcas_pct=20.0,
+        capacity_market_pct=8.0, demand_response_pct=6.0, idle_pct=6.0,
+        total_revenue_m_aud=7.8, revenue_per_mw_k_aud=312.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="GANNAWARRA", bess_name="Gannawarra Energy Storage", region="VIC1",
+        capacity_mw=25.0, duration_hr=1.5,
+        energy_arbitrage_pct=30.0, raise_fcas_pct=30.0, lower_fcas_pct=15.0,
+        capacity_market_pct=12.0, demand_response_pct=8.0, idle_pct=5.0,
+        total_revenue_m_aud=7.2, revenue_per_mw_k_aud=288.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="BOMEN_BESS", bess_name="Bomen Solar Farm BESS", region="NSW1",
+        capacity_mw=50.0, duration_hr=2.0,
+        energy_arbitrage_pct=44.0, raise_fcas_pct=18.0, lower_fcas_pct=10.0,
+        capacity_market_pct=18.0, demand_response_pct=7.0, idle_pct=3.0,
+        total_revenue_m_aud=16.5, revenue_per_mw_k_aud=330.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="WANDOAN_BESS", bess_name="Wandoan South BESS", region="QLD1",
+        capacity_mw=100.0, duration_hr=2.0,
+        energy_arbitrage_pct=38.0, raise_fcas_pct=20.0, lower_fcas_pct=12.0,
+        capacity_market_pct=15.0, demand_response_pct=10.0, idle_pct=5.0,
+        total_revenue_m_aud=31.0, revenue_per_mw_k_aud=310.0,
+    ),
+    BSOServiceAllocationRecord(
+        bess_id="WARATAH_BESS", bess_name="Waratah Super Battery", region="NSW1",
+        capacity_mw=850.0, duration_hr=2.0,
+        energy_arbitrage_pct=36.0, raise_fcas_pct=24.0, lower_fcas_pct=13.0,
+        capacity_market_pct=15.0, demand_response_pct=9.0, idle_pct=3.0,
+        total_revenue_m_aud=268.4, revenue_per_mw_k_aud=316.0,
+    ),
+]
+
+_BSO_PRICE_CORRELATIONS: list[BSOPriceCorrelationRecord] = [
+    BSOPriceCorrelationRecord(month="Jan-2024", region="NSW1", energy_price_aud_mwh=95.2, raise_reg_price=28.4, lower_reg_price=12.1, raise_6sec_price=9.3, optimal_service="ENERGY_FCAS", arbitrage_spread_aud=48.6),
+    BSOPriceCorrelationRecord(month="Feb-2024", region="NSW1", energy_price_aud_mwh=112.8, raise_reg_price=34.2, lower_reg_price=14.8, raise_6sec_price=11.2, optimal_service="ENERGY_FCAS", arbitrage_spread_aud=62.4),
+    BSOPriceCorrelationRecord(month="Mar-2024", region="NSW1", energy_price_aud_mwh=88.4, raise_reg_price=22.6, lower_reg_price=10.4, raise_6sec_price=7.8, optimal_service="FCAS_ONLY", arbitrage_spread_aud=35.2),
+    BSOPriceCorrelationRecord(month="Apr-2024", region="NSW1", energy_price_aud_mwh=78.6, raise_reg_price=19.8, lower_reg_price=9.2, raise_6sec_price=6.4, optimal_service="FCAS_ONLY", arbitrage_spread_aud=28.8),
+    BSOPriceCorrelationRecord(month="May-2024", region="NSW1", energy_price_aud_mwh=82.3, raise_reg_price=21.4, lower_reg_price=9.8, raise_6sec_price=7.1, optimal_service="FCAS_ONLY", arbitrage_spread_aud=32.4),
+    BSOPriceCorrelationRecord(month="Jun-2024", region="NSW1", energy_price_aud_mwh=104.6, raise_reg_price=29.8, lower_reg_price=13.4, raise_6sec_price=10.2, optimal_service="ENERGY_FCAS", arbitrage_spread_aud=55.8),
+    BSOPriceCorrelationRecord(month="Jul-2024", region="NSW1", energy_price_aud_mwh=118.2, raise_reg_price=36.4, lower_reg_price=16.2, raise_6sec_price=12.8, optimal_service="FULL_STACK", arbitrage_spread_aud=72.6),
+    BSOPriceCorrelationRecord(month="Aug-2024", region="NSW1", energy_price_aud_mwh=125.4, raise_reg_price=41.2, lower_reg_price=18.4, raise_6sec_price=14.6, optimal_service="FULL_STACK", arbitrage_spread_aud=80.2),
+    BSOPriceCorrelationRecord(month="Sep-2024", region="NSW1", energy_price_aud_mwh=108.8, raise_reg_price=32.6, lower_reg_price=14.8, raise_6sec_price=11.4, optimal_service="ENERGY_FCAS", arbitrage_spread_aud=58.4),
+    BSOPriceCorrelationRecord(month="Oct-2024", region="NSW1", energy_price_aud_mwh=96.4, raise_reg_price=26.8, lower_reg_price=12.6, raise_6sec_price=9.2, optimal_service="ENERGY_FCAS", arbitrage_spread_aud=46.2),
+    BSOPriceCorrelationRecord(month="Nov-2024", region="NSW1", energy_price_aud_mwh=89.6, raise_reg_price=23.4, lower_reg_price=11.2, raise_6sec_price=8.4, optimal_service="ENERGY_FCAS", arbitrage_spread_aud=38.8),
+    BSOPriceCorrelationRecord(month="Dec-2024", region="NSW1", energy_price_aud_mwh=102.4, raise_reg_price=30.6, lower_reg_price=13.8, raise_6sec_price=10.8, optimal_service="FULL_STACK", arbitrage_spread_aud=52.6),
+]
+
+_BSO_OPTIMISATION_RESULTS: list[BSOOptimisationResultRecord] = [
+    BSOOptimisationResultRecord(scenario="ENERGY_ONLY", capacity_mw=200.0, duration_hr=2.0, annual_revenue_m_aud=28.4, irr_pct=7.2, payback_years=14.2, capex_m_aud=360.0, lcoe_aud_mwh=82.4),
+    BSOOptimisationResultRecord(scenario="FCAS_ONLY", capacity_mw=200.0, duration_hr=2.0, annual_revenue_m_aud=34.8, irr_pct=9.4, payback_years=11.6, capex_m_aud=360.0, lcoe_aud_mwh=68.2),
+    BSOOptimisationResultRecord(scenario="ENERGY_FCAS", capacity_mw=200.0, duration_hr=2.0, annual_revenue_m_aud=52.6, irr_pct=14.8, payback_years=7.8, capex_m_aud=360.0, lcoe_aud_mwh=45.6),
+    BSOOptimisationResultRecord(scenario="FULL_STACK", capacity_mw=200.0, duration_hr=2.0, annual_revenue_m_aud=61.4, irr_pct=17.6, payback_years=6.4, capex_m_aud=360.0, lcoe_aud_mwh=38.8),
+    BSOOptimisationResultRecord(scenario="AI_OPTIMISED", capacity_mw=200.0, duration_hr=2.0, annual_revenue_m_aud=72.8, irr_pct=21.4, payback_years=5.2, capex_m_aud=360.0, lcoe_aud_mwh=32.4),
+]
+
+_BSO_DEGRADATION: list[BSODegradationRecord] = [
+    # Hornsdale Power Reserve (SA)
+    BSODegradationRecord(bess_id="HORNSDALE1", year=1, capacity_retention_pct=99.2, calendar_degradation_pct=0.4, cycle_degradation_pct=0.4, annual_cycles=365, revenue_impact_m_aud=0.0, replacement_schedule="2034"),
+    BSODegradationRecord(bess_id="HORNSDALE1", year=2, capacity_retention_pct=97.8, calendar_degradation_pct=0.7, cycle_degradation_pct=0.7, annual_cycles=380, revenue_impact_m_aud=0.6, replacement_schedule="2034"),
+    BSODegradationRecord(bess_id="HORNSDALE1", year=3, capacity_retention_pct=96.1, calendar_degradation_pct=0.9, cycle_degradation_pct=0.8, annual_cycles=390, revenue_impact_m_aud=1.6, replacement_schedule="2034"),
+    BSODegradationRecord(bess_id="HORNSDALE1", year=4, capacity_retention_pct=94.4, calendar_degradation_pct=1.0, cycle_degradation_pct=0.9, annual_cycles=395, revenue_impact_m_aud=2.6, replacement_schedule="2034"),
+    # Victorian Big Battery
+    BSODegradationRecord(bess_id="VIC_BIG", year=1, capacity_retention_pct=99.4, calendar_degradation_pct=0.3, cycle_degradation_pct=0.3, annual_cycles=320, revenue_impact_m_aud=0.0, replacement_schedule="2036"),
+    BSODegradationRecord(bess_id="VIC_BIG", year=2, capacity_retention_pct=98.2, calendar_degradation_pct=0.6, cycle_degradation_pct=0.6, annual_cycles=340, revenue_impact_m_aud=1.1, replacement_schedule="2036"),
+    BSODegradationRecord(bess_id="VIC_BIG", year=3, capacity_retention_pct=96.8, calendar_degradation_pct=0.8, cycle_degradation_pct=0.6, annual_cycles=350, revenue_impact_m_aud=2.5, replacement_schedule="2036"),
+    BSODegradationRecord(bess_id="VIC_BIG", year=4, capacity_retention_pct=95.4, calendar_degradation_pct=0.8, cycle_degradation_pct=0.6, annual_cycles=355, revenue_impact_m_aud=3.9, replacement_schedule="2036"),
+]
+
+
+@app.get("/api/storage-optimisation/dashboard", dependencies=[Depends(verify_api_key)])
+def get_storage_optimisation_dashboard() -> StorageOptimisationDashboard:
+    return StorageOptimisationDashboard(
+        timestamp=datetime.utcnow().isoformat(),
+        service_allocations=[r.dict() for r in _BSO_SERVICE_ALLOCATIONS],
+        price_correlations=[r.dict() for r in _BSO_PRICE_CORRELATIONS],
+        optimisation_results=[r.dict() for r in _BSO_OPTIMISATION_RESULTS],
+        degradation=[r.dict() for r in _BSO_DEGRADATION],
+    )
+
+
+# ===========================================================================
+# Sprint 61b — DNSP Performance & Investment Analytics
+# ===========================================================================
+
+class DPADnspRecord(BaseModel):
+    dnsp_id: str
+    dnsp_name: str
+    state: str
+    regulated_asset_base_bn_aud: float
+    customers_k: int
+    network_length_km: float
+    substations: int
+    annual_capex_m_aud: float
+    annual_opex_m_aud: float
+    wacc_pct: float
+    determination_period: str
+
+class DPAReliabilityRecord(BaseModel):
+    dnsp: str
+    year: int
+    saidi_minutes: float
+    saifi_interruptions: float
+    caidi_minutes: float
+    momentary_interruptions: float
+    planned_outage_saidi: float
+    unplanned_outage_saidi: float
+    worst_served_customers_pct: float
+
+class DPADerHostingRecord(BaseModel):
+    dnsp: str
+    feeder_type: str  # URBAN/SUBURBAN/RURAL/REMOTE
+    hosting_capacity_mw: float
+    connected_der_mw: float
+    utilisation_pct: float
+    constraint_type: str  # VOLTAGE/THERMAL/PROTECTION/UNCONSTRAINED
+    upgrade_cost_m_aud: float
+
+class DPAInvestmentRecord(BaseModel):
+    dnsp: str
+    project_category: str  # RELIABILITY/GROWTH/SAFETY/DER_INTEGRATION/BUSHFIRE_MITIGATION/CYBER_SECURITY
+    investment_m_aud: float
+    year: int
+    rab_addition_m_aud: float
+    customers_benefited_k: int
+
+class DnspAnalyticsDashboard(BaseModel):
+    timestamp: str
+    dnsps: List[dict]
+    reliability: List[dict]
+    der_hosting: List[dict]
+    investments: List[dict]
+
+
+# ── Mock data ───────────────────────────────────────────────────────────────
+
+_DPA_DNSPS: List[DPADnspRecord] = [
+    DPADnspRecord(dnsp_id="AUSGRID", dnsp_name="Ausgrid", state="NSW",
+                  regulated_asset_base_bn_aud=15.8, customers_k=1740,
+                  network_length_km=51000, substations=820,
+                  annual_capex_m_aud=1240, annual_opex_m_aud=680,
+                  wacc_pct=5.9, determination_period="2024-2029"),
+    DPADnspRecord(dnsp_id="ENDEAVOUR", dnsp_name="Endeavour Energy", state="NSW",
+                  regulated_asset_base_bn_aud=7.2, customers_k=1100,
+                  network_length_km=34500, substations=490,
+                  annual_capex_m_aud=610, annual_opex_m_aud=340,
+                  wacc_pct=5.9, determination_period="2024-2029"),
+    DPADnspRecord(dnsp_id="ESSENTIAL", dnsp_name="Essential Energy", state="NSW",
+                  regulated_asset_base_bn_aud=5.9, customers_k=910,
+                  network_length_km=185000, substations=1250,
+                  annual_capex_m_aud=490, annual_opex_m_aud=420,
+                  wacc_pct=5.9, determination_period="2024-2029"),
+    DPADnspRecord(dnsp_id="EVOENERGY", dnsp_name="Evoenergy", state="ACT",
+                  regulated_asset_base_bn_aud=1.3, customers_k=190,
+                  network_length_km=6200, substations=85,
+                  annual_capex_m_aud=120, annual_opex_m_aud=65,
+                  wacc_pct=5.9, determination_period="2024-2029"),
+    DPADnspRecord(dnsp_id="SAPN", dnsp_name="SA Power Networks", state="SA",
+                  regulated_asset_base_bn_aud=6.4, customers_k=890,
+                  network_length_km=88000, substations=710,
+                  annual_capex_m_aud=520, annual_opex_m_aud=380,
+                  wacc_pct=6.1, determination_period="2025-2030"),
+    DPADnspRecord(dnsp_id="CITIPOWER", dnsp_name="CitiPower", state="VIC",
+                  regulated_asset_base_bn_aud=2.1, customers_k=340,
+                  network_length_km=5400, substations=160,
+                  annual_capex_m_aud=210, annual_opex_m_aud=115,
+                  wacc_pct=5.7, determination_period="2021-2026"),
+    DPADnspRecord(dnsp_id="POWERCOR", dnsp_name="Powercor", state="VIC",
+                  regulated_asset_base_bn_aud=5.3, customers_k=810,
+                  network_length_km=82000, substations=580,
+                  annual_capex_m_aud=470, annual_opex_m_aud=290,
+                  wacc_pct=5.7, determination_period="2021-2026"),
+    DPADnspRecord(dnsp_id="UNITEDENERGY", dnsp_name="United Energy", state="VIC",
+                  regulated_asset_base_bn_aud=2.8, customers_k=720,
+                  network_length_km=13000, substations=210,
+                  annual_capex_m_aud=240, annual_opex_m_aud=150,
+                  wacc_pct=5.7, determination_period="2021-2026"),
+    DPADnspRecord(dnsp_id="JEMENA", dnsp_name="Jemena Electricity Networks", state="VIC",
+                  regulated_asset_base_bn_aud=2.0, customers_k=390,
+                  network_length_km=5100, substations=145,
+                  annual_capex_m_aud=175, annual_opex_m_aud=105,
+                  wacc_pct=5.7, determination_period="2021-2026"),
+    DPADnspRecord(dnsp_id="TASNETWORKS", dnsp_name="TasNetworks Distribution", state="TAS",
+                  regulated_asset_base_bn_aud=2.4, customers_k=290,
+                  network_length_km=22000, substations=320,
+                  annual_capex_m_aud=195, annual_opex_m_aud=130,
+                  wacc_pct=6.0, determination_period="2024-2029"),
+]
+
+_DPA_RELIABILITY: List[DPAReliabilityRecord] = [
+    # 2022
+    DPAReliabilityRecord(dnsp="Ausgrid", year=2022, saidi_minutes=68.2, saifi_interruptions=0.91, caidi_minutes=74.9, momentary_interruptions=1.4, planned_outage_saidi=18.3, unplanned_outage_saidi=49.9, worst_served_customers_pct=3.2),
+    DPAReliabilityRecord(dnsp="Endeavour Energy", year=2022, saidi_minutes=105.4, saifi_interruptions=1.28, caidi_minutes=82.3, momentary_interruptions=1.9, planned_outage_saidi=22.1, unplanned_outage_saidi=83.3, worst_served_customers_pct=5.8),
+    DPAReliabilityRecord(dnsp="Essential Energy", year=2022, saidi_minutes=238.6, saifi_interruptions=2.41, caidi_minutes=99.0, momentary_interruptions=3.1, planned_outage_saidi=54.2, unplanned_outage_saidi=184.4, worst_served_customers_pct=14.3),
+    DPAReliabilityRecord(dnsp="Evoenergy", year=2022, saidi_minutes=52.1, saifi_interruptions=0.74, caidi_minutes=70.4, momentary_interruptions=1.1, planned_outage_saidi=12.8, unplanned_outage_saidi=39.3, worst_served_customers_pct=2.1),
+    DPAReliabilityRecord(dnsp="SA Power Networks", year=2022, saidi_minutes=88.7, saifi_interruptions=1.15, caidi_minutes=77.1, momentary_interruptions=1.6, planned_outage_saidi=20.4, unplanned_outage_saidi=68.3, worst_served_customers_pct=4.9),
+    DPAReliabilityRecord(dnsp="CitiPower", year=2022, saidi_minutes=32.4, saifi_interruptions=0.52, caidi_minutes=62.3, momentary_interruptions=0.8, planned_outage_saidi=9.2, unplanned_outage_saidi=23.2, worst_served_customers_pct=1.5),
+    DPAReliabilityRecord(dnsp="Powercor", year=2022, saidi_minutes=142.8, saifi_interruptions=1.68, caidi_minutes=85.0, momentary_interruptions=2.3, planned_outage_saidi=31.6, unplanned_outage_saidi=111.2, worst_served_customers_pct=8.4),
+    DPAReliabilityRecord(dnsp="United Energy", year=2022, saidi_minutes=61.3, saifi_interruptions=0.82, caidi_minutes=74.8, momentary_interruptions=1.2, planned_outage_saidi=14.1, unplanned_outage_saidi=47.2, worst_served_customers_pct=3.0),
+    DPAReliabilityRecord(dnsp="Jemena Electricity Networks", year=2022, saidi_minutes=55.6, saifi_interruptions=0.79, caidi_minutes=70.4, momentary_interruptions=1.1, planned_outage_saidi=13.2, unplanned_outage_saidi=42.4, worst_served_customers_pct=2.6),
+    DPAReliabilityRecord(dnsp="TasNetworks Distribution", year=2022, saidi_minutes=116.2, saifi_interruptions=1.42, caidi_minutes=81.8, momentary_interruptions=2.0, planned_outage_saidi=27.5, unplanned_outage_saidi=88.7, worst_served_customers_pct=6.9),
+    # 2023
+    DPAReliabilityRecord(dnsp="Ausgrid", year=2023, saidi_minutes=63.5, saifi_interruptions=0.86, caidi_minutes=73.8, momentary_interruptions=1.3, planned_outage_saidi=16.9, unplanned_outage_saidi=46.6, worst_served_customers_pct=2.9),
+    DPAReliabilityRecord(dnsp="Endeavour Energy", year=2023, saidi_minutes=98.7, saifi_interruptions=1.21, caidi_minutes=81.6, momentary_interruptions=1.7, planned_outage_saidi=20.4, unplanned_outage_saidi=78.3, worst_served_customers_pct=5.3),
+    DPAReliabilityRecord(dnsp="Essential Energy", year=2023, saidi_minutes=224.3, saifi_interruptions=2.28, caidi_minutes=98.4, momentary_interruptions=2.9, planned_outage_saidi=51.1, unplanned_outage_saidi=173.2, worst_served_customers_pct=13.6),
+    DPAReliabilityRecord(dnsp="Evoenergy", year=2023, saidi_minutes=48.9, saifi_interruptions=0.70, caidi_minutes=69.9, momentary_interruptions=1.0, planned_outage_saidi=11.5, unplanned_outage_saidi=37.4, worst_served_customers_pct=1.9),
+    DPAReliabilityRecord(dnsp="SA Power Networks", year=2023, saidi_minutes=84.1, saifi_interruptions=1.10, caidi_minutes=76.5, momentary_interruptions=1.5, planned_outage_saidi=18.9, unplanned_outage_saidi=65.2, worst_served_customers_pct=4.5),
+    DPAReliabilityRecord(dnsp="CitiPower", year=2023, saidi_minutes=30.1, saifi_interruptions=0.49, caidi_minutes=61.4, momentary_interruptions=0.7, planned_outage_saidi=8.6, unplanned_outage_saidi=21.5, worst_served_customers_pct=1.3),
+    DPAReliabilityRecord(dnsp="Powercor", year=2023, saidi_minutes=135.2, saifi_interruptions=1.59, caidi_minutes=85.1, momentary_interruptions=2.2, planned_outage_saidi=29.4, unplanned_outage_saidi=105.8, worst_served_customers_pct=7.9),
+    DPAReliabilityRecord(dnsp="United Energy", year=2023, saidi_minutes=57.8, saifi_interruptions=0.78, caidi_minutes=74.1, momentary_interruptions=1.1, planned_outage_saidi=13.0, unplanned_outage_saidi=44.8, worst_served_customers_pct=2.8),
+    DPAReliabilityRecord(dnsp="Jemena Electricity Networks", year=2023, saidi_minutes=52.3, saifi_interruptions=0.75, caidi_minutes=69.7, momentary_interruptions=1.0, planned_outage_saidi=12.0, unplanned_outage_saidi=40.3, worst_served_customers_pct=2.4),
+    DPAReliabilityRecord(dnsp="TasNetworks Distribution", year=2023, saidi_minutes=109.8, saifi_interruptions=1.35, caidi_minutes=81.3, momentary_interruptions=1.9, planned_outage_saidi=25.6, unplanned_outage_saidi=84.2, worst_served_customers_pct=6.4),
+    # 2024
+    DPAReliabilityRecord(dnsp="Ausgrid", year=2024, saidi_minutes=59.8, saifi_interruptions=0.82, caidi_minutes=72.9, momentary_interruptions=1.2, planned_outage_saidi=15.4, unplanned_outage_saidi=44.4, worst_served_customers_pct=2.7),
+    DPAReliabilityRecord(dnsp="Endeavour Energy", year=2024, saidi_minutes=92.4, saifi_interruptions=1.14, caidi_minutes=81.1, momentary_interruptions=1.6, planned_outage_saidi=18.8, unplanned_outage_saidi=73.6, worst_served_customers_pct=4.9),
+    DPAReliabilityRecord(dnsp="Essential Energy", year=2024, saidi_minutes=211.7, saifi_interruptions=2.14, caidi_minutes=98.9, momentary_interruptions=2.8, planned_outage_saidi=47.3, unplanned_outage_saidi=164.4, worst_served_customers_pct=12.8),
+    DPAReliabilityRecord(dnsp="Evoenergy", year=2024, saidi_minutes=46.2, saifi_interruptions=0.67, caidi_minutes=68.9, momentary_interruptions=1.0, planned_outage_saidi=10.4, unplanned_outage_saidi=35.8, worst_served_customers_pct=1.8),
+    DPAReliabilityRecord(dnsp="SA Power Networks", year=2024, saidi_minutes=80.5, saifi_interruptions=1.06, caidi_minutes=75.9, momentary_interruptions=1.4, planned_outage_saidi=17.6, unplanned_outage_saidi=62.9, worst_served_customers_pct=4.2),
+    DPAReliabilityRecord(dnsp="CitiPower", year=2024, saidi_minutes=28.3, saifi_interruptions=0.47, caidi_minutes=60.2, momentary_interruptions=0.7, planned_outage_saidi=7.9, unplanned_outage_saidi=20.4, worst_served_customers_pct=1.2),
+    DPAReliabilityRecord(dnsp="Powercor", year=2024, saidi_minutes=128.6, saifi_interruptions=1.52, caidi_minutes=84.6, momentary_interruptions=2.1, planned_outage_saidi=27.1, unplanned_outage_saidi=101.5, worst_served_customers_pct=7.5),
+    DPAReliabilityRecord(dnsp="United Energy", year=2024, saidi_minutes=54.2, saifi_interruptions=0.74, caidi_minutes=73.2, momentary_interruptions=1.1, planned_outage_saidi=11.8, unplanned_outage_saidi=42.4, worst_served_customers_pct=2.5),
+    DPAReliabilityRecord(dnsp="Jemena Electricity Networks", year=2024, saidi_minutes=49.1, saifi_interruptions=0.71, caidi_minutes=69.2, momentary_interruptions=0.9, planned_outage_saidi=11.0, unplanned_outage_saidi=38.1, worst_served_customers_pct=2.2),
+    DPAReliabilityRecord(dnsp="TasNetworks Distribution", year=2024, saidi_minutes=103.4, saifi_interruptions=1.28, caidi_minutes=80.8, momentary_interruptions=1.8, planned_outage_saidi=23.4, unplanned_outage_saidi=80.0, worst_served_customers_pct=6.0),
+]
+
+_DPA_DER_HOSTING: List[DPADerHostingRecord] = [
+    DPADerHostingRecord(dnsp="Ausgrid", feeder_type="URBAN", hosting_capacity_mw=4200, connected_der_mw=3580, utilisation_pct=85.2, constraint_type="VOLTAGE", upgrade_cost_m_aud=245),
+    DPADerHostingRecord(dnsp="Ausgrid", feeder_type="SUBURBAN", hosting_capacity_mw=2800, connected_der_mw=1940, utilisation_pct=69.3, constraint_type="THERMAL", upgrade_cost_m_aud=180),
+    DPADerHostingRecord(dnsp="Endeavour Energy", feeder_type="SUBURBAN", hosting_capacity_mw=1950, connected_der_mw=1480, utilisation_pct=75.9, constraint_type="VOLTAGE", upgrade_cost_m_aud=130),
+    DPADerHostingRecord(dnsp="Essential Energy", feeder_type="RURAL", hosting_capacity_mw=980, connected_der_mw=620, utilisation_pct=63.3, constraint_type="PROTECTION", upgrade_cost_m_aud=290),
+    DPADerHostingRecord(dnsp="Evoenergy", feeder_type="URBAN", hosting_capacity_mw=520, connected_der_mw=390, utilisation_pct=75.0, constraint_type="VOLTAGE", upgrade_cost_m_aud=42),
+    DPADerHostingRecord(dnsp="SA Power Networks", feeder_type="SUBURBAN", hosting_capacity_mw=1620, connected_der_mw=1340, utilisation_pct=82.7, constraint_type="VOLTAGE", upgrade_cost_m_aud=175),
+    DPADerHostingRecord(dnsp="SA Power Networks", feeder_type="RURAL", hosting_capacity_mw=740, connected_der_mw=430, utilisation_pct=58.1, constraint_type="PROTECTION", upgrade_cost_m_aud=220),
+    DPADerHostingRecord(dnsp="CitiPower", feeder_type="URBAN", hosting_capacity_mw=890, connected_der_mw=670, utilisation_pct=75.3, constraint_type="UNCONSTRAINED", upgrade_cost_m_aud=28),
+    DPADerHostingRecord(dnsp="Powercor", feeder_type="RURAL", hosting_capacity_mw=1180, connected_der_mw=760, utilisation_pct=64.4, constraint_type="PROTECTION", upgrade_cost_m_aud=310),
+    DPADerHostingRecord(dnsp="Powercor", feeder_type="SUBURBAN", hosting_capacity_mw=860, connected_der_mw=590, utilisation_pct=68.6, constraint_type="THERMAL", upgrade_cost_m_aud=95),
+    DPADerHostingRecord(dnsp="United Energy", feeder_type="SUBURBAN", hosting_capacity_mw=1380, connected_der_mw=1120, utilisation_pct=81.2, constraint_type="VOLTAGE", upgrade_cost_m_aud=88),
+    DPADerHostingRecord(dnsp="Jemena Electricity Networks", feeder_type="URBAN", hosting_capacity_mw=780, connected_der_mw=570, utilisation_pct=73.1, constraint_type="THERMAL", upgrade_cost_m_aud=65),
+    DPADerHostingRecord(dnsp="TasNetworks Distribution", feeder_type="RURAL", hosting_capacity_mw=650, connected_der_mw=380, utilisation_pct=58.5, constraint_type="PROTECTION", upgrade_cost_m_aud=190),
+    DPADerHostingRecord(dnsp="TasNetworks Distribution", feeder_type="REMOTE", hosting_capacity_mw=210, connected_der_mw=95, utilisation_pct=45.2, constraint_type="UNCONSTRAINED", upgrade_cost_m_aud=120),
+    DPADerHostingRecord(dnsp="Ausgrid", feeder_type="RURAL", hosting_capacity_mw=680, connected_der_mw=310, utilisation_pct=45.6, constraint_type="PROTECTION", upgrade_cost_m_aud=160),
+    DPADerHostingRecord(dnsp="Essential Energy", feeder_type="REMOTE", hosting_capacity_mw=290, connected_der_mw=110, utilisation_pct=37.9, constraint_type="UNCONSTRAINED", upgrade_cost_m_aud=85),
+    DPADerHostingRecord(dnsp="Powercor", feeder_type="REMOTE", hosting_capacity_mw=340, connected_der_mw=140, utilisation_pct=41.2, constraint_type="UNCONSTRAINED", upgrade_cost_m_aud=145),
+    DPADerHostingRecord(dnsp="SA Power Networks", feeder_type="URBAN", hosting_capacity_mw=1050, connected_der_mw=880, utilisation_pct=83.8, constraint_type="VOLTAGE", upgrade_cost_m_aud=110),
+    DPADerHostingRecord(dnsp="Endeavour Energy", feeder_type="RURAL", hosting_capacity_mw=720, connected_der_mw=410, utilisation_pct=56.9, constraint_type="PROTECTION", upgrade_cost_m_aud=195),
+    DPADerHostingRecord(dnsp="United Energy", feeder_type="URBAN", hosting_capacity_mw=640, connected_der_mw=510, utilisation_pct=79.7, constraint_type="THERMAL", upgrade_cost_m_aud=55),
+]
+
+_DPA_INVESTMENTS: List[DPAInvestmentRecord] = [
+    DPAInvestmentRecord(dnsp="Ausgrid", project_category="RELIABILITY", investment_m_aud=380, year=2024, rab_addition_m_aud=290, customers_benefited_k=420),
+    DPAInvestmentRecord(dnsp="Ausgrid", project_category="DER_INTEGRATION", investment_m_aud=245, year=2024, rab_addition_m_aud=200, customers_benefited_k=680),
+    DPAInvestmentRecord(dnsp="Ausgrid", project_category="GROWTH", investment_m_aud=310, year=2024, rab_addition_m_aud=280, customers_benefited_k=290),
+    DPAInvestmentRecord(dnsp="Endeavour Energy", project_category="RELIABILITY", investment_m_aud=195, year=2024, rab_addition_m_aud=155, customers_benefited_k=280),
+    DPAInvestmentRecord(dnsp="Endeavour Energy", project_category="BUSHFIRE_MITIGATION", investment_m_aud=120, year=2024, rab_addition_m_aud=105, customers_benefited_k=180),
+    DPAInvestmentRecord(dnsp="Essential Energy", project_category="RELIABILITY", investment_m_aud=145, year=2024, rab_addition_m_aud=115, customers_benefited_k=210),
+    DPAInvestmentRecord(dnsp="Essential Energy", project_category="SAFETY", investment_m_aud=88, year=2024, rab_addition_m_aud=72, customers_benefited_k=125),
+    DPAInvestmentRecord(dnsp="Evoenergy", project_category="DER_INTEGRATION", investment_m_aud=48, year=2024, rab_addition_m_aud=38, customers_benefited_k=85),
+    DPAInvestmentRecord(dnsp="SA Power Networks", project_category="DER_INTEGRATION", investment_m_aud=168, year=2024, rab_addition_m_aud=140, customers_benefited_k=350),
+    DPAInvestmentRecord(dnsp="SA Power Networks", project_category="RELIABILITY", investment_m_aud=142, year=2024, rab_addition_m_aud=118, customers_benefited_k=240),
+    DPAInvestmentRecord(dnsp="CitiPower", project_category="GROWTH", investment_m_aud=95, year=2024, rab_addition_m_aud=82, customers_benefited_k=120),
+    DPAInvestmentRecord(dnsp="Powercor", project_category="BUSHFIRE_MITIGATION", investment_m_aud=175, year=2024, rab_addition_m_aud=148, customers_benefited_k=190),
+    DPAInvestmentRecord(dnsp="Powercor", project_category="RELIABILITY", investment_m_aud=140, year=2024, rab_addition_m_aud=110, customers_benefited_k=220),
+    DPAInvestmentRecord(dnsp="United Energy", project_category="DER_INTEGRATION", investment_m_aud=112, year=2024, rab_addition_m_aud=92, customers_benefited_k=280),
+    DPAInvestmentRecord(dnsp="Jemena Electricity Networks", project_category="CYBER_SECURITY", investment_m_aud=42, year=2024, rab_addition_m_aud=32, customers_benefited_k=390),
+    DPAInvestmentRecord(dnsp="Jemena Electricity Networks", project_category="GROWTH", investment_m_aud=78, year=2024, rab_addition_m_aud=65, customers_benefited_k=95),
+    DPAInvestmentRecord(dnsp="TasNetworks Distribution", project_category="RELIABILITY", investment_m_aud=88, year=2024, rab_addition_m_aud=70, customers_benefited_k=115),
+    DPAInvestmentRecord(dnsp="TasNetworks Distribution", project_category="SAFETY", investment_m_aud=52, year=2024, rab_addition_m_aud=40, customers_benefited_k=85),
+    DPAInvestmentRecord(dnsp="Ausgrid", project_category="CYBER_SECURITY", investment_m_aud=65, year=2024, rab_addition_m_aud=48, customers_benefited_k=1740),
+    DPAInvestmentRecord(dnsp="SA Power Networks", project_category="BUSHFIRE_MITIGATION", investment_m_aud=95, year=2024, rab_addition_m_aud=80, customers_benefited_k=310),
+    DPAInvestmentRecord(dnsp="Endeavour Energy", project_category="DER_INTEGRATION", investment_m_aud=98, year=2024, rab_addition_m_aud=82, customers_benefited_k=320),
+    DPAInvestmentRecord(dnsp="Essential Energy", project_category="BUSHFIRE_MITIGATION", investment_m_aud=115, year=2024, rab_addition_m_aud=95, customers_benefited_k=175),
+    DPAInvestmentRecord(dnsp="CitiPower", project_category="DER_INTEGRATION", investment_m_aud=68, year=2024, rab_addition_m_aud=55, customers_benefited_k=200),
+    DPAInvestmentRecord(dnsp="Powercor", project_category="GROWTH", investment_m_aud=98, year=2024, rab_addition_m_aud=82, customers_benefited_k=140),
+    DPAInvestmentRecord(dnsp="United Energy", project_category="SAFETY", investment_m_aud=45, year=2024, rab_addition_m_aud=35, customers_benefited_k=150),
+    DPAInvestmentRecord(dnsp="Jemena Electricity Networks", project_category="RELIABILITY", investment_m_aud=55, year=2024, rab_addition_m_aud=42, customers_benefited_k=110),
+    DPAInvestmentRecord(dnsp="TasNetworks Distribution", project_category="DER_INTEGRATION", investment_m_aud=38, year=2024, rab_addition_m_aud=30, customers_benefited_k=90),
+    DPAInvestmentRecord(dnsp="Ausgrid", project_category="SAFETY", investment_m_aud=98, year=2024, rab_addition_m_aud=75, customers_benefited_k=510),
+    DPAInvestmentRecord(dnsp="Evoenergy", project_category="SAFETY", investment_m_aud=28, year=2024, rab_addition_m_aud=22, customers_benefited_k=65),
+    DPAInvestmentRecord(dnsp="SA Power Networks", project_category="CYBER_SECURITY", investment_m_aud=38, year=2024, rab_addition_m_aud=28, customers_benefited_k=890),
+]
+
+
+# ── Endpoint ────────────────────────────────────────────────────────────────
+
+@app.get(
+    "/api/dnsp-analytics/dashboard",
+    response_model=DnspAnalyticsDashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+def get_dnsp_analytics_dashboard():
+    from datetime import datetime, timezone
+    return DnspAnalyticsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        dnsps=[r.dict() for r in _DPA_DNSPS],
+        reliability=[r.dict() for r in _DPA_RELIABILITY],
+        der_hosting=[r.dict() for r in _DPA_DER_HOSTING],
+        investments=[r.dict() for r in _DPA_INVESTMENTS],
+    )

@@ -100,6 +100,18 @@ def mock_spark() -> MagicMock:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
+def auth_headers() -> dict:
+    """Return headers dict with a dummy API key.
+
+    When ENERGY_COPILOT_API_KEY is not set (the default in tests) the
+    verify_api_key dependency is a no-op, so any key value works.  Tests
+    that use this fixture will still pass in both auth-enabled and
+    auth-disabled configurations.
+    """
+    return {"X-API-Key": "test-key"}
+
+
+@pytest.fixture()
 def mock_anthropic_client() -> MagicMock:
     """Return a MagicMock that quacks like an ``anthropic.Anthropic`` client.
 

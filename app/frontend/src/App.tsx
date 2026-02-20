@@ -66,6 +66,7 @@ import {
   GitMerge,
   Globe,
   Globe2,
+  ShieldCheck,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -133,6 +134,8 @@ import OffshoreWind from './pages/OffshoreWind'
 import CauserPays from './pages/CauserPays'
 import SpotCapAnalytics from './pages/SpotCapAnalytics'
 import TnspAnalytics from './pages/TnspAnalytics'
+import DnspPerformanceAnalytics from './pages/DnspPerformanceAnalytics'
+import ReliabilityStandardAnalytics from './pages/ReliabilityStandardAnalytics'
 import InertiaAnalytics from './pages/InertiaAnalytics'
 import HydrogenAnalytics from './pages/HydrogenAnalytics'
 import TransmissionProjects from './pages/TransmissionProjects'
@@ -218,6 +221,7 @@ import ElectricityExportInfra from './pages/ElectricityExportInfra'
 import LdesEconomicsAnalytics from './pages/LdesEconomicsAnalytics'
 import GasTransitionAnalytics from './pages/GasTransitionAnalytics'
 import ProsumerAnalytics from './pages/ProsumerAnalytics'
+import StorageOptimisationAnalytics from './pages/StorageOptimisationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -370,7 +374,10 @@ const NAV_ITEMS = [
   { to: '/ldes-economics',             label: 'LDES Economics',               Icon: Database       },
   { to: '/prosumer-analytics',         label: 'Prosumer & BTM Analytics',     Icon: Sun            },
   { to: '/gas-transition-analytics',  label: 'Gas Transition Analytics',     Icon: Fuel           },
-  { to: '/tnsp-analytics',           label: 'TNSP Revenue & Investment',    Icon: Building2      },
+  { to: '/tnsp-analytics',                  label: 'TNSP Revenue & Investment',    Icon: Building2      },
+  { to: '/dnsp-analytics',                 label: 'DNSP Performance & Investment', Icon: Network        },
+  { to: '/reliability-standard-analytics', label: 'NEM Reliability Standard',     Icon: ShieldCheck    },
+  { to: '/storage-optimisation-analytics', label: 'Storage Revenue Optimisation', Icon: Battery },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -598,7 +605,10 @@ export default function App() {
               <Route path="/ldes-economics"              element={<LdesEconomicsAnalytics />}       />
               <Route path="/gas-transition-analytics"    element={<GasTransitionAnalytics />}       />
               <Route path="/prosumer-analytics"          element={<ProsumerAnalytics />}            />
-              <Route path="/tnsp-analytics"             element={<TnspAnalytics />}               />
+              <Route path="/tnsp-analytics"                  element={<TnspAnalytics />}                        />
+              <Route path="/dnsp-analytics"                element={<DnspPerformanceAnalytics />}             />
+              <Route path="/reliability-standard-analytics" element={<ReliabilityStandardAnalytics />} />
+              <Route path="/storage-optimisation-analytics" element={<StorageOptimisationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
