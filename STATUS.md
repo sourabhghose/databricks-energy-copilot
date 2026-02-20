@@ -1346,3 +1346,68 @@ Added Australian RET scheme tracking page for LGCs, STCs, GreenPower, and corpor
 **API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`RCTLgcPriceRecord`, `RCTSurplusDeficitRecord`, `RCTCreationRecord`, `RCTComplianceRecord`, `RCTGreenPowerRecord`, `RecCertificateDashboard`) and `getRecCertificateDashboard()` exported function.
 **Routing (`app/frontend/src/App.tsx`):** Import, nav entry (`Award` icon), and route at `/rec-certificate-tracking`.
 **Tests (`tests/test_backend.py`):** `TestRecCertificateTracking.test_rec_certificate_dashboard` validates top-level structure, 24 LGC price records with forward/spot proximity, 8 surplus/deficit records with correct 33,000 GWh target, 20 creation records with tech/region enum checks, 10 compliance records with status enum validation and zero-shortfall-charge constraint for COMPLIANT retailers, 6 GreenPower records covering all states.
+
+## Sprint 55a — NEM Spot Market Depth & Order Flow Analytics — 2026-02-20
+
+Added NEM Spot Market Depth & Order Flow Analytics page covering real-time bid stacks, dispatch interval market depth, and participant order flow patterns.
+
+**Backend (`app/backend/main.py`):**
+- Pydantic models: `SMDBidStackRecord`, `SMDOrderFlowRecord`, `SMDMarketDepthSnapshot`, `SMDParticipantFlowRecord`, `SpotMarketDepthDashboard` (all prefixed `SMD` to avoid collisions; `DispatchInterval` already existed)
+- Endpoint: `GET /api/spot-depth/dashboard` — returns 20 bid stack records (10 price bands × 2 regions: NSW1, VIC1; technologies: Hydro, Wind, Large Solar, Black/Brown Coal, Gas CCGT/OCGT, Demand Response, Diesel), 15 order flow records across all 5 NEM regions with buy/sell volumes and net flow, 5 market depth snapshots (one per NEM region: NSW1/VIC1/QLD1/SA1/TAS1) with bid/offer depth, best bid/ask, spread, and imbalance ratio, 8 participant strategic flow records with market share, rebid frequency, and strategic withholding score (0-10)
+
+**Frontend (`app/frontend/src/pages/SpotMarketDepthAnalytics.tsx`):**
+- 4 KPI cards: total bid depth (all regions combined, MW/GW), average bid-ask spread (AUD/MWh), widest spread region with spread value, highest withholding score participant with score and region
+- Bid stack stepped AreaChart — cumulative MW vs price band using `stepAfter` type, coloured dots per technology with a technology legend; region filter buttons for NSW1/VIC1
+- Order flow ComposedChart — dual-axis buy/sell volume BarChart with net flow Line overlay (purple), ReferenceLine at zero, interval labels showing time and region
+- Market depth snapshots table — 5 NEM regions with bid/ask depth, best bid (green), best ask (red), spread (amber), and imbalance ratio (colour-coded: red >1.1 oversupply pressure, blue <0.9 undersupply, green balanced)
+- Participant strategic analysis table — sorted descending by withholding score, with colour-coded score badges (green 0-4, amber 4-7, red 7-10)
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`SMDBidStackRecord`, `SMDOrderFlowRecord`, `SMDMarketDepthSnapshot`, `SMDParticipantFlowRecord`, `SpotMarketDepthDashboard`) and `getSpotMarketDepthDashboard()` exported function.
+**Routing (`app/frontend/src/App.tsx`):** Import, nav entry (`Layers` icon at `/spot-market-depth`), and `Route` element `<SpotMarketDepthAnalytics />`.
+**Tests (`tests/test_backend.py`):** `TestSpotMarketDepthAnalytics.test_spot_depth_dashboard` validates top-level structure, 20 bid stack records with region/technology/price-band checks, 15 order flow records with positive volumes and typed net flow, 5 depth snapshots covering all NEM regions with spread/imbalance/best-bid-ask constraints, 8 participant flow records with score bounds (0-10) and market share (0-100%).
+
+---
+
+## Sprint 55c — Energy Storage Technology Roadmap (2026-02-20)
+
+**New page:** `app/frontend/src/pages/StorageTechRoadmap.tsx` — route `/storage-tech-roadmap`, nav entry "Storage Tech Roadmap" with `GitBranch` icon.
+
+**Backend (`app/backend/main.py`):** Appended Pydantic models (`STRTechnologyRecord`, `STRCostTrajectoryRecord`, `STRDeploymentMilestoneRecord`, `STRMarketForecastRecord`, `StorageTechRoadmapDashboard`) and `GET /api/storage-roadmap/dashboard` endpoint with:
+- 10 technology records covering Li-Ion NMC/LFP, Solid-State, Na-Ion, Flow Vanadium/Zinc, CAES, Gravity, LAES, Green Hydrogen Storage
+- 50 cost trajectory records (10 techs × 5 years 2024–2028)
+- 15 deployment milestone records across all technologies
+- 30 market forecast records (6 technologies × 5 years 2024–2028)
+
+**Frontend visualisations:**
+- Header + 4 KPI cards: commercial-stage count, cheapest 2030 LCOS target, total AU installed GWh, milestones on-track/achieved count
+- Technology matrix table — 10 technologies with maturity badge, duration, current/target LCOS, cycle life, calendar life, AU installed
+- LCOS cost trajectory LineChart — top 5 technologies 2024–2028 converging toward competitiveness
+- Deployment forecast stacked AreaChart — cumulative GWh by 6 technologies 2024–2028
+- Cost reduction horizontal BarChart — % LCOS reduction 2024→2028 by technology
+- Milestone tracker table — Gantt-style with status badges (ACHIEVED/ON_TRACK/AT_RISK/NOT_STARTED)
+- Technology scatter plot (ScatterChart) — energy density vs cycle life, bubble size = AU installed MWh
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`STRTechnologyRecord`, `STRCostTrajectoryRecord`, `STRDeploymentMilestoneRecord`, `STRMarketForecastRecord`, `StorageTechRoadmapDashboard`) and `getStorageTechRoadmapDashboard()`.
+
+**Tests (`tests/test_backend.py`):** `TestStorageTechRoadmap.test_storage_tech_roadmap_dashboard` validates top-level structure, exactly 10 technology records with maturity enum and 2030 cost improvement constraint, 50 cost trajectory records spanning all 5 years and 10 technologies, 15 milestones with status enum validation, 30 market forecasts with correct baseline (0% cost reduction in 2024) and LFP 2028 deployment threshold.
+
+## Sprint 55b — Renewable Integration Cost Analytics — 2026-02-20
+
+Added Renewable Integration Cost Analytics page covering the system costs of integrating high VRE penetration — firming, network augmentation, FCAS markets, and curtailment.
+
+**Backend (`app/backend/main.py`):**
+- Pydantic enums: `RICCostComponent` (NETWORK_AUGMENTATION/FIRMING_CAPACITY/FCAS_MARKETS/CURTAILMENT_COST/SYSTEM_RESTART/INERTIA_SERVICES), `RICCurtailmentCause` (NETWORK_CONSTRAINT/DEMAND_LOW/OVERSUPPLY/DISPATCH_ORDER), `RICCostTrend` (RISING/STABLE/FALLING), `RICSystemService` (INERTIA/SYSTEM_RESTART/VOLTAGE_CONTROL/REACTIVE_POWER/FAST_FREQUENCY_RESPONSE)
+- Pydantic models: `RICCostComponentRecord`, `RICNetworkAugRecord`, `RICCurtailmentRecord`, `RICSystemServiceRecord`, `RenewableIntegrationCostDashboard`
+- Endpoint: `GET /api/integration-cost/dashboard` — returns 30 cost component records (5 years × 6 components: 2020-2024 with VRE penetration 24.5%→47.3%), 8 network augmentation projects (EnergyConnect, HumeLink, VNI-West, QNI-M, and 4 REZ enabling projects with BCR 1.9x-4.2x), 20 curtailment records (4 technologies × 5 years across SA/VIC/NSW/QLD with growing trend from 730 GWh in 2020 to 2,830 GWh in 2024), 5 system service records with INERTIA trending RISING, SYSTEM_RESTART STABLE, VOLTAGE_CONTROL and REACTIVE_POWER FALLING
+
+**Frontend (`app/frontend/src/pages/RenewableIntegrationCost.tsx`):**
+- 4 KPI cards: Total integration cost 2024 ($4,435 M), highest cost component (NETWORK AUGMENTATION at $1,380 M), total 2024 curtailment (2,830 GWh), network augmentation pipeline ($14,370 M across 8 projects)
+- Stacked AreaChart — 6 cost components (indigo/amber/green/red/purple/cyan) stacked by year 2020-2024 showing VRE cost growth trajectory
+- Network augmentation table — project name, region badge, investment (M AUD), VRE-enabled MW, cost/MW, commissioning year, BCR badge (green ≥3x, blue ≥2x, amber otherwise)
+- Curtailment stacked BarChart — Large Solar/Wind/Rooftop PV GWh by year showing growing curtailment trend
+- System services horizontal bar chart — 5 services with RISING/STABLE/FALLING trend badges, provider count, and VRE correlation description
+- Cost intensity grid — AUD/MWh VRE for each of 6 components in 2024 with component-coloured values
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`RICCostComponentRecord`, `RICNetworkAugRecord`, `RICCurtailmentRecord`, `RICSystemServiceRecord`, `RenewableIntegrationCostDashboard`) and `getRenewableIntegrationCostDashboard()` exported function.
+**Routing (`app/frontend/src/App.tsx`):** Added `GitMerge` to lucide-react import block; import `RenewableIntegrationCost`; nav entry (`GitMerge` icon at `/renewable-integration-cost`); `Route` element `<RenewableIntegrationCost />`.
+**Tests (`tests/test_backend.py`):** `TestRenewableIntegrationCost.test_integration_cost_dashboard` validates top-level structure, 30 cost component records with all 6 components present in each of 5 years, 8 network augmentation projects with viable BCR (>1.0), 20 curtailment records with valid cause enums, 5 system service records covering all services, business logic assertions: 2024 VRE penetration highest, curtailment growing 2020→2024, INERTIA service has RISING trend.

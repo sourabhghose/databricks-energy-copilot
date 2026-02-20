@@ -39668,3 +39668,507 @@ def get_capacity_investment_dashboard() -> CapacityInvestmentDashboard:
         price_signals=_CIS_PRICE_SIGNALS,
         exit_risks=_CIS_EXIT_RISKS,
     )
+
+# ─────────────────────────────────────────────────────────────
+# Sprint 55a — NEM Spot Market Depth & Order Flow Analytics
+# ─────────────────────────────────────────────────────────────
+
+class SMDBidStackRecord(BaseModel):
+    interval: str
+    region: str
+    price_band_aud_mwh: float
+    cumulative_mw: float
+    technology: str
+    participant_count: int
+
+
+class SMDOrderFlowRecord(BaseModel):
+    interval: str
+    region: str
+    buy_volume_mw: float
+    sell_volume_mw: float
+    net_flow_mw: float
+    price_impact_aud_mwh: float
+    participant_id: str
+
+
+class SMDMarketDepthSnapshot(BaseModel):
+    snapshot_time: str
+    region: str
+    bid_depth_mw: float
+    offer_depth_mw: float
+    bid_ask_spread_aud: float
+    best_bid_aud: float
+    best_ask_aud: float
+    imbalance_ratio: float
+
+
+class SMDParticipantFlowRecord(BaseModel):
+    participant: str
+    region: str
+    avg_bid_mw: float
+    avg_offer_mw: float
+    market_share_pct: float
+    rebid_frequency_day: float
+    strategic_withholding_score: float
+
+
+class SpotMarketDepthDashboard(BaseModel):
+    timestamp: str
+    bid_stacks: List[SMDBidStackRecord]
+    order_flows: List[SMDOrderFlowRecord]
+    depth_snapshots: List[SMDMarketDepthSnapshot]
+    participant_flows: List[SMDParticipantFlowRecord]
+
+
+_SMD_BID_STACKS: List[SMDBidStackRecord] = [
+    # NSW1 — 10 price bands
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=-1000.0, cumulative_mw=350.0,  technology="Hydro",      participant_count=3),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=0.0,     cumulative_mw=1200.0, technology="Wind",        participant_count=8),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=40.0,    cumulative_mw=2800.0, technology="Large Solar",  participant_count=12),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=60.0,    cumulative_mw=4500.0, technology="Black Coal",   participant_count=5),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=90.0,    cumulative_mw=6200.0, technology="Black Coal",   participant_count=5),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=150.0,   cumulative_mw=7100.0, technology="Gas CCGT",     participant_count=4),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=300.0,   cumulative_mw=7800.0, technology="Gas OCGT",     participant_count=6),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=1000.0,  cumulative_mw=8200.0, technology="Gas OCGT",     participant_count=3),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=5000.0,  cumulative_mw=8500.0, technology="Demand Response", participant_count=2),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="NSW1", price_band_aud_mwh=15100.0, cumulative_mw=8650.0, technology="Diesel",       participant_count=1),
+    # VIC1 — 10 price bands
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=-1000.0, cumulative_mw=400.0,  technology="Hydro",        participant_count=4),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=0.0,     cumulative_mw=1100.0, technology="Wind",          participant_count=10),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=35.0,    cumulative_mw=2400.0, technology="Large Solar",   participant_count=9),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=55.0,    cumulative_mw=4000.0, technology="Brown Coal",    participant_count=3),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=85.0,    cumulative_mw=5500.0, technology="Brown Coal",    participant_count=3),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=140.0,   cumulative_mw=6400.0, technology="Gas CCGT",      participant_count=3),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=280.0,   cumulative_mw=7100.0, technology="Gas OCGT",      participant_count=5),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=900.0,   cumulative_mw=7500.0, technology="Gas OCGT",      participant_count=2),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=5000.0,  cumulative_mw=7700.0, technology="Demand Response", participant_count=3),
+    SMDBidStackRecord(interval="2024-02-20T13:00:00", region="VIC1", price_band_aud_mwh=15100.0, cumulative_mw=7850.0, technology="Diesel",        participant_count=1),
+]
+
+_SMD_ORDER_FLOWS: List[SMDOrderFlowRecord] = [
+    SMDOrderFlowRecord(interval="2024-02-20T12:00:00", region="NSW1", buy_volume_mw=6200.0, sell_volume_mw=5900.0, net_flow_mw=300.0,   price_impact_aud_mwh=2.5,  participant_id="AGL_NSW"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:05:00", region="NSW1", buy_volume_mw=6350.0, sell_volume_mw=6100.0, net_flow_mw=250.0,   price_impact_aud_mwh=1.8,  participant_id="ORIGIN_NSW"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:10:00", region="NSW1", buy_volume_mw=6100.0, sell_volume_mw=6400.0, net_flow_mw=-300.0,  price_impact_aud_mwh=-2.1, participant_id="EWE_NSW"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:15:00", region="NSW1", buy_volume_mw=6500.0, sell_volume_mw=6200.0, net_flow_mw=300.0,   price_impact_aud_mwh=3.2,  participant_id="AGL_NSW"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:20:00", region="NSW1", buy_volume_mw=6800.0, sell_volume_mw=6300.0, net_flow_mw=500.0,   price_impact_aud_mwh=5.1,  participant_id="SNOWY_NSW"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:25:00", region="VIC1", buy_volume_mw=5800.0, sell_volume_mw=5600.0, net_flow_mw=200.0,   price_impact_aud_mwh=1.6,  participant_id="AGL_VIC"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:30:00", region="VIC1", buy_volume_mw=5600.0, sell_volume_mw=5900.0, net_flow_mw=-300.0,  price_impact_aud_mwh=-2.4, participant_id="ENGIE_VIC"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:35:00", region="VIC1", buy_volume_mw=6000.0, sell_volume_mw=5700.0, net_flow_mw=300.0,   price_impact_aud_mwh=2.8,  participant_id="ORIGIN_VIC"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:40:00", region="QLD1", buy_volume_mw=7200.0, sell_volume_mw=6900.0, net_flow_mw=300.0,   price_impact_aud_mwh=2.2,  participant_id="CS_QLD"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:45:00", region="QLD1", buy_volume_mw=7400.0, sell_volume_mw=7600.0, net_flow_mw=-200.0,  price_impact_aud_mwh=-1.9, participant_id="ORIGIN_QLD"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:50:00", region="QLD1", buy_volume_mw=7600.0, sell_volume_mw=7100.0, net_flow_mw=500.0,   price_impact_aud_mwh=4.7,  participant_id="CS_QLD"),
+    SMDOrderFlowRecord(interval="2024-02-20T12:55:00", region="SA1",  buy_volume_mw=2100.0, sell_volume_mw=1900.0, net_flow_mw=200.0,   price_impact_aud_mwh=3.5,  participant_id="AGL_SA"),
+    SMDOrderFlowRecord(interval="2024-02-20T13:00:00", region="SA1",  buy_volume_mw=1900.0, sell_volume_mw=2200.0, net_flow_mw=-300.0,  price_impact_aud_mwh=-4.8, participant_id="ENGIE_SA"),
+    SMDOrderFlowRecord(interval="2024-02-20T13:05:00", region="TAS1", buy_volume_mw=1400.0, sell_volume_mw=1600.0, net_flow_mw=-200.0,  price_impact_aud_mwh=-1.2, participant_id="HYDRO_TAS"),
+    SMDOrderFlowRecord(interval="2024-02-20T13:10:00", region="TAS1", buy_volume_mw=1600.0, sell_volume_mw=1500.0, net_flow_mw=100.0,   price_impact_aud_mwh=0.8,  participant_id="HYDRO_TAS"),
+]
+
+_SMD_DEPTH_SNAPSHOTS: List[SMDMarketDepthSnapshot] = [
+    SMDMarketDepthSnapshot(snapshot_time="2024-02-20T13:00:00", region="NSW1", bid_depth_mw=8650.0, offer_depth_mw=8200.0, bid_ask_spread_aud=12.50, best_bid_aud=87.50,  best_ask_aud=100.00, imbalance_ratio=1.055),
+    SMDMarketDepthSnapshot(snapshot_time="2024-02-20T13:00:00", region="VIC1", bid_depth_mw=7850.0, offer_depth_mw=7600.0, bid_ask_spread_aud=9.80,  best_bid_aud=82.20,  best_ask_aud=92.00,  imbalance_ratio=1.033),
+    SMDMarketDepthSnapshot(snapshot_time="2024-02-20T13:00:00", region="QLD1", bid_depth_mw=9200.0, offer_depth_mw=8700.0, bid_ask_spread_aud=18.30, best_bid_aud=91.70,  best_ask_aud=110.00, imbalance_ratio=1.057),
+    SMDMarketDepthSnapshot(snapshot_time="2024-02-20T13:00:00", region="SA1",  bid_depth_mw=2800.0, offer_depth_mw=2400.0, bid_ask_spread_aud=42.70, best_bid_aud=107.30, best_ask_aud=150.00, imbalance_ratio=1.167),
+    SMDMarketDepthSnapshot(snapshot_time="2024-02-20T13:00:00", region="TAS1", bid_depth_mw=2200.0, offer_depth_mw=2500.0, bid_ask_spread_aud=7.10,  best_bid_aud=75.90,  best_ask_aud=83.00,  imbalance_ratio=0.880),
+]
+
+_SMD_PARTICIPANT_FLOWS: List[SMDParticipantFlowRecord] = [
+    SMDParticipantFlowRecord(participant="AGL Energy",           region="NSW1", avg_bid_mw=1850.0, avg_offer_mw=1600.0, market_share_pct=21.4, rebid_frequency_day=12.3, strategic_withholding_score=6.2),
+    SMDParticipantFlowRecord(participant="Origin Energy",        region="NSW1", avg_bid_mw=1400.0, avg_offer_mw=1250.0, market_share_pct=16.2, rebid_frequency_day=9.7,  strategic_withholding_score=4.8),
+    SMDParticipantFlowRecord(participant="EnergyAustralia",      region="NSW1", avg_bid_mw=1200.0, avg_offer_mw=1180.0, market_share_pct=13.9, rebid_frequency_day=7.2,  strategic_withholding_score=3.5),
+    SMDParticipantFlowRecord(participant="Snowy Hydro",          region="NSW1", avg_bid_mw=980.0,  avg_offer_mw=850.0,  market_share_pct=11.3, rebid_frequency_day=18.9, strategic_withholding_score=7.8),
+    SMDParticipantFlowRecord(participant="CS Energy",            region="QLD1", avg_bid_mw=2100.0, avg_offer_mw=1900.0, market_share_pct=24.1, rebid_frequency_day=14.6, strategic_withholding_score=8.3),
+    SMDParticipantFlowRecord(participant="ENGIE Australia",      region="VIC1", avg_bid_mw=1600.0, avg_offer_mw=1750.0, market_share_pct=20.4, rebid_frequency_day=6.8,  strategic_withholding_score=2.9),
+    SMDParticipantFlowRecord(participant="AGL South Australia",  region="SA1",  avg_bid_mw=520.0,  avg_offer_mw=480.0,  market_share_pct=18.6, rebid_frequency_day=22.4, strategic_withholding_score=7.1),
+    SMDParticipantFlowRecord(participant="Hydro Tasmania",       region="TAS1", avg_bid_mw=850.0,  avg_offer_mw=920.0,  market_share_pct=38.7, rebid_frequency_day=4.1,  strategic_withholding_score=1.6),
+]
+
+
+@app.get("/api/spot-depth/dashboard", dependencies=[Depends(verify_api_key)])
+def get_spot_depth_dashboard() -> SpotMarketDepthDashboard:
+    return SpotMarketDepthDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        bid_stacks=_SMD_BID_STACKS,
+        order_flows=_SMD_ORDER_FLOWS,
+        depth_snapshots=_SMD_DEPTH_SNAPSHOTS,
+        participant_flows=_SMD_PARTICIPANT_FLOWS,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 55c — Energy Storage Technology Roadmap
+# Emerging storage technologies, cost trajectories, and deployment milestones
+# in the Australian context
+# ---------------------------------------------------------------------------
+
+class STRTechnologyRecord(BaseModel):
+    tech_id: str
+    name: str
+    maturity: str          # COMMERCIAL / PILOT / DEMO / RESEARCH
+    duration_range_hr: str
+    current_lcos_aud_mwh: float
+    target_lcos_2030_aud_mwh: float
+    cycle_life_k_cycles: float
+    energy_density_kwh_m3: float
+    calendar_life_years: float
+    australia_installed_mwh: float
+
+
+class STRCostTrajectoryRecord(BaseModel):
+    technology: str
+    year: int
+    lcos_aud_mwh: float
+    capex_aud_kwh: float
+    energy_density_kwh_kg: float
+    market_share_pct: float
+
+
+class STRDeploymentMilestoneRecord(BaseModel):
+    technology: str
+    milestone: str
+    target_year: int
+    status: str            # ACHIEVED / ON_TRACK / AT_RISK / NOT_STARTED
+    responsible_org: str
+    capacity_mwh: float
+    notes: str
+
+
+class STRMarketForecastRecord(BaseModel):
+    year: int
+    technology: str
+    cumulative_deployed_gwh: float
+    annual_additions_gwh: float
+    cost_reduction_pct_from_2024: float
+    addressable_market_pct: float
+
+
+class StorageTechRoadmapDashboard(BaseModel):
+    timestamp: str
+    technologies: List[STRTechnologyRecord]
+    cost_trajectories: List[STRCostTrajectoryRecord]
+    milestones: List[STRDeploymentMilestoneRecord]
+    market_forecasts: List[STRMarketForecastRecord]
+
+
+# --- Mock data ---
+
+_STR_TECHNOLOGIES: List[STRTechnologyRecord] = [
+    STRTechnologyRecord(tech_id="li_nmcx",    name="Li-Ion NMC",              maturity="COMMERCIAL", duration_range_hr="1–4",   current_lcos_aud_mwh=195.0, target_lcos_2030_aud_mwh=120.0, cycle_life_k_cycles=3.5,  energy_density_kwh_m3=450.0,  calendar_life_years=15.0, australia_installed_mwh=2850.0),
+    STRTechnologyRecord(tech_id="li_lfpx",    name="Li-Ion LFP",              maturity="COMMERCIAL", duration_range_hr="1–4",   current_lcos_aud_mwh=175.0, target_lcos_2030_aud_mwh=105.0, cycle_life_k_cycles=5.0,  energy_density_kwh_m3=380.0,  calendar_life_years=18.0, australia_installed_mwh=3600.0),
+    STRTechnologyRecord(tech_id="solid_st",   name="Solid-State Battery",     maturity="PILOT",      duration_range_hr="2–6",   current_lcos_aud_mwh=420.0, target_lcos_2030_aud_mwh=195.0, cycle_life_k_cycles=8.0,  energy_density_kwh_m3=700.0,  calendar_life_years=25.0, australia_installed_mwh=12.0),
+    STRTechnologyRecord(tech_id="na_ionx",    name="Na-Ion Battery",          maturity="PILOT",      duration_range_hr="1–3",   current_lcos_aud_mwh=310.0, target_lcos_2030_aud_mwh=145.0, cycle_life_k_cycles=4.0,  energy_density_kwh_m3=250.0,  calendar_life_years=16.0, australia_installed_mwh=5.0),
+    STRTechnologyRecord(tech_id="flow_vrf",   name="Flow Vanadium Redox",     maturity="COMMERCIAL", duration_range_hr="4–12",  current_lcos_aud_mwh=285.0, target_lcos_2030_aud_mwh=160.0, cycle_life_k_cycles=20.0, energy_density_kwh_m3=25.0,   calendar_life_years=25.0, australia_installed_mwh=120.0),
+    STRTechnologyRecord(tech_id="flow_znx",   name="Flow Zinc-Bromine",       maturity="DEMO",       duration_range_hr="4–8",   current_lcos_aud_mwh=340.0, target_lcos_2030_aud_mwh=175.0, cycle_life_k_cycles=10.0, energy_density_kwh_m3=35.0,   calendar_life_years=20.0, australia_installed_mwh=18.0),
+    STRTechnologyRecord(tech_id="caes_x",     name="Compressed Air (CAES)",   maturity="DEMO",       duration_range_hr="8–24",  current_lcos_aud_mwh=195.0, target_lcos_2030_aud_mwh=130.0, cycle_life_k_cycles=30.0, energy_density_kwh_m3=3.0,    calendar_life_years=40.0, australia_installed_mwh=0.0),
+    STRTechnologyRecord(tech_id="grav_x",     name="Gravity Storage",         maturity="DEMO",       duration_range_hr="4–12",  current_lcos_aud_mwh=250.0, target_lcos_2030_aud_mwh=145.0, cycle_life_k_cycles=50.0, energy_density_kwh_m3=0.5,    calendar_life_years=50.0, australia_installed_mwh=0.0),
+    STRTechnologyRecord(tech_id="laes_x",     name="Liquid Air (LAES)",       maturity="PILOT",      duration_range_hr="8–24",  current_lcos_aud_mwh=320.0, target_lcos_2030_aud_mwh=165.0, cycle_life_k_cycles=15.0, energy_density_kwh_m3=200.0,  calendar_life_years=30.0, australia_installed_mwh=0.0),
+    STRTechnologyRecord(tech_id="h2_stor",    name="Green Hydrogen Storage",  maturity="RESEARCH",   duration_range_hr="24–720",current_lcos_aud_mwh=680.0, target_lcos_2030_aud_mwh=380.0, cycle_life_k_cycles=1.0,  energy_density_kwh_m3=2.4,    calendar_life_years=25.0, australia_installed_mwh=8.0),
+]
+
+_STR_COST_TRAJECTORIES: List[STRCostTrajectoryRecord] = [
+    # Li-Ion NMC
+    STRCostTrajectoryRecord(technology="Li-Ion NMC",           year=2024, lcos_aud_mwh=195.0, capex_aud_kwh=320.0, energy_density_kwh_kg=0.22, market_share_pct=35.0),
+    STRCostTrajectoryRecord(technology="Li-Ion NMC",           year=2025, lcos_aud_mwh=178.0, capex_aud_kwh=295.0, energy_density_kwh_kg=0.24, market_share_pct=32.0),
+    STRCostTrajectoryRecord(technology="Li-Ion NMC",           year=2026, lcos_aud_mwh=162.0, capex_aud_kwh=270.0, energy_density_kwh_kg=0.26, market_share_pct=29.0),
+    STRCostTrajectoryRecord(technology="Li-Ion NMC",           year=2027, lcos_aud_mwh=146.0, capex_aud_kwh=248.0, energy_density_kwh_kg=0.27, market_share_pct=26.0),
+    STRCostTrajectoryRecord(technology="Li-Ion NMC",           year=2028, lcos_aud_mwh=130.0, capex_aud_kwh=228.0, energy_density_kwh_kg=0.29, market_share_pct=23.0),
+    # Li-Ion LFP
+    STRCostTrajectoryRecord(technology="Li-Ion LFP",           year=2024, lcos_aud_mwh=175.0, capex_aud_kwh=290.0, energy_density_kwh_kg=0.18, market_share_pct=42.0),
+    STRCostTrajectoryRecord(technology="Li-Ion LFP",           year=2025, lcos_aud_mwh=158.0, capex_aud_kwh=265.0, energy_density_kwh_kg=0.19, market_share_pct=44.0),
+    STRCostTrajectoryRecord(technology="Li-Ion LFP",           year=2026, lcos_aud_mwh=143.0, capex_aud_kwh=242.0, energy_density_kwh_kg=0.20, market_share_pct=46.0),
+    STRCostTrajectoryRecord(technology="Li-Ion LFP",           year=2027, lcos_aud_mwh=128.0, capex_aud_kwh=220.0, energy_density_kwh_kg=0.21, market_share_pct=47.0),
+    STRCostTrajectoryRecord(technology="Li-Ion LFP",           year=2028, lcos_aud_mwh=115.0, capex_aud_kwh=200.0, energy_density_kwh_kg=0.22, market_share_pct=48.0),
+    # Solid-State Battery
+    STRCostTrajectoryRecord(technology="Solid-State Battery",  year=2024, lcos_aud_mwh=420.0, capex_aud_kwh=680.0, energy_density_kwh_kg=0.40, market_share_pct=0.2),
+    STRCostTrajectoryRecord(technology="Solid-State Battery",  year=2025, lcos_aud_mwh=368.0, capex_aud_kwh=590.0, energy_density_kwh_kg=0.44, market_share_pct=0.5),
+    STRCostTrajectoryRecord(technology="Solid-State Battery",  year=2026, lcos_aud_mwh=318.0, capex_aud_kwh=510.0, energy_density_kwh_kg=0.48, market_share_pct=1.0),
+    STRCostTrajectoryRecord(technology="Solid-State Battery",  year=2027, lcos_aud_mwh=272.0, capex_aud_kwh=440.0, energy_density_kwh_kg=0.52, market_share_pct=2.0),
+    STRCostTrajectoryRecord(technology="Solid-State Battery",  year=2028, lcos_aud_mwh=230.0, capex_aud_kwh=378.0, energy_density_kwh_kg=0.56, market_share_pct=3.5),
+    # Na-Ion
+    STRCostTrajectoryRecord(technology="Na-Ion Battery",       year=2024, lcos_aud_mwh=310.0, capex_aud_kwh=500.0, energy_density_kwh_kg=0.14, market_share_pct=0.5),
+    STRCostTrajectoryRecord(technology="Na-Ion Battery",       year=2025, lcos_aud_mwh=272.0, capex_aud_kwh=435.0, energy_density_kwh_kg=0.15, market_share_pct=1.2),
+    STRCostTrajectoryRecord(technology="Na-Ion Battery",       year=2026, lcos_aud_mwh=238.0, capex_aud_kwh=378.0, energy_density_kwh_kg=0.16, market_share_pct=2.5),
+    STRCostTrajectoryRecord(technology="Na-Ion Battery",       year=2027, lcos_aud_mwh=206.0, capex_aud_kwh=325.0, energy_density_kwh_kg=0.17, market_share_pct=4.0),
+    STRCostTrajectoryRecord(technology="Na-Ion Battery",       year=2028, lcos_aud_mwh=178.0, capex_aud_kwh=280.0, energy_density_kwh_kg=0.18, market_share_pct=6.0),
+    # Flow Vanadium
+    STRCostTrajectoryRecord(technology="Flow Vanadium Redox",  year=2024, lcos_aud_mwh=285.0, capex_aud_kwh=460.0, energy_density_kwh_kg=0.03, market_share_pct=3.5),
+    STRCostTrajectoryRecord(technology="Flow Vanadium Redox",  year=2025, lcos_aud_mwh=262.0, capex_aud_kwh=420.0, energy_density_kwh_kg=0.03, market_share_pct=4.2),
+    STRCostTrajectoryRecord(technology="Flow Vanadium Redox",  year=2026, lcos_aud_mwh=240.0, capex_aud_kwh=382.0, energy_density_kwh_kg=0.03, market_share_pct=5.0),
+    STRCostTrajectoryRecord(technology="Flow Vanadium Redox",  year=2027, lcos_aud_mwh=218.0, capex_aud_kwh=345.0, energy_density_kwh_kg=0.03, market_share_pct=5.8),
+    STRCostTrajectoryRecord(technology="Flow Vanadium Redox",  year=2028, lcos_aud_mwh=198.0, capex_aud_kwh=312.0, energy_density_kwh_kg=0.03, market_share_pct=6.5),
+    # Flow Zinc-Bromine
+    STRCostTrajectoryRecord(technology="Flow Zinc-Bromine",    year=2024, lcos_aud_mwh=340.0, capex_aud_kwh=550.0, energy_density_kwh_kg=0.06, market_share_pct=0.8),
+    STRCostTrajectoryRecord(technology="Flow Zinc-Bromine",    year=2025, lcos_aud_mwh=305.0, capex_aud_kwh=490.0, energy_density_kwh_kg=0.06, market_share_pct=1.1),
+    STRCostTrajectoryRecord(technology="Flow Zinc-Bromine",    year=2026, lcos_aud_mwh=272.0, capex_aud_kwh=435.0, energy_density_kwh_kg=0.07, market_share_pct=1.5),
+    STRCostTrajectoryRecord(technology="Flow Zinc-Bromine",    year=2027, lcos_aud_mwh=240.0, capex_aud_kwh=382.0, energy_density_kwh_kg=0.07, market_share_pct=1.9),
+    STRCostTrajectoryRecord(technology="Flow Zinc-Bromine",    year=2028, lcos_aud_mwh=212.0, capex_aud_kwh=335.0, energy_density_kwh_kg=0.07, market_share_pct=2.4),
+    # Compressed Air
+    STRCostTrajectoryRecord(technology="Compressed Air (CAES)",year=2024, lcos_aud_mwh=195.0, capex_aud_kwh=185.0, energy_density_kwh_kg=0.01, market_share_pct=0.3),
+    STRCostTrajectoryRecord(technology="Compressed Air (CAES)",year=2025, lcos_aud_mwh=182.0, capex_aud_kwh=172.0, energy_density_kwh_kg=0.01, market_share_pct=0.4),
+    STRCostTrajectoryRecord(technology="Compressed Air (CAES)",year=2026, lcos_aud_mwh=168.0, capex_aud_kwh=158.0, energy_density_kwh_kg=0.01, market_share_pct=0.6),
+    STRCostTrajectoryRecord(technology="Compressed Air (CAES)",year=2027, lcos_aud_mwh=155.0, capex_aud_kwh=146.0, energy_density_kwh_kg=0.01, market_share_pct=0.8),
+    STRCostTrajectoryRecord(technology="Compressed Air (CAES)",year=2028, lcos_aud_mwh=142.0, capex_aud_kwh=134.0, energy_density_kwh_kg=0.01, market_share_pct=1.0),
+    # Gravity Storage
+    STRCostTrajectoryRecord(technology="Gravity Storage",      year=2024, lcos_aud_mwh=250.0, capex_aud_kwh=280.0, energy_density_kwh_kg=0.001,market_share_pct=0.1),
+    STRCostTrajectoryRecord(technology="Gravity Storage",      year=2025, lcos_aud_mwh=228.0, capex_aud_kwh=256.0, energy_density_kwh_kg=0.001,market_share_pct=0.2),
+    STRCostTrajectoryRecord(technology="Gravity Storage",      year=2026, lcos_aud_mwh=205.0, capex_aud_kwh=230.0, energy_density_kwh_kg=0.001,market_share_pct=0.3),
+    STRCostTrajectoryRecord(technology="Gravity Storage",      year=2027, lcos_aud_mwh=183.0, capex_aud_kwh=206.0, energy_density_kwh_kg=0.001,market_share_pct=0.5),
+    STRCostTrajectoryRecord(technology="Gravity Storage",      year=2028, lcos_aud_mwh=162.0, capex_aud_kwh=182.0, energy_density_kwh_kg=0.001,market_share_pct=0.8),
+    # Liquid Air
+    STRCostTrajectoryRecord(technology="Liquid Air (LAES)",    year=2024, lcos_aud_mwh=320.0, capex_aud_kwh=480.0, energy_density_kwh_kg=0.05, market_share_pct=0.1),
+    STRCostTrajectoryRecord(technology="Liquid Air (LAES)",    year=2025, lcos_aud_mwh=288.0, capex_aud_kwh=430.0, energy_density_kwh_kg=0.05, market_share_pct=0.2),
+    STRCostTrajectoryRecord(technology="Liquid Air (LAES)",    year=2026, lcos_aud_mwh=256.0, capex_aud_kwh=382.0, energy_density_kwh_kg=0.06, market_share_pct=0.4),
+    STRCostTrajectoryRecord(technology="Liquid Air (LAES)",    year=2027, lcos_aud_mwh=225.0, capex_aud_kwh=336.0, energy_density_kwh_kg=0.06, market_share_pct=0.7),
+    STRCostTrajectoryRecord(technology="Liquid Air (LAES)",    year=2028, lcos_aud_mwh=195.0, capex_aud_kwh=293.0, energy_density_kwh_kg=0.06, market_share_pct=1.1),
+    # Green Hydrogen Storage
+    STRCostTrajectoryRecord(technology="Green Hydrogen Storage",year=2024, lcos_aud_mwh=680.0, capex_aud_kwh=850.0, energy_density_kwh_kg=33.0, market_share_pct=0.2),
+    STRCostTrajectoryRecord(technology="Green Hydrogen Storage",year=2025, lcos_aud_mwh=595.0, capex_aud_kwh=740.0, energy_density_kwh_kg=33.0, market_share_pct=0.3),
+    STRCostTrajectoryRecord(technology="Green Hydrogen Storage",year=2026, lcos_aud_mwh=520.0, capex_aud_kwh=642.0, energy_density_kwh_kg=33.0, market_share_pct=0.5),
+    STRCostTrajectoryRecord(technology="Green Hydrogen Storage",year=2027, lcos_aud_mwh=452.0, capex_aud_kwh=558.0, energy_density_kwh_kg=33.0, market_share_pct=0.8),
+    STRCostTrajectoryRecord(technology="Green Hydrogen Storage",year=2028, lcos_aud_mwh=390.0, capex_aud_kwh=480.0, energy_density_kwh_kg=33.0, market_share_pct=1.2),
+]
+
+_STR_MILESTONES: List[STRDeploymentMilestoneRecord] = [
+    STRDeploymentMilestoneRecord(technology="Li-Ion LFP",           milestone="1 GWh cumulative deployment in NEM",         target_year=2024, status="ACHIEVED",     responsible_org="AEMO / ARENA",        capacity_mwh=3600.0,  notes="Achieved Q3 2024; Hornsdale and 8 other BESS facilities"),
+    STRDeploymentMilestoneRecord(technology="Li-Ion LFP",           milestone="5 GWh cumulative deployment in NEM",         target_year=2026, status="ON_TRACK",     responsible_org="AEMO / State Govts",  capacity_mwh=5000.0,  notes="Pipeline of 1.4 GWh contracted through CIS scheme"),
+    STRDeploymentMilestoneRecord(technology="Li-Ion NMC",           milestone="First 4-hr utility BESS operational in VIC", target_year=2025, status="ON_TRACK",     responsible_org="AGL Energy",          capacity_mwh=800.0,   notes="Loy Yang B BESS; construction commenced H2 2024"),
+    STRDeploymentMilestoneRecord(technology="Flow Vanadium Redox",  milestone="First 10 MWh VRF demonstration in QLD",      target_year=2024, status="ACHIEVED",     responsible_org="Redflow / ARENA",     capacity_mwh=10.0,    notes="Bundamba facility commissioned Nov 2024"),
+    STRDeploymentMilestoneRecord(technology="Flow Vanadium Redox",  milestone="50 MWh commercial VRF project Australia",    target_year=2026, status="AT_RISK",      responsible_org="CellCube / CEFC",     capacity_mwh=50.0,    notes="Supply chain delays affecting timeline; 6-month risk"),
+    STRDeploymentMilestoneRecord(technology="Na-Ion Battery",       milestone="First grid-scale Na-Ion pilot Australia",    target_year=2026, status="NOT_STARTED",  responsible_org="CATL / AGL",          capacity_mwh=20.0,    notes="MOU signed Nov 2024; feasibility study underway"),
+    STRDeploymentMilestoneRecord(technology="Solid-State Battery",  milestone="EV-grade solid-state pilot demonstration",   target_year=2027, status="NOT_STARTED",  responsible_org="Toyota / CSIRO",      capacity_mwh=0.5,     notes="R&D phase; grid application post-2028"),
+    STRDeploymentMilestoneRecord(technology="Compressed Air (CAES)", milestone="First Australian A-CAES site approval",    target_year=2026, status="AT_RISK",      responsible_org="Hydrostor / SA Govt", capacity_mwh=2000.0,  notes="Port Augusta site; planning approval delayed"),
+    STRDeploymentMilestoneRecord(technology="Gravity Storage",      milestone="10 MW gravity pilot commissioned NSW",       target_year=2027, status="NOT_STARTED",  responsible_org="Energy Vault / ARENA",capacity_mwh=80.0,    notes="Site selection complete; funding application in review"),
+    STRDeploymentMilestoneRecord(technology="Liquid Air (LAES)",    milestone="5 MW LAES demonstration plant Australia",    target_year=2027, status="NOT_STARTED",  responsible_org="Highview Power / CEFC",capacity_mwh=15.0,   notes="Technology licensing agreement signed Q4 2024"),
+    STRDeploymentMilestoneRecord(technology="Green Hydrogen Storage", milestone="First green H2 storage cavern AU",        target_year=2028, status="NOT_STARTED",  responsible_org="AGIG / NTEC",         capacity_mwh=50000.0, notes="Murchison Hydrogen Renewables; FEED study 2025"),
+    STRDeploymentMilestoneRecord(technology="Li-Ion LFP",           milestone="10 GWh installed capacity milestone",       target_year=2028, status="ON_TRACK",     responsible_org="AEMO / Industry",     capacity_mwh=10000.0, notes="Aligned with ISP Step Change scenario trajectory"),
+    STRDeploymentMilestoneRecord(technology="Flow Zinc-Bromine",    milestone="1 MWh commercial Zn-Br installation WA",    target_year=2025, status="ON_TRACK",     responsible_org="Redflow / ATCO",      capacity_mwh=1.0,     notes="Jandakot airport micro-grid integration"),
+    STRDeploymentMilestoneRecord(technology="Li-Ion NMC",           milestone="Domestic manufacturing facility opened",    target_year=2027, status="NOT_STARTED",  responsible_org="Li-S Energy / ARENA", capacity_mwh=0.0,     notes="Geelong gigafactory feasibility approved; FID 2026"),
+    STRDeploymentMilestoneRecord(technology="Flow Vanadium Redox",  milestone="100 MWh VRF pipeline contracted AU",        target_year=2027, status="ON_TRACK",     responsible_org="VRB Energy / CIS",    capacity_mwh=100.0,   notes="3 projects totalling 105 MWh under CIS contract"),
+]
+
+_STR_MARKET_FORECASTS: List[STRMarketForecastRecord] = [
+    # Li-Ion LFP
+    STRMarketForecastRecord(year=2024, technology="Li-Ion LFP",          cumulative_deployed_gwh=3.6,  annual_additions_gwh=1.4,  cost_reduction_pct_from_2024=0.0,  addressable_market_pct=42.0),
+    STRMarketForecastRecord(year=2025, technology="Li-Ion LFP",          cumulative_deployed_gwh=5.8,  annual_additions_gwh=2.2,  cost_reduction_pct_from_2024=9.7,  addressable_market_pct=44.0),
+    STRMarketForecastRecord(year=2026, technology="Li-Ion LFP",          cumulative_deployed_gwh=8.9,  annual_additions_gwh=3.1,  cost_reduction_pct_from_2024=18.3, addressable_market_pct=46.0),
+    STRMarketForecastRecord(year=2027, technology="Li-Ion LFP",          cumulative_deployed_gwh=12.8, annual_additions_gwh=3.9,  cost_reduction_pct_from_2024=26.9, addressable_market_pct=47.0),
+    STRMarketForecastRecord(year=2028, technology="Li-Ion LFP",          cumulative_deployed_gwh=17.5, annual_additions_gwh=4.7,  cost_reduction_pct_from_2024=34.3, addressable_market_pct=48.0),
+    # Li-Ion NMC
+    STRMarketForecastRecord(year=2024, technology="Li-Ion NMC",          cumulative_deployed_gwh=2.85, annual_additions_gwh=0.85, cost_reduction_pct_from_2024=0.0,  addressable_market_pct=35.0),
+    STRMarketForecastRecord(year=2025, technology="Li-Ion NMC",          cumulative_deployed_gwh=3.9,  annual_additions_gwh=1.05, cost_reduction_pct_from_2024=8.7,  addressable_market_pct=32.0),
+    STRMarketForecastRecord(year=2026, technology="Li-Ion NMC",          cumulative_deployed_gwh=5.2,  annual_additions_gwh=1.3,  cost_reduction_pct_from_2024=16.9, addressable_market_pct=29.0),
+    STRMarketForecastRecord(year=2027, technology="Li-Ion NMC",          cumulative_deployed_gwh=6.7,  annual_additions_gwh=1.5,  cost_reduction_pct_from_2024=25.1, addressable_market_pct=26.0),
+    STRMarketForecastRecord(year=2028, technology="Li-Ion NMC",          cumulative_deployed_gwh=8.4,  annual_additions_gwh=1.7,  cost_reduction_pct_from_2024=33.3, addressable_market_pct=23.0),
+    # Flow Vanadium
+    STRMarketForecastRecord(year=2024, technology="Flow Vanadium Redox", cumulative_deployed_gwh=0.12, annual_additions_gwh=0.04, cost_reduction_pct_from_2024=0.0,  addressable_market_pct=3.5),
+    STRMarketForecastRecord(year=2025, technology="Flow Vanadium Redox", cumulative_deployed_gwh=0.22, annual_additions_gwh=0.10, cost_reduction_pct_from_2024=8.1,  addressable_market_pct=4.2),
+    STRMarketForecastRecord(year=2026, technology="Flow Vanadium Redox", cumulative_deployed_gwh=0.40, annual_additions_gwh=0.18, cost_reduction_pct_from_2024=15.8, addressable_market_pct=5.0),
+    STRMarketForecastRecord(year=2027, technology="Flow Vanadium Redox", cumulative_deployed_gwh=0.68, annual_additions_gwh=0.28, cost_reduction_pct_from_2024=23.5, addressable_market_pct=5.8),
+    STRMarketForecastRecord(year=2028, technology="Flow Vanadium Redox", cumulative_deployed_gwh=1.08, annual_additions_gwh=0.40, cost_reduction_pct_from_2024=30.5, addressable_market_pct=6.5),
+    # Na-Ion
+    STRMarketForecastRecord(year=2024, technology="Na-Ion Battery",      cumulative_deployed_gwh=0.005,annual_additions_gwh=0.005,cost_reduction_pct_from_2024=0.0,  addressable_market_pct=0.5),
+    STRMarketForecastRecord(year=2025, technology="Na-Ion Battery",      cumulative_deployed_gwh=0.02, annual_additions_gwh=0.015,cost_reduction_pct_from_2024=12.3, addressable_market_pct=1.2),
+    STRMarketForecastRecord(year=2026, technology="Na-Ion Battery",      cumulative_deployed_gwh=0.07, annual_additions_gwh=0.05, cost_reduction_pct_from_2024=23.2, addressable_market_pct=2.5),
+    STRMarketForecastRecord(year=2027, technology="Na-Ion Battery",      cumulative_deployed_gwh=0.18, annual_additions_gwh=0.11, cost_reduction_pct_from_2024=33.5, addressable_market_pct=4.0),
+    STRMarketForecastRecord(year=2028, technology="Na-Ion Battery",      cumulative_deployed_gwh=0.38, annual_additions_gwh=0.20, cost_reduction_pct_from_2024=42.6, addressable_market_pct=6.0),
+    # Solid-State
+    STRMarketForecastRecord(year=2024, technology="Solid-State Battery", cumulative_deployed_gwh=0.012,annual_additions_gwh=0.005,cost_reduction_pct_from_2024=0.0,  addressable_market_pct=0.2),
+    STRMarketForecastRecord(year=2025, technology="Solid-State Battery", cumulative_deployed_gwh=0.032,annual_additions_gwh=0.020,cost_reduction_pct_from_2024=12.4, addressable_market_pct=0.5),
+    STRMarketForecastRecord(year=2026, technology="Solid-State Battery", cumulative_deployed_gwh=0.075,annual_additions_gwh=0.043,cost_reduction_pct_from_2024=24.3, addressable_market_pct=1.0),
+    STRMarketForecastRecord(year=2027, technology="Solid-State Battery", cumulative_deployed_gwh=0.150,annual_additions_gwh=0.075,cost_reduction_pct_from_2024=35.2, addressable_market_pct=2.0),
+    STRMarketForecastRecord(year=2028, technology="Solid-State Battery", cumulative_deployed_gwh=0.280,annual_additions_gwh=0.130,cost_reduction_pct_from_2024=45.2, addressable_market_pct=3.5),
+    # Green Hydrogen Storage
+    STRMarketForecastRecord(year=2024, technology="Green Hydrogen Storage",cumulative_deployed_gwh=0.008,annual_additions_gwh=0.003,cost_reduction_pct_from_2024=0.0,  addressable_market_pct=0.2),
+    STRMarketForecastRecord(year=2025, technology="Green Hydrogen Storage",cumulative_deployed_gwh=0.020,annual_additions_gwh=0.012,cost_reduction_pct_from_2024=12.5, addressable_market_pct=0.3),
+    STRMarketForecastRecord(year=2026, technology="Green Hydrogen Storage",cumulative_deployed_gwh=0.048,annual_additions_gwh=0.028,cost_reduction_pct_from_2024=23.5, addressable_market_pct=0.5),
+    STRMarketForecastRecord(year=2027, technology="Green Hydrogen Storage",cumulative_deployed_gwh=0.105,annual_additions_gwh=0.057,cost_reduction_pct_from_2024=33.5, addressable_market_pct=0.8),
+    STRMarketForecastRecord(year=2028, technology="Green Hydrogen Storage",cumulative_deployed_gwh=0.210,annual_additions_gwh=0.105,cost_reduction_pct_from_2024=42.6, addressable_market_pct=1.2),
+]
+
+
+@app.get("/api/storage-roadmap/dashboard", dependencies=[Depends(verify_api_key)])
+def get_storage_tech_roadmap_dashboard() -> StorageTechRoadmapDashboard:
+    return StorageTechRoadmapDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        technologies=_STR_TECHNOLOGIES,
+        cost_trajectories=_STR_COST_TRAJECTORIES,
+        milestones=_STR_MILESTONES,
+        market_forecasts=_STR_MARKET_FORECASTS,
+    )
+
+# ---------------------------------------------------------------------------
+# Sprint 55b — Renewable Integration Cost Analytics
+# ---------------------------------------------------------------------------
+
+class RICCostComponent(str, Enum):
+    NETWORK_AUGMENTATION = "NETWORK_AUGMENTATION"
+    FIRMING_CAPACITY = "FIRMING_CAPACITY"
+    FCAS_MARKETS = "FCAS_MARKETS"
+    CURTAILMENT_COST = "CURTAILMENT_COST"
+    SYSTEM_RESTART = "SYSTEM_RESTART"
+    INERTIA_SERVICES = "INERTIA_SERVICES"
+
+
+class RICCurtailmentCause(str, Enum):
+    NETWORK_CONSTRAINT = "NETWORK_CONSTRAINT"
+    DEMAND_LOW = "DEMAND_LOW"
+    OVERSUPPLY = "OVERSUPPLY"
+    DISPATCH_ORDER = "DISPATCH_ORDER"
+
+
+class RICCostTrend(str, Enum):
+    RISING = "RISING"
+    STABLE = "STABLE"
+    FALLING = "FALLING"
+
+
+class RICSystemService(str, Enum):
+    INERTIA = "INERTIA"
+    SYSTEM_RESTART = "SYSTEM_RESTART"
+    VOLTAGE_CONTROL = "VOLTAGE_CONTROL"
+    REACTIVE_POWER = "REACTIVE_POWER"
+    FAST_FREQUENCY_RESPONSE = "FAST_FREQUENCY_RESPONSE"
+
+
+class RICCostComponentRecord(BaseModel):
+    year: int
+    cost_component: RICCostComponent
+    cost_m_aud: float
+    cost_aud_mwh_vre: float
+    vre_penetration_pct: float
+    notes: str
+
+
+class RICNetworkAugRecord(BaseModel):
+    project_name: str
+    region: str
+    investment_m_aud: float
+    vre_enabled_mw: float
+    cost_per_mw_k_aud: float
+    commissioning_year: int
+    benefit_cost_ratio: float
+
+
+class RICCurtailmentRecord(BaseModel):
+    year: int
+    technology: str
+    region: str
+    curtailed_gwh: float
+    curtailed_pct: float
+    curtailment_cause: RICCurtailmentCause
+    revenue_lost_m_aud: float
+
+
+class RICSystemServiceRecord(BaseModel):
+    service: RICSystemService
+    annual_cost_m_aud: float
+    providers: int
+    cost_trend: RICCostTrend
+    vre_correlation: str
+
+
+class RenewableIntegrationCostDashboard(BaseModel):
+    timestamp: str
+    cost_components: List[RICCostComponentRecord]
+    network_augs: List[RICNetworkAugRecord]
+    curtailment: List[RICCurtailmentRecord]
+    system_services: List[RICSystemServiceRecord]
+
+
+# --- Mock data ---
+
+_RIC_COST_COMPONENTS: List[RICCostComponentRecord] = [
+    # 2020
+    RICCostComponentRecord(year=2020, cost_component=RICCostComponent.NETWORK_AUGMENTATION, cost_m_aud=480.0, cost_aud_mwh_vre=3.8, vre_penetration_pct=24.5, notes="Early ISP transmission upgrades across NEM"),
+    RICCostComponentRecord(year=2020, cost_component=RICCostComponent.FIRMING_CAPACITY, cost_m_aud=620.0, cost_aud_mwh_vre=4.9, vre_penetration_pct=24.5, notes="Gas peaker and pumped hydro firming contracts"),
+    RICCostComponentRecord(year=2020, cost_component=RICCostComponent.FCAS_MARKETS, cost_m_aud=390.0, cost_aud_mwh_vre=3.1, vre_penetration_pct=24.5, notes="Elevated FCAS procurement as synchronous generation exits"),
+    RICCostComponentRecord(year=2020, cost_component=RICCostComponent.CURTAILMENT_COST, cost_m_aud=210.0, cost_aud_mwh_vre=1.7, vre_penetration_pct=24.5, notes="SA and VIC curtailment during midday surplus"),
+    RICCostComponentRecord(year=2020, cost_component=RICCostComponent.SYSTEM_RESTART, cost_m_aud=85.0, cost_aud_mwh_vre=0.7, vre_penetration_pct=24.5, notes="Black-start capability procurement from hydro and gas"),
+    RICCostComponentRecord(year=2020, cost_component=RICCostComponent.INERTIA_SERVICES, cost_m_aud=120.0, cost_aud_mwh_vre=0.9, vre_penetration_pct=24.5, notes="Synchronous condenser installations in SA and VIC"),
+    # 2021
+    RICCostComponentRecord(year=2021, cost_component=RICCostComponent.NETWORK_AUGMENTATION, cost_m_aud=560.0, cost_aud_mwh_vre=4.1, vre_penetration_pct=29.2, notes="Marginal loss factor reforms and REZ network works"),
+    RICCostComponentRecord(year=2021, cost_component=RICCostComponent.FIRMING_CAPACITY, cost_m_aud=710.0, cost_aud_mwh_vre=5.2, vre_penetration_pct=29.2, notes="Battery ESCRI-SA contracts and gas peaker retains"),
+    RICCostComponentRecord(year=2021, cost_component=RICCostComponent.FCAS_MARKETS, cost_m_aud=455.0, cost_aud_mwh_vre=3.3, vre_penetration_pct=29.2, notes="FFR market introduction; lower-cost raise services"),
+    RICCostComponentRecord(year=2021, cost_component=RICCostComponent.CURTAILMENT_COST, cost_m_aud=280.0, cost_aud_mwh_vre=2.1, vre_penetration_pct=29.2, notes="QLD solar curtailment from network constraints"),
+    RICCostComponentRecord(year=2021, cost_component=RICCostComponent.SYSTEM_RESTART, cost_m_aud=92.0, cost_aud_mwh_vre=0.7, vre_penetration_pct=29.2, notes="Expanded black-start panel in QLD and NSW"),
+    RICCostComponentRecord(year=2021, cost_component=RICCostComponent.INERTIA_SERVICES, cost_m_aud=155.0, cost_aud_mwh_vre=1.1, vre_penetration_pct=29.2, notes="New synchronous condensers from Transgrid and ElectraNet"),
+    # 2022
+    RICCostComponentRecord(year=2022, cost_component=RICCostComponent.NETWORK_AUGMENTATION, cost_m_aud=780.0, cost_aud_mwh_vre=5.3, vre_penetration_pct=35.1, notes="HumeLink and VNI-West early works; REZ enabling"),
+    RICCostComponentRecord(year=2022, cost_component=RICCostComponent.FIRMING_CAPACITY, cost_m_aud=890.0, cost_aud_mwh_vre=6.1, vre_penetration_pct=35.1, notes="Capacity investment scheme precursor; gas spike costs"),
+    RICCostComponentRecord(year=2022, cost_component=RICCostComponent.FCAS_MARKETS, cost_m_aud=580.0, cost_aud_mwh_vre=3.9, vre_penetration_pct=35.1, notes="Global gas crisis drove FCAS price spike Q2 2022"),
+    RICCostComponentRecord(year=2022, cost_component=RICCostComponent.CURTAILMENT_COST, cost_m_aud=380.0, cost_aud_mwh_vre=2.6, vre_penetration_pct=35.1, notes="Widespread solar curtailment across all mainland regions"),
+    RICCostComponentRecord(year=2022, cost_component=RICCostComponent.SYSTEM_RESTART, cost_m_aud=110.0, cost_aud_mwh_vre=0.8, vre_penetration_pct=35.1, notes="System restart auctions in SA; VIC peakers contracted"),
+    RICCostComponentRecord(year=2022, cost_component=RICCostComponent.INERTIA_SERVICES, cost_m_aud=200.0, cost_aud_mwh_vre=1.4, vre_penetration_pct=35.1, notes="Inertia network services rule changes; new condensers"),
+    # 2023
+    RICCostComponentRecord(year=2023, cost_component=RICCostComponent.NETWORK_AUGMENTATION, cost_m_aud=1050.0, cost_aud_mwh_vre=6.5, vre_penetration_pct=40.8, notes="Project EnergyConnect energised; ISP tranche-2 committed"),
+    RICCostComponentRecord(year=2023, cost_component=RICCostComponent.FIRMING_CAPACITY, cost_m_aud=1100.0, cost_aud_mwh_vre=6.8, vre_penetration_pct=40.8, notes="Snowy 2.0 delay costs; CIS firming payments begin"),
+    RICCostComponentRecord(year=2023, cost_component=RICCostComponent.FCAS_MARKETS, cost_m_aud=640.0, cost_aud_mwh_vre=4.0, vre_penetration_pct=40.8, notes="9-service FCAS market; battery FCAS share reaches 35%"),
+    RICCostComponentRecord(year=2023, cost_component=RICCostComponent.CURTAILMENT_COST, cost_m_aud=520.0, cost_aud_mwh_vre=3.2, vre_penetration_pct=40.8, notes="Solar curtailment 4.8% nationally; wind curtailment 2.1%"),
+    RICCostComponentRecord(year=2023, cost_component=RICCostComponent.SYSTEM_RESTART, cost_m_aud=130.0, cost_aud_mwh_vre=0.8, vre_penetration_pct=40.8, notes="Wind-based system restart trial in SA succeeds"),
+    RICCostComponentRecord(year=2023, cost_component=RICCostComponent.INERTIA_SERVICES, cost_m_aud=240.0, cost_aud_mwh_vre=1.5, vre_penetration_pct=40.8, notes="Mandatory inertia frameworks; flywheels and condensers"),
+    # 2024
+    RICCostComponentRecord(year=2024, cost_component=RICCostComponent.NETWORK_AUGMENTATION, cost_m_aud=1380.0, cost_aud_mwh_vre=7.8, vre_penetration_pct=47.3, notes="VNI-West FEED; HumeLink construction; QNI-M planning"),
+    RICCostComponentRecord(year=2024, cost_component=RICCostComponent.FIRMING_CAPACITY, cost_m_aud=1250.0, cost_aud_mwh_vre=7.1, vre_penetration_pct=47.3, notes="Large-scale BESS contracts; peaker capacity payments"),
+    RICCostComponentRecord(year=2024, cost_component=RICCostComponent.FCAS_MARKETS, cost_m_aud=710.0, cost_aud_mwh_vre=4.0, vre_penetration_pct=47.3, notes="Battery-dominated raise markets; lower gas FCAS cost"),
+    RICCostComponentRecord(year=2024, cost_component=RICCostComponent.CURTAILMENT_COST, cost_m_aud=680.0, cost_aud_mwh_vre=3.8, vre_penetration_pct=47.3, notes="Rooftop PV curtailment via OPDMS; utility-scale 5.2%"),
+    RICCostComponentRecord(year=2024, cost_component=RICCostComponent.SYSTEM_RESTART, cost_m_aud=145.0, cost_aud_mwh_vre=0.8, vre_penetration_pct=47.3, notes="Inverter-based system restart services approved by AEMC"),
+    RICCostComponentRecord(year=2024, cost_component=RICCostComponent.INERTIA_SERVICES, cost_m_aud=270.0, cost_aud_mwh_vre=1.5, vre_penetration_pct=47.3, notes="Grid-forming inverter inertia; 8 synchronous condensers online"),
+]
+
+_RIC_NETWORK_AUGS: List[RICNetworkAugRecord] = [
+    RICNetworkAugRecord(project_name="Project EnergyConnect (SA-NSW)", region="SA/NSW", investment_m_aud=2400.0, vre_enabled_mw=3300.0, cost_per_mw_k_aud=727.3, commissioning_year=2023, benefit_cost_ratio=2.4),
+    RICNetworkAugRecord(project_name="HumeLink (NSW)", region="NSW", investment_m_aud=3500.0, vre_enabled_mw=2200.0, cost_per_mw_k_aud=1590.9, commissioning_year=2026, benefit_cost_ratio=2.1),
+    RICNetworkAugRecord(project_name="VNI-West (VIC-NSW)", region="VIC/NSW", investment_m_aud=3100.0, vre_enabled_mw=2800.0, cost_per_mw_k_aud=1107.1, commissioning_year=2030, benefit_cost_ratio=2.6),
+    RICNetworkAugRecord(project_name="QNI-Medium (QLD-NSW)", region="QLD/NSW", investment_m_aud=1800.0, vre_enabled_mw=1400.0, cost_per_mw_k_aud=1285.7, commissioning_year=2029, benefit_cost_ratio=1.9),
+    RICNetworkAugRecord(project_name="Central-West Orana REZ (NSW)", region="NSW", investment_m_aud=960.0, vre_enabled_mw=3000.0, cost_per_mw_k_aud=320.0, commissioning_year=2027, benefit_cost_ratio=3.1),
+    RICNetworkAugRecord(project_name="New England REZ (NSW)", region="NSW", investment_m_aud=1100.0, vre_enabled_mw=8000.0, cost_per_mw_k_aud=137.5, commissioning_year=2028, benefit_cost_ratio=4.2),
+    RICNetworkAugRecord(project_name="Western Victoria REZ (VIC)", region="VIC", investment_m_aud=870.0, vre_enabled_mw=3200.0, cost_per_mw_k_aud=271.9, commissioning_year=2026, benefit_cost_ratio=2.8),
+    RICNetworkAugRecord(project_name="South-West QLD REZ (QLD)", region="QLD", investment_m_aud=640.0, vre_enabled_mw=2000.0, cost_per_mw_k_aud=320.0, commissioning_year=2027, benefit_cost_ratio=2.3),
+]
+
+_RIC_CURTAILMENT: List[RICCurtailmentRecord] = [
+    # 2020
+    RICCurtailmentRecord(year=2020, technology="Large Solar", region="SA", curtailed_gwh=320.0, curtailed_pct=3.1, curtailment_cause=RICCurtailmentCause.NETWORK_CONSTRAINT, revenue_lost_m_aud=19.2),
+    RICCurtailmentRecord(year=2020, technology="Wind", region="SA", curtailed_gwh=180.0, curtailed_pct=1.8, curtailment_cause=RICCurtailmentCause.OVERSUPPLY, revenue_lost_m_aud=10.8),
+    RICCurtailmentRecord(year=2020, technology="Rooftop PV", region="SA", curtailed_gwh=90.0, curtailed_pct=2.4, curtailment_cause=RICCurtailmentCause.DEMAND_LOW, revenue_lost_m_aud=5.4),
+    RICCurtailmentRecord(year=2020, technology="Large Solar", region="VIC", curtailed_gwh=140.0, curtailed_pct=2.2, curtailment_cause=RICCurtailmentCause.DISPATCH_ORDER, revenue_lost_m_aud=8.4),
+    # 2021
+    RICCurtailmentRecord(year=2021, technology="Large Solar", region="QLD", curtailed_gwh=510.0, curtailed_pct=4.2, curtailment_cause=RICCurtailmentCause.NETWORK_CONSTRAINT, revenue_lost_m_aud=30.6),
+    RICCurtailmentRecord(year=2021, technology="Wind", region="VIC", curtailed_gwh=220.0, curtailed_pct=2.0, curtailment_cause=RICCurtailmentCause.OVERSUPPLY, revenue_lost_m_aud=13.2),
+    RICCurtailmentRecord(year=2021, technology="Rooftop PV", region="NSW", curtailed_gwh=160.0, curtailed_pct=1.9, curtailment_cause=RICCurtailmentCause.DEMAND_LOW, revenue_lost_m_aud=9.6),
+    RICCurtailmentRecord(year=2021, technology="Large Solar", region="SA", curtailed_gwh=390.0, curtailed_pct=3.6, curtailment_cause=RICCurtailmentCause.DISPATCH_ORDER, revenue_lost_m_aud=23.4),
+    # 2022
+    RICCurtailmentRecord(year=2022, technology="Large Solar", region="NSW", curtailed_gwh=620.0, curtailed_pct=4.8, curtailment_cause=RICCurtailmentCause.NETWORK_CONSTRAINT, revenue_lost_m_aud=37.2),
+    RICCurtailmentRecord(year=2022, technology="Wind", region="SA", curtailed_gwh=310.0, curtailed_pct=2.9, curtailment_cause=RICCurtailmentCause.OVERSUPPLY, revenue_lost_m_aud=18.6),
+    RICCurtailmentRecord(year=2022, technology="Rooftop PV", region="VIC", curtailed_gwh=240.0, curtailed_pct=2.7, curtailment_cause=RICCurtailmentCause.DEMAND_LOW, revenue_lost_m_aud=14.4),
+    RICCurtailmentRecord(year=2022, technology="Large Solar", region="QLD", curtailed_gwh=480.0, curtailed_pct=3.9, curtailment_cause=RICCurtailmentCause.DISPATCH_ORDER, revenue_lost_m_aud=28.8),
+    # 2023
+    RICCurtailmentRecord(year=2023, technology="Large Solar", region="NSW", curtailed_gwh=850.0, curtailed_pct=5.8, curtailment_cause=RICCurtailmentCause.NETWORK_CONSTRAINT, revenue_lost_m_aud=51.0),
+    RICCurtailmentRecord(year=2023, technology="Wind", region="VIC", curtailed_gwh=420.0, curtailed_pct=3.5, curtailment_cause=RICCurtailmentCause.OVERSUPPLY, revenue_lost_m_aud=25.2),
+    RICCurtailmentRecord(year=2023, technology="Rooftop PV", region="SA", curtailed_gwh=350.0, curtailed_pct=3.8, curtailment_cause=RICCurtailmentCause.DEMAND_LOW, revenue_lost_m_aud=21.0),
+    RICCurtailmentRecord(year=2023, technology="Large Solar", region="SA", curtailed_gwh=580.0, curtailed_pct=4.7, curtailment_cause=RICCurtailmentCause.DISPATCH_ORDER, revenue_lost_m_aud=34.8),
+    # 2024
+    RICCurtailmentRecord(year=2024, technology="Large Solar", region="QLD", curtailed_gwh=1100.0, curtailed_pct=6.4, curtailment_cause=RICCurtailmentCause.NETWORK_CONSTRAINT, revenue_lost_m_aud=66.0),
+    RICCurtailmentRecord(year=2024, technology="Wind", region="SA", curtailed_gwh=530.0, curtailed_pct=4.2, curtailment_cause=RICCurtailmentCause.OVERSUPPLY, revenue_lost_m_aud=31.8),
+    RICCurtailmentRecord(year=2024, technology="Rooftop PV", region="NSW", curtailed_gwh=480.0, curtailed_pct=4.5, curtailment_cause=RICCurtailmentCause.DEMAND_LOW, revenue_lost_m_aud=28.8),
+    RICCurtailmentRecord(year=2024, technology="Large Solar", region="VIC", curtailed_gwh=720.0, curtailed_pct=5.2, curtailment_cause=RICCurtailmentCause.DISPATCH_ORDER, revenue_lost_m_aud=43.2),
+]
+
+_RIC_SYSTEM_SERVICES: List[RICSystemServiceRecord] = [
+    RICSystemServiceRecord(service=RICSystemService.INERTIA, annual_cost_m_aud=270.0, providers=12, cost_trend=RICCostTrend.RISING, vre_correlation="Strong positive — each 5% VRE penetration increase adds ~$28M inertia cost"),
+    RICSystemServiceRecord(service=RICSystemService.SYSTEM_RESTART, annual_cost_m_aud=145.0, providers=8, cost_trend=RICCostTrend.STABLE, vre_correlation="Moderate — costs stable as inverter-based providers enter market"),
+    RICSystemServiceRecord(service=RICSystemService.VOLTAGE_CONTROL, annual_cost_m_aud=95.0, providers=18, cost_trend=RICCostTrend.FALLING, vre_correlation="Weak negative — grid-forming inverters reducing reactive power costs"),
+    RICSystemServiceRecord(service=RICSystemService.REACTIVE_POWER, annual_cost_m_aud=62.0, providers=24, cost_trend=RICCostTrend.FALLING, vre_correlation="Negative — new STATCOM and SVC installations reducing costs"),
+    RICSystemServiceRecord(service=RICSystemService.FAST_FREQUENCY_RESPONSE, annual_cost_m_aud=180.0, providers=15, cost_trend=RICCostTrend.STABLE, vre_correlation="Moderate positive — battery FFR pricing competitive; cost growth slowing"),
+]
+
+
+@app.get("/api/integration-cost/dashboard", dependencies=[Depends(verify_api_key)])
+def get_renewable_integration_cost_dashboard() -> RenewableIntegrationCostDashboard:
+    return RenewableIntegrationCostDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        cost_components=_RIC_COST_COMPONENTS,
+        network_augs=_RIC_NETWORK_AUGS,
+        curtailment=_RIC_CURTAILMENT,
+        system_services=_RIC_SYSTEM_SERVICES,
+    )

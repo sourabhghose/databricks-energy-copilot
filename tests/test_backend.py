@@ -5015,3 +5015,251 @@ class TestRecCertificateTracking:
             assert rec["greenpower_customers_k"] > 0
             assert rec["greenpower_gwh"] > 0
             assert rec["avg_premium_aud_mwh"] > 0
+
+
+class TestSpotMarketDepthAnalytics:
+    def test_spot_depth_dashboard(self, client):
+        resp = client.get("/api/spot-depth/dashboard")
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level keys
+        assert "timestamp" in d
+        assert "bid_stacks" in d
+        assert "order_flows" in d
+        assert "depth_snapshots" in d
+        assert "participant_flows" in d
+
+        # Bid stacks — 20 records (10 price bands × 2 regions)
+        assert len(d["bid_stacks"]) == 20
+        valid_regions = {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+        for rec in d["bid_stacks"]:
+            assert rec["region"] in valid_regions
+            assert isinstance(rec["price_band_aud_mwh"], float)
+            assert rec["cumulative_mw"] > 0
+            assert rec["participant_count"] >= 1
+            assert rec["technology"]
+
+        # Order flow records — 15
+        assert len(d["order_flows"]) == 15
+        for rec in d["order_flows"]:
+            assert rec["region"] in valid_regions
+            assert rec["buy_volume_mw"] > 0
+            assert rec["sell_volume_mw"] > 0
+            # net_flow = buy - sell (may be negative)
+            assert isinstance(rec["net_flow_mw"], float)
+            assert rec["participant_id"]
+
+        # Depth snapshots — 5 NEM regions
+        assert len(d["depth_snapshots"]) == 5
+        snapshot_regions = {s["region"] for s in d["depth_snapshots"]}
+        assert snapshot_regions == {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+        for snap in d["depth_snapshots"]:
+            assert snap["bid_depth_mw"] > 0
+            assert snap["offer_depth_mw"] > 0
+            assert snap["bid_ask_spread_aud"] > 0
+            assert snap["best_bid_aud"] > 0
+            assert snap["best_ask_aud"] > snap["best_bid_aud"]
+            assert snap["imbalance_ratio"] > 0
+
+        # Participant flow records — 8
+        assert len(d["participant_flows"]) == 8
+        for rec in d["participant_flows"]:
+            assert rec["participant"]
+            assert rec["region"] in valid_regions
+            assert rec["avg_bid_mw"] > 0
+            assert rec["avg_offer_mw"] > 0
+            assert 0 < rec["market_share_pct"] <= 100
+            assert rec["rebid_frequency_day"] >= 0
+            assert 0.0 <= rec["strategic_withholding_score"] <= 10.0
+
+
+# ===========================================================================
+# Sprint 55c — Energy Storage Technology Roadmap
+# ===========================================================================
+
+class TestStorageTechRoadmap:
+    def test_storage_tech_roadmap_dashboard(self, client):
+        r = client.get(
+            "/api/storage-roadmap/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert r.status_code == 200
+        d = r.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "technologies" in d
+        assert "cost_trajectories" in d
+        assert "milestones" in d
+        assert "market_forecasts" in d
+
+        # Technologies — exactly 10
+        assert len(d["technologies"]) == 10
+        valid_maturities = {"COMMERCIAL", "PILOT", "DEMO", "RESEARCH"}
+        for rec in d["technologies"]:
+            assert rec["tech_id"]
+            assert rec["name"]
+            assert rec["maturity"] in valid_maturities
+            assert rec["duration_range_hr"]
+            assert rec["current_lcos_aud_mwh"] > 0
+            assert rec["target_lcos_2030_aud_mwh"] > 0
+            # 2030 target must be cheaper than current
+            assert rec["target_lcos_2030_aud_mwh"] < rec["current_lcos_aud_mwh"]
+            assert rec["cycle_life_k_cycles"] > 0
+            assert rec["energy_density_kwh_m3"] >= 0
+            assert rec["calendar_life_years"] > 0
+            assert rec["australia_installed_mwh"] >= 0
+
+        # At least 3 commercial-stage technologies
+        commercial = [t for t in d["technologies"] if t["maturity"] == "COMMERCIAL"]
+        assert len(commercial) >= 3
+
+        # Cost trajectories — exactly 50 (10 techs × 5 years 2024–2028)
+        assert len(d["cost_trajectories"]) == 50
+        years_in_trajectories = {rec["year"] for rec in d["cost_trajectories"]}
+        assert years_in_trajectories == {2024, 2025, 2026, 2027, 2028}
+        techs_in_trajectories = {rec["technology"] for rec in d["cost_trajectories"]}
+        assert len(techs_in_trajectories) == 10
+        for rec in d["cost_trajectories"]:
+            assert rec["technology"]
+            assert 2024 <= rec["year"] <= 2028
+            assert rec["lcos_aud_mwh"] > 0
+            assert rec["capex_aud_kwh"] > 0
+            assert rec["energy_density_kwh_kg"] >= 0
+            assert 0 <= rec["market_share_pct"] <= 100
+
+        # Milestones — exactly 15
+        assert len(d["milestones"]) == 15
+        valid_statuses = {"ACHIEVED", "ON_TRACK", "AT_RISK", "NOT_STARTED"}
+        for rec in d["milestones"]:
+            assert rec["technology"]
+            assert rec["milestone"]
+            assert 2024 <= rec["target_year"] <= 2030
+            assert rec["status"] in valid_statuses
+            assert rec["responsible_org"]
+            assert rec["capacity_mwh"] >= 0
+            assert "notes" in rec
+
+        # At least one ACHIEVED milestone
+        achieved = [m for m in d["milestones"] if m["status"] == "ACHIEVED"]
+        assert len(achieved) >= 1
+
+        # Market forecasts — exactly 30 (6 techs × 5 years)
+        assert len(d["market_forecasts"]) == 30
+        years_in_forecasts = {rec["year"] for rec in d["market_forecasts"]}
+        assert years_in_forecasts == {2024, 2025, 2026, 2027, 2028}
+        forecast_techs = {rec["technology"] for rec in d["market_forecasts"]}
+        assert len(forecast_techs) == 6
+        for rec in d["market_forecasts"]:
+            assert rec["technology"]
+            assert 2024 <= rec["year"] <= 2028
+            assert rec["cumulative_deployed_gwh"] >= 0
+            assert rec["annual_additions_gwh"] >= 0
+            assert 0 <= rec["cost_reduction_pct_from_2024"] < 100
+            assert 0 <= rec["addressable_market_pct"] <= 100
+
+        # LFP must be the largest deployment technology by 2028
+        lfp_2028 = next(
+            (r for r in d["market_forecasts"] if r["technology"] == "Li-Ion LFP" and r["year"] == 2028),
+            None,
+        )
+        assert lfp_2028 is not None
+        assert lfp_2028["cumulative_deployed_gwh"] > 10.0  # well above 10 GWh by 2028
+
+        # 2024 baseline cost reduction must be exactly 0.0
+        baselines = [r for r in d["market_forecasts"] if r["year"] == 2024]
+        for b in baselines:
+            assert b["cost_reduction_pct_from_2024"] == 0.0
+
+
+class TestRenewableIntegrationCost:
+    """Sprint 55b — Renewable Integration Cost Analytics endpoint tests."""
+
+    def test_integration_cost_dashboard(self, client: TestClient) -> None:
+        resp = client.get("/api/integration-cost/dashboard", headers={"x-api-key": "test-key"})
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "cost_components" in d
+        assert "network_augs" in d
+        assert "curtailment" in d
+        assert "system_services" in d
+
+        # cost_components: 30 records (5 years × 6 components)
+        assert len(d["cost_components"]) == 30
+        valid_components = {
+            "NETWORK_AUGMENTATION", "FIRMING_CAPACITY", "FCAS_MARKETS",
+            "CURTAILMENT_COST", "SYSTEM_RESTART", "INERTIA_SERVICES",
+        }
+        years_seen = set()
+        for rec in d["cost_components"]:
+            assert rec["cost_component"] in valid_components
+            assert 2020 <= rec["year"] <= 2024
+            assert rec["cost_m_aud"] > 0
+            assert rec["cost_aud_mwh_vre"] > 0
+            assert 0 < rec["vre_penetration_pct"] < 100
+            assert rec["notes"]
+            years_seen.add(rec["year"])
+        assert years_seen == {2020, 2021, 2022, 2023, 2024}
+
+        # Each year must have all 6 components
+        for year in [2020, 2021, 2022, 2023, 2024]:
+            yr_components = {r["cost_component"] for r in d["cost_components"] if r["year"] == year}
+            assert yr_components == valid_components, f"Year {year} missing components"
+
+        # network_augs: 8 projects
+        assert len(d["network_augs"]) == 8
+        for aug in d["network_augs"]:
+            assert aug["project_name"]
+            assert aug["region"]
+            assert aug["investment_m_aud"] > 0
+            assert aug["vre_enabled_mw"] > 0
+            assert aug["cost_per_mw_k_aud"] > 0
+            assert 2020 <= aug["commissioning_year"] <= 2035
+            assert aug["benefit_cost_ratio"] > 1.0  # all projects viable
+
+        # curtailment: 20 records (4 techs × 5 years)
+        assert len(d["curtailment"]) == 20
+        valid_causes = {"NETWORK_CONSTRAINT", "DEMAND_LOW", "OVERSUPPLY", "DISPATCH_ORDER"}
+        for rec in d["curtailment"]:
+            assert rec["technology"]
+            assert rec["region"]
+            assert rec["curtailed_gwh"] > 0
+            assert 0 < rec["curtailed_pct"] < 100
+            assert rec["curtailment_cause"] in valid_causes
+            assert rec["revenue_lost_m_aud"] > 0
+
+        # system_services: 5 records
+        assert len(d["system_services"]) == 5
+        valid_services = {
+            "INERTIA", "SYSTEM_RESTART", "VOLTAGE_CONTROL",
+            "REACTIVE_POWER", "FAST_FREQUENCY_RESPONSE",
+        }
+        valid_trends = {"RISING", "STABLE", "FALLING"}
+        services_seen = set()
+        for rec in d["system_services"]:
+            assert rec["service"] in valid_services
+            assert rec["annual_cost_m_aud"] > 0
+            assert rec["providers"] > 0
+            assert rec["cost_trend"] in valid_trends
+            assert rec["vre_correlation"]
+            services_seen.add(rec["service"])
+        assert services_seen == valid_services
+
+        # Business logic assertions
+        # 2024 VRE penetration must be highest
+        penetrations = {r["year"]: r["vre_penetration_pct"] for r in d["cost_components"] if r["cost_component"] == "NETWORK_AUGMENTATION"}
+        assert penetrations[2024] > penetrations[2020]
+
+        # Curtailment should be growing over time
+        annual_curtailment = {}
+        for rec in d["curtailment"]:
+            annual_curtailment[rec["year"]] = annual_curtailment.get(rec["year"], 0) + rec["curtailed_gwh"]
+        assert annual_curtailment[2024] > annual_curtailment[2020]
+
+        # INERTIA must be RISING trend (key system service concern)
+        inertia = next(r for r in d["system_services"] if r["service"] == "INERTIA")
+        assert inertia["cost_trend"] == "RISING"

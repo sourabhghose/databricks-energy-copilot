@@ -7300,3 +7300,164 @@ export interface RecCertificateDashboard {
 
 export const getRecCertificateDashboard = (): Promise<RecCertificateDashboard> =>
   get<RecCertificateDashboard>('/api/rec-tracking/dashboard')
+
+// ── Sprint 55a — NEM Spot Market Depth & Order Flow Analytics ──────────────
+
+export interface SMDBidStackRecord {
+  interval: string
+  region: string
+  price_band_aud_mwh: number
+  cumulative_mw: number
+  technology: string
+  participant_count: number
+}
+
+export interface SMDOrderFlowRecord {
+  interval: string
+  region: string
+  buy_volume_mw: number
+  sell_volume_mw: number
+  net_flow_mw: number
+  price_impact_aud_mwh: number
+  participant_id: string
+}
+
+export interface SMDMarketDepthSnapshot {
+  snapshot_time: string
+  region: string
+  bid_depth_mw: number
+  offer_depth_mw: number
+  bid_ask_spread_aud: number
+  best_bid_aud: number
+  best_ask_aud: number
+  imbalance_ratio: number
+}
+
+export interface SMDParticipantFlowRecord {
+  participant: string
+  region: string
+  avg_bid_mw: number
+  avg_offer_mw: number
+  market_share_pct: number
+  rebid_frequency_day: number
+  strategic_withholding_score: number
+}
+
+export interface SpotMarketDepthDashboard {
+  timestamp: string
+  bid_stacks: SMDBidStackRecord[]
+  order_flows: SMDOrderFlowRecord[]
+  depth_snapshots: SMDMarketDepthSnapshot[]
+  participant_flows: SMDParticipantFlowRecord[]
+}
+
+export const getSpotMarketDepthDashboard = (): Promise<SpotMarketDepthDashboard> =>
+  get<SpotMarketDepthDashboard>('/api/spot-depth/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 55c — Energy Storage Technology Roadmap
+// ---------------------------------------------------------------------------
+
+export interface STRTechnologyRecord {
+  tech_id: string
+  name: string
+  maturity: 'COMMERCIAL' | 'PILOT' | 'DEMO' | 'RESEARCH'
+  duration_range_hr: string
+  current_lcos_aud_mwh: number
+  target_lcos_2030_aud_mwh: number
+  cycle_life_k_cycles: number
+  energy_density_kwh_m3: number
+  calendar_life_years: number
+  australia_installed_mwh: number
+}
+
+export interface STRCostTrajectoryRecord {
+  technology: string
+  year: number
+  lcos_aud_mwh: number
+  capex_aud_kwh: number
+  energy_density_kwh_kg: number
+  market_share_pct: number
+}
+
+export interface STRDeploymentMilestoneRecord {
+  technology: string
+  milestone: string
+  target_year: number
+  status: 'ACHIEVED' | 'ON_TRACK' | 'AT_RISK' | 'NOT_STARTED'
+  responsible_org: string
+  capacity_mwh: number
+  notes: string
+}
+
+export interface STRMarketForecastRecord {
+  year: number
+  technology: string
+  cumulative_deployed_gwh: number
+  annual_additions_gwh: number
+  cost_reduction_pct_from_2024: number
+  addressable_market_pct: number
+}
+
+export interface StorageTechRoadmapDashboard {
+  timestamp: string
+  technologies: STRTechnologyRecord[]
+  cost_trajectories: STRCostTrajectoryRecord[]
+  milestones: STRDeploymentMilestoneRecord[]
+  market_forecasts: STRMarketForecastRecord[]
+}
+
+export const getStorageTechRoadmapDashboard = (): Promise<StorageTechRoadmapDashboard> =>
+  get<StorageTechRoadmapDashboard>('/api/storage-roadmap/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 55b — Renewable Integration Cost Analytics
+// ---------------------------------------------------------------------------
+
+export interface RICCostComponentRecord {
+  year: number
+  cost_component: 'NETWORK_AUGMENTATION' | 'FIRMING_CAPACITY' | 'FCAS_MARKETS' | 'CURTAILMENT_COST' | 'SYSTEM_RESTART' | 'INERTIA_SERVICES'
+  cost_m_aud: number
+  cost_aud_mwh_vre: number
+  vre_penetration_pct: number
+  notes: string
+}
+
+export interface RICNetworkAugRecord {
+  project_name: string
+  region: string
+  investment_m_aud: number
+  vre_enabled_mw: number
+  cost_per_mw_k_aud: number
+  commissioning_year: number
+  benefit_cost_ratio: number
+}
+
+export interface RICCurtailmentRecord {
+  year: number
+  technology: string
+  region: string
+  curtailed_gwh: number
+  curtailed_pct: number
+  curtailment_cause: 'NETWORK_CONSTRAINT' | 'DEMAND_LOW' | 'OVERSUPPLY' | 'DISPATCH_ORDER'
+  revenue_lost_m_aud: number
+}
+
+export interface RICSystemServiceRecord {
+  service: 'INERTIA' | 'SYSTEM_RESTART' | 'VOLTAGE_CONTROL' | 'REACTIVE_POWER' | 'FAST_FREQUENCY_RESPONSE'
+  annual_cost_m_aud: number
+  providers: number
+  cost_trend: 'RISING' | 'STABLE' | 'FALLING'
+  vre_correlation: string
+}
+
+export interface RenewableIntegrationCostDashboard {
+  timestamp: string
+  cost_components: RICCostComponentRecord[]
+  network_augs: RICNetworkAugRecord[]
+  curtailment: RICCurtailmentRecord[]
+  system_services: RICSystemServiceRecord[]
+}
+
+export const getRenewableIntegrationCostDashboard = (): Promise<RenewableIntegrationCostDashboard> =>
+  get<RenewableIntegrationCostDashboard>('/api/integration-cost/dashboard')

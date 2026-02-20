@@ -63,6 +63,7 @@ import {
   RefreshCw,
   ArrowLeftRight,
   Map,
+  GitMerge,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -198,6 +199,9 @@ import MarketStressTesting from './pages/MarketStressTesting'
 import CapacityInvestmentSignals from './pages/CapacityInvestmentSignals'
 import FrequencyControlAnalytics from './pages/FrequencyControlAnalytics'
 import RecCertificateTracking from './pages/RecCertificateTracking'
+import RenewableIntegrationCost from './pages/RenewableIntegrationCost'
+import SpotMarketDepthAnalytics from './pages/SpotMarketDepthAnalytics'
+import StorageTechRoadmap from './pages/StorageTechRoadmap'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -333,6 +337,9 @@ const NAV_ITEMS = [
   { to: '/capacity-investment-signals', label: 'Capacity Investment Signals', Icon: TrendingUp     },
   { to: '/frequency-control-analytics', label: 'Frequency Control',          Icon: Activity       },
   { to: '/rec-certificate-tracking',   label: 'REC Certificate Tracking',    Icon: Award          },
+  { to: '/spot-market-depth',          label: 'Spot Market Depth',            Icon: Layers         },
+  { to: '/storage-tech-roadmap',       label: 'Storage Tech Roadmap',         Icon: GitBranch      },
+  { to: '/renewable-integration-cost', label: 'Renewable Integration Cost',   Icon: GitMerge       },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -543,6 +550,9 @@ export default function App() {
               <Route path="/capacity-investment-signals" element={<CapacityInvestmentSignals />}   />
               <Route path="/frequency-control-analytics" element={<FrequencyControlAnalytics />}  />
               <Route path="/rec-certificate-tracking"    element={<RecCertificateTracking />}      />
+              <Route path="/spot-market-depth"           element={<SpotMarketDepthAnalytics />}    />
+              <Route path="/storage-tech-roadmap"        element={<StorageTechRoadmap />}           />
+              <Route path="/renewable-integration-cost"  element={<RenewableIntegrationCost />}    />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
