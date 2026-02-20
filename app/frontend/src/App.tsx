@@ -195,6 +195,9 @@ import IspProgressTracker from './pages/IspProgressTracker'
 import FirmingTechnologyEconomics from './pages/FirmingTechnologyEconomics'
 import DemandForecastingModels from './pages/DemandForecastingModels'
 import MarketStressTesting from './pages/MarketStressTesting'
+import CapacityInvestmentSignals from './pages/CapacityInvestmentSignals'
+import FrequencyControlAnalytics from './pages/FrequencyControlAnalytics'
+import RecCertificateTracking from './pages/RecCertificateTracking'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -327,6 +330,9 @@ const NAV_ITEMS = [
   { to: '/firming-technology-economics', label: 'Firming Tech Economics',     Icon: Flame          },
   { to: '/demand-forecasting-models',   label: 'Demand Forecast Models',     Icon: Brain          },
   { to: '/market-stress-testing',       label: 'Market Stress Testing',      Icon: ShieldAlert    },
+  { to: '/capacity-investment-signals', label: 'Capacity Investment Signals', Icon: TrendingUp     },
+  { to: '/frequency-control-analytics', label: 'Frequency Control',          Icon: Activity       },
+  { to: '/rec-certificate-tracking',   label: 'REC Certificate Tracking',    Icon: Award          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -534,6 +540,9 @@ export default function App() {
               <Route path="/firming-technology-economics" element={<FirmingTechnologyEconomics />}  />
               <Route path="/demand-forecasting-models"   element={<DemandForecastingModels />}     />
               <Route path="/market-stress-testing"       element={<MarketStressTesting />}         />
+              <Route path="/capacity-investment-signals" element={<CapacityInvestmentSignals />}   />
+              <Route path="/frequency-control-analytics" element={<FrequencyControlAnalytics />}  />
+              <Route path="/rec-certificate-tracking"    element={<RecCertificateTracking />}      />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

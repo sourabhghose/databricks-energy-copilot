@@ -7128,3 +7128,175 @@ export interface MarketStressDashboard {
 
 export const getMarketStressDashboard = (): Promise<MarketStressDashboard> =>
   get<MarketStressDashboard>('/api/market-stress/dashboard')
+
+// ── Sprint 54a: NEM Frequency Control Analytics ───────────────────────────
+
+export interface NFCFrequencyRecord {
+  date: string
+  region: string
+  avg_freq_hz: number
+  std_dev_hz: number
+  time_in_band_pct: number
+  high_freq_deviations: number
+  low_freq_deviations: number
+  max_freq_hz: number
+  min_freq_hz: number
+}
+
+export interface NFCEventRecord {
+  event_id: string
+  datetime: string
+  trigger: 'GENERATOR_TRIP' | 'LOAD_REJECTION' | 'INTERCONNECTOR_SEPARATION' | 'DEMAND_FORECAST_ERROR'
+  nadir_hz: number
+  recovery_time_sec: number
+  rocof_hz_per_sec: number
+  unserved_energy_mwh: number
+  region: string
+}
+
+export interface NFCContributorRecord {
+  technology: string
+  pfr_response_mw: number
+  response_speed_ms: number
+  droop_setting_pct: number
+  contribution_pct: number
+  portfolio_mw: number
+}
+
+export interface NFCPerformanceRecord {
+  month: string
+  compliance_rate_pct: number
+  fcas_shortfall_events: number
+  pfr_response_adequacy_pct: number
+  avg_nadir_hz: number
+  avg_rocof: number
+}
+
+export interface FrequencyControlDashboard {
+  timestamp: string
+  frequency_records: NFCFrequencyRecord[]
+  events: NFCEventRecord[]
+  contributors: NFCContributorRecord[]
+  performance: NFCPerformanceRecord[]
+}
+
+export const getFrequencyControlDashboard = (): Promise<FrequencyControlDashboard> =>
+  get<FrequencyControlDashboard>('/api/frequency-control/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 54b — NEM Capacity Investment Signals
+// ---------------------------------------------------------------------------
+
+export interface CISNewEntrantRecord {
+  technology: string
+  region: string
+  capex_m_aud_mw: number
+  wacc_pct: number
+  loe_aud_mwh: number
+  breakeven_price_aud_mwh: number
+  payback_years: number
+  npv_m_aud: number
+  irr_pct: number
+}
+
+export interface CISInvestmentActivityRecord {
+  year: number
+  technology: string
+  committed_mw: number
+  cancelled_mw: number
+  net_investment_mw: number
+  announced_projects: number
+  financing_secured_pct: number
+}
+
+export interface CISPriceSignalRecord {
+  region: string
+  year: number
+  avg_spot_price: number
+  time_weighted_price: number
+  peak_peaker_price: number
+  revenue_adequacy_signal: 'STRONG' | 'ADEQUATE' | 'WEAK' | 'INSUFFICIENT'
+}
+
+export interface CISExitRiskRecord {
+  unit_id: string
+  unit_name: string
+  technology: string
+  age_years: number
+  remaining_life_years: number
+  exit_probability_5yr_pct: number
+  exit_trigger: 'ECONOMICS' | 'AGE' | 'POLICY' | 'REGULATION'
+  capacity_mw: number
+}
+
+export interface CapacityInvestmentDashboard {
+  timestamp: string
+  new_entrant_costs: CISNewEntrantRecord[]
+  investment_activity: CISInvestmentActivityRecord[]
+  price_signals: CISPriceSignalRecord[]
+  exit_risks: CISExitRiskRecord[]
+}
+
+export const getCapacityInvestmentDashboard = (): Promise<CapacityInvestmentDashboard> =>
+  get<CapacityInvestmentDashboard>('/api/capacity-investment/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 54c — REC & PPAs Certificate Tracking
+// ---------------------------------------------------------------------------
+
+export interface RCTLgcPriceRecord {
+  month: string
+  lgc_spot_price_aud: number
+  lgc_forward_2026_aud: number
+  lgc_forward_2027_aud: number
+  volume_k_certificates: number
+  open_interest_k: number
+}
+
+export interface RCTSurplusDeficitRecord {
+  year: number
+  lret_target_gwh: number
+  liable_entity_surrenders_gwh: number
+  surplus_deficit_gwh: number
+  surplus_deficit_pct: number
+  new_projects_gwh: number
+}
+
+export interface RCTCreationRecord {
+  technology: string
+  region: string
+  lgcs_created_k: number
+  year: number
+  capacity_mw: number
+  avg_lgc_yield_per_mw: number
+  accredited_projects: number
+}
+
+export interface RCTComplianceRecord {
+  retailer: string
+  market_share_pct: number
+  liable_energy_gwh: number
+  certificates_surrendered_k: number
+  compliance_status: 'COMPLIANT' | 'SHORTFALL' | 'DEFERRED'
+  shortfall_charge_m_aud: number
+}
+
+export interface RCTGreenPowerRecord {
+  state: string
+  greenpower_customers_k: number
+  greenpower_gwh: number
+  avg_premium_aud_mwh: number
+  yoy_growth_pct: number
+}
+
+export interface RecCertificateDashboard {
+  timestamp: string
+  lgc_prices: RCTLgcPriceRecord[]
+  surplus_deficit: RCTSurplusDeficitRecord[]
+  creation: RCTCreationRecord[]
+  compliance: RCTComplianceRecord[]
+  greenpower: RCTGreenPowerRecord[]
+}
+
+export const getRecCertificateDashboard = (): Promise<RecCertificateDashboard> =>
+  get<RecCertificateDashboard>('/api/rec-tracking/dashboard')

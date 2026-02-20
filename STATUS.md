@@ -1307,3 +1307,42 @@ Added comparative analytics page for ML-based electricity demand forecasting acr
 - `app/frontend/src/api/client.ts` — Appended TypeScript interfaces (`MarketStressScenario`, `StressTestResult`, `SystemVulnerabilityRecord`, `StressTestKpiRecord`, `MarketStressDashboard`) and `getMarketStressDashboard()` exported function.
 - `app/frontend/src/App.tsx` — Added `MarketStressTesting` import, `/market-stress-testing` route, and nav item with `ShieldAlert` icon.
 - `tests/test_backend.py` — Appended `TestMarketStressTesting` class with `test_market_stress_dashboard()` covering top-level structure, scenario enum validation, vulnerability score bounds, and KPI record counts.
+
+## Sprint 54a — NEM Frequency Control Analytics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Added Pydantic models (`NFCFrequencyRecord`, `NFCEventRecord`, `NFCContributorRecord`, `NFCPerformanceRecord`, `FrequencyControlDashboard`) and `GET /api/frequency-control/dashboard` endpoint with realistic NEM mock data: 12 monthly frequency performance records for NSW1 (2024), 8 major frequency events across NEM regions (covering GENERATOR_TRIP, LOAD_REJECTION, INTERCONNECTOR_SEPARATION, DEMAND_FORECAST_ERROR triggers), 10 technology contributor records (BESS, Hydro, OCGT, CCGT, Coal, Solar, Wind, PHES, Demand Response, VPP), and 12 monthly performance records tracking compliance, FCAS shortfalls, PFR adequacy, average nadir, and ROCOF.
+- `app/frontend/src/pages/FrequencyControlAnalytics.tsx` — New React/TypeScript analytics page with: 4 KPI summary cards (current avg frequency, time-in-band %, worst nadir Hz, PFR compliance rate %); AreaChart of monthly avg frequency with reference lines at 49.85 and 50.15 Hz band boundaries; event severity table sorted by nadir Hz ascending (worst first) with colour-coded trigger badges, nadir, ROCOF, recovery time, and unserved energy columns; horizontal BarChart of PFR MW response by technology coloured by response speed (green ≤ 500 ms, amber ≤ 1500 ms, red > 1500 ms); dual-axis LineChart showing compliance rate %, PFR adequacy %, and FCAS shortfall event count over 12 months. Tailwind dark theme (bg-gray-900/bg-gray-800), Recharts, lucide-react Activity icon.
+- `app/frontend/src/api/client.ts` — Appended TypeScript interfaces (`NFCFrequencyRecord`, `NFCEventRecord`, `NFCContributorRecord`, `NFCPerformanceRecord`, `FrequencyControlDashboard`) and `getFrequencyControlDashboard()` exported function.
+- `app/frontend/src/App.tsx` — Added `FrequencyControlAnalytics` import, `/frequency-control-analytics` route, and nav item with `Activity` icon.
+- `tests/test_backend.py` — Appended `TestFrequencyControlAnalytics` class with `test_frequency_control_dashboard()` covering top-level structure validation, 12 frequency records with plausibility bounds, 8 events with trigger enum validation, 10 contributor records with contribution-percentage sum check (~100%), and 12 performance records with all numeric field bounds.
+
+## Sprint 54b — NEM Capacity Investment Signals — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Added Pydantic models (`CISNewEntrantRecord`, `CISInvestmentActivityRecord`, `CISPriceSignalRecord`, `CISExitRiskRecord`, `CapacityInvestmentDashboard`) and `GET /api/capacity-investment/dashboard` endpoint with comprehensive NEM mock data: 8 new entrant cost records covering Utility Solar, Onshore Wind, BESS 2h, OCGT, CCGT, Pumped Hydro, Offshore Wind, and Green Hydrogen with CAPEX, WACC, LCOE, breakeven price, payback years, NPV at $85/MWh average, and IRR; 20 investment activity records (5 years 2020-2024 × 4 technologies) with committed/cancelled MW and financing secured %; 20 price signal records (5 NEM regions × 4 years 2021-2024) with revenue adequacy signal enum (STRONG/ADEQUATE/WEAK/INSUFFICIENT); 10 exit risk records for real NEM units with age, remaining life, exit probability, trigger type, and capacity.
+- `app/frontend/src/pages/CapacityInvestmentSignals.tsx` — New React/TypeScript analytics page with: 4 KPI summary cards (cheapest new entrant LCOE, total 2024 committed capacity, regions with STRONG signal, total exit risk capacity); new entrant cost stacked BarChart with CAPEX + WACC Uplift breakdown and $85/MWh average breakeven ReferenceLine; investment activity stacked BarChart (committed vs cancelled by technology by year); average spot price LineChart by region over 2021-2024 with LRMC reference line; revenue adequacy signal heatmap table colour-coded by strength (green/yellow/orange/red) across 5 regions × 4 years with $/MWh inlay; exit risk register table sorted by exit probability with inline progress bars (red/orange/yellow) and trigger badges. Tailwind dark theme (bg-gray-900/bg-gray-800), Recharts, lucide-react icons.
+- `app/frontend/src/api/client.ts` — Appended TypeScript interfaces (`CISNewEntrantRecord`, `CISInvestmentActivityRecord`, `CISPriceSignalRecord`, `CISExitRiskRecord`, `CapacityInvestmentDashboard`) and `getCapacityInvestmentDashboard()` exported function.
+- `app/frontend/src/App.tsx` — Added `CapacityInvestmentSignals` import, `/capacity-investment-signals` route, and nav item with `TrendingUp` icon.
+- `tests/test_backend.py` — Appended `TestCapacityInvestmentSignals` class with `test_capacity_investment_dashboard()` covering all response keys, record counts (8 new entrant, 20 activity, 20 price signal, 10 exit risk), enum validation, value bounds, and cross-record consistency checks.
+
+## Sprint 54c — REC & PPAs Certificate Tracking — 2026-02-20
+
+Added Australian RET scheme tracking page for LGCs, STCs, GreenPower, and corporate renewable matching.
+
+**Backend (`app/backend/main.py`):**
+- Pydantic models: `RCTLgcPriceRecord`, `RCTSurplusDeficitRecord`, `RCTCreationRecord`, `RCTComplianceRecord`, `RCTGreenPowerRecord`, `RecCertificateDashboard`
+- Endpoint: `GET /api/rec-tracking/dashboard` — returns 24 monthly LGC price records (2023-2024) with spot and forward curves (2026/2027), 8 LRET surplus/deficit records (2017-2024), 20 LGC creation records (5 technologies × 4 NEM regions: Wind, Large Solar, Hydro, Biomass/Waste, Rooftop Solar), 10 retailer compliance records with status enum (COMPLIANT/SHORTFALL/DEFERRED), 6 state GreenPower records (NSW/VIC/QLD/SA/WA/TAS)
+- All model names prefixed `RCT` to avoid collisions with existing REC-related models
+
+**Frontend (`app/frontend/src/pages/RecCertificateTracking.tsx`):**
+- 4 KPI cards: current LGC spot price (Dec 2024 $78.40), 2024 LRET surplus (+3,200 GWh / +9.70%), total LGCs created (all techs & regions), GreenPower customers (k, nationwide)
+- LGC price trend AreaChart — spot price with gradient fill + 2026/2027 forward curves as dashed lines over 24 months
+- LRET surplus/deficit BarChart — annual surplus (positive) / deficit (negative) bars with zero ReferenceLine
+- LGC creation by technology stacked BarChart — per NEM region, colour-coded by technology type
+- Retailer compliance table — market share %, liable energy GWh, certificates surrendered, compliance status badge (green/red/amber with icon), shortfall charge AUD$M
+- GreenPower state table — state badge, customers k, GWh, avg premium $/MWh, YoY growth % with colour coding
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`RCTLgcPriceRecord`, `RCTSurplusDeficitRecord`, `RCTCreationRecord`, `RCTComplianceRecord`, `RCTGreenPowerRecord`, `RecCertificateDashboard`) and `getRecCertificateDashboard()` exported function.
+**Routing (`app/frontend/src/App.tsx`):** Import, nav entry (`Award` icon), and route at `/rec-certificate-tracking`.
+**Tests (`tests/test_backend.py`):** `TestRecCertificateTracking.test_rec_certificate_dashboard` validates top-level structure, 24 LGC price records with forward/spot proximity, 8 surplus/deficit records with correct 33,000 GWh target, 20 creation records with tech/region enum checks, 10 compliance records with status enum validation and zero-shortfall-charge constraint for COMPLIANT retailers, 6 GreenPower records covering all states.

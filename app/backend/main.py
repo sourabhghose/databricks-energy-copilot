@@ -39190,3 +39190,481 @@ def get_demand_forecast_models_dashboard():
         seasonal_patterns=_DFM_SEASONAL_PATTERNS,
         feature_importance=_DFM_FEATURE_IMPORTANCE,
     )
+
+
+# ============================================================
+# Sprint 54a — NEM Frequency Control Analytics
+# ============================================================
+
+class NFCFrequencyRecord(BaseModel):
+    date: str
+    region: str
+    avg_freq_hz: float
+    std_dev_hz: float
+    time_in_band_pct: float   # % time within 49.85–50.15 Hz
+    high_freq_deviations: int
+    low_freq_deviations: int
+    max_freq_hz: float
+    min_freq_hz: float
+
+
+class NFCEventRecord(BaseModel):
+    event_id: str
+    datetime: str
+    trigger: str              # GENERATOR_TRIP | LOAD_REJECTION | INTERCONNECTOR_SEPARATION | DEMAND_FORECAST_ERROR
+    nadir_hz: float
+    recovery_time_sec: float
+    rocof_hz_per_sec: float
+    unserved_energy_mwh: float
+    region: str
+
+
+class NFCContributorRecord(BaseModel):
+    technology: str
+    pfr_response_mw: float
+    response_speed_ms: int
+    droop_setting_pct: float
+    contribution_pct: float
+    portfolio_mw: float
+
+
+class NFCPerformanceRecord(BaseModel):
+    month: str
+    compliance_rate_pct: float
+    fcas_shortfall_events: int
+    pfr_response_adequacy_pct: float
+    avg_nadir_hz: float
+    avg_rocof: float
+
+
+class FrequencyControlDashboard(BaseModel):
+    timestamp: str
+    frequency_records: List[NFCFrequencyRecord]
+    events: List[NFCEventRecord]
+    contributors: List[NFCContributorRecord]
+    performance: List[NFCPerformanceRecord]
+
+
+# --- Mock data ---------------------------------------------------------------
+
+_NFC_FREQUENCY_RECORDS: List[NFCFrequencyRecord] = [
+    NFCFrequencyRecord(date="2024-01", region="NSW1", avg_freq_hz=50.03, std_dev_hz=0.042, time_in_band_pct=98.7, high_freq_deviations=12, low_freq_deviations=8,  max_freq_hz=50.28, min_freq_hz=49.78),
+    NFCFrequencyRecord(date="2024-02", region="NSW1", avg_freq_hz=50.02, std_dev_hz=0.039, time_in_band_pct=99.1, high_freq_deviations=9,  low_freq_deviations=6,  max_freq_hz=50.24, min_freq_hz=49.81),
+    NFCFrequencyRecord(date="2024-03", region="NSW1", avg_freq_hz=50.01, std_dev_hz=0.041, time_in_band_pct=98.9, high_freq_deviations=11, low_freq_deviations=7,  max_freq_hz=50.26, min_freq_hz=49.79),
+    NFCFrequencyRecord(date="2024-04", region="NSW1", avg_freq_hz=50.04, std_dev_hz=0.038, time_in_band_pct=99.3, high_freq_deviations=7,  low_freq_deviations=5,  max_freq_hz=50.21, min_freq_hz=49.83),
+    NFCFrequencyRecord(date="2024-05", region="NSW1", avg_freq_hz=49.99, std_dev_hz=0.047, time_in_band_pct=97.8, high_freq_deviations=14, low_freq_deviations=18, max_freq_hz=50.31, min_freq_hz=49.63),
+    NFCFrequencyRecord(date="2024-06", region="NSW1", avg_freq_hz=50.02, std_dev_hz=0.044, time_in_band_pct=98.2, high_freq_deviations=13, low_freq_deviations=10, max_freq_hz=50.29, min_freq_hz=49.72),
+    NFCFrequencyRecord(date="2024-07", region="NSW1", avg_freq_hz=50.03, std_dev_hz=0.040, time_in_band_pct=98.8, high_freq_deviations=10, low_freq_deviations=9,  max_freq_hz=50.25, min_freq_hz=49.76),
+    NFCFrequencyRecord(date="2024-08", region="NSW1", avg_freq_hz=50.01, std_dev_hz=0.043, time_in_band_pct=98.5, high_freq_deviations=11, low_freq_deviations=11, max_freq_hz=50.27, min_freq_hz=49.74),
+    NFCFrequencyRecord(date="2024-09", region="NSW1", avg_freq_hz=50.02, std_dev_hz=0.036, time_in_band_pct=99.4, high_freq_deviations=6,  low_freq_deviations=4,  max_freq_hz=50.19, min_freq_hz=49.85),
+    NFCFrequencyRecord(date="2024-10", region="NSW1", avg_freq_hz=50.03, std_dev_hz=0.039, time_in_band_pct=99.0, high_freq_deviations=8,  low_freq_deviations=7,  max_freq_hz=50.22, min_freq_hz=49.80),
+    NFCFrequencyRecord(date="2024-11", region="NSW1", avg_freq_hz=50.02, std_dev_hz=0.041, time_in_band_pct=98.6, high_freq_deviations=10, low_freq_deviations=9,  max_freq_hz=50.24, min_freq_hz=49.77),
+    NFCFrequencyRecord(date="2024-12", region="NSW1", avg_freq_hz=50.04, std_dev_hz=0.045, time_in_band_pct=97.9, high_freq_deviations=15, low_freq_deviations=13, max_freq_hz=50.33, min_freq_hz=49.68),
+]
+
+_NFC_EVENTS: List[NFCEventRecord] = [
+    NFCEventRecord(event_id="EVT-2024-001", datetime="2024-01-18T14:23:00+10:00", trigger="GENERATOR_TRIP",            nadir_hz=49.54, recovery_time_sec=42.5, rocof_hz_per_sec=0.38, unserved_energy_mwh=0.0,   region="NSW1"),
+    NFCEventRecord(event_id="EVT-2024-002", datetime="2024-02-27T11:05:00+10:00", trigger="INTERCONNECTOR_SEPARATION", nadir_hz=49.31, recovery_time_sec=68.3, rocof_hz_per_sec=0.61, unserved_energy_mwh=2.4,   region="VIC1"),
+    NFCEventRecord(event_id="EVT-2024-003", datetime="2024-04-09T16:47:00+10:00", trigger="GENERATOR_TRIP",            nadir_hz=49.62, recovery_time_sec=38.1, rocof_hz_per_sec=0.29, unserved_energy_mwh=0.0,   region="QLD1"),
+    NFCEventRecord(event_id="EVT-2024-004", datetime="2024-05-14T09:12:00+10:00", trigger="DEMAND_FORECAST_ERROR",     nadir_hz=49.73, recovery_time_sec=25.7, rocof_hz_per_sec=0.18, unserved_energy_mwh=0.0,   region="SA1"),
+    NFCEventRecord(event_id="EVT-2024-005", datetime="2024-06-22T20:34:00+10:00", trigger="LOAD_REJECTION",            nadir_hz=50.48, recovery_time_sec=31.2, rocof_hz_per_sec=0.22, unserved_energy_mwh=0.0,   region="NSW1"),
+    NFCEventRecord(event_id="EVT-2024-006", datetime="2024-08-07T13:58:00+10:00", trigger="INTERCONNECTOR_SEPARATION", nadir_hz=49.18, recovery_time_sec=91.4, rocof_hz_per_sec=0.74, unserved_energy_mwh=8.7,   region="SA1"),
+    NFCEventRecord(event_id="EVT-2024-007", datetime="2024-10-03T07:41:00+10:00", trigger="GENERATOR_TRIP",            nadir_hz=49.47, recovery_time_sec=55.9, rocof_hz_per_sec=0.45, unserved_energy_mwh=0.3,   region="VIC1"),
+    NFCEventRecord(event_id="EVT-2024-008", datetime="2024-12-19T18:22:00+10:00", trigger="DEMAND_FORECAST_ERROR",     nadir_hz=49.68, recovery_time_sec=28.6, rocof_hz_per_sec=0.21, unserved_energy_mwh=0.0,   region="QLD1"),
+]
+
+_NFC_CONTRIBUTORS: List[NFCContributorRecord] = [
+    NFCContributorRecord(technology="Battery Storage (BESS)",    pfr_response_mw=380.0, response_speed_ms=200,  droop_setting_pct=4.0, contribution_pct=22.8, portfolio_mw=1200.0),
+    NFCContributorRecord(technology="Hydro (Snowy 2.0)",         pfr_response_mw=310.0, response_speed_ms=800,  droop_setting_pct=5.0, contribution_pct=18.6, portfolio_mw=2200.0),
+    NFCContributorRecord(technology="Open Cycle Gas Turbine",    pfr_response_mw=270.0, response_speed_ms=1200, droop_setting_pct=5.0, contribution_pct=16.2, portfolio_mw=1800.0),
+    NFCContributorRecord(technology="Combined Cycle Gas Turbine",pfr_response_mw=240.0, response_speed_ms=2000, droop_setting_pct=4.5, contribution_pct=14.4, portfolio_mw=3500.0),
+    NFCContributorRecord(technology="Coal (Thermal)",            pfr_response_mw=200.0, response_speed_ms=4500, droop_setting_pct=5.0, contribution_pct=12.0, portfolio_mw=8000.0),
+    NFCContributorRecord(technology="Solar (Grid-Scale)",        pfr_response_mw=150.0, response_speed_ms=300,  droop_setting_pct=3.5, contribution_pct=9.0,  portfolio_mw=5500.0),
+    NFCContributorRecord(technology="Wind (Onshore)",            pfr_response_mw=120.0, response_speed_ms=500,  droop_setting_pct=3.5, contribution_pct=7.2,  portfolio_mw=4200.0),
+    NFCContributorRecord(technology="Pumped Hydro (PHES)",       pfr_response_mw=90.0,  response_speed_ms=600,  droop_setting_pct=4.0, contribution_pct=5.4,  portfolio_mw=700.0),
+    NFCContributorRecord(technology="Demand Response",           pfr_response_mw=60.0,  response_speed_ms=3000, droop_setting_pct=0.0, contribution_pct=3.6,  portfolio_mw=500.0),
+    NFCContributorRecord(technology="Virtual Power Plant (VPP)", pfr_response_mw=47.0,  response_speed_ms=400,  droop_setting_pct=3.0, contribution_pct=2.8,  portfolio_mw=300.0),
+]
+
+_NFC_PERFORMANCE: List[NFCPerformanceRecord] = [
+    NFCPerformanceRecord(month="2024-01", compliance_rate_pct=97.2, fcas_shortfall_events=1, pfr_response_adequacy_pct=94.8, avg_nadir_hz=49.81, avg_rocof=0.28),
+    NFCPerformanceRecord(month="2024-02", compliance_rate_pct=98.5, fcas_shortfall_events=0, pfr_response_adequacy_pct=96.3, avg_nadir_hz=49.84, avg_rocof=0.25),
+    NFCPerformanceRecord(month="2024-03", compliance_rate_pct=97.8, fcas_shortfall_events=1, pfr_response_adequacy_pct=95.6, avg_nadir_hz=49.82, avg_rocof=0.27),
+    NFCPerformanceRecord(month="2024-04", compliance_rate_pct=99.1, fcas_shortfall_events=0, pfr_response_adequacy_pct=97.4, avg_nadir_hz=49.86, avg_rocof=0.22),
+    NFCPerformanceRecord(month="2024-05", compliance_rate_pct=95.4, fcas_shortfall_events=3, pfr_response_adequacy_pct=91.2, avg_nadir_hz=49.73, avg_rocof=0.41),
+    NFCPerformanceRecord(month="2024-06", compliance_rate_pct=96.7, fcas_shortfall_events=2, pfr_response_adequacy_pct=93.5, avg_nadir_hz=49.78, avg_rocof=0.33),
+    NFCPerformanceRecord(month="2024-07", compliance_rate_pct=97.9, fcas_shortfall_events=1, pfr_response_adequacy_pct=95.8, avg_nadir_hz=49.83, avg_rocof=0.26),
+    NFCPerformanceRecord(month="2024-08", compliance_rate_pct=96.1, fcas_shortfall_events=2, pfr_response_adequacy_pct=92.7, avg_nadir_hz=49.76, avg_rocof=0.36),
+    NFCPerformanceRecord(month="2024-09", compliance_rate_pct=99.3, fcas_shortfall_events=0, pfr_response_adequacy_pct=98.1, avg_nadir_hz=49.87, avg_rocof=0.21),
+    NFCPerformanceRecord(month="2024-10", compliance_rate_pct=98.2, fcas_shortfall_events=0, pfr_response_adequacy_pct=96.9, avg_nadir_hz=49.84, avg_rocof=0.24),
+    NFCPerformanceRecord(month="2024-11", compliance_rate_pct=97.5, fcas_shortfall_events=1, pfr_response_adequacy_pct=95.1, avg_nadir_hz=49.81, avg_rocof=0.29),
+    NFCPerformanceRecord(month="2024-12", compliance_rate_pct=95.8, fcas_shortfall_events=3, pfr_response_adequacy_pct=90.6, avg_nadir_hz=49.71, avg_rocof=0.43),
+]
+
+
+@app.get("/api/frequency-control/dashboard", dependencies=[Depends(verify_api_key)])
+def get_frequency_control_dashboard() -> FrequencyControlDashboard:
+    return FrequencyControlDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        frequency_records=_NFC_FREQUENCY_RECORDS,
+        events=_NFC_EVENTS,
+        contributors=_NFC_CONTRIBUTORS,
+        performance=_NFC_PERFORMANCE,
+    )
+
+
+# ============================================================
+# Sprint 54c — Renewable Energy Certificate (REC) & PPAs Tracking
+# ============================================================
+
+class RCTLgcPriceRecord(BaseModel):
+    month: str
+    lgc_spot_price_aud: float
+    lgc_forward_2026_aud: float
+    lgc_forward_2027_aud: float
+    volume_k_certificates: int
+    open_interest_k: int
+
+
+class RCTSurplusDeficitRecord(BaseModel):
+    year: int
+    lret_target_gwh: float
+    liable_entity_surrenders_gwh: float
+    surplus_deficit_gwh: float
+    surplus_deficit_pct: float
+    new_projects_gwh: float
+
+
+class RCTCreationRecord(BaseModel):
+    technology: str
+    region: str
+    lgcs_created_k: int
+    year: int
+    capacity_mw: float
+    avg_lgc_yield_per_mw: float
+    accredited_projects: int
+
+
+class RCTComplianceRecord(BaseModel):
+    retailer: str
+    market_share_pct: float
+    liable_energy_gwh: float
+    certificates_surrendered_k: int
+    compliance_status: str  # COMPLIANT / SHORTFALL / DEFERRED
+    shortfall_charge_m_aud: float
+
+
+class RCTGreenPowerRecord(BaseModel):
+    state: str
+    greenpower_customers_k: int
+    greenpower_gwh: float
+    avg_premium_aud_mwh: float
+    yoy_growth_pct: float
+
+
+class RecCertificateDashboard(BaseModel):
+    timestamp: str
+    lgc_prices: List[RCTLgcPriceRecord]
+    surplus_deficit: List[RCTSurplusDeficitRecord]
+    creation: List[RCTCreationRecord]
+    compliance: List[RCTComplianceRecord]
+    greenpower: List[RCTGreenPowerRecord]
+
+
+def _rct_make_lgc_prices() -> List[RCTLgcPriceRecord]:
+    # 24 monthly records: Jan 2023 – Dec 2024
+    data = [
+        ("2023-01", 52.50, 54.80, 56.20, 420, 1850),
+        ("2023-02", 51.80, 54.20, 55.90, 390, 1780),
+        ("2023-03", 53.10, 55.00, 56.50, 445, 1920),
+        ("2023-04", 54.30, 55.80, 57.00, 480, 2010),
+        ("2023-05", 55.70, 56.50, 57.80, 510, 2120),
+        ("2023-06", 57.20, 57.40, 58.60, 530, 2200),
+        ("2023-07", 56.90, 57.20, 58.40, 515, 2180),
+        ("2023-08", 58.40, 58.10, 59.20, 560, 2340),
+        ("2023-09", 59.80, 59.00, 60.10, 590, 2450),
+        ("2023-10", 61.20, 60.20, 61.30, 620, 2580),
+        ("2023-11", 62.50, 61.00, 62.00, 640, 2640),
+        ("2023-12", 63.80, 62.10, 63.00, 680, 2780),
+        ("2024-01", 65.20, 63.40, 64.20, 710, 2890),
+        ("2024-02", 64.50, 63.00, 64.00, 690, 2820),
+        ("2024-03", 66.10, 64.20, 65.10, 730, 2960),
+        ("2024-04", 67.80, 65.50, 66.30, 760, 3080),
+        ("2024-05", 69.30, 66.80, 67.50, 800, 3210),
+        ("2024-06", 70.50, 68.00, 68.80, 830, 3340),
+        ("2024-07", 71.20, 68.80, 69.50, 850, 3400),
+        ("2024-08", 72.80, 70.10, 70.80, 880, 3520),
+        ("2024-09", 74.10, 71.50, 72.10, 910, 3640),
+        ("2024-10", 75.60, 72.80, 73.40, 940, 3750),
+        ("2024-11", 76.90, 74.00, 74.60, 970, 3870),
+        ("2024-12", 78.40, 75.30, 75.90, 1000, 3980),
+    ]
+    return [
+        RCTLgcPriceRecord(
+            month=d[0], lgc_spot_price_aud=d[1],
+            lgc_forward_2026_aud=d[2], lgc_forward_2027_aud=d[3],
+            volume_k_certificates=d[4], open_interest_k=d[5],
+        )
+        for d in data
+    ]
+
+
+def _rct_make_surplus_deficit() -> List[RCTSurplusDeficitRecord]:
+    # 8 records: 2017–2024
+    data = [
+        (2017, 33000.0, 31200.0, -1800.0, -5.45, 4200.0),
+        (2018, 33000.0, 32100.0,  -900.0, -2.73, 5600.0),
+        (2019, 33000.0, 33400.0,   400.0,  1.21, 6800.0),
+        (2020, 33000.0, 33900.0,   900.0,  2.73, 7200.0),
+        (2021, 33000.0, 34500.0,  1500.0,  4.55, 8100.0),
+        (2022, 33000.0, 34200.0,  1200.0,  3.64, 9400.0),
+        (2023, 33000.0, 35100.0,  2100.0,  6.36, 10800.0),
+        (2024, 33000.0, 36200.0,  3200.0,  9.70, 12300.0),
+    ]
+    return [
+        RCTSurplusDeficitRecord(
+            year=d[0], lret_target_gwh=d[1],
+            liable_entity_surrenders_gwh=d[2],
+            surplus_deficit_gwh=d[3], surplus_deficit_pct=d[4],
+            new_projects_gwh=d[5],
+        )
+        for d in data
+    ]
+
+
+def _rct_make_creation() -> List[RCTCreationRecord]:
+    # 20 records: 5 technologies × 4 NEM regions, 2024
+    data = [
+        ("Wind",          "NSW1", 4850, 2024, 3200.0, 1.52, 42),
+        ("Wind",          "VIC1", 3920, 2024, 2600.0, 1.51, 35),
+        ("Wind",          "SA1",  2780, 2024, 1850.0, 1.50, 28),
+        ("Wind",          "QLD1", 1640, 2024, 1100.0, 1.49, 18),
+        ("Large Solar",   "NSW1", 3200, 2024, 2400.0, 1.33, 38),
+        ("Large Solar",   "QLD1", 4100, 2024, 3100.0, 1.32, 45),
+        ("Large Solar",   "SA1",  2600, 2024, 1980.0, 1.31, 30),
+        ("Large Solar",   "VIC1", 1800, 2024, 1380.0, 1.30, 22),
+        ("Hydro",         "NSW1", 1200, 2024,  820.0, 1.46, 12),
+        ("Hydro",         "VIC1",  980, 2024,  670.0, 1.46, 10),
+        ("Hydro",         "TAS1", 3400, 2024, 2300.0, 1.48, 18),
+        ("Hydro",         "QLD1",  420, 2024,  290.0, 1.45,  5),
+        ("Biomass/Waste", "NSW1",  560, 2024,  380.0, 1.47,  8),
+        ("Biomass/Waste", "VIC1",  480, 2024,  330.0, 1.45,  7),
+        ("Biomass/Waste", "QLD1",  390, 2024,  265.0, 1.47,  6),
+        ("Biomass/Waste", "SA1",   280, 2024,  190.0, 1.47,  4),
+        ("Rooftop Solar", "NSW1", 2800, 2024,    0.0, 0.00,  0),
+        ("Rooftop Solar", "QLD1", 3100, 2024,    0.0, 0.00,  0),
+        ("Rooftop Solar", "VIC1", 2200, 2024,    0.0, 0.00,  0),
+        ("Rooftop Solar", "SA1",  1900, 2024,    0.0, 0.00,  0),
+    ]
+    return [
+        RCTCreationRecord(
+            technology=d[0], region=d[1], lgcs_created_k=d[2],
+            year=d[3], capacity_mw=d[4],
+            avg_lgc_yield_per_mw=d[5], accredited_projects=d[6],
+        )
+        for d in data
+    ]
+
+
+def _rct_make_compliance() -> List[RCTComplianceRecord]:
+    # 10 retailer compliance records
+    data = [
+        ("AGL Energy",        18.4, 52800.0, 8650,  "COMPLIANT",  0.0),
+        ("Origin Energy",     16.2, 46400.0, 7600,  "COMPLIANT",  0.0),
+        ("EnergyAustralia",   14.8, 42400.0, 6950,  "COMPLIANT",  0.0),
+        ("Simply Energy",      6.4, 18300.0, 2990,  "COMPLIANT",  0.0),
+        ("Alinta Energy",      5.9, 16900.0, 2750,  "COMPLIANT",  0.0),
+        ("Red Energy",         4.8, 13800.0, 2240,  "COMPLIANT",  0.0),
+        ("Momentum Energy",    3.6, 10300.0, 1650,  "DEFERRED",   1.2),
+        ("Lumo Energy",        2.9,  8300.0, 1280,  "SHORTFALL",  3.8),
+        ("1st Energy",         1.8,  5200.0,  790,  "SHORTFALL",  2.1),
+        ("Other Retailers",   25.2, 72100.0, 11820, "COMPLIANT",  0.0),
+    ]
+    return [
+        RCTComplianceRecord(
+            retailer=d[0], market_share_pct=d[1],
+            liable_energy_gwh=d[2], certificates_surrendered_k=d[3],
+            compliance_status=d[4], shortfall_charge_m_aud=d[5],
+        )
+        for d in data
+    ]
+
+
+def _rct_make_greenpower() -> List[RCTGreenPowerRecord]:
+    # 6 state records
+    data = [
+        ("NSW", 185, 4820.0, 8.40,  12.3),
+        ("VIC", 142, 3710.0, 7.90,  15.7),
+        ("QLD",  98, 2560.0, 8.80,   9.4),
+        ("SA",   62, 1620.0, 9.20,  18.2),
+        ("WA",   54, 1420.0, 8.60,  11.8),
+        ("TAS",  28,  750.0, 6.80,  22.5),
+    ]
+    return [
+        RCTGreenPowerRecord(
+            state=d[0], greenpower_customers_k=d[1],
+            greenpower_gwh=d[2], avg_premium_aud_mwh=d[3],
+            yoy_growth_pct=d[4],
+        )
+        for d in data
+    ]
+
+
+_RCT_LGC_PRICES      = _rct_make_lgc_prices()
+_RCT_SURPLUS_DEFICIT = _rct_make_surplus_deficit()
+_RCT_CREATION        = _rct_make_creation()
+_RCT_COMPLIANCE      = _rct_make_compliance()
+_RCT_GREENPOWER      = _rct_make_greenpower()
+
+
+@app.get(
+    "/api/rec-tracking/dashboard",
+    response_model=RecCertificateDashboard,
+    tags=["REC & PPA Tracking"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_rec_certificate_dashboard():
+    return RecCertificateDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        lgc_prices=_RCT_LGC_PRICES,
+        surplus_deficit=_RCT_SURPLUS_DEFICIT,
+        creation=_RCT_CREATION,
+        compliance=_RCT_COMPLIANCE,
+        greenpower=_RCT_GREENPOWER,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 54b — NEM Capacity Investment Signals
+# ---------------------------------------------------------------------------
+
+class CISNewEntrantRecord(BaseModel):
+    technology: str
+    region: str
+    capex_m_aud_mw: float
+    wacc_pct: float
+    loe_aud_mwh: float          # levelised cost of entry
+    breakeven_price_aud_mwh: float
+    payback_years: float
+    npv_m_aud: float            # at $85/MWh average
+    irr_pct: float
+
+
+class CISInvestmentActivityRecord(BaseModel):
+    year: int
+    technology: str
+    committed_mw: float
+    cancelled_mw: float
+    net_investment_mw: float
+    announced_projects: int
+    financing_secured_pct: float
+
+
+class CISPriceSignalRecord(BaseModel):
+    region: str
+    year: int
+    avg_spot_price: float
+    time_weighted_price: float
+    peak_peaker_price: float
+    revenue_adequacy_signal: str  # STRONG / ADEQUATE / WEAK / INSUFFICIENT
+
+
+class CISExitRiskRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    technology: str
+    age_years: int
+    remaining_life_years: int
+    exit_probability_5yr_pct: float
+    exit_trigger: str            # ECONOMICS / AGE / POLICY / REGULATION
+    capacity_mw: float
+
+
+class CapacityInvestmentDashboard(BaseModel):
+    timestamp: str
+    new_entrant_costs: List[CISNewEntrantRecord]
+    investment_activity: List[CISInvestmentActivityRecord]
+    price_signals: List[CISPriceSignalRecord]
+    exit_risks: List[CISExitRiskRecord]
+
+
+_CIS_NEW_ENTRANT_COSTS: List[CISNewEntrantRecord] = [
+    CISNewEntrantRecord(technology="Utility Solar",     region="NSW1", capex_m_aud_mw=1.05, wacc_pct=7.5,  loe_aud_mwh=42.0,  breakeven_price_aud_mwh=58.0,  payback_years=12.5, npv_m_aud= -8.2,  irr_pct=5.1),
+    CISNewEntrantRecord(technology="Onshore Wind",      region="SA1",  capex_m_aud_mw=1.90, wacc_pct=7.5,  loe_aud_mwh=55.0,  breakeven_price_aud_mwh=72.0,  payback_years=14.2, npv_m_aud= -4.5,  irr_pct=5.8),
+    CISNewEntrantRecord(technology="BESS 2h",           region="NSW1", capex_m_aud_mw=1.20, wacc_pct=8.0,  loe_aud_mwh=78.0,  breakeven_price_aud_mwh=95.0,  payback_years=11.8, npv_m_aud=  3.4,  irr_pct=9.2),
+    CISNewEntrantRecord(technology="OCGT",              region="QLD1", capex_m_aud_mw=0.85, wacc_pct=8.5,  loe_aud_mwh=115.0, breakeven_price_aud_mwh=138.0, payback_years=18.0, npv_m_aud=-22.1, irr_pct=3.2),
+    CISNewEntrantRecord(technology="CCGT",              region="VIC1", capex_m_aud_mw=1.45, wacc_pct=8.0,  loe_aud_mwh=82.0,  breakeven_price_aud_mwh=105.0, payback_years=16.5, npv_m_aud=-11.8, irr_pct=4.4),
+    CISNewEntrantRecord(technology="Pumped Hydro",      region="NSW1", capex_m_aud_mw=3.80, wacc_pct=7.0,  loe_aud_mwh=68.0,  breakeven_price_aud_mwh=88.0,  payback_years=22.4, npv_m_aud= -6.3,  irr_pct=5.5),
+    CISNewEntrantRecord(technology="Offshore Wind",     region="VIC1", capex_m_aud_mw=4.20, wacc_pct=9.0,  loe_aud_mwh=112.0, breakeven_price_aud_mwh=140.0, payback_years=20.1, npv_m_aud=-38.7, irr_pct=2.8),
+    CISNewEntrantRecord(technology="Green Hydrogen",    region="SA1",  capex_m_aud_mw=5.50, wacc_pct=10.0, loe_aud_mwh=185.0, breakeven_price_aud_mwh=220.0, payback_years=28.0, npv_m_aud=-72.4, irr_pct=1.2),
+]
+
+_CIS_INVESTMENT_ACTIVITY: List[CISInvestmentActivityRecord] = [
+    CISInvestmentActivityRecord(year=2020, technology="Utility Solar",  committed_mw=1850.0, cancelled_mw=210.0, net_investment_mw=1640.0, announced_projects=18, financing_secured_pct=74.0),
+    CISInvestmentActivityRecord(year=2020, technology="Onshore Wind",   committed_mw=980.0,  cancelled_mw=120.0, net_investment_mw=860.0,  announced_projects=8,  financing_secured_pct=82.0),
+    CISInvestmentActivityRecord(year=2020, technology="BESS",           committed_mw=310.0,  cancelled_mw=45.0,  net_investment_mw=265.0,  announced_projects=6,  financing_secured_pct=68.0),
+    CISInvestmentActivityRecord(year=2020, technology="Gas Peaker",     committed_mw=120.0,  cancelled_mw=60.0,  net_investment_mw=60.0,   announced_projects=2,  financing_secured_pct=90.0),
+    CISInvestmentActivityRecord(year=2021, technology="Utility Solar",  committed_mw=2340.0, cancelled_mw=185.0, net_investment_mw=2155.0, announced_projects=22, financing_secured_pct=78.0),
+    CISInvestmentActivityRecord(year=2021, technology="Onshore Wind",   committed_mw=1420.0, cancelled_mw=95.0,  net_investment_mw=1325.0, announced_projects=11, financing_secured_pct=85.0),
+    CISInvestmentActivityRecord(year=2021, technology="BESS",           committed_mw=680.0,  cancelled_mw=30.0,  net_investment_mw=650.0,  announced_projects=12, financing_secured_pct=72.0),
+    CISInvestmentActivityRecord(year=2021, technology="Gas Peaker",     committed_mw=80.0,   cancelled_mw=80.0,  net_investment_mw=0.0,    announced_projects=1,  financing_secured_pct=50.0),
+    CISInvestmentActivityRecord(year=2022, technology="Utility Solar",  committed_mw=3100.0, cancelled_mw=420.0, net_investment_mw=2680.0, announced_projects=29, financing_secured_pct=71.0),
+    CISInvestmentActivityRecord(year=2022, technology="Onshore Wind",   committed_mw=1680.0, cancelled_mw=240.0, net_investment_mw=1440.0, announced_projects=14, financing_secured_pct=79.0),
+    CISInvestmentActivityRecord(year=2022, technology="BESS",           committed_mw=1250.0, cancelled_mw=110.0, net_investment_mw=1140.0, announced_projects=19, financing_secured_pct=80.0),
+    CISInvestmentActivityRecord(year=2022, technology="Gas Peaker",     committed_mw=0.0,    cancelled_mw=150.0, net_investment_mw=-150.0, announced_projects=0,  financing_secured_pct=0.0),
+    CISInvestmentActivityRecord(year=2023, technology="Utility Solar",  committed_mw=2780.0, cancelled_mw=510.0, net_investment_mw=2270.0, announced_projects=25, financing_secured_pct=69.0),
+    CISInvestmentActivityRecord(year=2023, technology="Onshore Wind",   committed_mw=1920.0, cancelled_mw=380.0, net_investment_mw=1540.0, announced_projects=16, financing_secured_pct=76.0),
+    CISInvestmentActivityRecord(year=2023, technology="BESS",           committed_mw=1850.0, cancelled_mw=95.0,  net_investment_mw=1755.0, announced_projects=28, financing_secured_pct=83.0),
+    CISInvestmentActivityRecord(year=2023, technology="Gas Peaker",     committed_mw=0.0,    cancelled_mw=200.0, net_investment_mw=-200.0, announced_projects=0,  financing_secured_pct=0.0),
+    CISInvestmentActivityRecord(year=2024, technology="Utility Solar",  committed_mw=3450.0, cancelled_mw=390.0, net_investment_mw=3060.0, announced_projects=31, financing_secured_pct=75.0),
+    CISInvestmentActivityRecord(year=2024, technology="Onshore Wind",   committed_mw=2210.0, cancelled_mw=290.0, net_investment_mw=1920.0, announced_projects=18, financing_secured_pct=81.0),
+    CISInvestmentActivityRecord(year=2024, technology="BESS",           committed_mw=2680.0, cancelled_mw=120.0, net_investment_mw=2560.0, announced_projects=35, financing_secured_pct=87.0),
+    CISInvestmentActivityRecord(year=2024, technology="Gas Peaker",     committed_mw=0.0,    cancelled_mw=280.0, net_investment_mw=-280.0, announced_projects=0,  financing_secured_pct=0.0),
+]
+
+_CIS_PRICE_SIGNALS: List[CISPriceSignalRecord] = [
+    CISPriceSignalRecord(region="NSW1", year=2021, avg_spot_price=78.4,  time_weighted_price=72.1,  peak_peaker_price=142.5, revenue_adequacy_signal="ADEQUATE"),
+    CISPriceSignalRecord(region="NSW1", year=2022, avg_spot_price=124.8, time_weighted_price=118.3, peak_peaker_price=218.7, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="NSW1", year=2023, avg_spot_price=98.6,  time_weighted_price=90.2,  peak_peaker_price=175.4, revenue_adequacy_signal="ADEQUATE"),
+    CISPriceSignalRecord(region="NSW1", year=2024, avg_spot_price=112.3, time_weighted_price=104.7, peak_peaker_price=198.2, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="VIC1", year=2021, avg_spot_price=69.2,  time_weighted_price=63.8,  peak_peaker_price=128.4, revenue_adequacy_signal="WEAK"),
+    CISPriceSignalRecord(region="VIC1", year=2022, avg_spot_price=108.5, time_weighted_price=101.9, peak_peaker_price=192.3, revenue_adequacy_signal="ADEQUATE"),
+    CISPriceSignalRecord(region="VIC1", year=2023, avg_spot_price=84.7,  time_weighted_price=78.5,  peak_peaker_price=155.6, revenue_adequacy_signal="WEAK"),
+    CISPriceSignalRecord(region="VIC1", year=2024, avg_spot_price=95.8,  time_weighted_price=88.4,  peak_peaker_price=168.9, revenue_adequacy_signal="ADEQUATE"),
+    CISPriceSignalRecord(region="QLD1", year=2021, avg_spot_price=82.1,  time_weighted_price=76.4,  peak_peaker_price=152.8, revenue_adequacy_signal="ADEQUATE"),
+    CISPriceSignalRecord(region="QLD1", year=2022, avg_spot_price=135.6, time_weighted_price=128.2, peak_peaker_price=234.5, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="QLD1", year=2023, avg_spot_price=106.4, time_weighted_price=98.7,  peak_peaker_price=188.3, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="QLD1", year=2024, avg_spot_price=118.9, time_weighted_price=110.5, peak_peaker_price=210.4, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="SA1",  year=2021, avg_spot_price=92.4,  time_weighted_price=85.6,  peak_peaker_price=168.7, revenue_adequacy_signal="ADEQUATE"),
+    CISPriceSignalRecord(region="SA1",  year=2022, avg_spot_price=148.2, time_weighted_price=139.4, peak_peaker_price=258.6, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="SA1",  year=2023, avg_spot_price=115.7, time_weighted_price=106.8, peak_peaker_price=204.3, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="SA1",  year=2024, avg_spot_price=128.4, time_weighted_price=119.7, peak_peaker_price=226.8, revenue_adequacy_signal="STRONG"),
+    CISPriceSignalRecord(region="TAS1", year=2021, avg_spot_price=58.3,  time_weighted_price=54.1,  peak_peaker_price=108.6, revenue_adequacy_signal="INSUFFICIENT"),
+    CISPriceSignalRecord(region="TAS1", year=2022, avg_spot_price=74.6,  time_weighted_price=68.9,  peak_peaker_price=138.2, revenue_adequacy_signal="WEAK"),
+    CISPriceSignalRecord(region="TAS1", year=2023, avg_spot_price=61.8,  time_weighted_price=57.4,  peak_peaker_price=112.5, revenue_adequacy_signal="INSUFFICIENT"),
+    CISPriceSignalRecord(region="TAS1", year=2024, avg_spot_price=68.5,  time_weighted_price=63.2,  peak_peaker_price=124.7, revenue_adequacy_signal="WEAK"),
+]
+
+_CIS_EXIT_RISKS: List[CISExitRiskRecord] = [
+    CISExitRiskRecord(unit_id="ERGT01",   unit_name="Eraring Unit 1",       technology="Black Coal", age_years=42, remaining_life_years=2,  exit_probability_5yr_pct=98.0, exit_trigger="AGE",        capacity_mw=720.0),
+    CISExitRiskRecord(unit_id="ERGT02",   unit_name="Eraring Unit 2",       technology="Black Coal", age_years=41, remaining_life_years=3,  exit_probability_5yr_pct=95.0, exit_trigger="AGE",        capacity_mw=720.0),
+    CISExitRiskRecord(unit_id="YWPS01",   unit_name="Yallourn W Unit 1",    technology="Brown Coal", age_years=50, remaining_life_years=0,  exit_probability_5yr_pct=99.5, exit_trigger="AGE",        capacity_mw=360.0),
+    CISExitRiskRecord(unit_id="OCGT_SA1", unit_name="Pelican Point OCGT",   technology="OCGT",       age_years=22, remaining_life_years=8,  exit_probability_5yr_pct=42.0, exit_trigger="ECONOMICS",  capacity_mw=478.0),
+    CISExitRiskRecord(unit_id="LOYS04",   unit_name="Loy Yang A Unit 4",    technology="Brown Coal", age_years=38, remaining_life_years=7,  exit_probability_5yr_pct=38.0, exit_trigger="POLICY",     capacity_mw=560.0),
+    CISExitRiskRecord(unit_id="BBTHREE3", unit_name="Bayswater Unit 3",     technology="Black Coal", age_years=40, remaining_life_years=5,  exit_probability_5yr_pct=65.0, exit_trigger="ECONOMICS",  capacity_mw=700.0),
+    CISExitRiskRecord(unit_id="CALL_B_1", unit_name="Callide B Unit 1",     technology="Black Coal", age_years=44, remaining_life_years=1,  exit_probability_5yr_pct=97.0, exit_trigger="AGE",        capacity_mw=350.0),
+    CISExitRiskRecord(unit_id="TORRB1",   unit_name="Torrens Island B1",    technology="OCGT",       age_years=55, remaining_life_years=0,  exit_probability_5yr_pct=99.0, exit_trigger="REGULATION", capacity_mw=200.0),
+    CISExitRiskRecord(unit_id="QPSNL1",   unit_name="Swanbank E GT 1",      technology="OCGT",       age_years=18, remaining_life_years=12, exit_probability_5yr_pct=22.0, exit_trigger="ECONOMICS",  capacity_mw=385.0),
+    CISExitRiskRecord(unit_id="ANGAST1",  unit_name="Angaston Power Station", technology="Gas Steam", age_years=48, remaining_life_years=2,  exit_probability_5yr_pct=88.0, exit_trigger="AGE",        capacity_mw=50.0),
+]
+
+
+@app.get("/api/capacity-investment/dashboard", dependencies=[Depends(verify_api_key)])
+def get_capacity_investment_dashboard() -> CapacityInvestmentDashboard:
+    return CapacityInvestmentDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        new_entrant_costs=_CIS_NEW_ENTRANT_COSTS,
+        investment_activity=_CIS_INVESTMENT_ACTIVITY,
+        price_signals=_CIS_PRICE_SIGNALS,
+        exit_risks=_CIS_EXIT_RISKS,
+    )

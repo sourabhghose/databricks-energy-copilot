@@ -4804,3 +4804,214 @@ class TestMarketStressTesting:
             assert k["max_price_aud_mwh"] > 0
             assert k["unserved_energy_mwh"] >= 0
             assert k["economic_cost_m_aud"] >= 0
+
+
+class TestFrequencyControlAnalytics:
+    """Sprint 54a — NEM Frequency Control Analytics endpoint tests."""
+
+    def test_frequency_control_dashboard(self, client):
+        resp = client.get("/api/frequency-control/dashboard", headers={"X-API-Key": "test-key"})
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "frequency_records" in d
+        assert "events" in d
+        assert "contributors" in d
+        assert "performance" in d
+
+        # Frequency records — 12 monthly records expected
+        assert len(d["frequency_records"]) == 12
+        for rec in d["frequency_records"]:
+            assert rec["region"] == "NSW1"
+            assert 49.0 <= rec["avg_freq_hz"] <= 51.0
+            assert 0.0 <= rec["std_dev_hz"] <= 1.0
+            assert 0.0 <= rec["time_in_band_pct"] <= 100.0
+            assert rec["high_freq_deviations"] >= 0
+            assert rec["low_freq_deviations"] >= 0
+            assert rec["max_freq_hz"] >= rec["avg_freq_hz"]
+            assert rec["min_freq_hz"] <= rec["avg_freq_hz"]
+
+        # Events — 8 major frequency events expected
+        assert len(d["events"]) == 8
+        valid_triggers = {
+            "GENERATOR_TRIP",
+            "LOAD_REJECTION",
+            "INTERCONNECTOR_SEPARATION",
+            "DEMAND_FORECAST_ERROR",
+        }
+        for ev in d["events"]:
+            assert ev["trigger"] in valid_triggers
+            assert 48.0 <= ev["nadir_hz"] <= 52.0
+            assert ev["recovery_time_sec"] > 0
+            assert ev["rocof_hz_per_sec"] >= 0
+            assert ev["unserved_energy_mwh"] >= 0
+            assert ev["region"] in ("NSW1", "VIC1", "QLD1", "SA1", "TAS1")
+
+        # Contributors — 10 technology records expected
+        assert len(d["contributors"]) == 10
+        for c in d["contributors"]:
+            assert c["pfr_response_mw"] > 0
+            assert c["response_speed_ms"] > 0
+            assert 0.0 <= c["droop_setting_pct"] <= 10.0
+            assert 0.0 <= c["contribution_pct"] <= 100.0
+            assert c["portfolio_mw"] > 0
+
+        # Contribution percentages should sum to ~100 %
+        total_contrib = sum(c["contribution_pct"] for c in d["contributors"])
+        assert abs(total_contrib - 100.0) < 1.0
+
+        # Performance — 12 monthly records expected
+        assert len(d["performance"]) == 12
+        for p in d["performance"]:
+            assert 0.0 <= p["compliance_rate_pct"] <= 100.0
+            assert p["fcas_shortfall_events"] >= 0
+            assert 0.0 <= p["pfr_response_adequacy_pct"] <= 100.0
+            assert 49.0 <= p["avg_nadir_hz"] <= 51.0
+            assert p["avg_rocof"] >= 0
+
+
+# ---------------------------------------------------------------------------
+# Sprint 54b — NEM Capacity Investment Signals
+# ---------------------------------------------------------------------------
+
+class TestCapacityInvestmentSignals:
+    def test_capacity_investment_dashboard(self, client):
+        resp = client.get("/api/capacity-investment/dashboard")
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "new_entrant_costs", "investment_activity", "price_signals", "exit_risks"):
+            assert key in d, f"Missing key: {key}"
+
+        # New entrant costs — 8 records
+        assert len(d["new_entrant_costs"]) == 8
+        for rec in d["new_entrant_costs"]:
+            assert rec["technology"]
+            assert rec["region"]
+            assert rec["capex_m_aud_mw"] > 0
+            assert 0 < rec["wacc_pct"] <= 15
+            assert rec["loe_aud_mwh"] > 0
+            assert rec["breakeven_price_aud_mwh"] >= rec["loe_aud_mwh"]
+            assert rec["payback_years"] > 0
+
+        # Investment activity — 20 records (5 years × 4 technologies)
+        assert len(d["investment_activity"]) == 20
+        years_seen = set()
+        techs_seen = set()
+        for rec in d["investment_activity"]:
+            assert 2020 <= rec["year"] <= 2024
+            assert rec["technology"]
+            assert rec["committed_mw"] >= 0
+            assert rec["cancelled_mw"] >= 0
+            assert 0 <= rec["financing_secured_pct"] <= 100
+            years_seen.add(rec["year"])
+            techs_seen.add(rec["technology"])
+        assert len(years_seen) == 5
+        assert len(techs_seen) == 4
+
+        # Price signals — 20 records (5 regions × 4 years)
+        assert len(d["price_signals"]) == 20
+        valid_signals = {"STRONG", "ADEQUATE", "WEAK", "INSUFFICIENT"}
+        regions_seen = set()
+        for rec in d["price_signals"]:
+            assert rec["region"]
+            assert 2021 <= rec["year"] <= 2024
+            assert rec["avg_spot_price"] > 0
+            assert rec["time_weighted_price"] > 0
+            assert rec["peak_peaker_price"] > rec["avg_spot_price"]
+            assert rec["revenue_adequacy_signal"] in valid_signals
+            regions_seen.add(rec["region"])
+        assert len(regions_seen) == 5
+
+        # Exit risks — 10 records
+        assert len(d["exit_risks"]) == 10
+        valid_triggers = {"ECONOMICS", "AGE", "POLICY", "REGULATION"}
+        for rec in d["exit_risks"]:
+            assert rec["unit_id"]
+            assert rec["unit_name"]
+            assert rec["technology"]
+            assert rec["age_years"] > 0
+            assert rec["remaining_life_years"] >= 0
+            assert 0 <= rec["exit_probability_5yr_pct"] <= 100
+            assert rec["exit_trigger"] in valid_triggers
+            assert rec["capacity_mw"] > 0
+
+
+# ===========================================================================
+# Sprint 54c — REC Certificate Tracking
+# ===========================================================================
+
+class TestRecCertificateTracking:
+    def test_rec_certificate_dashboard(self, client):
+        r = client.get(
+            "/api/rec-tracking/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert r.status_code == 200
+        d = r.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "lgc_prices" in d
+        assert "surplus_deficit" in d
+        assert "creation" in d
+        assert "compliance" in d
+        assert "greenpower" in d
+
+        # LGC price records — 24 monthly records (Jan 2023 – Dec 2024)
+        assert len(d["lgc_prices"]) == 24
+        for p in d["lgc_prices"]:
+            assert p["month"]
+            assert p["lgc_spot_price_aud"] > 0
+            assert p["lgc_forward_2026_aud"] > 0
+            assert p["lgc_forward_2027_aud"] > 0
+            assert p["volume_k_certificates"] > 0
+            assert p["open_interest_k"] > 0
+            # Forward prices should be reasonably close to spot
+            assert abs(p["lgc_forward_2026_aud"] - p["lgc_spot_price_aud"]) < 30
+
+        # Surplus/deficit records — 8 annual records (2017–2024)
+        assert len(d["surplus_deficit"]) == 8
+        years = [r["year"] for r in d["surplus_deficit"]]
+        assert 2017 in years
+        assert 2024 in years
+        for rec in d["surplus_deficit"]:
+            assert rec["lret_target_gwh"] == 33000.0
+            assert rec["liable_entity_surrenders_gwh"] > 0
+            assert rec["new_projects_gwh"] > 0
+
+        # Creation records — 20 (5 techs × 4 regions)
+        assert len(d["creation"]) == 20
+        valid_techs = {"Wind", "Large Solar", "Hydro", "Biomass/Waste", "Rooftop Solar"}
+        for rec in d["creation"]:
+            assert rec["technology"] in valid_techs
+            assert rec["region"] in ("NSW1", "VIC1", "QLD1", "SA1", "TAS1")
+            assert rec["lgcs_created_k"] >= 0
+            assert rec["year"] == 2024
+
+        # Compliance records — 10 retailers
+        assert len(d["compliance"]) == 10
+        valid_statuses = {"COMPLIANT", "SHORTFALL", "DEFERRED"}
+        for rec in d["compliance"]:
+            assert rec["retailer"]
+            assert 0 < rec["market_share_pct"] <= 100
+            assert rec["liable_energy_gwh"] > 0
+            assert rec["certificates_surrendered_k"] > 0
+            assert rec["compliance_status"] in valid_statuses
+            assert rec["shortfall_charge_m_aud"] >= 0
+            # Shortfall charge only for non-compliant
+            if rec["compliance_status"] == "COMPLIANT":
+                assert rec["shortfall_charge_m_aud"] == 0.0
+
+        # GreenPower records — 6 states
+        assert len(d["greenpower"]) == 6
+        valid_states = {"NSW", "VIC", "QLD", "SA", "WA", "TAS"}
+        state_set = {r["state"] for r in d["greenpower"]}
+        assert state_set == valid_states
+        for rec in d["greenpower"]:
+            assert rec["greenpower_customers_k"] > 0
+            assert rec["greenpower_gwh"] > 0
+            assert rec["avg_premium_aud_mwh"] > 0
