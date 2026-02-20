@@ -9441,3 +9441,190 @@ export interface SocialLicenceDashboard {
   just_transition: SLEJustTransitionRecord[]
   equity: SLEEquityRecord[]
 }
+
+// ── Sprint 67b: Electricity Options Volatility Surface Analytics ──────────────
+
+export interface EOVOptionRecord {
+  option_id: string;
+  underlying: string;
+  region: string;
+  expiry: string;
+  strike_per_mwh: number;
+  option_type: string;
+  premium_per_mwh: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  implied_vol_pct: number;
+  moneyness: string;
+  open_interest_mwh: number;
+}
+
+export interface EOVVolSurfaceRecord {
+  tenor_months: number;
+  strike_pct_atm: number;
+  implied_vol_pct: number;
+  region: string;
+}
+
+export interface EOVStrategyRecord {
+  strategy_name: string;
+  strategy_type: string;
+  legs: number;
+  max_profit_per_mwh: number;
+  max_loss_per_mwh: number;
+  breakeven_low: number;
+  breakeven_high: number;
+  net_premium: number;
+  use_case: string;
+  suitability: string;
+}
+
+export interface EOVHistVolRecord {
+  date: string;
+  region: string;
+  realized_vol_30d: number;
+  realized_vol_90d: number;
+  implied_vol: number;
+  vol_risk_premium: number;
+}
+
+export interface EOVDashboard {
+  options_book: EOVOptionRecord[];
+  vol_surface: EOVVolSurfaceRecord[];
+  strategies: EOVStrategyRecord[];
+  hist_vol: EOVHistVolRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getElectricityOptionsDashboard = (): Promise<EOVDashboard> =>
+  get<EOVDashboard>('/api/electricity-options/dashboard');
+
+// ── Sprint 67c: Grid-Forming Inverter & System Strength Analytics ─────────────
+
+export interface GFIInverterRecord {
+  asset_id: string;
+  asset_name: string;
+  region: string;
+  technology: string;
+  inverter_type: string;
+  capacity_mw: number;
+  scr_contribution: number;
+  fault_ride_through: boolean;
+  voltage_support: boolean;
+  frequency_response: boolean;
+  inertia_synthetic_mws: number;
+  commissioning_year: number;
+  gfm_upgraded: boolean;
+}
+
+export interface GFISystemStrengthRecord {
+  region: string;
+  date: string;
+  scr_actual: number;
+  scr_minimum: number;
+  scr_comfortable: number;
+  strength_status: string;
+  ibr_penetration_pct: number;
+  synchronous_mw: number;
+  ibr_mw: number;
+  risk_event: string;
+}
+
+export interface GFIFaultRideRecord {
+  event_id: string;
+  date: string;
+  region: string;
+  fault_type: string;
+  severity: string;
+  gfm_response_ms: number;
+  gfl_response_ms: number;
+  gfm_rode_through: boolean;
+  gfl_rode_through: boolean;
+  generation_lost_mw: number;
+  frequency_nadir_hz: number;
+  recovery_time_s: number;
+}
+
+export interface GFIIbrPenetrationRecord {
+  year: number;
+  region: string;
+  ibr_penetration_pct: number;
+  gfm_pct_of_ibr: number;
+  synchronous_inertia_mws: number;
+  synthetic_inertia_mws: number;
+  system_strength_index: number;
+  stability_risk: string;
+}
+
+export interface GFIDashboard {
+  inverter_fleet: GFIInverterRecord[];
+  system_strength: GFISystemStrengthRecord[];
+  fault_ride_through_events: GFIFaultRideRecord[];
+  ibr_penetration: GFIIbrPenetrationRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getGridFormingInverterDashboard = (): Promise<GFIDashboard> =>
+  get<GFIDashboard>('/api/grid-forming-inverter/dashboard');
+
+// ── Sprint 67a: Nuclear Energy Pathway Analytics ─────────────────────────────
+
+export interface NEASmrRecord {
+  technology: string;
+  vendor: string;
+  capacity_mw: number;
+  capex_per_kw: number;
+  opex_per_mwh: number;
+  capacity_factor_pct: number;
+  lead_time_years: number;
+  first_of_kind: boolean;
+  overnight_cost_m: number;
+  lcoe_per_mwh: number;
+  status: string;
+}
+
+export interface NEAPolicyRecord {
+  id: string;
+  date: string;
+  event: string;
+  jurisdiction: string;
+  category: string;
+  sentiment: string;
+  impact_score: number;
+  description: string;
+}
+
+export interface NEACostProjectionRecord {
+  year: number;
+  technology: string;
+  lcoe_low: number;
+  lcoe_mid: number;
+  lcoe_high: number;
+  capacity_factor_low: number;
+  capacity_factor_high: number;
+}
+
+export interface NEACapacityScenarioRecord {
+  scenario: string;
+  year: number;
+  nuclear_gw: number;
+  coal_gw: number;
+  gas_gw: number;
+  wind_gw: number;
+  solar_gw: number;
+  storage_gw: number;
+  total_gw: number;
+}
+
+export interface NEADashboard {
+  smr_technologies: NEASmrRecord[];
+  policy_timeline: NEAPolicyRecord[];
+  cost_projections: NEACostProjectionRecord[];
+  capacity_scenarios: NEACapacityScenarioRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getNuclearEnergyDashboard = (): Promise<NEADashboard> =>
+  get<NEADashboard>('/api/nuclear-energy/dashboard');

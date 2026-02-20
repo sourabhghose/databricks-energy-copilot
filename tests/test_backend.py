@@ -9692,3 +9692,101 @@ class TestSocialLicenceAnalytics:
         # At least one cohort with WORSENING trend
         worsening = [e for e in equity if e["trend"] == "WORSENING"]
         assert len(worsening) >= 1, "Expected at least 1 cohort with WORSENING trend"
+
+
+class TestElectricityOptionsDashboard:
+    def test_electricity_options_dashboard_ok(self, client, auth_headers):
+        r = client.get("/api/electricity-options/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_electricity_options_book(self, client, auth_headers):
+        d = client.get("/api/electricity-options/dashboard", headers=auth_headers).json()
+        assert len(d["options_book"]) >= 8
+        assert all("delta" in o and "implied_vol_pct" in o for o in d["options_book"])
+
+    def test_electricity_options_vol_surface(self, client, auth_headers):
+        d = client.get("/api/electricity-options/dashboard", headers=auth_headers).json()
+        assert len(d["vol_surface"]) >= 20
+        tenors = {v["tenor_months"] for v in d["vol_surface"]}
+        assert 1 in tenors and 12 in tenors
+
+    def test_electricity_options_strategies(self, client, auth_headers):
+        d = client.get("/api/electricity-options/dashboard", headers=auth_headers).json()
+        assert len(d["strategies"]) >= 4
+        types = {s["strategy_type"] for s in d["strategies"]}
+        assert "CAP" in types or "COLLAR" in types
+
+    def test_electricity_options_hist_vol(self, client, auth_headers):
+        d = client.get("/api/electricity-options/dashboard", headers=auth_headers).json()
+        assert len(d["hist_vol"]) >= 16
+        assert all("vol_risk_premium" in h for h in d["hist_vol"])
+
+    def test_electricity_options_summary(self, client, auth_headers):
+        d = client.get("/api/electricity-options/dashboard", headers=auth_headers).json()
+        assert d["summary"]["highest_vol_region"] == "SA1"
+
+class TestNuclearEnergyDashboard:
+    def test_nuclear_energy_dashboard_ok(self, client, auth_headers):
+        r = client.get("/api/nuclear-energy/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_nuclear_energy_smr_technologies(self, client, auth_headers):
+        d = client.get("/api/nuclear-energy/dashboard", headers=auth_headers).json()
+        assert len(d["smr_technologies"]) >= 5
+        techs = [t["technology"] for t in d["smr_technologies"]]
+        assert any("BWRX" in t or "AP1000" in t or "NuScale" in t for t in techs)
+
+    def test_nuclear_energy_policy_timeline(self, client, auth_headers):
+        d = client.get("/api/nuclear-energy/dashboard", headers=auth_headers).json()
+        assert len(d["policy_timeline"]) >= 5
+        assert all("event" in p and "sentiment" in p for p in d["policy_timeline"])
+
+    def test_nuclear_energy_cost_projections(self, client, auth_headers):
+        d = client.get("/api/nuclear-energy/dashboard", headers=auth_headers).json()
+        assert len(d["cost_projections"]) >= 10
+        assert all(p["lcoe_mid"] > 0 for p in d["cost_projections"])
+
+    def test_nuclear_energy_capacity_scenarios(self, client, auth_headers):
+        d = client.get("/api/nuclear-energy/dashboard", headers=auth_headers).json()
+        assert len(d["capacity_scenarios"]) >= 6
+        scenarios = {s["scenario"] for s in d["capacity_scenarios"]}
+        assert len(scenarios) >= 2
+
+    def test_nuclear_energy_summary(self, client, auth_headers):
+        d = client.get("/api/nuclear-energy/dashboard", headers=auth_headers).json()
+        assert d["summary"]["earliest_possible_online"] >= 2035
+
+class TestGridFormingInverterDashboard:
+    def test_grid_forming_dashboard_ok(self, client, auth_headers):
+        r = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_grid_forming_inverter_fleet(self, client, auth_headers):
+        d = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers).json()
+        assert len(d["inverter_fleet"]) >= 8
+        types = {a["inverter_type"] for a in d["inverter_fleet"]}
+        assert "GRID_FORMING" in types and "GRID_FOLLOWING" in types
+
+    def test_grid_forming_system_strength(self, client, auth_headers):
+        d = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers).json()
+        assert len(d["system_strength"]) >= 5
+        regions = {s["region"] for s in d["system_strength"]}
+        assert "SA1" in regions
+        sa = next(s for s in d["system_strength"] if s["region"] == "SA1")
+        assert sa["strength_status"] in ["MARGINAL", "INADEQUATE"]
+
+    def test_grid_forming_fault_events(self, client, auth_headers):
+        d = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers).json()
+        assert len(d["fault_ride_through_events"]) >= 4
+        assert all(e["gfm_rode_through"] for e in d["fault_ride_through_events"])
+
+    def test_grid_forming_ibr_penetration(self, client, auth_headers):
+        d = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers).json()
+        assert len(d["ibr_penetration"]) >= 20
+        years = {r["year"] for r in d["ibr_penetration"]}
+        assert 2025 in years and 2030 in years
+
+    def test_grid_forming_summary(self, client, auth_headers):
+        d = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers).json()
+        assert d["summary"]["gfm_ride_through_rate_pct"] == 100
+        assert d["summary"]["grid_forming_count"] >= 4

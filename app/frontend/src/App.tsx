@@ -172,6 +172,7 @@ import CommunityEnergy from './pages/CommunityEnergy'
 import AssetManagement from './pages/AssetManagement'
 import DecarbonizationPathway from './pages/DecarbonizationPathway'
 import NuclearLongDuration from './pages/NuclearLongDuration'
+import NuclearEnergyAnalytics from './pages/NuclearEnergyAnalytics'
 import BiddingBehaviour from './pages/BiddingBehaviour'
 import EnergyPoverty from './pages/EnergyPoverty'
 import SpotForecastDashboard from './pages/SpotForecastDashboard'
@@ -240,6 +241,8 @@ import NetworkTariffReformAnalytics from './pages/NetworkTariffReformAnalytics'
 import AiDigitalTwinAnalytics from './pages/AiDigitalTwinAnalytics'
 import EsooAdequacyAnalytics from './pages/EsooAdequacyAnalytics'
 import SocialLicenceAnalytics from './pages/SocialLicenceAnalytics'
+import ElectricityOptionsAnalytics from './pages/ElectricityOptionsAnalytics'
+import GridFormingInverterAnalytics from './pages/GridFormingInverterAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -343,6 +346,7 @@ const NAV_ITEMS = [
   { to: '/asset-management', label: 'Asset Management', Icon: Wrench        },
   { to: '/decarbonization', label: 'Net Zero Pathway', Icon: Leaf           },
   { to: '/nuclear-ldes',      label: 'Nuclear & LDES',     Icon: Atom           },
+  { to: '/nuclear-energy',    label: 'Nuclear Energy',     Icon: Atom           },
   { to: '/bidding-behaviour', label: 'Bidding Behaviour',  Icon: BarChart2      },
   { to: '/energy-poverty',    label: 'Energy Poverty',     Icon: Heart          },
   { to: '/spot-forecast',     label: 'Spot Forecast',      Icon: Zap            },
@@ -411,6 +415,8 @@ const NAV_ITEMS = [
   { to: '/ai-digital-twin-analytics',        label: 'AI & Digital Twin Analytics',             Icon: Cpu            },
   { to: '/esoo-adequacy-analytics',          label: 'ESOO Generation Adequacy',                Icon: Activity       },
   { to: '/social-licence-analytics',        label: 'Social Licence & Equity Analytics',        Icon: Users          },
+  { to: '/electricity-options',             label: 'Options Analytics',                         Icon: TrendingUp     },
+  { to: '/grid-forming-inverter',           label: 'Grid-Forming Inverter & System Strength',    Icon: Zap            },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -587,6 +593,7 @@ export default function App() {
               <Route path="/asset-management" element={<AssetManagement />}    />
               <Route path="/decarbonization" element={<DecarbonizationPathway />} />
               <Route path="/nuclear-ldes"      element={<NuclearLongDuration />}    />
+              <Route path="/nuclear-energy"   element={<NuclearEnergyAnalytics />} />
               <Route path="/bidding-behaviour" element={<BiddingBehaviour />}    />
               <Route path="/energy-poverty"    element={<EnergyPoverty />}       />
               <Route path="/spot-forecast"     element={<SpotForecastDashboard />} />
@@ -657,6 +664,8 @@ export default function App() {
               <Route path="/ai-digital-twin-analytics"   element={<AiDigitalTwinAnalytics />}     />
               <Route path="/esoo-adequacy-analytics"     element={<EsooAdequacyAnalytics />}      />
               <Route path="/social-licence-analytics"    element={<SocialLicenceAnalytics />}     />
+              <Route path="/electricity-options"          element={<ElectricityOptionsAnalytics />} />
+              <Route path="/grid-forming-inverter"       element={<GridFormingInverterAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

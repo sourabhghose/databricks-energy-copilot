@@ -47262,3 +47262,391 @@ def get_ai_digital_twin_dashboard() -> AiDigitalTwinDashboard:
         automation=_ADT_AUTOMATION,
         investments=_ADT_INVESTMENTS,
     )
+
+# ── Sprint 67b: Electricity Options Volatility Surface Analytics ─────────────
+
+class EOVOptionRecord(BaseModel):
+    option_id: str
+    underlying: str
+    region: str
+    expiry: str
+    strike_per_mwh: float
+    option_type: str  # CAP / FLOOR / COLLAR / SWAPTION
+    premium_per_mwh: float
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+    implied_vol_pct: float
+    moneyness: str  # ITM / ATM / OTM
+    open_interest_mwh: float
+
+class EOVVolSurfaceRecord(BaseModel):
+    tenor_months: int
+    strike_pct_atm: float  # % of ATM (e.g. 80, 90, 100, 110, 120)
+    implied_vol_pct: float
+    region: str
+
+class EOVStrategyRecord(BaseModel):
+    strategy_name: str
+    strategy_type: str
+    legs: int
+    max_profit_per_mwh: float
+    max_loss_per_mwh: float
+    breakeven_low: float
+    breakeven_high: float
+    net_premium: float
+    use_case: str
+    suitability: str
+
+class EOVHistVolRecord(BaseModel):
+    date: str
+    region: str
+    realized_vol_30d: float
+    realized_vol_90d: float
+    implied_vol: float
+    vol_risk_premium: float
+
+class EOVDashboard(BaseModel):
+    options_book: list[EOVOptionRecord]
+    vol_surface: list[EOVVolSurfaceRecord]
+    strategies: list[EOVStrategyRecord]
+    hist_vol: list[EOVHistVolRecord]
+    summary: dict
+
+@app.get("/api/electricity-options/dashboard", response_model=EOVDashboard, dependencies=[Depends(verify_api_key)])
+def get_electricity_options_dashboard():
+    import math, random
+    random.seed(42)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    expiries = ["2025-03", "2025-06", "2025-09", "2025-12", "2026-03", "2026-06"]
+    options_book = []
+    for i, (region, expiry, strike, opt_type) in enumerate([
+        ("NSW1", "2025-06", 85, "CAP"), ("NSW1", "2025-09", 100, "CAP"),
+        ("QLD1", "2025-06", 80, "CAP"), ("QLD1", "2025-12", 120, "CAP"),
+        ("VIC1", "2025-06", 75, "FLOOR"), ("VIC1", "2025-09", 90, "FLOOR"),
+        ("SA1", "2025-06", 150, "CAP"), ("SA1", "2025-12", 200, "CAP"),
+        ("NSW1", "2026-03", 95, "COLLAR"), ("QLD1", "2026-06", 110, "SWAPTION"),
+        ("VIC1", "2025-12", 85, "CAP"), ("NSW1", "2025-12", 110, "CAP"),
+    ]):
+        spot = {"NSW1": 88, "QLD1": 82, "VIC1": 79, "SA1": 145}[region]
+        moneyness = "ITM" if (opt_type == "CAP" and strike < spot) or (opt_type == "FLOOR" and strike > spot) else ("ATM" if abs(strike - spot) / spot < 0.05 else "OTM")
+        iv = 45 + random.uniform(-10, 20)
+        options_book.append(EOVOptionRecord(
+            option_id=f"OPT-{i+1:03d}", underlying=f"BASE_{region}_SWAP", region=region,
+            expiry=expiry, strike_per_mwh=strike, option_type=opt_type,
+            premium_per_mwh=round(max(1, (spot - strike if moneyness == "ITM" else 0) + iv * 0.3), 2),
+            delta=round(0.5 + random.uniform(-0.4, 0.4), 3),
+            gamma=round(random.uniform(0.001, 0.015), 4),
+            theta=round(-random.uniform(0.05, 0.3), 3),
+            vega=round(random.uniform(0.1, 0.8), 3),
+            implied_vol_pct=round(iv, 1),
+            moneyness=moneyness,
+            open_interest_mwh=round(random.uniform(5000, 50000), 0)
+        ))
+    vol_surface = []
+    for tenor in [1, 3, 6, 12, 18, 24]:
+        for strike_pct in [80, 90, 95, 100, 105, 110, 120]:
+            for region in ["NSW1", "QLD1", "VIC1", "SA1"]:
+                base_vol = {"NSW1": 42, "QLD1": 48, "SA1": 65, "VIC1": 38}[region]
+                # Volatility smile/skew
+                skew = abs(strike_pct - 100) * 0.3
+                term_adj = -math.log(tenor / 6 + 1) * 3 if tenor > 6 else tenor * 0.5
+                vol_surface.append(EOVVolSurfaceRecord(
+                    tenor_months=tenor, strike_pct_atm=strike_pct,
+                    implied_vol_pct=round(base_vol + skew + term_adj + random.uniform(-2, 2), 1),
+                    region=region
+                ))
+    strategies = [
+        EOVStrategyRecord(strategy_name="Vanilla Cap (NSW)", strategy_type="CAP", legs=1, max_profit_per_mwh=9999, max_loss_per_mwh=-8.5, breakeven_low=93.5, breakeven_high=9999, net_premium=-8.5, use_case="Hedge retail load exposure above $85", suitability="RETAILER"),
+        EOVStrategyRecord(strategy_name="Collar (QLD Gen)", strategy_type="COLLAR", legs=2, max_profit_per_mwh=35, max_loss_per_mwh=-15, breakeven_low=70, breakeven_high=115, net_premium=-3.5, use_case="Generator locks in range $70-$115", suitability="GENERATOR"),
+        EOVStrategyRecord(strategy_name="Floor (VIC Retailer)", strategy_type="FLOOR", legs=1, max_profit_per_mwh=75, max_loss_per_mwh=-6.2, breakeven_low=0, breakeven_high=68.8, net_premium=-6.2, use_case="Protect against price collapse below $75", suitability="RETAILER"),
+        EOVStrategyRecord(strategy_name="Straddle (SA Volatile)", strategy_type="STRADDLE", legs=2, max_profit_per_mwh=9999, max_loss_per_mwh=-22.0, breakeven_low=123, breakeven_high=167, net_premium=-22.0, use_case="Profit from extreme SA price volatility", suitability="TRADER"),
+        EOVStrategyRecord(strategy_name="Swaption (NSW FY26)", strategy_type="SWAPTION", legs=1, max_profit_per_mwh=9999, max_loss_per_mwh=-12.0, breakeven_low=107, breakeven_high=9999, net_premium=-12.0, use_case="Option to enter fixed-price swap at $95", suitability="COMMERCIAL_LOAD"),
+        EOVStrategyRecord(strategy_name="Cap Spread (QLD)", strategy_type="BULL_CALL_SPREAD", legs=2, max_profit_per_mwh=25, max_loss_per_mwh=-7.5, breakeven_low=87.5, breakeven_high=9999, net_premium=-7.5, use_case="Limit cost of cap premium with upside cap", suitability="RETAILER"),
+    ]
+    hist_vol = []
+    base_dates = ["2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12", "2025-01", "2025-02"]
+    for region in regions:
+        base_rv = {"NSW1": 38, "QLD1": 44, "VIC1": 35, "SA1": 62}[region]
+        for i, date in enumerate(base_dates):
+            rv30 = base_rv + random.uniform(-8, 12)
+            rv90 = base_rv + random.uniform(-5, 8)
+            iv = rv30 + random.uniform(2, 10)
+            hist_vol.append(EOVHistVolRecord(
+                date=date, region=region,
+                realized_vol_30d=round(rv30, 1),
+                realized_vol_90d=round(rv90, 1),
+                implied_vol=round(iv, 1),
+                vol_risk_premium=round(iv - rv30, 1)
+            ))
+    return EOVDashboard(
+        options_book=options_book,
+        vol_surface=vol_surface,
+        strategies=strategies,
+        hist_vol=hist_vol,
+        summary={
+            "total_options": len(options_book),
+            "avg_implied_vol_pct": round(sum(o.implied_vol_pct for o in options_book) / len(options_book), 1),
+            "total_open_interest_gwh": round(sum(o.open_interest_mwh for o in options_book) / 1000, 1),
+            "highest_vol_region": "SA1",
+            "strategies_available": len(strategies),
+            "vol_surface_points": len(vol_surface),
+        }
+    )
+
+# ── Sprint 67a: Nuclear Energy Pathway Analytics ────────────────────────────
+
+class NEASmrRecord(BaseModel):
+    technology: str
+    vendor: str
+    capacity_mw: float
+    capex_per_kw: float
+    opex_per_mwh: float
+    capacity_factor_pct: float
+    lead_time_years: int
+    first_of_kind: bool
+    overnight_cost_m: float
+    lcoe_per_mwh: float
+    status: str
+
+class NEAPolicyRecord(BaseModel):
+    id: str
+    date: str
+    event: str
+    jurisdiction: str
+    category: str
+    sentiment: str
+    impact_score: float
+    description: str
+
+class NEACostProjectionRecord(BaseModel):
+    year: int
+    technology: str
+    lcoe_low: float
+    lcoe_mid: float
+    lcoe_high: float
+    capacity_factor_low: float
+    capacity_factor_high: float
+
+class NEACapacityScenarioRecord(BaseModel):
+    scenario: str
+    year: int
+    nuclear_gw: float
+    coal_gw: float
+    gas_gw: float
+    wind_gw: float
+    solar_gw: float
+    storage_gw: float
+    total_gw: float
+
+class NEADashboard(BaseModel):
+    smr_technologies: list[NEASmrRecord]
+    policy_timeline: list[NEAPolicyRecord]
+    cost_projections: list[NEACostProjectionRecord]
+    capacity_scenarios: list[NEACapacityScenarioRecord]
+    summary: dict
+
+@app.get("/api/nuclear-energy/dashboard", response_model=NEADashboard, dependencies=[Depends(verify_api_key)])
+def get_nuclear_energy_dashboard():
+    smr_technologies = [
+        NEASmrRecord(technology="AP1000", vendor="Westinghouse", capacity_mw=1110, capex_per_kw=7500, opex_per_mwh=12, capacity_factor_pct=92, lead_time_years=12, first_of_kind=False, overnight_cost_m=8325, lcoe_per_mwh=110, status="COMMERCIAL"),
+        NEASmrRecord(technology="BWRX-300", vendor="GE-Hitachi", capacity_mw=300, capex_per_kw=5800, opex_per_mwh=14, capacity_factor_pct=90, lead_time_years=10, first_of_kind=True, overnight_cost_m=1740, lcoe_per_mwh=130, status="LICENSING"),
+        NEASmrRecord(technology="NuScale VOYGR", vendor="NuScale Power", capacity_mw=77, capex_per_kw=9200, opex_per_mwh=18, capacity_factor_pct=88, lead_time_years=9, first_of_kind=True, overnight_cost_m=708, lcoe_per_mwh=145, status="LICENSED"),
+        NEASmrRecord(technology="ARC-100", vendor="ARC Clean Technology", capacity_mw=100, capex_per_kw=6500, opex_per_mwh=15, capacity_factor_pct=93, lead_time_years=11, first_of_kind=True, overnight_cost_m=650, lcoe_per_mwh=135, status="DEVELOPMENT"),
+        NEASmrRecord(technology="Terrestrial MSR", vendor="Terrestrial Energy", capacity_mw=195, capex_per_kw=5200, opex_per_mwh=11, capacity_factor_pct=95, lead_time_years=14, first_of_kind=True, overnight_cost_m=1014, lcoe_per_mwh=115, status="DEVELOPMENT"),
+        NEASmrRecord(technology="X-energy Xe-100", vendor="X-energy", capacity_mw=80, capex_per_kw=7800, opex_per_mwh=16, capacity_factor_pct=91, lead_time_years=10, first_of_kind=True, overnight_cost_m=624, lcoe_per_mwh=140, status="DEVELOPMENT"),
+        NEASmrRecord(technology="Kairos KP-FHR", vendor="Kairos Power", capacity_mw=140, capex_per_kw=6000, opex_per_mwh=13, capacity_factor_pct=92, lead_time_years=12, first_of_kind=True, overnight_cost_m=840, lcoe_per_mwh=128, status="PROTOTYPE"),
+        NEASmrRecord(technology="Ultra Safe MMR", vendor="USNC", capacity_mw=15, capex_per_kw=12000, opex_per_mwh=22, capacity_factor_pct=95, lead_time_years=8, first_of_kind=True, overnight_cost_m=180, lcoe_per_mwh=180, status="DEVELOPMENT"),
+    ]
+    policy_timeline = [
+        NEAPolicyRecord(id="P001", date="2024-01", event="Coalition announces nuclear policy platform", jurisdiction="Federal", category="POLICY", sentiment="POSITIVE", impact_score=8.5, description="Australian Coalition party releases nuclear energy plan targeting 7 sites"),
+        NEAPolicyRecord(id="P002", date="2024-03", event="CSIRO GenCost 2024 report released", jurisdiction="Federal", category="REPORT", sentiment="NEUTRAL", impact_score=7.0, description="CSIRO confirms nuclear remains most expensive dispatchable technology"),
+        NEAPolicyRecord(id="P003", date="2024-06", event="Senate inquiry into nuclear energy", jurisdiction="Federal", category="INQUIRY", sentiment="NEUTRAL", impact_score=6.5, description="Parliamentary inquiry examines nuclear feasibility for Australia"),
+        NEAPolicyRecord(id="P004", date="2024-09", event="NSW nuclear moratorium review", jurisdiction="NSW", category="REGULATION", sentiment="POSITIVE", impact_score=5.5, description="NSW Government considers reviewing 1986 nuclear moratorium"),
+        NEAPolicyRecord(id="P005", date="2024-11", event="AUKUS submarine implications for civil nuclear", jurisdiction="Federal", category="DEFENCE", sentiment="POSITIVE", impact_score=7.5, description="AUKUS nuclear submarine program builds regulatory and industrial capability"),
+        NEAPolicyRecord(id="P006", date="2025-01", event="Independent feasibility study commissioned", jurisdiction="Federal", category="STUDY", sentiment="POSITIVE", impact_score=8.0, description="Government commissions independent study on nuclear power feasibility"),
+        NEAPolicyRecord(id="P007", date="2025-03", event="Nuclear legislative reform bill introduced", jurisdiction="Federal", category="LEGISLATION", sentiment="POSITIVE", impact_score=9.0, description="Bill to amend ARPANS Act enabling civil nuclear power"),
+        NEAPolicyRecord(id="P008", date="2025-06", event="Community consultation process begins", jurisdiction="Multi-state", category="CONSULTATION", sentiment="NEUTRAL", impact_score=6.0, description="Public consultation at proposed nuclear sites commences"),
+    ]
+    cost_projections = []
+    years = list(range(2025, 2051, 5))
+    techs = {
+        "Large Nuclear AP1000": (110, 145, 180, 91, 93),
+        "SMR BWRX-300": (130, 100, 75, 88, 92),
+        "Advanced SMR (2030s)": (200, 140, 90, 90, 95),
+        "Offshore Wind (comparison)": (95, 80, 65, 38, 45),
+        "Utility Solar + Storage": (85, 70, 55, 25, 32),
+    }
+    for year in years:
+        for tech, (base_low, base_mid, base_high, cf_low, cf_high) in techs.items():
+            factor = max(0.5, 1 - (year - 2025) * 0.015)
+            nuclear_factor = max(0.6, 1 - (year - 2025) * 0.008) if "Nuclear" in tech or "SMR" in tech else factor
+            cost_projections.append(NEACostProjectionRecord(
+                year=year, technology=tech,
+                lcoe_low=round(base_low * nuclear_factor * 0.85, 1),
+                lcoe_mid=round(base_mid * nuclear_factor, 1),
+                lcoe_high=round(base_high * nuclear_factor * 1.15, 1),
+                capacity_factor_low=cf_low, capacity_factor_high=cf_high
+            ))
+    capacity_scenarios = []
+    scenarios = {
+        "Strong Nuclear": {"nuclear": [0, 1, 3, 7, 12], "coal": [20, 10, 5, 2, 0], "gas": [8, 7, 6, 4, 3], "wind": [15, 25, 35, 42, 48], "solar": [25, 40, 55, 65, 72], "storage": [5, 12, 20, 30, 40]},
+        "Moderate Nuclear": {"nuclear": [0, 0, 1, 3, 6], "coal": [20, 12, 6, 2, 0], "gas": [8, 8, 7, 5, 3], "wind": [15, 28, 42, 55, 65], "solar": [25, 45, 65, 80, 90], "storage": [5, 15, 28, 42, 55]},
+        "Renewables Only": {"nuclear": [0, 0, 0, 0, 0], "coal": [20, 10, 3, 0, 0], "gas": [8, 9, 8, 5, 2], "wind": [15, 32, 52, 72, 88], "solar": [25, 50, 80, 105, 125], "storage": [5, 20, 40, 65, 85]},
+    }
+    for scenario, data in scenarios.items():
+        for idx, year in enumerate([2030, 2035, 2040, 2045, 2050], start=1):
+            n = data["nuclear"][idx - 1]
+            c = data["coal"][idx - 1]
+            g = data["gas"][idx - 1]
+            w = data["wind"][idx - 1]
+            s = data["solar"][idx - 1]
+            st = data["storage"][idx - 1]
+            capacity_scenarios.append(NEACapacityScenarioRecord(
+                scenario=scenario, year=year,
+                nuclear_gw=n, coal_gw=c, gas_gw=g, wind_gw=w, solar_gw=s, storage_gw=st,
+                total_gw=n + c + g + w + s + st
+            ))
+    return NEADashboard(
+        smr_technologies=smr_technologies,
+        policy_timeline=policy_timeline,
+        cost_projections=cost_projections,
+        capacity_scenarios=capacity_scenarios,
+        summary={
+            "smr_technologies_tracked": len(smr_technologies),
+            "policy_events": len(policy_timeline),
+            "earliest_possible_online": 2037,
+            "csiro_lcoe_estimate_per_mwh": 155,
+            "coal_sites_proposed": 7,
+            "legislative_barrier": "ARPANS Act 1998 Section 10",
+        }
+    )
+
+# ── Sprint 67c: Grid-Forming Inverter & System Strength Analytics ────────────
+
+class GFIInverterRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    region: str
+    technology: str  # WIND / SOLAR / BESS / HVDC
+    inverter_type: str  # GRID_FORMING / GRID_FOLLOWING
+    capacity_mw: float
+    scr_contribution: float  # Short Circuit Ratio contribution
+    fault_ride_through: bool
+    voltage_support: bool
+    frequency_response: bool
+    inertia_synthetic_mws: float
+    commissioning_year: int
+    gfm_upgraded: bool
+
+class GFISystemStrengthRecord(BaseModel):
+    region: str
+    date: str
+    scr_actual: float
+    scr_minimum: float
+    scr_comfortable: float
+    strength_status: str  # ADEQUATE / MARGINAL / INADEQUATE
+    ibr_penetration_pct: float
+    synchronous_mw: float
+    ibr_mw: float
+    risk_event: str
+
+class GFIFaultRideRecord(BaseModel):
+    event_id: str
+    date: str
+    region: str
+    fault_type: str  # VOLTAGE_DIP / FREQUENCY_DEVIATION / ISLANDING
+    severity: str
+    gfm_response_ms: float
+    gfl_response_ms: float
+    gfm_rode_through: bool
+    gfl_rode_through: bool
+    generation_lost_mw: float
+    frequency_nadir_hz: float
+    recovery_time_s: float
+
+class GFIIbrPenetrationRecord(BaseModel):
+    year: int
+    region: str
+    ibr_penetration_pct: float
+    gfm_pct_of_ibr: float
+    synchronous_inertia_mws: float
+    synthetic_inertia_mws: float
+    system_strength_index: float
+    stability_risk: str
+
+class GFIDashboard(BaseModel):
+    inverter_fleet: list[GFIInverterRecord]
+    system_strength: list[GFISystemStrengthRecord]
+    fault_ride_through_events: list[GFIFaultRideRecord]
+    ibr_penetration: list[GFIIbrPenetrationRecord]
+    summary: dict
+
+@app.get("/api/grid-forming-inverter/dashboard", response_model=GFIDashboard, dependencies=[Depends(verify_api_key)])
+def get_grid_forming_inverter_dashboard():
+    inverter_fleet = [
+        GFIInverterRecord(asset_id="GFI001", asset_name="Hornsdale Power Reserve", region="SA1", technology="BESS", inverter_type="GRID_FORMING", capacity_mw=150, scr_contribution=0.8, fault_ride_through=True, voltage_support=True, frequency_response=True, inertia_synthetic_mws=45, commissioning_year=2017, gfm_upgraded=True),
+        GFIInverterRecord(asset_id="GFI002", asset_name="Neoen Victorian Big Battery", region="VIC1", technology="BESS", inverter_type="GRID_FORMING", capacity_mw=300, scr_contribution=1.2, fault_ride_through=True, voltage_support=True, frequency_response=True, inertia_synthetic_mws=90, commissioning_year=2021, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI003", asset_name="AGL Torrens BESS", region="SA1", technology="BESS", inverter_type="GRID_FORMING", capacity_mw=250, scr_contribution=1.1, fault_ride_through=True, voltage_support=True, frequency_response=True, inertia_synthetic_mws=75, commissioning_year=2023, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI004", asset_name="Coopers Gap Wind Farm", region="QLD1", technology="WIND", inverter_type="GRID_FOLLOWING", capacity_mw=453, scr_contribution=0.4, fault_ride_through=True, voltage_support=False, frequency_response=False, inertia_synthetic_mws=0, commissioning_year=2020, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI005", asset_name="Macarthur Wind Farm", region="VIC1", technology="WIND", inverter_type="GRID_FOLLOWING", capacity_mw=420, scr_contribution=0.3, fault_ride_through=True, voltage_support=False, frequency_response=False, inertia_synthetic_mws=0, commissioning_year=2013, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI006", asset_name="Darlington Point Solar", region="NSW1", technology="SOLAR", inverter_type="GRID_FOLLOWING", capacity_mw=275, scr_contribution=0.2, fault_ride_through=False, voltage_support=False, frequency_response=False, inertia_synthetic_mws=0, commissioning_year=2020, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI007", asset_name="Bulgana Green Power Hub", region="VIC1", technology="WIND", inverter_type="GRID_FORMING", capacity_mw=204, scr_contribution=0.9, fault_ride_through=True, voltage_support=True, frequency_response=True, inertia_synthetic_mws=30, commissioning_year=2020, gfm_upgraded=True),
+        GFIInverterRecord(asset_id="GFI008", asset_name="Murra Warra Wind Farm", region="VIC1", technology="WIND", inverter_type="GRID_FOLLOWING", capacity_mw=226, scr_contribution=0.3, fault_ride_through=True, voltage_support=False, frequency_response=False, inertia_synthetic_mws=0, commissioning_year=2021, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI009", asset_name="ElectraNet SA Synchronous Condenser", region="SA1", technology="HVDC", inverter_type="GRID_FORMING", capacity_mw=0, scr_contribution=2.5, fault_ride_through=True, voltage_support=True, frequency_response=True, inertia_synthetic_mws=120, commissioning_year=2022, gfm_upgraded=False),
+        GFIInverterRecord(asset_id="GFI010", asset_name="Snowy 2.0 HVDC Link", region="NSW1", technology="HVDC", inverter_type="GRID_FORMING", capacity_mw=2200, scr_contribution=3.0, fault_ride_through=True, voltage_support=True, frequency_response=True, inertia_synthetic_mws=200, commissioning_year=2028, gfm_upgraded=False),
+    ]
+    system_strength = [
+        GFISystemStrengthRecord(region="SA1", date="2025-01", scr_actual=1.8, scr_minimum=1.5, scr_comfortable=3.0, strength_status="MARGINAL", ibr_penetration_pct=72, synchronous_mw=650, ibr_mw=1700, risk_event="Low inertia event during evening peak"),
+        GFISystemStrengthRecord(region="SA1", date="2025-02", scr_actual=1.5, scr_minimum=1.5, scr_comfortable=3.0, strength_status="MARGINAL", ibr_penetration_pct=75, synchronous_mw=580, ibr_mw=1750, risk_event="Marginal SCR during midday solar peak"),
+        GFISystemStrengthRecord(region="VIC1", date="2025-01", scr_actual=3.2, scr_minimum=1.5, scr_comfortable=3.0, strength_status="ADEQUATE", ibr_penetration_pct=45, synchronous_mw=2800, ibr_mw=2300, risk_event="None"),
+        GFISystemStrengthRecord(region="VIC1", date="2025-02", scr_actual=2.9, scr_minimum=1.5, scr_comfortable=3.0, strength_status="ADEQUATE", ibr_penetration_pct=48, synchronous_mw=2600, ibr_mw=2400, risk_event="None"),
+        GFISystemStrengthRecord(region="NSW1", date="2025-01", scr_actual=4.5, scr_minimum=1.5, scr_comfortable=3.0, strength_status="ADEQUATE", ibr_penetration_pct=28, synchronous_mw=5200, ibr_mw=2000, risk_event="None"),
+        GFISystemStrengthRecord(region="QLD1", date="2025-01", scr_actual=3.8, scr_minimum=1.5, scr_comfortable=3.0, strength_status="ADEQUATE", ibr_penetration_pct=32, synchronous_mw=4800, ibr_mw=2250, risk_event="None"),
+        GFISystemStrengthRecord(region="TAS1", date="2025-01", scr_actual=2.1, scr_minimum=1.5, scr_comfortable=3.0, strength_status="ADEQUATE", ibr_penetration_pct=38, synchronous_mw=1200, ibr_mw=750, risk_event="None"),
+    ]
+    fault_ride_through_events = [
+        GFIFaultRideRecord(event_id="FRT001", date="2024-03-15", region="SA1", fault_type="VOLTAGE_DIP", severity="SEVERE", gfm_response_ms=12, gfl_response_ms=85, gfm_rode_through=True, gfl_rode_through=False, generation_lost_mw=320, frequency_nadir_hz=49.1, recovery_time_s=2.8),
+        GFIFaultRideRecord(event_id="FRT002", date="2024-06-22", region="VIC1", fault_type="FREQUENCY_DEVIATION", severity="MODERATE", gfm_response_ms=8, gfl_response_ms=42, gfm_rode_through=True, gfl_rode_through=True, generation_lost_mw=85, frequency_nadir_hz=49.5, recovery_time_s=1.2),
+        GFIFaultRideRecord(event_id="FRT003", date="2024-09-08", region="SA1", fault_type="VOLTAGE_DIP", severity="EXTREME", gfm_response_ms=10, gfl_response_ms=120, gfm_rode_through=True, gfl_rode_through=False, generation_lost_mw=580, frequency_nadir_hz=48.8, recovery_time_s=4.5),
+        GFIFaultRideRecord(event_id="FRT004", date="2024-11-14", region="QLD1", fault_type="ISLANDING", severity="MODERATE", gfm_response_ms=15, gfl_response_ms=65, gfm_rode_through=True, gfl_rode_through=True, generation_lost_mw=45, frequency_nadir_hz=49.7, recovery_time_s=0.8),
+        GFIFaultRideRecord(event_id="FRT005", date="2025-01-28", region="NSW1", fault_type="VOLTAGE_DIP", severity="MILD", gfm_response_ms=11, gfl_response_ms=38, gfm_rode_through=True, gfl_rode_through=True, generation_lost_mw=20, frequency_nadir_hz=49.8, recovery_time_s=0.5),
+    ]
+    ibr_penetration = []
+    for year in range(2020, 2031):
+        for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+            base_ibr = {"NSW1": 18, "QLD1": 20, "VIC1": 25, "SA1": 55, "TAS1": 30}[region]
+            ibr_pct = min(95, base_ibr + (year - 2020) * {"NSW1": 5, "QLD1": 5.5, "VIC1": 6, "SA1": 4, "TAS1": 3}[region])
+            gfm_pct = min(60, (year - 2020) * {"NSW1": 4, "QLD1": 3.5, "VIC1": 5, "SA1": 6, "TAS1": 4}[region])
+            sync_base = {"NSW1": 6000, "QLD1": 5500, "VIC1": 3500, "SA1": 1000, "TAS1": 1500}[region]
+            sync_inertia = max(200, sync_base - (year - 2020) * {"NSW1": 350, "QLD1": 300, "VIC1": 250, "SA1": 80, "TAS1": 100}[region])
+            synth_inertia = min(500, (year - 2020) * {"NSW1": 20, "QLD1": 18, "VIC1": 30, "SA1": 25, "TAS1": 15}[region])
+            ssi = round(max(0.5, 5.0 - ibr_pct * 0.035 + gfm_pct * 0.02), 2)
+            risk = "LOW" if ssi > 3 else ("MEDIUM" if ssi > 1.8 else ("HIGH" if ssi > 1.2 else "CRITICAL"))
+            ibr_penetration.append(GFIIbrPenetrationRecord(
+                year=year, region=region,
+                ibr_penetration_pct=round(ibr_pct, 1),
+                gfm_pct_of_ibr=round(gfm_pct, 1),
+                synchronous_inertia_mws=round(sync_inertia, 0),
+                synthetic_inertia_mws=round(synth_inertia, 0),
+                system_strength_index=ssi,
+                stability_risk=risk
+            ))
+    gfm_count = sum(1 for a in inverter_fleet if a.inverter_type == "GRID_FORMING")
+    return GFIDashboard(
+        inverter_fleet=inverter_fleet,
+        system_strength=system_strength,
+        fault_ride_through_events=fault_ride_through_events,
+        ibr_penetration=ibr_penetration,
+        summary={
+            "total_assets": len(inverter_fleet),
+            "grid_forming_count": gfm_count,
+            "grid_following_count": len(inverter_fleet) - gfm_count,
+            "sa_current_ibr_penetration_pct": 72,
+            "sa_system_strength_status": "MARGINAL",
+            "fault_events_tracked": len(fault_ride_through_events),
+            "gfm_ride_through_rate_pct": 100,
+            "gfl_ride_through_rate_pct": 60,
+        }
+    )
