@@ -8052,3 +8052,354 @@ class TestRenewableAuctionAnalytics:
         assert solar_cheapest_count >= 3, (
             f"Expected UTILITY_SOLAR cheapest in >=3 states, got {solar_cheapest_count}"
         )
+
+
+# ===========================================================================
+# Sprint 63a — VoLL Analytics tests
+# ===========================================================================
+
+class TestVollAnalytics:
+    """Integration tests for GET /api/voll-analytics/dashboard."""
+
+    def test_voll_analytics_dashboard(self, client):
+        resp = client.get("/api/voll-analytics/dashboard")
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+        body = resp.json()
+
+        # ── Top-level structure ─────────────────────────────────────────────
+        required_keys = {"timestamp", "voll_estimates", "outage_costs", "industry_sectors", "reliability_values"}
+        assert required_keys.issubset(body.keys()), f"Missing keys: {required_keys - body.keys()}"
+
+        voll_estimates   = body["voll_estimates"]
+        outage_costs     = body["outage_costs"]
+        industry_sectors = body["industry_sectors"]
+        reliability_vals = body["reliability_values"]
+
+        # ── VoLL estimate records: 6 records (3 years × 2 methodologies) ───
+        assert len(voll_estimates) == 6, f"Expected 6 voll_estimate records, got {len(voll_estimates)}"
+
+        valid_methodologies = {"SURVEY", "REVEALED_PREFERENCE", "HYBRID"}
+        for ve in voll_estimates:
+            assert ve["methodology"] in valid_methodologies, f"Invalid methodology: {ve['methodology']}"
+            assert 2000 <= ve["year"] <= 2030, f"Unexpected year: {ve['year']}"
+            assert ve["residential_voll_aud_mwh"] > 0, "residential_voll must be positive"
+            assert ve["commercial_voll_aud_mwh"] > ve["residential_voll_aud_mwh"], (
+                "commercial VoLL should exceed residential VoLL"
+            )
+            assert ve["industrial_voll_aud_mwh"] > 0, "industrial_voll must be positive"
+            assert ve["weighted_avg_voll_aud_mwh"] > 0, "weighted_avg_voll must be positive"
+            assert ve["nem_regulatory_voll_aud_mwh"] > 0, "nem_regulatory_voll must be positive"
+            assert ve["review_body"], "review_body must not be empty"
+
+        # Latest year should have highest regulatory VoLL (cost escalation over time)
+        years = sorted(set(ve["year"] for ve in voll_estimates))
+        assert len(years) == 3, f"Expected 3 distinct years, got {years}"
+        latest_voll = next(ve["nem_regulatory_voll_aud_mwh"] for ve in voll_estimates if ve["year"] == years[-1])
+        earliest_voll = next(ve["nem_regulatory_voll_aud_mwh"] for ve in voll_estimates if ve["year"] == years[0])
+        assert latest_voll > earliest_voll, (
+            f"Latest VoLL ({latest_voll}) should exceed earliest ({earliest_voll})"
+        )
+
+        # ── Outage cost records: 15 records (5 regions × 3 years) ───────────
+        assert len(outage_costs) == 15, f"Expected 15 outage_cost records, got {len(outage_costs)}"
+
+        expected_regions = {"NSW", "VIC", "QLD", "SA", "TAS"}
+        present_regions  = {oc["region"] for oc in outage_costs}
+        assert expected_regions == present_regions, f"Missing regions: {expected_regions - present_regions}"
+
+        for oc in outage_costs:
+            assert oc["total_outage_hours"] > 0, "total_outage_hours must be positive"
+            assert oc["customers_affected_k"] > 0, "customers_affected_k must be positive"
+            assert oc["total_economic_cost_m_aud"] > 0, "total_economic_cost_m_aud must be positive"
+            # Component costs must sum close to total
+            component_sum = (
+                oc["residential_cost_m_aud"]
+                + oc["commercial_cost_m_aud"]
+                + oc["industrial_cost_m_aud"]
+            )
+            assert abs(component_sum - oc["total_economic_cost_m_aud"]) < 5.0, (
+                f"Component costs ({component_sum}) diverge from total ({oc['total_economic_cost_m_aud']})"
+            )
+            # Direct + indirect must equal 100
+            assert abs(oc["direct_cost_pct"] + oc["indirect_cost_pct"] - 100.0) < 0.1, (
+                f"direct_cost_pct + indirect_cost_pct != 100 for {oc['region']} {oc['year']}"
+            )
+
+        # QLD should have highest average total cost (most severe outages)
+        def avg_cost(region: str) -> float:
+            recs = [oc["total_economic_cost_m_aud"] for oc in outage_costs if oc["region"] == region]
+            return sum(recs) / len(recs)
+
+        qld_avg = avg_cost("QLD")
+        tas_avg = avg_cost("TAS")
+        assert qld_avg > tas_avg, f"QLD avg ({qld_avg}) should exceed TAS avg ({tas_avg})"
+
+        # ── Industry sector records: 10 ──────────────────────────────────────
+        assert len(industry_sectors) == 10, f"Expected 10 industry_sector records, got {len(industry_sectors)}"
+
+        valid_sensitivities = {"HIGH", "MEDIUM", "LOW"}
+        for s in industry_sectors:
+            assert s["outage_sensitivity"] in valid_sensitivities, (
+                f"Invalid sensitivity: {s['outage_sensitivity']}"
+            )
+            assert s["avg_outage_cost_aud_hour"] > 0, "avg_outage_cost must be positive"
+            assert s["critical_threshold_min"] > 0, "critical_threshold_min must be positive"
+            assert s["annual_exposure_m_aud"] > 0, "annual_exposure must be positive"
+            assert 0 <= s["backup_power_adoption_pct"] <= 100, (
+                f"backup_power_adoption_pct out of range: {s['backup_power_adoption_pct']}"
+            )
+
+        # HIGH-sensitivity sectors should have higher avg cost than LOW-sensitivity ones
+        high_costs = [s["avg_outage_cost_aud_hour"] for s in industry_sectors if s["outage_sensitivity"] == "HIGH"]
+        low_costs  = [s["avg_outage_cost_aud_hour"] for s in industry_sectors if s["outage_sensitivity"] == "LOW"]
+        assert min(high_costs) > max(low_costs), (
+            f"All HIGH-sensitivity costs ({min(high_costs)}) should exceed all LOW costs ({max(low_costs)})"
+        )
+
+        # ── Reliability value records: 5 ─────────────────────────────────────
+        assert len(reliability_vals) == 5, f"Expected 5 reliability_value records, got {len(reliability_vals)}"
+
+        for rv in reliability_vals:
+            assert rv["current_saidi_min"] > rv["target_saidi_min"], (
+                f"current_saidi_min must exceed target for {rv['region']}"
+            )
+            assert rv["improvement_cost_m_aud"] > 0, "improvement_cost must be positive"
+            assert rv["customers_benefited_k"] > 0, "customers_benefited_k must be positive"
+            assert rv["voll_saved_m_aud"] > 0, "voll_saved must be positive"
+            assert rv["benefit_cost_ratio"] > 0, "benefit_cost_ratio must be positive"
+            # VoLL saved should exceed investment cost for it to be worthwhile
+            assert rv["voll_saved_m_aud"] > rv["improvement_cost_m_aud"], (
+                f"{rv['region']}: voll_saved ({rv['voll_saved_m_aud']}) should exceed investment cost ({rv['improvement_cost_m_aud']})"
+            )
+
+        # NSW should benefit most customers
+        nsw_rv = next((rv for rv in reliability_vals if rv["region"] == "NSW"), None)
+        assert nsw_rv is not None, "NSW reliability record missing"
+        for rv in reliability_vals:
+            if rv["region"] != "NSW":
+                assert nsw_rv["customers_benefited_k"] >= rv["customers_benefited_k"], (
+                    f"NSW should have highest customers_benefited_k, but {rv['region']} has more"
+                )
+
+
+class TestDemandFlexibilityAnalytics:
+    """Sprint 63c – Demand Flexibility & Industrial Load Management Analytics"""
+
+    def test_demand_flexibility_dashboard(self, client, auth_headers):
+        resp = client.get("/api/demand-flexibility/dashboard", headers=auth_headers)
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+        data = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "consumers", "events", "benefits", "technologies"):
+            assert key in data, f"Missing key: {key}"
+
+        # ── consumers ──────────────────────────────────────────────────────
+        consumers = data["consumers"]
+        assert len(consumers) == 10, f"Expected 10 consumers, got {len(consumers)}"
+
+        valid_industries = {
+            "ALUMINIUM_SMELTER", "STEEL_EAF", "DATA_CENTRE", "WATER_UTILITY",
+            "MINING", "CEMENT", "PAPER_PULP", "COLD_STORAGE",
+        }
+        valid_contracts = {"INTERRUPTIBLE", "VOLUNTARY", "VPP_PARTICIPANT", "ANCILLARY_SERVICE"}
+
+        for c in consumers:
+            assert c["industry"] in valid_industries, f"Invalid industry: {c['industry']}"
+            assert c["contract_type"] in valid_contracts, f"Invalid contract: {c['contract_type']}"
+            assert c["peak_demand_mw"] > 0, "peak_demand_mw must be positive"
+            assert 0 < c["flexible_mw"] <= c["peak_demand_mw"], "flexible_mw out of range"
+            assert 0 < c["flexibility_pct"] <= 100, "flexibility_pct out of range"
+            assert c["annual_revenue_m_aud"] >= 0, "annual_revenue must be non-negative"
+            assert c["response_time_min"] >= 0, "response_time_min must be non-negative"
+
+        # At least two aluminium smelters (Pacific + Tomago)
+        smelters = [c for c in consumers if c["industry"] == "ALUMINIUM_SMELTER"]
+        assert len(smelters) >= 2, f"Expected >=2 aluminium smelters, got {len(smelters)}"
+
+        # ── events ─────────────────────────────────────────────────────────
+        events = data["events"]
+        assert len(events) == 8, f"Expected 8 events, got {len(events)}"
+
+        valid_triggers = {"HIGH_PRICE", "RESERVE_LOW", "FCAS_SHORTFALL", "OPERATOR_REQUEST"}
+        for ev in events:
+            assert ev["trigger"] in valid_triggers, f"Invalid trigger: {ev['trigger']}"
+            assert ev["total_curtailed_mw"] > 0, "curtailed_mw must be positive"
+            assert ev["duration_hr"] > 0, "duration_hr must be positive"
+            assert ev["participants"] > 0, "participants must be positive"
+            assert ev["price_during_event_aud"] > 0, "price must be positive"
+            assert ev["cost_avoided_m_aud"] > 0, "cost_avoided must be positive"
+            assert 0 <= ev["success_rate_pct"] <= 100, "success_rate_pct out of range"
+
+        # Must have at least one HIGH_PRICE event
+        high_price_events = [e for e in events if e["trigger"] == "HIGH_PRICE"]
+        assert len(high_price_events) >= 1, "Expected at least one HIGH_PRICE event"
+
+        # ── benefits ───────────────────────────────────────────────────────
+        benefits = data["benefits"]
+        assert len(benefits) == 10, f"Expected 10 benefit records, got {len(benefits)}"
+
+        for b in benefits:
+            assert b["annual_flexibility_revenue_m_aud"] >= 0
+            assert b["energy_cost_saving_m_aud"] >= 0
+            assert b["network_charge_saving_m_aud"] >= 0
+            assert b["co2_avoided_kt"] >= 0
+            expected_total = (
+                b["annual_flexibility_revenue_m_aud"]
+                + b["energy_cost_saving_m_aud"]
+                + b["network_charge_saving_m_aud"]
+            )
+            assert abs(b["total_benefit_m_aud"] - expected_total) < 0.05, (
+                f"total_benefit_m_aud mismatch for {b['consumer_name']}: "
+                f"got {b['total_benefit_m_aud']}, expected ~{expected_total:.2f}"
+            )
+
+        # ── technologies ───────────────────────────────────────────────────
+        techs = data["technologies"]
+        assert len(techs) == 6, f"Expected 6 technology records, got {len(techs)}"
+
+        valid_techs = {
+            "AUTOMATED_DR", "MANUAL_DR", "SMART_INVERTER",
+            "THERMAL_STORAGE", "PROCESS_SHIFT", "BACKUP_GENERATOR",
+        }
+        for t in techs:
+            assert t["technology"] in valid_techs, f"Invalid technology: {t['technology']}"
+            assert 0 < t["adoption_pct"] <= 100, "adoption_pct out of range"
+            assert t["avg_response_time_min"] >= 0, "avg_response_time_min must be non-negative"
+            assert t["typical_duration_hr"] > 0, "typical_duration_hr must be positive"
+            assert t["cost_aud_per_kw"] >= 0, "cost_aud_per_kw must be non-negative"
+            assert 0 <= t["reliability_score"] <= 10, "reliability_score out of range"
+
+        # AUTOMATED_DR should have a shorter response than MANUAL_DR
+        auto_dr = next(t for t in techs if t["technology"] == "AUTOMATED_DR")
+        manual_dr = next(t for t in techs if t["technology"] == "MANUAL_DR")
+        assert auto_dr["avg_response_time_min"] < manual_dr["avg_response_time_min"], (
+            "AUTOMATED_DR should respond faster than MANUAL_DR"
+        )
+
+        # SMART_INVERTER should have the highest reliability
+        smart_inv = next(t for t in techs if t["technology"] == "SMART_INVERTER")
+        assert smart_inv["reliability_score"] >= 9.0, (
+            f"SMART_INVERTER reliability should be >=9.0, got {smart_inv['reliability_score']}"
+        )
+
+
+# ============================================================
+# Sprint 63b — ASX Energy Futures Price Discovery & Term Structure Analytics
+# ============================================================
+
+class TestFuturesPriceDiscovery:
+    def test_futures_price_discovery_dashboard(self, client):
+        response = client.get(
+            "/api/futures-price-discovery/dashboard",
+            headers={"X-API-Key": "test-api-key"},
+        )
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "term_structures", "basis_records", "carry_records", "curve_shapes"):
+            assert key in body, f"Missing key: {key}"
+
+        # ----- term_structures: 20 records (5 regions × 4 quarters) -----
+        ts = body["term_structures"]
+        assert len(ts) == 20, f"Expected 20 term structure records, got {len(ts)}"
+
+        valid_regions = {"NSW", "VIC", "QLD", "SA", "TAS"}
+        valid_products = {"BASE", "PEAK", "CAP"}
+        quarters = {"2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4"}
+
+        for rec in ts:
+            assert rec["region"] in valid_regions, f"Invalid region: {rec['region']}"
+            assert rec["product"] in valid_products, f"Invalid product: {rec['product']}"
+            assert rec["contract_month"] in quarters, f"Invalid quarter: {rec['contract_month']}"
+            assert rec["settlement_price_aud_mwh"] > 0, "Settlement price must be positive"
+            assert rec["open_interest_lots"] > 0, "OI must be positive"
+            assert rec["daily_volume_lots"] >= 0, "Volume must be non-negative"
+            assert 0 < rec["implied_vol_pct"] < 100, f"Implied vol out of range: {rec['implied_vol_pct']}"
+            assert rec["days_to_expiry"] >= 0, "Days to expiry must be non-negative"
+
+        # SA prices should be higher than TAS across all quarters
+        sa_prices = [r["settlement_price_aud_mwh"] for r in ts if r["region"] == "SA"]
+        tas_prices = [r["settlement_price_aud_mwh"] for r in ts if r["region"] == "TAS"]
+        for sa_p, tas_p in zip(sa_prices, tas_prices):
+            assert sa_p > tas_p, f"SA price {sa_p} should exceed TAS price {tas_p}"
+
+        # Most liquid contract should have highest OI
+        max_oi = max(r["open_interest_lots"] for r in ts)
+        assert max_oi >= 10000, f"Expected at least one contract with OI >= 10000, got {max_oi}"
+
+        # ----- basis_records: 20 records (5 regions × 4 months) -----
+        basis = body["basis_records"]
+        assert len(basis) == 20, f"Expected 20 basis records, got {len(basis)}"
+
+        valid_trends = {"CONVERGING", "DIVERGING", "STABLE"}
+        valid_months = {"Jan", "Feb", "Mar", "Apr"}
+
+        for rec in basis:
+            assert rec["region"] in valid_regions, f"Invalid basis region: {rec['region']}"
+            assert rec["month"] in valid_months, f"Invalid month: {rec['month']}"
+            assert rec["convergence_trend"] in valid_trends, (
+                f"Invalid convergence trend: {rec['convergence_trend']}"
+            )
+            assert rec["futures_price"] > 0, "Futures price must be positive"
+            assert rec["spot_price"] > 0, "Spot price must be positive"
+            # basis = futures - spot
+            expected_basis = round(rec["futures_price"] - rec["spot_price"], 1)
+            assert abs(rec["basis_aud"] - expected_basis) < 1.0, (
+                f"basis_aud mismatch: {rec['basis_aud']} vs expected {expected_basis}"
+            )
+            assert rec["seasonal_factor"], "seasonal_factor should not be empty"
+
+        # ----- carry_records: 10 records (5 regions × 2 spreads) -----
+        carry = body["carry_records"]
+        assert len(carry) == 10, f"Expected 10 carry records, got {len(carry)}"
+
+        carry_regions = {r["region"] for r in carry}
+        assert carry_regions == valid_regions, f"Carry regions mismatch: {carry_regions}"
+
+        for rec in carry:
+            assert rec["near_contract"] != rec["far_contract"], (
+                "Near and far contract should differ"
+            )
+            assert rec["storage_premium_aud"] >= 0, "Storage premium should be non-negative"
+            assert rec["risk_premium_aud"] >= 0, "Risk premium should be non-negative"
+
+        # ----- curve_shapes: 10 records (5 regions × 2 snapshots) -----
+        shapes = body["curve_shapes"]
+        assert len(shapes) == 10, f"Expected 10 curve shape records, got {len(shapes)}"
+
+        valid_shapes = {"CONTANGO", "BACKWARDATION", "FLAT", "KINKED"}
+        shape_regions = {r["region"] for r in shapes}
+        assert shape_regions == valid_regions, f"Curve shape regions mismatch: {shape_regions}"
+
+        for rec in shapes:
+            assert rec["curve_shape"] in valid_shapes, f"Invalid curve shape: {rec['curve_shape']}"
+            assert rec["q1_price"] > 0, "Q1 price must be positive"
+            assert rec["q2_price"] > 0, "Q2 price must be positive"
+            assert rec["q3_price"] > 0, "Q3 price must be positive"
+            assert rec["q4_price"] > 0, "Q4 price must be positive"
+            assert rec["inflection_quarter"].startswith("Q"), (
+                f"inflection_quarter should start with Q, got {rec['inflection_quarter']}"
+            )
+
+        # SA should be CONTANGO (prices rising in summer forward curve)
+        sa_shapes = [r["curve_shape"] for r in shapes if r["region"] == "SA"]
+        assert all(s == "CONTANGO" for s in sa_shapes), (
+            f"SA should be CONTANGO, got {sa_shapes}"
+        )
+
+        # TAS should be FLAT (hydro stability)
+        tas_shapes = [r["curve_shape"] for r in shapes if r["region"] == "TAS"]
+        assert all(s == "FLAT" for s in tas_shapes), (
+            f"TAS should be FLAT, got {tas_shapes}"
+        )
+
+        # NSW and VIC should be KINKED
+        nsw_shapes = [r["curve_shape"] for r in shapes if r["region"] == "NSW"]
+        assert all(s == "KINKED" for s in nsw_shapes), (
+            f"NSW should be KINKED, got {nsw_shapes}"
+        )

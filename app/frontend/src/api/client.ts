@@ -8728,3 +8728,176 @@ export interface RenewableAuctionDashboard {
 
 export const getRenewableAuctionDashboard = (): Promise<RenewableAuctionDashboard> =>
   get<RenewableAuctionDashboard>('/api/renewable-auction/dashboard')
+
+// ── Sprint 63a: VoLL Analytics ─────────────────────────────────────────────
+
+export interface VCAVollRecord {
+  year: number
+  methodology: 'SURVEY' | 'REVEALED_PREFERENCE' | 'HYBRID'
+  residential_voll_aud_mwh: number
+  commercial_voll_aud_mwh: number
+  industrial_voll_aud_mwh: number
+  weighted_avg_voll_aud_mwh: number
+  nem_regulatory_voll_aud_mwh: number
+  review_body: string
+}
+
+export interface VCAOutageCostRecord {
+  year: number
+  region: string
+  total_outage_hours: number
+  customers_affected_k: number
+  total_economic_cost_m_aud: number
+  residential_cost_m_aud: number
+  commercial_cost_m_aud: number
+  industrial_cost_m_aud: number
+  direct_cost_pct: number
+  indirect_cost_pct: number
+}
+
+export interface VCAIndustrySectorRecord {
+  sector: string
+  avg_outage_cost_aud_hour: number
+  outage_sensitivity: 'HIGH' | 'MEDIUM' | 'LOW'
+  critical_threshold_min: number
+  annual_exposure_m_aud: number
+  backup_power_adoption_pct: number
+}
+
+export interface VCAReliabilityValueRecord {
+  region: string
+  current_saidi_min: number
+  target_saidi_min: number
+  improvement_cost_m_aud: number
+  customers_benefited_k: number
+  voll_saved_m_aud: number
+  benefit_cost_ratio: number
+}
+
+export interface VollAnalyticsDashboard {
+  timestamp: string
+  voll_estimates: VCAVollRecord[]
+  outage_costs: VCAOutageCostRecord[]
+  industry_sectors: VCAIndustrySectorRecord[]
+  reliability_values: VCAReliabilityValueRecord[]
+}
+
+export const getVollAnalyticsDashboard = (): Promise<VollAnalyticsDashboard> =>
+  get<VollAnalyticsDashboard>('/api/voll-analytics/dashboard')
+
+// ---- Sprint 63b: ASX Energy Futures Price Discovery & Term Structure Analytics ----
+
+export interface FPDTermStructureRecord {
+  region: string
+  contract_month: string
+  product: string
+  settlement_price_aud_mwh: number
+  open_interest_lots: number
+  daily_volume_lots: number
+  implied_vol_pct: number
+  days_to_expiry: number
+}
+
+export interface FPDBasisRecord {
+  region: string
+  month: string
+  futures_price: number
+  spot_price: number
+  basis_aud: number
+  basis_pct: number
+  convergence_trend: string
+  seasonal_factor: string
+}
+
+export interface FPDCarryRecord {
+  region: string
+  near_contract: string
+  far_contract: string
+  carry_cost_aud: number
+  storage_premium_aud: number
+  risk_premium_aud: number
+  convenience_yield_pct: number
+}
+
+export interface FPDCurveShapeRecord {
+  region: string
+  snapshot_date: string
+  curve_shape: string
+  q1_price: number
+  q2_price: number
+  q3_price: number
+  q4_price: number
+  annual_slope_pct: number
+  inflection_quarter: string
+}
+
+export interface FuturesPriceDiscoveryDashboard {
+  timestamp: string
+  term_structures: FPDTermStructureRecord[]
+  basis_records: FPDBasisRecord[]
+  carry_records: FPDCarryRecord[]
+  curve_shapes: FPDCurveShapeRecord[]
+}
+
+export const getFuturesPriceDiscoveryDashboard = (): Promise<FuturesPriceDiscoveryDashboard> =>
+  get<FuturesPriceDiscoveryDashboard>('/api/futures-price-discovery/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 63c – Demand Flexibility & Industrial Load Management Analytics
+// ---------------------------------------------------------------------------
+
+export interface DFLConsumerRecord {
+  consumer_id: string
+  consumer_name: string
+  industry: 'ALUMINIUM_SMELTER' | 'STEEL_EAF' | 'DATA_CENTRE' | 'WATER_UTILITY' | 'MINING' | 'CEMENT' | 'PAPER_PULP' | 'COLD_STORAGE'
+  region: string
+  peak_demand_mw: number
+  flexible_mw: number
+  flexibility_pct: number
+  contract_type: 'INTERRUPTIBLE' | 'VOLUNTARY' | 'VPP_PARTICIPANT' | 'ANCILLARY_SERVICE'
+  annual_revenue_m_aud: number
+  response_time_min: number
+}
+
+export interface DFLEventRecord {
+  event_id: string
+  date: string
+  trigger: 'HIGH_PRICE' | 'RESERVE_LOW' | 'FCAS_SHORTFALL' | 'OPERATOR_REQUEST'
+  region: string
+  total_curtailed_mw: number
+  duration_hr: number
+  participants: number
+  price_during_event_aud: number
+  cost_avoided_m_aud: number
+  success_rate_pct: number
+}
+
+export interface DFLBenefitRecord {
+  consumer_name: string
+  annual_flexibility_revenue_m_aud: number
+  energy_cost_saving_m_aud: number
+  network_charge_saving_m_aud: number
+  total_benefit_m_aud: number
+  benefit_per_mw_k_aud: number
+  co2_avoided_kt: number
+}
+
+export interface DFLTechnologyRecord {
+  technology: 'AUTOMATED_DR' | 'MANUAL_DR' | 'SMART_INVERTER' | 'THERMAL_STORAGE' | 'PROCESS_SHIFT' | 'BACKUP_GENERATOR'
+  adoption_pct: number
+  avg_response_time_min: number
+  typical_duration_hr: number
+  cost_aud_per_kw: number
+  reliability_score: number
+}
+
+export interface DemandFlexibilityDashboard {
+  timestamp: string
+  consumers: DFLConsumerRecord[]
+  events: DFLEventRecord[]
+  benefits: DFLBenefitRecord[]
+  technologies: DFLTechnologyRecord[]
+}
+
+export const getDemandFlexibilityDashboard = (): Promise<DemandFlexibilityDashboard> =>
+  get<DemandFlexibilityDashboard>('/api/demand-flexibility/dashboard')

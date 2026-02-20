@@ -226,6 +226,9 @@ import StorageOptimisationAnalytics from './pages/StorageOptimisationAnalytics'
 import SettlementAnalytics from './pages/SettlementAnalytics'
 import RealtimeOperationsDashboard from './pages/RealtimeOperationsDashboard'
 import RenewableAuctionAnalytics from './pages/RenewableAuctionAnalytics'
+import VollAnalytics from './pages/VollAnalytics'
+import DemandFlexibilityAnalytics from './pages/DemandFlexibilityAnalytics'
+import FuturesPriceDiscovery from './pages/FuturesPriceDiscovery'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -385,6 +388,9 @@ const NAV_ITEMS = [
   { to: '/storage-optimisation-analytics', label: 'Storage Revenue Optimisation', Icon: Battery },
   { to: '/settlement-analytics',           label: '5-Min Settlement & Prudential', Icon: CreditCard },
   { to: '/renewable-auction-analytics',   label: 'Renewable Auction & CfD',      Icon: Award      },
+  { to: '/voll-analytics',               label: 'VoLL Outage Cost Analytics',   Icon: AlertTriangle },
+  { to: '/demand-flexibility-analytics', label: 'Demand Flexibility & ILM',     Icon: Gauge      },
+  { to: '/futures-price-discovery',      label: 'Futures Price Discovery',       Icon: TrendingUp },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -619,6 +625,9 @@ export default function App() {
               <Route path="/settlement-analytics"          element={<SettlementAnalytics />}          />
               <Route path="/realtime-operations" element={<RealtimeOperationsDashboard />} />
               <Route path="/renewable-auction-analytics" element={<RenewableAuctionAnalytics />} />
+              <Route path="/voll-analytics"              element={<VollAnalytics />}                />
+              <Route path="/demand-flexibility-analytics" element={<DemandFlexibilityAnalytics />} />
+              <Route path="/futures-price-discovery"      element={<FuturesPriceDiscovery />}      />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

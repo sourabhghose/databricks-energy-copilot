@@ -44812,3 +44812,484 @@ def get_renewable_auction_dashboard():
         performance=[r.dict() for r in _RAA_PERFORMANCE],
         state_comparison=[r.dict() for r in _RAA_STATE_COMPARISON],
     )
+
+
+# ============================================================================
+# Sprint 63a — VoLL Analytics (Power Outage Economic Cost)
+# ============================================================================
+
+# ── Enums ────────────────────────────────────────────────────────────────────
+
+class VCAMethodologyEnum(str, Enum):
+    SURVEY              = "SURVEY"
+    REVEALED_PREFERENCE = "REVEALED_PREFERENCE"
+    HYBRID              = "HYBRID"
+
+class VCASensitivityEnum(str, Enum):
+    HIGH   = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW    = "LOW"
+
+# ── Models ───────────────────────────────────────────────────────────────────
+
+class VCAVollRecord(BaseModel):
+    year: int
+    methodology: VCAMethodologyEnum
+    residential_voll_aud_mwh: float
+    commercial_voll_aud_mwh: float
+    industrial_voll_aud_mwh: float
+    weighted_avg_voll_aud_mwh: float
+    nem_regulatory_voll_aud_mwh: float
+    review_body: str
+
+class VCAOutageCostRecord(BaseModel):
+    year: int
+    region: str
+    total_outage_hours: float
+    customers_affected_k: int
+    total_economic_cost_m_aud: float
+    residential_cost_m_aud: float
+    commercial_cost_m_aud: float
+    industrial_cost_m_aud: float
+    direct_cost_pct: float
+    indirect_cost_pct: float
+
+class VCAIndustrySectorRecord(BaseModel):
+    sector: str
+    avg_outage_cost_aud_hour: float
+    outage_sensitivity: VCASensitivityEnum
+    critical_threshold_min: int
+    annual_exposure_m_aud: float
+    backup_power_adoption_pct: float
+
+class VCAReliabilityValueRecord(BaseModel):
+    region: str
+    current_saidi_min: float
+    target_saidi_min: float
+    improvement_cost_m_aud: float
+    customers_benefited_k: int
+    voll_saved_m_aud: float
+    benefit_cost_ratio: float
+
+class VollAnalyticsDashboard(BaseModel):
+    timestamp: str
+    voll_estimates: List[dict]
+    outage_costs: List[dict]
+    industry_sectors: List[dict]
+    reliability_values: List[dict]
+
+
+# ── Mock data ────────────────────────────────────────────────────────────────
+
+# 6 VoLL estimate records: 3 years × 2 methodologies
+_VCA_VOLL_ESTIMATES: List[VCAVollRecord] = [
+    VCAVollRecord(year=2022, methodology=VCAMethodologyEnum.SURVEY,              residential_voll_aud_mwh=8_400.0,  commercial_voll_aud_mwh=28_600.0,  industrial_voll_aud_mwh=14_200.0,  weighted_avg_voll_aud_mwh=16_800.0,  nem_regulatory_voll_aud_mwh=14_700.0, review_body="AEMC VoLL Review 2022"),
+    VCAVollRecord(year=2022, methodology=VCAMethodologyEnum.REVEALED_PREFERENCE,  residential_voll_aud_mwh=7_900.0,  commercial_voll_aud_mwh=31_200.0,  industrial_voll_aud_mwh=15_800.0,  weighted_avg_voll_aud_mwh=17_500.0,  nem_regulatory_voll_aud_mwh=14_700.0, review_body="AEMC VoLL Review 2022"),
+    VCAVollRecord(year=2023, methodology=VCAMethodologyEnum.SURVEY,              residential_voll_aud_mwh=9_200.0,  commercial_voll_aud_mwh=30_400.0,  industrial_voll_aud_mwh=15_100.0,  weighted_avg_voll_aud_mwh=17_900.0,  nem_regulatory_voll_aud_mwh=15_500.0, review_body="AEMO VOLL Determination 2023"),
+    VCAVollRecord(year=2023, methodology=VCAMethodologyEnum.HYBRID,              residential_voll_aud_mwh=8_750.0,  commercial_voll_aud_mwh=29_800.0,  industrial_voll_aud_mwh=14_700.0,  weighted_avg_voll_aud_mwh=17_200.0,  nem_regulatory_voll_aud_mwh=15_500.0, review_body="AEMO VOLL Determination 2023"),
+    VCAVollRecord(year=2024, methodology=VCAMethodologyEnum.SURVEY,              residential_voll_aud_mwh=9_800.0,  commercial_voll_aud_mwh=32_100.0,  industrial_voll_aud_mwh=16_300.0,  weighted_avg_voll_aud_mwh=18_900.0,  nem_regulatory_voll_aud_mwh=16_600.0, review_body="AEMC Reliability Standards Review 2024"),
+    VCAVollRecord(year=2024, methodology=VCAMethodologyEnum.HYBRID,              residential_voll_aud_mwh=10_100.0, commercial_voll_aud_mwh=33_500.0,  industrial_voll_aud_mwh=17_200.0,  weighted_avg_voll_aud_mwh=19_600.0,  nem_regulatory_voll_aud_mwh=16_600.0, review_body="AEMC Reliability Standards Review 2024"),
+]
+
+# 15 outage cost records: 5 regions × 3 years
+_VCA_OUTAGE_COSTS: List[VCAOutageCostRecord] = [
+    # NSW
+    VCAOutageCostRecord(year=2022, region="NSW", total_outage_hours=3.84, customers_affected_k=182, total_economic_cost_m_aud=1_248.0, residential_cost_m_aud=312.0, commercial_cost_m_aud=588.0, industrial_cost_m_aud=348.0, direct_cost_pct=62.0, indirect_cost_pct=38.0),
+    VCAOutageCostRecord(year=2023, region="NSW", total_outage_hours=3.21, customers_affected_k=168, total_economic_cost_m_aud=1_096.0, residential_cost_m_aud=274.0, commercial_cost_m_aud=524.0, industrial_cost_m_aud=298.0, direct_cost_pct=63.5, indirect_cost_pct=36.5),
+    VCAOutageCostRecord(year=2024, region="NSW", total_outage_hours=3.55, customers_affected_k=175, total_economic_cost_m_aud=1_187.0, residential_cost_m_aud=291.0, commercial_cost_m_aud=558.0, industrial_cost_m_aud=338.0, direct_cost_pct=61.8, indirect_cost_pct=38.2),
+    # VIC
+    VCAOutageCostRecord(year=2022, region="VIC", total_outage_hours=4.12, customers_affected_k=164, total_economic_cost_m_aud=1_086.0, residential_cost_m_aud=261.0, commercial_cost_m_aud=498.0, industrial_cost_m_aud=327.0, direct_cost_pct=60.2, indirect_cost_pct=39.8),
+    VCAOutageCostRecord(year=2023, region="VIC", total_outage_hours=3.78, customers_affected_k=155, total_economic_cost_m_aud=1_024.0, residential_cost_m_aud=246.0, commercial_cost_m_aud=471.0, industrial_cost_m_aud=307.0, direct_cost_pct=61.4, indirect_cost_pct=38.6),
+    VCAOutageCostRecord(year=2024, region="VIC", total_outage_hours=4.01, customers_affected_k=159, total_economic_cost_m_aud=1_115.0, residential_cost_m_aud=262.0, commercial_cost_m_aud=512.0, industrial_cost_m_aud=341.0, direct_cost_pct=59.8, indirect_cost_pct=40.2),
+    # QLD
+    VCAOutageCostRecord(year=2022, region="QLD", total_outage_hours=5.20, customers_affected_k=218, total_economic_cost_m_aud=1_436.0, residential_cost_m_aud=344.0, commercial_cost_m_aud=668.0, industrial_cost_m_aud=424.0, direct_cost_pct=64.1, indirect_cost_pct=35.9),
+    VCAOutageCostRecord(year=2023, region="QLD", total_outage_hours=4.94, customers_affected_k=203, total_economic_cost_m_aud=1_368.0, residential_cost_m_aud=322.0, commercial_cost_m_aud=638.0, industrial_cost_m_aud=408.0, direct_cost_pct=63.7, indirect_cost_pct=36.3),
+    VCAOutageCostRecord(year=2024, region="QLD", total_outage_hours=5.06, customers_affected_k=210, total_economic_cost_m_aud=1_402.0, residential_cost_m_aud=334.0, commercial_cost_m_aud=651.0, industrial_cost_m_aud=417.0, direct_cost_pct=63.9, indirect_cost_pct=36.1),
+    # SA
+    VCAOutageCostRecord(year=2022, region="SA",  total_outage_hours=6.14, customers_affected_k=98,  total_economic_cost_m_aud=628.0,  residential_cost_m_aud=144.0, commercial_cost_m_aud=286.0, industrial_cost_m_aud=198.0, direct_cost_pct=58.6, indirect_cost_pct=41.4),
+    VCAOutageCostRecord(year=2023, region="SA",  total_outage_hours=5.82, customers_affected_k=92,  total_economic_cost_m_aud=598.0,  residential_cost_m_aud=138.0, commercial_cost_m_aud=272.0, industrial_cost_m_aud=188.0, direct_cost_pct=59.2, indirect_cost_pct=40.8),
+    VCAOutageCostRecord(year=2024, region="SA",  total_outage_hours=5.93, customers_affected_k=94,  total_economic_cost_m_aud=611.0,  residential_cost_m_aud=141.0, commercial_cost_m_aud=278.0, industrial_cost_m_aud=192.0, direct_cost_pct=58.9, indirect_cost_pct=41.1),
+    # TAS
+    VCAOutageCostRecord(year=2022, region="TAS", total_outage_hours=7.34, customers_affected_k=42,  total_economic_cost_m_aud=214.0,  residential_cost_m_aud=48.0,  commercial_cost_m_aud=96.0,  industrial_cost_m_aud=70.0,  direct_cost_pct=57.0, indirect_cost_pct=43.0),
+    VCAOutageCostRecord(year=2023, region="TAS", total_outage_hours=7.01, customers_affected_k=39,  total_economic_cost_m_aud=198.0,  residential_cost_m_aud=44.0,  commercial_cost_m_aud=89.0,  industrial_cost_m_aud=65.0,  direct_cost_pct=57.6, indirect_cost_pct=42.4),
+    VCAOutageCostRecord(year=2024, region="TAS", total_outage_hours=7.18, customers_affected_k=40,  total_economic_cost_m_aud=206.0,  residential_cost_m_aud=46.0,  commercial_cost_m_aud=92.0,  industrial_cost_m_aud=68.0,  direct_cost_pct=57.3, indirect_cost_pct=42.7),
+]
+
+# 10 industry sector records
+_VCA_INDUSTRY_SECTORS: List[VCAIndustrySectorRecord] = [
+    VCAIndustrySectorRecord(sector="Data Centres & Cloud",          avg_outage_cost_aud_hour=485_000.0, outage_sensitivity=VCASensitivityEnum.HIGH,   critical_threshold_min=1,   annual_exposure_m_aud=2_840.0, backup_power_adoption_pct=98.2),
+    VCAIndustrySectorRecord(sector="Financial Services",            avg_outage_cost_aud_hour=312_000.0, outage_sensitivity=VCASensitivityEnum.HIGH,   critical_threshold_min=1,   annual_exposure_m_aud=1_820.0, backup_power_adoption_pct=95.4),
+    VCAIndustrySectorRecord(sector="Health & Medical",              avg_outage_cost_aud_hour=198_000.0, outage_sensitivity=VCASensitivityEnum.HIGH,   critical_threshold_min=5,   annual_exposure_m_aud=1_140.0, backup_power_adoption_pct=99.1),
+    VCAIndustrySectorRecord(sector="Mining & Resources",            avg_outage_cost_aud_hour=142_000.0, outage_sensitivity=VCASensitivityEnum.HIGH,   critical_threshold_min=15,  annual_exposure_m_aud=  824.0, backup_power_adoption_pct=72.6),
+    VCAIndustrySectorRecord(sector="Food & Beverage Processing",    avg_outage_cost_aud_hour= 86_000.0, outage_sensitivity=VCASensitivityEnum.MEDIUM, critical_threshold_min=30,  annual_exposure_m_aud=  498.0, backup_power_adoption_pct=48.3),
+    VCAIndustrySectorRecord(sector="Retail Trade",                  avg_outage_cost_aud_hour= 64_000.0, outage_sensitivity=VCASensitivityEnum.MEDIUM, critical_threshold_min=20,  annual_exposure_m_aud=  371.0, backup_power_adoption_pct=42.7),
+    VCAIndustrySectorRecord(sector="Manufacturing — Chemicals",     avg_outage_cost_aud_hour= 52_000.0, outage_sensitivity=VCASensitivityEnum.MEDIUM, critical_threshold_min=60,  annual_exposure_m_aud=  302.0, backup_power_adoption_pct=58.1),
+    VCAIndustrySectorRecord(sector="Education",                     avg_outage_cost_aud_hour= 18_000.0, outage_sensitivity=VCASensitivityEnum.LOW,    critical_threshold_min=120, annual_exposure_m_aud=  104.0, backup_power_adoption_pct=24.5),
+    VCAIndustrySectorRecord(sector="Agriculture & Irrigation",      avg_outage_cost_aud_hour= 12_000.0, outage_sensitivity=VCASensitivityEnum.LOW,    critical_threshold_min=240, annual_exposure_m_aud=   70.0, backup_power_adoption_pct=31.8),
+    VCAIndustrySectorRecord(sector="Residential",                   avg_outage_cost_aud_hour=    420.0, outage_sensitivity=VCASensitivityEnum.LOW,    critical_threshold_min=480, annual_exposure_m_aud= 1_024.0, backup_power_adoption_pct=8.6),
+]
+
+# 5 reliability value records
+_VCA_RELIABILITY_VALUES: List[VCAReliabilityValueRecord] = [
+    VCAReliabilityValueRecord(region="NSW", current_saidi_min=84.2, target_saidi_min=65.0, improvement_cost_m_aud=420.0, customers_benefited_k=3_850, voll_saved_m_aud=1_186.0, benefit_cost_ratio=2.82),
+    VCAReliabilityValueRecord(region="VIC", current_saidi_min=72.6, target_saidi_min=55.0, improvement_cost_m_aud=380.0, customers_benefited_k=3_120, voll_saved_m_aud= 974.0,  benefit_cost_ratio=2.56),
+    VCAReliabilityValueRecord(region="QLD", current_saidi_min=98.4, target_saidi_min=75.0, improvement_cost_m_aud=510.0, customers_benefited_k=2_280, voll_saved_m_aud=1_392.0, benefit_cost_ratio=2.73),
+    VCAReliabilityValueRecord(region="SA",  current_saidi_min=122.8, target_saidi_min=90.0, improvement_cost_m_aud=240.0, customers_benefited_k=  840, voll_saved_m_aud=  581.0, benefit_cost_ratio=2.42),
+    VCAReliabilityValueRecord(region="TAS", current_saidi_min=148.6, target_saidi_min=105.0, improvement_cost_m_aud=180.0, customers_benefited_k=  380, voll_saved_m_aud=  312.0, benefit_cost_ratio=1.73),
+]
+
+
+# ── Endpoint ────────────────────────────────────────────────────────────────
+
+@app.get(
+    "/api/voll-analytics/dashboard",
+    response_model=VollAnalyticsDashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+def get_voll_analytics_dashboard():
+    from datetime import datetime, timezone
+    return VollAnalyticsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        voll_estimates=[r.dict() for r in _VCA_VOLL_ESTIMATES],
+        outage_costs=[r.dict() for r in _VCA_OUTAGE_COSTS],
+        industry_sectors=[r.dict() for r in _VCA_INDUSTRY_SECTORS],
+        reliability_values=[r.dict() for r in _VCA_RELIABILITY_VALUES],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 63c – Demand Flexibility & Industrial Load Management Analytics
+# ---------------------------------------------------------------------------
+
+from enum import Enum as _Enum63c
+
+class DFLIndustryType(str, _Enum63c):
+    ALUMINIUM_SMELTER = "ALUMINIUM_SMELTER"
+    STEEL_EAF = "STEEL_EAF"
+    DATA_CENTRE = "DATA_CENTRE"
+    WATER_UTILITY = "WATER_UTILITY"
+    MINING = "MINING"
+    CEMENT = "CEMENT"
+    PAPER_PULP = "PAPER_PULP"
+    COLD_STORAGE = "COLD_STORAGE"
+
+class DFLContractType(str, _Enum63c):
+    INTERRUPTIBLE = "INTERRUPTIBLE"
+    VOLUNTARY = "VOLUNTARY"
+    VPP_PARTICIPANT = "VPP_PARTICIPANT"
+    ANCILLARY_SERVICE = "ANCILLARY_SERVICE"
+
+class DFLTriggerType(str, _Enum63c):
+    HIGH_PRICE = "HIGH_PRICE"
+    RESERVE_LOW = "RESERVE_LOW"
+    FCAS_SHORTFALL = "FCAS_SHORTFALL"
+    OPERATOR_REQUEST = "OPERATOR_REQUEST"
+
+class DFLTechnologyType(str, _Enum63c):
+    AUTOMATED_DR = "AUTOMATED_DR"
+    MANUAL_DR = "MANUAL_DR"
+    SMART_INVERTER = "SMART_INVERTER"
+    THERMAL_STORAGE = "THERMAL_STORAGE"
+    PROCESS_SHIFT = "PROCESS_SHIFT"
+    BACKUP_GENERATOR = "BACKUP_GENERATOR"
+
+class DFLConsumerRecord(BaseModel):
+    consumer_id: str
+    consumer_name: str
+    industry: DFLIndustryType
+    region: str
+    peak_demand_mw: float
+    flexible_mw: float
+    flexibility_pct: float
+    contract_type: DFLContractType
+    annual_revenue_m_aud: float
+    response_time_min: int
+
+class DFLEventRecord(BaseModel):
+    event_id: str
+    date: str
+    trigger: DFLTriggerType
+    region: str
+    total_curtailed_mw: float
+    duration_hr: float
+    participants: int
+    price_during_event_aud: float
+    cost_avoided_m_aud: float
+    success_rate_pct: float
+
+class DFLBenefitRecord(BaseModel):
+    consumer_name: str
+    annual_flexibility_revenue_m_aud: float
+    energy_cost_saving_m_aud: float
+    network_charge_saving_m_aud: float
+    total_benefit_m_aud: float
+    benefit_per_mw_k_aud: float
+    co2_avoided_kt: float
+
+class DFLTechnologyRecord(BaseModel):
+    technology: DFLTechnologyType
+    adoption_pct: float
+    avg_response_time_min: float
+    typical_duration_hr: float
+    cost_aud_per_kw: float
+    reliability_score: float
+
+class DemandFlexibilityDashboard(BaseModel):
+    timestamp: str
+    consumers: list[DFLConsumerRecord]
+    events: list[DFLEventRecord]
+    benefits: list[DFLBenefitRecord]
+    technologies: list[DFLTechnologyRecord]
+
+_DFL_CONSUMERS = [
+    DFLConsumerRecord(consumer_id="CON-001", consumer_name="Pacific Aluminium Boyne", industry=DFLIndustryType.ALUMINIUM_SMELTER, region="QLD", peak_demand_mw=680.0, flexible_mw=204.0, flexibility_pct=30.0, contract_type=DFLContractType.INTERRUPTIBLE, annual_revenue_m_aud=18.4, response_time_min=5),
+    DFLConsumerRecord(consumer_id="CON-002", consumer_name="BlueScope Steel Port Kembla", industry=DFLIndustryType.STEEL_EAF, region="NSW", peak_demand_mw=420.0, flexible_mw=105.0, flexibility_pct=25.0, contract_type=DFLContractType.INTERRUPTIBLE, annual_revenue_m_aud=9.8, response_time_min=10),
+    DFLConsumerRecord(consumer_id="CON-003", consumer_name="NextDC M3 Melbourne", industry=DFLIndustryType.DATA_CENTRE, region="VIC", peak_demand_mw=80.0, flexible_mw=24.0, flexibility_pct=30.0, contract_type=DFLContractType.VPP_PARTICIPANT, annual_revenue_m_aud=3.2, response_time_min=1),
+    DFLConsumerRecord(consumer_id="CON-004", consumer_name="Sydney Water Prospect", industry=DFLIndustryType.WATER_UTILITY, region="NSW", peak_demand_mw=55.0, flexible_mw=22.0, flexibility_pct=40.0, contract_type=DFLContractType.VOLUNTARY, annual_revenue_m_aud=1.6, response_time_min=15),
+    DFLConsumerRecord(consumer_id="CON-005", consumer_name="BHP Olympic Dam", industry=DFLIndustryType.MINING, region="SA", peak_demand_mw=310.0, flexible_mw=93.0, flexibility_pct=30.0, contract_type=DFLContractType.ANCILLARY_SERVICE, annual_revenue_m_aud=12.1, response_time_min=5),
+    DFLConsumerRecord(consumer_id="CON-006", consumer_name="Adelaide Brighton Cement", industry=DFLIndustryType.CEMENT, region="SA", peak_demand_mw=48.0, flexible_mw=14.4, flexibility_pct=30.0, contract_type=DFLContractType.INTERRUPTIBLE, annual_revenue_m_aud=1.2, response_time_min=20),
+    DFLConsumerRecord(consumer_id="CON-007", consumer_name="Norske Skog Boyer Mill", industry=DFLIndustryType.PAPER_PULP, region="TAS", peak_demand_mw=135.0, flexible_mw=40.5, flexibility_pct=30.0, contract_type=DFLContractType.INTERRUPTIBLE, annual_revenue_m_aud=4.3, response_time_min=8),
+    DFLConsumerRecord(consumer_id="CON-008", consumer_name="Swire Cold Storage Laverton", industry=DFLIndustryType.COLD_STORAGE, region="VIC", peak_demand_mw=22.0, flexible_mw=11.0, flexibility_pct=50.0, contract_type=DFLContractType.VPP_PARTICIPANT, annual_revenue_m_aud=0.9, response_time_min=2),
+    DFLConsumerRecord(consumer_id="CON-009", consumer_name="Tomago Aluminium NSW", industry=DFLIndustryType.ALUMINIUM_SMELTER, region="NSW", peak_demand_mw=560.0, flexible_mw=168.0, flexibility_pct=30.0, contract_type=DFLContractType.INTERRUPTIBLE, annual_revenue_m_aud=15.6, response_time_min=5),
+    DFLConsumerRecord(consumer_id="CON-010", consumer_name="APA Group Moomba Compressor", industry=DFLIndustryType.MINING, region="SA", peak_demand_mw=38.0, flexible_mw=15.2, flexibility_pct=40.0, contract_type=DFLContractType.ANCILLARY_SERVICE, annual_revenue_m_aud=1.8, response_time_min=3),
+]
+
+_DFL_EVENTS = [
+    DFLEventRecord(event_id="EVT-2024-001", date="2024-01-18", trigger=DFLTriggerType.HIGH_PRICE, region="VIC", total_curtailed_mw=312.0, duration_hr=2.5, participants=14, price_during_event_aud=14500.0, cost_avoided_m_aud=11.3, success_rate_pct=94.0),
+    DFLEventRecord(event_id="EVT-2024-002", date="2024-02-06", trigger=DFLTriggerType.RESERVE_LOW, region="SA", total_curtailed_mw=198.0, duration_hr=1.5, participants=9, price_during_event_aud=9800.0, cost_avoided_m_aud=7.1, success_rate_pct=88.0),
+    DFLEventRecord(event_id="EVT-2024-003", date="2024-03-14", trigger=DFLTriggerType.FCAS_SHORTFALL, region="NSW", total_curtailed_mw=445.0, duration_hr=0.5, participants=18, price_during_event_aud=12200.0, cost_avoided_m_aud=4.2, success_rate_pct=97.0),
+    DFLEventRecord(event_id="EVT-2024-004", date="2024-05-22", trigger=DFLTriggerType.HIGH_PRICE, region="QLD", total_curtailed_mw=520.0, duration_hr=3.0, participants=21, price_during_event_aud=15000.0, cost_avoided_m_aud=23.4, success_rate_pct=91.0),
+    DFLEventRecord(event_id="EVT-2024-005", date="2024-07-11", trigger=DFLTriggerType.OPERATOR_REQUEST, region="VIC", total_curtailed_mw=280.0, duration_hr=4.0, participants=12, price_during_event_aud=7600.0, cost_avoided_m_aud=14.6, success_rate_pct=100.0),
+    DFLEventRecord(event_id="EVT-2024-006", date="2024-09-03", trigger=DFLTriggerType.RESERVE_LOW, region="NSW", total_curtailed_mw=375.0, duration_hr=2.0, participants=16, price_during_event_aud=11400.0, cost_avoided_m_aud=12.8, success_rate_pct=87.0),
+    DFLEventRecord(event_id="EVT-2024-007", date="2024-11-28", trigger=DFLTriggerType.HIGH_PRICE, region="SA", total_curtailed_mw=165.0, duration_hr=1.0, participants=8, price_during_event_aud=13800.0, cost_avoided_m_aud=5.9, success_rate_pct=92.0),
+    DFLEventRecord(event_id="EVT-2024-008", date="2024-12-19", trigger=DFLTriggerType.HIGH_PRICE, region="VIC", total_curtailed_mw=490.0, duration_hr=3.5, participants=23, price_during_event_aud=15000.0, cost_avoided_m_aud=29.7, success_rate_pct=95.0),
+]
+
+_DFL_BENEFITS = [
+    DFLBenefitRecord(consumer_name="Pacific Aluminium Boyne", annual_flexibility_revenue_m_aud=18.4, energy_cost_saving_m_aud=12.6, network_charge_saving_m_aud=4.2, total_benefit_m_aud=35.2, benefit_per_mw_k_aud=172.5, co2_avoided_kt=38.4),
+    DFLBenefitRecord(consumer_name="BlueScope Steel Port Kembla", annual_flexibility_revenue_m_aud=9.8, energy_cost_saving_m_aud=7.4, network_charge_saving_m_aud=2.8, total_benefit_m_aud=20.0, benefit_per_mw_k_aud=190.5, co2_avoided_kt=22.1),
+    DFLBenefitRecord(consumer_name="NextDC M3 Melbourne", annual_flexibility_revenue_m_aud=3.2, energy_cost_saving_m_aud=2.1, network_charge_saving_m_aud=0.8, total_benefit_m_aud=6.1, benefit_per_mw_k_aud=254.2, co2_avoided_kt=4.8),
+    DFLBenefitRecord(consumer_name="Sydney Water Prospect", annual_flexibility_revenue_m_aud=1.6, energy_cost_saving_m_aud=1.4, network_charge_saving_m_aud=0.6, total_benefit_m_aud=3.6, benefit_per_mw_k_aud=163.6, co2_avoided_kt=2.9),
+    DFLBenefitRecord(consumer_name="BHP Olympic Dam", annual_flexibility_revenue_m_aud=12.1, energy_cost_saving_m_aud=8.9, network_charge_saving_m_aud=3.1, total_benefit_m_aud=24.1, benefit_per_mw_k_aud=259.1, co2_avoided_kt=29.7),
+    DFLBenefitRecord(consumer_name="Adelaide Brighton Cement", annual_flexibility_revenue_m_aud=1.2, energy_cost_saving_m_aud=0.9, network_charge_saving_m_aud=0.4, total_benefit_m_aud=2.5, benefit_per_mw_k_aud=173.6, co2_avoided_kt=1.8),
+    DFLBenefitRecord(consumer_name="Norske Skog Boyer Mill", annual_flexibility_revenue_m_aud=4.3, energy_cost_saving_m_aud=3.2, network_charge_saving_m_aud=1.1, total_benefit_m_aud=8.6, benefit_per_mw_k_aud=212.3, co2_avoided_kt=9.4),
+    DFLBenefitRecord(consumer_name="Swire Cold Storage Laverton", annual_flexibility_revenue_m_aud=0.9, energy_cost_saving_m_aud=0.7, network_charge_saving_m_aud=0.3, total_benefit_m_aud=1.9, benefit_per_mw_k_aud=172.7, co2_avoided_kt=1.2),
+    DFLBenefitRecord(consumer_name="Tomago Aluminium NSW", annual_flexibility_revenue_m_aud=15.6, energy_cost_saving_m_aud=11.2, network_charge_saving_m_aud=3.8, total_benefit_m_aud=30.6, benefit_per_mw_k_aud=182.1, co2_avoided_kt=33.6),
+    DFLBenefitRecord(consumer_name="APA Group Moomba Compressor", annual_flexibility_revenue_m_aud=1.8, energy_cost_saving_m_aud=1.3, network_charge_saving_m_aud=0.5, total_benefit_m_aud=3.6, benefit_per_mw_k_aud=236.8, co2_avoided_kt=2.4),
+]
+
+_DFL_TECHNOLOGIES = [
+    DFLTechnologyRecord(technology=DFLTechnologyType.AUTOMATED_DR, adoption_pct=38.0, avg_response_time_min=0.5, typical_duration_hr=4.0, cost_aud_per_kw=85.0, reliability_score=9.2),
+    DFLTechnologyRecord(technology=DFLTechnologyType.MANUAL_DR, adoption_pct=52.0, avg_response_time_min=15.0, typical_duration_hr=3.0, cost_aud_per_kw=12.0, reliability_score=7.1),
+    DFLTechnologyRecord(technology=DFLTechnologyType.SMART_INVERTER, adoption_pct=22.0, avg_response_time_min=0.1, typical_duration_hr=2.0, cost_aud_per_kw=65.0, reliability_score=9.5),
+    DFLTechnologyRecord(technology=DFLTechnologyType.THERMAL_STORAGE, adoption_pct=18.0, avg_response_time_min=5.0, typical_duration_hr=6.0, cost_aud_per_kw=120.0, reliability_score=8.4),
+    DFLTechnologyRecord(technology=DFLTechnologyType.PROCESS_SHIFT, adoption_pct=44.0, avg_response_time_min=30.0, typical_duration_hr=8.0, cost_aud_per_kw=5.0, reliability_score=6.8),
+    DFLTechnologyRecord(technology=DFLTechnologyType.BACKUP_GENERATOR, adoption_pct=29.0, avg_response_time_min=3.0, typical_duration_hr=5.0, cost_aud_per_kw=180.0, reliability_score=8.8),
+]
+
+@app.get("/api/demand-flexibility/dashboard", dependencies=[Depends(verify_api_key)])
+def get_demand_flexibility_dashboard() -> DemandFlexibilityDashboard:
+    from datetime import datetime as _dt63c
+    return DemandFlexibilityDashboard(
+        timestamp=_dt63c.utcnow().isoformat() + "Z",
+        consumers=_DFL_CONSUMERS,
+        events=_DFL_EVENTS,
+        benefits=_DFL_BENEFITS,
+        technologies=_DFL_TECHNOLOGIES,
+    )
+
+
+# ============================================================
+# Sprint 63b — ASX Energy Futures Price Discovery & Term Structure Analytics
+# ============================================================
+
+class FPDTermStructureRecord(BaseModel):
+    region: str
+    contract_month: str  # e.g. "2025-Q1"
+    product: str         # BASE / PEAK / CAP
+    settlement_price_aud_mwh: float
+    open_interest_lots: int
+    daily_volume_lots: int
+    implied_vol_pct: float
+    days_to_expiry: int
+
+class FPDBasisRecord(BaseModel):
+    region: str
+    month: str
+    futures_price: float
+    spot_price: float
+    basis_aud: float
+    basis_pct: float
+    convergence_trend: str   # CONVERGING / DIVERGING / STABLE
+    seasonal_factor: str
+
+class FPDCarryRecord(BaseModel):
+    region: str
+    near_contract: str
+    far_contract: str
+    carry_cost_aud: float
+    storage_premium_aud: float
+    risk_premium_aud: float
+    convenience_yield_pct: float
+
+class FPDCurveShapeRecord(BaseModel):
+    region: str
+    snapshot_date: str
+    curve_shape: str      # CONTANGO / BACKWARDATION / FLAT / KINKED
+    q1_price: float
+    q2_price: float
+    q3_price: float
+    q4_price: float
+    annual_slope_pct: float
+    inflection_quarter: str
+
+class FuturesPriceDiscoveryDashboard(BaseModel):
+    timestamp: str
+    term_structures: list
+    basis_records: list
+    carry_records: list
+    curve_shapes: list
+
+
+# ---- mock data ----
+
+_FPD_REGIONS = ["NSW", "VIC", "QLD", "SA", "TAS"]
+_FPD_QUARTERS = ["2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4"]
+
+_FPD_BASE_PRICES = {
+    "NSW": [92.5, 85.0, 110.3, 98.7],
+    "VIC": [88.0, 80.5, 105.8, 94.2],
+    "QLD": [95.0, 88.5, 115.0, 102.5],
+    "SA":  [105.0, 98.0, 125.5, 112.0],
+    "TAS": [72.0, 68.5, 85.0, 78.5],
+}
+
+_FPD_OI = {
+    "NSW": [12450, 9870, 8320, 6110],
+    "VIC": [11200, 8950, 7450, 5890],
+    "QLD": [9870, 8120, 6870, 5230],
+    "SA":  [4320, 3870, 3120, 2450],
+    "TAS": [1870, 1540, 1230, 980],
+}
+
+_FPD_VOLS = {
+    "NSW": [28.5, 32.1, 41.3, 35.7],
+    "VIC": [31.2, 35.8, 44.5, 38.2],
+    "QLD": [26.8, 30.4, 39.8, 33.5],
+    "SA":  [38.5, 43.2, 55.1, 47.3],
+    "TAS": [22.1, 25.6, 31.4, 27.8],
+}
+
+_DAYS_TO_EXPIRY = [38, 129, 220, 311]
+
+_FPD_TERM_STRUCTURES: list[FPDTermStructureRecord] = []
+for _reg in _FPD_REGIONS:
+    for _qi, _qtr in enumerate(_FPD_QUARTERS):
+        _FPD_TERM_STRUCTURES.append(FPDTermStructureRecord(
+            region=_reg,
+            contract_month=_qtr,
+            product="BASE",
+            settlement_price_aud_mwh=_FPD_BASE_PRICES[_reg][_qi],
+            open_interest_lots=_FPD_OI[_reg][_qi],
+            daily_volume_lots=int(_FPD_OI[_reg][_qi] * 0.08),
+            implied_vol_pct=_FPD_VOLS[_reg][_qi],
+            days_to_expiry=_DAYS_TO_EXPIRY[_qi],
+        ))
+
+_FPD_SPOT_PRICES = {"NSW": 89.5, "VIC": 84.2, "QLD": 93.0, "SA": 102.5, "TAS": 70.8}
+_FPD_MONTHS = ["Jan", "Feb", "Mar", "Apr"]
+_FPD_FUTURES_BY_MONTH = {
+    "NSW": [94.5, 91.2, 90.8, 93.1],
+    "VIC": [90.1, 86.3, 85.5, 88.4],
+    "QLD": [97.5, 94.1, 93.5, 96.0],
+    "SA":  [108.0, 103.5, 102.8, 107.2],
+    "TAS": [74.2, 71.5, 70.9, 73.4],
+}
+_FPD_CONV_TRENDS = ["CONVERGING", "CONVERGING", "STABLE", "DIVERGING"]
+_FPD_SEASONAL = ["Summer Peak", "Shoulder", "Shoulder", "Autumn Mild"]
+
+_FPD_BASIS_RECORDS: list[FPDBasisRecord] = []
+for _reg in _FPD_REGIONS:
+    _spot = _FPD_SPOT_PRICES[_reg]
+    for _mi, _mo in enumerate(_FPD_MONTHS):
+        _fut = _FPD_FUTURES_BY_MONTH[_reg][_mi]
+        _basis = round(_fut - _spot, 2)
+        _basis_pct = round((_basis / _spot) * 100, 2)
+        _FPD_BASIS_RECORDS.append(FPDBasisRecord(
+            region=_reg,
+            month=_mo,
+            futures_price=_fut,
+            spot_price=_spot,
+            basis_aud=_basis,
+            basis_pct=_basis_pct,
+            convergence_trend=_FPD_CONV_TRENDS[_mi],
+            seasonal_factor=_FPD_SEASONAL[_mi],
+        ))
+
+_FPD_CARRY_RECORDS: list[FPDCarryRecord] = [
+    FPDCarryRecord(region="NSW", near_contract="2025-Q1", far_contract="2025-Q2",
+                   carry_cost_aud=-7.5, storage_premium_aud=2.1, risk_premium_aud=3.4, convenience_yield_pct=2.8),
+    FPDCarryRecord(region="NSW", near_contract="2025-Q2", far_contract="2025-Q3",
+                   carry_cost_aud=25.3, storage_premium_aud=3.2, risk_premium_aud=5.8, convenience_yield_pct=-1.2),
+    FPDCarryRecord(region="VIC", near_contract="2025-Q1", far_contract="2025-Q2",
+                   carry_cost_aud=-7.5, storage_premium_aud=1.9, risk_premium_aud=3.1, convenience_yield_pct=3.1),
+    FPDCarryRecord(region="VIC", near_contract="2025-Q2", far_contract="2025-Q3",
+                   carry_cost_aud=25.3, storage_premium_aud=2.8, risk_premium_aud=5.2, convenience_yield_pct=-0.9),
+    FPDCarryRecord(region="QLD", near_contract="2025-Q1", far_contract="2025-Q2",
+                   carry_cost_aud=-6.5, storage_premium_aud=2.3, risk_premium_aud=3.7, convenience_yield_pct=2.5),
+    FPDCarryRecord(region="QLD", near_contract="2025-Q2", far_contract="2025-Q3",
+                   carry_cost_aud=26.5, storage_premium_aud=3.5, risk_premium_aud=6.1, convenience_yield_pct=-1.5),
+    FPDCarryRecord(region="SA", near_contract="2025-Q1", far_contract="2025-Q2",
+                   carry_cost_aud=-7.0, storage_premium_aud=4.2, risk_premium_aud=6.8, convenience_yield_pct=4.2),
+    FPDCarryRecord(region="SA", near_contract="2025-Q2", far_contract="2025-Q3",
+                   carry_cost_aud=27.5, storage_premium_aud=5.1, risk_premium_aud=8.3, convenience_yield_pct=-2.1),
+    FPDCarryRecord(region="TAS", near_contract="2025-Q1", far_contract="2025-Q2",
+                   carry_cost_aud=-3.5, storage_premium_aud=1.2, risk_premium_aud=2.1, convenience_yield_pct=1.8),
+    FPDCarryRecord(region="TAS", near_contract="2025-Q2", far_contract="2025-Q3",
+                   carry_cost_aud=16.5, storage_premium_aud=1.8, risk_premium_aud=3.2, convenience_yield_pct=-0.7),
+]
+
+_FPD_CURVE_SHAPES: list[FPDCurveShapeRecord] = [
+    FPDCurveShapeRecord(region="NSW", snapshot_date="2025-01-15",
+                        curve_shape="KINKED", q1_price=92.5, q2_price=85.0, q3_price=110.3, q4_price=98.7,
+                        annual_slope_pct=6.7, inflection_quarter="Q3"),
+    FPDCurveShapeRecord(region="VIC", snapshot_date="2025-01-15",
+                        curve_shape="KINKED", q1_price=88.0, q2_price=80.5, q3_price=105.8, q4_price=94.2,
+                        annual_slope_pct=7.0, inflection_quarter="Q3"),
+    FPDCurveShapeRecord(region="QLD", snapshot_date="2025-01-15",
+                        curve_shape="BACKWARDATION", q1_price=95.0, q2_price=88.5, q3_price=115.0, q4_price=102.5,
+                        annual_slope_pct=8.0, inflection_quarter="Q2"),
+    FPDCurveShapeRecord(region="SA", snapshot_date="2025-01-15",
+                        curve_shape="CONTANGO", q1_price=105.0, q2_price=98.0, q3_price=125.5, q4_price=112.0,
+                        annual_slope_pct=6.7, inflection_quarter="Q3"),
+    FPDCurveShapeRecord(region="TAS", snapshot_date="2025-01-15",
+                        curve_shape="FLAT", q1_price=72.0, q2_price=68.5, q3_price=85.0, q4_price=78.5,
+                        annual_slope_pct=9.0, inflection_quarter="Q3"),
+    # second snapshot
+    FPDCurveShapeRecord(region="NSW", snapshot_date="2025-02-15",
+                        curve_shape="KINKED", q1_price=94.0, q2_price=86.5, q3_price=112.0, q4_price=100.2,
+                        annual_slope_pct=6.6, inflection_quarter="Q3"),
+    FPDCurveShapeRecord(region="VIC", snapshot_date="2025-02-15",
+                        curve_shape="KINKED", q1_price=89.5, q2_price=82.0, q3_price=107.3, q4_price=95.8,
+                        annual_slope_pct=7.1, inflection_quarter="Q3"),
+    FPDCurveShapeRecord(region="QLD", snapshot_date="2025-02-15",
+                        curve_shape="BACKWARDATION", q1_price=96.5, q2_price=90.0, q3_price=116.5, q4_price=104.0,
+                        annual_slope_pct=7.8, inflection_quarter="Q2"),
+    FPDCurveShapeRecord(region="SA", snapshot_date="2025-02-15",
+                        curve_shape="CONTANGO", q1_price=106.5, q2_price=99.5, q3_price=127.0, q4_price=113.5,
+                        annual_slope_pct=6.6, inflection_quarter="Q3"),
+    FPDCurveShapeRecord(region="TAS", snapshot_date="2025-02-15",
+                        curve_shape="FLAT", q1_price=73.5, q2_price=70.0, q3_price=86.5, q4_price=80.0,
+                        annual_slope_pct=8.8, inflection_quarter="Q3"),
+]
+
+
+@app.get("/api/futures-price-discovery/dashboard", dependencies=[Depends(verify_api_key)])
+def get_futures_price_discovery_dashboard() -> FuturesPriceDiscoveryDashboard:
+    return FuturesPriceDiscoveryDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        term_structures=[r.dict() for r in _FPD_TERM_STRUCTURES],
+        basis_records=[r.dict() for r in _FPD_BASIS_RECORDS],
+        carry_records=[r.dict() for r in _FPD_CARRY_RECORDS],
+        curve_shapes=[r.dict() for r in _FPD_CURVE_SHAPES],
+    )
