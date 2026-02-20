@@ -10389,3 +10389,213 @@ export interface ECHDashboard {
 
 export const getConsumerHardshipDashboard = (): Promise<ECHDashboard> =>
   get<ECHDashboard>('/api/consumer-hardship/dashboard');
+
+// ── Sprint 72a: NEM Demand Side Response Aggregator Analytics ─────────────────
+
+export interface DSRAggregatorRecord {
+  aggregator_id: string;
+  aggregator_name: string;
+  region: string;
+  registered_capacity_mw: number;
+  active_participants: number;
+  participant_types: string;
+  avg_response_time_min: number;
+  reliability_pct: number;
+  fcas_registered: boolean;
+  nem_rert_registered: boolean;
+  total_events_2024: number;
+  total_mwh_curtailed_2024: number;
+  avg_revenue_per_mwh: number;
+}
+
+export interface DSREventRecord {
+  event_id: string;
+  date: string;
+  region: string;
+  trigger_type: string;
+  trigger_price_per_mwh: number;
+  instructed_mw: number;
+  achieved_mw: number;
+  performance_pct: number;
+  duration_min: number;
+  aggregators_dispatched: number;
+  revenue_per_mwh: number;
+  nem_benefit_m: number;
+}
+
+export interface DSRParticipantRecord {
+  participant_name: string;
+  sector: string;
+  region: string;
+  curtailment_capacity_mw: number;
+  min_notice_min: number;
+  max_duration_hr: number;
+  min_event_payment: number;
+  availability_pct: number;
+  events_per_year: number;
+  annual_revenue_m: number;
+  economic_threshold_per_mwh: number;
+}
+
+export interface DSREconomicsRecord {
+  region: string;
+  year: number;
+  total_dsr_capacity_mw: number;
+  events_dispatched: number;
+  total_energy_curtailed_gwh: number;
+  total_revenue_m: number;
+  avg_revenue_per_mwh: number;
+  nem_wholesale_saving_m: number;
+  cost_of_new_peaker_avoided_m: number;
+  benefit_cost_ratio: number;
+}
+
+export interface DSRDashboard {
+  aggregators: DSRAggregatorRecord[];
+  events: DSREventRecord[];
+  participants: DSRParticipantRecord[];
+  economics: DSREconomicsRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getDsrAggregatorDashboard = (): Promise<DSRDashboard> =>
+  get<DSRDashboard>('/api/dsr-aggregator/dashboard');
+
+// ── Sprint 72b: NEM Power System Security Events Analytics ───────────────────
+
+export interface PSEEventRecord {
+  event_id: string;
+  date: string;
+  time: string;
+  region: string;
+  event_type: string;
+  severity: string;
+  duration_min: number;
+  frequency_nadir_hz: number;
+  frequency_peak_hz: number;
+  mw_lost: number;
+  load_shed_mw: number;
+  customers_affected: number;
+  root_cause: string;
+  aemo_action: string;
+  cost_estimate_m: number;
+  lessons_learned: string;
+}
+
+export interface PSEFrequencyRecord {
+  date: string;
+  region: string;
+  period: string;
+  min_frequency_hz: number;
+  max_frequency_hz: number;
+  time_outside_normal_band_s: number;
+  time_outside_emergency_band_s: number;
+  rocof_max: number;
+  inertia_mws: number;
+  ibr_penetration_pct: number;
+}
+
+export interface PSELoadSheddingRecord {
+  event_id: string;
+  date: string;
+  state: string;
+  trigger: string;
+  planned: boolean;
+  total_shed_mw: number;
+  customers_affected: number;
+  duration_min: number;
+  advance_notice_min: number;
+  rotating_area: string;
+  financial_cost_m: number;
+}
+
+export interface PSEAemoActionRecord {
+  action_id: string;
+  date: string;
+  action_type: string;
+  region: string;
+  trigger_condition: string;
+  instructed_mw: number;
+  cost_m: number;
+  outcome: string;
+  market_suspended: boolean;
+}
+
+export interface PSEDashboard {
+  events: PSEEventRecord[];
+  frequency_records: PSEFrequencyRecord[];
+  load_shedding: PSELoadSheddingRecord[];
+  aemo_actions: PSEAemoActionRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getPowerSystemEventsDashboard = (): Promise<PSEDashboard> =>
+  get<PSEDashboard>('/api/power-system-events/dashboard');
+
+// ── Sprint 72c: NEM Merchant Wind & Solar Project Economics ──────────────────
+
+export interface MWSProjectRecord {
+  project_id: string;
+  project_name: string;
+  developer: string;
+  region: string;
+  technology: string;
+  capacity_mw: number;
+  commissioning_year: number;
+  capex_per_kw: number;
+  opex_per_mwh: number;
+  capacity_factor_pct: number;
+  annual_generation_gwh: number;
+  ppa_pct: number;
+  merchant_pct: number;
+  weighted_avg_capture_price: number;
+  lcoe_per_mwh: number;
+  merchant_irr_pct: number;
+  fully_contracted_irr_pct: number;
+  irr_delta_vs_contracted: number;
+}
+
+export interface MWSCapturePriceRecord {
+  region: string;
+  technology: string;
+  year: number;
+  month: string;
+  spot_price_avg: number;
+  capture_price: number;
+  capture_ratio_pct: number;
+  cannibalisation_pct: number;
+  basis_risk_per_mwh: number;
+  solar_noon_depression: number;
+}
+
+export interface MWSCannibalRecord {
+  region: string;
+  technology: string;
+  year: number;
+  installed_capacity_gw: number;
+  capture_price: number;
+  capture_price_decline_per_gw: number;
+  revenue_at_risk_m: number;
+  cannibalisation_severity: string;
+}
+
+export interface MWSRiskRecord {
+  project_id: string;
+  risk_type: string;
+  probability_pct: number;
+  impact_per_mwh: number;
+  irr_impact_pct: number;
+  mitigation: string;
+  residual_risk: string;
+}
+
+export interface MWSDashboard {
+  projects: MWSProjectRecord[];
+  capture_prices: MWSCapturePriceRecord[];
+  cannibalisation: MWSCannibalRecord[];
+  risks: MWSRiskRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getMerchantRenewableDashboard = (): Promise<MWSDashboard> =>
+  get<MWSDashboard>('/api/merchant-renewable/dashboard');

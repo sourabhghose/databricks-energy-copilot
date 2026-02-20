@@ -49157,3 +49157,393 @@ def get_consumer_hardship_dashboard():
             "total_disconnection_records": len(disconnections),
         }
     )
+
+
+# ── Sprint 72a: NEM Demand Side Response Aggregator Analytics ─────────────────
+
+class DSRAggregatorRecord(BaseModel):
+    aggregator_id: str
+    aggregator_name: str
+    region: str
+    registered_capacity_mw: float
+    active_participants: int
+    participant_types: str  # INDUSTRIAL / COMMERCIAL / RESIDENTIAL / MIXED
+    avg_response_time_min: float
+    reliability_pct: float
+    fcas_registered: bool
+    nem_rert_registered: bool
+    total_events_2024: int
+    total_mwh_curtailed_2024: float
+    avg_revenue_per_mwh: float
+
+class DSREventRecord(BaseModel):
+    event_id: str
+    date: str
+    region: str
+    trigger_type: str  # PRICE / RERT / VOLUNTARY / FCAS
+    trigger_price_per_mwh: float
+    instructed_mw: float
+    achieved_mw: float
+    performance_pct: float
+    duration_min: int
+    aggregators_dispatched: int
+    revenue_per_mwh: float
+    nem_benefit_m: float
+
+class DSRParticipantRecord(BaseModel):
+    participant_name: str
+    sector: str  # ALUMINIUM / CEMENT / MINING / COLD_STORAGE / HVAC / EV_FLEET / WATER_PUMPING
+    region: str
+    curtailment_capacity_mw: float
+    min_notice_min: int
+    max_duration_hr: float
+    min_event_payment: float
+    availability_pct: float
+    events_per_year: int
+    annual_revenue_m: float
+    economic_threshold_per_mwh: float
+
+class DSREconomicsRecord(BaseModel):
+    region: str
+    year: int
+    total_dsr_capacity_mw: float
+    events_dispatched: int
+    total_energy_curtailed_gwh: float
+    total_revenue_m: float
+    avg_revenue_per_mwh: float
+    nem_wholesale_saving_m: float
+    cost_of_new_peaker_avoided_m: float
+    benefit_cost_ratio: float
+
+class DSRDashboard(BaseModel):
+    aggregators: list[DSRAggregatorRecord]
+    events: list[DSREventRecord]
+    participants: list[DSRParticipantRecord]
+    economics: list[DSREconomicsRecord]
+    summary: dict
+
+@app.get("/api/dsr-aggregator/dashboard", response_model=DSRDashboard, dependencies=[Depends(verify_api_key)])
+def get_dsr_aggregator_dashboard():
+    aggregators = [
+        DSRAggregatorRecord(aggregator_id="A001", aggregator_name="EnerNOC Australia", region="NEM", registered_capacity_mw=450, active_participants=85, participant_types="INDUSTRIAL", avg_response_time_min=8, reliability_pct=94, fcas_registered=True, nem_rert_registered=True, total_events_2024=42, total_mwh_curtailed_2024=12500, avg_revenue_per_mwh=185),
+        DSRAggregatorRecord(aggregator_id="A002", aggregator_name="Enel X (Demand Response)", region="NSW1", registered_capacity_mw=280, active_participants=120, participant_types="MIXED", avg_response_time_min=12, reliability_pct=91, fcas_registered=True, nem_rert_registered=True, total_events_2024=38, total_mwh_curtailed_2024=8200, avg_revenue_per_mwh=172),
+        DSRAggregatorRecord(aggregator_id="A003", aggregator_name="AutoGrid Flex", region="VIC1", registered_capacity_mw=180, active_participants=350, participant_types="COMMERCIAL", avg_response_time_min=5, reliability_pct=88, fcas_registered=False, nem_rert_registered=True, total_events_2024=55, total_mwh_curtailed_2024=5800, avg_revenue_per_mwh=148),
+        DSRAggregatorRecord(aggregator_id="A004", aggregator_name="Voltus NEM", region="QLD1", registered_capacity_mw=220, active_participants=95, participant_types="INDUSTRIAL", avg_response_time_min=10, reliability_pct=96, fcas_registered=True, nem_rert_registered=True, total_events_2024=35, total_mwh_curtailed_2024=7800, avg_revenue_per_mwh=195),
+        DSRAggregatorRecord(aggregator_id="A005", aggregator_name="Amber Electric VPP", region="SA1", registered_capacity_mw=85, active_participants=2500, participant_types="RESIDENTIAL", avg_response_time_min=2, reliability_pct=82, fcas_registered=True, nem_rert_registered=False, total_events_2024=120, total_mwh_curtailed_2024=1200, avg_revenue_per_mwh=220),
+        DSRAggregatorRecord(aggregator_id="A006", aggregator_name="GridBeyond ANZ", region="NEM", registered_capacity_mw=160, active_participants=45, participant_types="INDUSTRIAL", avg_response_time_min=6, reliability_pct=97, fcas_registered=True, nem_rert_registered=True, total_events_2024=28, total_mwh_curtailed_2024=4200, avg_revenue_per_mwh=210),
+    ]
+    events = [
+        DSREventRecord(event_id="E001", date="2025-01-13", region="SA1", trigger_type="PRICE", trigger_price_per_mwh=5000, instructed_mw=350, achieved_mw=320, performance_pct=91.4, duration_min=60, aggregators_dispatched=4, revenue_per_mwh=450, nem_benefit_m=2.8),
+        DSREventRecord(event_id="E002", date="2025-01-15", region="NSW1", trigger_type="RERT", trigger_price_per_mwh=15000, instructed_mw=800, achieved_mw=780, performance_pct=97.5, duration_min=30, aggregators_dispatched=5, revenue_per_mwh=850, nem_benefit_m=8.5),
+        DSREventRecord(event_id="E003", date="2025-01-28", region="VIC1", trigger_type="PRICE", trigger_price_per_mwh=3000, instructed_mw=250, achieved_mw=210, performance_pct=84.0, duration_min=45, aggregators_dispatched=3, revenue_per_mwh=320, nem_benefit_m=1.5),
+        DSREventRecord(event_id="E004", date="2024-12-20", region="QLD1", trigger_type="FCAS", trigger_price_per_mwh=800, instructed_mw=180, achieved_mw=175, performance_pct=97.2, duration_min=5, aggregators_dispatched=2, revenue_per_mwh=95, nem_benefit_m=0.4),
+        DSREventRecord(event_id="E005", date="2024-12-21", region="SA1", trigger_type="RERT", trigger_price_per_mwh=10000, instructed_mw=420, achieved_mw=395, performance_pct=94.0, duration_min=90, aggregators_dispatched=4, revenue_per_mwh=680, nem_benefit_m=5.2),
+        DSREventRecord(event_id="E006", date="2024-11-15", region="NSW1", trigger_type="VOLUNTARY", trigger_price_per_mwh=500, instructed_mw=150, achieved_mw=142, performance_pct=94.7, duration_min=120, aggregators_dispatched=2, revenue_per_mwh=65, nem_benefit_m=0.8),
+        DSREventRecord(event_id="E007", date="2024-10-08", region="VIC1", trigger_type="PRICE", trigger_price_per_mwh=2000, instructed_mw=300, achieved_mw=255, performance_pct=85.0, duration_min=30, aggregators_dispatched=3, revenue_per_mwh=210, nem_benefit_m=1.1),
+    ]
+    participants = [
+        DSRParticipantRecord(participant_name="Tomago Aluminium", sector="ALUMINIUM", region="NSW1", curtailment_capacity_mw=120, min_notice_min=15, max_duration_hr=4, min_event_payment=850, availability_pct=92, events_per_year=18, annual_revenue_m=4.2, economic_threshold_per_mwh=300),
+        DSRParticipantRecord(participant_name="Adelaide Brighton Cement", sector="CEMENT", region="SA1", curtailment_capacity_mw=45, min_notice_min=20, max_duration_hr=3, min_event_payment=600, availability_pct=88, events_per_year=12, annual_revenue_m=1.1, economic_threshold_per_mwh=250),
+        DSRParticipantRecord(participant_name="BHP Olympic Dam", sector="MINING", region="SA1", curtailment_capacity_mw=80, min_notice_min=10, max_duration_hr=2, min_event_payment=1200, availability_pct=85, events_per_year=8, annual_revenue_m=2.8, economic_threshold_per_mwh=400),
+        DSRParticipantRecord(participant_name="Sydney Airport HVAC", sector="HVAC", region="NSW1", curtailment_capacity_mw=15, min_notice_min=5, max_duration_hr=2, min_event_payment=150, availability_pct=95, events_per_year=35, annual_revenue_m=0.4, economic_threshold_per_mwh=150),
+        DSRParticipantRecord(participant_name="Veolia Water Pumping NSW", sector="WATER_PUMPING", region="NSW1", curtailment_capacity_mw=35, min_notice_min=8, max_duration_hr=6, min_event_payment=280, availability_pct=90, events_per_year=25, annual_revenue_m=0.8, economic_threshold_per_mwh=120),
+        DSRParticipantRecord(participant_name="Woolworths Cold Storage", sector="COLD_STORAGE", region="VIC1", curtailment_capacity_mw=22, min_notice_min=5, max_duration_hr=3, min_event_payment=180, availability_pct=93, events_per_year=42, annual_revenue_m=0.5, economic_threshold_per_mwh=100),
+        DSRParticipantRecord(participant_name="Transdev Bus EV Fleet", sector="EV_FLEET", region="VIC1", curtailment_capacity_mw=18, min_notice_min=2, max_duration_hr=4, min_event_payment=120, availability_pct=78, events_per_year=80, annual_revenue_m=0.3, economic_threshold_per_mwh=80),
+        DSRParticipantRecord(participant_name="QAL Gladstone Alumina", sector="ALUMINIUM", region="QLD1", curtailment_capacity_mw=90, min_notice_min=15, max_duration_hr=3, min_event_payment=750, availability_pct=86, events_per_year=15, annual_revenue_m=3.1, economic_threshold_per_mwh=280),
+    ]
+    economics = []
+    for year in range(2020, 2026):
+        for region in ["NSW1", "QLD1", "VIC1", "SA1"]:
+            t = year - 2020
+            base_cap = {"NSW1": 350, "QLD1": 280, "VIC1": 200, "SA1": 120}[region]
+            cap = base_cap * (1 + t * 0.12)
+            evts = int(25 + t * 4)
+            energy = cap * evts * 0.5 / 1000  # GWh
+            revenue = round(energy * 185 / 1000, 1)  # $M
+            economics.append(DSREconomicsRecord(
+                region=region, year=year,
+                total_dsr_capacity_mw=round(cap, 1),
+                events_dispatched=evts,
+                total_energy_curtailed_gwh=round(energy, 2),
+                total_revenue_m=revenue,
+                avg_revenue_per_mwh=round(185 + t * 5, 1),
+                nem_wholesale_saving_m=round(revenue * 3.5, 1),
+                cost_of_new_peaker_avoided_m=round(cap * 1.2 / 1000 * 100, 1),
+                benefit_cost_ratio=round(3.5 + t * 0.1, 2)
+            ))
+    return DSRDashboard(
+        aggregators=aggregators, events=events, participants=participants, economics=economics,
+        summary={
+            "total_aggregators": len(aggregators),
+            "total_registered_mw": sum(a.registered_capacity_mw for a in aggregators),
+            "total_participants_count": sum(a.active_participants for a in aggregators),
+            "avg_reliability_pct": round(sum(a.reliability_pct for a in aggregators) / len(aggregators), 1),
+            "events_ytd": len([e for e in events if "2025" in e.date]),
+            "highest_revenue_event_per_mwh": 850,
+            "economics_records": len(economics),
+        }
+    )
+
+# ── Sprint 72b: NEM Power System Security Events Analytics ────────────────────
+
+class PSEEventRecord(BaseModel):
+    event_id: str
+    date: str
+    time: str
+    region: str
+    event_type: str  # FREQUENCY_EXCURSION / VOLTAGE_COLLAPSE / LOAD_SHEDDING / ISLANDING / SEPARATION / BLACKOUT
+    severity: str  # MINOR / MODERATE / MAJOR / EXTREME
+    duration_min: float
+    frequency_nadir_hz: float
+    frequency_peak_hz: float
+    mw_lost: float
+    load_shed_mw: float
+    customers_affected: int
+    root_cause: str
+    aemo_action: str
+    cost_estimate_m: float
+    lessons_learned: str
+
+class PSEFrequencyRecord(BaseModel):
+    date: str
+    region: str
+    period: str
+    min_frequency_hz: float
+    max_frequency_hz: float
+    time_outside_normal_band_s: float
+    time_outside_emergency_band_s: float
+    rocof_max: float  # Rate of Change of Frequency Hz/s
+    inertia_mws: float
+    ibr_penetration_pct: float
+
+class PSELoadSheddingRecord(BaseModel):
+    event_id: str
+    date: str
+    state: str
+    trigger: str  # NETWORK_CONSTRAINT / INSUFFICIENT_GENERATION / DIRECTION / VOLUNTARY
+    planned: bool
+    total_shed_mw: float
+    customers_affected: int
+    duration_min: int
+    advance_notice_min: int
+    rotating_area: str
+    financial_cost_m: float
+
+class PSEAemoActionRecord(BaseModel):
+    action_id: str
+    date: str
+    action_type: str  # DIRECTION / CONSTRAINT_RELAXATION / RESERVE_ACTIVATION / EMERGENCY_FREQUENCY / MARKET_SUSPENSION
+    region: str
+    trigger_condition: str
+    instructed_mw: float
+    cost_m: float
+    outcome: str
+    market_suspended: bool
+
+class PSEDashboard(BaseModel):
+    events: list[PSEEventRecord]
+    frequency_records: list[PSEFrequencyRecord]
+    load_shedding: list[PSELoadSheddingRecord]
+    aemo_actions: list[PSEAemoActionRecord]
+    summary: dict
+
+@app.get("/api/power-system-events/dashboard", response_model=PSEDashboard, dependencies=[Depends(verify_api_key)])
+def get_power_system_events_dashboard():
+    events = [
+        PSEEventRecord(event_id="PSE001", date="2022-12-19", time="14:32", region="NEM", event_type="LOAD_SHEDDING", severity="MAJOR", duration_min=180, frequency_nadir_hz=49.1, frequency_peak_hz=50.9, mw_lost=1500, load_shed_mw=1100, customers_affected=200000, root_cause="Gas supply constraints + high demand + low wind", aemo_action="Directions to generators + RERT activation + load shedding instructions", cost_estimate_m=580, lessons_learned="Need greater RERT pre-registration; tighter gas supply chain integration"),
+        PSEEventRecord(event_id="PSE002", date="2022-12-20", time="17:45", region="VIC1", event_type="LOAD_SHEDDING", severity="MAJOR", duration_min=120, frequency_nadir_hz=49.2, frequency_peak_hz=50.7, mw_lost=800, load_shed_mw=600, customers_affected=120000, root_cause="Continuation of market suspension; insufficient supply", aemo_action="Market suspension continuation; load shedding rotating", cost_estimate_m=320, lessons_learned="Summer 2022 crisis exposed gas/generation adequacy gaps"),
+        PSEEventRecord(event_id="PSE003", date="2021-05-25", time="09:15", region="QLD1", event_type="FREQUENCY_EXCURSION", severity="MODERATE", duration_min=8, frequency_nadir_hz=49.3, frequency_peak_hz=50.0, mw_lost=350, load_shed_mw=0, customers_affected=0, root_cause="Loss of Callide C4 unit (explosion)", aemo_action="FCAS activation; generator directions", cost_estimate_m=12, lessons_learned="Single-bus transformer fault propagated to wider event"),
+        PSEEventRecord(event_id="PSE004", date="2024-06-15", time="19:22", region="SA1", event_type="FREQUENCY_EXCURSION", severity="MINOR", duration_min=3, frequency_nadir_hz=49.5, frequency_peak_hz=50.3, mw_lost=120, load_shed_mw=0, customers_affected=0, root_cause="Unexpected renewable output drop during evening peak", aemo_action="FCAS regulation response; synchronous condenser activation", cost_estimate_m=0.8, lessons_learned="GFM BESS response faster than grid-following units"),
+        PSEEventRecord(event_id="PSE005", date="2024-09-12", time="13:45", region="NSW1", event_type="VOLTAGE_COLLAPSE", severity="MODERATE", duration_min=15, frequency_nadir_hz=49.8, frequency_peak_hz=50.1, mw_lost=200, load_shed_mw=0, customers_affected=15000, root_cause="Capacitor bank failure + high reactive power demand", aemo_action="Reactive power dispatch; voltage restoration", cost_estimate_m=3.5, lessons_learned="Enhanced voltage monitoring installed at Liddell area"),
+        PSEEventRecord(event_id="PSE006", date="2023-08-28", time="10:30", region="VIC1", event_type="FREQUENCY_EXCURSION", severity="MINOR", duration_min=5, frequency_nadir_hz=49.6, frequency_peak_hz=50.2, mw_lost=180, load_shed_mw=0, customers_affected=0, root_cause="Loy Yang B unit 1 trip", aemo_action="FCAS response; Basslink adjustment", cost_estimate_m=1.2, lessons_learned="Brown coal unit reliability declining"),
+        PSEEventRecord(event_id="PSE007", date="2016-09-28", time="16:18", region="SA1", event_type="BLACKOUT", severity="EXTREME", duration_min=240, frequency_nadir_hz=47.8, frequency_peak_hz=53.2, mw_lost=1800, load_shed_mw=1800, customers_affected=1700000, root_cause="Multiple transmission tower failures in storm; cascade trip", aemo_action="Emergency restoration; interconnector isolation; black start", cost_estimate_m=1200, lessons_learned="Triggered synchronous condenser requirement + GFM rules"),
+    ]
+    frequency_records = []
+    import random
+    random.seed(42)
+    dates_fr = ["2025-01-13", "2025-01-14", "2025-01-20", "2025-01-28", "2025-02-03", "2025-02-10"]
+    for date in dates_fr:
+        for region in ["NSW1", "QLD1", "VIC1", "SA1"]:
+            ibr = {"NSW1": 28, "QLD1": 32, "VIC1": 45, "SA1": 72}[region] + random.uniform(-3, 3)
+            inertia = {"NSW1": 4500, "QLD1": 4000, "VIC1": 2800, "SA1": 800}[region] * random.uniform(0.85, 1.15)
+            min_freq = 49.8 - random.uniform(0, 0.5) * (ibr / 50)
+            max_freq = 50.2 + random.uniform(0, 0.3)
+            t_outside = random.uniform(0, 120)
+            frequency_records.append(PSEFrequencyRecord(
+                date=date, region=region,
+                period=f"HH{random.randint(1,48):02d}",
+                min_frequency_hz=round(min_freq, 3),
+                max_frequency_hz=round(max_freq, 3),
+                time_outside_normal_band_s=round(t_outside, 1),
+                time_outside_emergency_band_s=round(max(0, t_outside - 80), 1),
+                rocof_max=round(random.uniform(0.1, 1.2), 3),
+                inertia_mws=round(inertia, 0),
+                ibr_penetration_pct=round(ibr, 1)
+            ))
+    load_shedding = [
+        PSELoadSheddingRecord(event_id="LS001", date="2022-12-19", state="VIC", trigger="INSUFFICIENT_GENERATION", planned=False, total_shed_mw=600, customers_affected=200000, duration_min=90, advance_notice_min=0, rotating_area="Metropolitan Melbourne", financial_cost_m=180),
+        PSELoadSheddingRecord(event_id="LS002", date="2022-12-20", state="VIC", trigger="DIRECTION", planned=False, total_shed_mw=500, customers_affected=150000, duration_min=60, advance_notice_min=0, rotating_area="Geelong/Western suburbs", financial_cost_m=140),
+        PSELoadSheddingRecord(event_id="LS003", date="2022-01-28", state="SA", trigger="NETWORK_CONSTRAINT", planned=True, total_shed_mw=150, customers_affected=45000, duration_min=45, advance_notice_min=15, rotating_area="Adelaide metropolitan", financial_cost_m=35),
+        PSELoadSheddingRecord(event_id="LS004", date="2024-02-14", state="QLD", trigger="VOLUNTARY", planned=True, total_shed_mw=80, customers_affected=5000, duration_min=30, advance_notice_min=60, rotating_area="Brisbane CBD commercial", financial_cost_m=8),
+        PSELoadSheddingRecord(event_id="LS005", date="2024-01-16", state="NSW", trigger="NETWORK_CONSTRAINT", planned=False, total_shed_mw=120, customers_affected=25000, duration_min=25, advance_notice_min=5, rotating_area="Hunter Valley industrial", financial_cost_m=18),
+    ]
+    aemo_actions = [
+        PSEAemoActionRecord(action_id="AA001", date="2022-12-19", action_type="MARKET_SUSPENSION", region="NEM", trigger_condition="VoLL exceeded for extended period; market failure", instructed_mw=0, cost_m=580, outcome="Market suspended for 5 days; administered pricing applied", market_suspended=True),
+        PSEAemoActionRecord(action_id="AA002", date="2022-12-15", action_type="RESERVE_ACTIVATION", region="VIC1", trigger_condition="LOR3 declared - reserves below requirement", instructed_mw=800, cost_m=22, outcome="RERT units activated; LOR3 cleared after 2 hours", market_suspended=False),
+        PSEAemoActionRecord(action_id="AA003", date="2024-06-15", action_type="DIRECTION", region="SA1", trigger_condition="Frequency deviation risk; insufficient FCAS", instructed_mw=150, cost_m=3.5, outcome="Generator directed to provide regulation; frequency normalised", market_suspended=False),
+        PSEAemoActionRecord(action_id="AA004", date="2025-01-13", action_type="EMERGENCY_FREQUENCY", region="NSW1", trigger_condition="Multiple generator trips; frequency declining", instructed_mw=400, cost_m=8.2, outcome="Emergency frequency control activations; recovery in 12 min", market_suspended=False),
+        PSEAemoActionRecord(action_id="AA005", date="2024-09-12", action_type="CONSTRAINT_RELAXATION", region="NSW1", trigger_condition="Voltage constraint binding; risk of voltage collapse", instructed_mw=200, cost_m=1.8, outcome="Constraint relaxed; reactive power dispatch improved voltage", market_suspended=False),
+        PSEAemoActionRecord(action_id="AA006", date="2023-12-08", action_type="RESERVE_ACTIVATION", region="QLD1", trigger_condition="LOR2 declared - weather event reducing wind output", instructed_mw=350, cost_m=12, outcome="RERT activated; LOR2 cleared", market_suspended=False),
+    ]
+    total_customers = sum(e.customers_affected for e in events)
+    return PSEDashboard(
+        events=events, frequency_records=frequency_records,
+        load_shedding=load_shedding, aemo_actions=aemo_actions,
+        summary={
+            "total_events": len(events),
+            "extreme_events": sum(1 for e in events if e.severity == "EXTREME"),
+            "total_customers_affected": total_customers,
+            "total_cost_estimate_m": sum(e.cost_estimate_m for e in events),
+            "market_suspension_events": sum(1 for a in aemo_actions if a.market_suspended),
+            "load_shedding_events": len(load_shedding),
+            "frequency_records": len(frequency_records),
+        }
+    )
+
+# ── Sprint 72c: NEM Merchant Wind & Solar Project Economics ──────────────────
+
+class MWSProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    region: str
+    technology: str  # WIND / SOLAR / WIND_SOLAR_HYBRID
+    capacity_mw: float
+    commissioning_year: int
+    capex_per_kw: float
+    opex_per_mwh: float
+    capacity_factor_pct: float
+    annual_generation_gwh: float
+    ppa_pct: float  # % of output contracted
+    merchant_pct: float
+    weighted_avg_capture_price: float
+    lcoe_per_mwh: float
+    merchant_irr_pct: float
+    fully_contracted_irr_pct: float
+    irr_delta_vs_contracted: float
+
+class MWSCapturePriceRecord(BaseModel):
+    region: str
+    technology: str
+    year: int
+    month: str
+    spot_price_avg: float
+    capture_price: float
+    capture_ratio_pct: float
+    cannibalisation_pct: float
+    basis_risk_per_mwh: float
+    solar_noon_depression: float
+
+class MWSCannibalRecord(BaseModel):
+    region: str
+    technology: str
+    year: int
+    installed_capacity_gw: float
+    capture_price: float
+    capture_price_decline_per_gw: float
+    revenue_at_risk_m: float
+    cannibalisation_severity: str  # LOW / MODERATE / HIGH / SEVERE
+
+class MWSRiskRecord(BaseModel):
+    project_id: str
+    risk_type: str  # PRICE / VOLUME / BASIS / REGULATORY / FINANCING
+    probability_pct: float
+    impact_per_mwh: float
+    irr_impact_pct: float
+    mitigation: str
+    residual_risk: str  # LOW / MEDIUM / HIGH
+
+class MWSDashboard(BaseModel):
+    projects: list[MWSProjectRecord]
+    capture_prices: list[MWSCapturePriceRecord]
+    cannibalisation: list[MWSCannibalRecord]
+    risks: list[MWSRiskRecord]
+    summary: dict
+
+@app.get("/api/merchant-renewable/dashboard", response_model=MWSDashboard, dependencies=[Depends(verify_api_key)])
+def get_merchant_renewable_dashboard():
+    projects = [
+        MWSProjectRecord(project_id="MW001", project_name="Uungula Wind (Merchant)", developer="Goldwind", region="NSW1", technology="WIND", capacity_mw=720, commissioning_year=2023, capex_per_kw=1850, opex_per_mwh=12, capacity_factor_pct=38, annual_generation_gwh=2400, ppa_pct=40, merchant_pct=60, weighted_avg_capture_price=72, lcoe_per_mwh=52, merchant_irr_pct=10.5, fully_contracted_irr_pct=13.8, irr_delta_vs_contracted=-3.3),
+        MWSProjectRecord(project_id="MW002", project_name="Darlington Point Solar (Merchant)", developer="Enel Green Power", region="NSW1", technology="SOLAR", capacity_mw=275, commissioning_year=2020, capex_per_kw=1050, opex_per_mwh=8, capacity_factor_pct=24, annual_generation_gwh=580, ppa_pct=30, merchant_pct=70, weighted_avg_capture_price=58, lcoe_per_mwh=42, merchant_irr_pct=8.2, fully_contracted_irr_pct=12.5, irr_delta_vs_contracted=-4.3),
+        MWSProjectRecord(project_id="MW003", project_name="Murra Warra Wind (Part Merchant)", developer="Tilt Renewables", region="VIC1", technology="WIND", capacity_mw=226, commissioning_year=2021, capex_per_kw=1750, opex_per_mwh=11, capacity_factor_pct=40, annual_generation_gwh=792, ppa_pct=60, merchant_pct=40, weighted_avg_capture_price=68, lcoe_per_mwh=50, merchant_irr_pct=11.8, fully_contracted_irr_pct=14.2, irr_delta_vs_contracted=-2.4),
+        MWSProjectRecord(project_id="MW004", project_name="Port Augusta Solar+Wind Hybrid", developer="Neoen", region="SA1", technology="WIND_SOLAR_HYBRID", capacity_mw=380, commissioning_year=2023, capex_per_kw=1650, opex_per_mwh=11, capacity_factor_pct=42, annual_generation_gwh=1400, ppa_pct=50, merchant_pct=50, weighted_avg_capture_price=88, lcoe_per_mwh=48, merchant_irr_pct=14.5, fully_contracted_irr_pct=16.8, irr_delta_vs_contracted=-2.3),
+        MWSProjectRecord(project_id="MW005", project_name="Coopers Gap Wind (Merchant)", developer="AGL Energy", region="QLD1", technology="WIND", capacity_mw=453, commissioning_year=2020, capex_per_kw=1800, opex_per_mwh=12, capacity_factor_pct=36, annual_generation_gwh=1430, ppa_pct=55, merchant_pct=45, weighted_avg_capture_price=65, lcoe_per_mwh=55, merchant_irr_pct=9.8, fully_contracted_irr_pct=12.8, irr_delta_vs_contracted=-3.0),
+        MWSProjectRecord(project_id="MW006", project_name="Coppabella Solar Farm", developer="Amp Energy", region="NSW1", technology="SOLAR", capacity_mw=400, commissioning_year=2025, capex_per_kw=950, opex_per_mwh=7, capacity_factor_pct=23, annual_generation_gwh=810, ppa_pct=0, merchant_pct=100, weighted_avg_capture_price=52, lcoe_per_mwh=40, merchant_irr_pct=7.5, fully_contracted_irr_pct=12.0, irr_delta_vs_contracted=-4.5),
+    ]
+    import random
+    random.seed(66)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    techs = ["WIND", "SOLAR"]
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    capture_prices = []
+    for year in [2023, 2024, 2025]:
+        for region in regions:
+            spot = {"NSW1": 88, "QLD1": 82, "VIC1": 79, "SA1": 145}[region] + random.uniform(-15, 20)
+            for tech in techs:
+                cannibal = {"WIND": 8, "SOLAR": 18}[tech] + (year - 2023) * 2
+                capture = spot * (1 - cannibal/100) * random.uniform(0.92, 1.08)
+                basis = spot * cannibal / 100 * random.uniform(0.5, 1.5)
+                noon_dep = 15 * random.uniform(0.5, 2.0) if tech == "SOLAR" else 0
+                for month in months[:6]:  # H1 only for brevity
+                    capture_prices.append(MWSCapturePriceRecord(
+                        region=region, technology=tech, year=year, month=month,
+                        spot_price_avg=round(spot + random.uniform(-10, 10), 2),
+                        capture_price=round(capture + random.uniform(-8, 8), 2),
+                        capture_ratio_pct=round(100 - cannibal + random.uniform(-3, 3), 1),
+                        cannibalisation_pct=round(cannibal + random.uniform(-2, 2), 1),
+                        basis_risk_per_mwh=round(basis, 2),
+                        solar_noon_depression=round(noon_dep, 1)
+                    ))
+    cannibalisation = []
+    for year in range(2023, 2031):
+        for region in regions:
+            for tech in techs:
+                t = year - 2023
+                base_cap = {"NSW1": {"WIND": 4.5, "SOLAR": 6.0}, "QLD1": {"WIND": 3.0, "SOLAR": 8.0}, "VIC1": {"WIND": 5.0, "SOLAR": 4.0}, "SA1": {"WIND": 2.5, "SOLAR": 3.0}}[region][tech]
+                cap = base_cap + t * {"WIND": 0.5, "SOLAR": 0.8}[tech]
+                base_price = {"NSW1": 88, "QLD1": 82, "VIC1": 79, "SA1": 145}[region]
+                decline = {"WIND": 3.5, "SOLAR": 5.5}[tech]
+                capture = max(20, base_price * (1 - t * decline / 100 - cap * 0.01))
+                rev_risk = cap * decline * 10 * t
+                severity = "SEVERE" if t > 5 and tech == "SOLAR" else ("HIGH" if t > 3 or (tech == "SOLAR" and region in ["QLD1", "SA1"]) else ("MODERATE" if t > 1 else "LOW"))
+                cannibalisation.append(MWSCannibalRecord(
+                    region=region, technology=tech, year=year,
+                    installed_capacity_gw=round(cap, 2),
+                    capture_price=round(capture, 1),
+                    capture_price_decline_per_gw=decline,
+                    revenue_at_risk_m=round(rev_risk, 1),
+                    cannibalisation_severity=severity
+                ))
+    risks = [
+        MWSRiskRecord(project_id="MW006", risk_type="PRICE", probability_pct=65, impact_per_mwh=18, irr_impact_pct=-3.5, mitigation="Partial PPA contracting; portfolio diversification", residual_risk="HIGH"),
+        MWSRiskRecord(project_id="MW006", risk_type="VOLUME", probability_pct=30, impact_per_mwh=8, irr_impact_pct=-1.5, mitigation="P90 generation forecasting; weather risk insurance", residual_risk="MEDIUM"),
+        MWSRiskRecord(project_id="MW006", risk_type="BASIS", probability_pct=45, impact_per_mwh=12, irr_impact_pct=-2.2, mitigation="Regional MLF monitoring; connection point selection", residual_risk="MEDIUM"),
+        MWSRiskRecord(project_id="MW006", risk_type="REGULATORY", probability_pct=20, impact_per_mwh=5, irr_impact_pct=-0.8, mitigation="Policy monitoring; flexible project design", residual_risk="LOW"),
+        MWSRiskRecord(project_id="MW006", risk_type="FINANCING", probability_pct=25, impact_per_mwh=0, irr_impact_pct=-1.2, mitigation="Corporate PPA to meet debt service; construction guarantee", residual_risk="LOW"),
+        MWSRiskRecord(project_id="MW001", risk_type="PRICE", probability_pct=55, impact_per_mwh=15, irr_impact_pct=-2.8, mitigation="40% PPA hedge; capture price floor strategy", residual_risk="MEDIUM"),
+        MWSRiskRecord(project_id="MW002", risk_type="PRICE", probability_pct=70, impact_per_mwh=22, irr_impact_pct=-4.0, mitigation="Seek 50% PPA; BESS co-location to shift generation", residual_risk="HIGH"),
+        MWSRiskRecord(project_id="MW004", risk_type="PRICE", probability_pct=40, impact_per_mwh=10, irr_impact_pct=-1.5, mitigation="Hybrid technology smooths capture; SA premium maintained", residual_risk="LOW"),
+    ]
+    return MWSDashboard(
+        projects=projects, capture_prices=capture_prices,
+        cannibalisation=cannibalisation, risks=risks,
+        summary={
+            "total_projects": len(projects),
+            "fully_merchant_projects": sum(1 for p in projects if p.merchant_pct == 100),
+            "avg_merchant_irr_pct": round(sum(p.merchant_irr_pct for p in projects) / len(projects), 1),
+            "avg_irr_penalty_vs_contracted": round(sum(p.irr_delta_vs_contracted for p in projects) / len(projects), 1),
+            "best_merchant_region": "SA1",
+            "highest_cannibalisation_tech": "SOLAR",
+            "risk_records": len(risks),
+        }
+    )

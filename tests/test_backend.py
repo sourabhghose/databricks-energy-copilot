@@ -10232,3 +10232,141 @@ class TestConsumerHardshipDashboard:
         assert s["non_compliant_retailers"] >= 2
         assert s["states_tracked"] >= 5
         assert s["total_concession_cost_m"] > 0
+
+
+# ── Sprint 72a: NEM Demand Side Response Aggregator Analytics ─────────────────
+
+class TestDsrAggregatorDashboard:
+    BASE = "/api/dsr-aggregator/dashboard"
+
+    def test_http_200(self, client):
+        r = client.get(self.BASE, headers={"x-api-key": "test-key"})
+        assert r.status_code == 200
+
+    def test_aggregators_present_and_fcas_registered(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        aggs = d["aggregators"]
+        assert len(aggs) >= 5
+        fcas_registered = [a for a in aggs if a["fcas_registered"] is True]
+        assert len(fcas_registered) >= 1
+
+    def test_events_present_and_trigger_variety(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        evts = d["events"]
+        assert len(evts) >= 5
+        trigger_types = {e["trigger_type"] for e in evts}
+        assert "PRICE" in trigger_types
+        assert "RERT" in trigger_types
+
+    def test_participants_present_and_sector_variety(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        parts = d["participants"]
+        assert len(parts) >= 6
+        sectors = {p["sector"] for p in parts}
+        assert "ALUMINIUM" in sectors
+        assert "EV_FLEET" in sectors
+
+    def test_economics_years_coverage(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        econ = d["economics"]
+        assert len(econ) >= 16
+        years = {e["year"] for e in econ}
+        assert 2020 in years
+        assert 2025 in years
+
+    def test_summary_fields(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        s = d["summary"]
+        assert s["total_registered_mw"] >= 1000
+        assert s["avg_reliability_pct"] >= 85
+
+
+class TestPowerSystemEventsDashboard:
+    BASE = "/api/power-system-events/dashboard"
+
+    def test_http_200(self, client):
+        r = client.get(self.BASE, headers={"x-api-key": "test-key"})
+        assert r.status_code == 200
+
+    def test_events_count_and_types(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        events = d["events"]
+        assert len(events) >= 5
+        event_types = {e["event_type"] for e in events}
+        assert "BLACKOUT" in event_types
+        severities = {e["severity"] for e in events}
+        assert "EXTREME" in severities
+
+    def test_frequency_records(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        freq = d["frequency_records"]
+        assert len(freq) >= 20
+        low_freq = [r for r in freq if r["min_frequency_hz"] <= 49.9]
+        assert len(low_freq) > 0
+
+    def test_load_shedding(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        ls = d["load_shedding"]
+        assert len(ls) >= 4
+        planned_values = {r["planned"] for r in ls}
+        assert True in planned_values
+        assert False in planned_values
+
+    def test_aemo_actions(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        actions = d["aemo_actions"]
+        assert len(actions) >= 5
+        suspended = [a for a in actions if a["market_suspended"] is True]
+        assert len(suspended) >= 1
+
+    def test_summary_fields(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        s = d["summary"]
+        assert s["total_cost_estimate_m"] >= 2000
+        assert s["extreme_events"] >= 1
+
+
+class TestMerchantRenewableDashboard:
+    endpoint = "/api/merchant-renewable/dashboard"
+
+    def test_http_200(self, client):
+        resp = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert resp.status_code == 200
+
+    def test_projects_count_and_fully_merchant(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        projects = data["projects"]
+        assert len(projects) >= 5
+        fully_merchant = [p for p in projects if p["merchant_pct"] == 100]
+        assert len(fully_merchant) >= 1
+
+    def test_capture_prices_techs(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        capture_prices = data["capture_prices"]
+        assert len(capture_prices) >= 30
+        techs = {cp["technology"] for cp in capture_prices}
+        assert "WIND" in techs
+        assert "SOLAR" in techs
+
+    def test_cannibalisation_severity_and_years(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        cannibal = data["cannibalisation"]
+        assert len(cannibal) >= 20
+        severities = {c["cannibalisation_severity"] for c in cannibal}
+        assert "SEVERE" in severities
+        years = {c["year"] for c in cannibal}
+        assert 2023 in years
+        assert 2030 in years
+
+    def test_risks_count_and_high_residual(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        risks = data["risks"]
+        assert len(risks) >= 6
+        high_risks = [r for r in risks if r["residual_risk"] == "HIGH"]
+        assert len(high_risks) >= 1
+
+    def test_summary_irr_penalty_and_best_region(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        s = data["summary"]
+        assert s["avg_irr_penalty_vs_contracted"] < 0
+        assert s["best_merchant_region"] == "SA1"

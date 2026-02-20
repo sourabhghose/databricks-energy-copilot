@@ -256,6 +256,9 @@ import AncillaryCostAllocationAnalytics from './pages/AncillaryCostAllocationAna
 import MarketLiquidityAnalytics from './pages/MarketLiquidityAnalytics'
 import GeneratorRetirementAnalytics from './pages/GeneratorRetirementAnalytics'
 import ConsumerHardshipAnalytics from './pages/ConsumerHardshipAnalytics'
+import DsrAggregatorAnalytics from './pages/DsrAggregatorAnalytics'
+import PowerSystemEventsAnalytics from './pages/PowerSystemEventsAnalytics'
+import MerchantRenewableAnalytics from './pages/MerchantRenewableAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -442,6 +445,9 @@ const NAV_ITEMS = [
   { to: '/wholesale-liquidity', label: 'Wholesale Market Liquidity', Icon: BarChart3 },
   { to: '/generator-retirement', label: 'Generator Retirement',   Icon: Power          },
   { to: '/consumer-hardship',    label: 'Consumer Hardship',       Icon: Heart          },
+  { to: '/dsr-aggregator',       label: 'DSR Aggregator Analytics', Icon: Sliders        },
+  { to: '/power-system-events',  label: 'Power System Security Events', Icon: AlertTriangle },
+  { to: '/merchant-renewable',   label: 'Merchant Wind & Solar',        Icon: Wind           },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -703,6 +709,9 @@ export default function App() {
               <Route path="/wholesale-liquidity" element={<MarketLiquidityAnalytics />} />
               <Route path="/generator-retirement" element={<GeneratorRetirementAnalytics />} />
               <Route path="/consumer-hardship"   element={<ConsumerHardshipAnalytics />}   />
+              <Route path="/dsr-aggregator"      element={<DsrAggregatorAnalytics />}      />
+              <Route path="/power-system-events" element={<PowerSystemEventsAnalytics />}  />
+              <Route path="/merchant-renewable"  element={<MerchantRenewableAnalytics />}  />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
