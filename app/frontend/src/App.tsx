@@ -290,6 +290,9 @@ import ElectricityWorkforceAnalytics from './pages/ElectricityWorkforceAnalytics
 import REZTransmissionAnalytics from './pages/REZTransmissionAnalytics'
 import NetworkRegulatoryFrameworkAnalytics from './pages/NetworkRegulatoryFrameworkAnalytics'
 import PriceModelComparisonAnalytics from './pages/PriceModelComparisonAnalytics'
+import GasElectricityNexusAnalytics from './pages/GasElectricityNexusAnalytics'
+import BiddingComplianceAnalytics from './pages/BiddingComplianceAnalytics'
+import CommunityEnergyAnalytics from './pages/CommunityEnergyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -509,6 +512,9 @@ const NAV_ITEMS = [
   { to: '/rez-transmission',        label: 'REZ Transmission Infrastructure', Icon: Network        },
   { to: '/network-regulatory-framework', label: 'Network Regulatory Framework', Icon: Scale         },
   { to: '/price-model-comparison',       label: 'Price Forecasting Model Comparison', Icon: Cpu    },
+  { to: '/gas-electricity-nexus',        label: 'Gas-Electricity Nexus Analytics',     Icon: Flame         },
+  { to: '/bidding-compliance',           label: 'Generator Bidding Compliance',        Icon: AlertOctagon  },
+  { to: '/community-energy-analytics',  label: 'Community Energy & Microgrid',        Icon: Home          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -803,6 +809,9 @@ export default function App() {
               <Route path="/rez-transmission"          element={<REZTransmissionAnalytics />}               />
               <Route path="/network-regulatory-framework" element={<NetworkRegulatoryFrameworkAnalytics />} />
               <Route path="/price-model-comparison"       element={<PriceModelComparisonAnalytics />}       />
+              <Route path="/gas-electricity-nexus"         element={<GasElectricityNexusAnalytics />}        />
+              <Route path="/bidding-compliance"           element={<BiddingComplianceAnalytics />}          />
+              <Route path="/community-energy-analytics"  element={<CommunityEnergyAnalytics />}            />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

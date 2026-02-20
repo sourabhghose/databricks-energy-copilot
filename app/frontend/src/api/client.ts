@@ -12793,3 +12793,219 @@ export interface PMCDashboard {
 
 export const getPriceModelComparisonDashboard = (): Promise<PMCDashboard> =>
   get<PMCDashboard>('/api/price-model-comparison/dashboard');
+
+// ── Sprint 83a: NEM Generator Bidding Compliance Analytics (NBC) ─────────────
+
+export interface NBCEnforcementRecord {
+  action_id: string
+  year: number
+  respondent: string
+  action_type: string
+  conduct: string
+  description: string
+  outcome: string
+  penalty_m: number
+  duration_days: number
+  market_impact_m: number
+}
+
+export interface NBCWithholdingRecord {
+  month: string
+  region: string
+  participant: string
+  technology: string
+  physical_withholding_events: number
+  economic_withholding_events: number
+  estimated_capacity_mw: number
+  price_impact_per_mwh: number
+  aer_referral: boolean
+}
+
+export interface NBCRulesBreachRecord {
+  rule_id: string
+  rule_name: string
+  rule_type: string
+  breaches_2022: number
+  breaches_2023: number
+  breaches_2024: number
+  common_respondents: string[]
+  aer_priority: string
+}
+
+export interface NBCMarketPowerRecord {
+  quarter: string
+  region: string
+  lerner_index: number
+  market_concentration_hhi: number
+  pivotal_supplier_hours_pct: number
+  strategic_withholding_estimated_mw: number
+  consumer_detriment_m: number
+}
+
+export interface NBCComplianceTrendRecord {
+  year: number
+  total_enforcement_actions: number
+  total_penalties_m: number
+  physical_withholding_cases: number
+  economic_withholding_cases: number
+  false_pricing_cases: number
+  rebidding_cases: number
+  aer_investigations_opened: number
+  aer_investigations_closed: number
+}
+
+export interface NBCDashboard {
+  enforcement: NBCEnforcementRecord[]
+  withholding: NBCWithholdingRecord[]
+  rules_breaches: NBCRulesBreachRecord[]
+  market_power: NBCMarketPowerRecord[]
+  compliance_trends: NBCComplianceTrendRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getBiddingComplianceDashboard = (): Promise<NBCDashboard> =>
+  get<NBCDashboard>('/api/bidding-compliance/dashboard');
+
+// ── Sprint 83c: Natural Gas Market Integration & Electricity Nexus Analytics ──
+
+export interface NGMGasPriceRecord {
+  month: string
+  hub: string
+  spot_price_per_gj: number
+  contract_price_per_gj: number
+  lng_netback_per_gj: number
+  domestic_premium_pct: number
+  traded_volume_pj: number
+}
+
+export interface NGMGasPowerRecord {
+  region: string
+  quarter: string
+  gas_generation_twh: number
+  gas_generation_pct: number
+  avg_gas_price_per_gj: number
+  avg_electricity_price: number
+  gas_to_power_spread: number
+  heat_rate_gj_per_mwh: number
+  capacity_factor_pct: number
+  peaker_running_hrs: number
+}
+
+export interface NGMSupplyRecord {
+  basin: string
+  year: number
+  production_pj: number
+  reserves_pj: number
+  reserve_life_years: number
+  domestic_supply_pct: number
+  export_supply_pct: number
+  new_field_development_pj: number
+  decline_rate_pct: number
+}
+
+export interface NGMStorageRecord {
+  facility_name: string
+  state: string
+  type: string
+  capacity_pj: number
+  working_gas_pj: number
+  injection_rate_tpd: number
+  withdrawal_rate_tpd: number
+  current_storage_pct: number
+  days_of_supply: number
+}
+
+export interface NGMNexusRecord {
+  month: string
+  region: string
+  gas_price_shock_per_gj: number
+  electricity_price_response: number
+  pass_through_elasticity: number
+  fuel_switching_from_gas_mw: number
+  gas_constraint_events: number
+}
+
+export interface NGMDashboard {
+  gas_prices: NGMGasPriceRecord[]
+  gas_power: NGMGasPowerRecord[]
+  supply: NGMSupplyRecord[]
+  storage: NGMStorageRecord[]
+  nexus: NGMNexusRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getGasElectricityNexusDashboard = (): Promise<NGMDashboard> =>
+  get<NGMDashboard>('/api/gas-electricity-nexus/dashboard');
+
+// ── Sprint 83b: Community Energy & Microgrid Analytics ─────────────────────
+
+export interface CEAProjectRecord {
+  project_id: string
+  name: string
+  type: string
+  state: string
+  region_type: string
+  capacity_kw: number
+  storage_kwh: number
+  members: number
+  annual_generation_mwh: number
+  local_consumption_pct: number
+  avg_bill_saving_per_member: number
+  status: string
+}
+
+export interface CEAFinancialRecord {
+  project_id: string
+  capex_k: number
+  opex_per_yr_k: number
+  revenue_per_yr_k: number
+  member_investment_avg: number
+  payback_years: number
+  irr_pct: number
+  govt_grant_k: number
+  community_benefit_per_member_yr: number
+}
+
+export interface CEALocalTradingRecord {
+  project_id: string
+  quarter: string
+  peer_to_peer_mwh: number
+  grid_export_mwh: number
+  grid_import_mwh: number
+  avg_p2p_price: number
+  avg_grid_buyback: number
+  trading_platform: string
+  transaction_count: number
+}
+
+export interface CEAEquityRecord {
+  state: string
+  low_income_participation_pct: number
+  renter_participation_pct: number
+  apartment_participation_pct: number
+  indigenous_community_projects: number
+  remote_community_projects: number
+  energy_justice_score: number
+  govt_subsidy_per_member: number
+}
+
+export interface CEABarrierRecord {
+  barrier: string
+  type: string
+  severity: string
+  affected_project_types: string[]
+  proposed_solution: string
+  implementation_status: string
+}
+
+export interface CEADashboard {
+  projects: CEAProjectRecord[]
+  financials: CEAFinancialRecord[]
+  local_trading: CEALocalTradingRecord[]
+  equity: CEAEquityRecord[]
+  barriers: CEABarrierRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getCommunityEnergyDashboard = (): Promise<CEADashboard> =>
+  get<CEADashboard>('/api/community-energy-microgrid/dashboard');

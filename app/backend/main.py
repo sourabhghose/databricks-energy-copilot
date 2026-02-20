@@ -57952,3 +57952,779 @@ async def get_price_model_comparison_dashboard():
     result = _build_pmc_dashboard()
     _cache_set(_pmc_cache, "pmc", result)
     return result
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  Sprint 83a — NEM Generator Bidding Compliance Analytics (NBC)             ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class NBCEnforcementRecord(BaseModel):
+    action_id: str
+    year: int
+    respondent: str
+    action_type: str   # WARNING / CIVIL_PENALTY / INFRINGEMENT_NOTICE / UNDERTAKING / COURT_ORDER
+    conduct: str       # PHYSICAL_WITHHOLDING / ECONOMIC_WITHHOLDING / FALSE_PRICING / REBIDDING / RULE_BREACH
+    description: str
+    outcome: str       # SETTLED / DISMISSED / PENALTY_IMPOSED / UNDERTAKING_ACCEPTED / ONGOING
+    penalty_m: float
+    duration_days: int
+    market_impact_m: float
+
+class NBCWithholdingRecord(BaseModel):
+    month: str
+    region: str
+    participant: str
+    technology: str
+    physical_withholding_events: int
+    economic_withholding_events: int
+    estimated_capacity_mw: float
+    price_impact_per_mwh: float
+    aer_referral: bool
+
+class NBCRulesBreachRecord(BaseModel):
+    rule_id: str
+    rule_name: str
+    rule_type: str   # BIDDING / DISPATCH / REGISTRATION / REPORTING / MARKET_POWER
+    breaches_2022: int
+    breaches_2023: int
+    breaches_2024: int
+    common_respondents: List[str]
+    aer_priority: str   # HIGH / MEDIUM / LOW
+
+class NBCMarketPowerRecord(BaseModel):
+    quarter: str
+    region: str
+    lerner_index: float
+    market_concentration_hhi: float
+    pivotal_supplier_hours_pct: float
+    strategic_withholding_estimated_mw: float
+    consumer_detriment_m: float
+
+class NBCComplianceTrendRecord(BaseModel):
+    year: int
+    total_enforcement_actions: int
+    total_penalties_m: float
+    physical_withholding_cases: int
+    economic_withholding_cases: int
+    false_pricing_cases: int
+    rebidding_cases: int
+    aer_investigations_opened: int
+    aer_investigations_closed: int
+
+class NBCDashboard(BaseModel):
+    enforcement: List[NBCEnforcementRecord]
+    withholding: List[NBCWithholdingRecord]
+    rules_breaches: List[NBCRulesBreachRecord]
+    market_power: List[NBCMarketPowerRecord]
+    compliance_trends: List[NBCComplianceTrendRecord]
+    summary: dict
+
+
+def _build_nbc_dashboard() -> NBCDashboard:
+    import random
+    rng = random.Random(8301)
+
+    # ── 20 Enforcement Records (2015-2024) ────────────────────────────────────
+    ENFORCEMENT_RAW = [
+        ("E001", 2015, "AGL Energy",         "CIVIL_PENALTY",       "ECONOMIC_WITHHOLDING",
+         "AGL withheld ~400 MW of gas peaking capacity during tight supply periods, driving spot prices above $5000/MWh in SA.",
+         "PENALTY_IMPOSED", 8.5, 42, 34.2),
+        ("E002", 2016, "Origin Energy",       "INFRINGEMENT_NOTICE", "REBIDDING",
+         "Origin Energy re-bid 600 MW of coal generation to high prices within 30 minutes of dispatch, violating good-faith bidding obligations.",
+         "PENALTY_IMPOSED", 0.8, 18, 12.7),
+        ("E003", 2016, "EnergyAustralia",     "UNDERTAKING",         "FALSE_PRICING",
+         "EnergyAustralia submitted bids above $14,000/MWh for units with marginal costs below $60/MWh across 14 trading intervals.",
+         "UNDERTAKING_ACCEPTED", 0.0, 7, 8.9),
+        ("E004", 2017, "AGL Energy",          "CIVIL_PENALTY",       "PHYSICAL_WITHHOLDING",
+         "AGL declared Liddell units unavailable during peak demand events despite them being technically operable per pre-event tests.",
+         "PENALTY_IMPOSED", 14.2, 91, 62.4),
+        ("E005", 2017, "Snowy Hydro",         "WARNING",             "ECONOMIC_WITHHOLDING",
+         "Snowy Hydro priced hydro output at $10,000/MWh during drought-constrained periods when reservoir levels allowed dispatch.",
+         "SETTLED", 0.0, 28, 18.1),
+        ("E006", 2018, "CS Energy",           "CIVIL_PENALTY",       "REBIDDING",
+         "CS Energy systematically re-bid Callide C units to exploit forecast price spikes, with 47 instances across 2018.",
+         "PENALTY_IMPOSED", 4.6, 60, 22.3),
+        ("E007", 2018, "Origin Energy",       "COURT_ORDER",         "ECONOMIC_WITHHOLDING",
+         "Federal Court found Origin engaged in sustained economic withholding across 2016-2018, pricing capacity well above competitive cost.",
+         "PENALTY_IMPOSED", 22.0, 180, 94.7),
+        ("E008", 2019, "EnergyAustralia",     "CIVIL_PENALTY",       "PHYSICAL_WITHHOLDING",
+         "EnergyAustralia withheld Yallourn units during the January 2019 heatwave, contributing to load shedding in Victoria.",
+         "PENALTY_IMPOSED", 18.6, 14, 55.8),
+        ("E009", 2019, "Alinta Energy",       "INFRINGEMENT_NOTICE", "RULE_BREACH",
+         "Alinta failed to comply with dispatch instructions on 23 occasions, deviating from AEMO dispatch targets by more than 50 MW.",
+         "PENALTY_IMPOSED", 0.6, 30, 7.2),
+        ("E010", 2019, "AGL Energy",          "UNDERTAKING",         "REBIDDING",
+         "AGL accepted an enforceable undertaking to overhaul its bidding governance framework following 2018-2019 re-bidding concerns.",
+         "UNDERTAKING_ACCEPTED", 0.0, 0, 0.0),
+        ("E011", 2020, "Delta Electricity",   "CIVIL_PENALTY",       "ECONOMIC_WITHHOLDING",
+         "Delta Electricity priced Vales Point capacity above $15,000/MWh in 68 dispatch intervals with no cost justification.",
+         "PENALTY_IMPOSED", 7.8, 45, 31.6),
+        ("E012", 2020, "AGL Energy",          "CIVIL_PENALTY",       "FALSE_PRICING",
+         "AGL submitted materially false bids for Bayswater, citing maintenance costs that independent audit found were not incurred.",
+         "PENALTY_IMPOSED", 24.5, 22, 87.3),
+        ("E013", 2021, "Origin Energy",       "CIVIL_PENALTY",       "ECONOMIC_WITHHOLDING",
+         "Origin withheld Eraring capacity across 2020 summer, exacerbating price spikes in NSW and contributing to $120M consumer detriment.",
+         "PENALTY_IMPOSED", 31.2, 120, 120.4),
+        ("E014", 2021, "Snowy Hydro",         "WARNING",             "REBIDDING",
+         "Snowy Hydro re-bid Murray hydro capacity on multiple occasions shortly before dispatch, inconsistent with forecast conditions.",
+         "SETTLED", 0.0, 20, 11.5),
+        ("E015", 2022, "EnergyAustralia",     "COURT_ORDER",         "PHYSICAL_WITHHOLDING",
+         "Federal Court ordered EnergyAustralia to pay $37.5M for systemic physical withholding across three summer periods.",
+         "PENALTY_IMPOSED", 37.5, 210, 148.9),
+        ("E016", 2022, "Glencore Coal",       "CIVIL_PENALTY",       "RULE_BREACH",
+         "Glencore's Mt Piper plant failed registration obligations and AEMO dispatch protocols across 2022.",
+         "PENALTY_IMPOSED", 3.2, 55, 14.6),
+        ("E017", 2023, "AGL Energy",          "CIVIL_PENALTY",       "ECONOMIC_WITHHOLDING",
+         "AGL withheld Torrens Island and Loy Yang A capacity during 2023 winter gas crisis, causing SA and VIC price spikes.",
+         "PENALTY_IMPOSED", 42.8, 90, 167.2),
+        ("E018", 2023, "Origin Energy",       "INFRINGEMENT_NOTICE", "FALSE_PRICING",
+         "Origin submitted bids for Mortlake gas plant that did not reflect actual short-run marginal cost, misleading AEMO dispatch.",
+         "PENALTY_IMPOSED", 1.4, 12, 9.3),
+        ("E019", 2024, "EnergyAustralia",     "CIVIL_PENALTY",       "ECONOMIC_WITHHOLDING",
+         "EnergyAustralia withheld Yallourn output in final operational months, extracting maximum rents before plant closure.",
+         "ONGOING", 28.0, 60, 98.7),
+        ("E020", 2024, "Alinta Energy",       "COURT_ORDER",         "PHYSICAL_WITHHOLDING",
+         "AER commenced Federal Court proceedings for Alinta's repeated physical withholding at Flinders Power Station in SA.",
+         "ONGOING", 0.0, 0, 0.0),
+    ]
+    enforcement = [
+        NBCEnforcementRecord(
+            action_id=r[0], year=r[1], respondent=r[2], action_type=r[3],
+            conduct=r[4], description=r[5], outcome=r[6],
+            penalty_m=round(r[7] * rng.uniform(0.97, 1.03), 2),
+            duration_days=r[8], market_impact_m=round(r[9] * rng.uniform(0.95, 1.05), 1),
+        )
+        for r in ENFORCEMENT_RAW
+    ]
+
+    # ── 30 Withholding Records (5 participants × 6 months 2024) ───────────────
+    PARTICIPANTS = [
+        ("AGL Energy",        "Coal",     "NSW1"),
+        ("Origin Energy",     "Gas",      "NSW1"),
+        ("EnergyAustralia",   "Coal",     "VIC1"),
+        ("Snowy Hydro",       "Hydro",    "NSW1"),
+        ("Alinta Energy",     "Gas",      "SA1"),
+    ]
+    MONTHS = ["2024-01", "2024-02", "2024-03", "2024-07", "2024-08", "2024-09"]
+    BASE_W = {
+        "AGL Energy":        (8, 14, 420.0, 48.2),
+        "Origin Energy":     (5, 19, 310.0, 61.5),
+        "EnergyAustralia":   (6, 16, 385.0, 52.8),
+        "Snowy Hydro":       (3,  8, 280.0, 34.7),
+        "Alinta Energy":     (4, 12, 210.0, 78.9),
+    }
+    withholding = []
+    for part, tech, region in PARTICIPANTS:
+        phy_b, eco_b, cap_b, pi_b = BASE_W[part]
+        for month in MONTHS:
+            referral = rng.random() > 0.72
+            withholding.append(NBCWithholdingRecord(
+                month=month, region=region, participant=part, technology=tech,
+                physical_withholding_events=max(0, int(phy_b * rng.uniform(0.6, 1.5))),
+                economic_withholding_events=max(0, int(eco_b * rng.uniform(0.7, 1.4))),
+                estimated_capacity_mw=round(cap_b * rng.uniform(0.85, 1.15), 1),
+                price_impact_per_mwh=round(pi_b * rng.uniform(0.8, 1.25), 2),
+                aer_referral=referral,
+            ))
+
+    # ── 10 Rules Breach Records ───────────────────────────────────────────────
+    RULES_RAW = [
+        ("NER-3.8.22",  "Late Re-Bidding Prohibition",           "BIDDING",      14, 18, 22, ["AGL Energy", "Origin Energy"],               "HIGH"),
+        ("NER-3.8.6",   "Good-Faith Bidding Obligation",         "BIDDING",       8, 11, 15, ["EnergyAustralia", "Delta Electricity"],        "HIGH"),
+        ("NER-3.9.3",   "Dispatch Instruction Compliance",       "DISPATCH",     23, 19, 17, ["Alinta Energy", "CS Energy", "Snowy Hydro"],   "HIGH"),
+        ("NER-4.9.8",   "Market Participant Registration",       "REGISTRATION",  3,  4,  2, ["Glencore Coal"],                               "MEDIUM"),
+        ("NER-3.13.2",  "Bidding & Offers Reporting",            "REPORTING",    11,  9, 13, ["AGL Energy", "EnergyAustralia"],               "MEDIUM"),
+        ("NER-3.8.1",   "Physical Plant Availability Reporting", "REPORTING",     7,  8, 11, ["Origin Energy", "EnergyAustralia"],            "HIGH"),
+        ("NER-3.1.3",   "Market Power Conduct Prohibition",      "MARKET_POWER",  4,  6,  8, ["AGL Energy", "Origin Energy", "EnergyAustralia"], "HIGH"),
+        ("NER-4.8.9",   "AEMO System Restart Ancillary",        "DISPATCH",      5,  4,  6, ["Snowy Hydro", "AGL Energy"],                   "MEDIUM"),
+        ("NER-3.15.6A", "Rebidding Justification Obligation",    "BIDDING",       9, 12, 16, ["AGL Energy", "CS Energy"],                    "HIGH"),
+        ("NER-2.3.6",   "Network Connection Point Registration", "REGISTRATION",  2,  3,  2, ["Alinta Energy"],                              "LOW"),
+    ]
+    rules_breaches = [
+        NBCRulesBreachRecord(
+            rule_id=r[0], rule_name=r[1], rule_type=r[2],
+            breaches_2022=r[3], breaches_2023=r[4], breaches_2024=r[5],
+            common_respondents=r[6], aer_priority=r[7],
+        )
+        for r in RULES_RAW
+    ]
+
+    # ── 20 Market Power Records (5 NEM regions × 4 quarters 2024) ─────────────
+    REGIONS_MP = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    QUARTERS   = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    BASE_MP = {
+        "NSW1": (0.24, 1820, 18.4, 320.0, 38.5),
+        "VIC1": (0.27, 2010, 21.2, 280.0, 44.2),
+        "QLD1": (0.22, 1680, 16.8, 260.0, 32.7),
+        "SA1":  (0.38, 3240, 34.6, 180.0, 72.9),
+        "TAS1": (0.19, 1440, 14.2, 120.0, 21.4),
+    }
+    market_power = []
+    for region in REGIONS_MP:
+        li_b, hhi_b, psp_b, sw_b, cd_b = BASE_MP[region]
+        for quarter in QUARTERS:
+            q_factor = {"2024-Q1": 1.05, "2024-Q2": 0.92, "2024-Q3": 1.12, "2024-Q4": 0.98}.get(quarter, 1.0)
+            market_power.append(NBCMarketPowerRecord(
+                quarter=quarter, region=region,
+                lerner_index=round(li_b * q_factor * rng.uniform(0.93, 1.08), 3),
+                market_concentration_hhi=round(hhi_b * rng.uniform(0.95, 1.06), 0),
+                pivotal_supplier_hours_pct=round(psp_b * q_factor * rng.uniform(0.9, 1.1), 1),
+                strategic_withholding_estimated_mw=round(sw_b * rng.uniform(0.85, 1.15), 1),
+                consumer_detriment_m=round(cd_b * q_factor * rng.uniform(0.88, 1.12), 1),
+            ))
+
+    # ── 10 Compliance Trend Records (2015-2024 annual) ────────────────────────
+    TRENDS_RAW = [
+        (2015,  4,  12.3, 1, 2, 0, 1,  6,  5),
+        (2016,  5,  14.1, 1, 2, 1, 1,  7,  6),
+        (2017,  6,  20.8, 2, 2, 0, 2,  9,  7),
+        (2018,  7,  22.5, 1, 3, 1, 2, 11,  9),
+        (2019,  8,  26.4, 2, 3, 1, 2, 12, 10),
+        (2020,  7,  44.6, 1, 3, 1, 2, 10,  9),
+        (2021,  9,  58.2, 2, 4, 1, 2, 14, 11),
+        (2022, 10,  62.8, 3, 4, 1, 2, 16, 13),
+        (2023, 11,  78.4, 2, 5, 2, 2, 17, 14),
+        (2024,  8,  65.2, 2, 4, 1, 1, 12,  9),
+    ]
+    compliance_trends = [
+        NBCComplianceTrendRecord(
+            year=r[0], total_enforcement_actions=r[1], total_penalties_m=r[2],
+            physical_withholding_cases=r[3], economic_withholding_cases=r[4],
+            false_pricing_cases=r[5], rebidding_cases=r[6],
+            aer_investigations_opened=r[7], aer_investigations_closed=r[8],
+        )
+        for r in TRENDS_RAW
+    ]
+
+    summary = {
+        "total_penalties_2020_2024_m": 284,
+        "enforcement_actions_2024": 8,
+        "most_common_conduct": "ECONOMIC_WITHHOLDING",
+        "avg_lerner_index": 0.28,
+        "highest_risk_region": "SA1",
+        "consumer_detriment_2024_m": 124,
+    }
+
+    return NBCDashboard(
+        enforcement=enforcement,
+        withholding=withholding,
+        rules_breaches=rules_breaches,
+        market_power=market_power,
+        compliance_trends=compliance_trends,
+        summary=summary,
+    )
+
+
+_nbc_cache: dict = {}
+
+
+@app.get("/api/bidding-compliance/dashboard", response_model=NBCDashboard, dependencies=[Depends(verify_api_key)])
+async def get_bidding_compliance_dashboard():
+    cached = _cache_get(_nbc_cache, "nbc")
+    if cached:
+        return cached
+    result = _build_nbc_dashboard()
+    _cache_set(_nbc_cache, "nbc", result)
+    return result
+
+
+# ============================================================
+# Sprint 83c — Natural Gas Market Integration & Electricity Nexus Analytics
+# Prefix: NGM  |  Endpoint: /api/gas-electricity-nexus/dashboard
+# ============================================================
+
+class NGMGasPriceRecord(BaseModel):
+    month: str
+    hub: str  # WALLUMBILLA / MOOMBA / LONGFORD / DAMPIER / VIC_GMH / ADELAIDE / QUEENSLAND
+    spot_price_per_gj: float
+    contract_price_per_gj: float
+    lng_netback_per_gj: float
+    domestic_premium_pct: float
+    traded_volume_pj: float
+
+
+class NGMGasPowerRecord(BaseModel):
+    region: str
+    quarter: str
+    gas_generation_twh: float
+    gas_generation_pct: float
+    avg_gas_price_per_gj: float
+    avg_electricity_price: float
+    gas_to_power_spread: float
+    heat_rate_gj_per_mwh: float
+    capacity_factor_pct: float
+    peaker_running_hrs: float
+
+
+class NGMSupplyRecord(BaseModel):
+    basin: str  # COOPER / SURAT_BOWEN / GIPPSLAND / CARNARVON / BROWSE / PERTH / OTWAY
+    year: int
+    production_pj: float
+    reserves_pj: float
+    reserve_life_years: float
+    domestic_supply_pct: float
+    export_supply_pct: float
+    new_field_development_pj: float
+    decline_rate_pct: float
+
+
+class NGMStorageRecord(BaseModel):
+    facility_name: str
+    state: str
+    type: str  # DEPLETED_RESERVOIR / SALT_CAVERN / LNG_PEAKSHAVER / LINEPACK
+    capacity_pj: float
+    working_gas_pj: float
+    injection_rate_tpd: float
+    withdrawal_rate_tpd: float
+    current_storage_pct: float
+    days_of_supply: float
+
+
+class NGMNexusRecord(BaseModel):
+    month: str
+    region: str
+    gas_price_shock_per_gj: float
+    electricity_price_response: float
+    pass_through_elasticity: float
+    fuel_switching_from_gas_mw: float
+    gas_constraint_events: int
+
+
+class NGMDashboard(BaseModel):
+    gas_prices: List[NGMGasPriceRecord]
+    gas_power: List[NGMGasPowerRecord]
+    supply: List[NGMSupplyRecord]
+    storage: List[NGMStorageRecord]
+    nexus: List[NGMNexusRecord]
+    summary: dict
+
+
+def _build_ngm_dashboard() -> NGMDashboard:
+    import random
+    rng = random.Random(8301)
+
+    HUBS = [
+        "WALLUMBILLA", "MOOMBA", "LONGFORD", "DAMPIER",
+        "VIC_GMH", "ADELAIDE", "QUEENSLAND",
+    ]
+    MONTHS = [
+        "2024-01", "2024-02", "2024-03", "2024-04",
+        "2024-05", "2024-06", "2024-07", "2024-08",
+        "2024-09", "2024-10", "2024-11", "2024-12",
+    ]
+    # Base spot prices by hub ($/GJ)
+    HUB_BASE = {
+        "WALLUMBILLA": 9.4, "MOOMBA": 9.0, "LONGFORD": 9.6,
+        "DAMPIER": 8.8, "VIC_GMH": 9.7, "ADELAIDE": 10.1, "QUEENSLAND": 9.2,
+    }
+    # Seasonal factors (summer low, winter high for southern hubs)
+    MONTH_FACTOR = [0.90, 0.88, 0.92, 0.95, 1.05, 1.18, 1.22, 1.20, 1.10, 1.00, 0.96, 0.93]
+
+    # 84 gas price records — 7 hubs × 12 months
+    gas_prices: List[NGMGasPriceRecord] = []
+    for hub in HUBS:
+        base = HUB_BASE[hub]
+        for i, month in enumerate(MONTHS):
+            factor = MONTH_FACTOR[i]
+            spot = round(base * factor * rng.uniform(0.94, 1.06), 2)
+            contract = round(base * rng.uniform(0.97, 1.03), 2)   # contracts less volatile
+            lng_netback = round(spot * rng.uniform(0.78, 0.86), 2)
+            domestic_premium = round((spot - lng_netback) / lng_netback * 100, 1)
+            volume = round(rng.uniform(2.5, 18.0), 2)
+            gas_prices.append(NGMGasPriceRecord(
+                month=month, hub=hub,
+                spot_price_per_gj=spot,
+                contract_price_per_gj=contract,
+                lng_netback_per_gj=lng_netback,
+                domestic_premium_pct=domestic_premium,
+                traded_volume_pj=volume,
+            ))
+
+    # 20 gas-power records — 5 NEM regions × 4 quarters
+    REGIONS = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    QUARTERS = ["Q1-2024", "Q2-2024", "Q3-2024", "Q4-2024"]
+    GAS_BASE_PCT = {"NSW1": 12.0, "VIC1": 14.5, "QLD1": 28.0, "SA1": 38.0, "TAS1": 2.0}
+    HEAT_RATE = {"NSW1": 9.4, "VIC1": 9.2, "QLD1": 9.0, "SA1": 8.8, "TAS1": 9.6}
+    PRICE_BASE = {"NSW1": 88, "VIC1": 85, "QLD1": 91, "SA1": 110, "TAS1": 72}
+    QUARTER_FACTOR = [1.05, 0.92, 1.15, 1.00]
+
+    gas_power: List[NGMGasPowerRecord] = []
+    for region in REGIONS:
+        for qi, quarter in enumerate(QUARTERS):
+            qf = QUARTER_FACTOR[qi]
+            gas_pct = round(GAS_BASE_PCT[region] * qf * rng.uniform(0.88, 1.12), 1)
+            avg_gas = round(HUB_BASE.get("WALLUMBILLA", 9.4) * qf * rng.uniform(0.93, 1.07), 2)
+            avg_elec = round(PRICE_BASE[region] * qf * rng.uniform(0.90, 1.10), 2)
+            hr = round(HEAT_RATE[region] * rng.uniform(0.97, 1.03), 2)
+            fuel_cost = round(avg_gas * hr, 2)
+            spread = round(avg_elec - fuel_cost, 2)
+            twh = round(gas_pct / 100 * rng.uniform(5.0, 22.0), 2)
+            cf = round(rng.uniform(18.0, 52.0), 1)
+            pkr_hrs = round(cf / 100 * 2190 * rng.uniform(0.85, 1.15), 0)
+            gas_power.append(NGMGasPowerRecord(
+                region=region, quarter=quarter,
+                gas_generation_twh=twh,
+                gas_generation_pct=gas_pct,
+                avg_gas_price_per_gj=avg_gas,
+                avg_electricity_price=avg_elec,
+                gas_to_power_spread=spread,
+                heat_rate_gj_per_mwh=hr,
+                capacity_factor_pct=cf,
+                peaker_running_hrs=pkr_hrs,
+            ))
+
+    # 8 supply basin records
+    BASINS = [
+        ("COOPER",       2024, 210,  1800, 8.6,  62, 38),
+        ("SURAT_BOWEN",  2024, 880,  5200, 5.9,  18, 82),
+        ("GIPPSLAND",    2024, 290,  1400, 4.8,  78, 22),
+        ("CARNARVON",    2024, 1100, 4800, 4.4,  12, 88),
+        ("BROWSE",       2024, 320,  3200, 10.0,  8, 92),
+        ("PERTH",        2024, 180,  900,  5.0,  55, 45),
+        ("OTWAY",        2024, 140,  600,  4.3,  70, 30),
+        ("AMADEUS",      2024,  40,  160,  4.0,  90, 10),
+    ]
+    supply: List[NGMSupplyRecord] = []
+    for basin, yr, prod, res, rly, dom_pct, exp_pct in BASINS:
+        nfd = round(prod * rng.uniform(0.02, 0.12), 1)
+        dec = round(rng.uniform(3.5, 12.0), 1)
+        supply.append(NGMSupplyRecord(
+            basin=basin, year=yr,
+            production_pj=round(prod * rng.uniform(0.95, 1.05), 1),
+            reserves_pj=round(res * rng.uniform(0.97, 1.03), 0),
+            reserve_life_years=round(rly * rng.uniform(0.92, 1.08), 1),
+            domestic_supply_pct=dom_pct,
+            export_supply_pct=exp_pct,
+            new_field_development_pj=nfd,
+            decline_rate_pct=dec,
+        ))
+
+    # 8 storage facility records
+    FACILITIES = [
+        ("Dandenong LNG",         "VIC", "LNG_PEAKSHAVER",    0.18,  0.15,   120,   320,  82),
+        ("Iona Underground Gas",  "VIC", "DEPLETED_RESERVOIR", 26.0, 13.0,  3500, 12000,  50),
+        ("Moomba",                "SA",  "DEPLETED_RESERVOIR",  4.5,  2.8,   800,  3500,  62),
+        ("AGL Dandenong",         "VIC", "LNG_PEAKSHAVER",    0.12,  0.09,    80,   210,  75),
+        ("Mondarra Gas Storage",  "WA",  "DEPLETED_RESERVOIR",  6.0,  3.5,  1200,  5000,  58),
+        ("Roma Underground",      "QLD", "DEPLETED_RESERVOIR",  0.8,  0.5,   350,  1400,  63),
+        ("Karratha Linepack",     "WA",  "LINEPACK",           0.05,  0.04,   400,   400,  80),
+        ("Adelaide LNG Peakshaver","SA", "LNG_PEAKSHAVER",    0.09,  0.07,    60,   180,  78),
+    ]
+    storage: List[NGMStorageRecord] = []
+    for fname, state, ftype, cap, wgas, inj, wdraw, stor_pct in FACILITIES:
+        dos = round(wgas * stor_pct / 100 / (wdraw / 1000 / 365), 1) if wdraw > 0 else 0
+        storage.append(NGMStorageRecord(
+            facility_name=fname, state=state, type=ftype,
+            capacity_pj=round(cap * rng.uniform(0.99, 1.01), 2),
+            working_gas_pj=round(wgas * rng.uniform(0.95, 1.05), 2),
+            injection_rate_tpd=round(inj * rng.uniform(0.95, 1.05), 0),
+            withdrawal_rate_tpd=round(wdraw * rng.uniform(0.95, 1.05), 0),
+            current_storage_pct=round(stor_pct * rng.uniform(0.90, 1.10), 1),
+            days_of_supply=round(dos, 1),
+        ))
+
+    # 60 nexus correlation records — 5 regions × 12 months
+    NX_BASE = {
+        "NSW1": 8.1, "VIC1": 7.6, "QLD1": 9.0, "SA1": 11.2, "TAS1": 2.4,
+    }
+    nexus: List[NGMNexusRecord] = []
+    for region in REGIONS:
+        base_elast = NX_BASE[region]
+        for i, month in enumerate(MONTHS):
+            shock = round(rng.uniform(-2.5, 4.8), 2)
+            elast = round(base_elast * rng.uniform(0.80, 1.20), 2)
+            response = round(shock * elast * rng.uniform(0.85, 1.15), 2)
+            pass_through = round(rng.uniform(0.55, 0.92), 3)
+            fuel_switch = round(rng.uniform(0, 280) if abs(shock) > 1.5 else rng.uniform(0, 60), 0)
+            constraint_events = int(rng.randint(0, 4) if abs(shock) > 2.0 else rng.randint(0, 1))
+            nexus.append(NGMNexusRecord(
+                month=month, region=region,
+                gas_price_shock_per_gj=shock,
+                electricity_price_response=response,
+                pass_through_elasticity=pass_through,
+                fuel_switching_from_gas_mw=fuel_switch,
+                gas_constraint_events=constraint_events,
+            ))
+
+    summary = {
+        "avg_wallumbilla_spot_2024": 9.4,
+        "gas_generation_pct_2024": 18.4,
+        "gas_to_power_elasticity_avg": 8.2,
+        "total_domestic_supply_pj": 2840,
+        "storage_days_of_supply_avg": 18,
+        "price_shock_events_2024": 6,
+        "highest_corr_region": "SA1",
+    }
+
+    return NGMDashboard(
+        gas_prices=gas_prices,
+        gas_power=gas_power,
+        supply=supply,
+        storage=storage,
+        nexus=nexus,
+        summary=summary,
+    )
+
+
+_ngm_cache: dict = {}
+
+
+@app.get("/api/gas-electricity-nexus/dashboard", response_model=NGMDashboard, dependencies=[Depends(verify_api_key)])
+async def get_gas_electricity_nexus_dashboard():
+    cached = _cache_get(_ngm_cache, "ngm")
+    if cached:
+        return cached
+    result = _build_ngm_dashboard()
+    _cache_set(_ngm_cache, "ngm", result)
+    return result
+
+
+# ── Sprint 83b: Community Energy & Microgrid Analytics ─────────────────────
+
+class CEAProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    type: str  # COMMUNITY_SOLAR / MICROGRID / VPP / LOCAL_ENERGY_NETWORK / SHARED_ROOFTOP / COMMUNITY_BATTERY
+    state: str
+    region_type: str  # URBAN / SUBURBAN / REGIONAL / REMOTE / ISLAND
+    capacity_kw: float
+    storage_kwh: float
+    members: int
+    annual_generation_mwh: float
+    local_consumption_pct: float
+    avg_bill_saving_per_member: float
+    status: str  # OPERATING / CONSTRUCTION / APPROVED / PILOT
+
+class CEAFinancialRecord(BaseModel):
+    project_id: str
+    capex_k: float
+    opex_per_yr_k: float
+    revenue_per_yr_k: float
+    member_investment_avg: float
+    payback_years: float
+    irr_pct: float
+    govt_grant_k: float
+    community_benefit_per_member_yr: float
+
+class CEALocalTradingRecord(BaseModel):
+    project_id: str
+    quarter: str
+    peer_to_peer_mwh: float
+    grid_export_mwh: float
+    grid_import_mwh: float
+    avg_p2p_price: float
+    avg_grid_buyback: float
+    trading_platform: str  # BLOCKCHAIN / CENTRAL_CLEARINGHOUSE / RETAILER_FACILITATED / DIRECT
+    transaction_count: int
+
+class CEAEquityRecord(BaseModel):
+    state: str
+    low_income_participation_pct: float
+    renter_participation_pct: float
+    apartment_participation_pct: float
+    indigenous_community_projects: int
+    remote_community_projects: int
+    energy_justice_score: float
+    govt_subsidy_per_member: float
+
+class CEABarrierRecord(BaseModel):
+    barrier: str
+    type: str  # REGULATORY / TECHNICAL / FINANCIAL / SOCIAL / GRID_INTEGRATION
+    severity: str  # HIGH / MEDIUM / LOW
+    affected_project_types: List[str]
+    proposed_solution: str
+    implementation_status: str  # IMPLEMENTED / IN_PROGRESS / PROPOSED
+
+class CEADashboard(BaseModel):
+    projects: List[CEAProjectRecord]
+    financials: List[CEAFinancialRecord]
+    local_trading: List[CEALocalTradingRecord]
+    equity: List[CEAEquityRecord]
+    barriers: List[CEABarrierRecord]
+    summary: dict
+
+_cea_cache: dict = {}
+
+def _build_cea_dashboard() -> CEADashboard:
+    import random
+    rng = random.Random(8381)
+
+    def _p(pid, name, typ, state, region, cap, stor, memb, gen, lc, sav, status):
+        return CEAProjectRecord(project_id=pid, name=name, type=typ, state=state,
+                                region_type=region, capacity_kw=cap, storage_kwh=stor,
+                                members=memb, annual_generation_mwh=gen,
+                                local_consumption_pct=lc, avg_bill_saving_per_member=sav,
+                                status=status)
+    projects = [
+        _p("CEA-NSW-001","Redfern Community Solar Hub",          "COMMUNITY_SOLAR",     "NSW","URBAN",    480.0,    0.0,  320,  682.0,72.0, 920.0,"OPERATING"),
+        _p("CEA-NSW-002","Hunter Valley Community Microgrid",     "MICROGRID",           "NSW","REGIONAL",1200.0, 2400.0,  850, 1680.0,65.0, 780.0,"OPERATING"),
+        _p("CEA-NSW-003","Western Sydney Virtual Power Plant",    "VPP",                 "NSW","SUBURBAN",3500.0, 5200.0, 2100, 4550.0,58.0, 650.0,"OPERATING"),
+        _p("CEA-VIC-001","Yackandandah Local Energy Network",     "LOCAL_ENERGY_NETWORK","VIC","REGIONAL", 850.0, 1600.0,  420, 1190.0,88.0,1150.0,"OPERATING"),
+        _p("CEA-VIC-002","Moreland Community Solar Garden",       "COMMUNITY_SOLAR",     "VIC","URBAN",    720.0,    0.0,  510,  936.0,68.0, 840.0,"OPERATING"),
+        _p("CEA-VIC-003","Ballarat Community Battery VPP",        "COMMUNITY_BATTERY",   "VIC","SUBURBAN", 500.0, 1500.0,  380,  650.0,74.0, 760.0,"CONSTRUCTION"),
+        _p("CEA-QLD-001","Sunshine Coast P2P Trading Network",   "LOCAL_ENERGY_NETWORK","QLD","SUBURBAN",2200.0, 3300.0, 1480, 2860.0,62.0, 710.0,"OPERATING"),
+        _p("CEA-QLD-002","Cairns Tropical Microgrid",            "MICROGRID",           "QLD","REGIONAL", 650.0, 1300.0,  280,  910.0,78.0, 920.0,"OPERATING"),
+        _p("CEA-QLD-003","Torres Strait Island Microgrid",       "MICROGRID",           "QLD","ISLAND",   320.0, 1280.0,  140,  416.0,95.0,1380.0,"OPERATING"),
+        _p("CEA-SA-001", "Adelaide Community VPP",               "VPP",                 "SA", "SUBURBAN",4200.0, 6300.0, 2800, 5040.0,55.0, 580.0,"OPERATING"),
+        _p("CEA-SA-002", "Coober Pedy Remote Microgrid",         "MICROGRID",           "SA", "REMOTE",   180.0,  720.0,   75,  252.0,92.0,1480.0,"OPERATING"),
+        _p("CEA-WA-001", "Fremantle Shared Rooftop Network",     "SHARED_ROOFTOP",      "WA", "URBAN",    380.0,    0.0,  260,  494.0,70.0, 870.0,"OPERATING"),
+        _p("CEA-WA-002", "Kalgoorlie Miners Microgrid",          "MICROGRID",           "WA", "REGIONAL", 950.0, 1900.0,  320, 1330.0,82.0,1050.0,"APPROVED"),
+        _p("CEA-WA-003", "Broome Remote Community Microgrid",    "MICROGRID",           "WA", "REMOTE",   280.0, 1120.0,  110,  392.0,90.0,1320.0,"OPERATING"),
+        _p("CEA-TAS-001","Hobart Community Solar Cooperative",   "COMMUNITY_SOLAR",     "TAS","URBAN",    340.0,  680.0,  240,  476.0,75.0, 900.0,"PILOT"),
+        _p("CEA-NT-001", "Darwin Remote Indigenous Microgrid",   "MICROGRID",           "NT", "REMOTE",   450.0, 1800.0,  185,  585.0,94.0,1540.0,"OPERATING"),
+        _p("CEA-NT-002", "Katherine Solar Microgrid",            "MICROGRID",           "NT", "REGIONAL", 280.0, 1120.0,  120,  364.0,88.0,1240.0,"OPERATING"),
+        _p("CEA-ACT-001","Canberra Suburb VPP Aggregation",      "VPP",                 "ACT","SUBURBAN",1800.0, 2700.0, 1250, 2340.0,60.0, 700.0,"OPERATING"),
+        _p("CEA-ACT-002","ACT Government Community Solar",       "COMMUNITY_SOLAR",     "ACT","URBAN",    580.0,  580.0,  420,  754.0,72.0, 820.0,"OPERATING"),
+        _p("CEA-VIC-004","Latrobe Valley Just Transition Micro", "MICROGRID",           "VIC","REGIONAL",1100.0, 2200.0,  680, 1430.0,70.0, 980.0,"CONSTRUCTION"),
+    ]
+
+    def _f(pid, capex, opex, rev, minv, pb, irr, grant, cb):
+        return CEAFinancialRecord(project_id=pid, capex_k=capex, opex_per_yr_k=opex,
+                                  revenue_per_yr_k=rev, member_investment_avg=minv,
+                                  payback_years=pb, irr_pct=irr, govt_grant_k=grant,
+                                  community_benefit_per_member_yr=cb)
+    financials = [
+        _f("CEA-NSW-001",  960.0,  48.0, 126.0,  2800.0, 9.2,  8.4,  320.0,  920.0),
+        _f("CEA-NSW-002", 3800.0, 190.0, 520.0,  4200.0, 9.8,  9.2, 1200.0,  780.0),
+        _f("CEA-NSW-003", 8400.0, 420.0,1365.0,  3800.0, 8.5, 10.8, 2800.0,  650.0),
+        _f("CEA-VIC-001", 2100.0, 105.0, 434.0,  4800.0, 6.8, 14.2,  840.0, 1150.0),
+        _f("CEA-VIC-002", 1440.0,  72.0, 252.0,  2700.0, 8.0,  9.8,  480.0,  840.0),
+        _f("CEA-VIC-003", 1800.0,  90.0, 197.0,  4500.0,11.2,  7.1,  720.0,  760.0),
+        _f("CEA-QLD-001", 5500.0, 275.0, 812.0,  3600.0, 8.8, 10.2, 1800.0,  710.0),
+        _f("CEA-QLD-002", 1950.0,  98.0, 292.0,  6800.0, 8.2, 11.5,  780.0,  920.0),
+        _f("CEA-QLD-003", 1280.0,  64.0, 193.0,  8400.0, 8.5, 12.8, 1024.0, 1380.0),
+        _f("CEA-SA-001", 10080.0, 504.0,1452.0,  3500.0, 9.0,  9.8, 3360.0,  580.0),
+        _f("CEA-SA-002",   900.0,  45.0, 111.0, 11200.0,10.5, 10.2,  720.0, 1480.0),
+        _f("CEA-WA-001",   760.0,  38.0, 128.0,  2800.0, 7.8, 10.5,  240.0,  870.0),
+        _f("CEA-WA-002",  2850.0, 143.0, 399.0,  8400.0,10.2,  9.4, 1140.0, 1050.0),
+        _f("CEA-WA-003",  1400.0,  70.0, 145.0, 11800.0,12.8,  8.8, 1120.0, 1320.0),
+        _f("CEA-TAS-001",  680.0,  34.0, 114.0,  2700.0, 8.2,  9.6,  272.0,  900.0),
+        _f("CEA-NT-001",  2250.0, 113.0, 285.0, 12000.0,10.8, 11.2, 1800.0, 1540.0),
+        _f("CEA-NT-002",  1400.0,  70.0, 182.0, 11000.0,10.2, 11.8, 1120.0, 1240.0),
+        _f("CEA-ACT-001", 4320.0, 216.0, 702.0,  3300.0, 8.0, 11.2, 1440.0,  700.0),
+        _f("CEA-ACT-002", 1160.0,  58.0, 226.0,  2600.0, 7.2, 11.8,  464.0,  820.0),
+        _f("CEA-VIC-004", 3300.0, 165.0, 441.0,  4700.0, 9.8,  9.2, 1320.0,  980.0),
+    ]
+
+    trading_project_ids = [
+        "CEA-NSW-002","CEA-NSW-003","CEA-VIC-001","CEA-VIC-002",
+        "CEA-QLD-001","CEA-QLD-002","CEA-SA-001","CEA-WA-001",
+        "CEA-ACT-001","CEA-ACT-002",
+    ]
+    platform_map = {
+        "CEA-NSW-002": "RETAILER_FACILITATED",
+        "CEA-NSW-003": "BLOCKCHAIN",
+        "CEA-VIC-001": "DIRECT",
+        "CEA-VIC-002": "RETAILER_FACILITATED",
+        "CEA-QLD-001": "BLOCKCHAIN",
+        "CEA-QLD-002": "CENTRAL_CLEARINGHOUSE",
+        "CEA-SA-001":  "BLOCKCHAIN",
+        "CEA-WA-001":  "CENTRAL_CLEARINGHOUSE",
+        "CEA-ACT-001": "RETAILER_FACILITATED",
+        "CEA-ACT-002": "DIRECT",
+    }
+    quarters = ["2024-Q1","2024-Q2","2024-Q3","2024-Q4"]
+    local_trading: list[CEALocalTradingRecord] = []
+    base_p2p = {
+        "CEA-NSW-002": 180, "CEA-NSW-003": 620, "CEA-VIC-001": 380,
+        "CEA-VIC-002": 210, "CEA-QLD-001": 520, "CEA-QLD-002": 160,
+        "CEA-SA-001":  780, "CEA-WA-001":  130, "CEA-ACT-001": 460, "CEA-ACT-002": 185,
+    }
+    for pid in trading_project_ids:
+        for i, q in enumerate(quarters):
+            factor = 1.0 + i * 0.05 + rng.uniform(-0.05, 0.05)
+            p2p   = round(base_p2p[pid] * factor, 1)
+            gexp  = round(p2p * rng.uniform(0.8, 1.4), 1)
+            gimp  = round(p2p * rng.uniform(0.2, 0.6), 1)
+            local_trading.append(CEALocalTradingRecord(
+                project_id=pid,
+                quarter=q,
+                peer_to_peer_mwh=p2p,
+                grid_export_mwh=gexp,
+                grid_import_mwh=gimp,
+                avg_p2p_price=round(rng.uniform(85.0, 140.0), 1),
+                avg_grid_buyback=round(rng.uniform(55.0, 90.0), 1),
+                trading_platform=platform_map[pid],
+                transaction_count=int(p2p * rng.uniform(8, 18)),
+            ))
+
+    def _eq(state, li, rent, apt, ind, rem, score, sub):
+        return CEAEquityRecord(state=state, low_income_participation_pct=li,
+                               renter_participation_pct=rent, apartment_participation_pct=apt,
+                               indigenous_community_projects=ind, remote_community_projects=rem,
+                               energy_justice_score=score, govt_subsidy_per_member=sub)
+    equity = [
+        _eq("NSW",16.8,22.4,18.2, 3, 8,6.4,480.0),
+        _eq("VIC",19.2,24.8,20.1, 2, 5,7.1,520.0),
+        _eq("QLD",17.5,20.2,15.8, 5,12,6.8,440.0),
+        _eq("SA", 21.4,26.8,22.5, 1, 4,7.8,580.0),
+        _eq("WA", 18.9,21.5,16.4, 8,15,7.2,510.0),
+        _eq("TAS",20.1,28.4,23.8, 0, 2,6.9,490.0),
+        _eq("NT", 14.2,15.8,10.2,18,22,7.6,820.0),
+        _eq("ACT",22.8,30.2,28.5, 0, 0,8.2,620.0),
+    ]
+
+    def _b(barrier, typ, sev, types, solution, status):
+        return CEABarrierRecord(barrier=barrier, type=typ, severity=sev,
+                                affected_project_types=types, proposed_solution=solution,
+                                implementation_status=status)
+    barriers = [
+        _b("Network tariff structures penalise local trading",
+           "REGULATORY","HIGH",["LOCAL_ENERGY_NETWORK","VPP"],
+           "Reform network tariffs to enable cost-reflective P2P pricing","IN_PROGRESS"),
+        _b("Virtual net metering rules restrict multi-site sharing",
+           "REGULATORY","HIGH",["COMMUNITY_SOLAR","SHARED_ROOFTOP"],
+           "Legislate national virtual net metering framework","PROPOSED"),
+        _b("High upfront capital costs exclude low-income households",
+           "FINANCIAL","HIGH",["COMMUNITY_SOLAR","MICROGRID","COMMUNITY_BATTERY"],
+           "Means-tested grants and low-interest green loans","IN_PROGRESS"),
+        _b("Grid integration complexity for islanding microgrids",
+           "GRID_INTEGRATION","HIGH",["MICROGRID"],
+           "Standard technical requirements for microgrid interconnection","IN_PROGRESS"),
+        _b("Renters unable to access rooftop solar benefits",
+           "REGULATORY","HIGH",["SHARED_ROOFTOP","COMMUNITY_SOLAR"],
+           "Embedded network reforms and virtual power purchase agreements","PROPOSED"),
+        _b("Blockchain P2P platforms lack regulatory recognition",
+           "REGULATORY","MEDIUM",["LOCAL_ENERGY_NETWORK","VPP"],
+           "AEMC rule change to recognise peer-to-peer trading platforms","PROPOSED"),
+        _b("Metering costs disproportionate for small projects",
+           "TECHNICAL","MEDIUM",["COMMUNITY_SOLAR","SHARED_ROOFTOP"],
+           "Shared metering infrastructure and data aggregation services","IN_PROGRESS"),
+        _b("Community trust and engagement barriers",
+           "SOCIAL","MEDIUM",["MICROGRID","LOCAL_ENERGY_NETWORK"],
+           "Community energy facilitator programs and local champions","IMPLEMENTED"),
+        _b("Lack of indigenous community energy expertise",
+           "SOCIAL","MEDIUM",["MICROGRID"],
+           "First Nations energy coordinator program and cultural training","IN_PROGRESS"),
+        _b("Interconnection queue delays for community projects",
+           "GRID_INTEGRATION","LOW",["COMMUNITY_SOLAR","MICROGRID","VPP"],
+           "Priority queue lane for community energy projects under 5 MW","PROPOSED"),
+    ]
+
+    summary = {
+        "total_projects": 20,
+        "total_capacity_mw": 84.5,
+        "total_members": 24800,
+        "avg_bill_saving": 840,
+        "local_consumption_avg_pct": 68.4,
+        "p2p_trading_total_mwh": 12400,
+        "low_income_participation_avg_pct": 18.4,
+    }
+
+    return CEADashboard(
+        projects=projects,
+        financials=financials,
+        local_trading=local_trading,
+        equity=equity,
+        barriers=barriers,
+        summary=summary,
+    )
+
+@app.get("/api/community-energy-microgrid/dashboard", response_model=CEADashboard, dependencies=[Depends(verify_api_key)])
+async def get_community_energy_microgrid_dashboard():
+    cached = _cache_get(_cea_cache, "cea")
+    if cached:
+        return cached
+    result = _build_cea_dashboard()
+    _cache_set(_cea_cache, "cea", result)
+    return result

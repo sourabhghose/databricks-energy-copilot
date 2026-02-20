@@ -10973,3 +10973,51 @@ class TestPriceModelComparisonEndpoint:
     def test_accuracy_count_at_least_70(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["accuracy"]) >= 70
+
+
+class TestGasElectricityNexusEndpoint:
+    endpoint = "/api/gas-electricity-nexus/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_gas_prices_count_at_least_70(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["gas_prices"]) >= 70
+
+    def test_nexus_count_at_least_50(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["nexus"]) >= 50
+
+
+class TestBiddingComplianceEndpoint:
+    endpoint = "/api/bidding-compliance/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_enforcement_count_at_least_15(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["enforcement"]) >= 15
+
+    def test_market_power_count_at_least_15(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["market_power"]) >= 15
+
+
+class TestCommunityEnergyEndpoint:
+    endpoint = "/api/community-energy-microgrid/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_projects_count_at_least_15(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["projects"]) >= 15
+
+    def test_local_trading_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["local_trading"]) >= 30
