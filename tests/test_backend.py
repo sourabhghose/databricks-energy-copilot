@@ -5958,3 +5958,358 @@ class TestCbamTradeAnalytics:
         assert by_country["European Union"]["carbon_price_aud_tonne"] == max(
             p["carbon_price_aud_tonne"] for p in d["policies"]
         )
+
+
+# ===========================================================================
+# Sprint 58a — Network Congestion Revenue & SRA Analytics
+# ===========================================================================
+
+class TestCongestionRevenueAnalytics:
+    def test_congestion_revenue_dashboard(self, client: TestClient) -> None:
+        response = client.get(
+            "/api/congestion-revenue/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert response.status_code == 200
+        d = response.json()
+
+        # Top-level keys
+        assert "timestamp" in d
+        assert "sra_contracts" in d
+        assert "congestion_rents" in d
+        assert "nodal_prices" in d
+        assert "interconnector_economics" in d
+
+        # SRA contracts: 12 records (4 interconnectors × 3 quarters)
+        sra = d["sra_contracts"]
+        assert len(sra) == 12
+        valid_directions = {"FORWARD", "REVERSE"}
+        interconnectors_seen: set[str] = set()
+        for c in sra:
+            assert c["contract_id"]
+            assert c["quarter"]
+            assert c["interconnector"]
+            assert c["direction"] in valid_directions
+            assert c["mw_contracted"] > 0
+            assert c["clearing_price_aud_mwh"] > 0
+            assert c["total_value_m_aud"] > 0
+            assert c["holder"]
+            assert 0.0 <= c["utilisation_pct"] <= 100.0
+            interconnectors_seen.add(c["interconnector"])
+        # exactly 4 interconnectors
+        assert len(interconnectors_seen) == 4
+
+        # Congestion rents: 8 records
+        rents = d["congestion_rents"]
+        assert len(rents) == 8
+        for r in rents:
+            assert r["quarter"]
+            assert r["interconnector"]
+            assert r["total_rent_m_aud"] > 0
+            assert r["sra_allocated_m_aud"] > 0
+            assert r["retained_m_aud"] > 0
+            # allocated + retained should equal total
+            assert abs(r["sra_allocated_m_aud"] + r["retained_m_aud"] - r["total_rent_m_aud"]) < 0.1
+            assert r["beneficiary"]
+            assert 0.0 < r["binding_hours_pct"] < 100.0
+            assert r["avg_price_diff_aud"] > 0
+
+        # NSW1-QLD1 should have the highest total rent across all quarters
+        rent_by_ic: dict[str, float] = {}
+        for r in rents:
+            rent_by_ic[r["interconnector"]] = rent_by_ic.get(r["interconnector"], 0) + r["total_rent_m_aud"]
+        assert max(rent_by_ic, key=lambda k: rent_by_ic[k]) == "NSW1-QLD1"
+
+        # Nodal prices: 10 records
+        nodes = d["nodal_prices"]
+        assert len(nodes) == 10
+        regions_seen: set[str] = set()
+        for n in nodes:
+            assert n["node_id"]
+            assert n["node_name"]
+            assert n["region"]
+            assert n["avg_lmp_aud_mwh"] > 0
+            # energy component should be positive
+            assert n["energy_component_aud"] > 0
+            # avg_lmp ≈ energy + congestion + loss
+            approx_lmp = n["energy_component_aud"] + n["congestion_component_aud"] + n["loss_component_aud"]
+            assert abs(approx_lmp - n["avg_lmp_aud_mwh"]) < 0.5
+            regions_seen.add(n["region"])
+        # at least 4 regions represented
+        assert len(regions_seen) >= 4
+
+        # SA1 should have highest congestion components
+        sa_nodes = [n for n in nodes if n["region"] == "SA1"]
+        assert len(sa_nodes) >= 1
+        assert max(n["congestion_component_aud"] for n in sa_nodes) > max(
+            n["congestion_component_aud"] for n in nodes if n["region"] == "NSW1"
+        )
+
+        # Interconnector economics: 6 records
+        economics = d["interconnector_economics"]
+        assert len(economics) == 6
+        for e in economics:
+            assert e["interconnector"]
+            assert e["year"] >= 2024
+            assert e["total_flows_gwh"] > 0
+            assert e["revenue_generated_m_aud"] > 0
+            assert e["cost_allocated_m_aud"] > 0
+            assert e["net_benefit_m_aud"] == pytest.approx(
+                e["revenue_generated_m_aud"] - e["cost_allocated_m_aud"], abs=0.2
+            )
+            assert e["benefit_cost_ratio"] > 1.0
+            assert 0.0 < e["capacity_factor_pct"] <= 100.0
+
+        # NSW1-QLD1 should have best BCR (latest year)
+        latest_by_ic: dict[str, dict] = {}
+        for e in economics:
+            if e["interconnector"] not in latest_by_ic or e["year"] > latest_by_ic[e["interconnector"]]["year"]:
+                latest_by_ic[e["interconnector"]] = e
+        best_bcr_ic = max(latest_by_ic, key=lambda k: latest_by_ic[k]["benefit_cost_ratio"])
+        assert best_bcr_ic == "NSW1-QLD1"
+
+
+# ===========================================================================
+# TestEnergyAffordabilityAnalytics
+# ===========================================================================
+
+class TestEnergyAffordabilityAnalytics:
+    """Tests for GET /api/energy-affordability/dashboard (Sprint 58c)."""
+
+    def test_energy_affordability_dashboard(self):
+        """Validates full structure, counts, enums, and key data invariants."""
+        resp = client.get(
+            "/api/energy-affordability/dashboard",
+            headers={"X-API-Key": "test-api-key"},
+        )
+        assert resp.status_code == 200, resp.text
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "bill_trends", "income_affordability", "solar_impact", "assistance_programs"):
+            assert key in d, f"Missing top-level key: {key}"
+
+        # --- bill_trends: 30 records (6 states × 5 years) ---
+        assert len(d["bill_trends"]) == 30, f"Expected 30 bill trend records, got {len(d['bill_trends'])}"
+        valid_states = {"NSW", "VIC", "QLD", "SA", "WA", "TAS"}
+        valid_years  = {2020, 2021, 2022, 2023, 2024}
+        states_seen: set = set()
+        years_seen:  set = set()
+        for rec in d["bill_trends"]:
+            assert rec["state"] in valid_states
+            assert rec["year"] in valid_years
+            assert rec["avg_annual_bill_aud"] > 0
+            assert 0 < rec["median_income_pct"] < 20
+            assert rec["usage_kwh"] > 0
+            assert rec["network_charges_aud"] > 0
+            assert rec["wholesale_charges_aud"] > 0
+            assert rec["environmental_charges_aud"] > 0
+            assert rec["retail_margin_aud"] > 0
+            states_seen.add(rec["state"])
+            years_seen.add(rec["year"])
+        assert states_seen == valid_states
+        assert years_seen  == valid_years
+
+        # SA must have the highest avg bill in 2024
+        trends_2024 = [r for r in d["bill_trends"] if r["year"] == 2024]
+        by_state_2024 = {r["state"]: r["avg_annual_bill_aud"] for r in trends_2024}
+        assert by_state_2024["SA"] == max(by_state_2024.values()), "SA should have highest 2024 bill"
+        assert by_state_2024["WA"] == min(by_state_2024.values()), "WA should have lowest 2024 bill"
+
+        # --- income_affordability: 30 records (6 states × 5 cohorts) ---
+        assert len(d["income_affordability"]) == 30, f"Expected 30 income affordability records"
+        valid_cohorts = {"BOTTOM_20PCT", "LOWER_MIDDLE", "MIDDLE", "UPPER_MIDDLE", "TOP_20PCT"}
+        cohorts_seen: set = set()
+        for rec in d["income_affordability"]:
+            assert rec["state"] in valid_states
+            assert rec["income_cohort"] in valid_cohorts
+            assert rec["annual_income_aud"] > 0
+            assert rec["energy_spend_aud"] > 0
+            assert rec["energy_burden_pct"] > 0
+            assert 0 <= rec["solar_ownership_pct"] <= 100
+            assert 0 <= rec["hardship_rate_pct"] <= 100
+            cohorts_seen.add(rec["income_cohort"])
+        assert cohorts_seen == valid_cohorts
+
+        # Bottom 20% must always have higher energy burden than Top 20% within each state
+        for state in valid_states:
+            bottom = next(r for r in d["income_affordability"]
+                          if r["state"] == state and r["income_cohort"] == "BOTTOM_20PCT")
+            top    = next(r for r in d["income_affordability"]
+                          if r["state"] == state and r["income_cohort"] == "TOP_20PCT")
+            assert bottom["energy_burden_pct"] > top["energy_burden_pct"], \
+                f"{state}: bottom 20% burden should exceed top 20% burden"
+
+        # SA should have the highest bottom-20% energy burden
+        bottom_20_by_state = {
+            r["state"]: r["energy_burden_pct"]
+            for r in d["income_affordability"]
+            if r["income_cohort"] == "BOTTOM_20PCT"
+        }
+        assert bottom_20_by_state["SA"] == max(bottom_20_by_state.values()), \
+            "SA bottom-20% energy burden should be the highest"
+
+        # --- solar_impact: 24 records (6 states × 4 household types) ---
+        assert len(d["solar_impact"]) == 24, f"Expected 24 solar impact records"
+        valid_types = {"NO_SOLAR", "SOLAR_ONLY", "SOLAR_BATTERY", "VPP_PARTICIPANT"}
+        types_seen: set = set()
+        for rec in d["solar_impact"]:
+            assert rec["state"] in valid_states
+            assert rec["household_type"] in valid_types
+            assert rec["avg_annual_bill_aud"] >= 0
+            assert rec["avg_annual_export_aud"] >= 0
+            assert rec["payback_years"] >= 0
+            assert 0 <= rec["adoption_pct"] <= 100
+            types_seen.add(rec["household_type"])
+        assert types_seen == valid_types
+
+        # NO_SOLAR households should always have the highest net cost per state
+        for state in valid_states:
+            no_solar = next(r for r in d["solar_impact"]
+                            if r["state"] == state and r["household_type"] == "NO_SOLAR")
+            solar_only = next(r for r in d["solar_impact"]
+                              if r["state"] == state and r["household_type"] == "SOLAR_ONLY")
+            assert no_solar["net_energy_cost_aud"] > solar_only["net_energy_cost_aud"], \
+                f"{state}: NO_SOLAR net cost should exceed SOLAR_ONLY net cost"
+
+        # VPP_PARTICIPANT should have the lowest (most negative) net cost in QLD and SA
+        for state in ("QLD", "SA"):
+            state_recs = [r for r in d["solar_impact"] if r["state"] == state]
+            min_cost_type = min(state_recs, key=lambda r: r["net_energy_cost_aud"])
+            assert min_cost_type["household_type"] == "VPP_PARTICIPANT", \
+                f"{state}: VPP_PARTICIPANT should have the lowest net energy cost"
+
+        # --- assistance_programs: 12 records ---
+        assert len(d["assistance_programs"]) == 12, f"Expected 12 assistance program records"
+        valid_program_types = {"REBATE", "CONCESSION", "PAYMENT_PLAN", "FREE_APPLIANCE"}
+        program_types_seen: set = set()
+        for prog in d["assistance_programs"]:
+            assert prog["program_name"]
+            assert prog["state"] in valid_states
+            assert prog["eligible_cohort"]
+            assert prog["rebate_aud"] >= 0
+            assert prog["recipients_k"] > 0
+            assert prog["total_cost_m_aud"] > 0
+            assert 0 <= prog["effectiveness_score"] <= 10
+            assert prog["program_type"] in valid_program_types
+            program_types_seen.add(prog["program_type"])
+        assert program_types_seen == valid_program_types, \
+            "All 4 program types must be represented"
+
+        # NSW Solar for Low Income should have the highest effectiveness score
+        by_program = {p["program_name"]: p for p in d["assistance_programs"]}
+        assert by_program["NSW Solar for Low Income"]["effectiveness_score"] == max(
+            p["effectiveness_score"] for p in d["assistance_programs"]
+        ), "NSW Solar for Low Income should have the highest effectiveness score"
+
+        # Total assistance spending must exceed 1000 M AUD
+        total_spend = sum(p["total_cost_m_aud"] for p in d["assistance_programs"])
+        assert total_spend > 1000, f"Total assistance spend {total_spend:.1f}M should exceed 1000M AUD"
+
+
+class TestClimatePhysicalRisk:
+    """Sprint 58b — Climate Physical Risk to Grid Assets endpoint tests."""
+
+    def test_climate_physical_risk_dashboard(self, client: TestClient) -> None:
+        resp = client.get(
+            "/api/climate-risk/physical-dashboard",
+            headers={"x-api-key": "test-key"},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "assets" in d
+        assert "hazard_projections" in d
+        assert "climate_events" in d
+        assert "adaptation_measures" in d
+
+        # assets: exactly 12 records
+        assert len(d["assets"]) == 12
+        valid_asset_types = {
+            "TRANSMISSION_LINE", "SUBSTATION", "GENERATION",
+            "DISTRIBUTION", "STORAGE",
+        }
+        valid_hazards = {
+            "EXTREME_HEAT", "FLOODING", "BUSHFIRE",
+            "CYCLONE", "SEA_LEVEL_RISE", "DROUGHT",
+        }
+        valid_adaptation_statuses = {"NO_ACTION", "PLANNING", "IN_PROGRESS", "COMPLETE"}
+        for a in d["assets"]:
+            assert a["asset_id"]
+            assert a["asset_name"]
+            assert a["asset_type"] in valid_asset_types
+            assert a["region"]
+            assert a["value_m_aud"] > 0
+            assert 0 <= a["exposure_score"] <= 100
+            assert 0 <= a["vulnerability_score"] <= 100
+            assert 0 <= a["risk_score"] <= 100
+            assert a["primary_hazard"] in valid_hazards
+            assert a["adaptation_status"] in valid_adaptation_statuses
+
+        # Highest risk asset should have risk_score >= 80
+        max_risk = max(a["risk_score"] for a in d["assets"])
+        assert max_risk >= 80.0
+
+        # All five asset types must be represented
+        types_seen = {a["asset_type"] for a in d["assets"]}
+        assert types_seen == valid_asset_types
+
+        # hazard_projections: exactly 20 records (5 hazards × 2 scenarios × 2 regions)
+        assert len(d["hazard_projections"]) == 20
+        valid_scenarios = {"RCP45", "RCP85"}
+        valid_confidence = {"HIGH", "MEDIUM", "LOW"}
+        for h in d["hazard_projections"]:
+            assert h["hazard"] in valid_hazards
+            assert h["scenario"] in valid_scenarios
+            assert h["confidence_level"] in valid_confidence
+            assert h["year_2030_change_pct"] > 0
+            assert h["year_2050_change_pct"] > h["year_2030_change_pct"]
+            assert h["year_2070_change_pct"] > h["year_2050_change_pct"]
+            assert h["frequency_multiplier"] >= 1.0
+
+        # RCP85 must have higher 2070 change than RCP45 for same hazard+region
+        rcp85_2070 = {(h["hazard"], h["region"]): h["year_2070_change_pct"] for h in d["hazard_projections"] if h["scenario"] == "RCP85"}
+        rcp45_2070 = {(h["hazard"], h["region"]): h["year_2070_change_pct"] for h in d["hazard_projections"] if h["scenario"] == "RCP45"}
+        for key in rcp85_2070:
+            if key in rcp45_2070:
+                assert rcp85_2070[key] > rcp45_2070[key]
+
+        # climate_events: exactly 8 records
+        assert len(d["climate_events"]) == 8
+        valid_event_types = {"FLOODING", "EXTREME_HEAT", "BUSHFIRE", "CYCLONE", "STORM"}
+        for e in d["climate_events"]:
+            assert e["event_id"]
+            assert e["event_type"] in valid_event_types
+            assert e["date"]
+            assert e["region"]
+            assert e["assets_affected"] > 0
+            assert e["damage_m_aud"] > 0
+            assert e["outage_hours"] >= 0
+            assert e["customers_affected_k"] > 0
+            assert e["recovery_cost_m_aud"] > 0
+
+        # Highest damage event should be a BUSHFIRE
+        max_event = max(d["climate_events"], key=lambda e: e["damage_m_aud"])
+        assert max_event["event_type"] == "BUSHFIRE"
+
+        # adaptation_measures: exactly 10 records
+        assert len(d["adaptation_measures"]) == 10
+        valid_priorities = {"HIGH", "MEDIUM", "LOW"}
+        for m in d["adaptation_measures"]:
+            assert m["measure"]
+            assert m["asset_type"] in valid_asset_types
+            assert m["cost_m_aud"] > 0
+            assert 0 < m["risk_reduction_pct"] <= 100
+            assert m["implementation_years"] >= 1
+            assert m["benefit_cost_ratio"] > 0
+            assert m["priority"] in valid_priorities
+
+        # At least 3 HIGH priority measures
+        high_priority = [m for m in d["adaptation_measures"] if m["priority"] == "HIGH"]
+        assert len(high_priority) >= 3
+
+        # Best BCR measure should have BCR > 5
+        best_bcr = max(m["benefit_cost_ratio"] for m in d["adaptation_measures"])
+        assert best_bcr > 5.0

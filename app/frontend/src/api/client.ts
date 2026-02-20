@@ -7828,3 +7828,180 @@ export interface CbamTradeDashboard {
 
 export const getCbamTradeDashboard = (): Promise<CbamTradeDashboard> =>
   get<CbamTradeDashboard>('/api/cbam-trade/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 58a — Network Congestion Revenue & SRA Analytics
+// ---------------------------------------------------------------------------
+
+export interface NCRSraContractRecord {
+  contract_id:              string
+  quarter:                  string
+  interconnector:           string
+  direction:                'FORWARD' | 'REVERSE'
+  mw_contracted:            number
+  clearing_price_aud_mwh:   number
+  total_value_m_aud:        number
+  holder:                   string
+  utilisation_pct:          number
+}
+
+export interface NCRCongestionRentRecord {
+  quarter:               string
+  interconnector:        string
+  total_rent_m_aud:      number
+  sra_allocated_m_aud:   number
+  retained_m_aud:        number
+  beneficiary:           string
+  binding_hours_pct:     number
+  avg_price_diff_aud:    number
+}
+
+export interface NCRNodalPriceRecord {
+  node_id:                  string
+  node_name:                string
+  region:                   string
+  avg_lmp_aud_mwh:          number
+  congestion_component_aud: number
+  loss_component_aud:       number
+  energy_component_aud:     number
+  price_premium_pct:        number
+}
+
+export interface NCRInterconnectorEconomicsRecord {
+  interconnector:          string
+  year:                    number
+  total_flows_gwh:         number
+  revenue_generated_m_aud: number
+  cost_allocated_m_aud:    number
+  net_benefit_m_aud:       number
+  benefit_cost_ratio:      number
+  capacity_factor_pct:     number
+}
+
+export interface CongestionRevenueDashboard {
+  timestamp:                  string
+  sra_contracts:              NCRSraContractRecord[]
+  congestion_rents:           NCRCongestionRentRecord[]
+  nodal_prices:               NCRNodalPriceRecord[]
+  interconnector_economics:   NCRInterconnectorEconomicsRecord[]
+}
+
+export const getCongestionRevenueDashboard = (): Promise<CongestionRevenueDashboard> =>
+  get<CongestionRevenueDashboard>('/api/congestion-revenue/dashboard')
+
+// ── Sprint 58b: Climate Physical Risk to Grid Assets ─────────────────────────
+
+export interface CPRAssetRecord {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  region: string
+  value_m_aud: number
+  exposure_score: number
+  vulnerability_score: number
+  risk_score: number
+  primary_hazard: string
+  adaptation_status: string
+}
+
+export interface CPRHazardProjectionRecord {
+  hazard: string
+  region: string
+  scenario: string
+  year_2030_change_pct: number
+  year_2050_change_pct: number
+  year_2070_change_pct: number
+  frequency_multiplier: number
+  confidence_level: string
+}
+
+export interface CPRClimateEventRecord {
+  event_id: string
+  event_type: string
+  date: string
+  region: string
+  assets_affected: number
+  damage_m_aud: number
+  outage_hours: number
+  customers_affected_k: number
+  recovery_cost_m_aud: number
+}
+
+export interface CPRAdaptationMeasureRecord {
+  measure: string
+  asset_type: string
+  cost_m_aud: number
+  risk_reduction_pct: number
+  implementation_years: number
+  benefit_cost_ratio: number
+  priority: string
+}
+
+export interface ClimatePhysicalRiskDashboard {
+  timestamp: string
+  assets: CPRAssetRecord[]
+  hazard_projections: CPRHazardProjectionRecord[]
+  climate_events: CPRClimateEventRecord[]
+  adaptation_measures: CPRAdaptationMeasureRecord[]
+}
+
+export const getClimatePhysicalRiskDashboard = (): Promise<ClimatePhysicalRiskDashboard> =>
+  get<ClimatePhysicalRiskDashboard>('/api/climate-risk/physical-dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 58c — Energy Affordability & Household Bill Analytics
+// ---------------------------------------------------------------------------
+
+export interface EAHBillTrendRecord {
+  state: string
+  year: number
+  avg_annual_bill_aud: number
+  median_income_pct: number
+  usage_kwh: number
+  network_charges_aud: number
+  wholesale_charges_aud: number
+  environmental_charges_aud: number
+  retail_margin_aud: number
+}
+
+export interface EAHIncomeAffordabilityRecord {
+  state: string
+  income_cohort: 'BOTTOM_20PCT' | 'LOWER_MIDDLE' | 'MIDDLE' | 'UPPER_MIDDLE' | 'TOP_20PCT'
+  annual_income_aud: number
+  energy_spend_aud: number
+  energy_burden_pct: number
+  solar_ownership_pct: number
+  hardship_rate_pct: number
+}
+
+export interface EAHSolarImpactRecord {
+  state: string
+  household_type: 'NO_SOLAR' | 'SOLAR_ONLY' | 'SOLAR_BATTERY' | 'VPP_PARTICIPANT'
+  avg_annual_bill_aud: number
+  avg_annual_export_aud: number
+  net_energy_cost_aud: number
+  payback_years: number
+  adoption_pct: number
+}
+
+export interface EAHAssistanceProgramRecord {
+  program_name: string
+  state: string
+  eligible_cohort: string
+  rebate_aud: number
+  recipients_k: number
+  total_cost_m_aud: number
+  effectiveness_score: number
+  program_type: 'REBATE' | 'CONCESSION' | 'PAYMENT_PLAN' | 'FREE_APPLIANCE'
+}
+
+export interface EnergyAffordabilityDashboard {
+  timestamp: string
+  bill_trends: EAHBillTrendRecord[]
+  income_affordability: EAHIncomeAffordabilityRecord[]
+  solar_impact: EAHSolarImpactRecord[]
+  assistance_programs: EAHAssistanceProgramRecord[]
+}
+
+export const getEnergyAffordabilityDashboard = (): Promise<EnergyAffordabilityDashboard> =>
+  get<EnergyAffordabilityDashboard>('/api/energy-affordability/dashboard')

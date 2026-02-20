@@ -209,6 +209,9 @@ import VolatilityRegimeAnalytics from './pages/VolatilityRegimeAnalytics'
 import BlackStartCapability from './pages/BlackStartCapability'
 import AncillaryServicesCost from './pages/AncillaryServicesCost'
 import CbamTradeAnalytics from './pages/CbamTradeAnalytics'
+import CongestionRevenueAnalytics from './pages/CongestionRevenueAnalytics'
+import ClimatePhysicalRisk from './pages/ClimatePhysicalRisk'
+import EnergyAffordabilityAnalytics from './pages/EnergyAffordabilityAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -353,6 +356,9 @@ const NAV_ITEMS = [
   { to: '/black-start-capability',      label: 'Black Start Capability',       Icon: ShieldAlert   },
   { to: '/ancillary-services-cost',     label: 'Ancillary Services Cost',      Icon: Gauge          },
   { to: '/cbam-trade-analytics',       label: 'CBAM Trade Analytics',         Icon: Globe          },
+  { to: '/congestion-revenue-analytics', label: 'Congestion Revenue & SRA',  Icon: Network        },
+  { to: '/climate-physical-risk',       label: 'Climate Physical Risk',      Icon: Thermometer    },
+  { to: '/energy-affordability',        label: 'Energy Affordability',         Icon: DollarSign     },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -572,6 +578,9 @@ export default function App() {
               <Route path="/black-start-capability"      element={<BlackStartCapability />}         />
               <Route path="/ancillary-services-cost"    element={<AncillaryServicesCost />}        />
               <Route path="/cbam-trade-analytics"       element={<CbamTradeAnalytics />}          />
+              <Route path="/congestion-revenue-analytics" element={<CongestionRevenueAnalytics />} />
+              <Route path="/climate-physical-risk"       element={<ClimatePhysicalRisk />}         />
+              <Route path="/energy-affordability"        element={<EnergyAffordabilityAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

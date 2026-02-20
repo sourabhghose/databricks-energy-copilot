@@ -1526,3 +1526,50 @@ Added Generator Planned Outage & Maintenance Scheduling Analytics page covering 
 **Routing (`app/frontend/src/App.tsx`):** Added `Globe` to lucide-react imports; added `import CbamTradeAnalytics`; nav entry with `Globe` icon at `/cbam-trade-analytics`; `Route` element `<CbamTradeAnalytics />`.
 
 **Tests (`tests/test_backend.py`):** `TestCbamTradeAnalytics.test_cbam_trade_dashboard` validates: top-level structure (timestamp/export_sectors/trade_flows/clean_exports/policies), all 8 sector records with valid enums and non-negative exposures, CLEAN_HYDROGEN and GREEN_AMMONIA have zero CBAM exposure, ALUMINIUM has the highest CBAM exposure, 20 trade flow records across exactly 10 trading partners all for year=2025, EU has the highest CBAM tariff rate, 6 clean export product records with all required fields, LITHIUM_HYDROXIDE has the largest market size, 5 policy records with valid status enums, EU and UK are ENACTED, EU has the highest AU exposure and highest carbon price.
+
+## Sprint 58a — Network Congestion Revenue & SRA Analytics — 2026-02-20
+
+**Backend (`app/backend/main.py`):** Appended Pydantic enum `_NCRDirection` (FORWARD/REVERSE) and models `NCRSraContractRecord`, `NCRCongestionRentRecord`, `NCRNodalPriceRecord`, `NCRInterconnectorEconomicsRecord`, `CongestionRevenueDashboard`, plus `GET /api/congestion-revenue/dashboard` endpoint with `Depends(verify_api_key)`. Mock dataset: 12 SRA contract records (4 interconnectors × 3 quarters: VIC1-NSW1, NSW1-QLD1, SA1-VIC1, TAS1-VIC1), 8 congestion rent records (4 interconnectors × 2 quarters with allocated vs retained split), 10 nodal price records across NSW1/QLD1/VIC1/SA1/TAS1 regions including LMP decomposition (energy + congestion + loss), 6 interconnector economics records (2 years × 3 interconnectors) with BCR, net benefit, and capacity factor data.
+
+**Frontend (`app/frontend/src/pages/CongestionRevenueAnalytics.tsx`):** New page created with:
+- Header + 4 KPI cards: total SRA contract value (A$M), highest congestion rent interconnector (NSW1-QLD1), total retained congestion rent (A$M), best BCR interconnector (NSW1-QLD1 2.54x)
+- SRA contract table with interconnector colour badges, direction badges (FORWARD=blue/REVERSE=amber), MW, clearing price, total value, holder, and utilisation % (colour-coded green/amber/red by threshold)
+- Congestion rent stacked bar chart (Recharts BarChart) — SRA-allocated vs TNSP-retained per interconnector, aggregated across quarters
+- Nodal price scatter chart (Recharts ScatterChart) — x=congestion component, y=avg LMP, distinct colours per NEM region, zero-reference line, custom tooltip
+- Interconnector economics BCR horizontal bar chart — latest year per interconnector, reference line at BCR=1.0, colour-coded by interconnector
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces `NCRSraContractRecord`, `NCRCongestionRentRecord`, `NCRNodalPriceRecord`, `NCRInterconnectorEconomicsRecord`, `CongestionRevenueDashboard` and exported `getCongestionRevenueDashboard()` function.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `import CongestionRevenueAnalytics`; nav entry `{ to: '/congestion-revenue-analytics', label: 'Congestion Revenue & SRA', Icon: Network }`; `<Route path="/congestion-revenue-analytics" element={<CongestionRevenueAnalytics />} />`.
+
+**Tests (`tests/test_backend.py`):** `TestCongestionRevenueAnalytics.test_congestion_revenue_dashboard` validates: top-level structure (5 keys), 12 SRA contracts across exactly 4 interconnectors with valid directions/values, 8 congestion rent records with SRA-allocated + retained = total (±0.1), NSW1-QLD1 highest total rent, 10 nodal price records across ≥4 regions with LMP decomposition correctness (energy+congestion+loss ≈ avg_lmp), SA1 highest congestion components, 6 economics records with BCR>1.0 and net_benefit = revenue - cost (±0.2), NSW1-QLD1 best BCR in latest year.
+
+## Sprint 58c — Energy Affordability & Household Bill Analytics — 2026-02-20
+
+**Backend (`app/backend/main.py`):** Appended Pydantic enums (`_EAHIncomeCohort`, `_EAHHouseholdType`, `_EAHProgramType`) and models (`EAHBillTrendRecord`, `EAHIncomeAffordabilityRecord`, `EAHSolarImpactRecord`, `EAHAssistanceProgramRecord`, `EnergyAffordabilityDashboard`) and `GET /api/energy-affordability/dashboard` endpoint with `Depends(verify_api_key)`. Mock dataset: 30 bill trend records (6 states × 5 years 2020–2024 — NSW/VIC/QLD/SA/WA/TAS — tracking avg_annual_bill, median_income_pct, usage_kwh, and four bill component charges), 30 income affordability records (6 states × 5 cohorts BOTTOM_20PCT/LOWER_MIDDLE/MIDDLE/UPPER_MIDDLE/TOP_20PCT — including energy_burden_pct, solar_ownership_pct, hardship_rate_pct), 24 solar impact records (6 states × 4 household types NO_SOLAR/SOLAR_ONLY/SOLAR_BATTERY/VPP_PARTICIPANT — including net_energy_cost, payback_years, adoption_pct), 12 assistance program records spanning all 4 program types (REBATE/CONCESSION/PAYMENT_PLAN/FREE_APPLIANCE).
+
+**Frontend (`app/frontend/src/pages/EnergyAffordabilityAnalytics.tsx`):** New page created with:
+- Header with DollarSign icon + 4 KPI cards: avg national bill 2024 (AUD), bill as % of median income, bottom 20% avg energy burden %, total assistance program spending (M AUD)
+- Bill trend multi-line chart (LineChart) — 6 states over 5 years with toggle buttons to show/hide individual states; custom BillTrendTooltip
+- Bill component stacked bar chart (BarChart) — network/wholesale/environmental/retail margin breakdown for 2024 by state; colour-coded segments
+- Income cohort grouped bar chart (BarChart) — energy burden % by state for all 5 cohorts with red dashed 6% hardship threshold ReferenceLine; custom CohortTooltip
+- Solar impact comparison (ComposedChart with Bars) — net_energy_cost_aud by household type per state with zero ReferenceLine; adoption % mini-summary cards
+- Assistance program table — sorted by effectiveness_score desc; columns: program name, state badge, eligible cohort, rebate AUD, recipients (k), total cost (M AUD), program type badge, star effectiveness rating; summary totals row
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`EAHBillTrendRecord`, `EAHIncomeAffordabilityRecord`, `EAHSolarImpactRecord`, `EAHAssistanceProgramRecord`, `EnergyAffordabilityDashboard`) and `getEnergyAffordabilityDashboard()` exported function.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `import EnergyAffordabilityAnalytics`; nav entry `{ to: '/energy-affordability', label: 'Energy Affordability', Icon: DollarSign }`; `Route` element `<EnergyAffordabilityAnalytics />` at path `/energy-affordability`.
+
+**Tests (`tests/test_backend.py`):** `TestEnergyAffordabilityAnalytics.test_energy_affordability_dashboard` validates: top-level keys present, 30 bill trend records with all 6 states and all 5 years, SA has the highest 2024 avg bill and WA the lowest, 30 income affordability records with all 5 cohorts, bottom-20% energy burden exceeds top-20% within every state, SA has the highest bottom-20% energy burden, 24 solar impact records with all 4 household types, NO_SOLAR net cost exceeds SOLAR_ONLY in every state, VPP_PARTICIPANT has the lowest net cost in QLD and SA, 12 assistance programs covering all 4 program types, NSW Solar for Low Income has the highest effectiveness score, total assistance spending exceeds $1,000M AUD.
+
+## Sprint 58b — Climate Physical Risk to Grid Assets — 2026-02-20
+
+**Backend (`app/backend/main.py`):** Appended models `CPRAssetRecord`, `CPRHazardProjectionRecord`, `CPRClimateEventRecord`, `CPRAdaptationMeasureRecord`, and `ClimatePhysicalRiskDashboard` (all prefixed `CPR` to avoid collision with existing `ClimateRiskDashboard`). Mock data: 12 grid asset records (TRANSMISSION_LINE, SUBSTATION, GENERATION, DISTRIBUTION, STORAGE) across NSW/VIC/QLD/SA/WA with exposure/vulnerability/risk scores (0-100) and primary hazard (EXTREME_HEAT/FLOODING/BUSHFIRE/CYCLONE/SEA_LEVEL_RISE/DROUGHT); 20 hazard projection records (5 hazards × 2 scenarios RCP4.5/RCP8.5 × 2 key regions) with 2030/2050/2070 change % and frequency multipliers; 8 historical climate event records; 10 adaptation measures with benefit-cost ratios. Endpoint: `GET /api/climate-risk/physical-dashboard` → `ClimatePhysicalRiskDashboard`, uses `@app.get()` with `dependencies=[Depends(verify_api_key)]`.
+
+**Frontend (`app/frontend/src/pages/ClimatePhysicalRisk.tsx`):** New file. Dark Tailwind theme. Header with `Thermometer` icon. 4 KPI cards (total exposed asset value in $B AUD, highest risk asset name/score, total event damage M AUD, high-priority adaptation count). Risk matrix ScatterChart (x=exposure_score, y=vulnerability_score, ZAxis=value_m_aud, coloured by asset_type with legend). Hazard projection LineChart showing 2030/2050/2070 change % for RCP8.5 per hazard. Climate event damage BarChart sorted by damage_m_aud with dual Y-axis for outage_hours. Adaptation measures table sorted by priority with BCR, cost, risk reduction %, and colour-coded priority badge.
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces `CPRAssetRecord`, `CPRHazardProjectionRecord`, `CPRClimateEventRecord`, `CPRAdaptationMeasureRecord`, `ClimatePhysicalRiskDashboard`, and exported `getClimatePhysicalRiskDashboard()` function calling `/api/climate-risk/physical-dashboard`.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `import ClimatePhysicalRisk from './pages/ClimatePhysicalRisk'`; nav entry `{ to: '/climate-physical-risk', label: 'Climate Physical Risk', Icon: Thermometer }` (Thermometer already imported); `Route path="/climate-physical-risk"` with `element={<ClimatePhysicalRisk />}`.
+
+**Tests (`tests/test_backend.py`):** Appended `TestClimatePhysicalRisk.test_climate_physical_risk_dashboard` validating: HTTP 200, all top-level keys present, 12 assets with valid enums and score ranges 0-100, highest risk >= 80, all 5 asset types represented, 20 hazard projections with RCP8.5 always higher than RCP4.5 at 2070, 8 climate events with highest-damage event being BUSHFIRE, 10 adaptation measures with at least 3 HIGH-priority and best BCR > 5.

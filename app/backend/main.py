@@ -17,6 +17,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+from enum import Enum
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import anthropic
@@ -41517,4 +41518,872 @@ def get_cbam_trade_dashboard() -> CbamTradeDashboard:
         trade_flows=_CBA_TRADE_FLOWS,
         clean_exports=_CBA_CLEAN_EXPORTS,
         policies=_CBA_POLICIES,
+    )
+
+# ===========================================================================
+# Sprint 58a — Network Congestion Revenue & SRA Analytics
+# ===========================================================================
+
+class _NCRDirection(str, Enum):
+    FORWARD = "FORWARD"
+    REVERSE = "REVERSE"
+
+
+class NCRSraContractRecord(BaseModel):
+    contract_id: str
+    quarter: str
+    interconnector: str
+    direction: _NCRDirection
+    mw_contracted: float
+    clearing_price_aud_mwh: float
+    total_value_m_aud: float
+    holder: str
+    utilisation_pct: float
+
+
+class NCRCongestionRentRecord(BaseModel):
+    quarter: str
+    interconnector: str
+    total_rent_m_aud: float
+    sra_allocated_m_aud: float
+    retained_m_aud: float
+    beneficiary: str
+    binding_hours_pct: float
+    avg_price_diff_aud: float
+
+
+class NCRNodalPriceRecord(BaseModel):
+    node_id: str
+    node_name: str
+    region: str
+    avg_lmp_aud_mwh: float
+    congestion_component_aud: float
+    loss_component_aud: float
+    energy_component_aud: float
+    price_premium_pct: float
+
+
+class NCRInterconnectorEconomicsRecord(BaseModel):
+    interconnector: str
+    year: int
+    total_flows_gwh: float
+    revenue_generated_m_aud: float
+    cost_allocated_m_aud: float
+    net_benefit_m_aud: float
+    benefit_cost_ratio: float
+    capacity_factor_pct: float
+
+
+class CongestionRevenueDashboard(BaseModel):
+    timestamp: str
+    sra_contracts: List[NCRSraContractRecord]
+    congestion_rents: List[NCRCongestionRentRecord]
+    nodal_prices: List[NCRNodalPriceRecord]
+    interconnector_economics: List[NCRInterconnectorEconomicsRecord]
+
+
+# -- Mock data ---------------------------------------------------------------
+
+_NCR_SRA_CONTRACTS: List[NCRSraContractRecord] = [
+    # VIC1-NSW1 — 3 quarters
+    NCRSraContractRecord(
+        contract_id="SRA-VIC1-NSW1-Q1-2025",
+        quarter="Q1-2025",
+        interconnector="VIC1-NSW1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=400.0,
+        clearing_price_aud_mwh=12.50,
+        total_value_m_aud=10.95,
+        holder="AGL Energy",
+        utilisation_pct=78.4,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-VIC1-NSW1-Q2-2025",
+        quarter="Q2-2025",
+        interconnector="VIC1-NSW1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=420.0,
+        clearing_price_aud_mwh=14.20,
+        total_value_m_aud=12.71,
+        holder="Origin Energy",
+        utilisation_pct=82.1,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-VIC1-NSW1-Q3-2025",
+        quarter="Q3-2025",
+        interconnector="VIC1-NSW1",
+        direction=_NCRDirection.REVERSE,
+        mw_contracted=350.0,
+        clearing_price_aud_mwh=9.80,
+        total_value_m_aud=7.72,
+        holder="Energy Australia",
+        utilisation_pct=61.5,
+    ),
+    # NSW1-QLD1 — 3 quarters
+    NCRSraContractRecord(
+        contract_id="SRA-NSW1-QLD1-Q1-2025",
+        quarter="Q1-2025",
+        interconnector="NSW1-QLD1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=500.0,
+        clearing_price_aud_mwh=18.60,
+        total_value_m_aud=20.84,
+        holder="CS Energy",
+        utilisation_pct=91.3,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-NSW1-QLD1-Q2-2025",
+        quarter="Q2-2025",
+        interconnector="NSW1-QLD1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=480.0,
+        clearing_price_aud_mwh=16.40,
+        total_value_m_aud=17.78,
+        holder="AGL Energy",
+        utilisation_pct=87.6,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-NSW1-QLD1-Q3-2025",
+        quarter="Q3-2025",
+        interconnector="NSW1-QLD1",
+        direction=_NCRDirection.REVERSE,
+        mw_contracted=300.0,
+        clearing_price_aud_mwh=8.20,
+        total_value_m_aud=5.55,
+        holder="Snowy Hydro",
+        utilisation_pct=45.2,
+    ),
+    # SA1-VIC1 — 3 quarters
+    NCRSraContractRecord(
+        contract_id="SRA-SA1-VIC1-Q1-2025",
+        quarter="Q1-2025",
+        interconnector="SA1-VIC1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=250.0,
+        clearing_price_aud_mwh=22.30,
+        total_value_m_aud=12.53,
+        holder="Neoen",
+        utilisation_pct=69.8,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-SA1-VIC1-Q2-2025",
+        quarter="Q2-2025",
+        interconnector="SA1-VIC1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=270.0,
+        clearing_price_aud_mwh=25.10,
+        total_value_m_aud=15.24,
+        holder="AGL Energy",
+        utilisation_pct=74.3,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-SA1-VIC1-Q3-2025",
+        quarter="Q3-2025",
+        interconnector="SA1-VIC1",
+        direction=_NCRDirection.REVERSE,
+        mw_contracted=180.0,
+        clearing_price_aud_mwh=11.70,
+        total_value_m_aud=4.75,
+        holder="Origin Energy",
+        utilisation_pct=52.6,
+    ),
+    # TAS1-VIC1 (Basslink) — 3 quarters
+    NCRSraContractRecord(
+        contract_id="SRA-TAS1-VIC1-Q1-2025",
+        quarter="Q1-2025",
+        interconnector="TAS1-VIC1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=300.0,
+        clearing_price_aud_mwh=19.40,
+        total_value_m_aud=13.07,
+        holder="Hydro Tasmania",
+        utilisation_pct=84.7,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-TAS1-VIC1-Q2-2025",
+        quarter="Q2-2025",
+        interconnector="TAS1-VIC1",
+        direction=_NCRDirection.FORWARD,
+        mw_contracted=320.0,
+        clearing_price_aud_mwh=21.80,
+        total_value_m_aud=15.68,
+        holder="Hydro Tasmania",
+        utilisation_pct=89.2,
+    ),
+    NCRSraContractRecord(
+        contract_id="SRA-TAS1-VIC1-Q3-2025",
+        quarter="Q3-2025",
+        interconnector="TAS1-VIC1",
+        direction=_NCRDirection.REVERSE,
+        mw_contracted=200.0,
+        clearing_price_aud_mwh=7.60,
+        total_value_m_aud=3.42,
+        holder="Energy Australia",
+        utilisation_pct=38.9,
+    ),
+]
+
+_NCR_CONGESTION_RENTS: List[NCRCongestionRentRecord] = [
+    NCRCongestionRentRecord(
+        quarter="Q1-2025",
+        interconnector="VIC1-NSW1",
+        total_rent_m_aud=38.4,
+        sra_allocated_m_aud=23.7,
+        retained_m_aud=14.7,
+        beneficiary="AEMO",
+        binding_hours_pct=42.3,
+        avg_price_diff_aud=28.5,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q2-2025",
+        interconnector="VIC1-NSW1",
+        total_rent_m_aud=45.1,
+        sra_allocated_m_aud=29.2,
+        retained_m_aud=15.9,
+        beneficiary="AEMO",
+        binding_hours_pct=48.7,
+        avg_price_diff_aud=33.2,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q1-2025",
+        interconnector="NSW1-QLD1",
+        total_rent_m_aud=62.8,
+        sra_allocated_m_aud=41.5,
+        retained_m_aud=21.3,
+        beneficiary="AEMO",
+        binding_hours_pct=57.6,
+        avg_price_diff_aud=45.8,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q2-2025",
+        interconnector="NSW1-QLD1",
+        total_rent_m_aud=54.3,
+        sra_allocated_m_aud=35.8,
+        retained_m_aud=18.5,
+        beneficiary="AEMO",
+        binding_hours_pct=52.1,
+        avg_price_diff_aud=39.6,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q1-2025",
+        interconnector="SA1-VIC1",
+        total_rent_m_aud=29.7,
+        sra_allocated_m_aud=18.4,
+        retained_m_aud=11.3,
+        beneficiary="ElectraNet",
+        binding_hours_pct=34.8,
+        avg_price_diff_aud=22.1,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q2-2025",
+        interconnector="SA1-VIC1",
+        total_rent_m_aud=34.2,
+        sra_allocated_m_aud=21.9,
+        retained_m_aud=12.3,
+        beneficiary="ElectraNet",
+        binding_hours_pct=39.2,
+        avg_price_diff_aud=26.4,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q1-2025",
+        interconnector="TAS1-VIC1",
+        total_rent_m_aud=22.5,
+        sra_allocated_m_aud=16.8,
+        retained_m_aud=5.7,
+        beneficiary="TasNetworks",
+        binding_hours_pct=28.4,
+        avg_price_diff_aud=18.9,
+    ),
+    NCRCongestionRentRecord(
+        quarter="Q2-2025",
+        interconnector="TAS1-VIC1",
+        total_rent_m_aud=26.1,
+        sra_allocated_m_aud=19.4,
+        retained_m_aud=6.7,
+        beneficiary="TasNetworks",
+        binding_hours_pct=31.6,
+        avg_price_diff_aud=21.7,
+    ),
+]
+
+_NCR_NODAL_PRICES: List[NCRNodalPriceRecord] = [
+    NCRNodalPriceRecord(
+        node_id="NSW-SYDNEY-WEST",
+        node_name="Sydney West 330kV",
+        region="NSW1",
+        avg_lmp_aud_mwh=112.4,
+        congestion_component_aud=18.6,
+        loss_component_aud=3.2,
+        energy_component_aud=90.6,
+        price_premium_pct=16.5,
+    ),
+    NCRNodalPriceRecord(
+        node_id="NSW-HUNTER-VALLEY",
+        node_name="Hunter Valley 132kV",
+        region="NSW1",
+        avg_lmp_aud_mwh=98.7,
+        congestion_component_aud=8.4,
+        loss_component_aud=2.1,
+        energy_component_aud=88.2,
+        price_premium_pct=5.6,
+    ),
+    NCRNodalPriceRecord(
+        node_id="QLD-SOUTH-EAST",
+        node_name="South East QLD 275kV",
+        region="QLD1",
+        avg_lmp_aud_mwh=128.9,
+        congestion_component_aud=32.1,
+        loss_component_aud=4.5,
+        energy_component_aud=92.3,
+        price_premium_pct=28.7,
+    ),
+    NCRNodalPriceRecord(
+        node_id="QLD-NORTH",
+        node_name="North QLD 132kV",
+        region="QLD1",
+        avg_lmp_aud_mwh=87.3,
+        congestion_component_aud=-4.2,
+        loss_component_aud=1.8,
+        energy_component_aud=89.7,
+        price_premium_pct=-2.1,
+    ),
+    NCRNodalPriceRecord(
+        node_id="VIC-MELBOURNE-CBD",
+        node_name="Melbourne CBD 220kV",
+        region="VIC1",
+        avg_lmp_aud_mwh=105.8,
+        congestion_component_aud=14.3,
+        loss_component_aud=2.8,
+        energy_component_aud=88.7,
+        price_premium_pct=12.8,
+    ),
+    NCRNodalPriceRecord(
+        node_id="VIC-LATROBE-VALLEY",
+        node_name="Latrobe Valley 500kV",
+        region="VIC1",
+        avg_lmp_aud_mwh=79.2,
+        congestion_component_aud=-8.9,
+        loss_component_aud=-1.2,
+        energy_component_aud=89.3,
+        price_premium_pct=-7.5,
+    ),
+    NCRNodalPriceRecord(
+        node_id="SA-ADELAIDE",
+        node_name="Adelaide CBD 275kV",
+        region="SA1",
+        avg_lmp_aud_mwh=143.6,
+        congestion_component_aud=42.7,
+        loss_component_aud=5.8,
+        energy_component_aud=95.1,
+        price_premium_pct=36.2,
+        ),
+    NCRNodalPriceRecord(
+        node_id="SA-EYRE-PENINSULA",
+        node_name="Eyre Peninsula 132kV",
+        region="SA1",
+        avg_lmp_aud_mwh=168.4,
+        congestion_component_aud=68.3,
+        loss_component_aud=9.2,
+        energy_component_aud=90.9,
+        price_premium_pct=58.7,
+    ),
+    NCRNodalPriceRecord(
+        node_id="TAS-NORTH",
+        node_name="Northern Tasmania 220kV",
+        region="TAS1",
+        avg_lmp_aud_mwh=95.4,
+        congestion_component_aud=6.8,
+        loss_component_aud=1.5,
+        energy_component_aud=87.1,
+        price_premium_pct=5.9,
+    ),
+    NCRNodalPriceRecord(
+        node_id="TAS-SOUTH",
+        node_name="Southern Tasmania 220kV",
+        region="TAS1",
+        avg_lmp_aud_mwh=91.2,
+        congestion_component_aud=3.4,
+        loss_component_aud=0.9,
+        energy_component_aud=86.9,
+        price_premium_pct=2.8,
+    ),
+]
+
+_NCR_INTERCONNECTOR_ECONOMICS: List[NCRInterconnectorEconomicsRecord] = [
+    NCRInterconnectorEconomicsRecord(
+        interconnector="VIC1-NSW1",
+        year=2024,
+        total_flows_gwh=8420.0,
+        revenue_generated_m_aud=312.5,
+        cost_allocated_m_aud=148.2,
+        net_benefit_m_aud=164.3,
+        benefit_cost_ratio=2.11,
+        capacity_factor_pct=71.4,
+    ),
+    NCRInterconnectorEconomicsRecord(
+        interconnector="NSW1-QLD1",
+        year=2024,
+        total_flows_gwh=9850.0,
+        revenue_generated_m_aud=428.7,
+        cost_allocated_m_aud=176.4,
+        net_benefit_m_aud=252.3,
+        benefit_cost_ratio=2.43,
+        capacity_factor_pct=83.2,
+    ),
+    NCRInterconnectorEconomicsRecord(
+        interconnector="SA1-VIC1",
+        year=2024,
+        total_flows_gwh=4320.0,
+        revenue_generated_m_aud=198.4,
+        cost_allocated_m_aud=112.6,
+        net_benefit_m_aud=85.8,
+        benefit_cost_ratio=1.76,
+        capacity_factor_pct=62.8,
+    ),
+    NCRInterconnectorEconomicsRecord(
+        interconnector="TAS1-VIC1",
+        year=2024,
+        total_flows_gwh=5680.0,
+        revenue_generated_m_aud=267.3,
+        cost_allocated_m_aud=134.5,
+        net_benefit_m_aud=132.8,
+        benefit_cost_ratio=1.99,
+        capacity_factor_pct=78.6,
+    ),
+    NCRInterconnectorEconomicsRecord(
+        interconnector="VIC1-NSW1",
+        year=2025,
+        total_flows_gwh=8910.0,
+        revenue_generated_m_aud=345.8,
+        cost_allocated_m_aud=152.3,
+        net_benefit_m_aud=193.5,
+        benefit_cost_ratio=2.27,
+        capacity_factor_pct=75.5,
+    ),
+    NCRInterconnectorEconomicsRecord(
+        interconnector="NSW1-QLD1",
+        year=2025,
+        total_flows_gwh=10240.0,
+        revenue_generated_m_aud=462.1,
+        cost_allocated_m_aud=181.9,
+        net_benefit_m_aud=280.2,
+        benefit_cost_ratio=2.54,
+        capacity_factor_pct=86.7,
+    ),
+]
+
+
+@app.get("/api/congestion-revenue/dashboard", dependencies=[Depends(verify_api_key)])
+def get_congestion_revenue_dashboard() -> CongestionRevenueDashboard:
+    """Sprint 58a — Network Congestion Revenue & SRA Analytics dashboard."""
+    return CongestionRevenueDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        sra_contracts=_NCR_SRA_CONTRACTS,
+        congestion_rents=_NCR_CONGESTION_RENTS,
+        nodal_prices=_NCR_NODAL_PRICES,
+        interconnector_economics=_NCR_INTERCONNECTOR_ECONOMICS,
+    )
+
+# ── Sprint 58b: Climate Physical Risk to Grid Assets ─────────────────────────
+
+from enum import Enum as _PyEnum
+
+class _CPRAssetType(str, _PyEnum):
+    TRANSMISSION_LINE = "TRANSMISSION_LINE"
+    SUBSTATION        = "SUBSTATION"
+    GENERATION        = "GENERATION"
+    DISTRIBUTION      = "DISTRIBUTION"
+    STORAGE           = "STORAGE"
+
+class _CPRHazard(str, _PyEnum):
+    EXTREME_HEAT    = "EXTREME_HEAT"
+    FLOODING        = "FLOODING"
+    BUSHFIRE        = "BUSHFIRE"
+    CYCLONE         = "CYCLONE"
+    SEA_LEVEL_RISE  = "SEA_LEVEL_RISE"
+    DROUGHT         = "DROUGHT"
+
+class _CPRAdaptationStatus(str, _PyEnum):
+    NO_ACTION   = "NO_ACTION"
+    PLANNING    = "PLANNING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETE    = "COMPLETE"
+
+class _CPRScenario(str, _PyEnum):
+    RCP45 = "RCP45"
+    RCP85 = "RCP85"
+
+class _CPRConfidence(str, _PyEnum):
+    HIGH   = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW    = "LOW"
+
+class _CPRPriority(str, _PyEnum):
+    HIGH   = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW    = "LOW"
+
+class CPRAssetRecord(BaseModel):
+    asset_id:          str
+    asset_name:        str
+    asset_type:        str
+    region:            str
+    value_m_aud:       float
+    exposure_score:    float   # 0-100
+    vulnerability_score: float # 0-100
+    risk_score:        float   # 0-100
+    primary_hazard:    str
+    adaptation_status: str
+
+class CPRHazardProjectionRecord(BaseModel):
+    hazard:                  str
+    region:                  str
+    scenario:                str
+    year_2030_change_pct:    float
+    year_2050_change_pct:    float
+    year_2070_change_pct:    float
+    frequency_multiplier:    float
+    confidence_level:        str
+
+class CPRClimateEventRecord(BaseModel):
+    event_id:              str
+    event_type:            str
+    date:                  str
+    region:                str
+    assets_affected:       int
+    damage_m_aud:          float
+    outage_hours:          float
+    customers_affected_k:  int
+    recovery_cost_m_aud:   float
+
+class CPRAdaptationMeasureRecord(BaseModel):
+    measure:               str
+    asset_type:            str
+    cost_m_aud:            float
+    risk_reduction_pct:    float
+    implementation_years:  int
+    benefit_cost_ratio:    float
+    priority:              str
+
+class ClimatePhysicalRiskDashboard(BaseModel):
+    timestamp:          str
+    assets:             list[CPRAssetRecord]
+    hazard_projections: list[CPRHazardProjectionRecord]
+    climate_events:     list[CPRClimateEventRecord]
+    adaptation_measures: list[CPRAdaptationMeasureRecord]
+
+
+_CPR_ASSETS: list[CPRAssetRecord] = [
+    CPRAssetRecord(asset_id="CPR-TL-001", asset_name="Liddell–Tomago 330kV Corridor", asset_type="TRANSMISSION_LINE", region="NSW",  value_m_aud=820.0,  exposure_score=72.0, vulnerability_score=55.0, risk_score=62.0, primary_hazard="BUSHFIRE",     adaptation_status="PLANNING"),
+    CPRAssetRecord(asset_id="CPR-TL-002", asset_name="Western Victoria 500kV Line",   asset_type="TRANSMISSION_LINE", region="VIC",  value_m_aud=1250.0, exposure_score=68.0, vulnerability_score=48.0, risk_score=57.0, primary_hazard="BUSHFIRE",     adaptation_status="IN_PROGRESS"),
+    CPRAssetRecord(asset_id="CPR-TL-003", asset_name="Northern QLD 275kV Corridor",   asset_type="TRANSMISSION_LINE", region="QLD",  value_m_aud=940.0,  exposure_score=85.0, vulnerability_score=70.0, risk_score=78.0, primary_hazard="CYCLONE",      adaptation_status="NO_ACTION"),
+    CPRAssetRecord(asset_id="CPR-SS-001", asset_name="Lismore 132kV Substation",      asset_type="SUBSTATION",         region="NSW",  value_m_aud=185.0,  exposure_score=90.0, vulnerability_score=80.0, risk_score=87.0, primary_hazard="FLOODING",     adaptation_status="PLANNING"),
+    CPRAssetRecord(asset_id="CPR-SS-002", asset_name="Townsville 132kV Substation",   asset_type="SUBSTATION",         region="QLD",  value_m_aud=210.0,  exposure_score=88.0, vulnerability_score=78.0, risk_score=84.0, primary_hazard="CYCLONE",      adaptation_status="PLANNING"),
+    CPRAssetRecord(asset_id="CPR-SS-003", asset_name="Morwell 220kV Substation",      asset_type="SUBSTATION",         region="VIC",  value_m_aud=340.0,  exposure_score=60.0, vulnerability_score=72.0, risk_score=65.0, primary_hazard="BUSHFIRE",     adaptation_status="IN_PROGRESS"),
+    CPRAssetRecord(asset_id="CPR-GN-001", asset_name="Eraring Power Station Site",    asset_type="GENERATION",         region="NSW",  value_m_aud=2100.0, exposure_score=55.0, vulnerability_score=40.0, risk_score=48.0, primary_hazard="EXTREME_HEAT", adaptation_status="PLANNING"),
+    CPRAssetRecord(asset_id="CPR-GN-002", asset_name="Callide Power Station",         asset_type="GENERATION",         region="QLD",  value_m_aud=1800.0, exposure_score=75.0, vulnerability_score=62.0, risk_score=69.0, primary_hazard="FLOODING",     adaptation_status="NO_ACTION"),
+    CPRAssetRecord(asset_id="CPR-DI-001", asset_name="Orbost 22kV Distribution Zone", asset_type="DISTRIBUTION",       region="VIC",  value_m_aud=42.0,   exposure_score=92.0, vulnerability_score=85.0, risk_score=89.0, primary_hazard="BUSHFIRE",     adaptation_status="IN_PROGRESS"),
+    CPRAssetRecord(asset_id="CPR-DI-002", asset_name="Ceduna 66kV Distribution Zone", asset_type="DISTRIBUTION",       region="SA",   value_m_aud=28.0,   exposure_score=65.0, vulnerability_score=58.0, risk_score=61.0, primary_hazard="EXTREME_HEAT", adaptation_status="NO_ACTION"),
+    CPRAssetRecord(asset_id="CPR-ST-001", asset_name="Hornsdale Power Reserve",       asset_type="STORAGE",            region="SA",   value_m_aud=160.0,  exposure_score=50.0, vulnerability_score=45.0, risk_score=47.0, primary_hazard="EXTREME_HEAT", adaptation_status="COMPLETE"),
+    CPRAssetRecord(asset_id="CPR-ST-002", asset_name="Victorian Big Battery",         asset_type="STORAGE",            region="VIC",  value_m_aud=190.0,  exposure_score=52.0, vulnerability_score=42.0, risk_score=46.0, primary_hazard="BUSHFIRE",     adaptation_status="IN_PROGRESS"),
+]
+
+_CPR_HAZARD_PROJECTIONS: list[CPRHazardProjectionRecord] = [
+    # EXTREME_HEAT — NSW
+    CPRHazardProjectionRecord(hazard="EXTREME_HEAT",   region="NSW", scenario="RCP45", year_2030_change_pct=12.0, year_2050_change_pct=22.0, year_2070_change_pct=30.0, frequency_multiplier=1.8, confidence_level="HIGH"),
+    CPRHazardProjectionRecord(hazard="EXTREME_HEAT",   region="NSW", scenario="RCP85", year_2030_change_pct=18.0, year_2050_change_pct=40.0, year_2070_change_pct=68.0, frequency_multiplier=3.2, confidence_level="HIGH"),
+    # EXTREME_HEAT — QLD
+    CPRHazardProjectionRecord(hazard="EXTREME_HEAT",   region="QLD", scenario="RCP45", year_2030_change_pct=14.0, year_2050_change_pct=26.0, year_2070_change_pct=38.0, frequency_multiplier=2.1, confidence_level="HIGH"),
+    CPRHazardProjectionRecord(hazard="EXTREME_HEAT",   region="QLD", scenario="RCP85", year_2030_change_pct=22.0, year_2050_change_pct=50.0, year_2070_change_pct=85.0, frequency_multiplier=4.5, confidence_level="HIGH"),
+    # FLOODING — NSW
+    CPRHazardProjectionRecord(hazard="FLOODING",       region="NSW", scenario="RCP45", year_2030_change_pct=8.0,  year_2050_change_pct=15.0, year_2070_change_pct=22.0, frequency_multiplier=1.4, confidence_level="MEDIUM"),
+    CPRHazardProjectionRecord(hazard="FLOODING",       region="NSW", scenario="RCP85", year_2030_change_pct=12.0, year_2050_change_pct=28.0, year_2070_change_pct=48.0, frequency_multiplier=2.6, confidence_level="MEDIUM"),
+    # FLOODING — QLD
+    CPRHazardProjectionRecord(hazard="FLOODING",       region="QLD", scenario="RCP45", year_2030_change_pct=10.0, year_2050_change_pct=18.0, year_2070_change_pct=28.0, frequency_multiplier=1.6, confidence_level="MEDIUM"),
+    CPRHazardProjectionRecord(hazard="FLOODING",       region="QLD", scenario="RCP85", year_2030_change_pct=15.0, year_2050_change_pct=35.0, year_2070_change_pct=58.0, frequency_multiplier=3.1, confidence_level="MEDIUM"),
+    # BUSHFIRE — VIC
+    CPRHazardProjectionRecord(hazard="BUSHFIRE",       region="VIC", scenario="RCP45", year_2030_change_pct=20.0, year_2050_change_pct=35.0, year_2070_change_pct=48.0, frequency_multiplier=1.9, confidence_level="HIGH"),
+    CPRHazardProjectionRecord(hazard="BUSHFIRE",       region="VIC", scenario="RCP85", year_2030_change_pct=30.0, year_2050_change_pct=60.0, year_2070_change_pct=95.0, frequency_multiplier=3.8, confidence_level="HIGH"),
+    # BUSHFIRE — NSW
+    CPRHazardProjectionRecord(hazard="BUSHFIRE",       region="NSW", scenario="RCP45", year_2030_change_pct=18.0, year_2050_change_pct=30.0, year_2070_change_pct=42.0, frequency_multiplier=1.7, confidence_level="HIGH"),
+    CPRHazardProjectionRecord(hazard="BUSHFIRE",       region="NSW", scenario="RCP85", year_2030_change_pct=28.0, year_2050_change_pct=55.0, year_2070_change_pct=88.0, frequency_multiplier=3.5, confidence_level="HIGH"),
+    # CYCLONE — QLD
+    CPRHazardProjectionRecord(hazard="CYCLONE",        region="QLD", scenario="RCP45", year_2030_change_pct=5.0,  year_2050_change_pct=10.0, year_2070_change_pct=18.0, frequency_multiplier=1.2, confidence_level="MEDIUM"),
+    CPRHazardProjectionRecord(hazard="CYCLONE",        region="QLD", scenario="RCP85", year_2030_change_pct=8.0,  year_2050_change_pct=20.0, year_2070_change_pct=38.0, frequency_multiplier=1.8, confidence_level="LOW"),
+    # SEA_LEVEL_RISE — NSW
+    CPRHazardProjectionRecord(hazard="SEA_LEVEL_RISE", region="NSW", scenario="RCP45", year_2030_change_pct=3.0,  year_2050_change_pct=9.0,  year_2070_change_pct=18.0, frequency_multiplier=1.1, confidence_level="HIGH"),
+    CPRHazardProjectionRecord(hazard="SEA_LEVEL_RISE", region="NSW", scenario="RCP85", year_2030_change_pct=5.0,  year_2050_change_pct=18.0, year_2070_change_pct=42.0, frequency_multiplier=1.6, confidence_level="HIGH"),
+    # DROUGHT — SA
+    CPRHazardProjectionRecord(hazard="DROUGHT",        region="SA",  scenario="RCP45", year_2030_change_pct=10.0, year_2050_change_pct=20.0, year_2070_change_pct=32.0, frequency_multiplier=1.5, confidence_level="MEDIUM"),
+    CPRHazardProjectionRecord(hazard="DROUGHT",        region="SA",  scenario="RCP85", year_2030_change_pct=16.0, year_2050_change_pct=38.0, year_2070_change_pct=62.0, frequency_multiplier=2.8, confidence_level="MEDIUM"),
+    # DROUGHT — VIC
+    CPRHazardProjectionRecord(hazard="DROUGHT",        region="VIC", scenario="RCP45", year_2030_change_pct=8.0,  year_2050_change_pct=16.0, year_2070_change_pct=26.0, frequency_multiplier=1.4, confidence_level="MEDIUM"),
+    CPRHazardProjectionRecord(hazard="DROUGHT",        region="VIC", scenario="RCP85", year_2030_change_pct=14.0, year_2050_change_pct=30.0, year_2070_change_pct=52.0, frequency_multiplier=2.4, confidence_level="MEDIUM"),
+]
+
+_CPR_CLIMATE_EVENTS: list[CPRClimateEventRecord] = [
+    CPRClimateEventRecord(event_id="CPRE-001", event_type="FLOODING",     date="2022-03-01", region="NSW", assets_affected=28, damage_m_aud=185.0, outage_hours=168.0, customers_affected_k=42,  recovery_cost_m_aud=120.0),
+    CPRClimateEventRecord(event_id="CPRE-002", event_type="FLOODING",     date="2022-02-28", region="QLD", assets_affected=45, damage_m_aud=220.0, outage_hours=72.0,  customers_affected_k=95,  recovery_cost_m_aud=145.0),
+    CPRClimateEventRecord(event_id="CPRE-003", event_type="EXTREME_HEAT", date="2023-01-24", region="SA",  assets_affected=18, damage_m_aud=28.0,  outage_hours=6.5,   customers_affected_k=65,  recovery_cost_m_aud=18.0),
+    CPRClimateEventRecord(event_id="CPRE-004", event_type="BUSHFIRE",     date="2019-11-08", region="NSW", assets_affected=62, damage_m_aud=380.0, outage_hours=240.0, customers_affected_k=125, recovery_cost_m_aud=195.0),
+    CPRClimateEventRecord(event_id="CPRE-005", event_type="BUSHFIRE",     date="2019-12-30", region="VIC", assets_affected=38, damage_m_aud=210.0, outage_hours=120.0, customers_affected_k=85,  recovery_cost_m_aud=145.0),
+    CPRClimateEventRecord(event_id="CPRE-006", event_type="CYCLONE",      date="2022-04-05", region="QLD", assets_affected=42, damage_m_aud=145.0, outage_hours=96.0,  customers_affected_k=58,  recovery_cost_m_aud=92.0),
+    CPRClimateEventRecord(event_id="CPRE-007", event_type="EXTREME_HEAT", date="2024-02-08", region="WA",  assets_affected=22, damage_m_aud=55.0,  outage_hours=8.0,   customers_affected_k=180, recovery_cost_m_aud=32.0),
+    CPRClimateEventRecord(event_id="CPRE-008", event_type="BUSHFIRE",     date="2020-01-03", region="SA",  assets_affected=28, damage_m_aud=65.0,  outage_hours=72.0,  customers_affected_k=35,  recovery_cost_m_aud=42.0),
+]
+
+_CPR_ADAPTATION_MEASURES: list[CPRAdaptationMeasureRecord] = [
+    CPRAdaptationMeasureRecord(measure="Undergrounding HV feeders in high-bushfire-risk corridors", asset_type="DISTRIBUTION",      cost_m_aud=450.0, risk_reduction_pct=75.0, implementation_years=5, benefit_cost_ratio=3.2, priority="HIGH"),
+    CPRAdaptationMeasureRecord(measure="Flood-proof substation platform elevation",                  asset_type="SUBSTATION",         cost_m_aud=120.0, risk_reduction_pct=85.0, implementation_years=3, benefit_cost_ratio=4.8, priority="HIGH"),
+    CPRAdaptationMeasureRecord(measure="Cyclone-rated lattice tower replacement",                    asset_type="TRANSMISSION_LINE",  cost_m_aud=680.0, risk_reduction_pct=60.0, implementation_years=7, benefit_cost_ratio=2.5, priority="HIGH"),
+    CPRAdaptationMeasureRecord(measure="Battery thermal management system upgrade",                   asset_type="STORAGE",            cost_m_aud=35.0,  risk_reduction_pct=50.0, implementation_years=2, benefit_cost_ratio=5.1, priority="MEDIUM"),
+    CPRAdaptationMeasureRecord(measure="Transformer oil cooling enhancement for extreme heat",        asset_type="SUBSTATION",         cost_m_aud=85.0,  risk_reduction_pct=45.0, implementation_years=2, benefit_cost_ratio=3.8, priority="MEDIUM"),
+    CPRAdaptationMeasureRecord(measure="Generation cooling water supply diversification",             asset_type="GENERATION",         cost_m_aud=220.0, risk_reduction_pct=40.0, implementation_years=4, benefit_cost_ratio=2.9, priority="MEDIUM"),
+    CPRAdaptationMeasureRecord(measure="Remote monitoring and rapid isolation automation",           asset_type="TRANSMISSION_LINE",  cost_m_aud=95.0,  risk_reduction_pct=30.0, implementation_years=2, benefit_cost_ratio=4.2, priority="MEDIUM"),
+    CPRAdaptationMeasureRecord(measure="Vegetation management buffer expansion (50m to 100m)",       asset_type="DISTRIBUTION",       cost_m_aud=55.0,  risk_reduction_pct=35.0, implementation_years=1, benefit_cost_ratio=6.5, priority="HIGH"),
+    CPRAdaptationMeasureRecord(measure="Sea-level rise bund and coastal protection for coastal assets", asset_type="SUBSTATION",      cost_m_aud=180.0, risk_reduction_pct=70.0, implementation_years=4, benefit_cost_ratio=2.1, priority="LOW"),
+    CPRAdaptationMeasureRecord(measure="Drought-resilient transmission line foundation design",      asset_type="TRANSMISSION_LINE",  cost_m_aud=310.0, risk_reduction_pct=25.0, implementation_years=6, benefit_cost_ratio=1.8, priority="LOW"),
+]
+
+
+@app.get("/api/climate-risk/physical-dashboard", response_model=ClimatePhysicalRiskDashboard, dependencies=[Depends(verify_api_key)])
+def get_climate_physical_risk_dashboard() -> ClimatePhysicalRiskDashboard:
+    """Sprint 58b — Climate Physical Risk to Grid Assets dashboard."""
+    return ClimatePhysicalRiskDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        assets=_CPR_ASSETS,
+        hazard_projections=_CPR_HAZARD_PROJECTIONS,
+        climate_events=_CPR_CLIMATE_EVENTS,
+        adaptation_measures=_CPR_ADAPTATION_MEASURES,
+    )
+
+
+# ===========================================================================
+# Sprint 58c — Energy Affordability & Household Bill Analytics
+# ===========================================================================
+
+from enum import Enum as _EAHEnum
+
+
+class _EAHIncomeCohort(str, _EAHEnum):
+    BOTTOM_20PCT   = "BOTTOM_20PCT"
+    LOWER_MIDDLE   = "LOWER_MIDDLE"
+    MIDDLE         = "MIDDLE"
+    UPPER_MIDDLE   = "UPPER_MIDDLE"
+    TOP_20PCT      = "TOP_20PCT"
+
+
+class _EAHHouseholdType(str, _EAHEnum):
+    NO_SOLAR      = "NO_SOLAR"
+    SOLAR_ONLY    = "SOLAR_ONLY"
+    SOLAR_BATTERY = "SOLAR_BATTERY"
+    VPP_PARTICIPANT = "VPP_PARTICIPANT"
+
+
+class _EAHProgramType(str, _EAHEnum):
+    REBATE        = "REBATE"
+    CONCESSION    = "CONCESSION"
+    PAYMENT_PLAN  = "PAYMENT_PLAN"
+    FREE_APPLIANCE = "FREE_APPLIANCE"
+
+
+class EAHBillTrendRecord(BaseModel):
+    state: str
+    year: int
+    avg_annual_bill_aud: float
+    median_income_pct: float
+    usage_kwh: float
+    network_charges_aud: float
+    wholesale_charges_aud: float
+    environmental_charges_aud: float
+    retail_margin_aud: float
+
+
+class EAHIncomeAffordabilityRecord(BaseModel):
+    state: str
+    income_cohort: _EAHIncomeCohort
+    annual_income_aud: float
+    energy_spend_aud: float
+    energy_burden_pct: float
+    solar_ownership_pct: float
+    hardship_rate_pct: float
+
+
+class EAHSolarImpactRecord(BaseModel):
+    state: str
+    household_type: _EAHHouseholdType
+    avg_annual_bill_aud: float
+    avg_annual_export_aud: float
+    net_energy_cost_aud: float
+    payback_years: float
+    adoption_pct: float
+
+
+class EAHAssistanceProgramRecord(BaseModel):
+    program_name: str
+    state: str
+    eligible_cohort: str
+    rebate_aud: float
+    recipients_k: int
+    total_cost_m_aud: float
+    effectiveness_score: float
+    program_type: _EAHProgramType
+
+
+class EnergyAffordabilityDashboard(BaseModel):
+    timestamp: str
+    bill_trends: list[EAHBillTrendRecord]
+    income_affordability: list[EAHIncomeAffordabilityRecord]
+    solar_impact: list[EAHSolarImpactRecord]
+    assistance_programs: list[EAHAssistanceProgramRecord]
+
+
+# ---------------------------------------------------------------------------
+# Mock data — bill trends: 6 states × 5 years (2020-2024)
+# ---------------------------------------------------------------------------
+_EAH_BILL_TRENDS: list[EAHBillTrendRecord] = [
+    # NSW
+    EAHBillTrendRecord(state="NSW", year=2020, avg_annual_bill_aud=1540.0, median_income_pct=3.8, usage_kwh=5820.0, network_charges_aud=630.0, wholesale_charges_aud=480.0, environmental_charges_aud=210.0, retail_margin_aud=220.0),
+    EAHBillTrendRecord(state="NSW", year=2021, avg_annual_bill_aud=1580.0, median_income_pct=3.9, usage_kwh=5740.0, network_charges_aud=650.0, wholesale_charges_aud=490.0, environmental_charges_aud=215.0, retail_margin_aud=225.0),
+    EAHBillTrendRecord(state="NSW", year=2022, avg_annual_bill_aud=1710.0, median_income_pct=4.2, usage_kwh=5660.0, network_charges_aud=670.0, wholesale_charges_aud=590.0, environmental_charges_aud=225.0, retail_margin_aud=225.0),
+    EAHBillTrendRecord(state="NSW", year=2023, avg_annual_bill_aud=1890.0, median_income_pct=4.6, usage_kwh=5590.0, network_charges_aud=695.0, wholesale_charges_aud=720.0, environmental_charges_aud=240.0, retail_margin_aud=235.0),
+    EAHBillTrendRecord(state="NSW", year=2024, avg_annual_bill_aud=1950.0, median_income_pct=4.7, usage_kwh=5520.0, network_charges_aud=720.0, wholesale_charges_aud=740.0, environmental_charges_aud=255.0, retail_margin_aud=235.0),
+    # VIC
+    EAHBillTrendRecord(state="VIC", year=2020, avg_annual_bill_aud=1480.0, median_income_pct=3.7, usage_kwh=5650.0, network_charges_aud=590.0, wholesale_charges_aud=460.0, environmental_charges_aud=205.0, retail_margin_aud=225.0),
+    EAHBillTrendRecord(state="VIC", year=2021, avg_annual_bill_aud=1520.0, median_income_pct=3.8, usage_kwh=5570.0, network_charges_aud=610.0, wholesale_charges_aud=470.0, environmental_charges_aud=210.0, retail_margin_aud=230.0),
+    EAHBillTrendRecord(state="VIC", year=2022, avg_annual_bill_aud=1680.0, median_income_pct=4.1, usage_kwh=5490.0, network_charges_aud=630.0, wholesale_charges_aud=580.0, environmental_charges_aud=225.0, retail_margin_aud=245.0),
+    EAHBillTrendRecord(state="VIC", year=2023, avg_annual_bill_aud=1850.0, median_income_pct=4.5, usage_kwh=5420.0, network_charges_aud=660.0, wholesale_charges_aud=720.0, environmental_charges_aud=230.0, retail_margin_aud=240.0),
+    EAHBillTrendRecord(state="VIC", year=2024, avg_annual_bill_aud=1920.0, median_income_pct=4.6, usage_kwh=5350.0, network_charges_aud=690.0, wholesale_charges_aud=745.0, environmental_charges_aud=245.0, retail_margin_aud=240.0),
+    # QLD
+    EAHBillTrendRecord(state="QLD", year=2020, avg_annual_bill_aud=1610.0, median_income_pct=4.2, usage_kwh=6120.0, network_charges_aud=680.0, wholesale_charges_aud=500.0, environmental_charges_aud=195.0, retail_margin_aud=235.0),
+    EAHBillTrendRecord(state="QLD", year=2021, avg_annual_bill_aud=1650.0, median_income_pct=4.3, usage_kwh=6050.0, network_charges_aud=700.0, wholesale_charges_aud=510.0, environmental_charges_aud=200.0, retail_margin_aud=240.0),
+    EAHBillTrendRecord(state="QLD", year=2022, avg_annual_bill_aud=1750.0, median_income_pct=4.5, usage_kwh=5980.0, network_charges_aud=720.0, wholesale_charges_aud=570.0, environmental_charges_aud=210.0, retail_margin_aud=250.0),
+    EAHBillTrendRecord(state="QLD", year=2023, avg_annual_bill_aud=1820.0, median_income_pct=4.6, usage_kwh=5910.0, network_charges_aud=740.0, wholesale_charges_aud=610.0, environmental_charges_aud=220.0, retail_margin_aud=250.0),
+    EAHBillTrendRecord(state="QLD", year=2024, avg_annual_bill_aud=1880.0, median_income_pct=4.7, usage_kwh=5840.0, network_charges_aud=760.0, wholesale_charges_aud=640.0, environmental_charges_aud=230.0, retail_margin_aud=250.0),
+    # SA
+    EAHBillTrendRecord(state="SA", year=2020, avg_annual_bill_aud=1820.0, median_income_pct=5.1, usage_kwh=5420.0, network_charges_aud=720.0, wholesale_charges_aud=620.0, environmental_charges_aud=230.0, retail_margin_aud=250.0),
+    EAHBillTrendRecord(state="SA", year=2021, avg_annual_bill_aud=1870.0, median_income_pct=5.2, usage_kwh=5350.0, network_charges_aud=740.0, wholesale_charges_aud=630.0, environmental_charges_aud=235.0, retail_margin_aud=265.0),
+    EAHBillTrendRecord(state="SA", year=2022, avg_annual_bill_aud=2050.0, median_income_pct=5.7, usage_kwh=5270.0, network_charges_aud=760.0, wholesale_charges_aud=770.0, environmental_charges_aud=250.0, retail_margin_aud=270.0),
+    EAHBillTrendRecord(state="SA", year=2023, avg_annual_bill_aud=2210.0, median_income_pct=6.1, usage_kwh=5200.0, network_charges_aud=785.0, wholesale_charges_aud=890.0, environmental_charges_aud=265.0, retail_margin_aud=270.0),
+    EAHBillTrendRecord(state="SA", year=2024, avg_annual_bill_aud=2280.0, median_income_pct=6.2, usage_kwh=5130.0, network_charges_aud=810.0, wholesale_charges_aud=910.0, environmental_charges_aud=280.0, retail_margin_aud=280.0),
+    # WA
+    EAHBillTrendRecord(state="WA", year=2020, avg_annual_bill_aud=1350.0, median_income_pct=3.1, usage_kwh=6200.0, network_charges_aud=520.0, wholesale_charges_aud=430.0, environmental_charges_aud=165.0, retail_margin_aud=235.0),
+    EAHBillTrendRecord(state="WA", year=2021, avg_annual_bill_aud=1390.0, median_income_pct=3.2, usage_kwh=6130.0, network_charges_aud=535.0, wholesale_charges_aud=440.0, environmental_charges_aud=170.0, retail_margin_aud=245.0),
+    EAHBillTrendRecord(state="WA", year=2022, avg_annual_bill_aud=1470.0, median_income_pct=3.4, usage_kwh=6060.0, network_charges_aud=550.0, wholesale_charges_aud=480.0, environmental_charges_aud=180.0, retail_margin_aud=260.0),
+    EAHBillTrendRecord(state="WA", year=2023, avg_annual_bill_aud=1560.0, median_income_pct=3.6, usage_kwh=5990.0, network_charges_aud=575.0, wholesale_charges_aud=520.0, environmental_charges_aud=195.0, retail_margin_aud=270.0),
+    EAHBillTrendRecord(state="WA", year=2024, avg_annual_bill_aud=1620.0, median_income_pct=3.7, usage_kwh=5920.0, network_charges_aud=600.0, wholesale_charges_aud=540.0, environmental_charges_aud=210.0, retail_margin_aud=270.0),
+    # TAS
+    EAHBillTrendRecord(state="TAS", year=2020, avg_annual_bill_aud=1640.0, median_income_pct=5.0, usage_kwh=6850.0, network_charges_aud=650.0, wholesale_charges_aud=480.0, environmental_charges_aud=220.0, retail_margin_aud=290.0),
+    EAHBillTrendRecord(state="TAS", year=2021, avg_annual_bill_aud=1680.0, median_income_pct=5.1, usage_kwh=6780.0, network_charges_aud=665.0, wholesale_charges_aud=490.0, environmental_charges_aud=225.0, retail_margin_aud=300.0),
+    EAHBillTrendRecord(state="TAS", year=2022, avg_annual_bill_aud=1790.0, median_income_pct=5.4, usage_kwh=6710.0, network_charges_aud=685.0, wholesale_charges_aud=560.0, environmental_charges_aud=240.0, retail_margin_aud=305.0),
+    EAHBillTrendRecord(state="TAS", year=2023, avg_annual_bill_aud=1940.0, median_income_pct=5.8, usage_kwh=6640.0, network_charges_aud=710.0, wholesale_charges_aud=670.0, environmental_charges_aud=255.0, retail_margin_aud=305.0),
+    EAHBillTrendRecord(state="TAS", year=2024, avg_annual_bill_aud=2010.0, median_income_pct=6.0, usage_kwh=6570.0, network_charges_aud=740.0, wholesale_charges_aud=700.0, environmental_charges_aud=265.0, retail_margin_aud=305.0),
+]
+
+# ---------------------------------------------------------------------------
+# Mock data — income affordability: 6 states × 5 cohorts
+# ---------------------------------------------------------------------------
+_EAH_INCOME_AFFORDABILITY: list[EAHIncomeAffordabilityRecord] = [
+    # NSW
+    EAHIncomeAffordabilityRecord(state="NSW", income_cohort=_EAHIncomeCohort.BOTTOM_20PCT,  annual_income_aud=25000.0,  energy_spend_aud=2180.0, energy_burden_pct=8.7,  solar_ownership_pct=3.2,  hardship_rate_pct=18.5),
+    EAHIncomeAffordabilityRecord(state="NSW", income_cohort=_EAHIncomeCohort.LOWER_MIDDLE,  annual_income_aud=52000.0,  energy_spend_aud=1970.0, energy_burden_pct=3.8,  solar_ownership_pct=12.4, hardship_rate_pct=6.2),
+    EAHIncomeAffordabilityRecord(state="NSW", income_cohort=_EAHIncomeCohort.MIDDLE,        annual_income_aud=85000.0,  energy_spend_aud=1950.0, energy_burden_pct=2.3,  solar_ownership_pct=24.8, hardship_rate_pct=2.1),
+    EAHIncomeAffordabilityRecord(state="NSW", income_cohort=_EAHIncomeCohort.UPPER_MIDDLE,  annual_income_aud=130000.0, energy_spend_aud=1800.0, energy_burden_pct=1.4,  solar_ownership_pct=38.5, hardship_rate_pct=0.5),
+    EAHIncomeAffordabilityRecord(state="NSW", income_cohort=_EAHIncomeCohort.TOP_20PCT,     annual_income_aud=220000.0, energy_spend_aud=1620.0, energy_burden_pct=0.7,  solar_ownership_pct=52.1, hardship_rate_pct=0.1),
+    # VIC
+    EAHIncomeAffordabilityRecord(state="VIC", income_cohort=_EAHIncomeCohort.BOTTOM_20PCT,  annual_income_aud=24000.0,  energy_spend_aud=2090.0, energy_burden_pct=8.7,  solar_ownership_pct=2.8,  hardship_rate_pct=17.8),
+    EAHIncomeAffordabilityRecord(state="VIC", income_cohort=_EAHIncomeCohort.LOWER_MIDDLE,  annual_income_aud=51000.0,  energy_spend_aud=1910.0, energy_burden_pct=3.7,  solar_ownership_pct=11.6, hardship_rate_pct=5.9),
+    EAHIncomeAffordabilityRecord(state="VIC", income_cohort=_EAHIncomeCohort.MIDDLE,        annual_income_aud=84000.0,  energy_spend_aud=1920.0, energy_burden_pct=2.3,  solar_ownership_pct=23.4, hardship_rate_pct=2.0),
+    EAHIncomeAffordabilityRecord(state="VIC", income_cohort=_EAHIncomeCohort.UPPER_MIDDLE,  annual_income_aud=128000.0, energy_spend_aud=1760.0, energy_burden_pct=1.4,  solar_ownership_pct=37.2, hardship_rate_pct=0.4),
+    EAHIncomeAffordabilityRecord(state="VIC", income_cohort=_EAHIncomeCohort.TOP_20PCT,     annual_income_aud=215000.0, energy_spend_aud=1590.0, energy_burden_pct=0.7,  solar_ownership_pct=50.8, hardship_rate_pct=0.1),
+    # QLD
+    EAHIncomeAffordabilityRecord(state="QLD", income_cohort=_EAHIncomeCohort.BOTTOM_20PCT,  annual_income_aud=23500.0,  energy_spend_aud=2150.0, energy_burden_pct=9.1,  solar_ownership_pct=5.4,  hardship_rate_pct=19.2),
+    EAHIncomeAffordabilityRecord(state="QLD", income_cohort=_EAHIncomeCohort.LOWER_MIDDLE,  annual_income_aud=49000.0,  energy_spend_aud=1950.0, energy_burden_pct=4.0,  solar_ownership_pct=18.7, hardship_rate_pct=6.8),
+    EAHIncomeAffordabilityRecord(state="QLD", income_cohort=_EAHIncomeCohort.MIDDLE,        annual_income_aud=80000.0,  energy_spend_aud=1880.0, energy_burden_pct=2.4,  solar_ownership_pct=34.2, hardship_rate_pct=2.3),
+    EAHIncomeAffordabilityRecord(state="QLD", income_cohort=_EAHIncomeCohort.UPPER_MIDDLE,  annual_income_aud=122000.0, energy_spend_aud=1720.0, energy_burden_pct=1.4,  solar_ownership_pct=46.9, hardship_rate_pct=0.5),
+    EAHIncomeAffordabilityRecord(state="QLD", income_cohort=_EAHIncomeCohort.TOP_20PCT,     annual_income_aud=205000.0, energy_spend_aud=1540.0, energy_burden_pct=0.8,  solar_ownership_pct=58.3, hardship_rate_pct=0.1),
+    # SA
+    EAHIncomeAffordabilityRecord(state="SA", income_cohort=_EAHIncomeCohort.BOTTOM_20PCT,   annual_income_aud=22000.0,  energy_spend_aud=2520.0, energy_burden_pct=11.5, solar_ownership_pct=6.8,  hardship_rate_pct=22.4),
+    EAHIncomeAffordabilityRecord(state="SA", income_cohort=_EAHIncomeCohort.LOWER_MIDDLE,   annual_income_aud=47000.0,  energy_spend_aud=2290.0, energy_burden_pct=4.9,  solar_ownership_pct=22.4, hardship_rate_pct=8.1),
+    EAHIncomeAffordabilityRecord(state="SA", income_cohort=_EAHIncomeCohort.MIDDLE,         annual_income_aud=78000.0,  energy_spend_aud=2280.0, energy_burden_pct=2.9,  solar_ownership_pct=38.6, hardship_rate_pct=2.8),
+    EAHIncomeAffordabilityRecord(state="SA", income_cohort=_EAHIncomeCohort.UPPER_MIDDLE,   annual_income_aud=119000.0, energy_spend_aud=2050.0, energy_burden_pct=1.7,  solar_ownership_pct=52.1, hardship_rate_pct=0.6),
+    EAHIncomeAffordabilityRecord(state="SA", income_cohort=_EAHIncomeCohort.TOP_20PCT,      annual_income_aud=198000.0, energy_spend_aud=1850.0, energy_burden_pct=0.9,  solar_ownership_pct=64.7, hardship_rate_pct=0.1),
+    # WA
+    EAHIncomeAffordabilityRecord(state="WA", income_cohort=_EAHIncomeCohort.BOTTOM_20PCT,   annual_income_aud=26000.0,  energy_spend_aud=1820.0, energy_burden_pct=7.0,  solar_ownership_pct=4.1,  hardship_rate_pct=14.6),
+    EAHIncomeAffordabilityRecord(state="WA", income_cohort=_EAHIncomeCohort.LOWER_MIDDLE,   annual_income_aud=55000.0,  energy_spend_aud=1640.0, energy_burden_pct=3.0,  solar_ownership_pct=14.8, hardship_rate_pct=4.8),
+    EAHIncomeAffordabilityRecord(state="WA", income_cohort=_EAHIncomeCohort.MIDDLE,         annual_income_aud=92000.0,  energy_spend_aud=1620.0, energy_burden_pct=1.8,  solar_ownership_pct=28.3, hardship_rate_pct=1.6),
+    EAHIncomeAffordabilityRecord(state="WA", income_cohort=_EAHIncomeCohort.UPPER_MIDDLE,   annual_income_aud=140000.0, energy_spend_aud=1490.0, energy_burden_pct=1.1,  solar_ownership_pct=41.2, hardship_rate_pct=0.3),
+    EAHIncomeAffordabilityRecord(state="WA", income_cohort=_EAHIncomeCohort.TOP_20PCT,      annual_income_aud=235000.0, energy_spend_aud=1340.0, energy_burden_pct=0.6,  solar_ownership_pct=55.4, hardship_rate_pct=0.0),
+    # TAS
+    EAHIncomeAffordabilityRecord(state="TAS", income_cohort=_EAHIncomeCohort.BOTTOM_20PCT,  annual_income_aud=21000.0,  energy_spend_aud=2260.0, energy_burden_pct=10.8, solar_ownership_pct=2.1,  hardship_rate_pct=21.3),
+    EAHIncomeAffordabilityRecord(state="TAS", income_cohort=_EAHIncomeCohort.LOWER_MIDDLE,  annual_income_aud=45000.0,  energy_spend_aud=2050.0, energy_burden_pct=4.6,  solar_ownership_pct=7.9,  hardship_rate_pct=7.4),
+    EAHIncomeAffordabilityRecord(state="TAS", income_cohort=_EAHIncomeCohort.MIDDLE,        annual_income_aud=74000.0,  energy_spend_aud=2010.0, energy_burden_pct=2.7,  solar_ownership_pct=16.3, hardship_rate_pct=2.5),
+    EAHIncomeAffordabilityRecord(state="TAS", income_cohort=_EAHIncomeCohort.UPPER_MIDDLE,  annual_income_aud=113000.0, energy_spend_aud=1820.0, energy_burden_pct=1.6,  solar_ownership_pct=24.8, hardship_rate_pct=0.5),
+    EAHIncomeAffordabilityRecord(state="TAS", income_cohort=_EAHIncomeCohort.TOP_20PCT,     annual_income_aud=188000.0, energy_spend_aud=1640.0, energy_burden_pct=0.9,  solar_ownership_pct=36.5, hardship_rate_pct=0.1),
+]
+
+# ---------------------------------------------------------------------------
+# Mock data — solar impact: 6 states × 4 household types
+# ---------------------------------------------------------------------------
+_EAH_SOLAR_IMPACT: list[EAHSolarImpactRecord] = [
+    # NSW
+    EAHSolarImpactRecord(state="NSW", household_type=_EAHHouseholdType.NO_SOLAR,       avg_annual_bill_aud=1950.0, avg_annual_export_aud=0.0,    net_energy_cost_aud=1950.0, payback_years=0.0,  adoption_pct=0.0),
+    EAHSolarImpactRecord(state="NSW", household_type=_EAHHouseholdType.SOLAR_ONLY,     avg_annual_bill_aud=820.0,  avg_annual_export_aud=480.0,  net_energy_cost_aud=340.0,  payback_years=7.2,  adoption_pct=28.4),
+    EAHSolarImpactRecord(state="NSW", household_type=_EAHHouseholdType.SOLAR_BATTERY,  avg_annual_bill_aud=310.0,  avg_annual_export_aud=320.0,  net_energy_cost_aud=-10.0,  payback_years=11.5, adoption_pct=6.8),
+    EAHSolarImpactRecord(state="NSW", household_type=_EAHHouseholdType.VPP_PARTICIPANT,avg_annual_bill_aud=210.0,  avg_annual_export_aud=640.0,  net_energy_cost_aud=-430.0, payback_years=9.8,  adoption_pct=1.9),
+    # VIC
+    EAHSolarImpactRecord(state="VIC", household_type=_EAHHouseholdType.NO_SOLAR,       avg_annual_bill_aud=1920.0, avg_annual_export_aud=0.0,    net_energy_cost_aud=1920.0, payback_years=0.0,  adoption_pct=0.0),
+    EAHSolarImpactRecord(state="VIC", household_type=_EAHHouseholdType.SOLAR_ONLY,     avg_annual_bill_aud=790.0,  avg_annual_export_aud=440.0,  net_energy_cost_aud=350.0,  payback_years=7.8,  adoption_pct=24.6),
+    EAHSolarImpactRecord(state="VIC", household_type=_EAHHouseholdType.SOLAR_BATTERY,  avg_annual_bill_aud=290.0,  avg_annual_export_aud=290.0,  net_energy_cost_aud=0.0,    payback_years=12.1, adoption_pct=5.9),
+    EAHSolarImpactRecord(state="VIC", household_type=_EAHHouseholdType.VPP_PARTICIPANT,avg_annual_bill_aud=185.0,  avg_annual_export_aud=610.0,  net_energy_cost_aud=-425.0, payback_years=10.2, adoption_pct=1.6),
+    # QLD
+    EAHSolarImpactRecord(state="QLD", household_type=_EAHHouseholdType.NO_SOLAR,       avg_annual_bill_aud=1880.0, avg_annual_export_aud=0.0,    net_energy_cost_aud=1880.0, payback_years=0.0,  adoption_pct=0.0),
+    EAHSolarImpactRecord(state="QLD", household_type=_EAHHouseholdType.SOLAR_ONLY,     avg_annual_bill_aud=680.0,  avg_annual_export_aud=580.0,  net_energy_cost_aud=100.0,  payback_years=6.4,  adoption_pct=38.2),
+    EAHSolarImpactRecord(state="QLD", household_type=_EAHHouseholdType.SOLAR_BATTERY,  avg_annual_bill_aud=180.0,  avg_annual_export_aud=410.0,  net_energy_cost_aud=-230.0, payback_years=10.2, adoption_pct=9.4),
+    EAHSolarImpactRecord(state="QLD", household_type=_EAHHouseholdType.VPP_PARTICIPANT,avg_annual_bill_aud=90.0,   avg_annual_export_aud=780.0,  net_energy_cost_aud=-690.0, payback_years=8.6,  adoption_pct=2.8),
+    # SA
+    EAHSolarImpactRecord(state="SA",  household_type=_EAHHouseholdType.NO_SOLAR,       avg_annual_bill_aud=2280.0, avg_annual_export_aud=0.0,    net_energy_cost_aud=2280.0, payback_years=0.0,  adoption_pct=0.0),
+    EAHSolarImpactRecord(state="SA",  household_type=_EAHHouseholdType.SOLAR_ONLY,     avg_annual_bill_aud=790.0,  avg_annual_export_aud=620.0,  net_energy_cost_aud=170.0,  payback_years=6.1,  adoption_pct=42.7),
+    EAHSolarImpactRecord(state="SA",  household_type=_EAHHouseholdType.SOLAR_BATTERY,  avg_annual_bill_aud=160.0,  avg_annual_export_aud=480.0,  net_energy_cost_aud=-320.0, payback_years=9.8,  adoption_pct=11.2),
+    EAHSolarImpactRecord(state="SA",  household_type=_EAHHouseholdType.VPP_PARTICIPANT,avg_annual_bill_aud=70.0,   avg_annual_export_aud=890.0,  net_energy_cost_aud=-820.0, payback_years=8.1,  adoption_pct=3.4),
+    # WA
+    EAHSolarImpactRecord(state="WA",  household_type=_EAHHouseholdType.NO_SOLAR,       avg_annual_bill_aud=1620.0, avg_annual_export_aud=0.0,    net_energy_cost_aud=1620.0, payback_years=0.0,  adoption_pct=0.0),
+    EAHSolarImpactRecord(state="WA",  household_type=_EAHHouseholdType.SOLAR_ONLY,     avg_annual_bill_aud=640.0,  avg_annual_export_aud=490.0,  net_energy_cost_aud=150.0,  payback_years=6.8,  adoption_pct=32.1),
+    EAHSolarImpactRecord(state="WA",  household_type=_EAHHouseholdType.SOLAR_BATTERY,  avg_annual_bill_aud=190.0,  avg_annual_export_aud=350.0,  net_energy_cost_aud=-160.0, payback_years=10.8, adoption_pct=7.6),
+    EAHSolarImpactRecord(state="WA",  household_type=_EAHHouseholdType.VPP_PARTICIPANT,avg_annual_bill_aud=110.0,  avg_annual_export_aud=670.0,  net_energy_cost_aud=-560.0, payback_years=9.2,  adoption_pct=2.1),
+    # TAS
+    EAHSolarImpactRecord(state="TAS", household_type=_EAHHouseholdType.NO_SOLAR,       avg_annual_bill_aud=2010.0, avg_annual_export_aud=0.0,    net_energy_cost_aud=2010.0, payback_years=0.0,  adoption_pct=0.0),
+    EAHSolarImpactRecord(state="TAS", household_type=_EAHHouseholdType.SOLAR_ONLY,     avg_annual_bill_aud=940.0,  avg_annual_export_aud=310.0,  net_energy_cost_aud=630.0,  payback_years=9.1,  adoption_pct=12.4),
+    EAHSolarImpactRecord(state="TAS", household_type=_EAHHouseholdType.SOLAR_BATTERY,  avg_annual_bill_aud=420.0,  avg_annual_export_aud=210.0,  net_energy_cost_aud=210.0,  payback_years=14.2, adoption_pct=3.1),
+    EAHSolarImpactRecord(state="TAS", household_type=_EAHHouseholdType.VPP_PARTICIPANT,avg_annual_bill_aud=310.0,  avg_annual_export_aud=490.0,  net_energy_cost_aud=-180.0, payback_years=12.0, adoption_pct=0.8),
+]
+
+# ---------------------------------------------------------------------------
+# Mock data — assistance programs: 12 records
+# ---------------------------------------------------------------------------
+_EAH_ASSISTANCE_PROGRAMS: list[EAHAssistanceProgramRecord] = [
+    EAHAssistanceProgramRecord(program_name="Energy Bill Relief Fund",      state="NSW", eligible_cohort="Low-income households",       rebate_aud=500.0,  recipients_k=620, total_cost_m_aud=310.0, effectiveness_score=7.8, program_type=_EAHProgramType.REBATE),
+    EAHAssistanceProgramRecord(program_name="Energy Concession Scheme",     state="VIC", eligible_cohort="Concession card holders",     rebate_aud=250.0,  recipients_k=480, total_cost_m_aud=120.0, effectiveness_score=6.5, program_type=_EAHProgramType.CONCESSION),
+    EAHAssistanceProgramRecord(program_name="Home Energy Emergency Fund",   state="QLD", eligible_cohort="Households in financial hardship", rebate_aud=720.0, recipients_k=185, total_cost_m_aud=133.2, effectiveness_score=8.4, program_type=_EAHProgramType.REBATE),
+    EAHAssistanceProgramRecord(program_name="Cost of Living Concession",    state="SA",  eligible_cohort="Pensioners & welfare recipients", rebate_aud=440.0, recipients_k=210, total_cost_m_aud=92.4,  effectiveness_score=7.2, program_type=_EAHProgramType.CONCESSION),
+    EAHAssistanceProgramRecord(program_name="Hardship Utility Grant Scheme",state="WA",  eligible_cohort="At-risk households",          rebate_aud=600.0,  recipients_k=95,  total_cost_m_aud=57.0,  effectiveness_score=7.9, program_type=_EAHProgramType.REBATE),
+    EAHAssistanceProgramRecord(program_name="Energy Saver Discount",        state="TAS", eligible_cohort="Low-income concession holders",rebate_aud=175.0,  recipients_k=68,  total_cost_m_aud=11.9,  effectiveness_score=5.8, program_type=_EAHProgramType.CONCESSION),
+    EAHAssistanceProgramRecord(program_name="NSW Solar for Low Income",     state="NSW", eligible_cohort="Low-income renters & owners",  rebate_aud=2400.0, recipients_k=32,  total_cost_m_aud=76.8,  effectiveness_score=9.1, program_type=_EAHProgramType.FREE_APPLIANCE),
+    EAHAssistanceProgramRecord(program_name="VIC Payment Difficulty Framework", state="VIC", eligible_cohort="Customers in payment difficulty", rebate_aud=0.0, recipients_k=142, total_cost_m_aud=8.5, effectiveness_score=6.9, program_type=_EAHProgramType.PAYMENT_PLAN),
+    EAHAssistanceProgramRecord(program_name="QLD Electricity Rebate",       state="QLD", eligible_cohort="Pensioners & seniors",        rebate_aud=372.0,  recipients_k=310, total_cost_m_aud=115.3, effectiveness_score=6.8, program_type=_EAHProgramType.REBATE),
+    EAHAssistanceProgramRecord(program_name="SA Home Battery Scheme",       state="SA",  eligible_cohort="Eligible low-income households", rebate_aud=3000.0, recipients_k=18, total_cost_m_aud=54.0, effectiveness_score=8.7, program_type=_EAHProgramType.FREE_APPLIANCE),
+    EAHAssistanceProgramRecord(program_name="WA Hardship Policy",           state="WA",  eligible_cohort="Customers facing payment difficulty", rebate_aud=0.0, recipients_k=72, total_cost_m_aud=4.2, effectiveness_score=6.1, program_type=_EAHProgramType.PAYMENT_PLAN),
+    EAHAssistanceProgramRecord(program_name="TAS Energy Efficiency Program",state="TAS", eligible_cohort="Low-income households",       rebate_aud=850.0,  recipients_k=24,  total_cost_m_aud=20.4,  effectiveness_score=8.2, program_type=_EAHProgramType.FREE_APPLIANCE),
+]
+
+
+@app.get("/api/energy-affordability/dashboard", dependencies=[Depends(verify_api_key)])
+def get_energy_affordability_dashboard() -> EnergyAffordabilityDashboard:
+    """Sprint 58c — Energy Affordability & Household Bill Analytics dashboard."""
+    return EnergyAffordabilityDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        bill_trends=_EAH_BILL_TRENDS,
+        income_affordability=_EAH_INCOME_AFFORDABILITY,
+        solar_impact=_EAH_SOLAR_IMPACT,
+        assistance_programs=_EAH_ASSISTANCE_PROGRAMS,
     )
