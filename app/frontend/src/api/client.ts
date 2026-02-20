@@ -5139,6 +5139,42 @@ export const api = {
     get<BasisRiskRecord[]>('/api/futures-market-risk/basis-risk'),
   getFuturesMarketRiskPositions: (): Promise<FuturesPositionRecord[]> =>
     get<FuturesPositionRecord[]>('/api/futures-market-risk/positions'),
+
+  // Sprint 50a — Wind Resource & Wake Effect Analytics
+  getWindResourceDashboard: (): Promise<WindResourceDashboard> =>
+    get<WindResourceDashboard>('/api/wind-resource/dashboard'),
+  getWindResourceSiteAssessments: (): Promise<WindSiteAssessment[]> =>
+    get<WindSiteAssessment[]>('/api/wind-resource/site-assessments'),
+  getWindResourceFarmPerformance: (): Promise<WindFarmPerformance[]> =>
+    get<WindFarmPerformance[]>('/api/wind-resource/farm-performance'),
+  getWindResourceWakeLosses: (): Promise<WakeLossRecord[]> =>
+    get<WakeLossRecord[]>('/api/wind-resource/wake-losses'),
+  getWindResourceMonthlyResource: (): Promise<WindResourceRecord[]> =>
+    get<WindResourceRecord[]>('/api/wind-resource/monthly-resource'),
+
+  // Sprint 50c — Microgrids & Remote Area Power Systems Analytics
+  getMicrogridRapsDashboard: (): Promise<MicrogridDashboard> =>
+    get<MicrogridDashboard>('/api/microgrid-raps/dashboard'),
+  getMicrogridRapsMicrogrids: (): Promise<MicrogridRecord[]> =>
+    get<MicrogridRecord[]>('/api/microgrid-raps/microgrids'),
+  getMicrogridRapsDieselDisplacement: (): Promise<DieselDisplacementRecord[]> =>
+    get<DieselDisplacementRecord[]>('/api/microgrid-raps/diesel-displacement'),
+  getMicrogridRapsEnergyRecords: (): Promise<MicrogridEnergyRecord[]> =>
+    get<MicrogridEnergyRecord[]>('/api/microgrid-raps/energy-records'),
+  getMicrogridRapsTechnologySummary: (): Promise<OffGridTechnologyRecord[]> =>
+    get<OffGridTechnologyRecord[]>('/api/microgrid-raps/technology-summary'),
+
+  // Sprint 50b — Corporate PPA Market Analytics
+  getCorporatePpaMarketDashboard: (): Promise<CorporatePpaMarketDashboard> =>
+    get<CorporatePpaMarketDashboard>('/api/corporate-ppa-market/dashboard'),
+  getCorporatePpaMarketDeals: (): Promise<CorporatePpaDeal[]> =>
+    get<CorporatePpaDeal[]>('/api/corporate-ppa-market/deals'),
+  getCorporatePpaMarketOfftakers: (): Promise<PpaOfftakerRecord[]> =>
+    get<PpaOfftakerRecord[]>('/api/corporate-ppa-market/offtakers'),
+  getCorporatePpaMarketPriceTrends: (): Promise<PpaPriceTrendRecord[]> =>
+    get<PpaPriceTrendRecord[]>('/api/corporate-ppa-market/price-trends'),
+  getCorporatePpaMarketSummary: (): Promise<PpaMarketSummaryRecord[]> =>
+    get<PpaMarketSummaryRecord[]>('/api/corporate-ppa-market/market-summary'),
 }
 
 // ---------------------------------------------------------------------------
@@ -6209,4 +6245,230 @@ export interface FuturesMarketRiskDashboard {
   avg_hedge_ratio_pct: number
   total_open_interest_mw: number
   avg_basis_risk_aud_mwh: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 50a — Wind Resource & Wake Effect Analytics
+// ---------------------------------------------------------------------------
+
+export interface WindSiteAssessment {
+  site_id: string
+  site_name: string
+  state: string
+  mean_wind_speed_ms: number
+  wind_power_density_wm2: number
+  turbulence_intensity_pct: number
+  weibull_k: number
+  weibull_c: number
+  predominant_direction: string
+  resource_class: string
+  capacity_factor_potential_pct: number
+  elevation_m: number
+  terrain_roughness: string
+}
+
+export interface WindFarmPerformance {
+  farm_id: string
+  farm_name: string
+  state: string
+  installed_capacity_mw: number
+  turbine_model: string
+  turbine_rating_mw: number
+  num_turbines: number
+  hub_height_m: number
+  rotor_diameter_m: number
+  actual_capacity_factor_pct: number
+  p90_capacity_factor_pct: number
+  wake_loss_pct: number
+  availability_pct: number
+  curtailment_pct: number
+  annual_generation_gwh: number
+  specific_power_wm2: number
+}
+
+export interface WakeLossRecord {
+  farm_id: string
+  farm_name: string
+  wind_direction: string
+  wind_speed_bin_ms: number
+  gross_generation_gwh: number
+  wake_loss_gwh: number
+  wake_loss_pct: number
+  near_wake_loss_pct: number
+  far_wake_loss_pct: number
+  inter_farm_wake_pct: number
+}
+
+export interface WindResourceRecord {
+  region: string
+  month: number
+  month_name: string
+  avg_wind_speed_ms: number
+  p90_wind_speed_ms: number
+  capacity_factor_monthly_pct: number
+  generation_gwh: number
+  curtailment_mwh: number
+}
+
+export interface WindResourceDashboard {
+  timestamp: string
+  site_assessments: WindSiteAssessment[]
+  farm_performance: WindFarmPerformance[]
+  wake_loss_records: WakeLossRecord[]
+  monthly_resource: WindResourceRecord[]
+  best_wind_resource_site: string
+  avg_capacity_factor_pct: number
+  total_wind_capacity_mw: number
+  avg_wake_loss_pct: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 50c — Microgrids & Remote Area Power Systems Analytics
+// ---------------------------------------------------------------------------
+
+export interface MicrogridRecord {
+  microgrid_id: string
+  microgrid_name: string
+  location: string
+  state: string
+  community_type: string
+  grid_type: string
+  peak_demand_kw: number
+  solar_capacity_kw: number
+  wind_capacity_kw: number
+  storage_kwh: number
+  diesel_gen_kw: number
+  annual_consumption_mwh: number
+  renewable_fraction_pct: number
+  diesel_displaced_litres_yr: number
+  diesel_cost_saving_aud_yr: number
+  co2_avoided_tpa: number
+  energy_autonomy_days: number
+  operator: string
+  status: string
+}
+
+export interface DieselDisplacementRecord {
+  state: string
+  year: number
+  quarter: string
+  total_microgrids: number
+  total_diesel_gen_kw: number
+  total_solar_kw: number
+  total_storage_kwh: number
+  diesel_litres_consumed: number
+  renewable_fraction_pct: number
+  avg_lcoe_diesel_mwh: number
+  avg_lcoe_hybrid_mwh: number
+  cost_saving_m_aud: number
+}
+
+export interface MicrogridEnergyRecord {
+  microgrid_id: string
+  microgrid_name: string
+  month: number
+  month_name: string
+  solar_generation_mwh: number
+  wind_generation_mwh: number
+  diesel_generation_mwh: number
+  storage_discharge_mwh: number
+  demand_mwh: number
+  curtailment_mwh: number
+  renewable_fraction_pct: number
+}
+
+export interface OffGridTechnologyRecord {
+  technology: string
+  installed_capacity_kw: number
+  sites_deployed: number
+  avg_cost_per_kw: number
+  reliability_pct: number
+  maintenance_cost_kw_yr: number
+  design_life_years: number
+}
+
+export interface MicrogridDashboard {
+  timestamp: string
+  microgrids: MicrogridRecord[]
+  diesel_displacement: DieselDisplacementRecord[]
+  energy_records: MicrogridEnergyRecord[]
+  technology_summary: OffGridTechnologyRecord[]
+  total_microgrids: number
+  avg_renewable_fraction_pct: number
+  total_diesel_displaced_ml: number
+  total_co2_avoided_tpa: number
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 50b — Corporate PPA Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface CorporatePpaDeal {
+  deal_id: string
+  project_name: string
+  technology: string
+  state: string
+  offtaker_name: string
+  offtaker_sector: string
+  deal_type: string
+  contract_length_years: number
+  capacity_mw: number
+  annual_energy_gwh: number
+  strike_price_mwh: number
+  market_price_at_signing: number
+  signing_date: string
+  first_delivery_date: string | null
+  additionality: boolean
+  bundled_lgcs: boolean
+  green_power_accredited: boolean
+}
+
+export interface PpaOfftakerRecord {
+  offtaker_name: string
+  sector: string
+  total_contracted_mw: number
+  total_contracted_gwh: number
+  num_deals: number
+  avg_strike_price: number
+  earliest_deal_year: number
+  net_zero_target: number | null
+  re100_member: boolean
+  sustainability_rating: string
+}
+
+export interface PpaPriceTrendRecord {
+  year: number
+  quarter: string
+  technology: string
+  region: string
+  avg_strike_price_mwh: number
+  min_strike_price_mwh: number
+  max_strike_price_mwh: number
+  num_deals: number
+  total_capacity_mw: number
+  spot_price_comparison: number
+}
+
+export interface PpaMarketSummaryRecord {
+  year: number
+  total_deals: number
+  total_capacity_mw: number
+  total_value_m_aud: number
+  avg_contract_years: number
+  physical_pct: number
+  financial_pct: number
+  additionality_pct: number
+  top_sector: string
+}
+
+export interface CorporatePpaMarketDashboard {
+  timestamp: string
+  ppa_deals: CorporatePpaDeal[]
+  offtakers: PpaOfftakerRecord[]
+  price_trends: PpaPriceTrendRecord[]
+  market_summary: PpaMarketSummaryRecord[]
+  total_contracted_capacity_mw: number
+  avg_ppa_price_mwh: number
+  additionality_pct: number
+  yoy_growth_pct: number
 }

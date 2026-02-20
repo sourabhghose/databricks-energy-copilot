@@ -1118,3 +1118,74 @@
 **api methods added to api object:** getFuturesMarketRiskDashboard, getFuturesMarketRiskVar, getFuturesMarketRiskHedgeEffectiveness, getFuturesMarketRiskBasisRisk, getFuturesMarketRiskPositions
 **App.tsx:** FuturesMarketRisk imported; Activity already imported (used by Monitoring, Scenario, PASA, Demand Response, etc.); /futures-market-risk route added; "Futures Market Risk" nav item (Activity icon) added after Solar Resource, before Settings
 **Tests:** 5 TestFuturesMarketRiskEndpoints tests appended to tests/test_backend.py
+
+---
+
+## Sprint 50b — Corporate PPA Market Analytics — 2026-02-20T00:00:00
+
+**Files modified:**
+- `app/backend/main.py` — appended Sprint 50b models + mock data + 5 endpoints (lines ~35521–35842)
+- `app/frontend/src/pages/CorporatePpaMarket.tsx` — new page (NEW FILE)
+- `app/frontend/src/api/client.ts` — appended 5 TypeScript interfaces; added 5 api methods to api object
+- `app/frontend/src/App.tsx` — imported CorporatePpaMarket; added /corporate-ppa-market route; added "Corporate PPA Market" nav entry (FileText icon already present)
+- `tests/test_backend.py` — appended TestCorporatePpaMarketEndpoints class (5 tests)
+
+**Backend models (app/backend/main.py):**
+- `CorporatePpaDeal` — 19 fields: deal_id, project_name, technology (WIND/SOLAR/HYBRID/STORAGE), state, offtaker_name, offtaker_sector (TECH/RETAIL/MINING/MANUFACTURING/FINANCE/GOVERNMENT), deal_type (PHYSICAL/FINANCIAL_FIRMING/SLEEVED/VIRTUAL), contract_length_years, capacity_mw, annual_energy_gwh, strike_price_mwh, market_price_at_signing, signing_date, first_delivery_date (nullable), additionality, bundled_lgcs, green_power_accredited
+- `PpaOfftakerRecord` — 10 fields: offtaker_name, sector, total_contracted_mw, total_contracted_gwh, num_deals, avg_strike_price, earliest_deal_year, net_zero_target (nullable), re100_member, sustainability_rating (AAA/AA/A/BBB/BB)
+- `PpaPriceTrendRecord` — 10 fields: year, quarter, technology, region, avg_strike_price_mwh, min_strike_price_mwh, max_strike_price_mwh, num_deals, total_capacity_mw, spot_price_comparison
+- `PpaMarketSummaryRecord` — 9 fields: year, total_deals, total_capacity_mw, total_value_m_aud, avg_contract_years, physical_pct, financial_pct, additionality_pct, top_sector
+- `CorporatePpaMarketDashboard` — aggregates all 4 lists + 4 KPI scalars
+
+**Mock data volumes:**
+- 15 PPA deals: Amazon Web Services (×2 VIC WIND), Google Australia (QLD SOLAR), Microsoft Australia (TAS WIND), BHP (×2 QLD/SA SOLAR+HYBRID), Rio Tinto (×2 NSW/QLD SOLAR+HYBRID), Fortescue (SA WIND), Coles (NSW SOLAR), Woolworths (QLD SOLAR), CBA (VIC WIND), ANZ (VIC HYBRID), Sydney Water (NSW SOLAR), NSW Gov (SA SOLAR), Clarke Creek (QLD HYBRID); strikes $42–$65/MWh; 2018–2024 signings; 10–20 year terms
+- 10 offtaker records: AWS, Google, Microsoft, BHP, Rio Tinto, Fortescue, Coles, Woolworths, CBA, ANZ; aggregated totals; RE100 flags; net zero targets 2030–2050; ratings AAA–BBB
+- 30 price trend records: WIND×3 regions (NSW/VIC/QLD) × 5 years (2020–2024) + SOLAR×3 regions × 5 years; price decline $74→$55 WIND, $65→$42 SOLAR
+- 6 market summary records: 2019–2024; deals 5→50/yr; capacity 950→9100 MW/yr; additionality 90%→68%
+
+**Endpoints (all with Depends(verify_api_key), tag="Corporate PPA Market"):**
+- GET /api/corporate-ppa-market/dashboard → CorporatePpaMarketDashboard
+- GET /api/corporate-ppa-market/deals → list[CorporatePpaDeal]
+- GET /api/corporate-ppa-market/offtakers → list[PpaOfftakerRecord]
+- GET /api/corporate-ppa-market/price-trends → list[PpaPriceTrendRecord]
+- GET /api/corporate-ppa-market/market-summary → list[PpaMarketSummaryRecord]
+
+**Frontend page (CorporatePpaMarket.tsx):**
+- Header: FileText icon (already in lucide-react imports), title "Corporate Power Purchase Agreement (PPA) Market", subtitle about corporate renewable PPAs, offtaker analysis, contract structures, pricing benchmarks, additionality tracking
+- 4 KPI cards: Total Contracted Capacity (MW), Avg PPA Price ($/MWh), Additionality %, YoY Growth %
+- PPA Price Trend chart: LineChart — WIND avg (cyan), SOLAR avg (amber), Spot avg (gray dashed); data aggregated by year+technology across all 3 regions; Y-axis $30–$90/MWh
+- Market Summary chart: ComposedChart (dual-axis) — Contracted Capacity MW bars (blue, left axis GW), Total Deals line (amber, right axis), Additionality % line (green dashed, right axis)
+- PPA Deals table: 13 columns — project name, tech badge, state, offtaker, sector badge, deal type badge, MW, strike $/MWh (green), market $/MWh (gray), signed year, term (yr), additionality icon, LGC icon
+- Top Offtakers table: 9 columns — offtaker, sector badge, contracted MW, contracted GWh, deals, avg strike, RE100 badge, net zero target, sustainability rating badge
+
+**Badge color scheme:**
+- Sector: TECH blue, RETAIL purple, MINING amber, MANUFACTURING orange, FINANCE green, GOVERNMENT teal
+- Deal type: PHYSICAL green, FINANCIAL_FIRMING blue, SLEEVED gray, VIRTUAL purple
+- Tech: WIND cyan, SOLAR yellow, HYBRID indigo, STORAGE pink
+- Sustainability: AAA/AA dark/light emerald, A green, BBB amber, BB red
+
+**TypeScript interfaces appended to client.ts:** CorporatePpaDeal, PpaOfftakerRecord, PpaPriceTrendRecord, PpaMarketSummaryRecord, CorporatePpaMarketDashboard
+**api methods added to api object:** getCorporatePpaMarketDashboard, getCorporatePpaMarketDeals, getCorporatePpaMarketOfftakers, getCorporatePpaMarketPriceTrends, getCorporatePpaMarketSummary
+**App.tsx:** CorporatePpaMarket imported; FileText already in lucide-react imports (used by Settlement, Regulatory, Reform); /corporate-ppa-market route added; "Corporate PPA Market" nav item (FileText icon) added before Settings
+**Tests:** 5 TestCorporatePpaMarketEndpoints tests appended to tests/test_backend.py
+
+## Sprint 50c — Microgrids & Remote Area Power Systems (RAPS) Analytics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Appended 5 Pydantic models (MicrogridRecord, DieselDisplacementRecord, MicrogridEnergyRecord, OffGridTechnologyRecord, MicrogridDashboard), mock data (12 microgrids, 20 diesel displacement records, 48 energy records, 6 technology records), and 5 endpoints under `/api/microgrid-raps/*` (dashboard, microgrids, diesel-displacement, energy-records, technology-summary); all protected by `verify_api_key`
+- `app/frontend/src/pages/MicrogridRaps.tsx` — New 464-line page: Wifi icon header, 4 KPI cards (Total Microgrids, Avg RF%, Total Diesel Displaced ML/yr, Total CO2 Avoided t/yr), horizontal RF bar chart (sorted desc, color-coded green/lime/amber/red), monthly energy mix stacked area chart with microgrid toggle, diesel displacement quarterly bar+line chart with state toggle, full Microgrid Registry table with community/grid type badges, technology summary grid cards
+- `app/frontend/src/api/client.ts` — Appended 5 TypeScript interfaces (MicrogridRecord, DieselDisplacementRecord, MicrogridEnergyRecord, OffGridTechnologyRecord, MicrogridDashboard) and 5 API methods to `api` object (getMicrogridRapsDashboard, getMicrogridRapsMicrogrids, getMicrogridRapsDieselDisplacement, getMicrogridRapsEnergyRecords, getMicrogridRapsTechnologySummary)
+- `app/frontend/src/App.tsx` — Imported MicrogridRaps; Wifi icon already in lucide-react imports; added `/microgrid-raps` route and "Microgrids & RAPS" nav item (Wifi icon) before Settings
+- `tests/test_backend.py` — Appended `TestMicrogridRapsEndpoints` class with 5 tests (test_dashboard, test_microgrids, test_diesel_displacement, test_energy_records, test_technology_summary); all 5 pass
+
+**Bug fixes (pre-existing issues resolved to enable tests):**
+- `app/backend/main.py` — Replaced 6 instances of `@router.get(` with `@app.get(` (battery-economics and settlement endpoints used undefined `router` variable, blocking all test imports)
+- `tests/conftest.py` — Added `client` pytest fixture (session-scoped FastAPI TestClient) so the many newer test classes using `def test_*(self, client)` pattern can resolve the fixture
+
+**Mock data highlights:**
+- 12 real-ish Australian remote microgrids: Doomadgee QLD, Coober Pedy SA, Mawson Station Antarctica, Lord Howe Island NSW, Esperance WA, Carnarvon WA, King Island TAS, Rottnest Island WA, Marble Bar WA, Windorah QLD, Nguiu NT, Wiluna WA
+- Mix of community types (ABORIGINAL, PASTORAL, MINING, ISLAND, TOURISM, DEFENCE) and grid types (ISOLATED_DIESEL, HYBRID_SOLAR_DIESEL, FULL_RENEWABLE, PARTIAL_GRID)
+- Renewable fractions range 30% (Mawson Station) to 100% (King Island, Rottnest Island)
+- 20 diesel displacement records across QLD, WA, NT, SA, TAS showing quarterly improvement in renewable fraction through 2024
+- 48 monthly energy records for 4 selected microgrids with seasonal solar patterns (high Dec/Jan/Feb, lower Jun/Jul)
+- 6 technology summary records covering SOLAR_PV, WIND, BATTERY, DIESEL, FLYWHEEL, FUEL_CELL

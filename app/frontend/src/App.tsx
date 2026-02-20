@@ -57,6 +57,7 @@ import {
   CircuitBoard,
   BarChart3,
   SunMedium,
+  Tornado,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -177,6 +178,9 @@ import PriceSpikeAnalysis from './pages/PriceSpikeAnalysis'
 import StorageRevenueStack from './pages/StorageRevenueStack'
 import SolarResourceAnalytics from './pages/SolarResourceAnalytics'
 import FuturesMarketRisk from './pages/FuturesMarketRisk'
+import WindResourceAnalytics from './pages/WindResourceAnalytics'
+import CorporatePpaMarket from './pages/CorporatePpaMarket'
+import MicrogridRaps from './pages/MicrogridRaps'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -297,6 +301,9 @@ const NAV_ITEMS = [
   { to: '/storage-revenue-stack', label: 'Storage Revenue Stack', Icon: BarChart3  },
   { to: '/solar-resource',    label: 'Solar Resource',     Icon: SunMedium      },
   { to: '/futures-market-risk', label: 'Futures Market Risk', Icon: Activity     },
+  { to: '/wind-resource',         label: 'Wind Resource',      Icon: Tornado        },
+  { to: '/corporate-ppa-market', label: 'Corporate PPA Market', Icon: FileText  },
+  { to: '/microgrid-raps',    label: 'Microgrids & RAPS',  Icon: Wifi           },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -492,6 +499,9 @@ export default function App() {
               <Route path="/storage-revenue-stack" element={<StorageRevenueStack />} />
               <Route path="/solar-resource"    element={<SolarResourceAnalytics />} />
               <Route path="/futures-market-risk" element={<FuturesMarketRisk />}  />
+              <Route path="/wind-resource"         element={<WindResourceAnalytics />}  />
+              <Route path="/corporate-ppa-market" element={<CorporatePpaMarket />}    />
+              <Route path="/microgrid-raps"    element={<MicrogridRaps />}         />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -11927,7 +11927,7 @@ def _make_battery_economics_dashboard() -> BatteryEconomicsDashboard:
     )
 
 
-@router.get(
+@app.get(
     "/api/battery-economics/dashboard",
     response_model=BatteryEconomicsDashboard,
     summary="Battery economics dashboard",
@@ -11945,7 +11945,7 @@ def get_battery_economics_dashboard():
     return data
 
 
-@router.get(
+@app.get(
     "/api/battery-economics/batteries",
     response_model=List[BatteryUnit],
     summary="Battery unit list",
@@ -11970,7 +11970,7 @@ def get_battery_units(
     return units
 
 
-@router.get(
+@app.get(
     "/api/battery-economics/schedule",
     response_model=List[BatteryArbitrageSlot],
     summary="Battery dispatch schedule",
@@ -12285,7 +12285,7 @@ def _make_settlement_dashboard() -> SettlementDashboard:
     )
 
 
-@router.get(
+@app.get(
     "/api/settlement/dashboard",
     response_model=SettlementDashboard,
     summary="NEM Settlement & Prudential dashboard",
@@ -12303,7 +12303,7 @@ def get_settlement_dashboard():
     return data
 
 
-@router.get(
+@app.get(
     "/api/settlement/residues",
     response_model=List[SettlementResidueRecord],
     summary="Settlement residue records",
@@ -12325,7 +12325,7 @@ def get_settlement_residues(
     return records
 
 
-@router.get(
+@app.get(
     "/api/settlement/prudential",
     response_model=List[PrudentialRecord],
     summary="Prudential management records",
@@ -35111,3 +35111,1040 @@ def get_futures_market_risk_basis_risk():
 )
 def get_futures_market_risk_positions():
     return _FMR_FUTURES_POSITIONS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 50a — Wind Resource & Wake Effect Analytics
+# ---------------------------------------------------------------------------
+
+class WindSiteAssessment(BaseModel):
+    site_id: str
+    site_name: str
+    state: str
+    mean_wind_speed_ms: float
+    wind_power_density_wm2: float
+    turbulence_intensity_pct: float
+    weibull_k: float            # shape parameter
+    weibull_c: float            # scale parameter (m/s)
+    predominant_direction: str  # N, NE, E, SE, S, SW, W, NW
+    resource_class: str         # CLASS_1 through CLASS_7
+    capacity_factor_potential_pct: float
+    elevation_m: float
+    terrain_roughness: str      # OFFSHORE, FLAT, ROLLING, COMPLEX
+
+
+class WindFarmPerformance(BaseModel):
+    farm_id: str
+    farm_name: str
+    state: str
+    installed_capacity_mw: float
+    turbine_model: str
+    turbine_rating_mw: float
+    num_turbines: int
+    hub_height_m: float
+    rotor_diameter_m: float
+    actual_capacity_factor_pct: float
+    p90_capacity_factor_pct: float
+    wake_loss_pct: float
+    availability_pct: float
+    curtailment_pct: float
+    annual_generation_gwh: float
+    specific_power_wm2: float
+
+
+class WakeLossRecord(BaseModel):
+    farm_id: str
+    farm_name: str
+    wind_direction: str
+    wind_speed_bin_ms: float    # e.g. 7.5, 8.5, 9.5 m/s
+    gross_generation_gwh: float
+    wake_loss_gwh: float
+    wake_loss_pct: float
+    near_wake_loss_pct: float
+    far_wake_loss_pct: float
+    inter_farm_wake_pct: float
+
+
+class WindResourceRecord(BaseModel):
+    region: str
+    month: int
+    month_name: str
+    avg_wind_speed_ms: float
+    p90_wind_speed_ms: float
+    capacity_factor_monthly_pct: float
+    generation_gwh: float
+    curtailment_mwh: float
+
+
+class WindResourceDashboard(BaseModel):
+    timestamp: str
+    site_assessments: list[WindSiteAssessment]
+    farm_performance: list[WindFarmPerformance]
+    wake_loss_records: list[WakeLossRecord]
+    monthly_resource: list[WindResourceRecord]
+    best_wind_resource_site: str
+    avg_capacity_factor_pct: float
+    total_wind_capacity_mw: float
+    avg_wake_loss_pct: float
+
+
+# --- Mock data ---
+
+_WR_SITE_ASSESSMENTS: list[WindSiteAssessment] = [
+    WindSiteAssessment(
+        site_id="VIC-MAC", site_name="Macarthur", state="VIC",
+        mean_wind_speed_ms=9.2, wind_power_density_wm2=680,
+        turbulence_intensity_pct=8.4, weibull_k=2.1, weibull_c=10.3,
+        predominant_direction="SW", resource_class="CLASS_6",
+        capacity_factor_potential_pct=46.0, elevation_m=280, terrain_roughness="ROLLING",
+    ),
+    WindSiteAssessment(
+        site_id="SA-SNO", site_name="Snowtown", state="SA",
+        mean_wind_speed_ms=9.5, wind_power_density_wm2=720,
+        turbulence_intensity_pct=7.9, weibull_k=2.3, weibull_c=10.7,
+        predominant_direction="W", resource_class="CLASS_7",
+        capacity_factor_potential_pct=49.5, elevation_m=185, terrain_roughness="FLAT",
+    ),
+    WindSiteAssessment(
+        site_id="QLD-COO", site_name="Coopers Gap", state="QLD",
+        mean_wind_speed_ms=8.8, wind_power_density_wm2=610,
+        turbulence_intensity_pct=9.1, weibull_k=2.0, weibull_c=9.9,
+        predominant_direction="SSW", resource_class="CLASS_5",
+        capacity_factor_potential_pct=42.0, elevation_m=610, terrain_roughness="ROLLING",
+    ),
+    WindSiteAssessment(
+        site_id="NSW-NEW", site_name="New England", state="NSW",
+        mean_wind_speed_ms=9.0, wind_power_density_wm2=650,
+        turbulence_intensity_pct=8.7, weibull_k=2.2, weibull_c=10.1,
+        predominant_direction="NW", resource_class="CLASS_6",
+        capacity_factor_potential_pct=44.5, elevation_m=1100, terrain_roughness="COMPLEX",
+    ),
+    WindSiteAssessment(
+        site_id="VIC-POR", site_name="Portland", state="VIC",
+        mean_wind_speed_ms=9.8, wind_power_density_wm2=760,
+        turbulence_intensity_pct=7.5, weibull_k=2.4, weibull_c=11.0,
+        predominant_direction="W", resource_class="CLASS_7",
+        capacity_factor_potential_pct=51.0, elevation_m=90, terrain_roughness="FLAT",
+    ),
+    WindSiteAssessment(
+        site_id="NSW-BUN", site_name="Bungendore", state="NSW",
+        mean_wind_speed_ms=8.5, wind_power_density_wm2=570,
+        turbulence_intensity_pct=9.5, weibull_k=1.9, weibull_c=9.6,
+        predominant_direction="NW", resource_class="CLASS_4",
+        capacity_factor_potential_pct=38.0, elevation_m=830, terrain_roughness="COMPLEX",
+    ),
+    WindSiteAssessment(
+        site_id="WA-GER", site_name="Geraldton", state="WA",
+        mean_wind_speed_ms=9.1, wind_power_density_wm2=660,
+        turbulence_intensity_pct=7.2, weibull_k=2.5, weibull_c=10.2,
+        predominant_direction="SW", resource_class="CLASS_6",
+        capacity_factor_potential_pct=45.5, elevation_m=30, terrain_roughness="FLAT",
+    ),
+    WindSiteAssessment(
+        site_id="QLD-RAV", site_name="Ravenshoe", state="QLD",
+        mean_wind_speed_ms=8.2, wind_power_density_wm2=530,
+        turbulence_intensity_pct=10.1, weibull_k=1.8, weibull_c=9.2,
+        predominant_direction="SE", resource_class="CLASS_4",
+        capacity_factor_potential_pct=36.5, elevation_m=920, terrain_roughness="COMPLEX",
+    ),
+]
+
+_WR_FARM_PERFORMANCE: list[WindFarmPerformance] = [
+    WindFarmPerformance(
+        farm_id="mac", farm_name="Macarthur Wind Farm", state="VIC",
+        installed_capacity_mw=420.0, turbine_model="Vestas V112-3.0", turbine_rating_mw=3.0,
+        num_turbines=140, hub_height_m=94.0, rotor_diameter_m=112.0,
+        actual_capacity_factor_pct=37.2, p90_capacity_factor_pct=33.5,
+        wake_loss_pct=7.4, availability_pct=97.1, curtailment_pct=1.8,
+        annual_generation_gwh=1368.0, specific_power_wm2=306.0,
+    ),
+    WindFarmPerformance(
+        farm_id="sno2", farm_name="Snowtown Wind Farm Stage 2", state="SA",
+        installed_capacity_mw=270.0, turbine_model="Siemens SWT-2.3-108", turbine_rating_mw=2.3,
+        num_turbines=90, hub_height_m=80.0, rotor_diameter_m=108.0,
+        actual_capacity_factor_pct=43.8, p90_capacity_factor_pct=39.5,
+        wake_loss_pct=6.2, availability_pct=97.8, curtailment_pct=2.5,
+        annual_generation_gwh=1034.0, specific_power_wm2=251.0,
+    ),
+    WindFarmPerformance(
+        farm_id="hor", farm_name="Hornsdale Wind Farm", state="SA",
+        installed_capacity_mw=315.0, turbine_model="Siemens SWT-3.15-130", turbine_rating_mw=3.15,
+        num_turbines=99, hub_height_m=120.0, rotor_diameter_m=130.0,
+        actual_capacity_factor_pct=41.5, p90_capacity_factor_pct=37.8,
+        wake_loss_pct=5.8, availability_pct=98.2, curtailment_pct=3.1,
+        annual_generation_gwh=1145.0, specific_power_wm2=237.0,
+    ),
+    WindFarmPerformance(
+        farm_id="coo", farm_name="Coopers Gap Wind Farm", state="QLD",
+        installed_capacity_mw=453.0, turbine_model="Vestas V136-3.45", turbine_rating_mw=3.45,
+        num_turbines=123, hub_height_m=132.0, rotor_diameter_m=136.0,
+        actual_capacity_factor_pct=42.1, p90_capacity_factor_pct=38.2,
+        wake_loss_pct=8.1, availability_pct=96.9, curtailment_pct=2.2,
+        annual_generation_gwh=1668.0, specific_power_wm2=238.0,
+    ),
+    WindFarmPerformance(
+        farm_id="sto", farm_name="Stockyard Hill Wind Farm", state="VIC",
+        installed_capacity_mw=530.0, turbine_model="GE 3.2-130", turbine_rating_mw=3.2,
+        num_turbines=149, hub_height_m=110.0, rotor_diameter_m=130.0,
+        actual_capacity_factor_pct=38.5, p90_capacity_factor_pct=34.8,
+        wake_loss_pct=9.3, availability_pct=97.4, curtailment_pct=2.8,
+        annual_generation_gwh=1787.0, specific_power_wm2=241.0,
+    ),
+    WindFarmPerformance(
+        farm_id="gra", farm_name="Granville Harbour Wind Farm", state="TAS",
+        installed_capacity_mw=112.0, turbine_model="Vestas V136-4.5", turbine_rating_mw=4.5,
+        num_turbines=22, hub_height_m=132.0, rotor_diameter_m=136.0,
+        actual_capacity_factor_pct=48.2, p90_capacity_factor_pct=44.1,
+        wake_loss_pct=5.1, availability_pct=98.5, curtailment_pct=1.2,
+        annual_generation_gwh=472.0, specific_power_wm2=310.0,
+    ),
+    WindFarmPerformance(
+        farm_id="ban", farm_name="Bango Wind Farm", state="NSW",
+        installed_capacity_mw=244.0, turbine_model="GE 4.8-158", turbine_rating_mw=4.8,
+        num_turbines=50, hub_height_m=135.0, rotor_diameter_m=158.0,
+        actual_capacity_factor_pct=40.3, p90_capacity_factor_pct=36.4,
+        wake_loss_pct=7.9, availability_pct=97.0, curtailment_pct=3.5,
+        annual_generation_gwh=862.0, specific_power_wm2=245.0,
+    ),
+    WindFarmPerformance(
+        farm_id="ken", farm_name="Kennedy Energy Park", state="QLD",
+        installed_capacity_mw=43.2, turbine_model="Enercon E-82 E4", turbine_rating_mw=3.0,
+        num_turbines=12, hub_height_m=108.0, rotor_diameter_m=82.0,
+        actual_capacity_factor_pct=36.8, p90_capacity_factor_pct=33.1,
+        wake_loss_pct=6.5, availability_pct=96.5, curtailment_pct=4.1,
+        annual_generation_gwh=139.0, specific_power_wm2=567.0,
+    ),
+    WindFarmPerformance(
+        farm_id="wyn", farm_name="Wyndham Wind Farm", state="VIC",
+        installed_capacity_mw=180.0, turbine_model="Siemens Gamesa SG 5.0-132", turbine_rating_mw=5.0,
+        num_turbines=36, hub_height_m=117.0, rotor_diameter_m=132.0,
+        actual_capacity_factor_pct=39.7, p90_capacity_factor_pct=35.9,
+        wake_loss_pct=8.7, availability_pct=97.3, curtailment_pct=2.4,
+        annual_generation_gwh=626.0, specific_power_wm2=366.0,
+    ),
+    WindFarmPerformance(
+        farm_id="bal", farm_name="Bald Hills Wind Farm", state="VIC",
+        installed_capacity_mw=106.8, turbine_model="Vestas V90-3.0", turbine_rating_mw=3.0,
+        num_turbines=52, hub_height_m=65.0, rotor_diameter_m=90.0,
+        actual_capacity_factor_pct=33.4, p90_capacity_factor_pct=29.8,
+        wake_loss_pct=10.2, availability_pct=96.2, curtailment_pct=1.5,
+        annual_generation_gwh=312.0, specific_power_wm2=472.0,
+    ),
+    WindFarmPerformance(
+        farm_id="mus", farm_name="Musselroe Wind Farm", state="TAS",
+        installed_capacity_mw=168.0, turbine_model="Vestas V112-3.0", turbine_rating_mw=3.0,
+        num_turbines=56, hub_height_m=94.0, rotor_diameter_m=112.0,
+        actual_capacity_factor_pct=46.1, p90_capacity_factor_pct=42.3,
+        wake_loss_pct=6.8, availability_pct=97.9, curtailment_pct=0.8,
+        annual_generation_gwh=678.0, specific_power_wm2=306.0,
+    ),
+    WindFarmPerformance(
+        farm_id="arr", farm_name="Ararat Wind Farm", state="VIC",
+        installed_capacity_mw=240.0, turbine_model="GE 3.2-103", turbine_rating_mw=3.2,
+        num_turbines=75, hub_height_m=85.0, rotor_diameter_m=103.0,
+        actual_capacity_factor_pct=36.2, p90_capacity_factor_pct=32.5,
+        wake_loss_pct=11.5, availability_pct=96.8, curtailment_pct=2.1,
+        annual_generation_gwh=760.0, specific_power_wm2=384.0,
+    ),
+]
+
+_WR_WAKE_LOSS_RECORDS: list[WakeLossRecord] = [
+    # Macarthur
+    WakeLossRecord(farm_id="mac", farm_name="Macarthur", wind_direction="SW", wind_speed_bin_ms=7.5,
+        gross_generation_gwh=42.0, wake_loss_gwh=3.1, wake_loss_pct=7.4,
+        near_wake_loss_pct=4.2, far_wake_loss_pct=2.1, inter_farm_wake_pct=1.1),
+    WakeLossRecord(farm_id="mac", farm_name="Macarthur", wind_direction="SW", wind_speed_bin_ms=8.5,
+        gross_generation_gwh=58.0, wake_loss_gwh=4.5, wake_loss_pct=7.8,
+        near_wake_loss_pct=4.5, far_wake_loss_pct=2.3, inter_farm_wake_pct=1.0),
+    WakeLossRecord(farm_id="mac", farm_name="Macarthur", wind_direction="SW", wind_speed_bin_ms=9.5,
+        gross_generation_gwh=74.0, wake_loss_gwh=5.9, wake_loss_pct=8.0,
+        near_wake_loss_pct=4.6, far_wake_loss_pct=2.4, inter_farm_wake_pct=1.0),
+    WakeLossRecord(farm_id="mac", farm_name="Macarthur", wind_direction="SW", wind_speed_bin_ms=10.5,
+        gross_generation_gwh=88.0, wake_loss_gwh=6.7, wake_loss_pct=7.6,
+        near_wake_loss_pct=4.4, far_wake_loss_pct=2.2, inter_farm_wake_pct=1.0),
+    # Hornsdale
+    WakeLossRecord(farm_id="hor", farm_name="Hornsdale", wind_direction="W", wind_speed_bin_ms=7.5,
+        gross_generation_gwh=36.0, wake_loss_gwh=2.1, wake_loss_pct=5.8,
+        near_wake_loss_pct=3.2, far_wake_loss_pct=1.6, inter_farm_wake_pct=1.0),
+    WakeLossRecord(farm_id="hor", farm_name="Hornsdale", wind_direction="W", wind_speed_bin_ms=8.5,
+        gross_generation_gwh=51.0, wake_loss_gwh=3.0, wake_loss_pct=5.9,
+        near_wake_loss_pct=3.3, far_wake_loss_pct=1.6, inter_farm_wake_pct=1.0),
+    WakeLossRecord(farm_id="hor", farm_name="Hornsdale", wind_direction="W", wind_speed_bin_ms=9.5,
+        gross_generation_gwh=66.0, wake_loss_gwh=3.9, wake_loss_pct=5.9,
+        near_wake_loss_pct=3.4, far_wake_loss_pct=1.5, inter_farm_wake_pct=1.0),
+    WakeLossRecord(farm_id="hor", farm_name="Hornsdale", wind_direction="W", wind_speed_bin_ms=10.5,
+        gross_generation_gwh=80.0, wake_loss_gwh=4.7, wake_loss_pct=5.9,
+        near_wake_loss_pct=3.4, far_wake_loss_pct=1.5, inter_farm_wake_pct=1.0),
+    # Stockyard Hill
+    WakeLossRecord(farm_id="sto", farm_name="Stockyard Hill", wind_direction="NW", wind_speed_bin_ms=7.5,
+        gross_generation_gwh=55.0, wake_loss_gwh=5.1, wake_loss_pct=9.3,
+        near_wake_loss_pct=5.2, far_wake_loss_pct=2.6, inter_farm_wake_pct=1.5),
+    WakeLossRecord(farm_id="sto", farm_name="Stockyard Hill", wind_direction="NW", wind_speed_bin_ms=8.5,
+        gross_generation_gwh=73.0, wake_loss_gwh=6.9, wake_loss_pct=9.5,
+        near_wake_loss_pct=5.3, far_wake_loss_pct=2.7, inter_farm_wake_pct=1.5),
+    WakeLossRecord(farm_id="sto", farm_name="Stockyard Hill", wind_direction="NW", wind_speed_bin_ms=9.5,
+        gross_generation_gwh=91.0, wake_loss_gwh=8.7, wake_loss_pct=9.6,
+        near_wake_loss_pct=5.4, far_wake_loss_pct=2.7, inter_farm_wake_pct=1.5),
+    WakeLossRecord(farm_id="sto", farm_name="Stockyard Hill", wind_direction="NW", wind_speed_bin_ms=10.5,
+        gross_generation_gwh=106.0, wake_loss_gwh=10.0, wake_loss_pct=9.4,
+        near_wake_loss_pct=5.3, far_wake_loss_pct=2.6, inter_farm_wake_pct=1.5),
+    # Ararat
+    WakeLossRecord(farm_id="arr", farm_name="Ararat", wind_direction="W", wind_speed_bin_ms=7.5,
+        gross_generation_gwh=28.0, wake_loss_gwh=3.2, wake_loss_pct=11.5,
+        near_wake_loss_pct=6.5, far_wake_loss_pct=3.2, inter_farm_wake_pct=1.8),
+    WakeLossRecord(farm_id="arr", farm_name="Ararat", wind_direction="W", wind_speed_bin_ms=8.5,
+        gross_generation_gwh=38.0, wake_loss_gwh=4.4, wake_loss_pct=11.6,
+        near_wake_loss_pct=6.6, far_wake_loss_pct=3.2, inter_farm_wake_pct=1.8),
+    WakeLossRecord(farm_id="arr", farm_name="Ararat", wind_direction="W", wind_speed_bin_ms=9.5,
+        gross_generation_gwh=49.0, wake_loss_gwh=5.7, wake_loss_pct=11.6,
+        near_wake_loss_pct=6.6, far_wake_loss_pct=3.2, inter_farm_wake_pct=1.8),
+    WakeLossRecord(farm_id="arr", farm_name="Ararat", wind_direction="W", wind_speed_bin_ms=10.5,
+        gross_generation_gwh=58.0, wake_loss_gwh=6.7, wake_loss_pct=11.5,
+        near_wake_loss_pct=6.5, far_wake_loss_pct=3.2, inter_farm_wake_pct=1.8),
+    # Bald Hills
+    WakeLossRecord(farm_id="bal", farm_name="Bald Hills", wind_direction="SW", wind_speed_bin_ms=7.5,
+        gross_generation_gwh=18.0, wake_loss_gwh=1.8, wake_loss_pct=10.2,
+        near_wake_loss_pct=5.8, far_wake_loss_pct=2.9, inter_farm_wake_pct=1.5),
+    WakeLossRecord(farm_id="bal", farm_name="Bald Hills", wind_direction="SW", wind_speed_bin_ms=8.5,
+        gross_generation_gwh=24.0, wake_loss_gwh=2.5, wake_loss_pct=10.3,
+        near_wake_loss_pct=5.8, far_wake_loss_pct=2.9, inter_farm_wake_pct=1.6),
+    WakeLossRecord(farm_id="bal", farm_name="Bald Hills", wind_direction="SW", wind_speed_bin_ms=9.5,
+        gross_generation_gwh=31.0, wake_loss_gwh=3.2, wake_loss_pct=10.3,
+        near_wake_loss_pct=5.9, far_wake_loss_pct=2.9, inter_farm_wake_pct=1.5),
+    WakeLossRecord(farm_id="bal", farm_name="Bald Hills", wind_direction="SW", wind_speed_bin_ms=10.5,
+        gross_generation_gwh=37.0, wake_loss_gwh=3.8, wake_loss_pct=10.3,
+        near_wake_loss_pct=5.8, far_wake_loss_pct=2.9, inter_farm_wake_pct=1.6),
+]
+
+_MONTHS = [
+    (1, "Jan"), (2, "Feb"), (3, "Mar"), (4, "Apr"), (5, "May"), (6, "Jun"),
+    (7, "Jul"), (8, "Aug"), (9, "Sep"), (10, "Oct"), (11, "Nov"), (12, "Dec"),
+]
+
+# Seasonal CF patterns for SA, VIC, QLD (winter peaks in SA/VIC)
+_WR_CF_MONTHLY = {
+    "SA":  [42.0, 40.0, 39.0, 41.0, 44.0, 48.0, 51.0, 50.0, 47.0, 43.0, 40.0, 41.0],
+    "VIC": [38.0, 36.0, 35.0, 37.0, 40.0, 44.0, 47.0, 46.0, 43.0, 39.0, 36.0, 37.0],
+    "QLD": [38.0, 37.0, 39.0, 41.0, 43.0, 40.0, 38.0, 37.0, 40.0, 42.0, 39.0, 37.0],
+}
+_WR_CAP_MW = {"SA": 270.0, "VIC": 420.0, "QLD": 453.0}
+
+_WR_MONTHLY_RESOURCE: list[WindResourceRecord] = []
+for _region, _cf_list in _WR_CF_MONTHLY.items():
+    for (_m, _mname), _cf in zip(_MONTHS, _cf_list):
+        _cap = _WR_CAP_MW[_region]
+        _gen = round(_cap * _cf / 100 * 730 / 1000, 1)  # GWh approx
+        _ws = round(7.5 + (_cf - 35) * 0.12, 2)
+        _curt = round(_gen * 0.02 * 1000, 0)  # 2% curtailment in MWh
+        _WR_MONTHLY_RESOURCE.append(WindResourceRecord(
+            region=_region, month=_m, month_name=_mname,
+            avg_wind_speed_ms=_ws,
+            p90_wind_speed_ms=round(_ws * 0.88, 2),
+            capacity_factor_monthly_pct=_cf,
+            generation_gwh=_gen,
+            curtailment_mwh=_curt,
+        ))
+
+
+def _build_wind_resource_dashboard() -> WindResourceDashboard:
+    import datetime
+    total_cap = sum(f.installed_capacity_mw for f in _WR_FARM_PERFORMANCE)
+    avg_cf = round(sum(f.actual_capacity_factor_pct for f in _WR_FARM_PERFORMANCE) / len(_WR_FARM_PERFORMANCE), 2)
+    avg_wake = round(sum(f.wake_loss_pct for f in _WR_FARM_PERFORMANCE) / len(_WR_FARM_PERFORMANCE), 2)
+    best_site = max(_WR_SITE_ASSESSMENTS, key=lambda s: s.mean_wind_speed_ms).site_name
+    return WindResourceDashboard(
+        timestamp=datetime.datetime.utcnow().isoformat() + "Z",
+        site_assessments=_WR_SITE_ASSESSMENTS,
+        farm_performance=_WR_FARM_PERFORMANCE,
+        wake_loss_records=_WR_WAKE_LOSS_RECORDS,
+        monthly_resource=_WR_MONTHLY_RESOURCE,
+        best_wind_resource_site=best_site,
+        avg_capacity_factor_pct=avg_cf,
+        total_wind_capacity_mw=round(total_cap, 1),
+        avg_wake_loss_pct=avg_wake,
+    )
+
+
+# --- Endpoints ---
+
+@app.get(
+    "/api/wind-resource/dashboard",
+    response_model=WindResourceDashboard,
+    tags=["Wind Resource Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wind_resource_dashboard():
+    return _build_wind_resource_dashboard()
+
+
+@app.get(
+    "/api/wind-resource/site-assessments",
+    response_model=list[WindSiteAssessment],
+    tags=["Wind Resource Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wind_resource_site_assessments():
+    return _WR_SITE_ASSESSMENTS
+
+
+@app.get(
+    "/api/wind-resource/farm-performance",
+    response_model=list[WindFarmPerformance],
+    tags=["Wind Resource Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wind_resource_farm_performance():
+    return _WR_FARM_PERFORMANCE
+
+
+@app.get(
+    "/api/wind-resource/wake-losses",
+    response_model=list[WakeLossRecord],
+    tags=["Wind Resource Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wind_resource_wake_losses():
+    return _WR_WAKE_LOSS_RECORDS
+
+
+@app.get(
+    "/api/wind-resource/monthly-resource",
+    response_model=list[WindResourceRecord],
+    tags=["Wind Resource Analytics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_wind_resource_monthly():
+    return _WR_MONTHLY_RESOURCE
+
+
+# ---------------------------------------------------------------------------
+# Sprint 50b — Corporate PPA Market Analytics
+# ---------------------------------------------------------------------------
+
+class CorporatePpaDeal(BaseModel):
+    deal_id: str
+    project_name: str
+    technology: str             # WIND, SOLAR, HYBRID, STORAGE
+    state: str
+    offtaker_name: str
+    offtaker_sector: str        # TECH, RETAIL, MINING, MANUFACTURING, FINANCE, GOVERNMENT
+    deal_type: str              # PHYSICAL, FINANCIAL_FIRMING, SLEEVED, VIRTUAL
+    contract_length_years: int
+    capacity_mw: float
+    annual_energy_gwh: float
+    strike_price_mwh: float
+    market_price_at_signing: float
+    signing_date: str
+    first_delivery_date: str | None
+    additionality: bool         # is this a new build?
+    bundled_lgcs: bool
+    green_power_accredited: bool
+
+
+class PpaOfftakerRecord(BaseModel):
+    offtaker_name: str
+    sector: str
+    total_contracted_mw: float
+    total_contracted_gwh: float
+    num_deals: int
+    avg_strike_price: float
+    earliest_deal_year: int
+    net_zero_target: int | None
+    re100_member: bool
+    sustainability_rating: str  # AAA, AA, A, BBB, BB
+
+
+class PpaPriceTrendRecord(BaseModel):
+    year: int
+    quarter: str
+    technology: str
+    region: str
+    avg_strike_price_mwh: float
+    min_strike_price_mwh: float
+    max_strike_price_mwh: float
+    num_deals: int
+    total_capacity_mw: float
+    spot_price_comparison: float
+
+
+class PpaMarketSummaryRecord(BaseModel):
+    year: int
+    total_deals: int
+    total_capacity_mw: float
+    total_value_m_aud: float
+    avg_contract_years: float
+    physical_pct: float
+    financial_pct: float
+    additionality_pct: float
+    top_sector: str
+
+
+class CorporatePpaMarketDashboard(BaseModel):
+    timestamp: str
+    ppa_deals: list[CorporatePpaDeal]
+    offtakers: list[PpaOfftakerRecord]
+    price_trends: list[PpaPriceTrendRecord]
+    market_summary: list[PpaMarketSummaryRecord]
+    total_contracted_capacity_mw: float
+    avg_ppa_price_mwh: float
+    additionality_pct: float
+    yoy_growth_pct: float
+
+
+# --- Mock data ---
+
+_CPM_PPA_DEALS: list[CorporatePpaDeal] = [
+    CorporatePpaDeal(
+        deal_id="PPA-001", project_name="Murra Warra Wind Farm II", technology="WIND",
+        state="VIC", offtaker_name="Amazon Web Services", offtaker_sector="TECH",
+        deal_type="PHYSICAL", contract_length_years=15, capacity_mw=209.0,
+        annual_energy_gwh=630.0, strike_price_mwh=52.0, market_price_at_signing=68.0,
+        signing_date="2020-03-15", first_delivery_date="2021-06-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-002", project_name="Emerald Solar Park", technology="SOLAR",
+        state="QLD", offtaker_name="Google Australia", offtaker_sector="TECH",
+        deal_type="FINANCIAL_FIRMING", contract_length_years=12, capacity_mw=330.0,
+        annual_energy_gwh=610.0, strike_price_mwh=48.5, market_price_at_signing=61.0,
+        signing_date="2021-07-20", first_delivery_date="2022-11-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-003", project_name="Cattle Hill Wind Farm", technology="WIND",
+        state="TAS", offtaker_name="Microsoft Australia", offtaker_sector="TECH",
+        deal_type="SLEEVED", contract_length_years=10, capacity_mw=148.0,
+        annual_energy_gwh=430.0, strike_price_mwh=55.0, market_price_at_signing=72.0,
+        signing_date="2019-05-10", first_delivery_date="2020-09-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-004", project_name="Bungaban Solar Farm", technology="SOLAR",
+        state="QLD", offtaker_name="BHP", offtaker_sector="MINING",
+        deal_type="PHYSICAL", contract_length_years=20, capacity_mw=400.0,
+        annual_energy_gwh=720.0, strike_price_mwh=58.0, market_price_at_signing=74.0,
+        signing_date="2018-11-20", first_delivery_date="2020-03-01",
+        additionality=True, bundled_lgcs=False, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-005", project_name="Limondale Solar Farm", technology="SOLAR",
+        state="NSW", offtaker_name="Rio Tinto", offtaker_sector="MINING",
+        deal_type="PHYSICAL", contract_length_years=18, capacity_mw=249.0,
+        annual_energy_gwh=440.0, strike_price_mwh=56.0, market_price_at_signing=71.0,
+        signing_date="2018-08-05", first_delivery_date="2019-12-01",
+        additionality=True, bundled_lgcs=False, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-006", project_name="Christmas Hills Wind Farm", technology="WIND",
+        state="SA", offtaker_name="Fortescue Metals Group", offtaker_sector="MINING",
+        deal_type="VIRTUAL", contract_length_years=15, capacity_mw=180.0,
+        annual_energy_gwh=540.0, strike_price_mwh=62.0, market_price_at_signing=75.0,
+        signing_date="2022-02-14", first_delivery_date="2023-06-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-007", project_name="Molong Solar Farm", technology="SOLAR",
+        state="NSW", offtaker_name="Coles Group", offtaker_sector="RETAIL",
+        deal_type="FINANCIAL_FIRMING", contract_length_years=10, capacity_mw=100.0,
+        annual_energy_gwh=190.0, strike_price_mwh=45.0, market_price_at_signing=60.0,
+        signing_date="2021-09-01", first_delivery_date="2022-12-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-008", project_name="Darling Downs Solar Farm", technology="SOLAR",
+        state="QLD", offtaker_name="Woolworths Group", offtaker_sector="RETAIL",
+        deal_type="PHYSICAL", contract_length_years=12, capacity_mw=150.0,
+        annual_energy_gwh=280.0, strike_price_mwh=47.0, market_price_at_signing=62.0,
+        signing_date="2022-06-15", first_delivery_date="2023-09-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-009", project_name="Dundonnell Wind Farm", technology="WIND",
+        state="VIC", offtaker_name="Commonwealth Bank", offtaker_sector="FINANCE",
+        deal_type="SLEEVED", contract_length_years=15, capacity_mw=336.0,
+        annual_energy_gwh=1000.0, strike_price_mwh=53.0, market_price_at_signing=69.0,
+        signing_date="2020-10-20", first_delivery_date="2022-01-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-010", project_name="Sunraysia Solar Farm", technology="HYBRID",
+        state="VIC", offtaker_name="ANZ Bank", offtaker_sector="FINANCE",
+        deal_type="PHYSICAL", contract_length_years=12, capacity_mw=255.0,
+        annual_energy_gwh=480.0, strike_price_mwh=50.0, market_price_at_signing=64.0,
+        signing_date="2021-03-10", first_delivery_date="2022-07-01",
+        additionality=False, bundled_lgcs=False, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-011", project_name="Snowy 2.0 Linked Solar", technology="SOLAR",
+        state="NSW", offtaker_name="Sydney Water", offtaker_sector="GOVERNMENT",
+        deal_type="PHYSICAL", contract_length_years=20, capacity_mw=80.0,
+        annual_energy_gwh=150.0, strike_price_mwh=44.0, market_price_at_signing=58.0,
+        signing_date="2023-01-15", first_delivery_date="2024-03-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-012", project_name="Lochiel Solar Farm", technology="SOLAR",
+        state="SA", offtaker_name="NSW Government", offtaker_sector="GOVERNMENT",
+        deal_type="FINANCIAL_FIRMING", contract_length_years=20, capacity_mw=120.0,
+        annual_energy_gwh=220.0, strike_price_mwh=42.0, market_price_at_signing=56.0,
+        signing_date="2023-05-20", first_delivery_date="2024-08-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-013", project_name="Ararat Wind Farm Extension", technology="WIND",
+        state="VIC", offtaker_name="Amazon Web Services", offtaker_sector="TECH",
+        deal_type="PHYSICAL", contract_length_years=15, capacity_mw=240.0,
+        annual_energy_gwh=720.0, strike_price_mwh=50.0, market_price_at_signing=63.0,
+        signing_date="2022-11-08", first_delivery_date="2024-01-01",
+        additionality=True, bundled_lgcs=True, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-014", project_name="Port Augusta Renewable Energy Park", technology="HYBRID",
+        state="SA", offtaker_name="BHP", offtaker_sector="MINING",
+        deal_type="PHYSICAL", contract_length_years=20, capacity_mw=317.0,
+        annual_energy_gwh=750.0, strike_price_mwh=65.0, market_price_at_signing=80.0,
+        signing_date="2019-03-25", first_delivery_date="2021-01-01",
+        additionality=True, bundled_lgcs=False, green_power_accredited=False,
+    ),
+    CorporatePpaDeal(
+        deal_id="PPA-015", project_name="Clarke Creek Wind & Solar", technology="HYBRID",
+        state="QLD", offtaker_name="Rio Tinto", offtaker_sector="MINING",
+        deal_type="VIRTUAL", contract_length_years=15, capacity_mw=400.0,
+        annual_energy_gwh=950.0, strike_price_mwh=60.0, market_price_at_signing=73.0,
+        signing_date="2024-02-01", first_delivery_date=None,
+        additionality=True, bundled_lgcs=True, green_power_accredited=True,
+    ),
+]
+
+_CPM_OFFTAKERS: list[PpaOfftakerRecord] = [
+    PpaOfftakerRecord(offtaker_name="Amazon Web Services", sector="TECH", total_contracted_mw=449.0, total_contracted_gwh=1350.0, num_deals=2, avg_strike_price=51.0, earliest_deal_year=2020, net_zero_target=2040, re100_member=True, sustainability_rating="AAA"),
+    PpaOfftakerRecord(offtaker_name="Google Australia", sector="TECH", total_contracted_mw=330.0, total_contracted_gwh=610.0, num_deals=1, avg_strike_price=48.5, earliest_deal_year=2021, net_zero_target=2030, re100_member=True, sustainability_rating="AAA"),
+    PpaOfftakerRecord(offtaker_name="Microsoft Australia", sector="TECH", total_contracted_mw=148.0, total_contracted_gwh=430.0, num_deals=1, avg_strike_price=55.0, earliest_deal_year=2019, net_zero_target=2030, re100_member=True, sustainability_rating="AAA"),
+    PpaOfftakerRecord(offtaker_name="BHP", sector="MINING", total_contracted_mw=717.0, total_contracted_gwh=1470.0, num_deals=2, avg_strike_price=61.5, earliest_deal_year=2018, net_zero_target=2050, re100_member=False, sustainability_rating="AA"),
+    PpaOfftakerRecord(offtaker_name="Rio Tinto", sector="MINING", total_contracted_mw=649.0, total_contracted_gwh=1390.0, num_deals=2, avg_strike_price=58.0, earliest_deal_year=2018, net_zero_target=2050, re100_member=False, sustainability_rating="A"),
+    PpaOfftakerRecord(offtaker_name="Fortescue Metals Group", sector="MINING", total_contracted_mw=180.0, total_contracted_gwh=540.0, num_deals=1, avg_strike_price=62.0, earliest_deal_year=2022, net_zero_target=2030, re100_member=True, sustainability_rating="AA"),
+    PpaOfftakerRecord(offtaker_name="Coles Group", sector="RETAIL", total_contracted_mw=100.0, total_contracted_gwh=190.0, num_deals=1, avg_strike_price=45.0, earliest_deal_year=2021, net_zero_target=2040, re100_member=True, sustainability_rating="A"),
+    PpaOfftakerRecord(offtaker_name="Woolworths Group", sector="RETAIL", total_contracted_mw=150.0, total_contracted_gwh=280.0, num_deals=1, avg_strike_price=47.0, earliest_deal_year=2022, net_zero_target=2040, re100_member=True, sustainability_rating="AA"),
+    PpaOfftakerRecord(offtaker_name="Commonwealth Bank", sector="FINANCE", total_contracted_mw=336.0, total_contracted_gwh=1000.0, num_deals=1, avg_strike_price=53.0, earliest_deal_year=2020, net_zero_target=2050, re100_member=False, sustainability_rating="BBB"),
+    PpaOfftakerRecord(offtaker_name="ANZ Bank", sector="FINANCE", total_contracted_mw=255.0, total_contracted_gwh=480.0, num_deals=1, avg_strike_price=50.0, earliest_deal_year=2021, net_zero_target=2050, re100_member=False, sustainability_rating="BBB"),
+]
+
+_CPM_PRICE_TRENDS: list[PpaPriceTrendRecord] = [
+    # WIND — NSW — 2020-2024
+    PpaPriceTrendRecord(year=2020, quarter="H1", technology="WIND", region="NSW", avg_strike_price_mwh=72.0, min_strike_price_mwh=65.0, max_strike_price_mwh=80.0, num_deals=3, total_capacity_mw=420.0, spot_price_comparison=68.0),
+    PpaPriceTrendRecord(year=2021, quarter="H1", technology="WIND", region="NSW", avg_strike_price_mwh=67.0, min_strike_price_mwh=60.0, max_strike_price_mwh=75.0, num_deals=4, total_capacity_mw=510.0, spot_price_comparison=72.0),
+    PpaPriceTrendRecord(year=2022, quarter="H1", technology="WIND", region="NSW", avg_strike_price_mwh=62.0, min_strike_price_mwh=55.0, max_strike_price_mwh=70.0, num_deals=5, total_capacity_mw=640.0, spot_price_comparison=95.0),
+    PpaPriceTrendRecord(year=2023, quarter="H1", technology="WIND", region="NSW", avg_strike_price_mwh=57.0, min_strike_price_mwh=50.0, max_strike_price_mwh=65.0, num_deals=6, total_capacity_mw=780.0, spot_price_comparison=88.0),
+    PpaPriceTrendRecord(year=2024, quarter="H1", technology="WIND", region="NSW", avg_strike_price_mwh=53.0, min_strike_price_mwh=46.0, max_strike_price_mwh=61.0, num_deals=7, total_capacity_mw=920.0, spot_price_comparison=75.0),
+    # WIND — VIC — 2020-2024
+    PpaPriceTrendRecord(year=2020, quarter="H1", technology="WIND", region="VIC", avg_strike_price_mwh=70.0, min_strike_price_mwh=63.0, max_strike_price_mwh=78.0, num_deals=4, total_capacity_mw=580.0, spot_price_comparison=63.0),
+    PpaPriceTrendRecord(year=2021, quarter="H1", technology="WIND", region="VIC", avg_strike_price_mwh=65.0, min_strike_price_mwh=58.0, max_strike_price_mwh=73.0, num_deals=5, total_capacity_mw=690.0, spot_price_comparison=68.0),
+    PpaPriceTrendRecord(year=2022, quarter="H1", technology="WIND", region="VIC", avg_strike_price_mwh=60.0, min_strike_price_mwh=53.0, max_strike_price_mwh=68.0, num_deals=6, total_capacity_mw=830.0, spot_price_comparison=90.0),
+    PpaPriceTrendRecord(year=2023, quarter="H1", technology="WIND", region="VIC", avg_strike_price_mwh=55.0, min_strike_price_mwh=48.0, max_strike_price_mwh=63.0, num_deals=7, total_capacity_mw=960.0, spot_price_comparison=82.0),
+    PpaPriceTrendRecord(year=2024, quarter="H1", technology="WIND", region="VIC", avg_strike_price_mwh=51.0, min_strike_price_mwh=44.0, max_strike_price_mwh=59.0, num_deals=9, total_capacity_mw=1120.0, spot_price_comparison=70.0),
+    # WIND — QLD — 2020-2024
+    PpaPriceTrendRecord(year=2020, quarter="H1", technology="WIND", region="QLD", avg_strike_price_mwh=74.0, min_strike_price_mwh=67.0, max_strike_price_mwh=82.0, num_deals=2, total_capacity_mw=310.0, spot_price_comparison=60.0),
+    PpaPriceTrendRecord(year=2021, quarter="H1", technology="WIND", region="QLD", avg_strike_price_mwh=69.0, min_strike_price_mwh=62.0, max_strike_price_mwh=77.0, num_deals=3, total_capacity_mw=420.0, spot_price_comparison=65.0),
+    PpaPriceTrendRecord(year=2022, quarter="H1", technology="WIND", region="QLD", avg_strike_price_mwh=64.0, min_strike_price_mwh=57.0, max_strike_price_mwh=72.0, num_deals=4, total_capacity_mw=550.0, spot_price_comparison=92.0),
+    PpaPriceTrendRecord(year=2023, quarter="H1", technology="WIND", region="QLD", avg_strike_price_mwh=59.0, min_strike_price_mwh=52.0, max_strike_price_mwh=67.0, num_deals=5, total_capacity_mw=670.0, spot_price_comparison=85.0),
+    PpaPriceTrendRecord(year=2024, quarter="H1", technology="WIND", region="QLD", avg_strike_price_mwh=55.0, min_strike_price_mwh=48.0, max_strike_price_mwh=63.0, num_deals=6, total_capacity_mw=790.0, spot_price_comparison=72.0),
+    # SOLAR — NSW — 2020-2024
+    PpaPriceTrendRecord(year=2020, quarter="H1", technology="SOLAR", region="NSW", avg_strike_price_mwh=65.0, min_strike_price_mwh=58.0, max_strike_price_mwh=73.0, num_deals=5, total_capacity_mw=650.0, spot_price_comparison=68.0),
+    PpaPriceTrendRecord(year=2021, quarter="H1", technology="SOLAR", region="NSW", avg_strike_price_mwh=59.0, min_strike_price_mwh=52.0, max_strike_price_mwh=67.0, num_deals=7, total_capacity_mw=820.0, spot_price_comparison=72.0),
+    PpaPriceTrendRecord(year=2022, quarter="H1", technology="SOLAR", region="NSW", avg_strike_price_mwh=54.0, min_strike_price_mwh=47.0, max_strike_price_mwh=62.0, num_deals=9, total_capacity_mw=1050.0, spot_price_comparison=95.0),
+    PpaPriceTrendRecord(year=2023, quarter="H1", technology="SOLAR", region="NSW", avg_strike_price_mwh=49.0, min_strike_price_mwh=42.0, max_strike_price_mwh=57.0, num_deals=11, total_capacity_mw=1280.0, spot_price_comparison=88.0),
+    PpaPriceTrendRecord(year=2024, quarter="H1", technology="SOLAR", region="NSW", avg_strike_price_mwh=45.0, min_strike_price_mwh=38.0, max_strike_price_mwh=53.0, num_deals=13, total_capacity_mw=1510.0, spot_price_comparison=75.0),
+    # SOLAR — VIC — 2020-2024
+    PpaPriceTrendRecord(year=2020, quarter="H1", technology="SOLAR", region="VIC", avg_strike_price_mwh=63.0, min_strike_price_mwh=56.0, max_strike_price_mwh=71.0, num_deals=4, total_capacity_mw=520.0, spot_price_comparison=63.0),
+    PpaPriceTrendRecord(year=2021, quarter="H1", technology="SOLAR", region="VIC", avg_strike_price_mwh=57.0, min_strike_price_mwh=50.0, max_strike_price_mwh=65.0, num_deals=6, total_capacity_mw=690.0, spot_price_comparison=68.0),
+    PpaPriceTrendRecord(year=2022, quarter="H1", technology="SOLAR", region="VIC", avg_strike_price_mwh=52.0, min_strike_price_mwh=45.0, max_strike_price_mwh=60.0, num_deals=8, total_capacity_mw=870.0, spot_price_comparison=90.0),
+    PpaPriceTrendRecord(year=2023, quarter="H1", technology="SOLAR", region="VIC", avg_strike_price_mwh=47.0, min_strike_price_mwh=40.0, max_strike_price_mwh=55.0, num_deals=10, total_capacity_mw=1060.0, spot_price_comparison=82.0),
+    PpaPriceTrendRecord(year=2024, quarter="H1", technology="SOLAR", region="VIC", avg_strike_price_mwh=43.0, min_strike_price_mwh=36.0, max_strike_price_mwh=51.0, num_deals=12, total_capacity_mw=1240.0, spot_price_comparison=70.0),
+    # SOLAR — QLD — 2020-2024
+    PpaPriceTrendRecord(year=2020, quarter="H1", technology="SOLAR", region="QLD", avg_strike_price_mwh=61.0, min_strike_price_mwh=54.0, max_strike_price_mwh=69.0, num_deals=6, total_capacity_mw=780.0, spot_price_comparison=60.0),
+    PpaPriceTrendRecord(year=2021, quarter="H1", technology="SOLAR", region="QLD", avg_strike_price_mwh=55.0, min_strike_price_mwh=48.0, max_strike_price_mwh=63.0, num_deals=8, total_capacity_mw=980.0, spot_price_comparison=65.0),
+    PpaPriceTrendRecord(year=2022, quarter="H1", technology="SOLAR", region="QLD", avg_strike_price_mwh=50.0, min_strike_price_mwh=43.0, max_strike_price_mwh=58.0, num_deals=10, total_capacity_mw=1200.0, spot_price_comparison=92.0),
+    PpaPriceTrendRecord(year=2023, quarter="H1", technology="SOLAR", region="QLD", avg_strike_price_mwh=46.0, min_strike_price_mwh=39.0, max_strike_price_mwh=54.0, num_deals=12, total_capacity_mw=1430.0, spot_price_comparison=85.0),
+    PpaPriceTrendRecord(year=2024, quarter="H1", technology="SOLAR", region="QLD", avg_strike_price_mwh=42.0, min_strike_price_mwh=35.0, max_strike_price_mwh=50.0, num_deals=15, total_capacity_mw=1680.0, spot_price_comparison=72.0),
+]
+
+_CPM_MARKET_SUMMARY: list[PpaMarketSummaryRecord] = [
+    PpaMarketSummaryRecord(year=2019, total_deals=5, total_capacity_mw=950.0, total_value_m_aud=420.0, avg_contract_years=16.5, physical_pct=75.0, financial_pct=25.0, additionality_pct=90.0, top_sector="MINING"),
+    PpaMarketSummaryRecord(year=2020, total_deals=12, total_capacity_mw=2100.0, total_value_m_aud=980.0, avg_contract_years=15.2, physical_pct=70.0, financial_pct=30.0, additionality_pct=85.0, top_sector="TECH"),
+    PpaMarketSummaryRecord(year=2021, total_deals=22, total_capacity_mw=3800.0, total_value_m_aud=1750.0, avg_contract_years=13.8, physical_pct=62.0, financial_pct=38.0, additionality_pct=80.0, top_sector="TECH"),
+    PpaMarketSummaryRecord(year=2022, total_deals=35, total_capacity_mw=5600.0, total_value_m_aud=2640.0, avg_contract_years=13.1, physical_pct=58.0, financial_pct=42.0, additionality_pct=75.0, top_sector="MINING"),
+    PpaMarketSummaryRecord(year=2023, total_deals=42, total_capacity_mw=7200.0, total_value_m_aud=3180.0, avg_contract_years=12.5, physical_pct=55.0, financial_pct=45.0, additionality_pct=72.0, top_sector="TECH"),
+    PpaMarketSummaryRecord(year=2024, total_deals=50, total_capacity_mw=9100.0, total_value_m_aud=3950.0, avg_contract_years=12.0, physical_pct=52.0, financial_pct=48.0, additionality_pct=68.0, top_sector="GOVERNMENT"),
+]
+
+_CPM_DASHBOARD = CorporatePpaMarketDashboard(
+    timestamp="2025-02-20T00:00:00Z",
+    ppa_deals=_CPM_PPA_DEALS,
+    offtakers=_CPM_OFFTAKERS,
+    price_trends=_CPM_PRICE_TRENDS,
+    market_summary=_CPM_MARKET_SUMMARY,
+    total_contracted_capacity_mw=3516.0,
+    avg_ppa_price_mwh=53.1,
+    additionality_pct=86.7,
+    yoy_growth_pct=19.0,
+)
+
+
+# --- Endpoints ---
+
+@app.get(
+    "/api/corporate-ppa-market/dashboard",
+    response_model=CorporatePpaMarketDashboard,
+    tags=["Corporate PPA Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_corporate_ppa_market_dashboard():
+    return _CPM_DASHBOARD
+
+
+@app.get(
+    "/api/corporate-ppa-market/deals",
+    response_model=list[CorporatePpaDeal],
+    tags=["Corporate PPA Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_corporate_ppa_market_deals():
+    return _CPM_PPA_DEALS
+
+
+@app.get(
+    "/api/corporate-ppa-market/offtakers",
+    response_model=list[PpaOfftakerRecord],
+    tags=["Corporate PPA Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_corporate_ppa_market_offtakers():
+    return _CPM_OFFTAKERS
+
+
+@app.get(
+    "/api/corporate-ppa-market/price-trends",
+    response_model=list[PpaPriceTrendRecord],
+    tags=["Corporate PPA Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_corporate_ppa_market_price_trends():
+    return _CPM_PRICE_TRENDS
+
+
+@app.get(
+    "/api/corporate-ppa-market/market-summary",
+    response_model=list[PpaMarketSummaryRecord],
+    tags=["Corporate PPA Market"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_corporate_ppa_market_summary():
+    return _CPM_MARKET_SUMMARY
+
+
+# ---------------------------------------------------------------------------
+# Sprint 50c — Microgrids & Remote Area Power Systems Analytics
+# ---------------------------------------------------------------------------
+
+class MicrogridRecord(BaseModel):
+    microgrid_id: str
+    microgrid_name: str
+    location: str
+    state: str
+    community_type: str         # ABORIGINAL, PASTORAL, MINING, ISLAND, TOURISM, DEFENCE
+    grid_type: str              # ISOLATED_DIESEL, HYBRID_SOLAR_DIESEL, FULL_RENEWABLE, PARTIAL_GRID
+    peak_demand_kw: float
+    solar_capacity_kw: float
+    wind_capacity_kw: float
+    storage_kwh: float
+    diesel_gen_kw: float
+    annual_consumption_mwh: float
+    renewable_fraction_pct: float
+    diesel_displaced_litres_yr: int
+    diesel_cost_saving_aud_yr: float
+    co2_avoided_tpa: float
+    energy_autonomy_days: float
+    operator: str
+    status: str                 # OPERATING, CONSTRUCTION, PLANNED
+
+class DieselDisplacementRecord(BaseModel):
+    state: str
+    year: int
+    quarter: str
+    total_microgrids: int
+    total_diesel_gen_kw: float
+    total_solar_kw: float
+    total_storage_kwh: float
+    diesel_litres_consumed: int
+    renewable_fraction_pct: float
+    avg_lcoe_diesel_mwh: float
+    avg_lcoe_hybrid_mwh: float
+    cost_saving_m_aud: float
+
+class MicrogridEnergyRecord(BaseModel):
+    microgrid_id: str
+    microgrid_name: str
+    month: int
+    month_name: str
+    solar_generation_mwh: float
+    wind_generation_mwh: float
+    diesel_generation_mwh: float
+    storage_discharge_mwh: float
+    demand_mwh: float
+    curtailment_mwh: float
+    renewable_fraction_pct: float
+
+class OffGridTechnologyRecord(BaseModel):
+    technology: str             # SOLAR_PV, WIND, BATTERY, DIESEL, FLYWHEEL, FUEL_CELL
+    installed_capacity_kw: float
+    sites_deployed: int
+    avg_cost_per_kw: float
+    reliability_pct: float
+    maintenance_cost_kw_yr: float
+    design_life_years: int
+
+class MicrogridDashboard(BaseModel):
+    timestamp: str
+    microgrids: list[MicrogridRecord]
+    diesel_displacement: list[DieselDisplacementRecord]
+    energy_records: list[MicrogridEnergyRecord]
+    technology_summary: list[OffGridTechnologyRecord]
+    total_microgrids: int
+    avg_renewable_fraction_pct: float
+    total_diesel_displaced_ml: float
+    total_co2_avoided_tpa: float
+
+
+_MG_MICROGRIDS: list[MicrogridRecord] = [
+    MicrogridRecord(
+        microgrid_id="MG001", microgrid_name="Doomadgee Microgrid", location="Doomadgee", state="QLD",
+        community_type="ABORIGINAL", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=850.0,
+        solar_capacity_kw=1200.0, wind_capacity_kw=0.0, storage_kwh=2400.0, diesel_gen_kw=800.0,
+        annual_consumption_mwh=3650.0, renewable_fraction_pct=58.0, diesel_displaced_litres_yr=420000,
+        diesel_cost_saving_aud_yr=672000.0, co2_avoided_tpa=1134.0, energy_autonomy_days=3.2,
+        operator="Ergon Energy Queensland", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG002", microgrid_name="Coober Pedy Microgrid", location="Coober Pedy", state="SA",
+        community_type="MINING", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=2200.0,
+        solar_capacity_kw=3000.0, wind_capacity_kw=1500.0, storage_kwh=1200.0, diesel_gen_kw=2500.0,
+        annual_consumption_mwh=12000.0, renewable_fraction_pct=70.0, diesel_displaced_litres_yr=1800000,
+        diesel_cost_saving_aud_yr=2880000.0, co2_avoided_tpa=4860.0, energy_autonomy_days=0.6,
+        operator="Power Republic", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG003", microgrid_name="Mawson Station", location="Mawson Station", state="AUST_TERRITORY",
+        community_type="DEFENCE", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=350.0,
+        solar_capacity_kw=80.0, wind_capacity_kw=0.0, storage_kwh=400.0, diesel_gen_kw=500.0,
+        annual_consumption_mwh=1800.0, renewable_fraction_pct=30.0, diesel_displaced_litres_yr=120000,
+        diesel_cost_saving_aud_yr=480000.0, co2_avoided_tpa=324.0, energy_autonomy_days=1.3,
+        operator="Australian Antarctic Division", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG004", microgrid_name="Lord Howe Island Grid", location="Lord Howe Island", state="NSW",
+        community_type="ISLAND", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=520.0,
+        solar_capacity_kw=500.0, wind_capacity_kw=0.0, storage_kwh=1500.0, diesel_gen_kw=600.0,
+        annual_consumption_mwh=2200.0, renewable_fraction_pct=78.0, diesel_displaced_litres_yr=390000,
+        diesel_cost_saving_aud_yr=936000.0, co2_avoided_tpa=1053.0, energy_autonomy_days=3.5,
+        operator="Lord Howe Island Board", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG005", microgrid_name="Esperance Microgrid", location="Esperance", state="WA",
+        community_type="PASTORAL", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=3800.0,
+        solar_capacity_kw=4000.0, wind_capacity_kw=0.0, storage_kwh=5000.0, diesel_gen_kw=3500.0,
+        annual_consumption_mwh=18000.0, renewable_fraction_pct=62.0, diesel_displaced_litres_yr=2300000,
+        diesel_cost_saving_aud_yr=3680000.0, co2_avoided_tpa=6210.0, energy_autonomy_days=1.6,
+        operator="Horizon Power", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG006", microgrid_name="Carnarvon Solar Farm", location="Carnarvon", state="WA",
+        community_type="PASTORAL", grid_type="PARTIAL_GRID", peak_demand_kw=5200.0,
+        solar_capacity_kw=5000.0, wind_capacity_kw=0.0, storage_kwh=8000.0, diesel_gen_kw=4000.0,
+        annual_consumption_mwh=24000.0, renewable_fraction_pct=55.0, diesel_displaced_litres_yr=2900000,
+        diesel_cost_saving_aud_yr=4640000.0, co2_avoided_tpa=7830.0, energy_autonomy_days=2.0,
+        operator="Horizon Power", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG007", microgrid_name="King Island Renewable Energy", location="King Island", state="TAS",
+        community_type="ISLAND", grid_type="FULL_RENEWABLE", peak_demand_kw=2800.0,
+        solar_capacity_kw=2400.0, wind_capacity_kw=2500.0, storage_kwh=3000.0, diesel_gen_kw=1000.0,
+        annual_consumption_mwh=14000.0, renewable_fraction_pct=100.0, diesel_displaced_litres_yr=3800000,
+        diesel_cost_saving_aud_yr=7600000.0, co2_avoided_tpa=10260.0, energy_autonomy_days=5.2,
+        operator="TasNetworks", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG008", microgrid_name="Rottnest Island Grid", location="Rottnest Island", state="WA",
+        community_type="TOURISM", grid_type="FULL_RENEWABLE", peak_demand_kw=1100.0,
+        solar_capacity_kw=600.0, wind_capacity_kw=600.0, storage_kwh=2000.0, diesel_gen_kw=300.0,
+        annual_consumption_mwh=3800.0, renewable_fraction_pct=100.0, diesel_displaced_litres_yr=700000,
+        diesel_cost_saving_aud_yr=1400000.0, co2_avoided_tpa=1890.0, energy_autonomy_days=4.8,
+        operator="Horizon Power", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG009", microgrid_name="Marble Bar Solar Project", location="Marble Bar", state="WA",
+        community_type="PASTORAL", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=180.0,
+        solar_capacity_kw=250.0, wind_capacity_kw=0.0, storage_kwh=600.0, diesel_gen_kw=200.0,
+        annual_consumption_mwh=720.0, renewable_fraction_pct=67.0, diesel_displaced_litres_yr=110000,
+        diesel_cost_saving_aud_yr=176000.0, co2_avoided_tpa=297.0, energy_autonomy_days=4.0,
+        operator="Horizon Power", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG010", microgrid_name="Windorah Solar Station", location="Windorah", state="QLD",
+        community_type="PASTORAL", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=250.0,
+        solar_capacity_kw=300.0, wind_capacity_kw=0.0, storage_kwh=800.0, diesel_gen_kw=250.0,
+        annual_consumption_mwh=1000.0, renewable_fraction_pct=74.0, diesel_displaced_litres_yr=160000,
+        diesel_cost_saving_aud_yr=256000.0, co2_avoided_tpa=432.0, energy_autonomy_days=3.8,
+        operator="Ergon Energy Queensland", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG011", microgrid_name="Nguiu (Wurrumiyanga) Microgrid", location="Bathurst Island", state="NT",
+        community_type="ABORIGINAL", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=1400.0,
+        solar_capacity_kw=1800.0, wind_capacity_kw=0.0, storage_kwh=3600.0, diesel_gen_kw=1500.0,
+        annual_consumption_mwh=6200.0, renewable_fraction_pct=52.0, diesel_displaced_litres_yr=680000,
+        diesel_cost_saving_aud_yr=1088000.0, co2_avoided_tpa=1836.0, energy_autonomy_days=2.8,
+        operator="Power and Water Corporation", status="OPERATING"
+    ),
+    MicrogridRecord(
+        microgrid_id="MG012", microgrid_name="Wiluna Solar Hybrid", location="Wiluna", state="WA",
+        community_type="MINING", grid_type="HYBRID_SOLAR_DIESEL", peak_demand_kw=900.0,
+        solar_capacity_kw=1500.0, wind_capacity_kw=0.0, storage_kwh=2200.0, diesel_gen_kw=1000.0,
+        annual_consumption_mwh=4200.0, renewable_fraction_pct=45.0, diesel_displaced_litres_yr=490000,
+        diesel_cost_saving_aud_yr=784000.0, co2_avoided_tpa=1323.0, energy_autonomy_days=2.2,
+        operator="Horizon Power", status="CONSTRUCTION"
+    ),
+]
+
+_MG_DIESEL_DISPLACEMENT: list[DieselDisplacementRecord] = [
+    # QLD — 4 quarters 2024
+    DieselDisplacementRecord(state="QLD", year=2024, quarter="Q1", total_microgrids=38, total_diesel_gen_kw=45000.0, total_solar_kw=38000.0, total_storage_kwh=62000.0, diesel_litres_consumed=9800000, renewable_fraction_pct=41.2, avg_lcoe_diesel_mwh=420.0, avg_lcoe_hybrid_mwh=210.0, cost_saving_m_aud=8.2),
+    DieselDisplacementRecord(state="QLD", year=2024, quarter="Q2", total_microgrids=39, total_diesel_gen_kw=44500.0, total_solar_kw=40000.0, total_storage_kwh=65000.0, diesel_litres_consumed=9200000, renewable_fraction_pct=46.8, avg_lcoe_diesel_mwh=425.0, avg_lcoe_hybrid_mwh=205.0, cost_saving_m_aud=9.1),
+    DieselDisplacementRecord(state="QLD", year=2024, quarter="Q3", total_microgrids=40, total_diesel_gen_kw=43800.0, total_solar_kw=42000.0, total_storage_kwh=68000.0, diesel_litres_consumed=8700000, renewable_fraction_pct=51.5, avg_lcoe_diesel_mwh=430.0, avg_lcoe_hybrid_mwh=200.0, cost_saving_m_aud=10.0),
+    DieselDisplacementRecord(state="QLD", year=2024, quarter="Q4", total_microgrids=41, total_diesel_gen_kw=43000.0, total_solar_kw=44000.0, total_storage_kwh=72000.0, diesel_litres_consumed=8200000, renewable_fraction_pct=56.2, avg_lcoe_diesel_mwh=435.0, avg_lcoe_hybrid_mwh=195.0, cost_saving_m_aud=11.2),
+    # WA — 4 quarters 2024
+    DieselDisplacementRecord(state="WA", year=2024, quarter="Q1", total_microgrids=52, total_diesel_gen_kw=62000.0, total_solar_kw=55000.0, total_storage_kwh=88000.0, diesel_litres_consumed=14200000, renewable_fraction_pct=38.5, avg_lcoe_diesel_mwh=415.0, avg_lcoe_hybrid_mwh=215.0, cost_saving_m_aud=11.8),
+    DieselDisplacementRecord(state="WA", year=2024, quarter="Q2", total_microgrids=53, total_diesel_gen_kw=61500.0, total_solar_kw=58000.0, total_storage_kwh=92000.0, diesel_litres_consumed=13500000, renewable_fraction_pct=44.0, avg_lcoe_diesel_mwh=420.0, avg_lcoe_hybrid_mwh=208.0, cost_saving_m_aud=13.2),
+    DieselDisplacementRecord(state="WA", year=2024, quarter="Q3", total_microgrids=55, total_diesel_gen_kw=60000.0, total_solar_kw=62000.0, total_storage_kwh=98000.0, diesel_litres_consumed=12800000, renewable_fraction_pct=49.5, avg_lcoe_diesel_mwh=422.0, avg_lcoe_hybrid_mwh=200.0, cost_saving_m_aud=14.5),
+    DieselDisplacementRecord(state="WA", year=2024, quarter="Q4", total_microgrids=56, total_diesel_gen_kw=59000.0, total_solar_kw=65000.0, total_storage_kwh=104000.0, diesel_litres_consumed=12000000, renewable_fraction_pct=54.8, avg_lcoe_diesel_mwh=425.0, avg_lcoe_hybrid_mwh=195.0, cost_saving_m_aud=16.0),
+    # NT — 4 quarters 2024
+    DieselDisplacementRecord(state="NT", year=2024, quarter="Q1", total_microgrids=72, total_diesel_gen_kw=78000.0, total_solar_kw=62000.0, total_storage_kwh=95000.0, diesel_litres_consumed=18500000, renewable_fraction_pct=35.2, avg_lcoe_diesel_mwh=440.0, avg_lcoe_hybrid_mwh=220.0, cost_saving_m_aud=14.8),
+    DieselDisplacementRecord(state="NT", year=2024, quarter="Q2", total_microgrids=73, total_diesel_gen_kw=77200.0, total_solar_kw=65000.0, total_storage_kwh=100000.0, diesel_litres_consumed=17800000, renewable_fraction_pct=39.5, avg_lcoe_diesel_mwh=445.0, avg_lcoe_hybrid_mwh=215.0, cost_saving_m_aud=16.2),
+    DieselDisplacementRecord(state="NT", year=2024, quarter="Q3", total_microgrids=75, total_diesel_gen_kw=76000.0, total_solar_kw=69000.0, total_storage_kwh=106000.0, diesel_litres_consumed=17000000, renewable_fraction_pct=44.1, avg_lcoe_diesel_mwh=448.0, avg_lcoe_hybrid_mwh=210.0, cost_saving_m_aud=17.8),
+    DieselDisplacementRecord(state="NT", year=2024, quarter="Q4", total_microgrids=76, total_diesel_gen_kw=74500.0, total_solar_kw=72000.0, total_storage_kwh=112000.0, diesel_litres_consumed=16200000, renewable_fraction_pct=48.9, avg_lcoe_diesel_mwh=450.0, avg_lcoe_hybrid_mwh=205.0, cost_saving_m_aud=19.5),
+    # SA — 4 quarters 2024
+    DieselDisplacementRecord(state="SA", year=2024, quarter="Q1", total_microgrids=18, total_diesel_gen_kw=18000.0, total_solar_kw=22000.0, total_storage_kwh=15000.0, diesel_litres_consumed=4200000, renewable_fraction_pct=55.0, avg_lcoe_diesel_mwh=410.0, avg_lcoe_hybrid_mwh=195.0, cost_saving_m_aud=5.4),
+    DieselDisplacementRecord(state="SA", year=2024, quarter="Q2", total_microgrids=18, total_diesel_gen_kw=17800.0, total_solar_kw=23000.0, total_storage_kwh=16000.0, diesel_litres_consumed=3900000, renewable_fraction_pct=59.8, avg_lcoe_diesel_mwh=412.0, avg_lcoe_hybrid_mwh=190.0, cost_saving_m_aud=6.0),
+    DieselDisplacementRecord(state="SA", year=2024, quarter="Q3", total_microgrids=19, total_diesel_gen_kw=17500.0, total_solar_kw=24500.0, total_storage_kwh=17000.0, diesel_litres_consumed=3600000, renewable_fraction_pct=64.2, avg_lcoe_diesel_mwh=415.0, avg_lcoe_hybrid_mwh=185.0, cost_saving_m_aud=6.8),
+    DieselDisplacementRecord(state="SA", year=2024, quarter="Q4", total_microgrids=19, total_diesel_gen_kw=17200.0, total_solar_kw=26000.0, total_storage_kwh=18000.0, diesel_litres_consumed=3300000, renewable_fraction_pct=68.5, avg_lcoe_diesel_mwh=418.0, avg_lcoe_hybrid_mwh=180.0, cost_saving_m_aud=7.5),
+    # TAS — 4 quarters 2024
+    DieselDisplacementRecord(state="TAS", year=2024, quarter="Q1", total_microgrids=8, total_diesel_gen_kw=8500.0, total_solar_kw=9000.0, total_storage_kwh=11000.0, diesel_litres_consumed=1800000, renewable_fraction_pct=72.0, avg_lcoe_diesel_mwh=390.0, avg_lcoe_hybrid_mwh=185.0, cost_saving_m_aud=3.2),
+    DieselDisplacementRecord(state="TAS", year=2024, quarter="Q2", total_microgrids=8, total_diesel_gen_kw=8300.0, total_solar_kw=9200.0, total_storage_kwh=11500.0, diesel_litres_consumed=1600000, renewable_fraction_pct=76.5, avg_lcoe_diesel_mwh=392.0, avg_lcoe_hybrid_mwh=182.0, cost_saving_m_aud=3.6),
+    DieselDisplacementRecord(state="TAS", year=2024, quarter="Q3", total_microgrids=8, total_diesel_gen_kw=8100.0, total_solar_kw=9400.0, total_storage_kwh=12000.0, diesel_litres_consumed=1400000, renewable_fraction_pct=80.8, avg_lcoe_diesel_mwh=395.0, avg_lcoe_hybrid_mwh=178.0, cost_saving_m_aud=4.1),
+    DieselDisplacementRecord(state="TAS", year=2024, quarter="Q4", total_microgrids=9, total_diesel_gen_kw=7900.0, total_solar_kw=9800.0, total_storage_kwh=12500.0, diesel_litres_consumed=1200000, renewable_fraction_pct=85.0, avg_lcoe_diesel_mwh=398.0, avg_lcoe_hybrid_mwh=175.0, cost_saving_m_aud=4.6),
+]
+
+_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+def _mg_energy(mid: str, name: str) -> list[MicrogridEnergyRecord]:
+    # Seasonal solar patterns (high in summer Dec/Jan/Feb, lower in winter Jun/Jul)
+    solar_profile = [1.0, 0.95, 0.85, 0.70, 0.55, 0.45, 0.48, 0.58, 0.72, 0.85, 0.92, 0.98]
+    # Diesel backs up when solar is low
+    # Different scale per microgrid
+    scales = {"MG001": 350, "MG004": 180, "MG007": 430, "MG008": 310}
+    scale = scales.get(mid, 300)
+    records = []
+    for i, mname in enumerate(_MONTHS):
+        sol = round(scale * solar_profile[i], 1)
+        wind = round(scale * 0.3 * (0.8 + 0.2 * (i in [5, 6, 7])), 1) if mid == "MG007" else 0.0
+        dem = round(scale * 0.9 * (1 + 0.1 * (i in [0, 1, 11])), 1)
+        dsl = round(max(0.0, dem - sol - wind) * 0.4, 1)
+        stor = round(max(0.0, dem - sol - wind - dsl) * 0.8, 1)
+        curt = round(max(0.0, sol + wind - dem) * 0.1, 1)
+        rf = round((sol + wind + stor) / max(dem, 1) * 100, 1)
+        records.append(MicrogridEnergyRecord(
+            microgrid_id=mid, microgrid_name=name, month=i + 1, month_name=mname,
+            solar_generation_mwh=sol, wind_generation_mwh=wind, diesel_generation_mwh=dsl,
+            storage_discharge_mwh=stor, demand_mwh=dem, curtailment_mwh=curt,
+            renewable_fraction_pct=min(rf, 100.0)
+        ))
+    return records
+
+_MG_ENERGY_RECORDS: list[MicrogridEnergyRecord] = (
+    _mg_energy("MG001", "Doomadgee Microgrid") +
+    _mg_energy("MG004", "Lord Howe Island Grid") +
+    _mg_energy("MG007", "King Island Renewable Energy") +
+    _mg_energy("MG008", "Rottnest Island Grid")
+)
+
+_MG_TECHNOLOGY_SUMMARY: list[OffGridTechnologyRecord] = [
+    OffGridTechnologyRecord(technology="SOLAR_PV", installed_capacity_kw=185000.0, sites_deployed=248, avg_cost_per_kw=1200.0, reliability_pct=99.2, maintenance_cost_kw_yr=18.0, design_life_years=25),
+    OffGridTechnologyRecord(technology="WIND", installed_capacity_kw=22000.0, sites_deployed=14, avg_cost_per_kw=2200.0, reliability_pct=97.5, maintenance_cost_kw_yr=45.0, design_life_years=20),
+    OffGridTechnologyRecord(technology="BATTERY", installed_capacity_kw=98000.0, sites_deployed=195, avg_cost_per_kw=800.0, reliability_pct=98.8, maintenance_cost_kw_yr=12.0, design_life_years=15),
+    OffGridTechnologyRecord(technology="DIESEL", installed_capacity_kw=420000.0, sites_deployed=310, avg_cost_per_kw=450.0, reliability_pct=96.0, maintenance_cost_kw_yr=85.0, design_life_years=12),
+    OffGridTechnologyRecord(technology="FLYWHEEL", installed_capacity_kw=4500.0, sites_deployed=6, avg_cost_per_kw=3500.0, reliability_pct=99.8, maintenance_cost_kw_yr=35.0, design_life_years=20),
+    OffGridTechnologyRecord(technology="FUEL_CELL", installed_capacity_kw=1200.0, sites_deployed=3, avg_cost_per_kw=6500.0, reliability_pct=97.0, maintenance_cost_kw_yr=120.0, design_life_years=10),
+]
+
+
+@app.get(
+    "/api/microgrid-raps/dashboard",
+    response_model=MicrogridDashboard,
+    tags=["Microgrid RAPS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_microgrid_raps_dashboard():
+    from datetime import datetime, timezone
+    total = len(_MG_MICROGRIDS)
+    avg_rf = round(sum(m.renewable_fraction_pct for m in _MG_MICROGRIDS) / total, 1)
+    total_disp_ml = round(sum(m.diesel_displaced_litres_yr for m in _MG_MICROGRIDS) / 1_000_000, 2)
+    total_co2 = round(sum(m.co2_avoided_tpa for m in _MG_MICROGRIDS), 0)
+    return MicrogridDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        microgrids=_MG_MICROGRIDS,
+        diesel_displacement=_MG_DIESEL_DISPLACEMENT,
+        energy_records=_MG_ENERGY_RECORDS,
+        technology_summary=_MG_TECHNOLOGY_SUMMARY,
+        total_microgrids=total,
+        avg_renewable_fraction_pct=avg_rf,
+        total_diesel_displaced_ml=total_disp_ml,
+        total_co2_avoided_tpa=total_co2,
+    )
+
+
+@app.get(
+    "/api/microgrid-raps/microgrids",
+    response_model=list[MicrogridRecord],
+    tags=["Microgrid RAPS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_microgrid_raps_microgrids():
+    return _MG_MICROGRIDS
+
+
+@app.get(
+    "/api/microgrid-raps/diesel-displacement",
+    response_model=list[DieselDisplacementRecord],
+    tags=["Microgrid RAPS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_microgrid_raps_diesel_displacement():
+    return _MG_DIESEL_DISPLACEMENT
+
+
+@app.get(
+    "/api/microgrid-raps/energy-records",
+    response_model=list[MicrogridEnergyRecord],
+    tags=["Microgrid RAPS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_microgrid_raps_energy_records():
+    return _MG_ENERGY_RECORDS
+
+
+@app.get(
+    "/api/microgrid-raps/technology-summary",
+    response_model=list[OffGridTechnologyRecord],
+    tags=["Microgrid RAPS"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_microgrid_raps_technology_summary():
+    return _MG_TECHNOLOGY_SUMMARY

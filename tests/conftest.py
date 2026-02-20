@@ -12,6 +12,26 @@ from unittest.mock import MagicMock
 import pytest
 
 # ---------------------------------------------------------------------------
+# FastAPI TestClient fixture — shared by all test classes that use
+# ``def test_*(self, client)`` style.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def client():
+    """Return a synchronous FastAPI TestClient for the main app."""
+    os.environ.setdefault("DATABRICKS_HOST", "https://dummy.azuredatabricks.net")
+    os.environ.setdefault("DATABRICKS_TOKEN", "dapi-dummy-token")
+    os.environ.setdefault("DATABRICKS_WAREHOUSE_ID", "dummy-warehouse-id")
+    os.environ.setdefault("DATABRICKS_CATALOG", "energy_copilot")
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-dummy-key")
+
+    from fastapi.testclient import TestClient
+    from app.backend.main import app  # noqa: E402
+
+    with TestClient(app) as c:
+        yield c
+
+# ---------------------------------------------------------------------------
 # Integration-test gate
 # ---------------------------------------------------------------------------
 # Import this constant in any test module that has slow/expensive integration tests:
