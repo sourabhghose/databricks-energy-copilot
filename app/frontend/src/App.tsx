@@ -274,6 +274,9 @@ import HydrogenEconomyAnalytics from './pages/HydrogenEconomyAnalytics'
 import RooftopSolarGridAnalytics from './pages/RooftopSolarGridAnalytics'
 import RECMarketAnalytics from './pages/RECMarketAnalytics'
 import EnergyPovertyAnalytics from './pages/EnergyPovertyAnalytics'
+import HedgeEffectivenessAnalytics from './pages/HedgeEffectivenessAnalytics'
+import CBAMTradeExposureAnalytics from './pages/CBAMTradeExposureAnalytics'
+import DemandResponseProgramAnalytics from './pages/DemandResponseProgramAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -478,6 +481,9 @@ const NAV_ITEMS = [
   { to: '/rooftop-solar-grid',           label: 'Rooftop Solar Grid Analytics',  Icon: Sun          },
   { to: '/rec-market-analytics',         label: 'REC Analytics (LGC & STC)',     Icon: Award        },
   { to: '/energy-poverty-analytics',    label: 'Energy Poverty Analytics',      Icon: Heart        },
+  { to: '/hedge-effectiveness',         label: 'Hedge Effectiveness',           Icon: Shield        },
+  { to: '/cbam-trade-exposure',         label: 'CBAM Trade Exposure',           Icon: Globe          },
+  { to: '/demand-response-programs',   label: 'Demand Response Programs',     Icon: Sliders        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -757,6 +763,9 @@ export default function App() {
               <Route path="/rooftop-solar-grid"            element={<RooftopSolarGridAnalytics />}            />
               <Route path="/rec-market-analytics"          element={<RECMarketAnalytics />}                   />
               <Route path="/energy-poverty-analytics"    element={<EnergyPovertyAnalytics />}              />
+              <Route path="/hedge-effectiveness"         element={<HedgeEffectivenessAnalytics />}         />
+              <Route path="/cbam-trade-exposure"         element={<CBAMTradeExposureAnalytics />}          />
+              <Route path="/demand-response-programs"   element={<DemandResponseProgramAnalytics />}     />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

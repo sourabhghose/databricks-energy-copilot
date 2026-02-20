@@ -11665,3 +11665,230 @@ export interface EPVDashboard {
 
 export const getEPVDashboard = (): Promise<EPVDashboard> =>
   get<EPVDashboard>('/api/epv/dashboard');
+
+// ---------------------------------------------------------------------------
+// Demand Response Program Analytics  (Sprint 78a)
+// ---------------------------------------------------------------------------
+
+export interface DRPProgramRecord {
+  program_id: string;
+  program_name: string;
+  program_type: string;
+  operator: string;
+  region: string;
+  enrolled_capacity_mw: number;
+  active_participants: number;
+  avg_response_time_min: number;
+  activation_threshold: string;
+  activations_per_year: number;
+  avg_payment_per_mwh: number;
+  annual_program_cost_m: number;
+}
+
+export interface DRPEventRecord {
+  event_id: string;
+  date: string;
+  region: string;
+  program: string;
+  trigger_type: string;
+  requested_mw: number;
+  delivered_mw: number;
+  response_rate_pct: number;
+  duration_hrs: number;
+  cost_m: number;
+  avoided_load_shedding: boolean;
+}
+
+export interface DRPParticipantRecord {
+  participant_id: string;
+  sector: string;
+  region: string;
+  enrolled_mw: number;
+  avg_delivered_mw: number;
+  response_reliability_pct: number;
+  programs_enrolled: number;
+  annual_revenue_k: number;
+  flexibility_window_hrs: number;
+}
+
+export interface DRPCapacityRecord {
+  region: string;
+  quarter: string;
+  rert_contracted_mw: number;
+  voluntary_dsp_mw: number;
+  direct_load_control_mw: number;
+  network_relief_mw: number;
+  total_dr_capacity_mw: number;
+  system_peak_mw: number;
+  dr_as_pct_of_peak: number;
+}
+
+export interface DRPBarrierRecord {
+  barrier: string;
+  impact: string;
+  affected_sectors: string[];
+  regulatory_fix: string;
+  implementation_timeline: string;
+}
+
+export interface DRPDashboard {
+  programs: DRPProgramRecord[];
+  events: DRPEventRecord[];
+  participants: DRPParticipantRecord[];
+  capacity: DRPCapacityRecord[];
+  barriers: DRPBarrierRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getDemandResponseProgramsDashboard = (): Promise<DRPDashboard> =>
+  get<DRPDashboard>('/api/demand-response-programs/dashboard');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEF — Electricity Futures Hedge Effectiveness Analytics (Sprint 78b)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface HEFPositionRecord {
+  portfolio_id: string;
+  company: string;
+  region: string;
+  contract_type: string;
+  position: string;
+  notional_mw: number;
+  strike_price: number;
+  market_price: number;
+  mtm_value_m: number;
+  delta: number;
+  gamma: number;
+  vega: number;
+  expiry: string;
+}
+
+export interface HEFBasisRiskRecord {
+  region: string;
+  hedge_region: string;
+  quarter: string;
+  spot_price_hedge_region: number;
+  spot_price_physical_region: number;
+  basis_differential: number;
+  basis_risk_pct: number;
+  correlation: number;
+  avg_interconnector_constraint_hrs: number;
+}
+
+export interface HEFPnLRecord {
+  month: string;
+  portfolio_id: string;
+  physical_pnl_m: number;
+  hedge_pnl_m: number;
+  net_pnl_m: number;
+  hedge_ratio_pct: number;
+  var_95_m: number;
+  cvar_95_m: number;
+  realized_vol_annualized: number;
+}
+
+export interface HEFHedgeRatioRecord {
+  company: string;
+  region: string;
+  quarter: string;
+  optimal_hedge_ratio: number;
+  actual_hedge_ratio: number;
+  deviation_from_optimal_pct: number;
+  cost_of_over_hedging_m: number;
+  cost_of_under_hedging_m: number;
+  recommendation: string;
+}
+
+export interface HEFRollingPerformanceRecord {
+  year: number;
+  region: string;
+  avg_annual_spot_price: number;
+  avg_hedge_price: number;
+  hedge_premium_pct: number;
+  hedge_savings_m: number;
+  unhedged_cost_m: number;
+  hedged_cost_m: number;
+  effectiveness_pct: number;
+}
+
+export interface HEFDashboard {
+  positions: HEFPositionRecord[];
+  basis_risk: HEFBasisRiskRecord[];
+  pnl_attribution: HEFPnLRecord[];
+  hedge_ratios: HEFHedgeRatioRecord[];
+  rolling_performance: HEFRollingPerformanceRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getHedgeEffectivenessDashboard = (): Promise<HEFDashboard> =>
+  get<HEFDashboard>('/api/hedge-effectiveness/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 78c — CBAM & Trade Exposure Analytics (prefix CBATE)
+// ---------------------------------------------------------------------------
+
+export interface CBATESectorRecord {
+  sector: string;
+  annual_export_value_bn: number;
+  eu_export_pct: number;
+  carbon_intensity_t_per_t_product: number;
+  aus_carbon_price_effective: number;
+  eu_cbam_carbon_price: number;
+  cbam_liability_per_tonne: number;
+  annual_cbam_cost_m: number;
+  competitiveness_impact: string;
+}
+
+export interface CBATETradeFlowRecord {
+  year: number;
+  sector: string;
+  destination: string;
+  export_volume_kt: number;
+  export_value_m: number;
+  carbon_content_kt_co2: number;
+  carbon_cost_m: number;
+  trade_adjusted_pct: number;
+}
+
+export interface CBATECarbonLeakageRecord {
+  sector: string;
+  leakage_risk: string;
+  leakage_rate_pct: number;
+  policy_mechanism: string;
+  effectiveness_score: number;
+  residual_leakage_pct: number;
+}
+
+export interface CBATECompetitivenessRecord {
+  sector: string;
+  competitor_country: string;
+  aus_production_cost_per_t: number;
+  competitor_production_cost_per_t: number;
+  aus_carbon_cost_per_t: number;
+  competitor_carbon_cost_per_t: number;
+  competitiveness_gap_pct: number;
+  year: number;
+}
+
+export interface CBATEPolicyScenarioRecord {
+  scenario: string;
+  year: number;
+  sector: string;
+  total_carbon_cost_m: number;
+  production_volume_change_pct: number;
+  employment_impact_thousands: number;
+  export_revenue_change_m: number;
+  abatement_mt_co2: number;
+}
+
+export interface CBATEDashboard {
+  sectors: CBATESectorRecord[];
+  trade_flows: CBATETradeFlowRecord[];
+  leakage_risks: CBATECarbonLeakageRecord[];
+  competitiveness: CBATECompetitivenessRecord[];
+  policy_scenarios: CBATEPolicyScenarioRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getCBAMTradeExposureDashboard = (): Promise<CBATEDashboard> =>
+  get<CBATEDashboard>('/api/cbam-trade-exposure/dashboard');

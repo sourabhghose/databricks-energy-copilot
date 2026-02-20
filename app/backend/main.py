@@ -53146,3 +53146,896 @@ async def get_epv_dashboard():
     result = _build_epv_dashboard()
     _cache_set(_epv_cache, "epv", result)
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HEF — Electricity Futures Hedge Effectiveness Analytics (Sprint 78b)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class HEFPositionRecord(BaseModel):
+    portfolio_id: str
+    company: str
+    region: str
+    contract_type: str  # CAL / QTR / MONTHLY / CAP / FLOOR / COLLAR / SWAP
+    position: str  # LONG / SHORT
+    notional_mw: float
+    strike_price: float
+    market_price: float
+    mtm_value_m: float  # mark-to-market
+    delta: float  # price sensitivity
+    gamma: float  # delta sensitivity
+    vega: float  # volatility sensitivity
+    expiry: str  # e.g. "2025-Q1"
+
+
+class HEFBasisRiskRecord(BaseModel):
+    region: str
+    hedge_region: str  # e.g. "NSW1" hedged with "VIC1"
+    quarter: str
+    spot_price_hedge_region: float
+    spot_price_physical_region: float
+    basis_differential: float
+    basis_risk_pct: float  # basis differential / spot price
+    correlation: float
+    avg_interconnector_constraint_hrs: float
+
+
+class HEFPnLRecord(BaseModel):
+    month: str
+    portfolio_id: str
+    physical_pnl_m: float   # P&L from physical position
+    hedge_pnl_m: float      # P&L from hedge instruments
+    net_pnl_m: float
+    hedge_ratio_pct: float  # % of physical exposure hedged
+    var_95_m: float         # Value at Risk
+    cvar_95_m: float        # Conditional VaR
+    realized_vol_annualized: float
+
+
+class HEFHedgeRatioRecord(BaseModel):
+    company: str
+    region: str
+    quarter: str
+    optimal_hedge_ratio: float  # based on min-variance
+    actual_hedge_ratio: float
+    deviation_from_optimal_pct: float
+    cost_of_over_hedging_m: float
+    cost_of_under_hedging_m: float
+    recommendation: str  # INCREASE / DECREASE / MAINTAIN
+
+
+class HEFRollingPerformanceRecord(BaseModel):
+    year: int
+    region: str
+    avg_annual_spot_price: float
+    avg_hedge_price: float
+    hedge_premium_pct: float  # (hedge_price - spot) / spot * 100
+    hedge_savings_m: float  # positive = hedge saved money
+    unhedged_cost_m: float
+    hedged_cost_m: float
+    effectiveness_pct: float  # % of price variance eliminated by hedge
+
+
+class HEFDashboard(BaseModel):
+    positions: List[HEFPositionRecord]
+    basis_risk: List[HEFBasisRiskRecord]
+    pnl_attribution: List[HEFPnLRecord]
+    hedge_ratios: List[HEFHedgeRatioRecord]
+    rolling_performance: List[HEFRollingPerformanceRecord]
+    summary: dict
+
+
+def _build_hef_dashboard() -> HEFDashboard:
+    import random
+    rng = random.Random(42)
+
+    portfolios = ["PORT-A", "PORT-B", "PORT-C", "PORT-D"]
+    companies = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Snowy Hydro", "Alinta Energy"]
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    contract_types = ["CAL", "QTR", "MONTHLY", "CAP", "SWAP"]
+    quarters = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    recommendations = ["INCREASE", "DECREASE", "MAINTAIN"]
+
+    # 20 position records (4 portfolios × 5 contract types)
+    positions: List[HEFPositionRecord] = []
+    for i, pid in enumerate(portfolios):
+        company = companies[i]
+        region = regions[i]
+        for ct in contract_types:
+            strike = rng.uniform(60.0, 140.0)
+            market = rng.uniform(55.0, 150.0)
+            notional = rng.uniform(50.0, 500.0)
+            mtm = (market - strike) * notional * 8760 / 1e6 * rng.uniform(0.05, 0.15)
+            positions.append(HEFPositionRecord(
+                portfolio_id=pid,
+                company=company,
+                region=region,
+                contract_type=ct,
+                position=rng.choice(["LONG", "SHORT"]),
+                notional_mw=round(notional, 1),
+                strike_price=round(strike, 2),
+                market_price=round(market, 2),
+                mtm_value_m=round(mtm, 3),
+                delta=round(rng.uniform(0.4, 1.0), 4),
+                gamma=round(rng.uniform(0.001, 0.02), 5),
+                vega=round(rng.uniform(0.1, 2.0), 4),
+                expiry=rng.choice(["2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4", "2026-CAL"]),
+            ))
+
+    # 20 basis risk records (5 region pairs × 4 quarters)
+    region_pairs = [
+        ("NSW1", "VIC1"),
+        ("VIC1", "SA1"),
+        ("QLD1", "NSW1"),
+        ("SA1", "VIC1"),
+        ("TAS1", "VIC1"),
+    ]
+    basis_risk: List[HEFBasisRiskRecord] = []
+    for phys_r, hedge_r in region_pairs:
+        for q in quarters:
+            spot_hedge = rng.uniform(70.0, 130.0)
+            spot_phys = spot_hedge + rng.uniform(-20.0, 25.0)
+            basis_diff = spot_phys - spot_hedge
+            basis_risk.append(HEFBasisRiskRecord(
+                region=phys_r,
+                hedge_region=hedge_r,
+                quarter=q,
+                spot_price_hedge_region=round(spot_hedge, 2),
+                spot_price_physical_region=round(spot_phys, 2),
+                basis_differential=round(basis_diff, 2),
+                basis_risk_pct=round(abs(basis_diff) / spot_phys * 100, 2),
+                correlation=round(rng.uniform(0.6, 0.98), 4),
+                avg_interconnector_constraint_hrs=round(rng.uniform(50, 800), 1),
+            ))
+
+    # 36 P&L records (3 portfolios × 12 months of 2024)
+    pnl_portfolios = ["PORT-A", "PORT-B", "PORT-C"]
+    months = [f"2024-{m:02d}" for m in range(1, 13)]
+    pnl_attribution: List[HEFPnLRecord] = []
+    for pid in pnl_portfolios:
+        for month in months:
+            phys = rng.uniform(-15.0, 25.0)
+            hedge = rng.uniform(-12.0, 20.0)
+            net = round(phys + hedge, 3)
+            var = round(rng.uniform(2.0, 12.0), 3)
+            pnl_attribution.append(HEFPnLRecord(
+                month=month,
+                portfolio_id=pid,
+                physical_pnl_m=round(phys, 3),
+                hedge_pnl_m=round(hedge, 3),
+                net_pnl_m=net,
+                hedge_ratio_pct=round(rng.uniform(50.0, 95.0), 1),
+                var_95_m=var,
+                cvar_95_m=round(var * rng.uniform(1.1, 1.5), 3),
+                realized_vol_annualized=round(rng.uniform(0.18, 0.55), 4),
+            ))
+
+    # 20 hedge ratio records (5 companies × 4 quarters)
+    hedge_ratios: List[HEFHedgeRatioRecord] = []
+    for i, company in enumerate(companies):
+        region = regions[i]
+        for q in quarters:
+            optimal = round(rng.uniform(55.0, 90.0), 1)
+            actual = round(optimal + rng.uniform(-15.0, 15.0), 1)
+            deviation = round(actual - optimal, 1)
+            cost_over = round(max(0, deviation) * rng.uniform(0.05, 0.3), 3)
+            cost_under = round(max(0, -deviation) * rng.uniform(0.05, 0.3), 3)
+            if deviation > 5:
+                rec = "DECREASE"
+            elif deviation < -5:
+                rec = "INCREASE"
+            else:
+                rec = "MAINTAIN"
+            hedge_ratios.append(HEFHedgeRatioRecord(
+                company=company,
+                region=region,
+                quarter=q,
+                optimal_hedge_ratio=optimal,
+                actual_hedge_ratio=actual,
+                deviation_from_optimal_pct=deviation,
+                cost_of_over_hedging_m=cost_over,
+                cost_of_under_hedging_m=cost_under,
+                recommendation=rec,
+            ))
+
+    # 20 rolling performance records (5 regions × 4 years: 2021–2024)
+    years = [2021, 2022, 2023, 2024]
+    rolling_performance: List[HEFRollingPerformanceRecord] = []
+    for region in regions:
+        for year in years:
+            spot = rng.uniform(65.0, 145.0)
+            hedge = spot + rng.uniform(-10.0, 20.0)
+            premium = (hedge - spot) / spot * 100
+            unhedged_cost = round(spot * rng.uniform(1.5, 4.0), 2)
+            hedged_cost = round(hedge * rng.uniform(1.5, 4.0), 2)
+            savings = round(unhedged_cost - hedged_cost, 3)
+            effectiveness = round(rng.uniform(45.0, 88.0), 1)
+            rolling_performance.append(HEFRollingPerformanceRecord(
+                year=year,
+                region=region,
+                avg_annual_spot_price=round(spot, 2),
+                avg_hedge_price=round(hedge, 2),
+                hedge_premium_pct=round(premium, 2),
+                hedge_savings_m=savings,
+                unhedged_cost_m=unhedged_cost,
+                hedged_cost_m=hedged_cost,
+                effectiveness_pct=effectiveness,
+            ))
+
+    return HEFDashboard(
+        positions=positions,
+        basis_risk=basis_risk,
+        pnl_attribution=pnl_attribution,
+        hedge_ratios=hedge_ratios,
+        rolling_performance=rolling_performance,
+        summary={
+            "total_notional_mw": 4850,
+            "total_mtm_value_m": 124.5,
+            "avg_hedge_ratio_pct": 72.3,
+            "avg_basis_risk_pct": 8.4,
+            "best_performing_region": "NSW1",
+            "avg_hedge_effectiveness_pct": 68.2,
+            "total_var_95_m": 38.7,
+        },
+    )
+
+
+_hef_cache: dict = {}
+
+
+@app.get("/api/hedge-effectiveness/dashboard", response_model=HEFDashboard, dependencies=[Depends(verify_api_key)])
+async def get_hedge_effectiveness_dashboard():
+    cached = _cache_get(_hef_cache, "hef")
+    if cached:
+        return cached
+    result = _build_hef_dashboard()
+    _cache_set(_hef_cache, "hef", result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 78c — Carbon Border Adjustment Mechanism (CBAM) & Trade Exposure
+#              Analytics  (prefix CBATE)
+# ---------------------------------------------------------------------------
+
+class CBATESectorRecord(BaseModel):
+    sector: str  # STEEL / ALUMINIUM / CEMENT / FERTILISER / CHEMICALS / MINING / LNG / COAL
+    annual_export_value_bn: float
+    eu_export_pct: float
+    carbon_intensity_t_per_t_product: float
+    aus_carbon_price_effective: float
+    eu_cbam_carbon_price: float
+    cbam_liability_per_tonne: float
+    annual_cbam_cost_m: float
+    competitiveness_impact: str  # HIGH / MEDIUM / LOW
+
+
+class CBATETradeFlowRecord(BaseModel):
+    year: int
+    sector: str
+    destination: str  # EU / ASIA / USA / MIDDLE_EAST / DOMESTIC
+    export_volume_kt: float
+    export_value_m: float
+    carbon_content_kt_co2: float
+    carbon_cost_m: float
+    trade_adjusted_pct: float
+
+
+class CBATECarbonLeakageRecord(BaseModel):
+    sector: str
+    leakage_risk: str  # HIGH / MEDIUM / LOW
+    leakage_rate_pct: float
+    policy_mechanism: str  # REBATE / EXEMPTION / INTERNATIONAL_AGREEMENT / CBAM_EQUIVALENT
+    effectiveness_score: float
+    residual_leakage_pct: float
+
+
+class CBATECompetitivenessRecord(BaseModel):
+    sector: str
+    competitor_country: str  # CHINA / INDIA / SOUTH_KOREA / JAPAN / GERMANY / USA
+    aus_production_cost_per_t: float
+    competitor_production_cost_per_t: float
+    aus_carbon_cost_per_t: float
+    competitor_carbon_cost_per_t: float
+    competitiveness_gap_pct: float
+    year: int
+
+
+class CBATEPolicyScenarioRecord(BaseModel):
+    scenario: str  # BASELINE / AUS_CBAM / GLOBAL_CARBON_PRICE / ACCELERATED_SAFEGUARD / GREEN_DEAL_ALIGNMENT
+    year: int
+    sector: str
+    total_carbon_cost_m: float
+    production_volume_change_pct: float
+    employment_impact_thousands: float
+    export_revenue_change_m: float
+    abatement_mt_co2: float
+
+
+class CBATEDashboard(BaseModel):
+    sectors: List[CBATESectorRecord]
+    trade_flows: List[CBATETradeFlowRecord]
+    leakage_risks: List[CBATECarbonLeakageRecord]
+    competitiveness: List[CBATECompetitivenessRecord]
+    policy_scenarios: List[CBATEPolicyScenarioRecord]
+    summary: dict
+
+
+def _build_cbate_dashboard() -> CBATEDashboard:
+    import random
+    rng = random.Random(9812)
+
+    # 8 sectors
+    sectors = [
+        CBATESectorRecord(sector="STEEL",       annual_export_value_bn=4.2,  eu_export_pct=14.2, carbon_intensity_t_per_t_product=1.85, aus_carbon_price_effective=29.0, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=72.3, annual_cbam_cost_m=420.0, competitiveness_impact="HIGH"),
+        CBATESectorRecord(sector="ALUMINIUM",   annual_export_value_bn=5.8,  eu_export_pct=22.1, carbon_intensity_t_per_t_product=7.20, aus_carbon_price_effective=27.5, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=279.4, annual_cbam_cost_m=680.0, competitiveness_impact="HIGH"),
+        CBATESectorRecord(sector="CEMENT",      annual_export_value_bn=0.9,  eu_export_pct=8.4,  carbon_intensity_t_per_t_product=0.82, aus_carbon_price_effective=24.0, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=36.0, annual_cbam_cost_m=48.0,  competitiveness_impact="MEDIUM"),
+        CBATESectorRecord(sector="FERTILISER",  annual_export_value_bn=1.4,  eu_export_pct=11.6, carbon_intensity_t_per_t_product=2.30, aus_carbon_price_effective=22.0, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=105.8, annual_cbam_cost_m=115.0, competitiveness_impact="HIGH"),
+        CBATESectorRecord(sector="CHEMICALS",   annual_export_value_bn=3.1,  eu_export_pct=16.8, carbon_intensity_t_per_t_product=1.40, aus_carbon_price_effective=20.0, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=67.2, annual_cbam_cost_m=220.0, competitiveness_impact="MEDIUM"),
+        CBATESectorRecord(sector="MINING",      annual_export_value_bn=18.4, eu_export_pct=9.3,  carbon_intensity_t_per_t_product=0.45, aus_carbon_price_effective=18.5, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=22.3, annual_cbam_cost_m=340.0, competitiveness_impact="MEDIUM"),
+        CBATESectorRecord(sector="LNG",         annual_export_value_bn=72.0, eu_export_pct=18.5, carbon_intensity_t_per_t_product=0.30, aus_carbon_price_effective=25.0, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=12.9, annual_cbam_cost_m=870.0, competitiveness_impact="HIGH"),
+        CBATESectorRecord(sector="COAL",        annual_export_value_bn=54.0, eu_export_pct=4.2,  carbon_intensity_t_per_t_product=0.10, aus_carbon_price_effective=15.0, eu_cbam_carbon_price=68.0, cbam_liability_per_tonne=5.3,  annual_cbam_cost_m=147.0, competitiveness_impact="LOW"),
+    ]
+
+    # 40 trade flow records: 8 sectors × 5 destinations
+    destinations = ["EU", "ASIA", "USA", "MIDDLE_EAST", "DOMESTIC"]
+    sector_base_vol = {
+        "STEEL": 1200, "ALUMINIUM": 800, "CEMENT": 300, "FERTILISER": 450,
+        "CHEMICALS": 600, "MINING": 15000, "LNG": 22000, "COAL": 38000,
+    }
+    sector_price_per_kt = {
+        "STEEL": 3.5, "ALUMINIUM": 7.25, "CEMENT": 3.0, "FERTILISER": 3.1,
+        "CHEMICALS": 5.2, "MINING": 1.23, "LNG": 3.27, "COAL": 1.42,
+    }
+    dest_share = {"EU": 0.14, "ASIA": 0.55, "USA": 0.10, "MIDDLE_EAST": 0.12, "DOMESTIC": 0.09}
+    trade_flows: List[CBATETradeFlowRecord] = []
+    for sec in [s.sector for s in sectors]:
+        bv = sector_base_vol[sec]
+        pp = sector_price_per_kt[sec]
+        ci = next(s.carbon_intensity_t_per_t_product for s in sectors if s.sector == sec)
+        cp = next(s.aus_carbon_price_effective for s in sectors if s.sector == sec)
+        for dest in destinations:
+            vol = round(bv * dest_share[dest] * rng.uniform(0.88, 1.12), 1)
+            val = round(vol * pp * rng.uniform(0.92, 1.08), 1)
+            cc = round(vol * ci * rng.uniform(0.95, 1.05), 1)
+            cost = round(cc * cp / 1000, 2)
+            adj = round(rng.uniform(-8.5, 2.5) if dest == "EU" else rng.uniform(-3.0, 1.5), 2)
+            trade_flows.append(CBATETradeFlowRecord(
+                year=2025, sector=sec, destination=dest,
+                export_volume_kt=vol, export_value_m=val,
+                carbon_content_kt_co2=cc, carbon_cost_m=cost,
+                trade_adjusted_pct=adj,
+            ))
+
+    # 8 leakage risk records
+    leakage_risks = [
+        CBATECarbonLeakageRecord(sector="STEEL",      leakage_risk="HIGH",   leakage_rate_pct=34.2, policy_mechanism="REBATE",                   effectiveness_score=5.8, residual_leakage_pct=19.6),
+        CBATECarbonLeakageRecord(sector="ALUMINIUM",  leakage_risk="HIGH",   leakage_rate_pct=38.5, policy_mechanism="REBATE",                   effectiveness_score=5.2, residual_leakage_pct=22.8),
+        CBATECarbonLeakageRecord(sector="CEMENT",     leakage_risk="MEDIUM", leakage_rate_pct=22.1, policy_mechanism="EXEMPTION",                effectiveness_score=6.4, residual_leakage_pct=11.8),
+        CBATECarbonLeakageRecord(sector="FERTILISER", leakage_risk="HIGH",   leakage_rate_pct=31.4, policy_mechanism="INTERNATIONAL_AGREEMENT",  effectiveness_score=4.9, residual_leakage_pct=20.2),
+        CBATECarbonLeakageRecord(sector="CHEMICALS",  leakage_risk="MEDIUM", leakage_rate_pct=18.7, policy_mechanism="REBATE",                   effectiveness_score=6.1, residual_leakage_pct=10.4),
+        CBATECarbonLeakageRecord(sector="MINING",     leakage_risk="LOW",    leakage_rate_pct=12.3, policy_mechanism="EXEMPTION",                effectiveness_score=7.2, residual_leakage_pct=5.8),
+        CBATECarbonLeakageRecord(sector="LNG",        leakage_risk="HIGH",   leakage_rate_pct=28.9, policy_mechanism="CBAM_EQUIVALENT",          effectiveness_score=5.5, residual_leakage_pct=17.1),
+        CBATECarbonLeakageRecord(sector="COAL",       leakage_risk="LOW",    leakage_rate_pct=8.4,  policy_mechanism="EXEMPTION",                effectiveness_score=8.1, residual_leakage_pct=3.2),
+    ]
+
+    # 24 competitiveness records: 8 sectors × 3 competitor countries
+    comp_countries = ["CHINA", "INDIA", "SOUTH_KOREA"]
+    comp_cost_base = {
+        ("STEEL",      "CHINA"):       (520.0, 480.0, 29.0,  4.5),
+        ("STEEL",      "INDIA"):       (520.0, 510.0, 29.0,  2.0),
+        ("STEEL",      "SOUTH_KOREA"): (520.0, 540.0, 29.0, 18.0),
+        ("ALUMINIUM",  "CHINA"):       (1850.0,1680.0, 29.0,  3.2),
+        ("ALUMINIUM",  "INDIA"):       (1850.0,1720.0, 29.0,  1.8),
+        ("ALUMINIUM",  "SOUTH_KOREA"): (1850.0,1920.0, 29.0, 22.4),
+        ("CEMENT",     "CHINA"):       (85.0,  72.0,  24.0,  1.2),
+        ("CEMENT",     "INDIA"):       (85.0,  68.0,  24.0,  0.8),
+        ("CEMENT",     "SOUTH_KOREA"): (85.0,  91.0,  24.0,  8.6),
+        ("FERTILISER", "CHINA"):       (310.0, 275.0, 22.0,  2.1),
+        ("FERTILISER", "INDIA"):       (310.0, 260.0, 22.0,  1.4),
+        ("FERTILISER", "SOUTH_KOREA"): (310.0, 330.0, 22.0, 11.2),
+        ("CHEMICALS",  "CHINA"):       (720.0, 660.0, 20.0,  3.4),
+        ("CHEMICALS",  "INDIA"):       (720.0, 640.0, 20.0,  1.6),
+        ("CHEMICALS",  "SOUTH_KOREA"): (720.0, 780.0, 20.0, 15.8),
+        ("MINING",     "CHINA"):       (62.0,  48.0,  18.5,  1.1),
+        ("MINING",     "INDIA"):       (62.0,  52.0,  18.5,  0.9),
+        ("MINING",     "SOUTH_KOREA"): (62.0,  71.0,  18.5,  6.3),
+        ("LNG",        "CHINA"):       (220.0, 195.0, 25.0,  2.8),
+        ("LNG",        "INDIA"):       (220.0, 205.0, 25.0,  1.5),
+        ("LNG",        "SOUTH_KOREA"): (220.0, 240.0, 25.0, 16.2),
+        ("COAL",       "CHINA"):       (105.0,  88.0, 15.0,  0.6),
+        ("COAL",       "INDIA"):       (105.0,  82.0, 15.0,  0.4),
+        ("COAL",       "SOUTH_KOREA"): (105.0, 118.0, 15.0,  5.8),
+    }
+    competitiveness: List[CBATECompetitivenessRecord] = []
+    for sec in [s.sector for s in sectors]:
+        for cc in comp_countries:
+            aus_p, comp_p, aus_c, comp_c = comp_cost_base[(sec, cc)]
+            gap = round((aus_p + aus_c - comp_p - comp_c) / (comp_p + comp_c) * 100.0, 2)
+            competitiveness.append(CBATECompetitivenessRecord(
+                sector=sec, competitor_country=cc,
+                aus_production_cost_per_t=aus_p,
+                competitor_production_cost_per_t=comp_p,
+                aus_carbon_cost_per_t=aus_c,
+                competitor_carbon_cost_per_t=comp_c,
+                competitiveness_gap_pct=gap,
+                year=2025,
+            ))
+
+    # 30 policy scenario records: 5 scenarios × 6 sectors for 2030
+    scenarios = [
+        "BASELINE", "AUS_CBAM", "GLOBAL_CARBON_PRICE",
+        "ACCELERATED_SAFEGUARD", "GREEN_DEAL_ALIGNMENT",
+    ]
+    scen_sectors = ["STEEL", "ALUMINIUM", "CEMENT", "FERTILISER", "LNG", "MINING"]
+    scen_params = {
+        # scenario -> (cost_mult, vol_chg_base, emp_chg_base, rev_chg_base, abate_base)
+        "BASELINE":             (1.00,  0.0,   0.0,    0.0,   2.4),
+        "AUS_CBAM":             (1.18, -3.2,  -1.8,  -142.0, 6.8),
+        "GLOBAL_CARBON_PRICE":  (1.42, -6.1,  -3.5,  -310.0, 14.2),
+        "ACCELERATED_SAFEGUARD":(1.28, -4.5,  -2.4,  -220.0, 9.6),
+        "GREEN_DEAL_ALIGNMENT": (1.55, -8.2,  -4.8,  -480.0, 28.4),
+    }
+    sector_base_cost = {
+        "STEEL": 420.0, "ALUMINIUM": 680.0, "CEMENT": 48.0,
+        "FERTILISER": 115.0, "LNG": 870.0, "MINING": 340.0,
+    }
+    policy_scenarios: List[CBATEPolicyScenarioRecord] = []
+    for sc in scenarios:
+        cm, vc, ec, rc, ab = scen_params[sc]
+        for sec in scen_sectors:
+            bc = sector_base_cost[sec]
+            jitter = rng.uniform(0.94, 1.06)
+            policy_scenarios.append(CBATEPolicyScenarioRecord(
+                scenario=sc, year=2030, sector=sec,
+                total_carbon_cost_m=round(bc * cm * jitter, 1),
+                production_volume_change_pct=round(vc * jitter, 2),
+                employment_impact_thousands=round(ec * jitter, 2),
+                export_revenue_change_m=round(rc * jitter, 1),
+                abatement_mt_co2=round(ab * jitter, 2),
+            ))
+
+    summary = {
+        "total_cbam_exposure_m": 2840,
+        "highest_risk_sector": "STEEL",
+        "eu_export_pct_at_risk": 18.4,
+        "avg_leakage_rate_pct": 24.3,
+        "competitiveness_gap_pct_avg": 12.8,
+        "abatement_from_best_scenario_mt": 28.4,
+    }
+
+    return CBATEDashboard(
+        sectors=sectors,
+        trade_flows=trade_flows,
+        leakage_risks=leakage_risks,
+        competitiveness=competitiveness,
+        policy_scenarios=policy_scenarios,
+        summary=summary,
+    )
+
+
+_cbate_cache: dict = {}
+
+
+@app.get("/api/cbam-trade-exposure/dashboard", response_model=CBATEDashboard, dependencies=[Depends(verify_api_key)])
+def get_cbate_dashboard() -> CBATEDashboard:
+    cached = _cache_get(_cbate_cache, "cbate")
+    if cached:
+        return cached
+    result = _build_cbate_dashboard()
+    _cache_set(_cbate_cache, "cbate", result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Demand Response Program Analytics  (Sprint 78a)
+# ---------------------------------------------------------------------------
+
+class DRPProgramRecord(BaseModel):
+    program_id: str
+    program_name: str
+    program_type: str  # RERT / DIRECT_LOAD_CONTROL / VOLUNTARY_DSP / NETWORK_RELIEF / CAPACITY_MARKET_DR / AEMC_DR_RULE
+    operator: str      # AEMO / DISTRIBUTOR / RETAILER / AGGREGATOR
+    region: str
+    enrolled_capacity_mw: float
+    active_participants: int
+    avg_response_time_min: float
+    activation_threshold: str
+    activations_per_year: float
+    avg_payment_per_mwh: float
+    annual_program_cost_m: float
+
+
+class DRPEventRecord(BaseModel):
+    event_id: str
+    date: str
+    region: str
+    program: str
+    trigger_type: str  # PRICE_SPIKE / CAPACITY_SHORTAGE / NETWORK_CONSTRAINT / EMERGENCY
+    requested_mw: float
+    delivered_mw: float
+    response_rate_pct: float
+    duration_hrs: float
+    cost_m: float
+    avoided_load_shedding: bool
+
+
+class DRPParticipantRecord(BaseModel):
+    participant_id: str
+    sector: str  # INDUSTRIAL / COMMERCIAL / COLD_STORAGE / WATER_PUMPING / MINING / DATA_CENTRE / RETAIL
+    region: str
+    enrolled_mw: float
+    avg_delivered_mw: float
+    response_reliability_pct: float
+    programs_enrolled: int
+    annual_revenue_k: float
+    flexibility_window_hrs: float
+
+
+class DRPCapacityRecord(BaseModel):
+    region: str
+    quarter: str
+    rert_contracted_mw: float
+    voluntary_dsp_mw: float
+    direct_load_control_mw: float
+    network_relief_mw: float
+    total_dr_capacity_mw: float
+    system_peak_mw: float
+    dr_as_pct_of_peak: float
+
+
+class DRPBarrierRecord(BaseModel):
+    barrier: str
+    impact: str  # HIGH / MEDIUM / LOW
+    affected_sectors: List[str]
+    regulatory_fix: str
+    implementation_timeline: str
+
+
+class DRPDashboard(BaseModel):
+    programs: List[DRPProgramRecord]
+    events: List[DRPEventRecord]
+    participants: List[DRPParticipantRecord]
+    capacity: List[DRPCapacityRecord]
+    barriers: List[DRPBarrierRecord]
+    summary: dict
+
+
+def _build_drp_dashboard() -> DRPDashboard:
+    import random
+    rng = random.Random(9901)
+
+    programs = [
+        DRPProgramRecord(
+            program_id="RERT-NSW-01",
+            program_name="NSW RERT Tranche 1",
+            program_type="RERT",
+            operator="AEMO",
+            region="NSW",
+            enrolled_capacity_mw=320.0,
+            active_participants=18,
+            avg_response_time_min=7.5,
+            activation_threshold="LOR2",
+            activations_per_year=2.1,
+            avg_payment_per_mwh=420.0,
+            annual_program_cost_m=12.4,
+        ),
+        DRPProgramRecord(
+            program_id="RERT-VIC-01",
+            program_name="VIC RERT Tranche 1",
+            program_type="RERT",
+            operator="AEMO",
+            region="VIC",
+            enrolled_capacity_mw=280.0,
+            active_participants=14,
+            avg_response_time_min=8.2,
+            activation_threshold="LOR2",
+            activations_per_year=3.4,
+            avg_payment_per_mwh=450.0,
+            annual_program_cost_m=14.8,
+        ),
+        DRPProgramRecord(
+            program_id="RERT-SA-01",
+            program_name="SA RERT Reserve",
+            program_type="RERT",
+            operator="AEMO",
+            region="SA",
+            enrolled_capacity_mw=140.0,
+            active_participants=9,
+            avg_response_time_min=6.8,
+            activation_threshold="LOR3",
+            activations_per_year=4.2,
+            avg_payment_per_mwh=510.0,
+            annual_program_cost_m=9.7,
+        ),
+        DRPProgramRecord(
+            program_id="DLC-QLD-01",
+            program_name="QLD Direct Load Control",
+            program_type="DIRECT_LOAD_CONTROL",
+            operator="DISTRIBUTOR",
+            region="QLD",
+            enrolled_capacity_mw=480.0,
+            active_participants=52000,
+            avg_response_time_min=1.2,
+            activation_threshold="Network constraint",
+            activations_per_year=8.5,
+            avg_payment_per_mwh=85.0,
+            annual_program_cost_m=7.2,
+        ),
+        DRPProgramRecord(
+            program_id="DLC-NSW-01",
+            program_name="NSW Residential DLC",
+            program_type="DIRECT_LOAD_CONTROL",
+            operator="DISTRIBUTOR",
+            region="NSW",
+            enrolled_capacity_mw=310.0,
+            active_participants=38000,
+            avg_response_time_min=1.5,
+            activation_threshold="Network constraint",
+            activations_per_year=6.2,
+            avg_payment_per_mwh=80.0,
+            annual_program_cost_m=5.8,
+        ),
+        DRPProgramRecord(
+            program_id="VDSP-VIC-01",
+            program_name="VIC Voluntary DSP",
+            program_type="VOLUNTARY_DSP",
+            operator="AEMO",
+            region="VIC",
+            enrolled_capacity_mw=195.0,
+            active_participants=42,
+            avg_response_time_min=15.0,
+            activation_threshold="$300/MWh",
+            activations_per_year=5.8,
+            avg_payment_per_mwh=290.0,
+            annual_program_cost_m=8.1,
+        ),
+        DRPProgramRecord(
+            program_id="VDSP-NSW-01",
+            program_name="NSW C&I Voluntary DSP",
+            program_type="VOLUNTARY_DSP",
+            operator="AGGREGATOR",
+            region="NSW",
+            enrolled_capacity_mw=165.0,
+            active_participants=35,
+            avg_response_time_min=18.0,
+            activation_threshold="$300/MWh",
+            activations_per_year=4.9,
+            avg_payment_per_mwh=310.0,
+            annual_program_cost_m=6.9,
+        ),
+        DRPProgramRecord(
+            program_id="NR-QLD-01",
+            program_name="QLD Network Relief DR",
+            program_type="NETWORK_RELIEF",
+            operator="DISTRIBUTOR",
+            region="QLD",
+            enrolled_capacity_mw=220.0,
+            active_participants=28,
+            avg_response_time_min=20.0,
+            activation_threshold="Network constraint",
+            activations_per_year=3.1,
+            avg_payment_per_mwh=180.0,
+            annual_program_cost_m=5.4,
+        ),
+        DRPProgramRecord(
+            program_id="NR-SA-01",
+            program_name="SA Network Peak Saver",
+            program_type="NETWORK_RELIEF",
+            operator="DISTRIBUTOR",
+            region="SA",
+            enrolled_capacity_mw=95.0,
+            active_participants=15,
+            avg_response_time_min=25.0,
+            activation_threshold="Network constraint",
+            activations_per_year=2.4,
+            avg_payment_per_mwh=160.0,
+            annual_program_cost_m=2.9,
+        ),
+        DRPProgramRecord(
+            program_id="CDR-TAS-01",
+            program_name="TAS Capacity DR Reserve",
+            program_type="CAPACITY_MARKET_DR",
+            operator="AEMO",
+            region="TAS",
+            enrolled_capacity_mw=75.0,
+            active_participants=8,
+            avg_response_time_min=30.0,
+            activation_threshold="LOR2",
+            activations_per_year=1.8,
+            avg_payment_per_mwh=380.0,
+            annual_program_cost_m=3.8,
+        ),
+        DRPProgramRecord(
+            program_id="AEMC-NEM-01",
+            program_name="NEM-Wide AEMC DR Rule Pilot",
+            program_type="AEMC_DR_RULE",
+            operator="RETAILER",
+            region="NEM",
+            enrolled_capacity_mw=410.0,
+            active_participants=120,
+            avg_response_time_min=12.0,
+            activation_threshold="$300/MWh",
+            activations_per_year=7.3,
+            avg_payment_per_mwh=260.0,
+            annual_program_cost_m=22.0,
+        ),
+        DRPProgramRecord(
+            program_id="RERT-QLD-01",
+            program_name="QLD RERT Summer Reserve",
+            program_type="RERT",
+            operator="AEMO",
+            region="QLD",
+            enrolled_capacity_mw=150.0,
+            active_participants=11,
+            avg_response_time_min=9.0,
+            activation_threshold="LOR2",
+            activations_per_year=2.8,
+            avg_payment_per_mwh=430.0,
+            annual_program_cost_m=7.2,
+        ),
+    ]
+
+    event_raw = [
+        ("EVT-001", "2021-01-28", "VIC", "VIC RERT Tranche 1",        "CAPACITY_SHORTAGE",   320, 298, 93.1, 2.5, 4.2,  True),
+        ("EVT-002", "2021-02-01", "SA",  "SA RERT Reserve",            "EMERGENCY",           140, 131, 93.6, 3.2, 3.8,  True),
+        ("EVT-003", "2021-11-30", "QLD", "QLD Direct Load Control",    "NETWORK_CONSTRAINT",  450, 420, 93.3, 1.0, 1.8,  False),
+        ("EVT-004", "2022-01-14", "NSW", "NSW RERT Tranche 1",         "CAPACITY_SHORTAGE",   300, 271, 90.3, 2.0, 3.6,  True),
+        ("EVT-005", "2022-02-28", "VIC", "VIC Voluntary DSP",          "PRICE_SPIKE",         180, 158, 87.8, 1.5, 2.9,  False),
+        ("EVT-006", "2022-06-13", "SA",  "SA RERT Reserve",            "EMERGENCY",           140, 121, 86.4, 4.0, 4.9,  True),
+        ("EVT-007", "2022-07-14", "VIC", "VIC RERT Tranche 1",         "CAPACITY_SHORTAGE",   260, 241, 92.7, 2.8, 4.1,  True),
+        ("EVT-008", "2022-08-23", "NSW", "NSW C&I Voluntary DSP",      "PRICE_SPIKE",         150, 127, 84.7, 1.2, 2.2,  False),
+        ("EVT-009", "2022-10-04", "QLD", "QLD Network Relief DR",      "NETWORK_CONSTRAINT",  200, 184, 92.0, 0.8, 1.5,  False),
+        ("EVT-010", "2023-01-18", "NSW", "NSW RERT Tranche 1",         "CAPACITY_SHORTAGE",   310, 286, 92.3, 2.2, 4.0,  True),
+        ("EVT-011", "2023-02-09", "VIC", "NEM-Wide AEMC DR Rule Pilot","PRICE_SPIKE",         380, 341, 89.7, 1.8, 5.6,  False),
+        ("EVT-012", "2023-03-22", "SA",  "SA Network Peak Saver",      "NETWORK_CONSTRAINT",   90,  79, 87.8, 0.5, 0.8,  False),
+        ("EVT-013", "2023-06-21", "QLD", "QLD RERT Summer Reserve",    "CAPACITY_SHORTAGE",   148, 130, 87.8, 3.5, 3.2,  True),
+        ("EVT-014", "2023-08-07", "NSW", "NSW Residential DLC",        "NETWORK_CONSTRAINT",  290, 258, 88.9, 0.7, 1.9,  False),
+        ("EVT-015", "2023-12-15", "VIC", "VIC RERT Tranche 1",         "EMERGENCY",           280, 254, 90.7, 3.0, 4.8,  True),
+        ("EVT-016", "2024-01-10", "SA",  "SA RERT Reserve",            "CAPACITY_SHORTAGE",   135, 119, 88.1, 2.5, 3.6,  True),
+        ("EVT-017", "2024-01-22", "NSW", "NSW RERT Tranche 1",         "CAPACITY_SHORTAGE",   318, 285, 89.6, 2.0, 3.9,  True),
+        ("EVT-018", "2024-02-14", "VIC", "VIC Voluntary DSP",          "PRICE_SPIKE",         190, 163, 85.8, 1.0, 2.7,  False),
+        ("EVT-019", "2024-06-25", "QLD", "QLD Direct Load Control",    "NETWORK_CONSTRAINT",  460, 408, 88.7, 0.9, 2.1,  False),
+        ("EVT-020", "2024-12-18", "NSW", "NEM-Wide AEMC DR Rule Pilot","EMERGENCY",           400, 362, 90.5, 2.5, 6.8,  True),
+    ]
+    events = [
+        DRPEventRecord(
+            event_id=r[0], date=r[1], region=r[2], program=r[3],
+            trigger_type=r[4], requested_mw=float(r[5]), delivered_mw=float(r[6]),
+            response_rate_pct=r[7], duration_hrs=r[8], cost_m=r[9],
+            avoided_load_shedding=r[10],
+        )
+        for r in event_raw
+    ]
+
+    sectors = ["INDUSTRIAL", "COMMERCIAL", "COLD_STORAGE", "WATER_PUMPING", "MINING", "DATA_CENTRE", "RETAIL"]
+    regions_list = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    participants = []
+    for i in range(1, 26):
+        sector = sectors[(i - 1) % len(sectors)]
+        region = regions_list[(i - 1) % len(regions_list)]
+        enrolled = round(rng.uniform(5.0, 80.0), 1)
+        delivered = round(enrolled * rng.uniform(0.70, 0.95), 1)
+        participants.append(DRPParticipantRecord(
+            participant_id=f"PART-{i:03d}",
+            sector=sector,
+            region=region,
+            enrolled_mw=enrolled,
+            avg_delivered_mw=delivered,
+            response_reliability_pct=round(rng.uniform(75.0, 98.0), 1),
+            programs_enrolled=rng.randint(1, 4),
+            annual_revenue_k=round(rng.uniform(40.0, 850.0), 1),
+            flexibility_window_hrs=round(rng.uniform(2.0, 14.0), 1),
+        ))
+
+    quarters = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    peak_by_region = {"NSW": 14200, "VIC": 10800, "QLD": 9600, "SA": 3400, "TAS": 1750}
+    capacity = []
+    for region in regions_list:
+        for quarter in quarters:
+            rert = round(rng.uniform(80, 340), 1)
+            vdsp = round(rng.uniform(50, 200), 1)
+            dlc  = round(rng.uniform(100, 500), 1)
+            net  = round(rng.uniform(30, 220), 1)
+            total = round(rert + vdsp + dlc + net, 1)
+            peak = peak_by_region[region]
+            capacity.append(DRPCapacityRecord(
+                region=region,
+                quarter=quarter,
+                rert_contracted_mw=rert,
+                voluntary_dsp_mw=vdsp,
+                direct_load_control_mw=dlc,
+                network_relief_mw=net,
+                total_dr_capacity_mw=total,
+                system_peak_mw=float(peak),
+                dr_as_pct_of_peak=round(total / peak * 100, 2),
+            ))
+
+    barriers = [
+        DRPBarrierRecord(
+            barrier="Metering and measurement requirements",
+            impact="HIGH",
+            affected_sectors=["COMMERCIAL", "INDUSTRIAL", "RETAIL"],
+            regulatory_fix="Adopt interval metering standard for all DR participants",
+            implementation_timeline="2024-2026",
+        ),
+        DRPBarrierRecord(
+            barrier="Complex aggregation registration rules",
+            impact="HIGH",
+            affected_sectors=["COMMERCIAL", "RETAIL", "DATA_CENTRE"],
+            regulatory_fix="Simplify AEMO registration pathway for demand response aggregators",
+            implementation_timeline="2024-2025",
+        ),
+        DRPBarrierRecord(
+            barrier="Short notice periods for RERT activation",
+            impact="MEDIUM",
+            affected_sectors=["INDUSTRIAL", "MINING", "COLD_STORAGE"],
+            regulatory_fix="Extend minimum notice from 2 hours to 6 hours for non-emergency events",
+            implementation_timeline="2025",
+        ),
+        DRPBarrierRecord(
+            barrier="Basis risk between spot and retail trigger prices",
+            impact="HIGH",
+            affected_sectors=["COMMERCIAL", "INDUSTRIAL"],
+            regulatory_fix="Introduce standardised DR trigger based on wholesale price index",
+            implementation_timeline="2025-2026",
+        ),
+        DRPBarrierRecord(
+            barrier="Low DLC compensation rates vs customer value of load",
+            impact="MEDIUM",
+            affected_sectors=["RETAIL", "COMMERCIAL"],
+            regulatory_fix="Annual review of DLC compensation by AER against VOLL benchmark",
+            implementation_timeline="2024-ongoing",
+        ),
+        DRPBarrierRecord(
+            barrier="Split incentives in commercial tenancies",
+            impact="MEDIUM",
+            affected_sectors=["COMMERCIAL", "RETAIL"],
+            regulatory_fix="Mandate disclosure of DR participation in leases; allow cost-sharing",
+            implementation_timeline="2026",
+        ),
+        DRPBarrierRecord(
+            barrier="Lack of standardised DR product definition across NEM",
+            impact="HIGH",
+            affected_sectors=["INDUSTRIAL", "COMMERCIAL", "MINING", "DATA_CENTRE", "COLD_STORAGE", "WATER_PUMPING", "RETAIL"],
+            regulatory_fix="AEMC rule change to define a consistent DR capability class",
+            implementation_timeline="2024-2025",
+        ),
+        DRPBarrierRecord(
+            barrier="Limited secondary market for DR contracts",
+            impact="LOW",
+            affected_sectors=["INDUSTRIAL", "COMMERCIAL"],
+            regulatory_fix="Enable bilateral DR contract trading via AEMO bulletin board",
+            implementation_timeline="2026-2027",
+        ),
+    ]
+
+    return DRPDashboard(
+        programs=programs,
+        events=events,
+        participants=participants,
+        capacity=capacity,
+        barriers=barriers,
+        summary={
+            "total_enrolled_mw": 2840,
+            "total_programs": 12,
+            "avg_response_rate_pct": 87.3,
+            "total_events_2024": 14,
+            "avoided_load_shedding_events": 6,
+            "annual_dr_cost_m": 124,
+            "dr_as_pct_of_peak_avg": 4.8,
+        },
+    )
+
+
+_drp_cache: dict = {}
+
+
+@app.get("/api/demand-response-programs/dashboard", response_model=DRPDashboard, dependencies=[Depends(verify_api_key)])
+async def get_drp_dashboard():
+    cached = _cache_get(_drp_cache, "drp")
+    if cached:
+        return cached
+    result = _build_drp_dashboard()
+    _cache_set(_drp_cache, "drp", result)
+    return result
