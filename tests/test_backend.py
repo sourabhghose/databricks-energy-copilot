@@ -10925,3 +10925,51 @@ class TestElectricityWorkforceEndpoint:
     def test_skills_gaps_count_at_least_8(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["skills_gaps"]) >= 8
+
+
+class TestREZTransmissionEndpoint:
+    endpoint = "/api/rez-transmission/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_rezs_count_at_least_10(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["rezs"]) >= 10
+
+    def test_utilisation_count_at_least_40(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["utilisation"]) >= 40
+
+
+class TestNetworkRegulatoryFrameworkEndpoint:
+    endpoint = "/api/network-regulatory-framework/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_businesses_count_at_least_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["businesses"]) >= 8
+
+    def test_rab_growth_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["rab_growth"]) >= 30
+
+
+class TestPriceModelComparisonEndpoint:
+    endpoint = "/api/price-model-comparison/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_models_count_equals_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["models"]) == 8
+
+    def test_accuracy_count_at_least_70(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["accuracy"]) >= 70

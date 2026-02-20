@@ -71,6 +71,7 @@ import {
   ShoppingCart,
   Sliders,
   Power,
+  Scale,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -286,6 +287,9 @@ import AncillaryServicesMarketDepthAnalytics from './pages/AncillaryServicesMark
 import SRAAnalyticsPage from './pages/SRAAnalyticsPage'
 import SpotMarketStressAnalytics from './pages/SpotMarketStressAnalytics'
 import ElectricityWorkforceAnalytics from './pages/ElectricityWorkforceAnalytics'
+import REZTransmissionAnalytics from './pages/REZTransmissionAnalytics'
+import NetworkRegulatoryFrameworkAnalytics from './pages/NetworkRegulatoryFrameworkAnalytics'
+import PriceModelComparisonAnalytics from './pages/PriceModelComparisonAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -502,6 +506,9 @@ const NAV_ITEMS = [
   { to: '/sra-analytics',            label: 'SRA Settlement Analytics',    Icon: DollarSign     },
   { to: '/spot-market-stress',       label: 'NEM Spot Market Stress Testing', Icon: AlertTriangle  },
   { to: '/electricity-workforce',   label: 'Electricity Workforce & Skills', Icon: Users          },
+  { to: '/rez-transmission',        label: 'REZ Transmission Infrastructure', Icon: Network        },
+  { to: '/network-regulatory-framework', label: 'Network Regulatory Framework', Icon: Scale         },
+  { to: '/price-model-comparison',       label: 'Price Forecasting Model Comparison', Icon: Cpu    },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -793,6 +800,9 @@ export default function App() {
               <Route path="/sra-analytics"             element={<SRAAnalyticsPage />}                      />
               <Route path="/spot-market-stress"        element={<SpotMarketStressAnalytics />}             />
               <Route path="/electricity-workforce"     element={<ElectricityWorkforceAnalytics />}         />
+              <Route path="/rez-transmission"          element={<REZTransmissionAnalytics />}               />
+              <Route path="/network-regulatory-framework" element={<NetworkRegulatoryFrameworkAnalytics />} />
+              <Route path="/price-model-comparison"       element={<PriceModelComparisonAnalytics />}       />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -57168,3 +57168,787 @@ async def get_electricity_workforce_dashboard():
     result = _build_esw_dashboard()
     _cache_set(_esw_cache, "esw", result)
     return result
+
+
+# ===========================================================================
+# Sprint 82a — Network Regulatory Framework Analytics (NRF)
+# Endpoint: /api/network-regulatory-framework/dashboard
+# ===========================================================================
+
+class NRFNetworkBusinessRecord(BaseModel):
+    business_id: str
+    name: str
+    type: str  # TNSP / DNSP
+    state: str
+    rab_bn: float
+    allowed_revenue_m: float
+    actual_revenue_m: float
+    wacc_real_pct: float
+    capex_allowed_m: float
+    capex_actual_m: float
+    opex_allowed_m: float
+    opex_actual_m: float
+    efficiency_benefit_m: float
+    regulatory_period: str
+
+
+class NRFWACCRecord(BaseModel):
+    determination_year: int
+    network_type: str  # TNSP / DNSP
+    nominal_pre_tax_wacc_pct: float
+    nominal_post_tax_wacc_pct: float
+    real_post_tax_wacc_pct: float
+    risk_free_rate_pct: float
+    equity_risk_premium_pct: float
+    debt_risk_premium_pct: float
+    gamma: float
+    gearing_pct: float
+
+
+class NRFRABRecord(BaseModel):
+    business_id: str
+    year: int
+    opening_rab_bn: float
+    capex_additions_bn: float
+    depreciation_bn: float
+    closing_rab_bn: float
+    rab_growth_pct: float
+    asset_class: str  # TRANSMISSION / DISTRIBUTION / METERING
+
+
+class NRFEfficiencyRecord(BaseModel):
+    business_id: str
+    regulatory_period: str
+    capex_efficiency_pct: float
+    opex_efficiency_pct: float
+    reliability_performance: float
+    reliability_target: float
+    incentive_payment_m: float
+    performance_rating: str  # EXCELLENT / GOOD / SATISFACTORY / POOR
+
+
+class NRFCapexCategoryRecord(BaseModel):
+    business_id: str
+    year: int
+    category: str  # AUGMENTATION / REPLACEMENT / CONNECTIONS / RELIABILITY / OPEX_CAPEX_TRADEOFF
+    capex_m: float
+    pct_of_total: float
+    drivers: str
+
+
+class NRFDashboard(BaseModel):
+    businesses: List[NRFNetworkBusinessRecord]
+    wacc_history: List[NRFWACCRecord]
+    rab_growth: List[NRFRABRecord]
+    efficiency: List[NRFEfficiencyRecord]
+    capex_categories: List[NRFCapexCategoryRecord]
+    summary: dict
+
+
+def _build_nrf_dashboard() -> NRFDashboard:
+    import random
+    rng = random.Random(8201)
+
+    # ------------------------------------------------------------------
+    # 10 network businesses: 5 TNSPs + 5 DNSPs
+    # ------------------------------------------------------------------
+    raw_businesses = [
+        # id, name, type, state, rab_bn, allowed_rev_m, wacc_real_pct, cap_all, opex_all, period
+        ("TRANSGRID",  "TransGrid",                    "TNSP", "NSW", 11.8, 1420, 4.3, 890, 310, "2023-2028"),
+        ("AEMO_VIC",   "AusNet Transmission",          "TNSP", "VIC",  6.4,  820, 4.1, 510, 215, "2022-2027"),
+        ("POWERLINK",  "Powerlink Queensland",         "TNSP", "QLD",  8.9, 1080, 4.4, 680, 270, "2023-2028"),
+        ("ELECTRANET", "ElectraNet",                   "TNSP", "SA",   2.7,  395, 4.6, 210,  98, "2023-2028"),
+        ("TASNETWORKS_T", "TasNetworks (Transmission)","TNSP", "TAS",  1.6,  248, 4.0, 140,  72, "2024-2029"),
+        ("AUSGRID",    "Ausgrid",                      "DNSP", "NSW", 17.4, 2280, 4.2, 1350, 680, "2024-2029"),
+        ("AUSNET_D",   "AusNet Distribution",          "DNSP", "VIC",  9.8, 1380, 4.1, 820, 420, "2021-2026"),
+        ("ENERGEX",    "Energex (Qld)",                "DNSP", "QLD", 12.1, 1640, 4.3, 980, 510, "2020-2025"),
+        ("SAPN",       "SA Power Networks",            "DNSP", "SA",   6.3,  890, 4.6, 520, 265, "2020-2025"),
+        ("TASNETWORKS_D", "TasNetworks (Distribution)","DNSP", "TAS",  2.8,  410, 4.0, 245, 128, "2024-2029"),
+    ]
+
+    businesses: List[NRFNetworkBusinessRecord] = []
+    for (bid, name, btype, state, rab, rev_all, wacc, cap_all, opex_all, period) in raw_businesses:
+        noise_rev = rng.uniform(0.97, 1.04)
+        noise_cap = rng.uniform(0.92, 1.05)
+        noise_opex = rng.uniform(0.94, 1.03)
+        actual_rev = round(rev_all * noise_rev, 1)
+        actual_cap = round(cap_all * noise_cap, 1)
+        actual_opex = round(opex_all * noise_opex, 1)
+        eff = round((cap_all - actual_cap) + (opex_all - actual_opex) * 0.5, 1)
+        businesses.append(NRFNetworkBusinessRecord(
+            business_id=bid,
+            name=name,
+            type=btype,
+            state=state,
+            rab_bn=rab,
+            allowed_revenue_m=rev_all,
+            actual_revenue_m=actual_rev,
+            wacc_real_pct=wacc,
+            capex_allowed_m=cap_all,
+            capex_actual_m=actual_cap,
+            opex_allowed_m=opex_all,
+            opex_actual_m=actual_opex,
+            efficiency_benefit_m=eff,
+            regulatory_period=period,
+        ))
+
+    # ------------------------------------------------------------------
+    # 10 WACC history records: 5 years × 2 network types
+    # ------------------------------------------------------------------
+    wacc_params = [
+        # year, rfr, erp, drp, gamma, gearing
+        (2010, 5.73, 6.50, 3.35, 0.65, 60.0),
+        (2015, 2.55, 6.50, 2.60, 0.65, 60.0),
+        (2018, 2.69, 6.10, 2.20, 0.60, 60.0),
+        (2020, 1.21, 6.10, 2.05, 0.60, 60.0),
+        (2024, 4.10, 5.50, 1.75, 0.585, 60.0),
+    ]
+    wacc_history: List[NRFWACCRecord] = []
+    for (yr, rfr, erp, drp, gamma, gear) in wacc_params:
+        for ntype in ["TNSP", "DNSP"]:
+            spread = 0.10 if ntype == "DNSP" else 0.0
+            nom_pre = round(rfr + erp * 0.4 + drp * 0.6 + spread, 2)
+            nom_post = round(nom_pre * 0.85, 2)
+            real_post = round(nom_post - 2.5, 2)
+            wacc_history.append(NRFWACCRecord(
+                determination_year=yr,
+                network_type=ntype,
+                nominal_pre_tax_wacc_pct=nom_pre,
+                nominal_post_tax_wacc_pct=nom_post,
+                real_post_tax_wacc_pct=real_post,
+                risk_free_rate_pct=rfr,
+                equity_risk_premium_pct=erp,
+                debt_risk_premium_pct=drp,
+                gamma=gamma,
+                gearing_pct=gear,
+            ))
+
+    # ------------------------------------------------------------------
+    # 40 RAB growth records: 10 businesses × 4 years (2021-2024)
+    # ------------------------------------------------------------------
+    rab_growth: List[NRFRABRecord] = []
+    asset_class_map = {
+        "TNSP": "TRANSMISSION",
+        "DNSP": "DISTRIBUTION",
+    }
+    for biz in businesses:
+        opening = biz.rab_bn * 0.85  # start lower in 2021
+        for yr in [2021, 2022, 2023, 2024]:
+            capex_add = round(rng.uniform(0.04, 0.12) * opening, 3)
+            depr = round(rng.uniform(0.025, 0.045) * opening, 3)
+            closing = round(opening + capex_add - depr, 3)
+            growth_pct = round((closing - opening) / opening * 100, 2)
+            aclass = asset_class_map.get(biz.type, "DISTRIBUTION")
+            rab_growth.append(NRFRABRecord(
+                business_id=biz.business_id,
+                year=yr,
+                opening_rab_bn=round(opening, 3),
+                capex_additions_bn=capex_add,
+                depreciation_bn=depr,
+                closing_rab_bn=closing,
+                rab_growth_pct=growth_pct,
+                asset_class=aclass,
+            ))
+            opening = closing
+
+    # ------------------------------------------------------------------
+    # 10 efficiency records: one per business
+    # ------------------------------------------------------------------
+    efficiency: List[NRFEfficiencyRecord] = []
+    rating_map = [
+        "EXCELLENT", "GOOD", "SATISFACTORY", "POOR",
+    ]
+    for biz in businesses:
+        cap_eff = round(rng.uniform(-12.0, 8.0), 1)
+        opex_eff = round(rng.uniform(-8.0, 6.0), 1)
+        saidi = round(rng.uniform(45.0, 180.0), 1)
+        target = round(saidi * rng.uniform(0.85, 1.15), 1)
+        incentive = round(rng.uniform(-18.0, 35.0), 1)
+        if cap_eff < -5 and opex_eff < -3:
+            rating = "EXCELLENT"
+        elif cap_eff < 0:
+            rating = "GOOD"
+        elif cap_eff < 5:
+            rating = "SATISFACTORY"
+        else:
+            rating = "POOR"
+        efficiency.append(NRFEfficiencyRecord(
+            business_id=biz.business_id,
+            regulatory_period=biz.regulatory_period,
+            capex_efficiency_pct=cap_eff,
+            opex_efficiency_pct=opex_eff,
+            reliability_performance=saidi,
+            reliability_target=target,
+            incentive_payment_m=incentive,
+            performance_rating=rating,
+        ))
+
+    # ------------------------------------------------------------------
+    # 50 capex category records: 10 businesses × 5 categories
+    # ------------------------------------------------------------------
+    categories = [
+        ("AUGMENTATION",        "Network growth & renewables connection"),
+        ("REPLACEMENT",         "Ageing asset replacement & refurbishment"),
+        ("CONNECTIONS",         "New customer & DER connections"),
+        ("RELIABILITY",         "STPIS targets & reliability improvement"),
+        ("OPEX_CAPEX_TRADEOFF", "Capex substitution for operating expenditure"),
+    ]
+    capex_categories: List[NRFCapexCategoryRecord] = []
+    for biz in businesses:
+        weights = [rng.uniform(0.1, 0.4) for _ in range(5)]
+        total_w = sum(weights)
+        base_capex = biz.capex_actual_m
+        for i, (cat, driver) in enumerate(categories):
+            pct = round(weights[i] / total_w * 100, 1)
+            capex_m = round(base_capex * weights[i] / total_w, 1)
+            capex_categories.append(NRFCapexCategoryRecord(
+                business_id=biz.business_id,
+                year=2024,
+                category=cat,
+                capex_m=capex_m,
+                pct_of_total=pct,
+                drivers=driver,
+            ))
+
+    summary = {
+        "total_rab_bn": 184.2,
+        "total_allowed_revenue_m": 12840,
+        "avg_wacc_real_pct": 4.2,
+        "total_capex_2024_m": 8420,
+        "avg_capex_efficiency_pct": -3.4,
+        "businesses_outperforming": 6,
+    }
+
+    return NRFDashboard(
+        businesses=businesses,
+        wacc_history=wacc_history,
+        rab_growth=rab_growth,
+        efficiency=efficiency,
+        capex_categories=capex_categories,
+        summary=summary,
+    )
+
+
+_nrf_cache: dict = {}
+
+
+@app.get("/api/network-regulatory-framework/dashboard", response_model=NRFDashboard, dependencies=[Depends(verify_api_key)])
+async def get_network_regulatory_framework_dashboard():
+    cached = _cache_get(_nrf_cache, "nrf")
+    if cached:
+        return cached
+    result = _build_nrf_dashboard()
+    _cache_set(_nrf_cache, "nrf", result)
+    return result
+
+
+# ============================================================
+# Sprint 82b — REZ Transmission Infrastructure Analytics (RZT)
+# ============================================================
+
+class RZTREZRecord(BaseModel):
+    rez_id: str
+    name: str
+    state: str
+    resource_type: str  # WIND / SOLAR / HYBRID
+    potential_capacity_gw: float
+    connection_limit_mw: float
+    committed_capacity_mw: float
+    approved_capacity_mw: float
+    connected_capacity_mw: float
+    utilisation_pct: float
+    transmission_augmentation_needed_mw: float
+    augmentation_cost_m: float
+
+
+class RZTConnectionQueueRecord(BaseModel):
+    rez_id: str
+    project_count_in_queue: int
+    total_queue_mw: float
+    avg_wait_time_months: float
+    approved_pct: float
+    withdrawn_pct: float
+    annual_new_applications: int
+    connection_fee_per_mw: float
+    technical_studies_backlog_months: float
+
+
+class RZTTransmissionProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    rez_id: str
+    state: str
+    capacity_increase_mw: float
+    technology: str  # HVAC / HVDC / SERIES_COMPENSATION / DYNAMIC_LINE_RATING
+    capex_m: float
+    benefit_cost_ratio: float
+    status: str  # OPERATING / CONSTRUCTION / APPROVED / IDENTIFIED
+    commissioning_year: int
+    primary_benefit: str  # REZ_UNLOCK / CONGESTION_RELIEF / RESILIENCE / LOSS_REDUCTION
+
+
+class RZTUtilisationRecord(BaseModel):
+    rez_id: str
+    quarter: str
+    avg_utilisation_pct: float
+    peak_utilisation_pct: float
+    constrained_hours_pct: float
+    curtailment_from_congestion_pct: float
+    congestion_cost_m: float
+    revenue_foregone_m: float
+
+
+class RZTCostAllocationRecord(BaseModel):
+    rez_id: str
+    cost_allocation_method: str  # SOCIALISED / USER_PAYS / HYBRID / 50_50_SPLIT
+    transmission_cost_m: float
+    borne_by_generators_pct: float
+    borne_by_consumers_pct: float
+    borne_by_government_pct: float
+    cost_per_mw_connected: float
+    aer_approved: bool
+
+
+class RZTDashboard(BaseModel):
+    rezs: List[RZTREZRecord]
+    connection_queue: List[RZTConnectionQueueRecord]
+    transmission_projects: List[RZTTransmissionProjectRecord]
+    utilisation: List[RZTUtilisationRecord]
+    cost_allocation: List[RZTCostAllocationRecord]
+    summary: dict
+
+
+def _build_rzt_dashboard() -> RZTDashboard:
+    import random
+    rng = random.Random(8200)
+
+    rez_definitions = [
+        ("REZ-NE",   "New England",                   "NSW", "WIND",   24.0,  3200.0, 2800.0, 1600.0, 2250.0,  820.0, 1200.0),
+        ("REZ-CWO",  "Central-West Orana",             "NSW", "HYBRID", 18.0,  4500.0, 3900.0, 2100.0, 3150.0, 1800.0, 2100.0),
+        ("REZ-HUN",  "Hunter",                         "NSW", "WIND",    6.0,  1500.0,  980.0,  620.0,  870.0,  420.0,  680.0),
+        ("REZ-SWN",  "South West NSW",                 "NSW", "SOLAR",   8.5,  2200.0, 1750.0, 1100.0, 1540.0,  520.0,  790.0),
+        ("REZ-WD",   "Western Downs",                  "QLD", "SOLAR",   5.5,  1800.0, 1420.0,  880.0, 1170.0,  480.0,  620.0),
+        ("REZ-NQ",   "North Queensland",               "QLD", "HYBRID",  7.0,  2400.0, 1980.0, 1320.0, 1680.0,  560.0,  840.0),
+        ("REZ-MAC",  "Mackay / Isaac",                 "QLD", "WIND",    4.5,  1200.0,  890.0,  540.0,  720.0,  340.0,  420.0),
+        ("REZ-GA",   "Gippsland Offshore",             "VIC", "WIND",    6.0,  2000.0,  680.0,  320.0,  440.0,  950.0, 1350.0),
+        ("REZ-WVP",  "Western Victoria",               "VIC", "WIND",    3.5,  1600.0, 1280.0,  760.0, 1120.0,  280.0,  390.0),
+        ("REZ-SY",   "Southern Yorke / Mid North",     "SA",  "HYBRID",  2.5,   900.0,  720.0,  440.0,  630.0,  180.0,  260.0),
+        ("REZ-EWA",  "Eastern Wheatbelt",              "WA",  "SOLAR",   4.0,  1100.0,  860.0,  520.0,  770.0,  240.0,  310.0),
+        ("REZ-PB",   "Pilbara",                        "WA",  "HYBRID",  3.0,   850.0,  640.0,  380.0,  595.0,  200.0,  280.0),
+    ]
+
+    rezs: List[RZTREZRecord] = []
+    for (rid, name, state, rtype, pot_gw, conn_lim, comm, appr, conn, aug_mw, aug_cost) in rez_definitions:
+        util = round(conn / conn_lim * 100, 1)
+        rezs.append(RZTREZRecord(
+            rez_id=rid,
+            name=name,
+            state=state,
+            resource_type=rtype,
+            potential_capacity_gw=pot_gw,
+            connection_limit_mw=conn_lim,
+            committed_capacity_mw=comm,
+            approved_capacity_mw=appr,
+            connected_capacity_mw=conn,
+            utilisation_pct=util,
+            transmission_augmentation_needed_mw=aug_mw,
+            augmentation_cost_m=aug_cost,
+        ))
+
+    queue_data = [
+        ("REZ-NE",  42, 6800.0, 34.2, 38.4, 18.6, 11, 14200.0, 4.2),
+        ("REZ-CWO", 58, 9200.0, 31.8, 41.2, 15.4, 15, 13800.0, 5.1),
+        ("REZ-HUN", 24, 3200.0, 22.4, 44.6, 12.8,  7, 12400.0, 3.0),
+        ("REZ-SWN", 31, 4600.0, 28.6, 39.8, 16.2,  9, 13100.0, 3.8),
+        ("REZ-WD",  27, 3800.0, 25.0, 42.4, 14.6,  8, 12800.0, 3.3),
+        ("REZ-NQ",  33, 5100.0, 29.4, 40.6, 17.2,  9, 13500.0, 4.0),
+        ("REZ-MAC", 18, 2400.0, 20.8, 46.2, 11.4,  6, 11900.0, 2.6),
+        ("REZ-GA",  15, 2100.0, 38.6, 32.4, 22.8,  5, 15600.0, 5.8),
+        ("REZ-WVP", 22, 3400.0, 24.2, 43.8, 13.6,  7, 12200.0, 2.9),
+        ("REZ-SY",  14, 1800.0, 18.6, 47.4, 10.2,  4, 11400.0, 2.1),
+        ("REZ-EWA", 19, 2600.0, 21.6, 45.0, 12.0,  6, 11700.0, 2.4),
+        ("REZ-PB",  12, 1500.0, 16.4, 49.2,  9.6,  4, 11100.0, 1.8),
+    ]
+    connection_queue: List[RZTConnectionQueueRecord] = [
+        RZTConnectionQueueRecord(
+            rez_id=r, project_count_in_queue=pc, total_queue_mw=tq,
+            avg_wait_time_months=awt, approved_pct=ap, withdrawn_pct=wp,
+            annual_new_applications=ana, connection_fee_per_mw=cfm,
+            technical_studies_backlog_months=tsb,
+        )
+        for (r, pc, tq, awt, ap, wp, ana, cfm, tsb) in queue_data
+    ]
+
+    tx_projects_raw = [
+        ("TXP-001", "New England REZ Network Option",          "REZ-NE",  "NSW", 1800.0, "HVAC",                1240.0, 2.84, "APPROVED",     2027, "REZ_UNLOCK"),
+        ("TXP-002", "Central-West Orana 500kV Augmentation",  "REZ-CWO", "NSW", 2400.0, "HVAC",                1980.0, 3.12, "CONSTRUCTION", 2026, "REZ_UNLOCK"),
+        ("TXP-003", "HumeLink 500kV",                         "REZ-SWN", "NSW", 1400.0, "HVAC",                3300.0, 1.96, "CONSTRUCTION", 2026, "CONGESTION_RELIEF"),
+        ("TXP-004", "VNI West",                               "REZ-WVP", "VIC", 2000.0, "HVAC",                2600.0, 2.24, "APPROVED",     2028, "REZ_UNLOCK"),
+        ("TXP-005", "QNI Medium — QLD-NSW Upgrade",           "REZ-NQ",  "QLD",  800.0, "HVAC",                 890.0, 1.78, "APPROVED",     2027, "CONGESTION_RELIEF"),
+        ("TXP-006", "North Queensland HVDC Link",             "REZ-NQ",  "QLD", 1200.0, "HVDC",                1650.0, 2.41, "IDENTIFIED",   2030, "REZ_UNLOCK"),
+        ("TXP-007", "Western Downs Series Compensation",      "REZ-WD",  "QLD",  600.0, "SERIES_COMPENSATION",  320.0, 3.68, "OPERATING",    2024, "LOSS_REDUCTION"),
+        ("TXP-008", "Gippsland Offshore Collector Cable",     "REZ-GA",  "VIC", 1500.0, "HVDC",                2100.0, 1.62, "IDENTIFIED",   2031, "REZ_UNLOCK"),
+        ("TXP-009", "Dynamic Line Rating — NE Corridor",      "REZ-NE",  "NSW",  400.0, "DYNAMIC_LINE_RATING",  148.0, 4.21, "OPERATING",    2023, "LOSS_REDUCTION"),
+        ("TXP-010", "South West NSW Flexible Interconnect",   "REZ-SWN", "NSW",  900.0, "HVAC",                 760.0, 2.55, "APPROVED",     2028, "RESILIENCE"),
+    ]
+    transmission_projects: List[RZTTransmissionProjectRecord] = [
+        RZTTransmissionProjectRecord(
+            project_id=pid, name=pname, rez_id=rid, state=st,
+            capacity_increase_mw=cap, technology=tech, capex_m=cx,
+            benefit_cost_ratio=bcr, status=stat, commissioning_year=cy,
+            primary_benefit=pb,
+        )
+        for (pid, pname, rid, st, cap, tech, cx, bcr, stat, cy, pb) in tx_projects_raw
+    ]
+
+    quarters = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    utilisation: List[RZTUtilisationRecord] = []
+    util_seeds = {
+        "REZ-NE":  (70.3, 4.2, 1.8), "REZ-CWO": (69.8, 5.1, 2.2),
+        "REZ-HUN": (58.2, 3.6, 1.4), "REZ-SWN": (70.0, 4.8, 1.9),
+        "REZ-WD":  (65.0, 4.4, 1.7), "REZ-NQ":  (70.0, 4.6, 1.8),
+        "REZ-MAC": (60.0, 3.8, 1.5), "REZ-GA":  (22.0, 2.1, 0.8),
+        "REZ-WVP": (70.0, 4.5, 1.8), "REZ-SY":  (70.0, 4.3, 1.7),
+        "REZ-EWA": (70.0, 4.2, 1.6), "REZ-PB":  (70.0, 4.0, 1.5),
+    }
+    q_offsets = {"2024-Q1": -3.2, "2024-Q2": 1.4, "2024-Q3": 4.8, "2024-Q4": -0.6}
+    for r in rezs:
+        base_util, base_cong_cost, base_rev = util_seeds[r.rez_id]
+        for q in quarters:
+            qoff = q_offsets[q]
+            avg_u = round(max(10.0, min(99.0, base_util + qoff + rng.uniform(-2, 2))), 1)
+            peak_u = round(min(99.9, avg_u + rng.uniform(8, 18)), 1)
+            constrained = round(rng.uniform(6, 28), 1)
+            curtailment = round(rng.uniform(2, 14), 1)
+            cong_cost = round(base_cong_cost + rng.uniform(-0.8, 0.8), 2)
+            rev_fore = round(base_rev * (curtailment / 8.0) + rng.uniform(0.2, 0.6), 2)
+            utilisation.append(RZTUtilisationRecord(
+                rez_id=r.rez_id, quarter=q,
+                avg_utilisation_pct=avg_u, peak_utilisation_pct=peak_u,
+                constrained_hours_pct=constrained,
+                curtailment_from_congestion_pct=curtailment,
+                congestion_cost_m=cong_cost,
+                revenue_foregone_m=rev_fore,
+            ))
+
+    cost_alloc_raw = [
+        ("REZ-NE",  "USER_PAYS",   1200.0, 72.4, 18.2,  9.4, 533.3, True),
+        ("REZ-CWO", "SOCIALISED",  2100.0, 24.6, 62.8, 12.6, 666.7, True),
+        ("REZ-HUN", "HYBRID",       680.0, 50.0, 40.0, 10.0, 781.6, True),
+        ("REZ-SWN", "50_50_SPLIT",  790.0, 50.0, 45.0,  5.0, 512.9, True),
+        ("REZ-WD",  "USER_PAYS",    620.0, 68.2, 22.4,  9.4, 529.9, True),
+        ("REZ-NQ",  "HYBRID",       840.0, 55.8, 32.6, 11.6, 500.0, True),
+        ("REZ-MAC", "SOCIALISED",   420.0, 26.4, 61.2, 12.4, 583.3, False),
+        ("REZ-GA",  "USER_PAYS",   1350.0, 74.8, 16.6,  8.6, 3068.2, False),
+        ("REZ-WVP", "50_50_SPLIT",  390.0, 50.0, 44.2,  5.8, 348.2, True),
+        ("REZ-SY",  "HYBRID",       260.0, 52.4, 36.8, 10.8, 412.7, True),
+        ("REZ-EWA", "SOCIALISED",   310.0, 28.6, 59.4, 12.0, 402.6, True),
+        ("REZ-PB",  "USER_PAYS",    280.0, 70.2, 20.4,  9.4, 470.6, False),
+    ]
+    cost_allocation: List[RZTCostAllocationRecord] = [
+        RZTCostAllocationRecord(
+            rez_id=rid, cost_allocation_method=method,
+            transmission_cost_m=tx_cost,
+            borne_by_generators_pct=gen_pct,
+            borne_by_consumers_pct=con_pct,
+            borne_by_government_pct=gov_pct,
+            cost_per_mw_connected=cpw,
+            aer_approved=aer,
+        )
+        for (rid, method, tx_cost, gen_pct, con_pct, gov_pct, cpw, aer) in cost_alloc_raw
+    ]
+
+    summary = {
+        "total_rezs": 12,
+        "total_potential_gw": 84.5,
+        "total_connected_mw": 12400,
+        "total_queue_mw": 38500,
+        "avg_wait_time_months": 28.4,
+        "total_augmentation_cost_m": 8420,
+        "avg_utilisation_pct": 68.4,
+    }
+
+    return RZTDashboard(
+        rezs=rezs,
+        connection_queue=connection_queue,
+        transmission_projects=transmission_projects,
+        utilisation=utilisation,
+        cost_allocation=cost_allocation,
+        summary=summary,
+    )
+
+
+_rzt_cache: dict = {}
+
+
+@app.get("/api/rez-transmission/dashboard", response_model=RZTDashboard, dependencies=[Depends(verify_api_key)])
+async def get_rez_transmission_dashboard():
+    cached = _cache_get(_rzt_cache, "rzt")
+    if cached:
+        return cached
+    result = _build_rzt_dashboard()
+    _cache_set(_rzt_cache, "rzt", result)
+    return result
+
+
+# ============================================================
+# Sprint 82c — Price Model Comparison Analytics (PMC)
+# ============================================================
+
+class PMCModelRecord(BaseModel):
+    model_id: str
+    model_name: str
+    model_family: str  # STATISTICAL / ML / DEEP_LEARNING / HYBRID / FUNDAMENTAL / EXPERT_SYSTEM
+    algorithm: str
+    input_features: List[str]
+    training_frequency: str  # DAILY / WEEKLY / MONTHLY / ROLLING
+    forecast_horizon_hrs: int
+    compute_time_mins: float
+    model_complexity: str  # LOW / MEDIUM / HIGH / VERY_HIGH
+    commercial_vendor: Optional[str]
+
+
+class PMCAccuracyRecord(BaseModel):
+    model_id: str
+    region: str
+    year: int
+    horizon_hrs: int
+    mae: float
+    rmse: float
+    mape: float
+    r_squared: float
+    spike_detection_rate_pct: float
+    directional_accuracy_pct: float
+    pit_coverage_pct: float
+
+
+class PMCCommercialUseRecord(BaseModel):
+    use_case: str  # TRADING / HEDGING / ASSET_DISPATCH / BIDDING_STRATEGY / CONTRACT_PRICING / INVESTMENT
+    preferred_model_family: str
+    accuracy_requirement: str  # HIGH / MEDIUM / LOW
+    horizon_needed_hrs: int
+    annual_value_m: float
+    adoption_pct: float
+
+
+class PMCFeatureImportanceRecord(BaseModel):
+    model_id: str
+    feature: str
+    importance_pct: float
+    feature_category: str  # DEMAND / GENERATION / WEATHER / FUEL / CALENDAR / MARKET
+
+
+class PMCBacktestRecord(BaseModel):
+    model_id: str
+    backtest_period: str
+    region: str
+    scenario: str  # NORMAL / HIGH_VRE / PRICE_SPIKE / MARKET_STRESS
+    mae_normal: float
+    mae_spike: float
+    mae_negative: float
+    overall_rank: int
+
+
+class PMCDashboard(BaseModel):
+    models: List[PMCModelRecord]
+    accuracy: List[PMCAccuracyRecord]
+    commercial_uses: List[PMCCommercialUseRecord]
+    feature_importance: List[PMCFeatureImportanceRecord]
+    backtests: List[PMCBacktestRecord]
+    summary: dict
+
+
+def _build_pmc_dashboard() -> PMCDashboard:
+    import random
+    rng = random.Random(42)
+
+    # ── 8 Model Records ──────────────────────────────────────────────────────
+    MODELS_RAW = [
+        ("M001", "ARIMA-GARCH",           "STATISTICAL",   "ARIMA-GARCH",
+         ["lagged_price", "volatility", "calendar", "seasonal_index"],
+         "DAILY", 24, 2.1, "LOW", None),
+        ("M002", "XGBoost Gradient",      "ML",            "XGBoost",
+         ["demand", "generation_mix", "fuel_price", "weather", "calendar", "lagged_price"],
+         "DAILY", 48, 8.4, "MEDIUM", "Enercast"),
+        ("M003", "LSTM Deep Net",         "DEEP_LEARNING", "LSTM",
+         ["demand", "generation_mix", "weather", "lagged_price", "interconnector_flow", "rooftop_solar"],
+         "DAILY", 72, 45.2, "VERY_HIGH", None),
+        ("M004", "Prophet Seasonal",      "STATISTICAL",   "Prophet",
+         ["lagged_price", "calendar", "seasonal_index", "holiday_flag"],
+         "WEEKLY", 24, 3.8, "LOW", "Meta / Internal"),
+        ("M005", "Dispatch Simulation",   "FUNDAMENTAL",   "Dispatch Simulation",
+         ["generator_availability", "fuel_cost", "demand_forecast", "network_constraints", "FCAS_requirement"],
+         "DAILY", 48, 180.0, "VERY_HIGH", "PLEXOS / AEMO"),
+        ("M006", "Ensemble Blend",        "HYBRID",        "Ensemble (weighted)",
+         ["demand", "generation_mix", "fuel_price", "weather", "lagged_price", "calendar"],
+         "DAILY", 48, 12.6, "HIGH", None),
+        ("M007", "SARIMA-GARCH",          "STATISTICAL",   "SARIMA-GARCH",
+         ["lagged_price", "seasonal_index", "volatility", "calendar"],
+         "WEEKLY", 24, 4.5, "MEDIUM", None),
+        ("M008", "Transformer Attention", "DEEP_LEARNING", "Transformer",
+         ["demand", "generation_mix", "weather", "fuel_price", "lagged_price", "interconnector_flow"],
+         "ROLLING", 168, 92.0, "VERY_HIGH", "Montel / Internal"),
+    ]
+
+    models: List[PMCModelRecord] = []
+    for (mid, name, family, algo, features, tf, horizon, compute, complexity, vendor) in MODELS_RAW:
+        models.append(PMCModelRecord(
+            model_id=mid, model_name=name, model_family=family, algorithm=algo,
+            input_features=features, training_frequency=tf,
+            forecast_horizon_hrs=horizon,
+            compute_time_mins=round(compute * rng.uniform(0.97, 1.03), 1),
+            model_complexity=complexity, commercial_vendor=vendor,
+        ))
+
+    # ── 80 Accuracy Records (8 models × 5 regions × 2 years) ─────────────────
+    REGIONS = ["NSW", "VIC", "QLD", "SA", "WA"]
+    YEARS = [2023, 2024]
+    BASE_MAE = {
+        "M001": 32.0, "M002": 26.5, "M003": 24.8, "M004": 34.2,
+        "M005": 29.1, "M006": 21.4, "M007": 33.6, "M008": 23.0,
+    }
+    BASE_SPIKE = {
+        "M001": 45.0, "M002": 62.0, "M003": 65.0, "M004": 38.0,
+        "M005": 72.3, "M006": 68.0, "M007": 41.0, "M008": 66.5,
+    }
+    REGION_FACTOR = {"NSW": 1.0, "VIC": 1.05, "QLD": 0.98, "SA": 1.12, "WA": 1.08}
+
+    accuracy: List[PMCAccuracyRecord] = []
+    for (mid, _n, _fam, _algo, _feats, _tf, horizon, _cmp, _cx, _vnd) in MODELS_RAW:
+        for region in REGIONS:
+            for year in YEARS:
+                rf = REGION_FACTOR[region]
+                yf = 0.95 if year == 2024 else 1.0
+                mae = round(BASE_MAE[mid] * rf * yf * rng.uniform(0.92, 1.08), 2)
+                rmse = round(mae * rng.uniform(1.25, 1.55), 2)
+                mape = round(mae / 80.0 * 100 * rng.uniform(0.9, 1.1), 2)
+                r2 = round(min(0.98, max(0.55, 1.0 - (mae / 100.0) * rng.uniform(0.85, 1.15))), 3)
+                spike = round(BASE_SPIKE[mid] * rng.uniform(0.93, 1.07), 1)
+                dir_acc = round(rng.uniform(58.0, 82.0), 1)
+                pit = round(rng.uniform(88.0, 97.5), 1)
+                accuracy.append(PMCAccuracyRecord(
+                    model_id=mid, region=region, year=year,
+                    horizon_hrs=horizon,
+                    mae=mae, rmse=rmse, mape=mape, r_squared=r2,
+                    spike_detection_rate_pct=spike,
+                    directional_accuracy_pct=dir_acc,
+                    pit_coverage_pct=pit,
+                ))
+
+    # ── 8 Commercial Use Records ──────────────────────────────────────────────
+    COMMERCIAL_RAW = [
+        ("TRADING",           "ML",            "HIGH",   4,    320.0, 62.0),
+        ("HEDGING",           "HYBRID",        "HIGH",   48,   210.0, 55.0),
+        ("ASSET_DISPATCH",    "FUNDAMENTAL",   "HIGH",   24,   185.0, 48.0),
+        ("BIDDING_STRATEGY",  "ML",            "HIGH",   4,    145.0, 58.0),
+        ("CONTRACT_PRICING",  "STATISTICAL",   "MEDIUM", 720,  110.0, 42.0),
+        ("INVESTMENT",        "FUNDAMENTAL",   "MEDIUM", 8760,  95.0, 35.0),
+        ("RISK_MANAGEMENT",   "HYBRID",        "HIGH",   168,  105.0, 47.0),
+        ("PORTFOLIO_OPT",     "DEEP_LEARNING", "MEDIUM", 48,    88.0, 31.0),
+    ]
+    commercial_uses: List[PMCCommercialUseRecord] = []
+    for (uc, family, acc_req, horizon, value, adoption) in COMMERCIAL_RAW:
+        commercial_uses.append(PMCCommercialUseRecord(
+            use_case=uc, preferred_model_family=family,
+            accuracy_requirement=acc_req, horizon_needed_hrs=horizon,
+            annual_value_m=round(value * rng.uniform(0.95, 1.05), 1),
+            adoption_pct=round(adoption * rng.uniform(0.97, 1.03), 1),
+        ))
+
+    # ── 48 Feature Importance Records (8 models × 6 features each) ───────────
+    FEATURE_SETS = {
+        "M001": [("lagged_price", 42.0, "MARKET"), ("seasonal_index", 22.0, "CALENDAR"),
+                 ("calendar", 15.0, "CALENDAR"), ("volatility", 12.0, "MARKET"),
+                 ("holiday_flag", 5.0, "CALENDAR"), ("temperature", 4.0, "WEATHER")],
+        "M002": [("demand", 28.0, "DEMAND"), ("fuel_price", 22.0, "FUEL"),
+                 ("lagged_price", 18.0, "MARKET"), ("generation_mix", 16.0, "GENERATION"),
+                 ("weather", 10.0, "WEATHER"), ("calendar", 6.0, "CALENDAR")],
+        "M003": [("demand", 25.0, "DEMAND"), ("lagged_price", 22.0, "MARKET"),
+                 ("weather", 18.0, "WEATHER"), ("generation_mix", 15.0, "GENERATION"),
+                 ("rooftop_solar", 12.0, "GENERATION"), ("interconnector_flow", 8.0, "MARKET")],
+        "M004": [("seasonal_index", 38.0, "CALENDAR"), ("lagged_price", 28.0, "MARKET"),
+                 ("holiday_flag", 14.0, "CALENDAR"), ("calendar", 12.0, "CALENDAR"),
+                 ("temperature", 5.0, "WEATHER"), ("demand", 3.0, "DEMAND")],
+        "M005": [("generator_availability", 32.0, "GENERATION"), ("demand_forecast", 25.0, "DEMAND"),
+                 ("fuel_cost", 20.0, "FUEL"), ("network_constraints", 12.0, "MARKET"),
+                 ("FCAS_requirement", 8.0, "MARKET"), ("weather", 3.0, "WEATHER")],
+        "M006": [("demand", 24.0, "DEMAND"), ("lagged_price", 20.0, "MARKET"),
+                 ("fuel_price", 18.0, "FUEL"), ("generation_mix", 16.0, "GENERATION"),
+                 ("weather", 14.0, "WEATHER"), ("calendar", 8.0, "CALENDAR")],
+        "M007": [("lagged_price", 40.0, "MARKET"), ("seasonal_index", 24.0, "CALENDAR"),
+                 ("volatility", 16.0, "MARKET"), ("calendar", 10.0, "CALENDAR"),
+                 ("temperature", 6.0, "WEATHER"), ("holiday_flag", 4.0, "CALENDAR")],
+        "M008": [("demand", 22.0, "DEMAND"), ("lagged_price", 20.0, "MARKET"),
+                 ("generation_mix", 18.0, "GENERATION"), ("fuel_price", 16.0, "FUEL"),
+                 ("weather", 14.0, "WEATHER"), ("interconnector_flow", 10.0, "MARKET")],
+    }
+    feature_importance: List[PMCFeatureImportanceRecord] = []
+    for mid, feats in FEATURE_SETS.items():
+        for (feat, imp, cat) in feats:
+            feature_importance.append(PMCFeatureImportanceRecord(
+                model_id=mid, feature=feat,
+                importance_pct=round(imp * rng.uniform(0.95, 1.05), 1),
+                feature_category=cat,
+            ))
+
+    # ── 40 Backtest Records (8 models × 5 scenarios) ─────────────────────────
+    SCENARIOS = ["NORMAL", "HIGH_VRE", "PRICE_SPIKE", "MARKET_STRESS", "NEGATIVE_PRICE"]
+    BT_BASE = {
+        "M001": (28.0, 85.0, 42.0, 6),
+        "M002": (22.0, 55.0, 35.0, 3),
+        "M003": (20.5, 50.0, 30.0, 2),
+        "M004": (30.0, 95.0, 48.0, 7),
+        "M005": (25.0, 38.0, 32.0, 4),
+        "M006": (18.0, 42.0, 28.0, 1),
+        "M007": (29.0, 90.0, 45.0, 8),
+        "M008": (19.5, 46.0, 29.0, 2),
+    }
+    BT_REGION = ["NSW", "VIC", "QLD", "SA", "WA"]
+    backtests: List[PMCBacktestRecord] = []
+    for idx, (mid, _n, _fam, _algo, _feats, _tf, _h, _cmp, _cx, _vnd) in enumerate(MODELS_RAW):
+        mae_n, mae_s, mae_neg, rank = BT_BASE[mid]
+        region = BT_REGION[idx % len(BT_REGION)]
+        for scenario in SCENARIOS:
+            scene_factor = {
+                "NORMAL": 1.0, "HIGH_VRE": 1.15, "PRICE_SPIKE": 1.4,
+                "MARKET_STRESS": 1.6, "NEGATIVE_PRICE": 1.25,
+            }.get(scenario, 1.0)
+            backtests.append(PMCBacktestRecord(
+                model_id=mid, backtest_period="2022-2024",
+                region=region, scenario=scenario,
+                mae_normal=round(mae_n * rng.uniform(0.95, 1.05), 2),
+                mae_spike=round(mae_s * scene_factor * rng.uniform(0.93, 1.07), 2),
+                mae_negative=round(mae_neg * scene_factor * rng.uniform(0.95, 1.05), 2),
+                overall_rank=rank,
+            ))
+
+    summary = {
+        "best_model_mae": "Ensemble",
+        "best_spike_model": "Dispatch_Simulation",
+        "avg_mae_all_models": 28.4,
+        "spike_detection_leader_pct": 72.3,
+        "commercial_adoption_pct": 48.2,
+        "annual_forecast_value_m": 840,
+    }
+
+    return PMCDashboard(
+        models=models,
+        accuracy=accuracy,
+        commercial_uses=commercial_uses,
+        feature_importance=feature_importance,
+        backtests=backtests,
+        summary=summary,
+    )
+
+
+_pmc_cache: dict = {}
+
+
+@app.get("/api/price-model-comparison/dashboard", response_model=PMCDashboard, dependencies=[Depends(verify_api_key)])
+async def get_price_model_comparison_dashboard():
+    cached = _cache_get(_pmc_cache, "pmc")
+    if cached:
+        return cached
+    result = _build_pmc_dashboard()
+    _cache_set(_pmc_cache, "pmc", result)
+    return result

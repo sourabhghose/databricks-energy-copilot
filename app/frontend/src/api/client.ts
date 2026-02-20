@@ -12571,3 +12571,225 @@ export interface ESWDashboard {
 
 export const getElectricityWorkforceDashboard = (): Promise<ESWDashboard> =>
   get<ESWDashboard>('/api/electricity-workforce/dashboard');
+
+// Sprint 82b — REZ Transmission Infrastructure Analytics (RZT)
+
+export interface RZTREZRecord {
+  rez_id: string
+  name: string
+  state: string
+  resource_type: string
+  potential_capacity_gw: number
+  connection_limit_mw: number
+  committed_capacity_mw: number
+  approved_capacity_mw: number
+  connected_capacity_mw: number
+  utilisation_pct: number
+  transmission_augmentation_needed_mw: number
+  augmentation_cost_m: number
+}
+
+export interface RZTConnectionQueueRecord {
+  rez_id: string
+  project_count_in_queue: number
+  total_queue_mw: number
+  avg_wait_time_months: number
+  approved_pct: number
+  withdrawn_pct: number
+  annual_new_applications: number
+  connection_fee_per_mw: number
+  technical_studies_backlog_months: number
+}
+
+export interface RZTTransmissionProjectRecord {
+  project_id: string
+  name: string
+  rez_id: string
+  state: string
+  capacity_increase_mw: number
+  technology: string
+  capex_m: number
+  benefit_cost_ratio: number
+  status: string
+  commissioning_year: number
+  primary_benefit: string
+}
+
+export interface RZTUtilisationRecord {
+  rez_id: string
+  quarter: string
+  avg_utilisation_pct: number
+  peak_utilisation_pct: number
+  constrained_hours_pct: number
+  curtailment_from_congestion_pct: number
+  congestion_cost_m: number
+  revenue_foregone_m: number
+}
+
+export interface RZTCostAllocationRecord {
+  rez_id: string
+  cost_allocation_method: string
+  transmission_cost_m: number
+  borne_by_generators_pct: number
+  borne_by_consumers_pct: number
+  borne_by_government_pct: number
+  cost_per_mw_connected: number
+  aer_approved: boolean
+}
+
+export interface RZTDashboard {
+  rezs: RZTREZRecord[]
+  connection_queue: RZTConnectionQueueRecord[]
+  transmission_projects: RZTTransmissionProjectRecord[]
+  utilisation: RZTUtilisationRecord[]
+  cost_allocation: RZTCostAllocationRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getRezTransmissionDashboard = (): Promise<RZTDashboard> =>
+  get<RZTDashboard>('/api/rez-transmission/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 82a — Network Regulatory Framework Analytics (NRF)
+// ---------------------------------------------------------------------------
+
+export interface NRFNetworkBusinessRecord {
+  business_id: string
+  name: string
+  type: string
+  state: string
+  rab_bn: number
+  allowed_revenue_m: number
+  actual_revenue_m: number
+  wacc_real_pct: number
+  capex_allowed_m: number
+  capex_actual_m: number
+  opex_allowed_m: number
+  opex_actual_m: number
+  efficiency_benefit_m: number
+  regulatory_period: string
+}
+
+export interface NRFWACCRecord {
+  determination_year: number
+  network_type: string
+  nominal_pre_tax_wacc_pct: number
+  nominal_post_tax_wacc_pct: number
+  real_post_tax_wacc_pct: number
+  risk_free_rate_pct: number
+  equity_risk_premium_pct: number
+  debt_risk_premium_pct: number
+  gamma: number
+  gearing_pct: number
+}
+
+export interface NRFRABRecord {
+  business_id: string
+  year: number
+  opening_rab_bn: number
+  capex_additions_bn: number
+  depreciation_bn: number
+  closing_rab_bn: number
+  rab_growth_pct: number
+  asset_class: string
+}
+
+export interface NRFEfficiencyRecord {
+  business_id: string
+  regulatory_period: string
+  capex_efficiency_pct: number
+  opex_efficiency_pct: number
+  reliability_performance: number
+  reliability_target: number
+  incentive_payment_m: number
+  performance_rating: string
+}
+
+export interface NRFCapexCategoryRecord {
+  business_id: string
+  year: number
+  category: string
+  capex_m: number
+  pct_of_total: number
+  drivers: string
+}
+
+export interface NRFDashboard {
+  businesses: NRFNetworkBusinessRecord[]
+  wacc_history: NRFWACCRecord[]
+  rab_growth: NRFRABRecord[]
+  efficiency: NRFEfficiencyRecord[]
+  capex_categories: NRFCapexCategoryRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getNetworkRegulatoryFrameworkDashboard = (): Promise<NRFDashboard> =>
+  get<NRFDashboard>('/api/network-regulatory-framework/dashboard');
+
+// ── Sprint 82c: Price Model Comparison Analytics (PMC) ──────────────────────
+
+export interface PMCModelRecord {
+  model_id: string
+  model_name: string
+  model_family: string
+  algorithm: string
+  input_features: string[]
+  training_frequency: string
+  forecast_horizon_hrs: number
+  compute_time_mins: number
+  model_complexity: string
+  commercial_vendor: string | null
+}
+
+export interface PMCAccuracyRecord {
+  model_id: string
+  region: string
+  year: number
+  horizon_hrs: number
+  mae: number
+  rmse: number
+  mape: number
+  r_squared: number
+  spike_detection_rate_pct: number
+  directional_accuracy_pct: number
+  pit_coverage_pct: number
+}
+
+export interface PMCCommercialUseRecord {
+  use_case: string
+  preferred_model_family: string
+  accuracy_requirement: string
+  horizon_needed_hrs: number
+  annual_value_m: number
+  adoption_pct: number
+}
+
+export interface PMCFeatureImportanceRecord {
+  model_id: string
+  feature: string
+  importance_pct: number
+  feature_category: string
+}
+
+export interface PMCBacktestRecord {
+  model_id: string
+  backtest_period: string
+  region: string
+  scenario: string
+  mae_normal: number
+  mae_spike: number
+  mae_negative: number
+  overall_rank: number
+}
+
+export interface PMCDashboard {
+  models: PMCModelRecord[]
+  accuracy: PMCAccuracyRecord[]
+  commercial_uses: PMCCommercialUseRecord[]
+  feature_importance: PMCFeatureImportanceRecord[]
+  backtests: PMCBacktestRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getPriceModelComparisonDashboard = (): Promise<PMCDashboard> =>
+  get<PMCDashboard>('/api/price-model-comparison/dashboard');
