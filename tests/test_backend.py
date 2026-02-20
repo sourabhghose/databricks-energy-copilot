@@ -10370,3 +10370,145 @@ class TestMerchantRenewableDashboard:
         s = data["summary"]
         assert s["avg_irr_penalty_vs_contracted"] < 0
         assert s["best_merchant_region"] == "SA1"
+
+
+class TestRetailerCompetitionDashboard:
+    endpoint = "/api/retailer-competition/dashboard"
+
+    def test_http_200(self, client):
+        resp = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert resp.status_code == 200
+
+    def test_market_share_count_and_types(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        ms = data["market_share"]
+        assert len(ms) >= 20
+        types = {r["retailer_type"] for r in ms}
+        assert "BIG3" in types
+        assert "CHALLENGER" in types
+
+    def test_offers_count_and_types(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        offers = data["offers"]
+        assert len(offers) >= 6
+        offer_types = {o["offer_type"] for o in offers}
+        assert "STANDING" in offer_types
+        assert "MARKET_BEST" in offer_types
+
+    def test_churn_count_and_states(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        churn = data["churn"]
+        assert len(churn) >= 30
+        states = {c["state"] for c in churn}
+        for s in ["NSW", "VIC", "QLD", "SA", "TAS"]:
+            assert s in states
+
+    def test_margins_count_and_big3_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        margins = data["margins"]
+        assert len(margins) >= 30
+        retailers = {m["retailer_name"] for m in margins}
+        for big3 in ["AGL Energy", "Origin Energy", "EnergyAustralia"]:
+            assert big3 in retailers
+
+    def test_summary_big3_share_and_hhi(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        s = data["summary"]
+        assert s["big3_combined_share_nsw_pct"] >= 60
+        assert s["hhi_nsw"] > 1500
+
+
+class TestStorageCostCurvesDashboard:
+    endpoint = "/api/storage-cost-curves/dashboard"
+
+    def test_http_200(self, client):
+        r = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert r.status_code == 200
+
+    def test_learning_curves_volume_and_lfp_present_and_declining(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        lc = data["learning_curves"]
+        assert len(lc) >= 50
+        techs = {r["technology"] for r in lc}
+        assert "Li-ion LFP" in techs
+        # Capex should be declining over time for Li-ion LFP
+        lfp = sorted([r for r in lc if r["technology"] == "Li-ion LFP"], key=lambda x: x["year"])
+        assert lfp[0]["capex_per_kwh"] >= lfp[-1]["capex_per_kwh"]
+
+    def test_projections_volume_and_scenarios(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        proj = data["projections"]
+        assert len(proj) >= 20
+        scenarios = {r["scenario"] for r in proj}
+        assert "BASE" in scenarios
+        assert "FAST_LEARNING" in scenarios
+
+    def test_trl_records_volume_and_readiness_levels(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        trl = data["trl_records"]
+        assert len(trl) >= 6
+        readiness = {r["commercial_readiness"] for r in trl}
+        assert "MATURE" in readiness
+        assert "PILOT" in readiness
+
+    def test_comparison_2030_volume_and_nem_fit(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        comp = data["comparison_2030"]
+        assert len(comp) >= 6
+        nem_fits = {r["nem_fit"] for r in comp}
+        assert "EXCELLENT" in nem_fits
+        assert "POOR" in nem_fits
+
+    def test_summary_mature_technologies_and_lowest_lcoes(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        s = data["summary"]
+        assert s["mature_technologies"] >= 2
+        assert "Thermal" in s["lowest_2030_lcoes_tech"]
+
+
+class TestExtremeWeatherResilienceDashboard:
+    endpoint = "/api/extreme-weather-resilience/dashboard"
+
+    def test_http_200(self, client):
+        r = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert r.status_code == 200
+
+    def test_events_types_and_attribution(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        events = data["events"]
+        assert len(events) >= 5
+        event_types = {e["event_type"] for e in events}
+        assert "HEATWAVE" in event_types
+        assert "BUSHFIRE" in event_types
+        attributions = {e["climate_attribution"] for e in events}
+        assert "LIKELY" in attributions
+
+    def test_demand_surges_lor_flags(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        surges = data["demand_surges"]
+        assert len(surges) >= 4
+        lor_flags = {s["close_to_lor"] for s in surges}
+        assert True in lor_flags
+        assert False in lor_flags
+
+    def test_network_impacts_bushfire_proximity(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        impacts = data["network_impacts"]
+        assert len(impacts) >= 4
+        failure_types = {n["failure_type"] for n in impacts}
+        assert "BUSHFIRE_PROXIMITY" in failure_types
+
+    def test_adaptation_status_variety(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        adaptation = data["adaptation"]
+        assert len(adaptation) >= 5
+        statuses = {a["status"] for a in adaptation}
+        assert "COMPLETED" in statuses
+        assert "PLANNED" in statuses
+
+    def test_summary_thresholds(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        s = data["summary"]
+        assert s["total_economic_cost_m"] >= 2000
+        assert s["close_to_lor_events"] >= 2
+        assert s["total_adaptation_investment_m"] >= 900

@@ -259,6 +259,9 @@ import ConsumerHardshipAnalytics from './pages/ConsumerHardshipAnalytics'
 import DsrAggregatorAnalytics from './pages/DsrAggregatorAnalytics'
 import PowerSystemEventsAnalytics from './pages/PowerSystemEventsAnalytics'
 import MerchantRenewableAnalytics from './pages/MerchantRenewableAnalytics'
+import RetailerCompetitionAnalytics from './pages/RetailerCompetitionAnalytics'
+import StorageCostCurvesAnalytics from './pages/StorageCostCurvesAnalytics'
+import ExtremeWeatherResilienceAnalytics from './pages/ExtremeWeatherResilienceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -448,6 +451,9 @@ const NAV_ITEMS = [
   { to: '/dsr-aggregator',       label: 'DSR Aggregator Analytics', Icon: Sliders        },
   { to: '/power-system-events',  label: 'Power System Security Events', Icon: AlertTriangle },
   { to: '/merchant-renewable',   label: 'Merchant Wind & Solar',        Icon: Wind           },
+  { to: '/retailer-competition', label: 'Retailer Competition',          Icon: Users          },
+  { to: '/storage-cost-curves', label: 'Storage Cost Curves',            Icon: TrendingDown   },
+  { to: '/extreme-weather-resilience', label: 'Extreme Weather Resilience', Icon: Tornado        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -712,6 +718,9 @@ export default function App() {
               <Route path="/dsr-aggregator"      element={<DsrAggregatorAnalytics />}      />
               <Route path="/power-system-events" element={<PowerSystemEventsAnalytics />}  />
               <Route path="/merchant-renewable"  element={<MerchantRenewableAnalytics />}  />
+              <Route path="/retailer-competition" element={<RetailerCompetitionAnalytics />} />
+              <Route path="/storage-cost-curves" element={<StorageCostCurvesAnalytics />} />
+              <Route path="/extreme-weather-resilience" element={<ExtremeWeatherResilienceAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

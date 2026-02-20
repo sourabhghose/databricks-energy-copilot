@@ -10599,3 +10599,194 @@ export interface MWSDashboard {
 
 export const getMerchantRenewableDashboard = (): Promise<MWSDashboard> =>
   get<MWSDashboard>('/api/merchant-renewable/dashboard');
+
+// ── Sprint 73a: NEM Electricity Retailer Competition Analytics ────────────────
+
+export interface ERCMarketShareRecord {
+  state: string;
+  retailer_name: string;
+  retailer_type: string; // BIG3 / CHALLENGER / GREENPOWER / NICHE
+  residential_customers: number;
+  sme_customers: number;
+  market_share_residential_pct: number;
+  market_share_sme_pct: number;
+  year: number;
+  quarter: string;
+}
+
+export interface ERCOfferRecord {
+  retailer_name: string;
+  state: string;
+  offer_type: string; // STANDING / MARKET_BEST / MARKET_TYPICAL / GREEN
+  annual_bill_median: number;
+  annual_bill_vs_ref_pct: number;
+  green_pct: number;
+  contract_length_months: number;
+  exit_fee: number;
+  solar_feed_in_tariff: number;
+  headline_discount_pct: number;
+}
+
+export interface ERCChurnRecord {
+  state: string;
+  year: number;
+  quarter: string;
+  switching_rate_pct: number;
+  churn_to_challenger_pct: number;
+  churn_to_big3_pct: number;
+  churn_to_green_pct: number;
+  win_back_rate_pct: number;
+  avg_tenure_years: number;
+  complaints_per_1000: number;
+}
+
+export interface ERCMarginRecord {
+  retailer_name: string;
+  state: string;
+  year: number;
+  wholesale_cost_per_mwh: number;
+  network_cost_per_mwh: number;
+  environmental_cost_per_mwh: number;
+  retail_margin_per_mwh: number;
+  retail_revenue_per_mwh: number;
+  ebit_margin_pct: number;
+  customer_acquisition_cost: number;
+}
+
+export interface ERCDashboard {
+  market_share: ERCMarketShareRecord[];
+  offers: ERCOfferRecord[];
+  churn: ERCChurnRecord[];
+  margins: ERCMarginRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getRetailerCompetitionDashboard = (): Promise<ERCDashboard> =>
+  get<ERCDashboard>('/api/retailer-competition/dashboard');
+
+// ── Sprint 73b: NEM Energy Storage Technology Cost Curves ─────────────────────
+
+export interface STCLearningCurveRecord {
+  technology: string;
+  year: number;
+  cumulative_gw_global: number;
+  capex_per_kwh: number;
+  capex_per_kw: number;
+  opex_per_kwh_yr: number;
+  round_trip_efficiency_pct: number;
+  cycle_life: number;
+  calendar_life_years: number;
+  learning_rate_pct: number;
+}
+
+export interface STCProjectionRecord {
+  technology: string;
+  scenario: string;
+  year: number;
+  capex_per_kwh_low: number;
+  capex_per_kwh_mid: number;
+  capex_per_kwh_high: number;
+  lcoes_per_mwh: number;
+  competitiveness_rating: string;
+}
+
+export interface STCTrlRecord {
+  technology: string;
+  trl_current: number;
+  trl_2030: number;
+  commercial_readiness: string;
+  key_barrier: string;
+  cost_reduction_potential_pct: number;
+  australia_installations: number;
+  global_installed_gw: number;
+  major_developers: string;
+}
+
+export interface STCComparison2030Record {
+  technology: string;
+  duration_hr: number;
+  capex_per_kw: number;
+  capex_per_kwh: number;
+  lcoes_per_mwh: number;
+  rte_pct: number;
+  cycle_life: number;
+  best_use_case: string;
+  nem_fit: string;
+}
+
+export interface STCDashboard {
+  learning_curves: STCLearningCurveRecord[];
+  projections: STCProjectionRecord[];
+  trl_records: STCTrlRecord[];
+  comparison_2030: STCComparison2030Record[];
+  summary: Record<string, unknown>;
+}
+
+export const getStorageCostCurvesDashboard = (): Promise<STCDashboard> =>
+  get<STCDashboard>('/api/storage-cost-curves/dashboard');
+
+// ── Sprint 73c: NEM Extreme Weather Energy Resilience Analytics ───────────────
+
+export interface EWREventRecord {
+  event_id: string;
+  event_name: string;
+  event_type: string;
+  start_date: string;
+  end_date: string;
+  regions_affected: string;
+  peak_demand_surge_mw: number;
+  generation_lost_mw: number;
+  transmission_lines_affected: number;
+  customers_without_power: number;
+  restoration_time_hr: number;
+  economic_cost_energy_m: number;
+  climate_attribution: string;
+}
+
+export interface EWRDemandSurgeRecord {
+  date: string;
+  region: string;
+  temperature_max_c: number;
+  demand_actual_mw: number;
+  demand_normal_mw: number;
+  demand_surge_mw: number;
+  surge_pct: number;
+  reserve_margin_pct: number;
+  close_to_lor: boolean;
+  response_actions: string;
+}
+
+export interface EWRNetworkImpactRecord {
+  event_id: string;
+  network_operator: string;
+  asset_type: string;
+  asset_name: string;
+  failure_type: string;
+  capacity_loss_mw: number;
+  repair_cost_m: number;
+  repair_time_days: number;
+  resilience_investment_needed_m: number;
+}
+
+export interface EWRAdaptationRecord {
+  network_operator: string;
+  measure_name: string;
+  measure_type: string;
+  investment_m: number;
+  risk_reduction_pct: number;
+  assets_protected: number;
+  implementation_year: number;
+  status: string;
+  benefit_cost_ratio: number;
+}
+
+export interface EWRDashboard {
+  events: EWREventRecord[];
+  demand_surges: EWRDemandSurgeRecord[];
+  network_impacts: EWRNetworkImpactRecord[];
+  adaptation: EWRAdaptationRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getExtremeWeatherResilienceDashboard = (): Promise<EWRDashboard> =>
+  get<EWRDashboard>('/api/extreme-weather-resilience/dashboard');

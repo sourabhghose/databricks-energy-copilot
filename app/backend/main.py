@@ -49547,3 +49547,400 @@ def get_merchant_renewable_dashboard():
             "risk_records": len(risks),
         }
     )
+
+# ── Sprint 73a: NEM Electricity Retailer Competition Analytics ────────────────
+
+class ERCMarketShareRecord(BaseModel):
+    state: str
+    retailer_name: str
+    retailer_type: str  # BIG3 / CHALLENGER / GREENPOWER / NICHE
+    residential_customers: int
+    sme_customers: int
+    market_share_residential_pct: float
+    market_share_sme_pct: float
+    year: int
+    quarter: str
+
+class ERCOfferRecord(BaseModel):
+    retailer_name: str
+    state: str
+    offer_type: str  # STANDING / MARKET_BEST / MARKET_TYPICAL / GREEN
+    annual_bill_median: float
+    annual_bill_vs_ref_pct: float  # vs Reference Price (DMO/VDO)
+    green_pct: float
+    contract_length_months: int
+    exit_fee: float
+    solar_feed_in_tariff: float
+    headline_discount_pct: float
+
+class ERCChurnRecord(BaseModel):
+    state: str
+    year: int
+    quarter: str
+    switching_rate_pct: float
+    churn_to_challenger_pct: float
+    churn_to_big3_pct: float
+    churn_to_green_pct: float
+    win_back_rate_pct: float
+    avg_tenure_years: float
+    complaints_per_1000: float
+
+class ERCMarginRecord(BaseModel):
+    retailer_name: str
+    state: str
+    year: int
+    wholesale_cost_per_mwh: float
+    network_cost_per_mwh: float
+    environmental_cost_per_mwh: float
+    retail_margin_per_mwh: float
+    retail_revenue_per_mwh: float
+    ebit_margin_pct: float
+    customer_acquisition_cost: float
+
+class ERCDashboard(BaseModel):
+    market_share: list[ERCMarketShareRecord]
+    offers: list[ERCOfferRecord]
+    churn: list[ERCChurnRecord]
+    margins: list[ERCMarginRecord]
+    summary: dict
+
+@app.get("/api/retailer-competition/dashboard", response_model=ERCDashboard, dependencies=[Depends(verify_api_key)])
+def get_retailer_competition_dashboard():
+    import random
+    random.seed(11)
+    states = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    big3 = ["AGL Energy", "Origin Energy", "EnergyAustralia"]
+    challengers = ["Alinta Energy", "Red Energy", "Simply Energy", "Momentum Energy", "1st Energy", "Amber Electric"]
+    market_share = []
+    # Big 3 and challengers market share
+    for state in states:
+        total_res = {"NSW": 2800000, "VIC": 2400000, "QLD": 2100000, "SA": 780000, "TAS": 280000}[state]
+        shares = {
+            "AGL Energy": {"NSW": 28, "VIC": 20, "QLD": 18, "SA": 22, "TAS": 5},
+            "Origin Energy": {"NSW": 24, "VIC": 18, "QLD": 22, "SA": 20, "TAS": 8},
+            "EnergyAustralia": {"NSW": 20, "VIC": 22, "QLD": 16, "SA": 12, "TAS": 3},
+            "Alinta Energy": {"NSW": 10, "VIC": 8, "QLD": 10, "SA": 15, "TAS": 2},
+            "Red Energy": {"NSW": 6, "VIC": 12, "QLD": 5, "SA": 8, "TAS": 2},
+            "Simply Energy": {"NSW": 5, "VIC": 10, "QLD": 4, "SA": 12, "TAS": 0},
+            "Momentum Energy": {"NSW": 4, "VIC": 7, "QLD": 3, "SA": 6, "TAS": 0},
+            "Others": {"NSW": 3, "VIC": 3, "QLD": 22, "SA": 5, "TAS": 80},
+        }
+        for retailer, state_shares in shares.items():
+            share = state_shares.get(state, 0)
+            if share > 0:
+                rtype = "BIG3" if retailer in big3 else ("NICHE" if retailer == "Others" else "CHALLENGER")
+                market_share.append(ERCMarketShareRecord(
+                    state=state, retailer_name=retailer,
+                    retailer_type=rtype,
+                    residential_customers=int(total_res * share / 100),
+                    sme_customers=int(total_res * share / 100 * 0.12),
+                    market_share_residential_pct=share,
+                    market_share_sme_pct=share * random.uniform(0.8, 1.2),
+                    year=2024, quarter="Q4"
+                ))
+    offers = [
+        ERCOfferRecord(retailer_name="AGL Energy", state="NSW", offer_type="STANDING", annual_bill_median=2280, annual_bill_vs_ref_pct=0, green_pct=0, contract_length_months=0, exit_fee=0, solar_feed_in_tariff=5.0, headline_discount_pct=0),
+        ERCOfferRecord(retailer_name="AGL Energy", state="NSW", offer_type="MARKET_BEST", annual_bill_median=1820, annual_bill_vs_ref_pct=-20.2, green_pct=0, contract_length_months=12, exit_fee=0, solar_feed_in_tariff=6.0, headline_discount_pct=30),
+        ERCOfferRecord(retailer_name="Origin Energy", state="NSW", offer_type="MARKET_BEST", annual_bill_median=1850, annual_bill_vs_ref_pct=-18.9, green_pct=0, contract_length_months=12, exit_fee=0, solar_feed_in_tariff=6.5, headline_discount_pct=28),
+        ERCOfferRecord(retailer_name="EnergyAustralia", state="NSW", offer_type="MARKET_BEST", annual_bill_median=1880, annual_bill_vs_ref_pct=-17.5, green_pct=0, contract_length_months=24, exit_fee=99, solar_feed_in_tariff=5.5, headline_discount_pct=25),
+        ERCOfferRecord(retailer_name="Amber Electric", state="NSW", offer_type="MARKET_TYPICAL", annual_bill_median=1650, annual_bill_vs_ref_pct=-27.6, green_pct=0, contract_length_months=0, exit_fee=0, solar_feed_in_tariff=0, headline_discount_pct=0),
+        ERCOfferRecord(retailer_name="Red Energy", state="NSW", offer_type="GREENPOWER", annual_bill_median=2050, annual_bill_vs_ref_pct=-10.1, green_pct=100, contract_length_months=12, exit_fee=0, solar_feed_in_tariff=8.0, headline_discount_pct=15),
+        ERCOfferRecord(retailer_name="Simply Energy", state="VIC", offer_type="MARKET_BEST", annual_bill_median=1680, annual_bill_vs_ref_pct=-16.0, green_pct=0, contract_length_months=12, exit_fee=0, solar_feed_in_tariff=7.0, headline_discount_pct=22),
+        ERCOfferRecord(retailer_name="Alinta Energy", state="SA", offer_type="MARKET_BEST", annual_bill_median=2350, annual_bill_vs_ref_pct=-12.5, green_pct=0, contract_length_months=12, exit_fee=0, solar_feed_in_tariff=5.0, headline_discount_pct=18),
+    ]
+    churn = []
+    for state in states:
+        base_churn = {"NSW": 14.5, "VIC": 18.2, "QLD": 12.8, "SA": 16.5, "TAS": 8.5}[state]
+        for year in [2022, 2023, 2024]:
+            for q in ["Q1", "Q2", "Q3", "Q4"]:
+                churn_rate = base_churn + (year - 2022) * 0.5 + random.uniform(-1.5, 1.5)
+                churn.append(ERCChurnRecord(
+                    state=state, year=year, quarter=q,
+                    switching_rate_pct=round(churn_rate, 1),
+                    churn_to_challenger_pct=round(churn_rate * 0.35, 1),
+                    churn_to_big3_pct=round(churn_rate * 0.45, 1),
+                    churn_to_green_pct=round(churn_rate * 0.20, 1),
+                    win_back_rate_pct=round(random.uniform(12, 25), 1),
+                    avg_tenure_years=round(random.uniform(2.5, 5.5), 1),
+                    complaints_per_1000=round(random.uniform(8, 35), 1)
+                ))
+    margins = []
+    for retailer in ["AGL Energy", "Origin Energy", "EnergyAustralia", "Alinta Energy", "Red Energy"]:
+        for state in ["NSW", "VIC", "QLD"]:
+            for year in [2022, 2023, 2024]:
+                wholesale = 55 + (year - 2022) * 12 + random.uniform(-8, 8)
+                network = 85 + random.uniform(-5, 5)
+                env_cost = 18 + (year - 2022) * 2
+                margin = random.uniform(15, 45)
+                revenue = wholesale + network + env_cost + margin
+                margins.append(ERCMarginRecord(
+                    retailer_name=retailer, state=state, year=year,
+                    wholesale_cost_per_mwh=round(wholesale, 1),
+                    network_cost_per_mwh=round(network, 1),
+                    environmental_cost_per_mwh=round(env_cost, 1),
+                    retail_margin_per_mwh=round(margin, 1),
+                    retail_revenue_per_mwh=round(revenue, 1),
+                    ebit_margin_pct=round(margin / revenue * 100, 1),
+                    customer_acquisition_cost=round(random.uniform(80, 250), 0)
+                ))
+    hhi = sum((s.market_share_residential_pct / 100)**2 for s in market_share if s.state == "NSW") * 10000
+    return ERCDashboard(
+        market_share=market_share, offers=offers, churn=churn, margins=margins,
+        summary={
+            "states_tracked": len(states),
+            "retailers_tracked": len({m.retailer_name for m in market_share}),
+            "big3_combined_share_nsw_pct": sum(s.market_share_residential_pct for s in market_share if s.state == "NSW" and s.retailer_type == "BIG3"),
+            "hhi_nsw": round(hhi, 0),
+            "avg_churn_rate_pct": round(sum(c.switching_rate_pct for c in churn) / len(churn), 1),
+            "offers_in_database": len(offers),
+            "margin_records": len(margins),
+        }
+    )
+
+# ── Sprint 73b: NEM Energy Storage Technology Cost Curves ─────────────────────
+
+class STCLearningCurveRecord(BaseModel):
+    technology: str
+    year: int
+    cumulative_gw_global: float
+    capex_per_kwh: float
+    capex_per_kw: float
+    opex_per_kwh_yr: float
+    round_trip_efficiency_pct: float
+    cycle_life: int
+    calendar_life_years: int
+    learning_rate_pct: float  # % cost reduction per doubling of capacity
+
+class STCProjectionRecord(BaseModel):
+    technology: str
+    scenario: str  # BASE / FAST_LEARNING / SLOW_LEARNING
+    year: int
+    capex_per_kwh_low: float
+    capex_per_kwh_mid: float
+    capex_per_kwh_high: float
+    lcoes_per_mwh: float  # Levelised Cost of Energy Storage
+    competitiveness_rating: str  # COMPETITIVE / EMERGING / EXPENSIVE
+
+class STCTrlRecord(BaseModel):
+    technology: str
+    trl_current: int  # 1-9
+    trl_2030: int
+    commercial_readiness: str  # RESEARCH / PILOT / DEMONSTRATION / COMMERCIAL / MATURE
+    key_barrier: str
+    cost_reduction_potential_pct: float
+    australia_installations: int
+    global_installed_gw: float
+    major_developers: str
+
+class STCComparison2030Record(BaseModel):
+    technology: str
+    duration_hr: float
+    capex_per_kw: float
+    capex_per_kwh: float
+    lcoes_per_mwh: float
+    rte_pct: float
+    cycle_life: int
+    best_use_case: str
+    nem_fit: str  # EXCELLENT / GOOD / MODERATE / POOR
+
+class STCDashboard(BaseModel):
+    learning_curves: list[STCLearningCurveRecord]
+    projections: list[STCProjectionRecord]
+    trl_records: list[STCTrlRecord]
+    comparison_2030: list[STCComparison2030Record]
+    summary: dict
+
+@app.get("/api/storage-cost-curves/dashboard", response_model=STCDashboard, dependencies=[Depends(verify_api_key)])
+def get_storage_cost_curves_dashboard():
+    # Learning curve data for key storage technologies
+    tech_data = {
+        "Li-ion LFP": {"base_capex_kwh": 250, "base_gw": 50, "lr": 18, "rte": 92, "cycles": 4000, "cal_life": 15, "opex": 4},
+        "Li-ion NMC": {"base_capex_kwh": 280, "base_gw": 80, "lr": 16, "rte": 90, "cycles": 3000, "cal_life": 12, "opex": 5},
+        "Flow Battery (VRFB)": {"base_capex_kwh": 380, "base_gw": 2, "lr": 12, "rte": 78, "cycles": 20000, "cal_life": 25, "opex": 6},
+        "Pumped Hydro": {"base_capex_kwh": 120, "base_gw": 160, "lr": 5, "rte": 82, "cycles": 50000, "cal_life": 60, "opex": 2},
+        "Compressed Air (CAES)": {"base_capex_kwh": 90, "base_gw": 0.8, "lr": 8, "rte": 65, "cycles": 30000, "cal_life": 40, "opex": 3},
+        "Liquid Air (LAES)": {"base_capex_kwh": 200, "base_gw": 0.05, "lr": 14, "rte": 55, "cycles": 10000, "cal_life": 30, "opex": 8},
+        "Green H2 (Power-to-Power)": {"base_capex_kwh": 500, "base_gw": 0.5, "lr": 20, "rte": 35, "cycles": 10000, "cal_life": 25, "opex": 12},
+        "Thermal Storage (PTES)": {"base_capex_kwh": 60, "base_gw": 1, "lr": 10, "rte": 70, "cycles": 30000, "cal_life": 30, "opex": 2},
+        "Zinc-Air": {"base_capex_kwh": 160, "base_gw": 0.1, "lr": 20, "rte": 72, "cycles": 5000, "cal_life": 20, "opex": 5},
+        "Gravity Storage": {"base_capex_kwh": 80, "base_gw": 0.02, "lr": 8, "rte": 85, "cycles": 50000, "cal_life": 50, "opex": 1},
+    }
+    import math
+    learning_curves = []
+    years = list(range(2020, 2031))
+    for tech, td in tech_data.items():
+        cum_gw = td["base_gw"]
+        for year in years:
+            t = year - 2020
+            # Learning rate: cost reduces by lr% for every doubling
+            doublings = math.log2(max(1, cum_gw / td["base_gw"])) if cum_gw > td["base_gw"] else 0
+            cost_factor = (1 - td["lr"]/100) ** doublings
+            capex_kwh = max(20, td["base_capex_kwh"] * cost_factor * (1 - t * 0.008))
+            learning_curves.append(STCLearningCurveRecord(
+                technology=tech, year=year,
+                cumulative_gw_global=round(cum_gw, 1),
+                capex_per_kwh=round(capex_kwh, 0),
+                capex_per_kw=round(capex_kwh * {"Li-ion LFP": 2, "Li-ion NMC": 2, "Flow Battery (VRFB)": 6, "Pumped Hydro": 8, "Compressed Air (CAES)": 10, "Liquid Air (LAES)": 6, "Green H2 (Power-to-Power)": 8, "Thermal Storage (PTES)": 5, "Zinc-Air": 4, "Gravity Storage": 12}.get(tech, 4), 0),
+                opex_per_kwh_yr=td["opex"],
+                round_trip_efficiency_pct=td["rte"],
+                cycle_life=td["cycles"],
+                calendar_life_years=td["cal_life"],
+                learning_rate_pct=td["lr"]
+            ))
+            cum_gw *= (1 + {"Li-ion LFP": 0.35, "Li-ion NMC": 0.25, "Flow Battery (VRFB)": 0.40, "Pumped Hydro": 0.02, "Compressed Air (CAES)": 0.10, "Liquid Air (LAES)": 0.80, "Green H2 (Power-to-Power)": 0.60, "Thermal Storage (PTES)": 0.30, "Zinc-Air": 0.70, "Gravity Storage": 0.90}.get(tech, 0.15))
+    projections = []
+    for tech in ["Li-ion LFP", "Flow Battery (VRFB)", "Pumped Hydro", "Green H2 (Power-to-Power)", "Thermal Storage (PTES)"]:
+        base = {"Li-ion LFP": 130, "Flow Battery (VRFB)": 200, "Pumped Hydro": 110, "Green H2 (Power-to-Power)": 280, "Thermal Storage (PTES)": 45}[tech]
+        for scenario, factor in [("BASE", 1.0), ("FAST_LEARNING", 0.75), ("SLOW_LEARNING", 1.30)]:
+            for year in range(2025, 2036, 5):
+                t = (year - 2025) / 10
+                mid = base * factor * (1 - t * 0.15)
+                competitive = "COMPETITIVE" if mid < 100 else ("EMERGING" if mid < 200 else "EXPENSIVE")
+                lcoes = mid * 0.12 + 10
+                projections.append(STCProjectionRecord(
+                    technology=tech, scenario=scenario, year=year,
+                    capex_per_kwh_low=round(mid * 0.85, 0), capex_per_kwh_mid=round(mid, 0), capex_per_kwh_high=round(mid * 1.20, 0),
+                    lcoes_per_mwh=round(lcoes, 1), competitiveness_rating=competitive
+                ))
+    trl_records = [
+        STCTrlRecord(technology="Li-ion LFP", trl_current=9, trl_2030=9, commercial_readiness="MATURE", key_barrier="Supply chain (lithium)", cost_reduction_potential_pct=35, australia_installations=45, global_installed_gw=380, major_developers="CATL, BYD, CALB"),
+        STCTrlRecord(technology="Pumped Hydro", trl_current=9, trl_2030=9, commercial_readiness="MATURE", key_barrier="Site availability; social licence", cost_reduction_potential_pct=15, australia_installations=8, global_installed_gw=160, major_developers="Andritz, Voith, GE Hydro"),
+        STCTrlRecord(technology="Flow Battery (VRFB)", trl_current=8, trl_2030=9, commercial_readiness="COMMERCIAL", key_barrier="Vanadium price volatility", cost_reduction_potential_pct=45, australia_installations=5, global_installed_gw=2, major_developers="VRB Energy, Invinity, Rongke"),
+        STCTrlRecord(technology="Thermal Storage (PTES)", trl_current=7, trl_2030=9, commercial_readiness="DEMONSTRATION", key_barrier="Round-trip efficiency improvement", cost_reduction_potential_pct=40, australia_installations=1, global_installed_gw=1, major_developers="Siemens Energy, Stiesdal, Malta Inc"),
+        STCTrlRecord(technology="Green H2 (Power-to-Power)", trl_current=6, trl_2030=8, commercial_readiness="PILOT", key_barrier="Low RTE (35%); electrolyser cost", cost_reduction_potential_pct=60, australia_installations=3, global_installed_gw=0.5, major_developers="Nel, ITM Power, Plug Power"),
+        STCTrlRecord(technology="Liquid Air (LAES)", trl_current=7, trl_2030=8, commercial_readiness="DEMONSTRATION", key_barrier="Low RTE (55%); heat integration", cost_reduction_potential_pct=50, australia_installations=0, global_installed_gw=0.05, major_developers="Highview Power"),
+        STCTrlRecord(technology="Gravity Storage", trl_current=6, trl_2030=7, commercial_readiness="PILOT", key_barrier="Site requirements; scaling", cost_reduction_potential_pct=55, australia_installations=1, global_installed_gw=0.02, major_developers="Energy Vault, Gravitricity"),
+        STCTrlRecord(technology="Zinc-Air", trl_current=6, trl_2030=8, commercial_readiness="DEMONSTRATION", key_barrier="Cycle life; recharging efficiency", cost_reduction_potential_pct=50, australia_installations=0, global_installed_gw=0.1, major_developers="Zinc8, Eos Energy"),
+    ]
+    comparison_2030 = [
+        STCComparison2030Record(technology="Li-ion LFP (2hr)", duration_hr=2, capex_per_kw=380, capex_per_kwh=190, lcoes_per_mwh=95, rte_pct=93, cycle_life=5000, best_use_case="FCAS; short arbitrage; capacity", nem_fit="EXCELLENT"),
+        STCComparison2030Record(technology="Li-ion LFP (4hr)", duration_hr=4, capex_per_kw=640, capex_per_kwh=160, lcoes_per_mwh=80, rte_pct=92, cycle_life=4500, best_use_case="Evening peak firming; reliability", nem_fit="EXCELLENT"),
+        STCComparison2030Record(technology="Flow Battery VRFB (6hr)", duration_hr=6, capex_per_kw=840, capex_per_kwh=140, lcoes_per_mwh=90, rte_pct=80, cycle_life=20000, best_use_case="Daily cycling; long-duration needs", nem_fit="GOOD"),
+        STCComparison2030Record(technology="Pumped Hydro (8hr)", duration_hr=8, capex_per_kw=1200, capex_per_kwh=150, lcoes_per_mwh=70, rte_pct=82, cycle_life=50000, best_use_case="Seasonal storage; system strength", nem_fit="GOOD"),
+        STCComparison2030Record(technology="Thermal PTES (10hr)", duration_hr=10, capex_per_kw=350, capex_per_kwh=35, lcoes_per_mwh=45, rte_pct=72, cycle_life=30000, best_use_case="Seasonal; industrial heat integration", nem_fit="MODERATE"),
+        STCComparison2030Record(technology="Green H2 (48hr)", duration_hr=48, capex_per_kw=2400, capex_per_kwh=50, lcoes_per_mwh=180, rte_pct=35, cycle_life=10000, best_use_case="Seasonal storage; industrial feedstock", nem_fit="MODERATE"),
+        STCComparison2030Record(technology="LAES (8hr)", duration_hr=8, capex_per_kw=1400, capex_per_kwh=175, lcoes_per_mwh=120, rte_pct=58, cycle_life=15000, best_use_case="Long-duration; industrial co-location", nem_fit="MODERATE"),
+        STCComparison2030Record(technology="Gravity (6hr)", duration_hr=6, capex_per_kw=900, capex_per_kwh=150, lcoes_per_mwh=95, rte_pct=85, cycle_life=50000, best_use_case="Long-duration; low maintenance", nem_fit="POOR"),
+    ]
+    return STCDashboard(
+        learning_curves=learning_curves, projections=projections,
+        trl_records=trl_records, comparison_2030=comparison_2030,
+        summary={
+            "technologies_tracked": len(tech_data),
+            "learning_curve_records": len(learning_curves),
+            "lowest_2030_lcoes_tech": "Thermal PTES ($45/MWh)",
+            "highest_learning_rate_tech": "Green H2 (20%)",
+            "mature_technologies": sum(1 for t in trl_records if t.commercial_readiness == "MATURE"),
+            "trl9_technologies": sum(1 for t in trl_records if t.trl_current == 9),
+            "projection_records": len(projections),
+        }
+    )
+
+# ── Sprint 73c: NEM Extreme Weather Energy Resilience Analytics ───────────────
+
+class EWREventRecord(BaseModel):
+    event_id: str
+    event_name: str
+    event_type: str  # HEATWAVE / BUSHFIRE / FLOOD / CYCLONE / STORM
+    start_date: str
+    end_date: str
+    regions_affected: str
+    peak_demand_surge_mw: float
+    generation_lost_mw: float
+    transmission_lines_affected: int
+    customers_without_power: int
+    restoration_time_hr: float
+    economic_cost_energy_m: float
+    climate_attribution: str  # LIKELY / POSSIBLE / UNCERTAIN
+
+class EWRDemandSurgeRecord(BaseModel):
+    date: str
+    region: str
+    temperature_max_c: float
+    demand_actual_mw: float
+    demand_normal_mw: float
+    demand_surge_mw: float
+    surge_pct: float
+    reserve_margin_pct: float
+    close_to_lor: bool
+    response_actions: str
+
+class EWRNetworkImpactRecord(BaseModel):
+    event_id: str
+    network_operator: str
+    asset_type: str  # TRANSMISSION_LINE / SUBSTATION / DISTRIBUTION_FEEDER / TOWER
+    asset_name: str
+    failure_type: str  # THERMAL_OVERLOAD / WEATHER_DAMAGE / BUSHFIRE_PROXIMITY / FLOOD
+    capacity_loss_mw: float
+    repair_cost_m: float
+    repair_time_days: int
+    resilience_investment_needed_m: float
+
+class EWRAdaptationRecord(BaseModel):
+    network_operator: str
+    measure_name: str
+    measure_type: str  # HARDENING / UNDERGROUNDING / VEGETATION_MANAGEMENT / MONITORING / BACKUP_GENERATION
+    investment_m: float
+    risk_reduction_pct: float
+    assets_protected: int
+    implementation_year: int
+    status: str  # PLANNED / IN_PROGRESS / COMPLETED
+    benefit_cost_ratio: float
+
+class EWRDashboard(BaseModel):
+    events: list[EWREventRecord]
+    demand_surges: list[EWRDemandSurgeRecord]
+    network_impacts: list[EWRNetworkImpactRecord]
+    adaptation: list[EWRAdaptationRecord]
+    summary: dict
+
+@app.get("/api/extreme-weather-resilience/dashboard", response_model=EWRDashboard, dependencies=[Depends(verify_api_key)])
+def get_extreme_weather_resilience_dashboard():
+    events = [
+        EWREventRecord(event_id="EW001", event_name="January 2019 Heatwave", event_type="HEATWAVE", start_date="2019-01-24", end_date="2019-01-26", regions_affected="NSW1,VIC1,SA1", peak_demand_surge_mw=2800, generation_lost_mw=350, transmission_lines_affected=8, customers_without_power=50000, restoration_time_hr=6, economic_cost_energy_m=280, climate_attribution="LIKELY"),
+        EWREventRecord(event_id="EW002", event_name="2019-20 Black Summer Bushfires", event_type="BUSHFIRE", start_date="2019-11-01", end_date="2020-02-15", regions_affected="NSW1,VIC1,SA1,TAS1", peak_demand_surge_mw=0, generation_lost_mw=1200, transmission_lines_affected=45, customers_without_power=850000, restoration_time_hr=720, economic_cost_energy_m=1800, climate_attribution="LIKELY"),
+        EWREventRecord(event_id="EW003", event_name="February 2022 QLD Floods", event_type="FLOOD", start_date="2022-02-26", end_date="2022-03-05", regions_affected="QLD1", peak_demand_surge_mw=0, generation_lost_mw=180, transmission_lines_affected=22, customers_without_power=120000, restoration_time_hr=168, economic_cost_energy_m=350, climate_attribution="POSSIBLE"),
+        EWREventRecord(event_id="EW004", event_name="December 2021 Cyclone Tiffany", event_type="CYCLONE", start_date="2021-12-03", end_date="2021-12-05", regions_affected="QLD1", peak_demand_surge_mw=0, generation_lost_mw=450, transmission_lines_affected=15, customers_without_power=45000, restoration_time_hr=48, economic_cost_energy_m=85, climate_attribution="UNCERTAIN"),
+        EWREventRecord(event_id="EW005", event_name="January 2025 SA Heatwave", event_type="HEATWAVE", start_date="2025-01-13", end_date="2025-01-15", regions_affected="SA1,VIC1", peak_demand_surge_mw=1500, generation_lost_mw=80, transmission_lines_affected=3, customers_without_power=8000, restoration_time_hr=2, economic_cost_energy_m=55, climate_attribution="LIKELY"),
+        EWREventRecord(event_id="EW006", event_name="June 2024 VIC Cold Snap", event_type="STORM", start_date="2024-06-20", end_date="2024-06-21", regions_affected="VIC1,TAS1", peak_demand_surge_mw=1200, generation_lost_mw=200, transmission_lines_affected=6, customers_without_power=25000, restoration_time_hr=12, economic_cost_energy_m=42, climate_attribution="UNCERTAIN"),
+    ]
+    demand_surges = [
+        EWRDemandSurgeRecord(date="2025-01-13", region="SA1", temperature_max_c=43.2, demand_actual_mw=3250, demand_normal_mw=2100, demand_surge_mw=1150, surge_pct=54.8, reserve_margin_pct=8.5, close_to_lor=True, response_actions="RERT activated; DSR dispatched; Demand response 180MW"),
+        EWRDemandSurgeRecord(date="2025-01-14", region="VIC1", temperature_max_c=40.5, demand_actual_mw=10200, demand_normal_mw=7800, demand_surge_mw=2400, surge_pct=30.8, reserve_margin_pct=12.2, close_to_lor=False, response_actions="RERT pre-positioned; market response"),
+        EWRDemandSurgeRecord(date="2024-12-28", region="NSW1", temperature_max_c=38.8, demand_actual_mw=13500, demand_normal_mw=10800, demand_surge_mw=2700, surge_pct=25.0, reserve_margin_pct=15.5, close_to_lor=False, response_actions="Normal market response; no interventions"),
+        EWRDemandSurgeRecord(date="2024-01-15", region="QLD1", temperature_max_c=39.2, demand_actual_mw=9800, demand_normal_mw=7500, demand_surge_mw=2300, surge_pct=30.7, reserve_margin_pct=14.8, close_to_lor=False, response_actions="Peakers online; DSR 150MW"),
+        EWRDemandSurgeRecord(date="2023-12-18", region="SA1", temperature_max_c=41.0, demand_actual_mw=3100, demand_normal_mw=2050, demand_surge_mw=1050, surge_pct=51.2, reserve_margin_pct=10.2, close_to_lor=True, response_actions="RERT 200MW; interconnector max; gas peakers"),
+        EWRDemandSurgeRecord(date="2023-01-25", region="VIC1", temperature_max_c=42.5, demand_actual_mw=10800, demand_normal_mw=7900, demand_surge_mw=2900, surge_pct=36.7, reserve_margin_pct=6.8, close_to_lor=True, response_actions="LOR2 declared; RERT activated; load management"),
+    ]
+    network_impacts = [
+        EWRNetworkImpactRecord(event_id="EW002", network_operator="TransGrid", asset_type="TRANSMISSION_LINE", asset_name="Snowy-Cooma 330kV", failure_type="BUSHFIRE_PROXIMITY", capacity_loss_mw=800, repair_cost_m=45, repair_time_days=28, resilience_investment_needed_m=120),
+        EWRNetworkImpactRecord(event_id="EW002", network_operator="AusNet", asset_type="TRANSMISSION_LINE", asset_name="Gippsland 500kV Corridor", failure_type="WEATHER_DAMAGE", capacity_loss_mw=600, repair_cost_m=38, repair_time_days=21, resilience_investment_needed_m=95),
+        EWRNetworkImpactRecord(event_id="EW003", network_operator="Powerlink", asset_type="SUBSTATION", asset_name="Lockyer Valley 132kV Sub", failure_type="FLOOD", capacity_loss_mw=250, repair_cost_m=22, repair_time_days=45, resilience_investment_needed_m=35),
+        EWRNetworkImpactRecord(event_id="EW001", network_operator="ElectraNet", asset_type="TRANSMISSION_LINE", asset_name="Riverland-Heywood 275kV", failure_type="THERMAL_OVERLOAD", capacity_loss_mw=400, repair_cost_m=8, repair_time_days=3, resilience_investment_needed_m=25),
+        EWRNetworkImpactRecord(event_id="EW002", network_operator="Ausgrid", asset_type="DISTRIBUTION_FEEDER", asset_name="Blue Mountains Feeders", failure_type="BUSHFIRE_PROXIMITY", capacity_loss_mw=180, repair_cost_m=28, repair_time_days=14, resilience_investment_needed_m=65),
+        EWRNetworkImpactRecord(event_id="EW004", network_operator="Powerlink", asset_type="TOWER", asset_name="NQ Transmission Towers (x8)", failure_type="WEATHER_DAMAGE", capacity_loss_mw=350, repair_cost_m=15, repair_time_days=10, resilience_investment_needed_m=40),
+    ]
+    adaptation = [
+        EWRAdaptationRecord(network_operator="TransGrid", measure_name="Bushfire Risk Transmission Hardening", measure_type="HARDENING", investment_m=280, risk_reduction_pct=35, assets_protected=420, implementation_year=2025, status="IN_PROGRESS", benefit_cost_ratio=3.2),
+        EWRAdaptationRecord(network_operator="AusNet", measure_name="Gippsland Undergrounding Program", measure_type="UNDERGROUNDING", investment_m=380, risk_reduction_pct=85, assets_protected=180, implementation_year=2026, status="PLANNED", benefit_cost_ratio=2.1),
+        EWRAdaptationRecord(network_operator="Ausgrid", measure_name="Vegetation Management AI System", measure_type="VEGETATION_MANAGEMENT", investment_m=45, risk_reduction_pct=25, assets_protected=8500, implementation_year=2024, status="COMPLETED", benefit_cost_ratio=4.8),
+        EWRAdaptationRecord(network_operator="Powerlink", measure_name="Flood-Resistant Substation Program", measure_type="HARDENING", investment_m=120, risk_reduction_pct=60, assets_protected=24, implementation_year=2025, status="IN_PROGRESS", benefit_cost_ratio=2.8),
+        EWRAdaptationRecord(network_operator="ElectraNet", measure_name="Real-Time Thermal Line Monitoring", measure_type="MONITORING", investment_m=22, risk_reduction_pct=15, assets_protected=850, implementation_year=2024, status="COMPLETED", benefit_cost_ratio=5.5),
+        EWRAdaptationRecord(network_operator="TasNetworks", measure_name="Storm-Resilient Pole Replacement", measure_type="HARDENING", investment_m=85, risk_reduction_pct=40, assets_protected=1200, implementation_year=2026, status="PLANNED", benefit_cost_ratio=3.1),
+        EWRAdaptationRecord(network_operator="Endeavour Energy", measure_name="Community Microgrids (Backup Generation)", measure_type="BACKUP_GENERATION", investment_m=55, risk_reduction_pct=90, assets_protected=8, implementation_year=2025, status="IN_PROGRESS", benefit_cost_ratio=1.8),
+    ]
+    total_investment = sum(a.investment_m for a in adaptation)
+    return EWRDashboard(
+        events=events, demand_surges=demand_surges,
+        network_impacts=network_impacts, adaptation=adaptation,
+        summary={
+            "total_events": len(events),
+            "total_economic_cost_m": sum(e.economic_cost_energy_m for e in events),
+            "total_customers_affected": sum(e.customers_without_power for e in events),
+            "heatwave_events": sum(1 for e in events if e.event_type == "HEATWAVE"),
+            "close_to_lor_events": sum(1 for d in demand_surges if d.close_to_lor),
+            "total_adaptation_investment_m": round(total_investment, 1),
+            "adaptation_measures": len(adaptation),
+            "highest_bcr_measure": "Real-Time Thermal Monitoring (5.5x)",
+        }
+    )
