@@ -268,6 +268,9 @@ import OffshoreWindDevAnalytics from './pages/OffshoreWindDevAnalytics'
 import PumpedHydroResourceAssessmentAnalytics from './pages/PumpedHydroResourceAssessmentAnalytics'
 import FrequencyControlPerformanceAnalytics from './pages/FrequencyControlPerformanceAnalytics'
 import CostReflectiveTariffReformAnalytics from './pages/CostReflectiveTariffReformAnalytics'
+import NEMMarketMicrostructureAnalytics from './pages/NEMMarketMicrostructureAnalytics'
+import EVFleetGridImpactAnalytics from './pages/EVFleetGridImpactAnalytics'
+import HydrogenEconomyAnalytics from './pages/HydrogenEconomyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -376,6 +379,7 @@ const NAV_ITEMS = [
   { to: '/energy-poverty',    label: 'Energy Poverty',     Icon: Heart          },
   { to: '/spot-forecast',     label: 'Spot Forecast',      Icon: Zap            },
   { to: '/hydrogen-economy',  label: 'Hydrogen Economy',   Icon: Fuel           },
+  { to: '/hydrogen-economy-analytics', label: 'H2 Economy Analytics', Icon: Atom },
   { to: '/carbon-credit',     label: 'Carbon Credits',     Icon: TreePine       },
   { to: '/grid-resilience',   label: 'Grid Resilience',    Icon: ShieldAlert    },
   { to: '/ev-fleet',          label: 'EV Fleet & V2G',     Icon: Car            },
@@ -466,6 +470,8 @@ const NAV_ITEMS = [
   { to: '/pumped-hydro-resource-assessment', label: 'Pumped Hydro Resource Assessment', Icon: Droplets },
   { to: '/frequency-control-performance', label: 'NEM Frequency Control Performance', Icon: Radio  },
   { to: '/cost-reflective-tariff-reform', label: 'Cost-Reflective Tariff Reform', Icon: BarChart2 },
+  { to: '/ev-fleet-grid-impact',          label: 'EV Fleet Grid Impact',          Icon: Car          },
+  { to: '/nem-market-microstructure',     label: 'NEM Market Microstructure',     Icon: TrendingUp   },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -647,6 +653,7 @@ export default function App() {
               <Route path="/energy-poverty"    element={<EnergyPoverty />}       />
               <Route path="/spot-forecast"     element={<SpotForecastDashboard />} />
               <Route path="/hydrogen-economy"  element={<HydrogenEconomy />}      />
+              <Route path="/hydrogen-economy-analytics" element={<HydrogenEconomyAnalytics />} />
               <Route path="/carbon-credit"     element={<CarbonCreditMarket />}  />
               <Route path="/grid-resilience"   element={<GridResilience />}      />
               <Route path="/ev-fleet"          element={<EvFleetCharging />}     />
@@ -739,6 +746,8 @@ export default function App() {
               <Route path="/pumped-hydro-resource-assessment" element={<PumpedHydroResourceAssessmentAnalytics />} />
               <Route path="/frequency-control-performance" element={<FrequencyControlPerformanceAnalytics />} />
               <Route path="/cost-reflective-tariff-reform" element={<CostReflectiveTariffReformAnalytics />} />
+              <Route path="/ev-fleet-grid-impact"          element={<EVFleetGridImpactAnalytics />}          />
+              <Route path="/nem-market-microstructure"     element={<NEMMarketMicrostructureAnalytics />}     />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

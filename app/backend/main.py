@@ -51411,3 +51411,965 @@ def get_cost_reflective_tariff_reform_dashboard():
             "total_customers_on_capacity_tariff_k": 145,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 76b — Hydrogen Economy Analytics
+# Prefix: HEA  |  Endpoint: /api/hydrogen-economy-analytics/dashboard
+# Distinct from Sprint 44b (Hydrogen Economy & Infrastructure, prefix H2)
+# Distinct from Sprint 31a (Green Hydrogen Electrolysis Economics, prefix GHE)
+# ---------------------------------------------------------------------------
+
+class HEAProductionRecord(BaseModel):
+    project_id: str
+    name: str
+    state: str
+    production_pathway: str   # GREEN_ELECTROLYSIS / BLUE_SMR_CCS / BROWN_SMR / BIOMASS_GASIFICATION
+    feedstock: str            # RENEWABLE_ELECTRICITY / NATURAL_GAS / COAL / BIOMASS
+    capacity_tpd: float       # tonnes per day
+    annual_production_kt: float
+    capex_m: float
+    lcoh_per_kg: float        # Levelised Cost of Hydrogen ($/kg)
+    co2_intensity_kg_per_kg_h2: float
+    export_destination: str   # DOMESTIC / JAPAN / KOREA / GERMANY / SINGAPORE / GLOBAL
+    status: str               # OPERATING / CONSTRUCTION / COMMITTED / FEASIBILITY / ANNOUNCED
+    target_year: int
+
+
+class HEAExportRecord(BaseModel):
+    year: int
+    destination: str
+    carrier: str              # LIQUID_H2 / AMMONIA / LIQUID_ORGANIC_HYDROGEN_CARRIER / DIRECT_PIPELINE
+    volume_kt: float
+    price_usd_per_kg: float
+    revenue_bn_aud: float
+    contract_type: str        # SPOT / LONG_TERM_OFFTAKE / MOU
+
+
+class HEAEndUseRecord(BaseModel):
+    sector: str               # INDUSTRIAL / POWER_GENERATION / TRANSPORT_HEAVY / TRANSPORT_LIGHT / EXPORT / BUILDINGS
+    use_case: str
+    current_demand_kt_yr: float
+    demand_2030_kt_yr: float
+    demand_2050_kt_yr: float
+    h2_readiness_score: float  # 0-10
+    decarbonisation_potential_mt_co2: float
+
+
+class HEASupplyChainRecord(BaseModel):
+    component: str            # ELECTROLYSER / FUEL_CELL / STORAGE_TANK / COMPRESSOR / PIPELINE / SHIP / TERMINAL
+    current_aus_capacity: float
+    unit: str
+    required_2030: float
+    required_2040: float
+    supply_gap_2030: float
+    local_content_pct: float
+    import_dependency: str    # HIGH / MEDIUM / LOW
+
+
+class HEACostProjectionRecord(BaseModel):
+    year: int
+    pathway: str              # GREEN_ELECTROLYSIS / BLUE_SMR_CCS / BROWN_SMR
+    lcoh_per_kg: float
+    electrolyser_cost_per_kw: Optional[float]
+    capacity_factor_pct: Optional[float]
+    electricity_cost_per_mwh: Optional[float]
+    cumulative_capacity_gw: Optional[float]
+
+
+class HEADashboard(BaseModel):
+    production: List[HEAProductionRecord]
+    exports: List[HEAExportRecord]
+    end_uses: List[HEAEndUseRecord]
+    supply_chain: List[HEASupplyChainRecord]
+    cost_projections: List[HEACostProjectionRecord]
+    summary: dict
+
+
+@app.get(
+    "/api/hydrogen-economy-analytics/dashboard",
+    response_model=HEADashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+async def get_hydrogen_economy_analytics_dashboard() -> HEADashboard:
+    import random
+    random.seed(76)
+
+    # ── Production pipeline (18 projects) ─────────────────────────────────
+    production: List[HEAProductionRecord] = [
+        HEAProductionRecord(
+            project_id="HEA-P001", name="Western Green Energy Hub", state="WA",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=500.0, annual_production_kt=182.5, capex_m=8500.0,
+            lcoh_per_kg=4.20, co2_intensity_kg_per_kg_h2=0.08,
+            export_destination="JAPAN", status="FEASIBILITY", target_year=2030,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P002", name="Yuri Green Ammonia Project", state="WA",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=80.0, annual_production_kt=29.2, capex_m=750.0,
+            lcoh_per_kg=5.10, co2_intensity_kg_per_kg_h2=0.05,
+            export_destination="DOMESTIC", status="CONSTRUCTION", target_year=2025,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P003", name="Murchison H2 Renewables", state="WA",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=200.0, annual_production_kt=73.0, capex_m=2200.0,
+            lcoh_per_kg=3.80, co2_intensity_kg_per_kg_h2=0.04,
+            export_destination="GERMANY", status="FEASIBILITY", target_year=2029,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P004", name="Denman H2 Hub", state="NSW",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=10.0, annual_production_kt=3.65, capex_m=95.0,
+            lcoh_per_kg=6.50, co2_intensity_kg_per_kg_h2=0.07,
+            export_destination="DOMESTIC", status="OPERATING", target_year=2023,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P005", name="Whyalla Green Steel H2", state="SA",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=60.0, annual_production_kt=21.9, capex_m=620.0,
+            lcoh_per_kg=4.80, co2_intensity_kg_per_kg_h2=0.05,
+            export_destination="DOMESTIC", status="COMMITTED", target_year=2026,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P006", name="HyP Stuart SA", state="SA",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=5.0, annual_production_kt=1.83, capex_m=42.0,
+            lcoh_per_kg=7.20, co2_intensity_kg_per_kg_h2=0.09,
+            export_destination="DOMESTIC", status="OPERATING", target_year=2022,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P007", name="Port Kembla H2 Hub", state="NSW",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=40.0, annual_production_kt=14.6, capex_m=380.0,
+            lcoh_per_kg=5.40, co2_intensity_kg_per_kg_h2=0.06,
+            export_destination="KOREA", status="CONSTRUCTION", target_year=2026,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P008", name="Gibson Island H2 Hub", state="QLD",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=25.0, annual_production_kt=9.13, capex_m=210.0,
+            lcoh_per_kg=5.80, co2_intensity_kg_per_kg_h2=0.06,
+            export_destination="JAPAN", status="COMMITTED", target_year=2027,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P009", name="Northern Territory H2 Export Hub", state="NT",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=120.0, annual_production_kt=43.8, capex_m=1100.0,
+            lcoh_per_kg=4.50, co2_intensity_kg_per_kg_h2=0.05,
+            export_destination="SINGAPORE", status="ANNOUNCED", target_year=2030,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P010", name="Tassie Offshore Wind H2", state="TAS",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=30.0, annual_production_kt=10.95, capex_m=320.0,
+            lcoh_per_kg=5.60, co2_intensity_kg_per_kg_h2=0.04,
+            export_destination="GLOBAL", status="FEASIBILITY", target_year=2031,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P011", name="Gladstone Solar H2", state="QLD",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=75.0, annual_production_kt=27.4, capex_m=700.0,
+            lcoh_per_kg=4.90, co2_intensity_kg_per_kg_h2=0.06,
+            export_destination="KOREA", status="COMMITTED", target_year=2027,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P012", name="Pilbara Green H2 Pipeline", state="WA",
+            production_pathway="GREEN_ELECTROLYSIS", feedstock="RENEWABLE_ELECTRICITY",
+            capacity_tpd=350.0, annual_production_kt=127.75, capex_m=4200.0,
+            lcoh_per_kg=3.50, co2_intensity_kg_per_kg_h2=0.04,
+            export_destination="JAPAN", status="ANNOUNCED", target_year=2032,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P013", name="HESC Blue H2 (Latrobe Valley)", state="VIC",
+            production_pathway="BLUE_SMR_CCS", feedstock="NATURAL_GAS",
+            capacity_tpd=3.0, annual_production_kt=1.10, capex_m=500.0,
+            lcoh_per_kg=3.20, co2_intensity_kg_per_kg_h2=1.80,
+            export_destination="JAPAN", status="OPERATING", target_year=2023,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P014", name="Moranbah Blue H2", state="QLD",
+            production_pathway="BLUE_SMR_CCS", feedstock="NATURAL_GAS",
+            capacity_tpd=50.0, annual_production_kt=18.25, capex_m=680.0,
+            lcoh_per_kg=2.60, co2_intensity_kg_per_kg_h2=2.10,
+            export_destination="KOREA", status="CONSTRUCTION", target_year=2026,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P015", name="Hunter Valley Blue H2", state="NSW",
+            production_pathway="BLUE_SMR_CCS", feedstock="NATURAL_GAS",
+            capacity_tpd=30.0, annual_production_kt=10.95, capex_m=420.0,
+            lcoh_per_kg=2.80, co2_intensity_kg_per_kg_h2=1.95,
+            export_destination="GERMANY", status="COMMITTED", target_year=2027,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P016", name="Collie Brown H2 Baseline", state="WA",
+            production_pathway="BROWN_SMR", feedstock="COAL",
+            capacity_tpd=20.0, annual_production_kt=7.30, capex_m=180.0,
+            lcoh_per_kg=1.80, co2_intensity_kg_per_kg_h2=11.5,
+            export_destination="DOMESTIC", status="OPERATING", target_year=2010,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P017", name="Loy Yang Brown H2 (Legacy)", state="VIC",
+            production_pathway="BROWN_SMR", feedstock="COAL",
+            capacity_tpd=15.0, annual_production_kt=5.48, capex_m=130.0,
+            lcoh_per_kg=1.90, co2_intensity_kg_per_kg_h2=12.1,
+            export_destination="DOMESTIC", status="OPERATING", target_year=2008,
+        ),
+        HEAProductionRecord(
+            project_id="HEA-P018", name="Southwest WA Biomass H2", state="WA",
+            production_pathway="BIOMASS_GASIFICATION", feedstock="BIOMASS",
+            capacity_tpd=8.0, annual_production_kt=2.92, capex_m=95.0,
+            lcoh_per_kg=5.50, co2_intensity_kg_per_kg_h2=0.50,
+            export_destination="DOMESTIC", status="FEASIBILITY", target_year=2028,
+        ),
+    ]
+
+    # ── Export trajectory (30 records: 5 destinations × 6 years 2025-2030) ─
+    destinations = ["JAPAN", "KOREA", "GERMANY", "SINGAPORE", "GLOBAL"]
+    carrier_map = {
+        "JAPAN": "LIQUID_H2",
+        "KOREA": "AMMONIA",
+        "GERMANY": "AMMONIA",
+        "SINGAPORE": "LIQUID_ORGANIC_HYDROGEN_CARRIER",
+        "GLOBAL": "AMMONIA",
+    }
+    price_base = {"JAPAN": 6.80, "KOREA": 6.20, "GERMANY": 7.40, "SINGAPORE": 6.50, "GLOBAL": 5.90}
+    volume_base = {"JAPAN": 18.0, "KOREA": 12.0, "GERMANY": 8.0, "SINGAPORE": 6.0, "GLOBAL": 5.0}
+    contract_map = {
+        "JAPAN": "LONG_TERM_OFFTAKE", "KOREA": "LONG_TERM_OFFTAKE",
+        "GERMANY": "MOU", "SINGAPORE": "MOU", "GLOBAL": "SPOT",
+    }
+
+    exports: List[HEAExportRecord] = []
+    for yr in range(2025, 2031):
+        for dest in destinations:
+            yr_factor = 1.0 + 0.25 * (yr - 2025)
+            vol = round(volume_base[dest] * yr_factor, 1)
+            price = round(price_base[dest] - 0.15 * (yr - 2025), 2)
+            rev = round(vol * price / 1000.0, 3)
+            exports.append(HEAExportRecord(
+                year=yr,
+                destination=dest,
+                carrier=carrier_map[dest],
+                volume_kt=vol,
+                price_usd_per_kg=price,
+                revenue_bn_aud=rev,
+                contract_type=contract_map[dest],
+            ))
+
+    # ── End use demand (10 records) ────────────────────────────────────────
+    end_uses: List[HEAEndUseRecord] = [
+        HEAEndUseRecord(
+            sector="INDUSTRIAL", use_case="Steel making (DRI)",
+            current_demand_kt_yr=45.0, demand_2030_kt_yr=280.0, demand_2050_kt_yr=820.0,
+            h2_readiness_score=6.5, decarbonisation_potential_mt_co2=18.4,
+        ),
+        HEAEndUseRecord(
+            sector="INDUSTRIAL", use_case="Ammonia production",
+            current_demand_kt_yr=320.0, demand_2030_kt_yr=520.0, demand_2050_kt_yr=1100.0,
+            h2_readiness_score=8.2, decarbonisation_potential_mt_co2=12.6,
+        ),
+        HEAEndUseRecord(
+            sector="INDUSTRIAL", use_case="Methanol & chemicals",
+            current_demand_kt_yr=28.0, demand_2030_kt_yr=95.0, demand_2050_kt_yr=340.0,
+            h2_readiness_score=5.8, decarbonisation_potential_mt_co2=6.1,
+        ),
+        HEAEndUseRecord(
+            sector="POWER_GENERATION", use_case="Gas turbine co-firing",
+            current_demand_kt_yr=2.0, demand_2030_kt_yr=55.0, demand_2050_kt_yr=310.0,
+            h2_readiness_score=4.2, decarbonisation_potential_mt_co2=22.0,
+        ),
+        HEAEndUseRecord(
+            sector="TRANSPORT_HEAVY", use_case="Fuel cell trucks (Class 8)",
+            current_demand_kt_yr=0.8, demand_2030_kt_yr=28.0, demand_2050_kt_yr=185.0,
+            h2_readiness_score=6.0, decarbonisation_potential_mt_co2=14.5,
+        ),
+        HEAEndUseRecord(
+            sector="TRANSPORT_HEAVY", use_case="Rail & mining equipment",
+            current_demand_kt_yr=0.3, demand_2030_kt_yr=12.0, demand_2050_kt_yr=80.0,
+            h2_readiness_score=5.5, decarbonisation_potential_mt_co2=7.2,
+        ),
+        HEAEndUseRecord(
+            sector="TRANSPORT_LIGHT", use_case="FCEV passenger cars",
+            current_demand_kt_yr=0.1, demand_2030_kt_yr=4.0, demand_2050_kt_yr=35.0,
+            h2_readiness_score=3.8, decarbonisation_potential_mt_co2=3.1,
+        ),
+        HEAEndUseRecord(
+            sector="EXPORT", use_case="Bulk export (ammonia carrier)",
+            current_demand_kt_yr=1.1, demand_2030_kt_yr=480.0, demand_2050_kt_yr=3200.0,
+            h2_readiness_score=7.5, decarbonisation_potential_mt_co2=48.0,
+        ),
+        HEAEndUseRecord(
+            sector="BUILDINGS", use_case="Gas network blending",
+            current_demand_kt_yr=0.5, demand_2030_kt_yr=8.0, demand_2050_kt_yr=42.0,
+            h2_readiness_score=3.2, decarbonisation_potential_mt_co2=4.8,
+        ),
+        HEAEndUseRecord(
+            sector="INDUSTRIAL", use_case="Petroleum refining",
+            current_demand_kt_yr=105.0, demand_2030_kt_yr=130.0, demand_2050_kt_yr=80.0,
+            h2_readiness_score=7.8, decarbonisation_potential_mt_co2=8.3,
+        ),
+    ]
+
+    # ── Supply chain gaps (8 components) ──────────────────────────────────
+    supply_chain: List[HEASupplyChainRecord] = [
+        HEASupplyChainRecord(
+            component="ELECTROLYSER",
+            current_aus_capacity=120.0, unit="MW/yr",
+            required_2030=4500.0, required_2040=18000.0,
+            supply_gap_2030=4380.0, local_content_pct=22.0,
+            import_dependency="HIGH",
+        ),
+        HEASupplyChainRecord(
+            component="FUEL_CELL",
+            current_aus_capacity=8.0, unit="MW/yr",
+            required_2030=380.0, required_2040=1600.0,
+            supply_gap_2030=372.0, local_content_pct=15.0,
+            import_dependency="HIGH",
+        ),
+        HEASupplyChainRecord(
+            component="STORAGE_TANK",
+            current_aus_capacity=45.0, unit="units/yr",
+            required_2030=320.0, required_2040=950.0,
+            supply_gap_2030=275.0, local_content_pct=48.0,
+            import_dependency="MEDIUM",
+        ),
+        HEASupplyChainRecord(
+            component="COMPRESSOR",
+            current_aus_capacity=60.0, unit="units/yr",
+            required_2030=410.0, required_2040=1200.0,
+            supply_gap_2030=350.0, local_content_pct=35.0,
+            import_dependency="MEDIUM",
+        ),
+        HEASupplyChainRecord(
+            component="PIPELINE",
+            current_aus_capacity=800.0, unit="km/yr",
+            required_2030=2400.0, required_2040=6500.0,
+            supply_gap_2030=1600.0, local_content_pct=72.0,
+            import_dependency="LOW",
+        ),
+        HEASupplyChainRecord(
+            component="SHIP",
+            current_aus_capacity=0.0, unit="vessels/yr",
+            required_2030=4.0, required_2040=18.0,
+            supply_gap_2030=4.0, local_content_pct=5.0,
+            import_dependency="HIGH",
+        ),
+        HEASupplyChainRecord(
+            component="TERMINAL",
+            current_aus_capacity=1.0, unit="units/yr",
+            required_2030=6.0, required_2040=22.0,
+            supply_gap_2030=5.0, local_content_pct=55.0,
+            import_dependency="LOW",
+        ),
+        HEASupplyChainRecord(
+            component="HEAT_EXCHANGER",
+            current_aus_capacity=30.0, unit="units/yr",
+            required_2030=180.0, required_2040=520.0,
+            supply_gap_2030=150.0, local_content_pct=40.0,
+            import_dependency="MEDIUM",
+        ),
+    ]
+
+    # ── LCOH cost projections (39 records: 13 years × 3 pathways) ──────────
+    pathways_data = {
+        "GREEN_ELECTROLYSIS": {
+            "lcoh_start": 6.80, "lcoh_end": 1.90,
+            "elec_start": 45.0, "elec_end": 15.0,
+            "cap_fac_start": 38.0, "cap_fac_end": 52.0,
+            "capex_kw_start": 1200.0, "capex_kw_end": 250.0,
+            "cumcap_start": 0.8, "cumcap_end": 85.0,
+        },
+        "BLUE_SMR_CCS": {
+            "lcoh_start": 3.80, "lcoh_end": 1.80,
+            "elec_start": None, "elec_end": None,
+            "cap_fac_start": 85.0, "cap_fac_end": 88.0,
+            "capex_kw_start": None, "capex_kw_end": None,
+            "cumcap_start": 2.5, "cumcap_end": 18.0,
+        },
+        "BROWN_SMR": {
+            "lcoh_start": 1.80, "lcoh_end": 2.20,
+            "elec_start": None, "elec_end": None,
+            "cap_fac_start": 90.0, "cap_fac_end": 90.0,
+            "capex_kw_start": None, "capex_kw_end": None,
+            "cumcap_start": 12.0, "cumcap_end": 8.0,
+        },
+    }
+    cost_projections: List[HEACostProjectionRecord] = []
+    years_list = list(range(2024, 2037))  # 13 years
+    for pathway, pd_vals in pathways_data.items():
+        for i, yr in enumerate(years_list):
+            t = i / (len(years_list) - 1) if len(years_list) > 1 else 0.0
+            lcoh = round(pd_vals["lcoh_start"] + t * (pd_vals["lcoh_end"] - pd_vals["lcoh_start"]), 2)
+            cap_fac = round(pd_vals["cap_fac_start"] + t * (pd_vals["cap_fac_end"] - pd_vals["cap_fac_start"]), 1)
+            cumcap = round(pd_vals["cumcap_start"] + t * (pd_vals["cumcap_end"] - pd_vals["cumcap_start"]), 2)
+            elec_cost: Optional[float] = None
+            capex_kw: Optional[float] = None
+            if pd_vals["elec_start"] is not None and pd_vals["elec_end"] is not None:
+                elec_cost = round(pd_vals["elec_start"] + t * (pd_vals["elec_end"] - pd_vals["elec_start"]), 1)
+            if pd_vals["capex_kw_start"] is not None and pd_vals["capex_kw_end"] is not None:
+                capex_kw = round(pd_vals["capex_kw_start"] + t * (pd_vals["capex_kw_end"] - pd_vals["capex_kw_start"]), 0)
+            cost_projections.append(HEACostProjectionRecord(
+                year=yr,
+                pathway=pathway,
+                lcoh_per_kg=lcoh,
+                electrolyser_cost_per_kw=capex_kw,
+                capacity_factor_pct=cap_fac,
+                electricity_cost_per_mwh=elec_cost,
+                cumulative_capacity_gw=cumcap,
+            ))
+
+    return HEADashboard(
+        production=production,
+        exports=exports,
+        end_uses=end_uses,
+        supply_chain=supply_chain,
+        cost_projections=cost_projections,
+        summary={
+            "total_production_capacity_kt_yr": 485,
+            "operating_projects": 3,
+            "committed_projects": 5,
+            "total_export_revenue_2030_bn": 12.4,
+            "green_h2_lcoh_2030": 3.8,
+            "green_h2_lcoh_2040": 2.1,
+            "decarbonisation_potential_mt": 145,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 76a — EV Fleet Grid Impact Analytics (prefix EFG)
+# ---------------------------------------------------------------------------
+
+class EFGFleetRecord(BaseModel):
+    region: str
+    vehicle_class: str  # PASSENGER / LIGHT_COMMERCIAL / HEAVY_COMMERCIAL / BUS / RIDESHARE
+    year: int
+    ev_count: int
+    ev_penetration_pct: float
+    avg_daily_km: float
+    avg_consumption_kwh_per_100km: float
+    managed_charging_pct: float
+    v2g_capable_pct: float
+    total_annual_energy_gwh: float
+
+
+class EFGChargingProfileRecord(BaseModel):
+    region: str
+    charging_scenario: str  # UNMANAGED / SMART_CHARGING / V2G_OPTIMISED / DSO_CONTROL
+    hour: int  # 0-23
+    avg_load_mw: float
+    peak_coincidence_factor: float
+    solar_coincidence_factor: float
+    demand_flexibility_mw: float
+
+
+class EFGNetworkImpactRecord(BaseModel):
+    distributor: str
+    state: str
+    lv_transformer_overload_pct: float
+    feeder_capacity_headroom_pct: float
+    required_network_upgrade_m: float
+    ev_penetration_trigger_pct: float
+    managed_charging_deferral_pct: float
+    forecast_ev_penetration_2030_pct: float
+
+
+class EFGV2GServiceRecord(BaseModel):
+    technology: str  # V2G / V2H / V2B
+    service: str  # FREQUENCY_REGULATION / DEMAND_RESPONSE / PEAK_SHAVING / ENERGY_ARBITRAGE
+    fleet_size_vehicles: int
+    avg_capacity_mw: float
+    annual_revenue_per_vehicle: float
+    battery_degradation_cost_per_yr: float
+    net_benefit_per_vehicle: float
+    market_size_m: float
+
+
+class EFGEmissionRecord(BaseModel):
+    region: str
+    year: int
+    charging_scenario: str
+    ev_count_thousands: float
+    grid_emission_intensity_kg_co2_per_mwh: float
+    ev_lifecycle_emission_co2_tonnes: float
+    petrol_equivalent_co2_tonnes: float
+    net_abatement_mt_co2: float
+
+
+class EFGDashboard(BaseModel):
+    fleet: List[EFGFleetRecord]
+    charging_profiles: List[EFGChargingProfileRecord]
+    network_impacts: List[EFGNetworkImpactRecord]
+    v2g_services: List[EFGV2GServiceRecord]
+    emissions: List[EFGEmissionRecord]
+    summary: dict
+
+
+def _build_efg_dashboard() -> EFGDashboard:
+    import random
+
+    rng = random.Random(20240576)
+
+    regions = ["NSW", "VIC", "QLD", "SA", "WA"]
+    vehicle_classes = ["PASSENGER", "LIGHT_COMMERCIAL", "BUS"]
+    years = [2024, 2030]
+
+    # Base EV counts per region/class/year
+    ev_base = {
+        ("NSW", "PASSENGER", 2024): 52000, ("NSW", "PASSENGER", 2030): 680000,
+        ("NSW", "LIGHT_COMMERCIAL", 2024): 9000, ("NSW", "LIGHT_COMMERCIAL", 2030): 120000,
+        ("NSW", "BUS", 2024): 800, ("NSW", "BUS", 2030): 8500,
+        ("VIC", "PASSENGER", 2024): 41000, ("VIC", "PASSENGER", 2030): 550000,
+        ("VIC", "LIGHT_COMMERCIAL", 2024): 7200, ("VIC", "LIGHT_COMMERCIAL", 2030): 95000,
+        ("VIC", "BUS", 2024): 650, ("VIC", "BUS", 2030): 7200,
+        ("QLD", "PASSENGER", 2024): 28000, ("QLD", "PASSENGER", 2030): 380000,
+        ("QLD", "LIGHT_COMMERCIAL", 2024): 5500, ("QLD", "LIGHT_COMMERCIAL", 2030): 72000,
+        ("QLD", "BUS", 2024): 400, ("QLD", "BUS", 2030): 5100,
+        ("SA", "PASSENGER", 2024): 9800, ("SA", "PASSENGER", 2030): 145000,
+        ("SA", "LIGHT_COMMERCIAL", 2024): 1800, ("SA", "LIGHT_COMMERCIAL", 2030): 28000,
+        ("SA", "BUS", 2024): 180, ("SA", "BUS", 2030): 2200,
+        ("WA", "PASSENGER", 2024): 7500, ("WA", "PASSENGER", 2030): 110000,
+        ("WA", "LIGHT_COMMERCIAL", 2024): 1400, ("WA", "LIGHT_COMMERCIAL", 2030): 22000,
+        ("WA", "BUS", 2024): 140, ("WA", "BUS", 2030): 1800,
+    }
+
+    consumption_map = {"PASSENGER": 15.5, "LIGHT_COMMERCIAL": 22.0, "BUS": 120.0}
+    daily_km_map = {"PASSENGER": 42.0, "LIGHT_COMMERCIAL": 95.0, "BUS": 180.0}
+    penetration_map = {
+        ("PASSENGER", 2024): 2.8, ("PASSENGER", 2030): 28.5,
+        ("LIGHT_COMMERCIAL", 2024): 1.2, ("LIGHT_COMMERCIAL", 2030): 18.0,
+        ("BUS", 2024): 4.5, ("BUS", 2030): 55.0,
+    }
+
+    fleet: List[EFGFleetRecord] = []
+    for region in regions:
+        for vc in vehicle_classes:
+            for yr in years:
+                ev_count = ev_base[(region, vc, yr)] + rng.randint(-200, 200)
+                kwh_per_100 = consumption_map[vc] + rng.uniform(-1.0, 1.5)
+                daily_km = daily_km_map[vc] + rng.uniform(-5.0, 8.0)
+                pen = penetration_map[(vc, yr)] + rng.uniform(-0.3, 0.5)
+                managed = 18.0 + rng.uniform(0, 12) if yr == 2024 else 52.0 + rng.uniform(0, 18)
+                v2g_pct = 2.0 + rng.uniform(0, 3) if yr == 2024 else 22.0 + rng.uniform(0, 15)
+                annual_gwh = round(ev_count * daily_km * 365 * kwh_per_100 / 100 / 1e6, 2)
+                fleet.append(EFGFleetRecord(
+                    region=region, vehicle_class=vc, year=yr,
+                    ev_count=ev_count,
+                    ev_penetration_pct=round(pen, 2),
+                    avg_daily_km=round(daily_km, 1),
+                    avg_consumption_kwh_per_100km=round(kwh_per_100, 1),
+                    managed_charging_pct=round(managed, 1),
+                    v2g_capable_pct=round(v2g_pct, 1),
+                    total_annual_energy_gwh=annual_gwh,
+                ))
+
+    # 2 regions × 4 scenarios × 24 hours = 192 charging profile records
+    cp_regions = ["NSW", "VIC"]
+    scenarios = ["UNMANAGED", "SMART_CHARGING", "V2G_OPTIMISED", "DSO_CONTROL"]
+    # Hour-of-day shapes (peak coincidence high in evening for unmanaged)
+    def load_shape(scenario: str, hour: int) -> float:
+        if scenario == "UNMANAGED":
+            # Evening peak 17-21
+            if 17 <= hour <= 21:
+                return 420.0 + rng.uniform(-20, 40) + (hour - 17) * 30
+            elif 22 <= hour <= 23:
+                return 380.0 + rng.uniform(-15, 25)
+            elif 0 <= hour <= 6:
+                return 120.0 + rng.uniform(-10, 20)
+            else:
+                return 80.0 + rng.uniform(-5, 15)
+        elif scenario == "SMART_CHARGING":
+            # Off-peak overnight 22-06
+            if 22 <= hour <= 23 or 0 <= hour <= 6:
+                return 310.0 + rng.uniform(-20, 30)
+            elif 17 <= hour <= 21:
+                return 95.0 + rng.uniform(-10, 20)
+            else:
+                return 60.0 + rng.uniform(-5, 10)
+        elif scenario == "V2G_OPTIMISED":
+            # Discharge during peak, charge overnight/solar
+            if 17 <= hour <= 20:
+                return -180.0 + rng.uniform(-30, 20)  # net export
+            elif 10 <= hour <= 14:
+                return 85.0 + rng.uniform(-10, 20)   # solar charging
+            elif 1 <= hour <= 5:
+                return 290.0 + rng.uniform(-20, 30)
+            else:
+                return 40.0 + rng.uniform(-5, 15)
+        else:  # DSO_CONTROL
+            if 22 <= hour <= 23 or 0 <= hour <= 5:
+                return 340.0 + rng.uniform(-15, 25)
+            elif 17 <= hour <= 21:
+                return 55.0 + rng.uniform(-10, 15)
+            else:
+                return 50.0 + rng.uniform(-5, 10)
+
+    def peak_cf(scenario: str, hour: int) -> float:
+        base = {"UNMANAGED": 0.85, "SMART_CHARGING": 0.25, "V2G_OPTIMISED": -0.30, "DSO_CONTROL": 0.10}
+        if 17 <= hour <= 21:
+            return round(base[scenario] + rng.uniform(-0.05, 0.05), 3)
+        return round(base[scenario] * 0.3 + rng.uniform(-0.05, 0.05), 3)
+
+    def solar_cf(scenario: str, hour: int) -> float:
+        if 9 <= hour <= 15:
+            s = {"UNMANAGED": 0.05, "SMART_CHARGING": 0.40, "V2G_OPTIMISED": 0.75, "DSO_CONTROL": 0.55}
+            return round(s[scenario] + rng.uniform(-0.05, 0.08), 3)
+        return round(rng.uniform(0.0, 0.05), 3)
+
+    charging_profiles: List[EFGChargingProfileRecord] = []
+    for region in cp_regions:
+        for scenario in scenarios:
+            for hour in range(24):
+                load = load_shape(scenario, hour)
+                flex = abs(load) * rng.uniform(0.10, 0.35) if scenario != "UNMANAGED" else abs(load) * rng.uniform(0.0, 0.05)
+                charging_profiles.append(EFGChargingProfileRecord(
+                    region=region, charging_scenario=scenario, hour=hour,
+                    avg_load_mw=round(load, 1),
+                    peak_coincidence_factor=peak_cf(scenario, hour),
+                    solar_coincidence_factor=solar_cf(scenario, hour),
+                    demand_flexibility_mw=round(flex, 1),
+                ))
+
+    # 6 network impact records
+    distributors = [
+        ("Ausgrid", "NSW"),
+        ("Endeavour", "NSW"),
+        ("Powercor", "VIC"),
+        ("SAPN", "SA"),
+        ("Energex", "QLD"),
+        ("Western Power", "WA"),
+    ]
+    network_impacts: List[EFGNetworkImpactRecord] = []
+    for dist, state in distributors:
+        network_impacts.append(EFGNetworkImpactRecord(
+            distributor=dist, state=state,
+            lv_transformer_overload_pct=round(rng.uniform(8.0, 28.0), 1),
+            feeder_capacity_headroom_pct=round(rng.uniform(22.0, 55.0), 1),
+            required_network_upgrade_m=round(rng.uniform(180.0, 850.0), 1),
+            ev_penetration_trigger_pct=round(rng.uniform(18.0, 38.0), 1),
+            managed_charging_deferral_pct=round(rng.uniform(35.0, 65.0), 1),
+            forecast_ev_penetration_2030_pct=round(rng.uniform(22.0, 48.0), 1),
+        ))
+
+    # 8 V2G service records (2 technologies × 4 services)
+    technologies = ["V2G", "V2H"]
+    services = ["FREQUENCY_REGULATION", "DEMAND_RESPONSE", "PEAK_SHAVING", "ENERGY_ARBITRAGE"]
+    v2g_services: List[EFGV2GServiceRecord] = []
+    for tech in technologies:
+        for svc in services:
+            fleet_sz = rng.randint(2000, 25000)
+            cap = round(fleet_sz * rng.uniform(0.003, 0.007), 1)
+            rev = round(rng.uniform(280, 920), 0)
+            deg = round(rng.uniform(85, 220), 0)
+            net = round(rev - deg + rng.uniform(-20, 30), 0)
+            mkt = round(rng.uniform(80, 480), 1)
+            v2g_services.append(EFGV2GServiceRecord(
+                technology=tech, service=svc,
+                fleet_size_vehicles=fleet_sz,
+                avg_capacity_mw=cap,
+                annual_revenue_per_vehicle=rev,
+                battery_degradation_cost_per_yr=deg,
+                net_benefit_per_vehicle=net,
+                market_size_m=mkt,
+            ))
+
+    # 20 emission records (5 regions × 4 years)
+    em_years = [2024, 2027, 2030, 2035]
+    em_scenarios = ["UNMANAGED", "SMART_CHARGING", "V2G_OPTIMISED", "DSO_CONTROL"]
+    grid_intensity = {2024: 0.68, 2027: 0.52, 2030: 0.35, 2035: 0.18}
+    ev_thousands_base = {
+        "NSW": [62, 145, 810, 1380],
+        "VIC": [49, 115, 652, 1120],
+        "QLD": [34, 82, 458, 790],
+        "SA": [12, 30, 175, 310],
+        "WA": [9, 22, 134, 240],
+    }
+    emissions: List[EFGEmissionRecord] = []
+    for region in regions:
+        for i, yr in enumerate(em_years):
+            ev_k = round(ev_thousands_base[region][i] + rng.uniform(-5, 10), 1)
+            intensity = grid_intensity[yr] + rng.uniform(-0.02, 0.02)
+            ev_lc = round(ev_k * 1000 * rng.uniform(18.0, 22.0), 0)
+            petrol_eq = round(ev_k * 1000 * rng.uniform(38.0, 46.0), 0)
+            net_abate = round((petrol_eq - ev_lc) / 1e6, 2)
+            emissions.append(EFGEmissionRecord(
+                region=region, year=yr,
+                charging_scenario=em_scenarios[i % len(em_scenarios)],
+                ev_count_thousands=ev_k,
+                grid_emission_intensity_kg_co2_per_mwh=round(intensity, 3),
+                ev_lifecycle_emission_co2_tonnes=ev_lc,
+                petrol_equivalent_co2_tonnes=petrol_eq,
+                net_abatement_mt_co2=net_abate,
+            ))
+
+    return EFGDashboard(
+        fleet=fleet,
+        charging_profiles=charging_profiles,
+        network_impacts=network_impacts,
+        v2g_services=v2g_services,
+        emissions=emissions,
+        summary={
+            "total_ev_count_2024": 185000,
+            "total_ev_count_2030_forecast": 2450000,
+            "total_annual_energy_2030_gwh": 8420,
+            "managed_charging_benefit_gw": 3.2,
+            "v2g_market_size_m": 1840,
+            "net_abatement_2030_mt": 18.4,
+        },
+    )
+
+
+@app.get("/api/ev-fleet-grid-impact/dashboard", response_model=EFGDashboard)
+def get_efg_dashboard():
+    return _build_efg_dashboard()
+
+
+# ---------------------------------------------------------------------------
+# Sprint 76c — NEM Market Microstructure Analytics (prefix NMM)
+# ---------------------------------------------------------------------------
+
+class NMMBidOfferRecord(BaseModel):
+    dispatch_interval: str
+    region: str
+    price_band: int
+    band_price_cap: float
+    total_volume_mw: float
+    cleared_volume_mw: float
+    percent_cleared: float
+    marginal_band: bool
+
+class NMMDispatchIntervalRecord(BaseModel):
+    date: str
+    region: str
+    interval_number: int
+    trading_price: float
+    dispatch_price: float
+    pre_dispatch_price: float
+    price_deviation_pct: float
+    total_demand_mw: float
+    generation_dispatched_mw: float
+    interconnector_flow_mw: float
+    scada_quality: str
+
+class NMMMarketDepthRecord(BaseModel):
+    date: str
+    region: str
+    hour: int
+    cumulative_supply_mw_at_0: float
+    cumulative_supply_mw_at_50: float
+    cumulative_supply_mw_at_100: float
+    cumulative_supply_mw_at_300: float
+    cumulative_supply_mw_at_voll: float
+    demand_mw: float
+    clearing_price: float
+    supply_demand_ratio: float
+
+class NMMRebidRecord(BaseModel):
+    date: str
+    duid: str
+    company: str
+    technology: str
+    rebid_count: int
+    final_vs_initial_price_change: float
+    rebid_timing_hours_before: float
+    price_impact_estimate: float
+
+class NMMPriceFormationRecord(BaseModel):
+    month: str
+    region: str
+    pct_intervals_at_voll: float
+    pct_intervals_above_300: float
+    pct_intervals_zero_or_negative: float
+    pct_intervals_normal_10_to_100: float
+    avg_clearing_price: float
+    median_clearing_price: float
+    price_setter_technology: str
+
+class NMMDashboard(BaseModel):
+    bid_offers: List[NMMBidOfferRecord]
+    dispatch_intervals: List[NMMDispatchIntervalRecord]
+    market_depth: List[NMMMarketDepthRecord]
+    rebids: List[NMMRebidRecord]
+    price_formation: List[NMMPriceFormationRecord]
+    summary: dict
+
+@app.get("/api/nem-market-microstructure/dashboard", response_model=NMMDashboard)
+def get_nem_market_microstructure_dashboard(api_key: str = Depends(verify_api_key)):
+    import random
+    rng = random.Random(20240715)
+
+    regions = ["NSW", "VIC", "SA", "QLD", "TAS"]
+    band_caps = [0.0, 50.0, 100.0, 200.0, 300.0, 500.0, 1000.0, 5000.0, 10000.0, 15500.0]
+
+    # --- 50 bid-offer records: 10 dispatch intervals × 5 price bands (2 regions sampled)
+    bid_offers: list = []
+    base_intervals = [
+        f"2024-07-15T{h:02d}:{m:02d}"
+        for h in [14, 14, 15, 15, 16]
+        for m in [30, 35]
+    ]  # 10 intervals
+    for interval in base_intervals:
+        region = rng.choice(["NSW", "SA"])
+        for band in range(1, 6):
+            total_vol = round(rng.uniform(200, 1800), 1)
+            cleared = round(total_vol * rng.uniform(0.0, 1.0), 1)
+            is_marginal = band == rng.randint(3, 5)
+            bid_offers.append(NMMBidOfferRecord(
+                dispatch_interval=interval,
+                region=region,
+                price_band=band,
+                band_price_cap=band_caps[band - 1],
+                total_volume_mw=total_vol,
+                cleared_volume_mw=cleared,
+                percent_cleared=round(cleared / total_vol * 100, 1),
+                marginal_band=is_marginal,
+            ))
+
+    # --- 100 dispatch interval records: 20 intervals × 5 regions
+    dispatch_intervals: list = []
+    region_demand_base = {"NSW": 8500, "VIC": 6200, "SA": 1800, "QLD": 7100, "TAS": 1100}
+    region_price_base  = {"NSW": 82.0, "VIC": 78.0, "SA": 110.0, "QLD": 75.0, "TAS": 65.0}
+    scada_opts = ["GOOD", "GOOD", "GOOD", "SUBSTITUTED", "ESTIMATED"]
+    for interval_num in range(144, 164):  # intervals 144–163 (~midday)
+        for region in regions:
+            base_price = region_price_base[region]
+            t_price    = round(base_price + rng.gauss(0, 15), 2)
+            d_price    = round(t_price   + rng.gauss(0, 8), 2)
+            pd_price   = round(t_price   + rng.gauss(0, 20), 2)
+            dev_pct    = round(abs(d_price - pd_price) / max(abs(pd_price), 1) * 100, 1)
+            base_dem   = region_demand_base[region]
+            demand     = round(base_dem + rng.gauss(0, base_dem * 0.03), 1)
+            gen_disp   = round(demand   + rng.gauss(0, 50), 1)
+            intercon   = round(rng.gauss(0, 300), 1)
+            dispatch_intervals.append(NMMDispatchIntervalRecord(
+                date="2024-07-15",
+                region=region,
+                interval_number=interval_num,
+                trading_price=t_price,
+                dispatch_price=d_price,
+                pre_dispatch_price=pd_price,
+                price_deviation_pct=dev_pct,
+                total_demand_mw=demand,
+                generation_dispatched_mw=gen_disp,
+                interconnector_flow_mw=intercon,
+                scada_quality=rng.choice(scada_opts),
+            ))
+
+    # --- 60 market depth records: 5 regions × 12 hours
+    market_depth: list = []
+    supply_base = {"NSW": 14000, "VIC": 10500, "SA": 3800, "QLD": 12000, "TAS": 2200}
+    for region in regions:
+        base_sup = supply_base[region]
+        base_dem = region_demand_base[region]
+        for hour in range(8, 20):  # 8am to 7pm (12 hours)
+            hour_factor = 1.0 + 0.15 * abs(hour - 14) / 6  # peaks away from midday
+            demand = round(base_dem * hour_factor + rng.gauss(0, base_dem * 0.02), 1)
+            sup_0   = round(base_sup * 0.35 + rng.uniform(-200, 200), 1)
+            sup_50  = round(base_sup * 0.55 + rng.uniform(-150, 150), 1)
+            sup_100 = round(base_sup * 0.72 + rng.uniform(-100, 100), 1)
+            sup_300 = round(base_sup * 0.88 + rng.uniform(-80, 80), 1)
+            sup_voll= round(base_sup * 1.05 + rng.uniform(-50, 50), 1)
+            clr_price = round(rng.uniform(40, 350), 2)
+            sdr = round((sup_100 - demand) / max(demand, 1) * 100, 1)
+            market_depth.append(NMMMarketDepthRecord(
+                date="2024-07-15",
+                region=region,
+                hour=hour,
+                cumulative_supply_mw_at_0=sup_0,
+                cumulative_supply_mw_at_50=sup_50,
+                cumulative_supply_mw_at_100=sup_100,
+                cumulative_supply_mw_at_300=sup_300,
+                cumulative_supply_mw_at_voll=sup_voll,
+                demand_mw=demand,
+                clearing_price=clr_price,
+                supply_demand_ratio=sdr,
+            ))
+
+    # --- 25 rebid records
+    generators = [
+        ("AGL_LYA1",    "AGL Energy",         "COAL"),
+        ("AGL_BLA",     "AGL Energy",         "GAS"),
+        ("ORIGIN_ERGT", "Origin Energy",      "GAS"),
+        ("ENGIE_MP1",   "Engie",              "GAS"),
+        ("ENGIE_MP2",   "Engie",              "GAS"),
+        ("CS_ENERGY_1", "CS Energy",          "COAL"),
+        ("SNOWY_H1",    "Snowy Hydro",        "HYDRO"),
+        ("SNOWY_H2",    "Snowy Hydro",        "HYDRO"),
+        ("TESLA_HB",    "Tesla Hornsdale",    "BATTERY"),
+        ("NEOEN_HB2",   "Neoen",              "BATTERY"),
+        ("AGL_LYA2",    "AGL Energy",         "COAL"),
+        ("AGL_LYA3",    "AGL Energy",         "COAL"),
+        ("ORIGIN_OSB",  "Origin Energy",      "COAL"),
+        ("ERM_TALLW",   "ERM Power",          "GAS"),
+        ("MERIDIAN_W",  "Meridian Energy",    "WIND"),
+        ("ACCIONA_W",   "Acciona",            "WIND"),
+        ("NEXIF_W",     "Nexif Energy",       "WIND"),
+        ("TESLA_SA2",   "Tesla SA",           "BATTERY"),
+        ("CANBERRA_GT", "Canberra GT",        "GAS"),
+        ("WOLLERT_W",   "Wollert Wind",       "WIND"),
+        ("APA_GT1",     "APA Group",          "GAS"),
+        ("MACGEN_BNE",  "Macquarie Gen",      "COAL"),
+        ("ALSTOM_PH",   "Alstom Power",       "HYDRO"),
+        ("FLUENCE_BAT", "Fluence",            "BATTERY"),
+        ("GLENCORE_MT", "Glencore",           "COAL"),
+    ]
+    rebids: list = []
+    for duid, company, tech in generators:
+        rebid_cnt = rng.randint(1, 12)
+        price_chg = round(rng.uniform(-500, 2000), 1)
+        timing_h  = round(rng.uniform(0.1, 4.0), 2)
+        impact    = round(rng.uniform(0.5, 35.0), 2)
+        rebids.append(NMMRebidRecord(
+            date="2024-07-15",
+            duid=duid,
+            company=company,
+            technology=tech,
+            rebid_count=rebid_cnt,
+            final_vs_initial_price_change=price_chg,
+            rebid_timing_hours_before=timing_h,
+            price_impact_estimate=impact,
+        ))
+
+    # --- 60 price formation records: 12 months × 5 regions
+    months = [f"2024-{m:02d}" for m in range(1, 13)]
+    tech_setters = ["GAS", "COAL", "BATTERY", "WIND", "HYDRO", "GAS", "GAS", "COAL", "GAS", "BATTERY"]
+    price_formation: list = []
+    for month_idx, month in enumerate(months):
+        for region in regions:
+            summer = month_idx in [0, 1, 11]
+            pct_voll = round(rng.uniform(0.5, 5.0) if summer else rng.uniform(0.1, 1.5), 2)
+            pct_300  = round(rng.uniform(3.0, 12.0) if summer else rng.uniform(1.0, 5.0), 2)
+            pct_neg  = round(rng.uniform(5.0, 20.0) if region in ["SA", "VIC"] else rng.uniform(1.0, 8.0), 2)
+            pct_norm = round(100.0 - pct_voll - pct_300 - pct_neg, 2)
+            avg_clr  = round(rng.uniform(55, 180) if summer else rng.uniform(40, 120), 2)
+            med_clr  = round(avg_clr * rng.uniform(0.6, 0.95), 2)
+            setter   = rng.choice(tech_setters)
+            price_formation.append(NMMPriceFormationRecord(
+                month=month,
+                region=region,
+                pct_intervals_at_voll=pct_voll,
+                pct_intervals_above_300=pct_300,
+                pct_intervals_zero_or_negative=pct_neg,
+                pct_intervals_normal_10_to_100=max(pct_norm, 0.0),
+                avg_clearing_price=avg_clr,
+                median_clearing_price=med_clr,
+                price_setter_technology=setter,
+            ))
+
+    return NMMDashboard(
+        bid_offers=bid_offers,
+        dispatch_intervals=dispatch_intervals,
+        market_depth=market_depth,
+        rebids=rebids,
+        price_formation=price_formation,
+        summary={
+            "avg_rebids_per_generator_per_day": 4.2,
+            "pct_intervals_at_voll_annual": 1.8,
+            "avg_price_deviation_from_predispatch_pct": 12.3,
+            "most_active_rebidder": "AGL Energy",
+            "market_depth_surplus_pct": 23.4,
+            "price_setter_gas_pct": 38.2,
+        },
+    )

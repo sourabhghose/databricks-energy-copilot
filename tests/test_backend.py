@@ -10617,3 +10617,57 @@ class TestCostReflectiveTariffReformEndpoint:
     def test_der_tariffs_count_at_least_30(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["der_tariffs"]) >= 30
+
+
+class TestEVFleetGridImpactEndpoint:
+    """Sprint 76a — EV Fleet Grid Impact Analytics (prefix EFG)"""
+
+    endpoint = "/api/ev-fleet-grid-impact/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_fleet_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["fleet"]) >= 25
+
+    def test_charging_profiles_count_at_least_80(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["charging_profiles"]) >= 80
+
+
+class TestNEMMarketMicrostructureEndpoint:
+    """Sprint 76c — NEM Market Microstructure Analytics (prefix NMM)"""
+
+    endpoint = "/api/nem-market-microstructure/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_dispatch_intervals_count_at_least_80(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["dispatch_intervals"]) >= 80
+
+    def test_price_formation_count_at_least_50(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["price_formation"]) >= 50
+
+
+class TestHydrogenEconomyAnalyticsEndpoint:
+    """Sprint 76b — Hydrogen Economy Analytics (prefix HEA)"""
+
+    endpoint = "/api/hydrogen-economy-analytics/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_production_count_at_least_15(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["production"]) >= 15
+
+    def test_cost_projections_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["cost_projections"]) >= 30

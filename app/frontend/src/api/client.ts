@@ -11229,3 +11229,228 @@ export interface CTRDashboard {
 
 export const getCostReflectiveTariffReformDashboard = (): Promise<CTRDashboard> =>
   get<CTRDashboard>('/api/cost-reflective-tariff-reform/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 76a — EV Fleet Grid Impact Analytics (prefix EFG)
+// ---------------------------------------------------------------------------
+
+export interface EFGFleetRecord {
+  region: string;
+  vehicle_class: string;
+  year: number;
+  ev_count: number;
+  ev_penetration_pct: number;
+  avg_daily_km: number;
+  avg_consumption_kwh_per_100km: number;
+  managed_charging_pct: number;
+  v2g_capable_pct: number;
+  total_annual_energy_gwh: number;
+}
+
+export interface EFGChargingProfileRecord {
+  region: string;
+  charging_scenario: string;
+  hour: number;
+  avg_load_mw: number;
+  peak_coincidence_factor: number;
+  solar_coincidence_factor: number;
+  demand_flexibility_mw: number;
+}
+
+export interface EFGNetworkImpactRecord {
+  distributor: string;
+  state: string;
+  lv_transformer_overload_pct: number;
+  feeder_capacity_headroom_pct: number;
+  required_network_upgrade_m: number;
+  ev_penetration_trigger_pct: number;
+  managed_charging_deferral_pct: number;
+  forecast_ev_penetration_2030_pct: number;
+}
+
+export interface EFGV2GServiceRecord {
+  technology: string;
+  service: string;
+  fleet_size_vehicles: number;
+  avg_capacity_mw: number;
+  annual_revenue_per_vehicle: number;
+  battery_degradation_cost_per_yr: number;
+  net_benefit_per_vehicle: number;
+  market_size_m: number;
+}
+
+export interface EFGEmissionRecord {
+  region: string;
+  year: number;
+  charging_scenario: string;
+  ev_count_thousands: number;
+  grid_emission_intensity_kg_co2_per_mwh: number;
+  ev_lifecycle_emission_co2_tonnes: number;
+  petrol_equivalent_co2_tonnes: number;
+  net_abatement_mt_co2: number;
+}
+
+export interface EFGDashboard {
+  fleet: EFGFleetRecord[];
+  charging_profiles: EFGChargingProfileRecord[];
+  network_impacts: EFGNetworkImpactRecord[];
+  v2g_services: EFGV2GServiceRecord[];
+  emissions: EFGEmissionRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getEVFleetGridImpactDashboard = (): Promise<EFGDashboard> =>
+  get<EFGDashboard>('/api/ev-fleet-grid-impact/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 76c — NEM Market Microstructure Analytics (prefix NMM)
+// ---------------------------------------------------------------------------
+
+export interface NMMBidOfferRecord {
+  dispatch_interval: string;
+  region: string;
+  price_band: number;
+  band_price_cap: number;
+  total_volume_mw: number;
+  cleared_volume_mw: number;
+  percent_cleared: number;
+  marginal_band: boolean;
+}
+
+export interface NMMDispatchIntervalRecord {
+  date: string;
+  region: string;
+  interval_number: number;
+  trading_price: number;
+  dispatch_price: number;
+  pre_dispatch_price: number;
+  price_deviation_pct: number;
+  total_demand_mw: number;
+  generation_dispatched_mw: number;
+  interconnector_flow_mw: number;
+  scada_quality: string;
+}
+
+export interface NMMMarketDepthRecord {
+  date: string;
+  region: string;
+  hour: number;
+  cumulative_supply_mw_at_0: number;
+  cumulative_supply_mw_at_50: number;
+  cumulative_supply_mw_at_100: number;
+  cumulative_supply_mw_at_300: number;
+  cumulative_supply_mw_at_voll: number;
+  demand_mw: number;
+  clearing_price: number;
+  supply_demand_ratio: number;
+}
+
+export interface NMMRebidRecord {
+  date: string;
+  duid: string;
+  company: string;
+  technology: string;
+  rebid_count: number;
+  final_vs_initial_price_change: number;
+  rebid_timing_hours_before: number;
+  price_impact_estimate: number;
+}
+
+export interface NMMPriceFormationRecord {
+  month: string;
+  region: string;
+  pct_intervals_at_voll: number;
+  pct_intervals_above_300: number;
+  pct_intervals_zero_or_negative: number;
+  pct_intervals_normal_10_to_100: number;
+  avg_clearing_price: number;
+  median_clearing_price: number;
+  price_setter_technology: string;
+}
+
+export interface NMMDashboard {
+  bid_offers: NMMBidOfferRecord[];
+  dispatch_intervals: NMMDispatchIntervalRecord[];
+  market_depth: NMMMarketDepthRecord[];
+  rebids: NMMRebidRecord[];
+  price_formation: NMMPriceFormationRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getNEMMarketMicrostructureDashboard = (): Promise<NMMDashboard> =>
+  get<NMMDashboard>('/api/nem-market-microstructure/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 76b — Hydrogen Economy Analytics (prefix HEA)
+// Endpoint: /api/hydrogen-economy-analytics/dashboard
+// Distinct from Sprint 44b (H2 Economy & Infrastructure) and Sprint 31a (GHE)
+// ---------------------------------------------------------------------------
+
+export interface HEAProductionRecord {
+  project_id: string;
+  name: string;
+  state: string;
+  production_pathway: string; // GREEN_ELECTROLYSIS | BLUE_SMR_CCS | BROWN_SMR | BIOMASS_GASIFICATION
+  feedstock: string;          // RENEWABLE_ELECTRICITY | NATURAL_GAS | COAL | BIOMASS
+  capacity_tpd: number;
+  annual_production_kt: number;
+  capex_m: number;
+  lcoh_per_kg: number;
+  co2_intensity_kg_per_kg_h2: number;
+  export_destination: string; // DOMESTIC | JAPAN | KOREA | GERMANY | SINGAPORE | GLOBAL
+  status: string;             // OPERATING | CONSTRUCTION | COMMITTED | FEASIBILITY | ANNOUNCED
+  target_year: number;
+}
+
+export interface HEAExportRecord {
+  year: number;
+  destination: string;
+  carrier: string;            // LIQUID_H2 | AMMONIA | LIQUID_ORGANIC_HYDROGEN_CARRIER | DIRECT_PIPELINE
+  volume_kt: number;
+  price_usd_per_kg: number;
+  revenue_bn_aud: number;
+  contract_type: string;      // SPOT | LONG_TERM_OFFTAKE | MOU
+}
+
+export interface HEAEndUseRecord {
+  sector: string;             // INDUSTRIAL | POWER_GENERATION | TRANSPORT_HEAVY | TRANSPORT_LIGHT | EXPORT | BUILDINGS
+  use_case: string;
+  current_demand_kt_yr: number;
+  demand_2030_kt_yr: number;
+  demand_2050_kt_yr: number;
+  h2_readiness_score: number; // 0-10
+  decarbonisation_potential_mt_co2: number;
+}
+
+export interface HEASupplyChainRecord {
+  component: string;          // ELECTROLYSER | FUEL_CELL | STORAGE_TANK | COMPRESSOR | PIPELINE | SHIP | TERMINAL
+  current_aus_capacity: number;
+  unit: string;
+  required_2030: number;
+  required_2040: number;
+  supply_gap_2030: number;
+  local_content_pct: number;
+  import_dependency: string;  // HIGH | MEDIUM | LOW
+}
+
+export interface HEACostProjectionRecord {
+  year: number;
+  pathway: string;            // GREEN_ELECTROLYSIS | BLUE_SMR_CCS | BROWN_SMR
+  lcoh_per_kg: number;
+  electrolyser_cost_per_kw: number | null;
+  capacity_factor_pct: number | null;
+  electricity_cost_per_mwh: number | null;
+  cumulative_capacity_gw: number | null;
+}
+
+export interface HEADashboard {
+  production: HEAProductionRecord[];
+  exports: HEAExportRecord[];
+  end_uses: HEAEndUseRecord[];
+  supply_chain: HEASupplyChainRecord[];
+  cost_projections: HEACostProjectionRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getHydrogenEconomyAnalyticsDashboard = (): Promise<HEADashboard> =>
+  get<HEADashboard>('/api/hydrogen-economy-analytics/dashboard');
