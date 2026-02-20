@@ -202,6 +202,9 @@ import RecCertificateTracking from './pages/RecCertificateTracking'
 import RenewableIntegrationCost from './pages/RenewableIntegrationCost'
 import SpotMarketDepthAnalytics from './pages/SpotMarketDepthAnalytics'
 import StorageTechRoadmap from './pages/StorageTechRoadmap'
+import PlannedOutageAnalytics from './pages/PlannedOutageAnalytics'
+import MarketShareTracker from './pages/MarketShareTracker'
+import VolatilityRegimeAnalytics from './pages/VolatilityRegimeAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -229,7 +232,8 @@ const NAV_ITEMS = [
   { to: '/trends',         label: 'Historical Trends', Icon: Clock          },
   { to: '/frequency',      label: 'Frequency',         Icon: Radio          },
   { to: '/futures',        label: 'Energy Futures',    Icon: TrendingUp     },
-  { to: '/registry',       label: 'Participants',      Icon: Building2      },
+  { to: '/registry',           label: 'Participants',        Icon: Building2      },
+  { to: '/market-share-tracker', label: 'Market Share',      Icon: Users          },
   { to: '/outages',        label: 'Outage Schedule',   Icon: Wrench         },
   { to: '/der',            label: 'VPP & DER',         Icon: HomeIcon       },
   { to: '/gas',            label: 'Gas Market',        Icon: Flame          },
@@ -340,6 +344,8 @@ const NAV_ITEMS = [
   { to: '/spot-market-depth',          label: 'Spot Market Depth',            Icon: Layers         },
   { to: '/storage-tech-roadmap',       label: 'Storage Tech Roadmap',         Icon: GitBranch      },
   { to: '/renewable-integration-cost', label: 'Renewable Integration Cost',   Icon: GitMerge       },
+  { to: '/planned-outage-analytics',  label: 'Planned Outage & Maintenance', Icon: Calendar       },
+  { to: '/volatility-regime-analytics', label: 'Volatility Regime Analytics', Icon: TrendingUp    },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -553,6 +559,9 @@ export default function App() {
               <Route path="/spot-market-depth"           element={<SpotMarketDepthAnalytics />}    />
               <Route path="/storage-tech-roadmap"        element={<StorageTechRoadmap />}           />
               <Route path="/renewable-integration-cost"  element={<RenewableIntegrationCost />}    />
+              <Route path="/planned-outage-analytics"    element={<PlannedOutageAnalytics />}      />
+              <Route path="/market-share-tracker"        element={<MarketShareTracker />}          />
+              <Route path="/volatility-regime-analytics" element={<VolatilityRegimeAnalytics />}   />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

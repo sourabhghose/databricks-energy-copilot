@@ -7461,3 +7461,183 @@ export interface RenewableIntegrationCostDashboard {
 
 export const getRenewableIntegrationCostDashboard = (): Promise<RenewableIntegrationCostDashboard> =>
   get<RenewableIntegrationCostDashboard>('/api/integration-cost/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 56a — Generator Planned Outage & Maintenance Scheduling Analytics
+// ---------------------------------------------------------------------------
+
+export interface GPOPlannedOutageRecord {
+  outage_id: string
+  unit_id: string
+  unit_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  start_date: string
+  end_date: string
+  duration_days: number
+  outage_type: 'FULL' | 'PARTIAL' | 'DERATING'
+  derated_capacity_mw: number
+  reason: 'MAJOR_OVERHAUL' | 'MINOR_MAINTENANCE' | 'REGULATORY_INSPECTION' | 'FUEL_SYSTEM' | 'ENVIRONMENTAL_COMPLIANCE'
+  submitted_by: string
+}
+
+export interface GPOReserveMarginRecord {
+  week: string
+  region: string
+  available_capacity_mw: number
+  maximum_demand_mw: number
+  scheduled_outage_mw: number
+  unplanned_outage_mw: number
+  reserve_margin_pct: number
+  reserve_status: 'ADEQUATE' | 'TIGHT' | 'CRITICAL'
+}
+
+export interface GPOOutageConflictRecord {
+  conflict_id: string
+  unit_a: string
+  unit_b: string
+  overlap_start: string
+  overlap_end: string
+  combined_capacity_mw: number
+  region: string
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  aemo_intervention: boolean
+}
+
+export interface GPOMaintenanceKpiRecord {
+  technology: string
+  avg_planned_days_yr: number
+  forced_outage_rate_pct: number
+  planned_outage_rate_pct: number
+  maintenance_cost_m_aud_mw_yr: number
+  reliability_index: number
+}
+
+export interface PlannedOutageDashboard {
+  timestamp: string
+  outages: GPOPlannedOutageRecord[]
+  reserve_margins: GPOReserveMarginRecord[]
+  conflicts: GPOOutageConflictRecord[]
+  kpis: GPOMaintenanceKpiRecord[]
+}
+
+export const getPlannedOutageDashboard = (): Promise<PlannedOutageDashboard> =>
+  get<PlannedOutageDashboard>('/api/planned-outage/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 56c — NEM Participant Market Share & Concentration Tracker
+// ---------------------------------------------------------------------------
+
+export interface PMSParticipantRecord {
+  participant_id:   string
+  name:             string
+  parent_company:   string
+  region:           string
+  portfolio_mw:     number
+  renewable_mw:     number
+  thermal_mw:       number
+  storage_mw:       number
+  market_share_pct: number
+  hhi_contribution: number
+  year:             number
+}
+
+export interface PMSConcentrationRecord {
+  region:               string
+  year:                 number
+  hhi_score:            number
+  cr3_pct:              number
+  cr5_pct:              number
+  dominant_participant: string
+  competition_level:    'COMPETITIVE' | 'MODERATE' | 'CONCENTRATED' | 'HIGHLY_CONCENTRATED'
+}
+
+export interface PMSOwnershipChangeRecord {
+  year:                    number
+  acquirer:                string
+  target:                  string
+  assets_transferred:      string
+  capacity_mw:             number
+  transaction_value_m_aud: number
+  regulatory_approval:     string
+  impact_on_hhi:           number
+}
+
+export interface PMSRegionalShareRecord {
+  participant:          string
+  region:               string
+  year:                 number
+  generation_share_pct: number
+  capacity_share_pct:   number
+  peak_share_pct:       number
+  rebid_events:         number
+}
+
+export interface MarketShareDashboard {
+  timestamp:        string
+  participants:     PMSParticipantRecord[]
+  concentration:    PMSConcentrationRecord[]
+  ownership_changes: PMSOwnershipChangeRecord[]
+  regional_shares:  PMSRegionalShareRecord[]
+}
+
+export const getMarketShareDashboard = (): Promise<MarketShareDashboard> =>
+  get<MarketShareDashboard>('/api/participant-market-share/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 56b — Wholesale Price Volatility Regime Analytics
+// ---------------------------------------------------------------------------
+
+export interface VRARegimeRecord {
+  month: string
+  region: string
+  regime: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME'
+  avg_price_aud_mwh: number
+  price_std_aud: number
+  spike_count: number
+  negative_price_hours: number
+  volatility_index: number
+  regime_duration_days: number
+}
+
+export interface VRAVolatilityClusterRecord {
+  cluster_id: string
+  region: string
+  start_date: string
+  end_date: string
+  duration_days: number
+  trigger: 'HEATWAVE' | 'GAS_SHORTAGE' | 'LOW_WIND' | 'GENERATOR_OUTAGE' | 'INTERCONNECTOR_FAILURE' | 'MARKET_POWER'
+  max_price: number
+  avg_price: number
+  total_cost_impact_m_aud: number
+}
+
+export interface VRAHedgingImplicationRecord {
+  regime: string
+  recommended_hedge_ratio_pct: number
+  cap_strike_optimal_aud: number
+  swap_volume_twh_yr: number
+  var_95_m_aud: number
+  cost_of_hedging_m_aud_twh: number
+}
+
+export interface VRARegimeTransitionRecord {
+  from_regime: string
+  to_regime: string
+  transition_count: number
+  avg_duration_before_transition_days: number
+  probability_pct: number
+  typical_trigger: string
+}
+
+export interface VolatilityRegimeDashboard {
+  timestamp: string
+  regimes: VRARegimeRecord[]
+  clusters: VRAVolatilityClusterRecord[]
+  hedging: VRAHedgingImplicationRecord[]
+  transitions: VRARegimeTransitionRecord[]
+}
+
+export const getVolatilityRegimeDashboard = (): Promise<VolatilityRegimeDashboard> =>
+  get<VolatilityRegimeDashboard>('/api/volatility-regime/dashboard')

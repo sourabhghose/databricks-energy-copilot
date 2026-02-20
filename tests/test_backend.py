@@ -5263,3 +5263,311 @@ class TestRenewableIntegrationCost:
         # INERTIA must be RISING trend (key system service concern)
         inertia = next(r for r in d["system_services"] if r["service"] == "INERTIA")
         assert inertia["cost_trend"] == "RISING"
+
+
+class TestMarketShareTracker:
+    """Sprint 56c — NEM Participant Market Share & Concentration Tracker tests."""
+
+    def test_market_share_dashboard(self, client):
+        resp = client.get(
+            "/api/participant-market-share/dashboard",
+            headers={"X-API-Key": "test-api-key"},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "participants", "concentration", "ownership_changes", "regional_shares"):
+            assert key in d, f"Missing key: {key}"
+
+        # Participants: 12 per year × 3 years = 36
+        assert len(d["participants"]) == 36
+        for p in d["participants"]:
+            assert p["portfolio_mw"] > 0
+            assert 0 <= p["market_share_pct"] <= 100
+            assert p["hhi_contribution"] > 0
+            assert p["year"] in (2022, 2023, 2024)
+            assert p["renewable_mw"] >= 0
+            assert p["thermal_mw"] >= 0
+            assert p["storage_mw"] >= 0
+
+        # Participant names coverage
+        participant_ids = {p["participant_id"] for p in d["participants"]}
+        for expected in ("AGL", "ORG", "EA", "SNOWY", "TILT", "NEOEN"):
+            assert expected in participant_ids, f"Missing participant: {expected}"
+
+        # Concentration: 5 regions × 3 years = 15
+        assert len(d["concentration"]) == 15
+        valid_levels = {"COMPETITIVE", "MODERATE", "CONCENTRATED", "HIGHLY_CONCENTRATED"}
+        regions_seen = set()
+        for c in d["concentration"]:
+            assert c["hhi_score"] > 0
+            assert 0 < c["cr3_pct"] <= 100
+            assert 0 < c["cr5_pct"] <= 100
+            assert c["cr5_pct"] >= c["cr3_pct"]
+            assert c["competition_level"] in valid_levels
+            assert c["year"] in (2022, 2023, 2024)
+            regions_seen.add(c["region"])
+        assert regions_seen == {"NSW", "QLD", "VIC", "SA", "WA"}
+
+        # Ownership changes: exactly 5
+        assert len(d["ownership_changes"]) == 5
+        for o in d["ownership_changes"]:
+            assert o["capacity_mw"] > 0
+            assert o["transaction_value_m_aud"] > 0
+            assert o["acquirer"]
+            assert o["assets_transferred"]
+
+        # Regional shares: 6 participants × 5 regions = 30
+        assert len(d["regional_shares"]) == 30
+        for r in d["regional_shares"]:
+            assert 0 <= r["generation_share_pct"] <= 100
+            assert 0 <= r["capacity_share_pct"] <= 100
+            assert r["rebid_events"] >= 0
+
+        # Business logic: WA should be highest HHI (monopoly-like)
+        wa_2024 = next(
+            (c for c in d["concentration"] if c["region"] == "WA" and c["year"] == 2024),
+            None
+        )
+        assert wa_2024 is not None
+        assert wa_2024["hhi_score"] > 2000, "WA should be concentrated"
+
+        # Market shares sum to reasonable total for latest year
+        latest_shares = [p["market_share_pct"] for p in d["participants"] if p["year"] == 2024]
+        total_share = sum(latest_shares)
+        assert total_share > 50, "Market shares must cover meaningful portion"
+
+        # Total M&A transaction value
+        total_ma = sum(o["transaction_value_m_aud"] for o in d["ownership_changes"])
+        assert total_ma > 1000, "Total M&A value should exceed $1B AUD"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 56a — Generator Planned Outage & Maintenance Scheduling Analytics
+# ---------------------------------------------------------------------------
+
+class TestPlannedOutageAnalytics:
+    """Tests for GET /api/planned-outage/dashboard"""
+
+    def test_planned_outage_dashboard(self, client: TestClient) -> None:
+        resp = client.get(
+            "/api/planned-outage/dashboard",
+            headers={"X-API-Key": os.environ["API_KEY"]},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level keys
+        assert "timestamp" in d
+        assert "outages" in d
+        assert "reserve_margins" in d
+        assert "conflicts" in d
+        assert "kpis" in d
+
+        # --- Outages ---
+        outages = d["outages"]
+        assert len(outages) == 15
+
+        valid_types   = {"FULL", "PARTIAL", "DERATING"}
+        valid_reasons = {
+            "MAJOR_OVERHAUL", "MINOR_MAINTENANCE",
+            "REGULATORY_INSPECTION", "FUEL_SYSTEM", "ENVIRONMENTAL_COMPLIANCE",
+        }
+        for o in outages:
+            assert o["outage_id"]
+            assert o["unit_id"]
+            assert o["unit_name"]
+            assert o["technology"]
+            assert o["region"] in {"NSW", "VIC", "QLD", "SA", "TAS"}
+            assert o["capacity_mw"] > 0
+            assert o["start_date"]
+            assert o["end_date"]
+            assert o["duration_days"] > 0
+            assert o["outage_type"] in valid_types
+            assert o["derated_capacity_mw"] >= 0
+            assert o["reason"] in valid_reasons
+            assert o["submitted_by"]
+
+        # --- Reserve margins ---
+        margins = d["reserve_margins"]
+        assert len(margins) == 20  # 5 regions x 4 weeks
+
+        valid_statuses = {"ADEQUATE", "TIGHT", "CRITICAL"}
+        for m in margins:
+            assert m["week"]
+            assert m["region"] in {"NSW", "VIC", "QLD", "SA", "TAS"}
+            assert m["available_capacity_mw"] > 0
+            assert m["maximum_demand_mw"] > 0
+            assert m["scheduled_outage_mw"] >= 0
+            assert m["unplanned_outage_mw"] >= 0
+            assert 0 <= m["reserve_margin_pct"] <= 100
+            assert m["reserve_status"] in valid_statuses
+
+        # Business: VIC week 3 should be CRITICAL (reserve_margin_pct ~3.4)
+        vic_week3 = next(
+            (m for m in margins if m["region"] == "VIC" and m["week"] == "2025-W03"),
+            None,
+        )
+        assert vic_week3 is not None
+        assert vic_week3["reserve_status"] == "CRITICAL"
+        assert vic_week3["reserve_margin_pct"] < 10
+
+        # --- Conflicts ---
+        conflicts = d["conflicts"]
+        assert len(conflicts) == 5
+
+        valid_risks = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+        for c in conflicts:
+            assert c["conflict_id"]
+            assert c["unit_a"]
+            assert c["unit_b"]
+            assert c["overlap_start"]
+            assert c["overlap_end"]
+            assert c["combined_capacity_mw"] > 0
+            assert c["region"] in {"NSW", "VIC", "QLD", "SA", "TAS"}
+            assert c["risk_level"] in valid_risks
+            assert isinstance(c["aemo_intervention"], bool)
+
+        # Business: QLD conflict should be CRITICAL and require AEMO intervention
+        qld_conflict = next(
+            (c for c in conflicts if c["region"] == "QLD"),
+            None,
+        )
+        assert qld_conflict is not None
+        assert qld_conflict["risk_level"] == "CRITICAL"
+        assert qld_conflict["aemo_intervention"] is True
+
+        # --- KPIs ---
+        kpis = d["kpis"]
+        assert len(kpis) == 7
+
+        for k in kpis:
+            assert k["technology"]
+            assert k["avg_planned_days_yr"] > 0
+            assert 0 <= k["forced_outage_rate_pct"] <= 100
+            assert 0 <= k["planned_outage_rate_pct"] <= 100
+            assert k["maintenance_cost_m_aud_mw_yr"] > 0
+            assert 0 <= k["reliability_index"] <= 100
+
+        # Business: Solar should have lowest forced outage rate
+        solar_kpi = next((k for k in kpis if k["technology"] == "Utility Solar"), None)
+        assert solar_kpi is not None
+        for other in kpis:
+            if other["technology"] != "Utility Solar":
+                assert solar_kpi["forced_outage_rate_pct"] <= other["forced_outage_rate_pct"]
+
+        # Business: Brown coal should have highest EFOR
+        brown_coal = next((k for k in kpis if k["technology"] == "Brown Coal"), None)
+        assert brown_coal is not None
+        assert brown_coal["forced_outage_rate_pct"] == max(k["forced_outage_rate_pct"] for k in kpis)
+
+
+# ===========================================================================
+# Sprint 56b — Wholesale Price Volatility Regime Analytics
+# ===========================================================================
+
+class TestVolatilityRegimeAnalytics:
+    """Sprint 56b — Wholesale Price Volatility Regime Analytics endpoint tests."""
+
+    def test_volatility_regime_dashboard(self, client: TestClient) -> None:
+        resp = client.get(
+            "/api/volatility-regime/dashboard",
+            headers={"x-api-key": "test-key"},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "regimes" in d
+        assert "clusters" in d
+        assert "hedging" in d
+        assert "transitions" in d
+
+        # regimes: 60 records (12 months × 5 regions)
+        assert len(d["regimes"]) == 60
+        valid_regimes = {"LOW", "NORMAL", "HIGH", "EXTREME"}
+        regions_seen: set = set()
+        months_seen: set = set()
+        for rec in d["regimes"]:
+            assert rec["month"].startswith("2024-")
+            assert rec["region"] in {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+            assert rec["regime"] in valid_regimes
+            assert rec["avg_price_aud_mwh"] > 0
+            assert rec["price_std_aud"] >= 0
+            assert rec["spike_count"] >= 0
+            assert rec["negative_price_hours"] >= 0
+            assert rec["volatility_index"] >= 0
+            assert rec["regime_duration_days"] > 0
+            regions_seen.add(rec["region"])
+            months_seen.add(rec["month"])
+
+        # All 5 regions and 12 months must be represented
+        assert regions_seen == {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+        assert len(months_seen) == 12
+
+        # SA1 should have the highest average volatility index
+        sa1_avg_vi = sum(
+            r["volatility_index"] for r in d["regimes"] if r["region"] == "SA1"
+        ) / 12
+        for region in {"NSW1", "VIC1", "QLD1", "TAS1"}:
+            region_avg_vi = sum(
+                r["volatility_index"] for r in d["regimes"] if r["region"] == region
+            ) / 12
+            assert sa1_avg_vi > region_avg_vi, (
+                f"SA1 avg VI ({sa1_avg_vi:.2f}) should exceed {region} avg VI ({region_avg_vi:.2f})"
+            )
+
+        # clusters: 8 records
+        assert len(d["clusters"]) == 8
+        valid_triggers = {
+            "HEATWAVE", "GAS_SHORTAGE", "LOW_WIND",
+            "GENERATOR_OUTAGE", "INTERCONNECTOR_FAILURE", "MARKET_POWER",
+        }
+        for c in d["clusters"]:
+            assert c["cluster_id"].startswith("VCE-")
+            assert c["region"] in {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+            assert c["start_date"] < c["end_date"]
+            assert c["duration_days"] > 0
+            assert c["trigger"] in valid_triggers
+            assert c["max_price"] > c["avg_price"] > 0
+            assert c["total_cost_impact_m_aud"] > 0
+
+        # hedging: 4 records (one per regime)
+        assert len(d["hedging"]) == 4
+        hedge_regimes = {h["regime"] for h in d["hedging"]}
+        assert hedge_regimes == {"LOW", "NORMAL", "HIGH", "EXTREME"}
+        for h in d["hedging"]:
+            assert 0 < h["recommended_hedge_ratio_pct"] <= 100
+            assert h["cap_strike_optimal_aud"] > 0
+            assert h["swap_volume_twh_yr"] > 0
+            assert h["var_95_m_aud"] > 0
+            assert h["cost_of_hedging_m_aud_twh"] > 0
+
+        # Business logic: EXTREME hedge ratio > HIGH > NORMAL > LOW
+        by_regime = {h["regime"]: h for h in d["hedging"]}
+        assert by_regime["EXTREME"]["recommended_hedge_ratio_pct"] > by_regime["HIGH"]["recommended_hedge_ratio_pct"]
+        assert by_regime["HIGH"]["recommended_hedge_ratio_pct"] > by_regime["NORMAL"]["recommended_hedge_ratio_pct"]
+        assert by_regime["NORMAL"]["recommended_hedge_ratio_pct"] > by_regime["LOW"]["recommended_hedge_ratio_pct"]
+
+        # Business logic: EXTREME cap strike must be highest
+        assert by_regime["EXTREME"]["cap_strike_optimal_aud"] > by_regime["HIGH"]["cap_strike_optimal_aud"]
+        assert by_regime["HIGH"]["cap_strike_optimal_aud"] > by_regime["NORMAL"]["cap_strike_optimal_aud"]
+        assert by_regime["NORMAL"]["cap_strike_optimal_aud"] > by_regime["LOW"]["cap_strike_optimal_aud"]
+
+        # transitions: 12 records
+        assert len(d["transitions"]) == 12
+        valid_t_regimes = {"LOW", "NORMAL", "HIGH", "EXTREME"}
+        for t in d["transitions"]:
+            assert t["from_regime"] in valid_t_regimes
+            assert t["to_regime"] in valid_t_regimes
+            assert t["from_regime"] != t["to_regime"]
+            assert t["transition_count"] > 0
+            assert t["avg_duration_before_transition_days"] > 0
+            assert 0 < t["probability_pct"] <= 100
+            assert t["typical_trigger"]
+
+        # All 4 regimes must appear as from_regime
+        from_regimes = {t["from_regime"] for t in d["transitions"]}
+        assert from_regimes == valid_t_regimes

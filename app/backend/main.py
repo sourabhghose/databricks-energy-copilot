@@ -40172,3 +40172,543 @@ def get_renewable_integration_cost_dashboard() -> RenewableIntegrationCostDashbo
         curtailment=_RIC_CURTAILMENT,
         system_services=_RIC_SYSTEM_SERVICES,
     )
+
+
+# ============================================================
+# Sprint 56a — Generator Planned Outage & Maintenance Scheduling Analytics
+# ============================================================
+
+from enum import Enum as _Enum
+
+
+class GPOOutageType(str, _Enum):
+    FULL = "FULL"
+    PARTIAL = "PARTIAL"
+    DERATING = "DERATING"
+
+
+class GPOOutageReason(str, _Enum):
+    MAJOR_OVERHAUL = "MAJOR_OVERHAUL"
+    MINOR_MAINTENANCE = "MINOR_MAINTENANCE"
+    REGULATORY_INSPECTION = "REGULATORY_INSPECTION"
+    FUEL_SYSTEM = "FUEL_SYSTEM"
+    ENVIRONMENTAL_COMPLIANCE = "ENVIRONMENTAL_COMPLIANCE"
+
+
+class GPOReserveStatus(str, _Enum):
+    ADEQUATE = "ADEQUATE"
+    TIGHT = "TIGHT"
+    CRITICAL = "CRITICAL"
+
+
+class GPORiskLevel(str, _Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class GPOPlannedOutageRecord(BaseModel):
+    outage_id: str
+    unit_id: str
+    unit_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    start_date: str
+    end_date: str
+    duration_days: int
+    outage_type: GPOOutageType
+    derated_capacity_mw: float
+    reason: GPOOutageReason
+    submitted_by: str
+
+
+class GPOReserveMarginRecord(BaseModel):
+    week: str
+    region: str
+    available_capacity_mw: float
+    maximum_demand_mw: float
+    scheduled_outage_mw: float
+    unplanned_outage_mw: float
+    reserve_margin_pct: float
+    reserve_status: GPOReserveStatus
+
+
+class GPOOutageConflictRecord(BaseModel):
+    conflict_id: str
+    unit_a: str
+    unit_b: str
+    overlap_start: str
+    overlap_end: str
+    combined_capacity_mw: float
+    region: str
+    risk_level: GPORiskLevel
+    aemo_intervention: bool
+
+
+class GPOMaintenanceKpiRecord(BaseModel):
+    technology: str
+    avg_planned_days_yr: float
+    forced_outage_rate_pct: float
+    planned_outage_rate_pct: float
+    maintenance_cost_m_aud_mw_yr: float
+    reliability_index: float
+
+
+class PlannedOutageDashboard(BaseModel):
+    timestamp: str
+    outages: List[GPOPlannedOutageRecord]
+    reserve_margins: List[GPOReserveMarginRecord]
+    conflicts: List[GPOOutageConflictRecord]
+    kpis: List[GPOMaintenanceKpiRecord]
+
+
+# --- Mock data ---
+
+_GPO_OUTAGES: List[GPOPlannedOutageRecord] = [
+    GPOPlannedOutageRecord(outage_id="OUT-001", unit_id="LIDDELL1", unit_name="Liddell Unit 1", technology="Coal", region="NSW", capacity_mw=500.0, start_date="2025-01-06", end_date="2025-02-14", duration_days=39, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.MAJOR_OVERHAUL, submitted_by="AGL Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-002", unit_id="ERARING2", unit_name="Eraring Unit 2", technology="Coal", region="NSW", capacity_mw=720.0, start_date="2025-01-13", end_date="2025-02-03", duration_days=21, outage_type=GPOOutageType.PARTIAL, derated_capacity_mw=360.0, reason=GPOOutageReason.MINOR_MAINTENANCE, submitted_by="Origin Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-003", unit_id="YALLOURN3", unit_name="Yallourn Unit 3", technology="Coal", region="VIC", capacity_mw=380.0, start_date="2025-01-20", end_date="2025-03-10", duration_days=49, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.REGULATORY_INSPECTION, submitted_by="EnergyAustralia"),
+    GPOPlannedOutageRecord(outage_id="OUT-004", unit_id="MORTLAKE1", unit_name="Mortlake Unit 1", technology="Gas (OCGT)", region="VIC", capacity_mw=282.0, start_date="2025-01-27", end_date="2025-02-10", duration_days=14, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.FUEL_SYSTEM, submitted_by="Origin Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-005", unit_id="CALLIDE_C3", unit_name="Callide C Unit 3", technology="Coal", region="QLD", capacity_mw=460.0, start_date="2025-02-03", end_date="2025-03-17", duration_days=42, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.MAJOR_OVERHAUL, submitted_by="CS Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-006", unit_id="TORRENS_B1", unit_name="Torrens Island B1", technology="Gas (CCGT)", region="SA", capacity_mw=200.0, start_date="2025-01-06", end_date="2025-01-27", duration_days=21, outage_type=GPOOutageType.PARTIAL, derated_capacity_mw=100.0, reason=GPOOutageReason.MINOR_MAINTENANCE, submitted_by="AGL Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-007", unit_id="KOGAN_CK1", unit_name="Kogan Creek Unit 1", technology="Coal", region="QLD", capacity_mw=750.0, start_date="2025-02-10", end_date="2025-03-24", duration_days=42, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.MAJOR_OVERHAUL, submitted_by="CS Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-008", unit_id="HUME1", unit_name="Hume Hydro Unit 1", technology="Hydro", region="NSW", capacity_mw=58.0, start_date="2025-01-13", end_date="2025-02-03", duration_days=21, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.REGULATORY_INSPECTION, submitted_by="Snowy Hydro"),
+    GPOPlannedOutageRecord(outage_id="OUT-009", unit_id="MURRAY2", unit_name="Murray Hydro Unit 2", technology="Hydro", region="NSW", capacity_mw=130.0, start_date="2025-03-03", end_date="2025-03-31", duration_days=28, outage_type=GPOOutageType.PARTIAL, derated_capacity_mw=65.0, reason=GPOOutageReason.MINOR_MAINTENANCE, submitted_by="Snowy Hydro"),
+    GPOPlannedOutageRecord(outage_id="OUT-010", unit_id="PELICAN_PT1", unit_name="Pelican Point Unit 1", technology="Gas (CCGT)", region="SA", capacity_mw=478.0, start_date="2025-02-17", end_date="2025-03-10", duration_days=21, outage_type=GPOOutageType.DERATING, derated_capacity_mw=320.0, reason=GPOOutageReason.ENVIRONMENTAL_COMPLIANCE, submitted_by="Engie"),
+    GPOPlannedOutageRecord(outage_id="OUT-011", unit_id="BAYSWATER3", unit_name="Bayswater Unit 3", technology="Coal", region="NSW", capacity_mw=660.0, start_date="2025-01-20", end_date="2025-02-17", duration_days=28, outage_type=GPOOutageType.PARTIAL, derated_capacity_mw=330.0, reason=GPOOutageReason.MINOR_MAINTENANCE, submitted_by="AGL Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-012", unit_id="DARLING_DOWNS1", unit_name="Darling Downs Unit 1", technology="Gas (CCGT)", region="QLD", capacity_mw=630.0, start_date="2025-03-10", end_date="2025-03-31", duration_days=21, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.MAJOR_OVERHAUL, submitted_by="Origin Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-013", unit_id="LONSDALE1", unit_name="Lonsdale Gas Turbine 1", technology="Gas (OCGT)", region="SA", capacity_mw=96.0, start_date="2025-01-27", end_date="2025-02-10", duration_days=14, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.FUEL_SYSTEM, submitted_by="AGL Energy"),
+    GPOPlannedOutageRecord(outage_id="OUT-014", unit_id="GLADSTONE2", unit_name="Gladstone Unit 2", technology="Coal", region="QLD", capacity_mw=280.0, start_date="2025-02-24", end_date="2025-03-17", duration_days=21, outage_type=GPOOutageType.FULL, derated_capacity_mw=0.0, reason=GPOOutageReason.REGULATORY_INSPECTION, submitted_by="NRG Gladstone"),
+    GPOPlannedOutageRecord(outage_id="OUT-015", unit_id="COLONGRA4", unit_name="Colongra Unit 4", technology="Gas (OCGT)", region="NSW", capacity_mw=176.0, start_date="2025-03-17", end_date="2025-03-31", duration_days=14, outage_type=GPOOutageType.PARTIAL, derated_capacity_mw=88.0, reason=GPOOutageReason.MINOR_MAINTENANCE, submitted_by="AGL Energy"),
+]
+
+_GPO_RESERVE_MARGINS: List[GPOReserveMarginRecord] = [
+    # NSW — 4 weeks
+    GPOReserveMarginRecord(week="2025-W01", region="NSW", available_capacity_mw=12800.0, maximum_demand_mw=10200.0, scheduled_outage_mw=1380.0, unplanned_outage_mw=420.0, reserve_margin_pct=25.5, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W02", region="NSW", available_capacity_mw=12400.0, maximum_demand_mw=10500.0, scheduled_outage_mw=1720.0, unplanned_outage_mw=380.0, reserve_margin_pct=18.1, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W03", region="NSW", available_capacity_mw=11900.0, maximum_demand_mw=10800.0, scheduled_outage_mw=2050.0, unplanned_outage_mw=450.0, reserve_margin_pct=10.2, reserve_status=GPOReserveStatus.TIGHT),
+    GPOReserveMarginRecord(week="2025-W04", region="NSW", available_capacity_mw=12200.0, maximum_demand_mw=10600.0, scheduled_outage_mw=1850.0, unplanned_outage_mw=360.0, reserve_margin_pct=15.1, reserve_status=GPOReserveStatus.ADEQUATE),
+    # VIC — 4 weeks
+    GPOReserveMarginRecord(week="2025-W01", region="VIC", available_capacity_mw=9800.0, maximum_demand_mw=8200.0, scheduled_outage_mw=780.0, unplanned_outage_mw=310.0, reserve_margin_pct=19.5, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W02", region="VIC", available_capacity_mw=9500.0, maximum_demand_mw=8600.0, scheduled_outage_mw=1100.0, unplanned_outage_mw=290.0, reserve_margin_pct=10.5, reserve_status=GPOReserveStatus.TIGHT),
+    GPOReserveMarginRecord(week="2025-W03", region="VIC", available_capacity_mw=9200.0, maximum_demand_mw=8900.0, scheduled_outage_mw=1380.0, unplanned_outage_mw=340.0, reserve_margin_pct=3.4, reserve_status=GPOReserveStatus.CRITICAL),
+    GPOReserveMarginRecord(week="2025-W04", region="VIC", available_capacity_mw=9600.0, maximum_demand_mw=8700.0, scheduled_outage_mw=980.0, unplanned_outage_mw=280.0, reserve_margin_pct=10.3, reserve_status=GPOReserveStatus.TIGHT),
+    # QLD — 4 weeks
+    GPOReserveMarginRecord(week="2025-W01", region="QLD", available_capacity_mw=11200.0, maximum_demand_mw=8900.0, scheduled_outage_mw=460.0, unplanned_outage_mw=280.0, reserve_margin_pct=25.8, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W02", region="QLD", available_capacity_mw=11000.0, maximum_demand_mw=9200.0, scheduled_outage_mw=750.0, unplanned_outage_mw=310.0, reserve_margin_pct=19.6, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W03", region="QLD", available_capacity_mw=10600.0, maximum_demand_mw=9400.0, scheduled_outage_mw=1210.0, unplanned_outage_mw=360.0, reserve_margin_pct=12.8, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W04", region="QLD", available_capacity_mw=10300.0, maximum_demand_mw=9600.0, scheduled_outage_mw=1460.0, unplanned_outage_mw=400.0, reserve_margin_pct=7.3, reserve_status=GPOReserveStatus.TIGHT),
+    # SA — 4 weeks
+    GPOReserveMarginRecord(week="2025-W01", region="SA", available_capacity_mw=4200.0, maximum_demand_mw=2900.0, scheduled_outage_mw=300.0, unplanned_outage_mw=120.0, reserve_margin_pct=44.8, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W02", region="SA", available_capacity_mw=4000.0, maximum_demand_mw=3100.0, scheduled_outage_mw=500.0, unplanned_outage_mw=140.0, reserve_margin_pct=29.0, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W03", region="SA", available_capacity_mw=3800.0, maximum_demand_mw=3300.0, scheduled_outage_mw=700.0, unplanned_outage_mw=160.0, reserve_margin_pct=15.2, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W04", region="SA", available_capacity_mw=3600.0, maximum_demand_mw=3400.0, scheduled_outage_mw=874.0, unplanned_outage_mw=180.0, reserve_margin_pct=5.9, reserve_status=GPOReserveStatus.TIGHT),
+    # TAS — 4 weeks
+    GPOReserveMarginRecord(week="2025-W01", region="TAS", available_capacity_mw=2800.0, maximum_demand_mw=1600.0, scheduled_outage_mw=80.0, unplanned_outage_mw=60.0, reserve_margin_pct=75.0, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W02", region="TAS", available_capacity_mw=2750.0, maximum_demand_mw=1650.0, scheduled_outage_mw=130.0, unplanned_outage_mw=55.0, reserve_margin_pct=66.7, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W03", region="TAS", available_capacity_mw=2700.0, maximum_demand_mw=1680.0, scheduled_outage_mw=180.0, unplanned_outage_mw=70.0, reserve_margin_pct=60.7, reserve_status=GPOReserveStatus.ADEQUATE),
+    GPOReserveMarginRecord(week="2025-W04", region="TAS", available_capacity_mw=2650.0, maximum_demand_mw=1700.0, scheduled_outage_mw=230.0, unplanned_outage_mw=80.0, reserve_margin_pct=55.9, reserve_status=GPOReserveStatus.ADEQUATE),
+]
+
+_GPO_CONFLICTS: List[GPOOutageConflictRecord] = [
+    GPOOutageConflictRecord(conflict_id="CONF-001", unit_a="Eraring Unit 2", unit_b="Bayswater Unit 3", overlap_start="2025-01-20", overlap_end="2025-02-03", combined_capacity_mw=1050.0, region="NSW", risk_level=GPORiskLevel.HIGH, aemo_intervention=True),
+    GPOOutageConflictRecord(conflict_id="CONF-002", unit_a="Callide C Unit 3", unit_b="Kogan Creek Unit 1", overlap_start="2025-02-10", overlap_end="2025-03-17", combined_capacity_mw=1210.0, region="QLD", risk_level=GPORiskLevel.CRITICAL, aemo_intervention=True),
+    GPOOutageConflictRecord(conflict_id="CONF-003", unit_a="Torrens Island B1", unit_b="Lonsdale Gas Turbine 1", overlap_start="2025-01-27", overlap_end="2025-01-27", combined_capacity_mw=296.0, region="SA", risk_level=GPORiskLevel.MEDIUM, aemo_intervention=False),
+    GPOOutageConflictRecord(conflict_id="CONF-004", unit_a="Yallourn Unit 3", unit_b="Pelican Point Unit 1 (import)", overlap_start="2025-02-17", overlap_end="2025-03-10", combined_capacity_mw=538.0, region="VIC", risk_level=GPORiskLevel.HIGH, aemo_intervention=True),
+    GPOOutageConflictRecord(conflict_id="CONF-005", unit_a="Murray Hydro Unit 2", unit_b="Colongra Unit 4", overlap_start="2025-03-17", overlap_end="2025-03-31", combined_capacity_mw=218.0, region="NSW", risk_level=GPORiskLevel.LOW, aemo_intervention=False),
+]
+
+_GPO_KPIS: List[GPOMaintenanceKpiRecord] = [
+    GPOMaintenanceKpiRecord(technology="Black Coal", avg_planned_days_yr=28.5, forced_outage_rate_pct=8.2, planned_outage_rate_pct=7.8, maintenance_cost_m_aud_mw_yr=0.38, reliability_index=84.0),
+    GPOMaintenanceKpiRecord(technology="Brown Coal", avg_planned_days_yr=32.0, forced_outage_rate_pct=11.5, planned_outage_rate_pct=8.8, maintenance_cost_m_aud_mw_yr=0.42, reliability_index=79.7),
+    GPOMaintenanceKpiRecord(technology="Gas (CCGT)", avg_planned_days_yr=18.0, forced_outage_rate_pct=4.5, planned_outage_rate_pct=4.9, maintenance_cost_m_aud_mw_yr=0.28, reliability_index=90.6),
+    GPOMaintenanceKpiRecord(technology="Gas (OCGT)", avg_planned_days_yr=12.0, forced_outage_rate_pct=6.8, planned_outage_rate_pct=3.3, maintenance_cost_m_aud_mw_yr=0.22, reliability_index=89.9),
+    GPOMaintenanceKpiRecord(technology="Hydro", avg_planned_days_yr=21.0, forced_outage_rate_pct=2.1, planned_outage_rate_pct=5.8, maintenance_cost_m_aud_mw_yr=0.18, reliability_index=92.1),
+    GPOMaintenanceKpiRecord(technology="Wind", avg_planned_days_yr=9.0, forced_outage_rate_pct=3.2, planned_outage_rate_pct=2.5, maintenance_cost_m_aud_mw_yr=0.14, reliability_index=94.3),
+    GPOMaintenanceKpiRecord(technology="Utility Solar", avg_planned_days_yr=6.0, forced_outage_rate_pct=1.8, planned_outage_rate_pct=1.6, maintenance_cost_m_aud_mw_yr=0.09, reliability_index=96.6),
+]
+
+
+@app.get("/api/planned-outage/dashboard", dependencies=[Depends(verify_api_key)])
+def get_planned_outage_dashboard() -> PlannedOutageDashboard:
+    return PlannedOutageDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        outages=_GPO_OUTAGES,
+        reserve_margins=_GPO_RESERVE_MARGINS,
+        conflicts=_GPO_CONFLICTS,
+        kpis=_GPO_KPIS,
+    )
+
+# ===========================================================================
+# Sprint 56b — Wholesale Price Volatility Regime Analytics
+# ===========================================================================
+
+class VRARegime(str, Enum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    EXTREME = "EXTREME"
+
+
+class VRAClusterTrigger(str, Enum):
+    HEATWAVE = "HEATWAVE"
+    GAS_SHORTAGE = "GAS_SHORTAGE"
+    LOW_WIND = "LOW_WIND"
+    GENERATOR_OUTAGE = "GENERATOR_OUTAGE"
+    INTERCONNECTOR_FAILURE = "INTERCONNECTOR_FAILURE"
+    MARKET_POWER = "MARKET_POWER"
+
+
+class VRARegimeRecord(BaseModel):
+    month: str
+    region: str
+    regime: VRARegime
+    avg_price_aud_mwh: float
+    price_std_aud: float
+    spike_count: int
+    negative_price_hours: int
+    volatility_index: float
+    regime_duration_days: int
+
+
+class VRAVolatilityClusterRecord(BaseModel):
+    cluster_id: str
+    region: str
+    start_date: str
+    end_date: str
+    duration_days: int
+    trigger: VRAClusterTrigger
+    max_price: float
+    avg_price: float
+    total_cost_impact_m_aud: float
+
+
+class VRAHedgingImplicationRecord(BaseModel):
+    regime: str
+    recommended_hedge_ratio_pct: float
+    cap_strike_optimal_aud: float
+    swap_volume_twh_yr: float
+    var_95_m_aud: float
+    cost_of_hedging_m_aud_twh: float
+
+
+class VRARegimeTransitionRecord(BaseModel):
+    from_regime: str
+    to_regime: str
+    transition_count: int
+    avg_duration_before_transition_days: float
+    probability_pct: float
+    typical_trigger: str
+
+
+class VolatilityRegimeDashboard(BaseModel):
+    timestamp: str
+    regimes: List[VRARegimeRecord]
+    clusters: List[VRAVolatilityClusterRecord]
+    hedging: List[VRAHedgingImplicationRecord]
+    transitions: List[VRARegimeTransitionRecord]
+
+
+# ---- Mock data: 60 regime records (12 months × 5 regions, 2024) ----
+_VRA_REGIMES: List[VRARegimeRecord] = []
+
+_VRA_REGION_PARAMS = {
+    "NSW1": dict(base_avg=85, base_std=62, base_spikes=4,  base_neg=18, base_vi=0.41),
+    "VIC1": dict(base_avg=82, base_std=58, base_spikes=3,  base_neg=22, base_vi=0.38),
+    "QLD1": dict(base_avg=91, base_std=75, base_spikes=5,  base_neg=12, base_vi=0.45),
+    "SA1":  dict(base_avg=105, base_std=112, base_spikes=8, base_neg=30, base_vi=0.68),
+    "TAS1": dict(base_avg=74, base_std=44, base_spikes=2,  base_neg=8,  base_vi=0.29),
+}
+
+_VRA_MONTH_MULTIPLIERS = {
+    "2024-01": (1.3, 1.5, 2.0, VRARegime.HIGH),
+    "2024-02": (1.8, 2.2, 3.0, VRARegime.EXTREME),
+    "2024-03": (1.1, 1.2, 1.2, VRARegime.NORMAL),
+    "2024-04": (0.8, 0.7, 0.5, VRARegime.LOW),
+    "2024-05": (0.9, 0.8, 0.6, VRARegime.LOW),
+    "2024-06": (1.2, 1.3, 1.4, VRARegime.NORMAL),
+    "2024-07": (1.4, 1.6, 1.8, VRARegime.HIGH),
+    "2024-08": (1.3, 1.4, 1.5, VRARegime.NORMAL),
+    "2024-09": (1.0, 1.0, 1.0, VRARegime.NORMAL),
+    "2024-10": (1.1, 1.1, 1.2, VRARegime.NORMAL),
+    "2024-11": (1.5, 1.7, 2.2, VRARegime.HIGH),
+    "2024-12": (2.0, 2.5, 3.5, VRARegime.EXTREME),
+}
+
+for _month, (_pm, _sm, _km, _base_regime) in _VRA_MONTH_MULTIPLIERS.items():
+    for _region, _p in _VRA_REGION_PARAMS.items():
+        _regime = _base_regime
+        if _region == "SA1" and _base_regime == VRARegime.HIGH:
+            _regime = VRARegime.EXTREME
+        elif _region == "TAS1" and _base_regime in (VRARegime.HIGH, VRARegime.EXTREME):
+            _regime = VRARegime.HIGH
+        elif _region == "TAS1" and _base_regime == VRARegime.NORMAL and _pm < 1.0:
+            _regime = VRARegime.LOW
+        _vi = round(min(_p["base_vi"] * _sm * (1.4 if _region == "SA1" else 1.0), 3.0), 2)
+        _VRA_REGIMES.append(VRARegimeRecord(
+            month=_month,
+            region=_region,
+            regime=_regime,
+            avg_price_aud_mwh=round(_p["base_avg"] * _pm, 1),
+            price_std_aud=round(_p["base_std"] * _sm, 1),
+            spike_count=max(0, int(_p["base_spikes"] * _km)),
+            negative_price_hours=max(0, int(_p["base_neg"] / max(_pm, 0.5))),
+            volatility_index=_vi,
+            regime_duration_days=28 if _month in ("2024-02",) else 31 if _month in ("2024-01","2024-03","2024-05","2024-07","2024-08","2024-10","2024-12") else 30,
+        ))
+
+# ---- Mock data: 8 volatility cluster events ----
+_VRA_CLUSTERS: List[VRAVolatilityClusterRecord] = [
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-001", region="SA1",  start_date="2024-01-14", end_date="2024-01-18", duration_days=5,  trigger=VRAClusterTrigger.HEATWAVE,               max_price=14500.0, avg_price=3820.0, total_cost_impact_m_aud=48.2),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-002", region="NSW1", start_date="2024-02-06", end_date="2024-02-09", duration_days=4,  trigger=VRAClusterTrigger.GENERATOR_OUTAGE,       max_price=15100.0, avg_price=4250.0, total_cost_impact_m_aud=62.7),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-003", region="VIC1", start_date="2024-02-19", end_date="2024-02-23", duration_days=5,  trigger=VRAClusterTrigger.HEATWAVE,               max_price=13800.0, avg_price=3650.0, total_cost_impact_m_aud=54.1),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-004", region="QLD1", start_date="2024-07-08", end_date="2024-07-11", duration_days=4,  trigger=VRAClusterTrigger.LOW_WIND,               max_price=8900.0,  avg_price=2100.0, total_cost_impact_m_aud=29.4),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-005", region="SA1",  start_date="2024-07-22", end_date="2024-07-26", duration_days=5,  trigger=VRAClusterTrigger.GAS_SHORTAGE,           max_price=12400.0, avg_price=3200.0, total_cost_impact_m_aud=41.8),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-006", region="VIC1", start_date="2024-11-14", end_date="2024-11-16", duration_days=3,  trigger=VRAClusterTrigger.INTERCONNECTOR_FAILURE, max_price=9800.0,  avg_price=2850.0, total_cost_impact_m_aud=23.6),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-007", region="NSW1", start_date="2024-12-10", end_date="2024-12-15", duration_days=6,  trigger=VRAClusterTrigger.HEATWAVE,               max_price=15300.0, avg_price=5100.0, total_cost_impact_m_aud=78.5),
+    VRAVolatilityClusterRecord(cluster_id="VCE-2024-008", region="QLD1", start_date="2024-12-21", end_date="2024-12-24", duration_days=4,  trigger=VRAClusterTrigger.MARKET_POWER,           max_price=11200.0, avg_price=3400.0, total_cost_impact_m_aud=35.9),
+]
+
+# ---- Mock data: 4 hedging implication records (one per regime) ----
+_VRA_HEDGING: List[VRAHedgingImplicationRecord] = [
+    VRAHedgingImplicationRecord(regime="LOW",     recommended_hedge_ratio_pct=40.0,  cap_strike_optimal_aud=150.0,  swap_volume_twh_yr=2.8, var_95_m_aud=12.4, cost_of_hedging_m_aud_twh=0.8),
+    VRAHedgingImplicationRecord(regime="NORMAL",  recommended_hedge_ratio_pct=65.0,  cap_strike_optimal_aud=300.0,  swap_volume_twh_yr=5.2, var_95_m_aud=38.7, cost_of_hedging_m_aud_twh=2.1),
+    VRAHedgingImplicationRecord(regime="HIGH",    recommended_hedge_ratio_pct=82.0,  cap_strike_optimal_aud=500.0,  swap_volume_twh_yr=7.8, var_95_m_aud=95.3, cost_of_hedging_m_aud_twh=4.6),
+    VRAHedgingImplicationRecord(regime="EXTREME", recommended_hedge_ratio_pct=95.0,  cap_strike_optimal_aud=750.0,  swap_volume_twh_yr=9.5, var_95_m_aud=214.8, cost_of_hedging_m_aud_twh=9.2),
+]
+
+# ---- Mock data: 12 regime transition records ----
+_VRA_TRANSITIONS: List[VRARegimeTransitionRecord] = [
+    VRARegimeTransitionRecord(from_regime="LOW",     to_regime="NORMAL",  transition_count=18, avg_duration_before_transition_days=14.2, probability_pct=62.5, typical_trigger="Seasonal demand shift"),
+    VRARegimeTransitionRecord(from_regime="LOW",     to_regime="HIGH",    transition_count=4,  avg_duration_before_transition_days=21.8, probability_pct=13.9, typical_trigger="Unexpected generation outage"),
+    VRARegimeTransitionRecord(from_regime="LOW",     to_regime="EXTREME", transition_count=1,  avg_duration_before_transition_days=35.0, probability_pct=3.5,  typical_trigger="Major interconnector failure"),
+    VRARegimeTransitionRecord(from_regime="NORMAL",  to_regime="LOW",     transition_count=12, avg_duration_before_transition_days=10.5, probability_pct=28.0, typical_trigger="High renewable output"),
+    VRARegimeTransitionRecord(from_regime="NORMAL",  to_regime="HIGH",    transition_count=22, avg_duration_before_transition_days=8.3,  probability_pct=51.2, typical_trigger="Heatwave or cold snap"),
+    VRARegimeTransitionRecord(from_regime="NORMAL",  to_regime="EXTREME", transition_count=6,  avg_duration_before_transition_days=12.7, probability_pct=14.0, typical_trigger="Multi-factor stress event"),
+    VRARegimeTransitionRecord(from_regime="HIGH",    to_regime="NORMAL",  transition_count=28, avg_duration_before_transition_days=4.8,  probability_pct=68.3, typical_trigger="Weather event subsides"),
+    VRARegimeTransitionRecord(from_regime="HIGH",    to_regime="EXTREME", transition_count=9,  avg_duration_before_transition_days=3.2,  probability_pct=22.0, typical_trigger="Gas supply constraint escalates"),
+    VRARegimeTransitionRecord(from_regime="HIGH",    to_regime="LOW",     transition_count=3,  avg_duration_before_transition_days=6.1,  probability_pct=7.3,  typical_trigger="Demand collapse post-event"),
+    VRARegimeTransitionRecord(from_regime="EXTREME", to_regime="HIGH",    transition_count=14, avg_duration_before_transition_days=2.1,  probability_pct=73.7, typical_trigger="Peak demand passes"),
+    VRARegimeTransitionRecord(from_regime="EXTREME", to_regime="NORMAL",  transition_count=4,  avg_duration_before_transition_days=3.8,  probability_pct=21.1, typical_trigger="Emergency generation dispatch"),
+    VRARegimeTransitionRecord(from_regime="EXTREME", to_regime="LOW",     transition_count=1,  avg_duration_before_transition_days=7.0,  probability_pct=5.3,  typical_trigger="Major demand destruction event"),
+]
+
+
+@app.get("/api/volatility-regime/dashboard", dependencies=[Depends(verify_api_key)])
+def get_volatility_regime_dashboard() -> VolatilityRegimeDashboard:
+    return VolatilityRegimeDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        regimes=_VRA_REGIMES,
+        clusters=_VRA_CLUSTERS,
+        hedging=_VRA_HEDGING,
+        transitions=_VRA_TRANSITIONS,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 56c — NEM Participant Market Share & Concentration Tracker
+# ---------------------------------------------------------------------------
+
+class PMSCompetitionLevel(str, Enum):
+    COMPETITIVE          = "COMPETITIVE"
+    MODERATE             = "MODERATE"
+    CONCENTRATED         = "CONCENTRATED"
+    HIGHLY_CONCENTRATED  = "HIGHLY_CONCENTRATED"
+
+
+class PMSParticipantRecord(BaseModel):
+    participant_id:   str
+    name:             str
+    parent_company:   str
+    region:           str
+    portfolio_mw:     float
+    renewable_mw:     float
+    thermal_mw:       float
+    storage_mw:       float
+    market_share_pct: float
+    hhi_contribution: float
+    year:             int
+
+
+class PMSConcentrationRecord(BaseModel):
+    region:               str
+    year:                 int
+    hhi_score:            float
+    cr3_pct:              float
+    cr5_pct:              float
+    dominant_participant: str
+    competition_level:    PMSCompetitionLevel
+
+
+class PMSOwnershipChangeRecord(BaseModel):
+    year:                 int
+    acquirer:             str
+    target:               str
+    assets_transferred:   str
+    capacity_mw:          float
+    transaction_value_m_aud: float
+    regulatory_approval:  str
+    impact_on_hhi:        float
+
+
+class PMSRegionalShareRecord(BaseModel):
+    participant:          str
+    region:               str
+    year:                 int
+    generation_share_pct: float
+    capacity_share_pct:   float
+    peak_share_pct:       float
+    rebid_events:         int
+
+
+class MarketShareDashboard(BaseModel):
+    timestamp:        str
+    participants:     List[PMSParticipantRecord]
+    concentration:    List[PMSConcentrationRecord]
+    ownership_changes: List[PMSOwnershipChangeRecord]
+    regional_shares:  List[PMSRegionalShareRecord]
+
+
+# ---- mock data factories --------------------------------------------------
+
+def _pms_participants() -> List[PMSParticipantRecord]:
+    data = [
+        # (id, name, parent, region, port, ren, therm, stor, share, hhi)
+        ("AGL",    "AGL Energy",          "AGL Energy Ltd",          "NSW", 6800, 1200, 5100, 500, 22.4, 502.0),
+        ("ORG",    "Origin Energy",       "Origin Energy Ltd",       "QLD", 5900, 900,  4700, 300, 19.5, 380.3),
+        ("EA",     "EnergyAustralia",     "CLP Group",               "VIC", 4500, 700,  3600, 200, 14.8, 219.0),
+        ("SNOWY",  "Snowy Hydro",         "Commonwealth of Aus.",    "NSW", 5500, 4800, 300,  400, 18.1, 327.6),
+        ("ALINTA",  "Alinta Energy",      "Chow Tai Fook Ent.",      "WA",  3200, 400,  2700, 100,  5.9,  34.8),
+        ("CSE",    "CS Energy",           "Qld Government",          "QLD", 3100, 200,  2900,   0,  4.7,  22.1),
+        ("STW",    "Stanwell Corp.",      "Qld Government",          "QLD", 2800, 350,  2450,   0,  4.2,  17.6),
+        ("MAC",    "Macquarie Energy",    "Macquarie Group",         "NSW", 1800, 1600, 200,  0,   3.1,   9.6),
+        ("SHELL",  "Shell Energy",        "Shell plc",               "QLD", 1600, 200,  1400,   0,  2.8,   7.8),
+        ("BP",     "BP Australia",        "BP plc",                  "VIC", 900,  700,  150,   50,  1.8,   3.2),
+        ("TILT",   "Tilt Renewables",     "PowAR / Mercury NZ",      "SA",  1200, 1200,  0,    0,   1.9,   3.6),
+        ("NEOEN",  "Neoen Australia",     "Neoen S.A.",              "SA",  1400, 1400,  0,   200,  2.8,   7.8),
+    ]
+    records = []
+    for year in [2022, 2023, 2024]:
+        for row in data:
+            pid, name, parent, region, port, ren, therm, stor, share, hhi = row
+            records.append(PMSParticipantRecord(
+                participant_id=pid,
+                name=name,
+                parent_company=parent,
+                region=region,
+                portfolio_mw=port + (year - 2022) * 80,
+                renewable_mw=ren + (year - 2022) * 120,
+                thermal_mw=therm,
+                storage_mw=stor + (year - 2022) * 50,
+                market_share_pct=round(share + (year - 2022) * 0.3, 2),
+                hhi_contribution=round(hhi + (year - 2022) * 5, 1),
+                year=year,
+            ))
+    return records
+
+
+def _pms_concentration() -> List[PMSConcentrationRecord]:
+    regions = [
+        ("NSW", 2200, 62, 78, "AGL",   PMSCompetitionLevel.CONCENTRATED),
+        ("QLD", 2800, 68, 82, "Origin", PMSCompetitionLevel.HIGHLY_CONCENTRATED),
+        ("VIC", 1800, 55, 72, "EnergyAustralia", PMSCompetitionLevel.MODERATE),
+        ("SA",  1500, 48, 65, "AGL",   PMSCompetitionLevel.MODERATE),
+        ("WA",  3100, 72, 88, "Alinta", PMSCompetitionLevel.HIGHLY_CONCENTRATED),
+    ]
+    records = []
+    for region, base_hhi, cr3, cr5, dom, level in regions:
+        for i, year in enumerate([2022, 2023, 2024]):
+            records.append(PMSConcentrationRecord(
+                region=region,
+                year=year,
+                hhi_score=round(base_hhi - i * 40, 1),
+                cr3_pct=round(cr3 - i * 1.2, 1),
+                cr5_pct=round(cr5 - i * 0.8, 1),
+                dominant_participant=dom,
+                competition_level=level,
+            ))
+    return records
+
+
+def _pms_ownership_changes() -> List[PMSOwnershipChangeRecord]:
+    return [
+        PMSOwnershipChangeRecord(
+            year=2020, acquirer="Macquarie Energy", target="Loy Yang A (partial)",
+            assets_transferred="Power Purchase Agreement — 300 MW black coal",
+            capacity_mw=300, transaction_value_m_aud=185.0,
+            regulatory_approval="ACCC cleared", impact_on_hhi=12.5,
+        ),
+        PMSOwnershipChangeRecord(
+            year=2021, acquirer="AGL Energy", target="Powering Australian Renewables (partial)",
+            assets_transferred="Wind portfolio SA/VIC — 540 MW",
+            capacity_mw=540, transaction_value_m_aud=720.0,
+            regulatory_approval="ACCC cleared", impact_on_hhi=31.8,
+        ),
+        PMSOwnershipChangeRecord(
+            year=2022, acquirer="Origin Energy", target="Eraring Power Station extension",
+            assets_transferred="Coal-fired generation 2,880 MW — life extension 2 yr",
+            capacity_mw=2880, transaction_value_m_aud=225.0,
+            regulatory_approval="NSW Govt approved", impact_on_hhi=-8.2,
+        ),
+        PMSOwnershipChangeRecord(
+            year=2023, acquirer="Neoen Australia", target="Goyder South Wind Farm",
+            assets_transferred="Wind + BESS — 412 MW / 900 MWh",
+            capacity_mw=412, transaction_value_m_aud=980.0,
+            regulatory_approval="ACCC cleared", impact_on_hhi=3.1,
+        ),
+        PMSOwnershipChangeRecord(
+            year=2024, acquirer="Shell Energy", target="Callide B (partial stake)",
+            assets_transferred="Coal-fired unit equity — 140 MW equivalent",
+            capacity_mw=140, transaction_value_m_aud=310.0,
+            regulatory_approval="ACCC cleared", impact_on_hhi=1.9,
+        ),
+    ]
+
+
+def _pms_regional_shares() -> List[PMSRegionalShareRecord]:
+    participants = ["AGL", "Origin", "EnergyAustralia", "Snowy", "CS Energy", "Stanwell"]
+    regions = ["NSW", "QLD", "VIC", "SA", "WA"]
+    base_shares = {
+        "AGL":              {"NSW": 28, "QLD": 8,  "VIC": 12, "SA": 18, "WA": 3},
+        "Origin":           {"NSW": 12, "QLD": 24, "VIC": 10, "SA": 9,  "WA": 6},
+        "EnergyAustralia":  {"NSW": 10, "QLD": 5,  "VIC": 19, "SA": 7,  "WA": 2},
+        "Snowy":            {"NSW": 18, "QLD": 2,  "VIC": 15, "SA": 4,  "WA": 0},
+        "CS Energy":        {"NSW": 2,  "QLD": 16, "VIC": 1,  "SA": 0,  "WA": 0},
+        "Stanwell":         {"NSW": 1,  "QLD": 14, "VIC": 1,  "SA": 0,  "WA": 0},
+    }
+    records = []
+    year = 2024
+    for p in participants:
+        for r in regions:
+            gen_share = base_shares[p][r]
+            records.append(PMSRegionalShareRecord(
+                participant=p,
+                region=r,
+                year=year,
+                generation_share_pct=round(gen_share + 0.5, 1),
+                capacity_share_pct=round(gen_share * 0.95, 1),
+                peak_share_pct=round(gen_share * 1.1, 1),
+                rebid_events=int(gen_share * 12),
+            ))
+    return records
+
+
+_PMS_PARTICIPANTS      = _pms_participants()
+_PMS_CONCENTRATION     = _pms_concentration()
+_PMS_OWNERSHIP_CHANGES = _pms_ownership_changes()
+_PMS_REGIONAL_SHARES   = _pms_regional_shares()
+
+
+@app.get("/api/participant-market-share/dashboard", response_model=MarketShareDashboard,
+         dependencies=[Depends(verify_api_key)])
+def get_participant_market_share_dashboard() -> MarketShareDashboard:
+    """NEM Participant Market Share & Concentration dashboard."""
+    return MarketShareDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        participants=_PMS_PARTICIPANTS,
+        concentration=_PMS_CONCENTRATION,
+        ownership_changes=_PMS_OWNERSHIP_CHANGES,
+        regional_shares=_PMS_REGIONAL_SHARES,
+    )

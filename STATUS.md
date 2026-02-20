@@ -1411,3 +1411,68 @@ Added Renewable Integration Cost Analytics page covering the system costs of int
 **API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`RICCostComponentRecord`, `RICNetworkAugRecord`, `RICCurtailmentRecord`, `RICSystemServiceRecord`, `RenewableIntegrationCostDashboard`) and `getRenewableIntegrationCostDashboard()` exported function.
 **Routing (`app/frontend/src/App.tsx`):** Added `GitMerge` to lucide-react import block; import `RenewableIntegrationCost`; nav entry (`GitMerge` icon at `/renewable-integration-cost`); `Route` element `<RenewableIntegrationCost />`.
 **Tests (`tests/test_backend.py`):** `TestRenewableIntegrationCost.test_integration_cost_dashboard` validates top-level structure, 30 cost component records with all 6 components present in each of 5 years, 8 network augmentation projects with viable BCR (>1.0), 20 curtailment records with valid cause enums, 5 system service records covering all services, business logic assertions: 2024 VRE penetration highest, curtailment growing 2020→2024, INERTIA service has RISING trend.
+
+## Sprint 56c — NEM Participant Market Share & Concentration Tracker — 2026-02-20
+
+Added a NEM Participant Market Share & Concentration Tracker page covering generator portfolio concentration, market power analysis, and ownership changes across the NEM.
+
+**Backend (`app/backend/main.py`):**
+- Pydantic enum: `PMSCompetitionLevel` (COMPETITIVE/MODERATE/CONCENTRATED/HIGHLY_CONCENTRATED)
+- Pydantic models: `PMSParticipantRecord`, `PMSConcentrationRecord`, `PMSOwnershipChangeRecord`, `PMSRegionalShareRecord`, `MarketShareDashboard`
+- Endpoint: `GET /api/participant-market-share/dashboard` — returns 36 participant records (12 generators × 3 years: AGL/Origin/EnergyAustralia/Snowy/Alinta/CS Energy/Stanwell/Macquarie/Shell/BP/Tilt/Neoen with portfolio MW, renewable/thermal/storage breakdown, market share %, HHI contribution), 15 concentration records (5 regions × 3 years: NSW/QLD/VIC/SA/WA with HHI, CR3, CR5, competition level), 5 ownership change events (2020–2024: Macquarie/AGL/Origin/Neoen/Shell transactions with capacity, transaction value, regulatory status, HHI impact), 30 regional share records (6 participants × 5 regions with generation share %, capacity share %, peak share %, rebid events)
+
+**Frontend (`app/frontend/src/pages/MarketShareTracker.tsx`):**
+- Header with `Users` icon and descriptive subtitle
+- Year selector (2022/2023/2024) controlling KPI cards and concentration table
+- 4 KPI cards: top participant market share %, national average HHI, number of highly concentrated regions (HHI > 2,500), total M&A transaction value (M AUD)
+- Portfolio stacked BarChart — 12 participants sorted by total MW, stacked Renewable (green) / Thermal (red) / Storage (indigo)
+- Regional HHI grouped BarChart — 5 regions × 3 years showing concentration trend (3 shades of purple)
+- Portfolio MW PieChart — top 8 participants + Others with participant-specific colours and inline percentage labels
+- Concentration metrics table — region, HHI score (colour-coded by band), CR3%, CR5%, dominant participant, competition level badge
+- Ownership change timeline table — year, acquirer, target/assets, capacity MW, transaction value, HHI impact (red positive / green negative), regulatory approval badge
+- Regional generation share heatmap table — 6 participants × 5 regions with colour-coded cells (red ≥25%, amber ≥15%, blue ≥8%, green ≥3%, grey <3%)
+- Market share trend LineChart — AGL/Origin/EnergyAustralia/Snowy 2022–2024 with distinct colour lines
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`PMSParticipantRecord`, `PMSConcentrationRecord`, `PMSOwnershipChangeRecord`, `PMSRegionalShareRecord`, `MarketShareDashboard`) and `getMarketShareDashboard()` exported function.
+
+**Routing (`app/frontend/src/App.tsx`):** Import `MarketShareTracker`; nav entry (`Users` icon, label "Market Share", path `/market-share-tracker`); `Route` element `<MarketShareTracker />`.
+
+**Tests (`tests/test_backend.py`):** `TestMarketShareTracker.test_market_share_dashboard` validates top-level structure; 36 participant records with valid market share %, HHI contribution, year enum; participant ID coverage (AGL/ORG/EA/SNOWY/TILT/NEOEN); 15 concentration records across NSW/QLD/VIC/SA/WA with CR5 ≥ CR3 constraint and valid competition level enums; 5 ownership change events with positive capacity and transaction value; 30 regional share records; business logic: WA HHI > 2,000 (monopoly-like market); total market share > 50%; total M&A value > $1B AUD.
+
+## Sprint 56a — Generator Planned Outage & Maintenance Scheduling Analytics — 2026-02-20
+
+Added Generator Planned Outage & Maintenance Scheduling Analytics page covering AEMO PASA planned outage submissions, maintenance windows, reserve margin impacts, conflict detection, and technology reliability KPIs.
+
+**Backend (`app/backend/main.py`):**
+- Pydantic enums: `GPOOutageType` (FULL/PARTIAL/DERATING), `GPOOutageReason` (MAJOR_OVERHAUL/MINOR_MAINTENANCE/REGULATORY_INSPECTION/FUEL_SYSTEM/ENVIRONMENTAL_COMPLIANCE), `GPOReserveStatus` (ADEQUATE/TIGHT/CRITICAL), `GPORiskLevel` (LOW/MEDIUM/HIGH/CRITICAL)
+- Pydantic models: `GPOPlannedOutageRecord`, `GPOReserveMarginRecord`, `GPOOutageConflictRecord`, `GPOMaintenanceKpiRecord`, `PlannedOutageDashboard`
+- Endpoint: `GET /api/planned-outage/dashboard` (requires `X-API-Key`) — returns 15 planned outage records (mix of Coal/Gas CCGT/Gas OCGT/Hydro across NSW/VIC/QLD/SA — Q1 2025), 20 weekly reserve margin records (5 regions × 4 weeks; VIC W3 at 3.4% CRITICAL), 5 outage conflict records (including CRITICAL QLD Callide+Kogan Creek overlap requiring AEMO intervention), 7 technology KPI records (Black Coal/Brown Coal/Gas CCGT/Gas OCGT/Hydro/Wind/Utility Solar with EFOR, POR, reliability index)
+
+**Frontend (`app/frontend/src/pages/PlannedOutageAnalytics.tsx`):**
+- 4 KPI cards: total capacity offline (MW), tightest reserve margin (% coloured red/yellow/green by threshold), outage conflict count (with AEMO intervention count), highest EFOR technology
+- Gantt-style outage calendar table — unit name, technology badge (colour-coded by fuel type), region, start/end dates (monospace), duration (days), capacity (MW), outage type badge (FULL/PARTIAL/DERATING), reason label; hover highlight
+- Reserve margin line chart — dual (all 5) region comparison with region toggle buttons, 15% CRITICAL threshold ReferenceLine (red dashed), Y-axis 0-80%, Recharts LineChart with dots
+- Conflict risk matrix — colour-coded card layout by risk level (CRITICAL=red/HIGH=orange/MEDIUM=yellow/LOW=green), AEMO intervention badge, unit pair, overlap dates, combined MW
+- Maintenance KPI horizontal BarChart — planned outage rate % sorted descending with technology-colour-coded Cell fills; companion summary table with EFOR (coloured by threshold), POR, avg days/yr, reliability index
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`GPOPlannedOutageRecord`, `GPOReserveMarginRecord`, `GPOOutageConflictRecord`, `GPOMaintenanceKpiRecord`, `PlannedOutageDashboard`) and `getPlannedOutageDashboard()` exported function calling `GET /api/planned-outage/dashboard`.
+**Routing (`app/frontend/src/App.tsx`):** Import `PlannedOutageAnalytics`; nav entry (`Calendar` icon at `/planned-outage-analytics`); `Route` element `<PlannedOutageAnalytics />`. No new lucide-react imports needed — `Calendar` was already present.
+**Tests (`tests/test_backend.py`):** `TestPlannedOutageAnalytics.test_planned_outage_dashboard` validates top-level structure (timestamp/outages/reserve_margins/conflicts/kpis), all 15 outage records with valid enums, all 20 reserve margin records across 5 regions with valid statuses, business logic: VIC W3 is CRITICAL with reserve_margin_pct < 10, 5 conflict records with valid risk levels, QLD conflict is CRITICAL with aemo_intervention=True, 7 KPI records, Utility Solar has lowest EFOR, Brown Coal has highest EFOR.
+
+## Sprint 56b — Wholesale Price Volatility Regime Analytics — 2026-02-20
+
+**Backend (`app/backend/main.py`):** Appended Pydantic models (`VRARegime`, `VRAClusterTrigger` enums; `VRARegimeRecord`, `VRAVolatilityClusterRecord`, `VRAHedgingImplicationRecord`, `VRARegimeTransitionRecord`, `VolatilityRegimeDashboard`) and `GET /api/volatility-regime/dashboard` endpoint with `Depends(verify_api_key)`. Mock dataset: 60 regime records (12 months × 5 NEM regions, 2024) with region-tuned volatility parameters (SA1 highest), 8 volatility cluster events (spanning Jan–Dec 2024 with 6 trigger types), 4 hedging implication records (one per regime with escalating hedge ratios/cap strikes), and 12 regime transition records covering all 4×3 from→to pairs.
+
+**Frontend (`app/frontend/src/pages/VolatilityRegimeAnalytics.tsx`):** New page created with:
+- Header + 4 KPI cards: EXTREME regime region-months (10), highest volatility index (peak SA1 Feb), total cluster cost impact (M AUD), optimal cap strike price (EXTREME regime)
+- Regime timeline AreaChart — 12-month NSW1/SA1 volatility index with HIGH/EXTREME reference lines at VI 0.5 and 1.0
+- Cluster event BarChart — cost impact per event, and detailed table with trigger badges (colour-coded by type), duration, max/avg price, total cost
+- Hedging implication cards — 4 regime cards (green/indigo/amber/red borders) showing hedge ratio, cap strike, swap volume, VaR 95%, and cost of hedging
+- Regime transition probability matrix — 4×4 heatmap table with cell colour intensity (red ≥60%, amber 35–59%, indigo 15–34%, slate <15%)
+- Regional summary table — per-region count of LOW/NORMAL/HIGH/EXTREME months, avg VI, avg price
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`VRARegimeRecord`, `VRAVolatilityClusterRecord`, `VRAHedgingImplicationRecord`, `VRARegimeTransitionRecord`, `VolatilityRegimeDashboard`) and `getVolatilityRegimeDashboard()` exported function.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `import VolatilityRegimeAnalytics`; nav entry with `TrendingUp` icon at `/volatility-regime-analytics`; `Route` element `<VolatilityRegimeAnalytics />`.
+
+**Tests (`tests/test_backend.py`):** `TestVolatilityRegimeAnalytics.test_volatility_regime_dashboard` validates: 60 regime records across 5 regions and 12 months, SA1 has highest avg volatility index vs all other regions, 8 cluster events with valid trigger enums and price ordering (max > avg), 4 hedging records with EXTREME > HIGH > NORMAL > LOW ordering for both hedge ratio and cap strike, 12 transition records covering all 4 from-regime states with valid probability and no self-transitions.
