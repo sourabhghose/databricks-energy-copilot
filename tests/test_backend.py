@@ -11568,3 +11568,132 @@ class TestNetworkInvestmentPipelineEndpoint:
         r1 = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers)
         r2 = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityExportEconomicsEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_cable_projects_present(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        assert len(data["cable_projects"]) >= 6
+
+    def test_energy_flows_present(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        assert len(data["energy_flows"]) >= 20
+
+    def test_cost_benefits_present(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        assert len(data["cost_benefits"]) >= 20
+
+    def test_market_demand_present(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        assert len(data["market_demand"]) >= 6
+
+    def test_supply_zones_present(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        assert len(data["supply_zones"]) >= 5
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        assert "total_capacity_gw" in data["summary"]
+        assert "most_viable_route" in data["summary"]
+
+    def test_cable_project_fields(self, client, auth_headers):
+        data = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers).json()
+        p = data["cable_projects"][0]
+        assert "capacity_gw" in p
+        assert "capex_aud_bn" in p
+        assert "equity_partners" in p
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers)
+        r2 = client.get("/api/electricity-export-economics/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNEMDemandForecastEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_regional_forecasts_present(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        assert len(data["regional_forecasts"]) >= 100
+
+    def test_peak_demands_present(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        assert len(data["peak_demands"]) >= 50
+
+    def test_growth_drivers_present(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        assert len(data["growth_drivers"]) >= 10
+
+    def test_sensitivities_present(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        assert len(data["sensitivities"]) >= 6
+
+    def test_reliability_outlook_present(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        assert len(data["reliability_outlook"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        assert "scenarios_modelled" in data["summary"]
+        assert "highest_growth_scenario" in data["summary"]
+
+    def test_forecast_fields(self, client, auth_headers):
+        data = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers).json()
+        f = data["regional_forecasts"][0]
+        assert "annual_energy_twh" in f
+        assert "ev_load_twh" in f
+        assert "scenario" in f
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers)
+        r2 = client.get("/api/nem-demand-forecast/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestHydrogenFuelCellVehiclesEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_vehicles_present(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        assert len(data["vehicles"]) >= 10
+
+    def test_refuelling_stations_present(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        assert len(data["refuelling_stations"]) >= 8
+
+    def test_tco_analysis_present(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        assert len(data["tco_analysis"]) >= 50
+
+    def test_emissions_present(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        assert len(data["emissions"]) >= 20
+
+    def test_deployment_forecast_present(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        assert len(data["deployment_forecast"]) >= 50
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        assert "operational_stations" in data["summary"]
+        assert "bus_breakeven_year" in data["summary"]
+
+    def test_vehicle_fields(self, client, auth_headers):
+        data = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers).json()
+        v = data["vehicles"][0]
+        assert "segment" in v
+        assert "range_km" in v
+        assert "cost_aud" in v
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers)
+        r2 = client.get("/api/hydrogen-fuel-cell-vehicles/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]

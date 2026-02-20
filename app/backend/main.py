@@ -62761,3 +62761,570 @@ def get_network_investment_pipeline_dashboard():
     )
     _cache_set(_nip_cache, cache_key, result)
     return result
+
+
+# ============================================================
+# Sprint 90a — Electricity Export Economics Analytics (EXE)
+# ============================================================
+
+class EXECableProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    route: str  # e.g. "Darwin-Singapore", "Perth-Jakarta"
+    technology: str  # HVDC_SUBMARINE, HVAC_SUBMARINE
+    capacity_gw: float
+    length_km: int
+    capex_aud_bn: float
+    status: str  # OPERATIONAL, CONSTRUCTION, APPROVED, FEASIBILITY, PROPOSED
+    target_year: Optional[int]
+    export_destination: str
+    equity_partners: List[str]
+
+class EXEEnergyFlowRecord(BaseModel):
+    project_id: str
+    year: int
+    export_twh: float
+    avg_export_price_usd_mwh: float
+    revenue_aud_bn: float
+    capacity_utilisation_pct: float
+    destination_country: str
+    energy_source: str  # SOLAR, WIND, HYBRID
+
+class EXECostBenefitRecord(BaseModel):
+    project_id: str
+    scenario: str
+    lcoe_aud_per_mwh: float
+    export_price_usd_per_mwh: float
+    transmission_cost_aud_per_mwh: float
+    net_margin_usd_per_mwh: float
+    irr_pct: float
+    payback_years: float
+    npv_aud_bn: float
+
+class EXEMarketDemandRecord(BaseModel):
+    country: str
+    region: str
+    current_import_twh: float
+    projected_2030_twh: float
+    projected_2040_twh: float
+    willingness_to_pay_usd_mwh: float
+    renewable_target_pct: float
+    preferred_source: str
+
+class EXESupplyZoneRecord(BaseModel):
+    zone: str
+    state: str
+    solar_potential_gw: float
+    wind_potential_gw: float
+    combined_cf_pct: float
+    lcoe_aud_per_mwh: float
+    grid_connection_cost_aud_bn: float
+    land_area_km2: float
+    proximity_to_coast_km: float
+
+class EXEDashboard(BaseModel):
+    cable_projects: List[EXECableProjectRecord]
+    energy_flows: List[EXEEnergyFlowRecord]
+    cost_benefits: List[EXECostBenefitRecord]
+    market_demand: List[EXEMarketDemandRecord]
+    supply_zones: List[EXESupplyZoneRecord]
+    summary: Dict[str, Any]
+
+
+_exe_cache: Dict[str, Any] = {}
+
+@app.get("/api/electricity-export-economics/dashboard", response_model=EXEDashboard, dependencies=[Depends(verify_api_key)])
+def get_electricity_export_economics_dashboard():
+    import random
+    cache_key = "exe_dashboard"
+    cached = _cache_get(_exe_cache, cache_key)
+    if cached:
+        return cached
+
+    projects = [
+        ("EXE-001", "Sun Cable AAPowerLink", "Darwin-Singapore", "HVDC_SUBMARINE", 3.2, 4200, 30.0, "FEASIBILITY", 2030, "Singapore", ["Sun Cable", "Gina Rinehart"]),
+        ("EXE-002", "AustralianGenerationHub NW Cable", "Perth-Jakarta", "HVDC_SUBMARINE", 2.5, 2800, 18.0, "PROPOSED", 2033, "Indonesia", ["ARENA", "Private consortium"]),
+        ("EXE-003", "Darwin Green Energy Hub", "Darwin-East Timor-Philippines", "HVDC_SUBMARINE", 1.5, 3100, 12.0, "PROPOSED", 2035, "Philippines", ["AGL", "BP"]),
+        ("EXE-004", "WA-ASEAN Cable Link", "Karratha-Kuala Lumpur", "HVDC_SUBMARINE", 2.0, 3500, 22.0, "FEASIBILITY", 2034, "Malaysia", ["Western Power", "Sarawak Energy"]),
+        ("EXE-005", "NT Solar Export Project", "Katherine-Timor-Leste", "HVDC_SUBMARINE", 0.8, 700, 4.5, "PROPOSED", 2032, "Timor-Leste", ["Territory Generation"]),
+        ("EXE-006", "Queensland Pacific Cable", "Townsville-Papua New Guinea", "HVDC_SUBMARINE", 0.5, 900, 3.2, "PROPOSED", 2036, "Papua New Guinea", ["CS Energy"]),
+        ("EXE-007", "Green Hydrogen via Cable", "Pilbara-Japan (H2)", "HVDC_SUBMARINE", 1.0, 6800, 45.0, "FEASIBILITY", 2038, "Japan", ["Fortescue", "JERA"]),
+        ("EXE-008", "South Australia HVDC Link", "Port Augusta-Singapore", "HVDC_SUBMARINE", 1.8, 5200, 28.0, "PROPOSED", 2037, "Singapore", ["ElectraNet"]),
+    ]
+
+    cable_projects = []
+    for p in projects:
+        cable_projects.append(EXECableProjectRecord(
+            project_id=p[0], name=p[1], route=p[2], technology=p[3],
+            capacity_gw=p[4], length_km=p[5], capex_aud_bn=p[6],
+            status=p[7], target_year=p[8], export_destination=p[9],
+            equity_partners=p[10]
+        ))
+
+    energy_flows = []
+    for proj in cable_projects[:5]:
+        for year in range(2030, 2046):
+            if proj.target_year and year >= proj.target_year:
+                ramp = min(1.0, (year - proj.target_year) / 5.0)
+                twh = round(proj.capacity_gw * 8760 * 0.65 * ramp / 1000, 2)
+                price = round(random.uniform(60.0, 120.0), 1)
+                energy_flows.append(EXEEnergyFlowRecord(
+                    project_id=proj.project_id, year=year,
+                    export_twh=twh,
+                    avg_export_price_usd_mwh=price,
+                    revenue_aud_bn=round(twh * price * 1000 * 1.55 / 1e9, 3),
+                    capacity_utilisation_pct=round(65.0 * ramp + random.uniform(-5, 5), 1),
+                    destination_country=proj.export_destination,
+                    energy_source=random.choice(["SOLAR", "WIND", "HYBRID"])
+                ))
+
+    scenarios = ["Base Case", "High Export Price", "Low Export Price", "Delayed Construction"]
+    cost_benefits = []
+    for proj in cable_projects:
+        for scenario in scenarios:
+            lcoe = round(random.uniform(40.0, 80.0), 1)
+            price_usd = round(random.uniform(55.0, 110.0), 1)
+            trans_cost = round(random.uniform(10.0, 25.0), 1)
+            net_margin = round(price_usd * 1.55 - lcoe - trans_cost, 1)
+            cost_benefits.append(EXECostBenefitRecord(
+                project_id=proj.project_id, scenario=scenario,
+                lcoe_aud_per_mwh=lcoe,
+                export_price_usd_per_mwh=price_usd,
+                transmission_cost_aud_per_mwh=trans_cost,
+                net_margin_usd_per_mwh=round(net_margin / 1.55, 1),
+                irr_pct=round(random.uniform(5.0, 18.0), 2),
+                payback_years=round(random.uniform(8.0, 25.0), 1),
+                npv_aud_bn=round(random.uniform(-2.0, 15.0), 2)
+            ))
+
+    demand_countries = [
+        ("Singapore", "SE Asia", 50.0, 80.0, 120.0, 95.0, 30.0, "SOLAR"),
+        ("Japan", "East Asia", 800.0, 950.0, 1100.0, 85.0, 46.0, "SOLAR"),
+        ("South Korea", "East Asia", 550.0, 650.0, 750.0, 80.0, 30.0, "WIND"),
+        ("Indonesia", "SE Asia", 300.0, 450.0, 700.0, 65.0, 23.0, "HYBRID"),
+        ("Malaysia", "SE Asia", 180.0, 250.0, 380.0, 70.0, 31.0, "SOLAR"),
+        ("Taiwan", "East Asia", 230.0, 280.0, 320.0, 90.0, 20.0, "HYBRID"),
+        ("Philippines", "SE Asia", 120.0, 180.0, 280.0, 75.0, 35.0, "WIND"),
+        ("Vietnam", "SE Asia", 220.0, 350.0, 550.0, 68.0, 15.0, "HYBRID"),
+    ]
+
+    market_demand = []
+    for d in demand_countries:
+        market_demand.append(EXEMarketDemandRecord(
+            country=d[0], region=d[1],
+            current_import_twh=d[2], projected_2030_twh=d[3], projected_2040_twh=d[4],
+            willingness_to_pay_usd_mwh=d[5], renewable_target_pct=d[6],
+            preferred_source=d[7]
+        ))
+
+    supply_zones_data = [
+        ("Pilbara Solar Zone", "WA", 450.0, 180.0, 32.0, 42.0, 8.5, 850000.0, 45.0),
+        ("Darwin Solar Hub", "NT", 280.0, 120.0, 30.0, 45.0, 5.2, 420000.0, 15.0),
+        ("North QLD Wind/Solar", "QLD", 350.0, 280.0, 38.0, 48.0, 6.8, 680000.0, 80.0),
+        ("Spencer Gulf SA", "SA", 120.0, 350.0, 42.0, 51.0, 4.2, 280000.0, 30.0),
+        ("NW Cape WA", "WA", 380.0, 290.0, 35.0, 44.0, 9.0, 590000.0, 8.0),
+        ("Central WA Solar", "WA", 520.0, 80.0, 28.0, 40.0, 12.5, 1100000.0, 350.0),
+    ]
+
+    supply_zones = []
+    for z in supply_zones_data:
+        supply_zones.append(EXESupplyZoneRecord(
+            zone=z[0], state=z[1], solar_potential_gw=z[2], wind_potential_gw=z[3],
+            combined_cf_pct=z[4], lcoe_aud_per_mwh=z[5],
+            grid_connection_cost_aud_bn=z[6], land_area_km2=z[7], proximity_to_coast_km=z[8]
+        ))
+
+    result = EXEDashboard(
+        cable_projects=cable_projects,
+        energy_flows=energy_flows,
+        cost_benefits=cost_benefits,
+        market_demand=market_demand,
+        supply_zones=supply_zones,
+        summary={
+            "total_projects": len(cable_projects),
+            "total_capacity_gw": round(sum(p.capacity_gw for p in cable_projects), 1),
+            "total_capex_aud_bn": round(sum(p.capex_aud_bn for p in cable_projects), 1),
+            "earliest_export_year": 2030,
+            "destination_countries": len(market_demand),
+            "most_viable_route": "Darwin-Singapore",
+            "total_supply_zones": len(supply_zones),
+            "largest_supply_zone": "Central WA Solar"
+        }
+    )
+    _cache_set(_exe_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# NEM Demand Forecast Analytics (Sprint 90b)
+# ============================================================
+
+class NDFRegionalForecastRecord(BaseModel):
+    region: str
+    year: int
+    scenario: str  # LOW, CENTRAL, HIGH, STEP_CHANGE
+    annual_energy_twh: float
+    maximum_demand_mw: float
+    minimum_demand_mw: float
+    rooftop_solar_twh: float
+    ev_load_twh: float
+    electrification_twh: float
+
+class NDFPeakDemandRecord(BaseModel):
+    region: str
+    year: int
+    season: str  # SUMMER, WINTER
+    peak_10_poe_mw: float  # 10% probability of exceedance
+    peak_50_poe_mw: float
+    peak_90_poe_mw: float
+    temperature_sensitivity_mw_per_deg: float
+    demand_response_available_mw: float
+
+class NDFGrowthDriverRecord(BaseModel):
+    driver: str
+    category: str  # EV, ELECTRIFICATION, POPULATION, ECONOMIC, EFFICIENCY, SOLAR_OFFSET
+    region: str
+    contribution_twh_2030: float
+    contribution_twh_2040: float
+    confidence: str  # LOW, MEDIUM, HIGH
+
+class NDFSensitivityRecord(BaseModel):
+    parameter: str
+    low_case_aud: float
+    central_case_aud: float
+    high_case_aud: float
+    unit: str
+    impact_on_peak_mw: float
+    probability_pct: float
+
+class NDFReliabilityOutlookRecord(BaseModel):
+    region: str
+    year: int
+    reserve_margin_pct: float
+    USE_mwh: float  # Unserved Energy
+    reliability_standard_met: bool
+    loee_hours: float  # Loss of Energy Expectation
+    at_risk: bool
+
+class NDFDashboard(BaseModel):
+    regional_forecasts: List[NDFRegionalForecastRecord]
+    peak_demands: List[NDFPeakDemandRecord]
+    growth_drivers: List[NDFGrowthDriverRecord]
+    sensitivities: List[NDFSensitivityRecord]
+    reliability_outlook: List[NDFReliabilityOutlookRecord]
+    summary: Dict[str, Any]
+
+
+_ndf_cache: Dict[str, Any] = {}
+
+@app.get("/api/nem-demand-forecast/dashboard", response_model=NDFDashboard, dependencies=[Depends(verify_api_key)])
+def get_nem_demand_forecast_dashboard():
+    import random
+    cache_key = "ndf_dashboard"
+    cached = _cache_get(_ndf_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    scenarios = ["LOW", "CENTRAL", "HIGH", "STEP_CHANGE"]
+    years = list(range(2024, 2041))
+
+    base_energy = {"NSW1": 68.0, "QLD1": 62.0, "VIC1": 50.0, "SA1": 13.0, "TAS1": 11.0}
+    base_max_demand = {"NSW1": 14000, "QLD1": 12500, "VIC1": 10000, "SA1": 3500, "TAS1": 1800}
+
+    regional_forecasts = []
+    for r in regions:
+        for yr in years:
+            for sc in scenarios:
+                growth = {"LOW": 0.003, "CENTRAL": 0.012, "HIGH": 0.025, "STEP_CHANGE": 0.035}.get(sc, 0.012)
+                progress = yr - 2024
+                base = base_energy[r] * (1 + growth) ** progress
+                ev_contrib = round(progress * random.uniform(0.1, 0.5), 2)
+                electr = round(progress * random.uniform(0.05, 0.3), 2)
+                regional_forecasts.append(NDFRegionalForecastRecord(
+                    region=r, year=yr, scenario=sc,
+                    annual_energy_twh=round(base + ev_contrib + electr + random.uniform(-1, 1), 2),
+                    maximum_demand_mw=round(base_max_demand[r] * (1 + growth * 0.8) ** progress + random.uniform(-100, 100), 0),
+                    minimum_demand_mw=round(base_max_demand[r] * 0.25 * (1 - 0.02 * progress) + random.uniform(-50, 50), 0),
+                    rooftop_solar_twh=round(base_energy[r] * 0.08 * (1 + 0.08 * progress), 2),
+                    ev_load_twh=ev_contrib,
+                    electrification_twh=electr
+                ))
+
+    peak_demands = []
+    for r in regions:
+        for yr in [2024, 2026, 2028, 2030, 2032, 2035, 2040]:
+            for season in ["SUMMER", "WINTER"]:
+                base_pk = base_max_demand[r]
+                growth_factor = 1.0 + 0.012 * (yr - 2024)
+                central = round(base_pk * growth_factor, 0)
+                peak_demands.append(NDFPeakDemandRecord(
+                    region=r, year=yr, season=season,
+                    peak_10_poe_mw=round(central * 1.15, 0),
+                    peak_50_poe_mw=central,
+                    peak_90_poe_mw=round(central * 0.88, 0),
+                    temperature_sensitivity_mw_per_deg=round(random.uniform(80.0, 350.0), 1),
+                    demand_response_available_mw=round(random.uniform(100.0, 800.0), 0)
+                ))
+
+    drivers_data = [
+        ("EV charging load", "EV", "NSW1", 2.5, 8.5, "HIGH"),
+        ("EV charging load", "EV", "QLD1", 2.0, 7.0, "HIGH"),
+        ("EV charging load", "EV", "VIC1", 2.8, 9.2, "HIGH"),
+        ("Residential electrification", "ELECTRIFICATION", "NSW1", 1.5, 5.0, "MEDIUM"),
+        ("Industrial electrification", "ELECTRIFICATION", "QLD1", 2.0, 7.5, "MEDIUM"),
+        ("Data centre growth", "ECONOMIC", "NSW1", 3.0, 8.0, "HIGH"),
+        ("Data centre growth", "ECONOMIC", "VIC1", 2.5, 6.5, "HIGH"),
+        ("Population growth", "POPULATION", "QLD1", 1.8, 4.5, "MEDIUM"),
+        ("Appliance efficiency savings", "EFFICIENCY", "NSW1", -0.8, -2.5, "HIGH"),
+        ("Rooftop solar offset", "SOLAR_OFFSET", "SA1", -1.2, -3.8, "HIGH"),
+        ("Green hydrogen production", "ELECTRIFICATION", "WA1", 4.5, 18.0, "LOW"),
+        ("HVAC electrification", "ELECTRIFICATION", "VIC1", 0.8, 2.5, "MEDIUM"),
+    ]
+
+    growth_drivers = []
+    for d in drivers_data:
+        growth_drivers.append(NDFGrowthDriverRecord(
+            driver=d[0], category=d[1], region=d[2],
+            contribution_twh_2030=d[3], contribution_twh_2040=d[4], confidence=d[5]
+        ))
+
+    params = [
+        ("EV adoption rate", 5.0, 15.0, 30.0, "% market penetration 2030", 800.0, 65.0),
+        ("Rooftop solar capacity", 30.0, 45.0, 65.0, "GW by 2030", -1500.0, 75.0),
+        ("Population growth", 0.8, 1.4, 2.2, "% per annum", 350.0, 80.0),
+        ("Industrial electrification", 5.0, 12.0, 25.0, "% share by 2030", 600.0, 50.0),
+        ("Data centre growth", 5.0, 12.0, 20.0, "% annual demand growth", 500.0, 70.0),
+        ("Demand response uptake", 500.0, 1200.0, 2500.0, "MW by 2030", -1200.0, 55.0),
+        ("Appliance efficiency", 1.0, 1.5, 2.5, "% annual improvement", -300.0, 85.0),
+        ("GDP growth", 1.5, 2.8, 4.0, "% per annum", 280.0, 75.0),
+    ]
+
+    sensitivities = []
+    for p in params:
+        sensitivities.append(NDFSensitivityRecord(
+            parameter=p[0], low_case_aud=p[1], central_case_aud=p[2], high_case_aud=p[3],
+            unit=p[4], impact_on_peak_mw=p[5], probability_pct=p[6]
+        ))
+
+    reliability_outlook = []
+    for r in regions:
+        for yr in [2024, 2026, 2028, 2030, 2032, 2035]:
+            reserve_margin = round(random.uniform(5.0, 25.0), 1)
+            at_risk = reserve_margin < 10.0
+            reliability_outlook.append(NDFReliabilityOutlookRecord(
+                region=r, year=yr,
+                reserve_margin_pct=reserve_margin,
+                USE_mwh=round(random.uniform(0.0, 50.0) if at_risk else random.uniform(0.0, 5.0), 2),
+                reliability_standard_met=not at_risk,
+                loee_hours=round(random.uniform(0.0, 8.0) if at_risk else random.uniform(0.0, 0.5), 3),
+                at_risk=at_risk
+            ))
+
+    result = NDFDashboard(
+        regional_forecasts=regional_forecasts,
+        peak_demands=peak_demands,
+        growth_drivers=growth_drivers,
+        sensitivities=sensitivities,
+        reliability_outlook=reliability_outlook,
+        summary={
+            "total_regions": len(regions),
+            "scenarios_modelled": len(scenarios),
+            "forecast_horizon_years": len(years),
+            "highest_growth_scenario": "STEP_CHANGE",
+            "highest_risk_region": "SA1",
+            "total_ev_load_2040_twh": 33.7,
+            "net_demand_change_central_2040_pct": 18.5,
+            "rooftop_solar_offset_twh_2040": 45.2
+        }
+    )
+    _cache_set(_ndf_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# Sprint 90c — Hydrogen Fuel Cell Vehicle Analytics (HFV)
+# ============================================================
+
+class HFVVehicleRecord(BaseModel):
+    segment: str  # BUS, TRUCK_HEAVY, TRUCK_LIGHT, PASSENGER_CAR, TRAIN, FORKLIFT, SHIP
+    manufacturer: str
+    model: str
+    range_km: float
+    fuel_consumption_kg_per_100km: float
+    tank_capacity_kg: float
+    refuel_time_minutes: float
+    cost_aud: float
+    units_in_australia: int
+    year_available: int
+
+class HFVRefuellingRecord(BaseModel):
+    station_id: str
+    name: str
+    state: str
+    capacity_kg_per_day: float
+    current_dispensing_kg_per_day: float
+    utilisation_pct: float
+    h2_cost_aud_per_kg: float
+    source: str  # GREEN, BLUE, GREY
+    status: str  # OPERATIONAL, UNDER_CONSTRUCTION, PLANNED
+
+class HFVTCORecord(BaseModel):
+    segment: str
+    year: int
+    fcev_tco_aud: float
+    diesel_tco_aud: float
+    bev_tco_aud: float
+    fcev_breakeven_year: Optional[int]
+    h2_price_at_parity_aud_per_kg: float
+    annual_km: float
+
+class HFVEmissionRecord(BaseModel):
+    segment: str
+    scenario: str  # GREEN_H2, BLUE_H2, GREY_H2, DIESEL_BASELINE
+    tailpipe_gco2_per_km: float
+    lifecycle_gco2_per_km: float
+    annual_abatement_tonnes_per_vehicle: float
+    abatement_cost_aud_per_tonne: float
+
+class HFVDeploymentRecord(BaseModel):
+    segment: str
+    year: int
+    cumulative_units: int
+    annual_additions: int
+    h2_demand_tpa: float
+    electricity_demand_gwh: float
+    investment_aud_m: float
+
+class HFVDashboard(BaseModel):
+    vehicles: List[HFVVehicleRecord]
+    refuelling_stations: List[HFVRefuellingRecord]
+    tco_analysis: List[HFVTCORecord]
+    emissions: List[HFVEmissionRecord]
+    deployment_forecast: List[HFVDeploymentRecord]
+    summary: Dict[str, Any]
+
+
+_hfv_cache: Dict[str, Any] = {}
+
+@app.get("/api/hydrogen-fuel-cell-vehicles/dashboard", response_model=HFVDashboard, dependencies=[Depends(verify_api_key)])
+def get_hydrogen_fuel_cell_vehicles_dashboard():
+    import random
+    cache_key = "hfv_dashboard"
+    cached = _cache_get(_hfv_cache, cache_key)
+    if cached:
+        return cached
+
+    vehicle_data = [
+        ("BUS", "Toyota", "Sora", 200.0, 8.5, 600.0, 5.0, 850000.0, 12, 2023),
+        ("BUS", "Wrightbus", "StreetDeck FC", 280.0, 9.0, 700.0, 5.5, 920000.0, 5, 2022),
+        ("BUS", "Caetanobus", "e.City Gold", 250.0, 8.8, 650.0, 5.0, 890000.0, 8, 2023),
+        ("TRUCK_HEAVY", "Hyundai", "XCIENT", 400.0, 12.0, 1200.0, 8.0, 650000.0, 25, 2022),
+        ("TRUCK_HEAVY", "Daimler", "Mercedes GenH2", 500.0, 11.5, 1500.0, 7.5, 700000.0, 10, 2024),
+        ("TRUCK_HEAVY", "Nikola", "Tre FCEV", 500.0, 13.0, 1350.0, 9.0, 600000.0, 15, 2023),
+        ("PASSENGER_CAR", "Toyota", "Mirai", 650.0, 0.9, 5.6, 3.0, 75000.0, 180, 2021),
+        ("PASSENGER_CAR", "Hyundai", "NEXO", 666.0, 1.0, 6.3, 3.5, 75000.0, 95, 2021),
+        ("TRUCK_LIGHT", "Hyundai", "XCIENT Light", 200.0, 3.5, 150.0, 5.0, 120000.0, 30, 2024),
+        ("TRAIN", "Alstom", "Coradia iLint", 1000.0, 20.0, 2000.0, 10.0, 5000000.0, 2, 2024),
+        ("FORKLIFT", "Toyota", "HFC Forklift", 8.0, 1.5, 2.0, 3.0, 35000.0, 120, 2020),
+        ("FORKLIFT", "Hyster", "H-80FT FC", 8.0, 1.8, 2.5, 3.0, 40000.0, 80, 2021),
+    ]
+
+    vehicles = []
+    for v in vehicle_data:
+        vehicles.append(HFVVehicleRecord(
+            segment=v[0], manufacturer=v[1], model=v[2], range_km=v[3],
+            fuel_consumption_kg_per_100km=v[4], tank_capacity_kg=v[5],
+            refuel_time_minutes=v[6], cost_aud=v[7], units_in_australia=v[8],
+            year_available=v[9]
+        ))
+
+    station_data = [
+        ("STN-001", "ActewAGL Canberra", "ACT", 200.0, 45.0, 22.5, 12.5, "GREEN", "OPERATIONAL"),
+        ("STN-002", "BP Sydney West", "NSW", 500.0, 180.0, 36.0, 11.0, "BLUE", "OPERATIONAL"),
+        ("STN-003", "Shell Geelong", "VIC", 300.0, 120.0, 40.0, 10.5, "GREEN", "OPERATIONAL"),
+        ("STN-004", "Fortescue Darwin", "NT", 1000.0, 0.0, 0.0, 9.5, "GREEN", "UNDER_CONSTRUCTION"),
+        ("STN-005", "Toyota Melbourne", "VIC", 200.0, 80.0, 40.0, 12.0, "GREEN", "OPERATIONAL"),
+        ("STN-006", "H2X Brisbane", "QLD", 400.0, 50.0, 12.5, 13.0, "BLUE", "OPERATIONAL"),
+        ("STN-007", "ATCO Perth", "WA", 600.0, 200.0, 33.3, 10.0, "GREEN", "OPERATIONAL"),
+        ("STN-008", "Port Adelaide", "SA", 800.0, 0.0, 0.0, 9.0, "GREEN", "PLANNED"),
+        ("STN-009", "Wollongong Steel Hub", "NSW", 2000.0, 0.0, 0.0, 8.5, "BLUE", "PLANNED"),
+        ("STN-010", "Melbourne Airport", "VIC", 500.0, 0.0, 0.0, 11.5, "GREEN", "UNDER_CONSTRUCTION"),
+    ]
+
+    refuelling_stations = []
+    for s in station_data:
+        refuelling_stations.append(HFVRefuellingRecord(
+            station_id=s[0], name=s[1], state=s[2], capacity_kg_per_day=s[3],
+            current_dispensing_kg_per_day=s[4], utilisation_pct=s[5],
+            h2_cost_aud_per_kg=s[6], source=s[7], status=s[8]
+        ))
+
+    segments = ["BUS", "TRUCK_HEAVY", "TRUCK_LIGHT", "PASSENGER_CAR", "TRAIN", "FORKLIFT"]
+    tco_analysis = []
+    for seg in segments:
+        base_fcev = {"BUS": 950000, "TRUCK_HEAVY": 680000, "TRUCK_LIGHT": 130000, "PASSENGER_CAR": 78000, "TRAIN": 5500000, "FORKLIFT": 38000}.get(seg, 100000)
+        for yr in range(2024, 2036):
+            progress = (yr - 2024) / 11.0
+            tco_analysis.append(HFVTCORecord(
+                segment=seg, year=yr,
+                fcev_tco_aud=round(base_fcev * (1 - 0.30 * progress), 0),
+                diesel_tco_aud=round(base_fcev * 0.75 * (1 + 0.05 * progress), 0),
+                bev_tco_aud=round(base_fcev * 0.80 * (1 - 0.20 * progress), 0),
+                fcev_breakeven_year=2031 if seg == "BUS" else (2034 if seg == "TRUCK_HEAVY" else None),
+                h2_price_at_parity_aud_per_kg=round(10.0 - 3.5 * progress, 2),
+                annual_km={"BUS": 60000, "TRUCK_HEAVY": 120000, "TRUCK_LIGHT": 50000, "PASSENGER_CAR": 15000, "TRAIN": 200000, "FORKLIFT": 5000}.get(seg, 50000)
+            ))
+
+    scenarios_em = ["GREEN_H2", "BLUE_H2", "GREY_H2", "DIESEL_BASELINE"]
+    emissions = []
+    for seg in segments:
+        for sc in scenarios_em:
+            tailpipe = 0.0 if sc != "DIESEL_BASELINE" else round(random.uniform(80.0, 200.0), 1)
+            lifecycle = {"GREEN_H2": 15.0, "BLUE_H2": 45.0, "GREY_H2": 120.0, "DIESEL_BASELINE": 200.0}.get(sc, 100.0)
+            diesel_lc = 200.0
+            abatement = round((diesel_lc - lifecycle) * random.uniform(15000, 120000) / 1000000, 2)
+            emissions.append(HFVEmissionRecord(
+                segment=seg, scenario=sc,
+                tailpipe_gco2_per_km=tailpipe,
+                lifecycle_gco2_per_km=round(lifecycle + random.uniform(-10, 10), 1),
+                annual_abatement_tonnes_per_vehicle=max(0.0, abatement),
+                abatement_cost_aud_per_tonne=round(random.uniform(50.0, 500.0), 0) if abatement > 0 else 0.0
+            ))
+
+    deployment_forecast = []
+    for seg in segments:
+        base = {"BUS": 25, "TRUCK_HEAVY": 50, "TRUCK_LIGHT": 30, "PASSENGER_CAR": 275, "TRAIN": 2, "FORKLIFT": 200}.get(seg, 20)
+        cumulative = base
+        for yr in range(2025, 2041):
+            growth = 1.35 if yr < 2030 else 1.55
+            additions = round(base * (growth ** (yr - 2024)), 0)
+            cumulative += additions
+            h2_demand = round(cumulative * {"BUS": 18.0, "TRUCK_HEAVY": 45.0, "TRUCK_LIGHT": 8.0, "PASSENGER_CAR": 1.5, "TRAIN": 200.0, "FORKLIFT": 0.5}.get(seg, 5.0), 0)
+            deployment_forecast.append(HFVDeploymentRecord(
+                segment=seg, year=yr, cumulative_units=cumulative,
+                annual_additions=additions,
+                h2_demand_tpa=h2_demand,
+                electricity_demand_gwh=round(h2_demand * 55 / 1000, 2),
+                investment_aud_m=round(additions * {"BUS": 0.9, "TRUCK_HEAVY": 0.65, "TRUCK_LIGHT": 0.13, "PASSENGER_CAR": 0.075, "TRAIN": 5.5, "FORKLIFT": 0.038}.get(seg, 0.1), 1)
+            ))
+
+    result = HFVDashboard(
+        vehicles=vehicles,
+        refuelling_stations=refuelling_stations,
+        tco_analysis=tco_analysis,
+        emissions=emissions,
+        deployment_forecast=deployment_forecast,
+        summary={
+            "total_vehicles_australia": sum(v.units_in_australia for v in vehicles),
+            "operational_stations": len([s for s in refuelling_stations if s.status == "OPERATIONAL"]),
+            "total_h2_demand_2040_tpa": 85000,
+            "lowest_cost_h2_station_aud_per_kg": 9.0,
+            "bus_breakeven_year": 2031,
+            "segments": len(segments),
+            "green_h2_lifecycle_gco2_per_km": 15.0,
+            "total_investment_2040_aud_bn": 8.5
+        }
+    )
+    _cache_set(_hfv_cache, cache_key, result)
+    return result

@@ -14240,3 +14240,209 @@ export interface NIPDashboard {
 
 export const getNetworkInvestmentPipelineDashboard = (): Promise<NIPDashboard> =>
   get<NIPDashboard>('/api/network-investment-pipeline/dashboard');
+
+// ===== Electricity Export Economics Analytics (Sprint 90a) =====
+export interface EXECableProjectRecord {
+  project_id: string;
+  name: string;
+  route: string;
+  technology: string;
+  capacity_gw: number;
+  length_km: number;
+  capex_aud_bn: number;
+  status: string;
+  target_year: number | null;
+  export_destination: string;
+  equity_partners: string[];
+}
+
+export interface EXEEnergyFlowRecord {
+  project_id: string;
+  year: number;
+  export_twh: number;
+  avg_export_price_usd_mwh: number;
+  revenue_aud_bn: number;
+  capacity_utilisation_pct: number;
+  destination_country: string;
+  energy_source: string;
+}
+
+export interface EXECostBenefitRecord {
+  project_id: string;
+  scenario: string;
+  lcoe_aud_per_mwh: number;
+  export_price_usd_per_mwh: number;
+  transmission_cost_aud_per_mwh: number;
+  net_margin_usd_per_mwh: number;
+  irr_pct: number;
+  payback_years: number;
+  npv_aud_bn: number;
+}
+
+export interface EXEMarketDemandRecord {
+  country: string;
+  region: string;
+  current_import_twh: number;
+  projected_2030_twh: number;
+  projected_2040_twh: number;
+  willingness_to_pay_usd_mwh: number;
+  renewable_target_pct: number;
+  preferred_source: string;
+}
+
+export interface EXESupplyZoneRecord {
+  zone: string;
+  state: string;
+  solar_potential_gw: number;
+  wind_potential_gw: number;
+  combined_cf_pct: number;
+  lcoe_aud_per_mwh: number;
+  grid_connection_cost_aud_bn: number;
+  land_area_km2: number;
+  proximity_to_coast_km: number;
+}
+
+export interface EXEDashboard {
+  cable_projects: EXECableProjectRecord[];
+  energy_flows: EXEEnergyFlowRecord[];
+  cost_benefits: EXECostBenefitRecord[];
+  market_demand: EXEMarketDemandRecord[];
+  supply_zones: EXESupplyZoneRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getElectricityExportEconomicsDashboard = (): Promise<EXEDashboard> =>
+  get<EXEDashboard>('/api/electricity-export-economics/dashboard');
+
+// ===== NEM Demand Forecast Analytics (Sprint 90b) =====
+export interface NDFRegionalForecastRecord {
+  region: string;
+  year: number;
+  scenario: string;
+  annual_energy_twh: number;
+  maximum_demand_mw: number;
+  minimum_demand_mw: number;
+  rooftop_solar_twh: number;
+  ev_load_twh: number;
+  electrification_twh: number;
+}
+
+export interface NDFPeakDemandRecord {
+  region: string;
+  year: number;
+  season: string;
+  peak_10_poe_mw: number;
+  peak_50_poe_mw: number;
+  peak_90_poe_mw: number;
+  temperature_sensitivity_mw_per_deg: number;
+  demand_response_available_mw: number;
+}
+
+export interface NDFGrowthDriverRecord {
+  driver: string;
+  category: string;
+  region: string;
+  contribution_twh_2030: number;
+  contribution_twh_2040: number;
+  confidence: string;
+}
+
+export interface NDFSensitivityRecord {
+  parameter: string;
+  low_case_aud: number;
+  central_case_aud: number;
+  high_case_aud: number;
+  unit: string;
+  impact_on_peak_mw: number;
+  probability_pct: number;
+}
+
+export interface NDFReliabilityOutlookRecord {
+  region: string;
+  year: number;
+  reserve_margin_pct: number;
+  USE_mwh: number;
+  reliability_standard_met: boolean;
+  loee_hours: number;
+  at_risk: boolean;
+}
+
+export interface NDFDashboard {
+  regional_forecasts: NDFRegionalForecastRecord[];
+  peak_demands: NDFPeakDemandRecord[];
+  growth_drivers: NDFGrowthDriverRecord[];
+  sensitivities: NDFSensitivityRecord[];
+  reliability_outlook: NDFReliabilityOutlookRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getNEMDemandForecastDashboard = (): Promise<NDFDashboard> =>
+  get<NDFDashboard>('/api/nem-demand-forecast/dashboard');
+
+// ===== Hydrogen Fuel Cell Vehicle Analytics (Sprint 90c) =====
+export interface HFVVehicleRecord {
+  segment: string;
+  manufacturer: string;
+  model: string;
+  range_km: number;
+  fuel_consumption_kg_per_100km: number;
+  tank_capacity_kg: number;
+  refuel_time_minutes: number;
+  cost_aud: number;
+  units_in_australia: number;
+  year_available: number;
+}
+
+export interface HFVRefuellingRecord {
+  station_id: string;
+  name: string;
+  state: string;
+  capacity_kg_per_day: number;
+  current_dispensing_kg_per_day: number;
+  utilisation_pct: number;
+  h2_cost_aud_per_kg: number;
+  source: string;
+  status: string;
+}
+
+export interface HFVTCORecord {
+  segment: string;
+  year: number;
+  fcev_tco_aud: number;
+  diesel_tco_aud: number;
+  bev_tco_aud: number;
+  fcev_breakeven_year: number | null;
+  h2_price_at_parity_aud_per_kg: number;
+  annual_km: number;
+}
+
+export interface HFVEmissionRecord {
+  segment: string;
+  scenario: string;
+  tailpipe_gco2_per_km: number;
+  lifecycle_gco2_per_km: number;
+  annual_abatement_tonnes_per_vehicle: number;
+  abatement_cost_aud_per_tonne: number;
+}
+
+export interface HFVDeploymentRecord {
+  segment: string;
+  year: number;
+  cumulative_units: number;
+  annual_additions: number;
+  h2_demand_tpa: number;
+  electricity_demand_gwh: number;
+  investment_aud_m: number;
+}
+
+export interface HFVDashboard {
+  vehicles: HFVVehicleRecord[];
+  refuelling_stations: HFVRefuellingRecord[];
+  tco_analysis: HFVTCORecord[];
+  emissions: HFVEmissionRecord[];
+  deployment_forecast: HFVDeploymentRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getHydrogenFuelCellVehiclesDashboard = (): Promise<HFVDashboard> =>
+  get<HFVDashboard>('/api/hydrogen-fuel-cell-vehicles/dashboard');

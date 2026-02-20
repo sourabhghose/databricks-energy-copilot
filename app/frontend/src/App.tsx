@@ -74,6 +74,7 @@ import {
   Scale,
   Lock,
   Smartphone,
+  Truck,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -226,6 +227,7 @@ import ClimatePhysicalRisk from './pages/ClimatePhysicalRisk'
 import EnergyAffordabilityAnalytics from './pages/EnergyAffordabilityAnalytics'
 import ElectrificationAnalytics from './pages/ElectrificationAnalytics'
 import ElectricityExportInfra from './pages/ElectricityExportInfra'
+import ElectricityExportEconomicsAnalytics from './pages/ElectricityExportEconomicsAnalytics'
 import LdesEconomicsAnalytics from './pages/LdesEconomicsAnalytics'
 import GasTransitionAnalytics from './pages/GasTransitionAnalytics'
 import ProsumerAnalytics from './pages/ProsumerAnalytics'
@@ -292,6 +294,8 @@ import ElectricityWorkforceAnalytics from './pages/ElectricityWorkforceAnalytics
 import REZTransmissionAnalytics from './pages/REZTransmissionAnalytics'
 import NetworkRegulatoryFrameworkAnalytics from './pages/NetworkRegulatoryFrameworkAnalytics'
 import NetworkInvestmentPipelineAnalytics from './pages/NetworkInvestmentPipelineAnalytics'
+import NEMDemandForecastAnalytics from './pages/NEMDemandForecastAnalytics'
+import HydrogenFuelCellVehicleAnalytics from './pages/HydrogenFuelCellVehicleAnalytics'
 import PriceModelComparisonAnalytics from './pages/PriceModelComparisonAnalytics'
 import GasElectricityNexusAnalytics from './pages/GasElectricityNexusAnalytics'
 import BiddingComplianceAnalytics from './pages/BiddingComplianceAnalytics'
@@ -464,6 +468,7 @@ const NAV_ITEMS = [
   { to: '/energy-affordability',        label: 'Energy Affordability',         Icon: DollarSign     },
   { to: '/electrification-analytics',  label: 'Building Electrification',     Icon: Flame          },
   { to: '/electricity-export-infra',   label: 'Electricity Export Infra',     Icon: Globe2         },
+  { to: '/electricity-export-economics', label: 'Electricity Export Economics', Icon: Globe          },
   { to: '/ldes-economics',             label: 'LDES Economics',               Icon: Database       },
   { to: '/prosumer-analytics',         label: 'Prosumer & BTM Analytics',     Icon: Sun            },
   { to: '/gas-transition-analytics',  label: 'Gas Transition Analytics',     Icon: Fuel           },
@@ -551,6 +556,8 @@ const NAV_ITEMS = [
   { to: '/electricity-price-forecasting-models', label: 'Price Forecasting Models', Icon: Activity },
   { to: '/large-industrial-demand', label: 'Large Industrial Demand', Icon: Factory },
   { to: '/network-investment-pipeline', label: 'Network Investment Pipeline', Icon: GitBranch },
+  { to: '/nem-demand-forecast', label: 'NEM Demand Forecast', Icon: TrendingUp },
+  { to: '/hydrogen-fuel-cell-vehicles', label: 'Hydrogen Fuel Cell Vehicles', Icon: Truck },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -777,6 +784,7 @@ export default function App() {
               <Route path="/energy-affordability"        element={<EnergyAffordabilityAnalytics />} />
               <Route path="/electrification-analytics"   element={<ElectrificationAnalytics />}     />
               <Route path="/electricity-export-infra"    element={<ElectricityExportInfra />}       />
+              <Route path="/electricity-export-economics" element={<ElectricityExportEconomicsAnalytics />} />
               <Route path="/ldes-economics"              element={<LdesEconomicsAnalytics />}       />
               <Route path="/gas-transition-analytics"    element={<GasTransitionAnalytics />}       />
               <Route path="/prosumer-analytics"          element={<ProsumerAnalytics />}            />
@@ -865,6 +873,8 @@ export default function App() {
               <Route path="/electricity-price-forecasting-models" element={<ElectricityPriceForecastingModelAnalytics />} />
               <Route path="/large-industrial-demand" element={<LargeIndustrialDemandAnalytics />} />
               <Route path="/network-investment-pipeline" element={<NetworkInvestmentPipelineAnalytics />} />
+              <Route path="/nem-demand-forecast" element={<NEMDemandForecastAnalytics />} />
+              <Route path="/hydrogen-fuel-cell-vehicles" element={<HydrogenFuelCellVehicleAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
