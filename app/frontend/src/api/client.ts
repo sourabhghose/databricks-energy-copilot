@@ -8555,3 +8555,176 @@ export interface DnspAnalyticsDashboard61b {
 
 export const getDnspAnalyticsDashboard = (): Promise<DnspAnalyticsDashboard61b> =>
   get<DnspAnalyticsDashboard61b>('/api/dnsp-analytics/dashboard')
+
+// ── Sprint 62a — NEM 5-Minute Settlement & Prudential Analytics ─────────────
+
+export interface WSASettlementRecord {
+  week: string
+  region: string
+  total_energy_value_m_aud: number
+  avg_settlement_price_aud: number
+  peak_interval_price_aud: number
+  settlement_variance_m_aud: number
+  positive_residue_m_aud: number
+  negative_residue_m_aud: number
+}
+
+export interface WSAPrudentialRecord {
+  participant: string
+  credit_support_m_aud: number
+  maximum_credit_limit_m_aud: number
+  utilisation_pct: number
+  collateral_type: string
+  credit_rating: string
+  compliance_status: string
+}
+
+export interface WSAShortfallRecord {
+  event_id: string
+  date: string
+  participant: string
+  shortfall_m_aud: number
+  shortfall_type: string
+  resolution_days: number
+  financial_security_drawn: boolean
+  aemo_action: string
+}
+
+export interface WSAParticipantExposureRecord {
+  participant: string
+  week: string
+  gross_energy_purchase_m_aud: number
+  gross_energy_sale_m_aud: number
+  net_position_m_aud: number
+  exposure_utilisation_pct: number
+  region: string
+}
+
+export interface SettlementAnalyticsDashboard62a {
+  timestamp: string
+  settlements: WSASettlementRecord[]
+  prudential: WSAPrudentialRecord[]
+  shortfalls: WSAShortfallRecord[]
+  exposures: WSAParticipantExposureRecord[]
+}
+
+export const getSettlementAnalyticsDashboard = (): Promise<SettlementAnalyticsDashboard62a> =>
+  get<SettlementAnalyticsDashboard62a>('/api/settlement-analytics/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 62c — NEM Real-Time Operational Overview Dashboard
+// ---------------------------------------------------------------------------
+
+export interface RTORegionSnapshot {
+  region: string
+  timestamp: string
+  total_demand_mw: number
+  generation_mw: number
+  rooftop_solar_mw: number
+  net_interchange_mw: number
+  spot_price_aud_mwh: number
+  frequency_hz: number
+  reserve_mw: number
+  generation_mix: Record<string, number>
+}
+
+export interface RTOInterconnectorFlow {
+  interconnector: string
+  from_region: string
+  to_region: string
+  flow_mw: number
+  capacity_mw: number
+  utilisation_pct: number
+  binding: boolean
+  marginal_loss: number
+}
+
+export interface RTOFcasSnapshot {
+  service: string
+  cleared_mw: number
+  clearing_price_aud_mw: number
+  requirement_mw: number
+  surplus_pct: number
+}
+
+export interface RTOSystemAlert {
+  alert_id: string
+  severity: 'INFO' | 'WARNING' | 'CRITICAL'
+  category: 'PRICE' | 'FREQUENCY' | 'RESERVE' | 'CONSTRAINT' | 'MARKET'
+  message: string
+  region: string
+  timestamp: string
+  acknowledged: boolean
+}
+
+export interface RealtimeOpsDashboard {
+  timestamp: string
+  regions: RTORegionSnapshot[]
+  interconnectors: RTOInterconnectorFlow[]
+  fcas: RTOFcasSnapshot[]
+  alerts: RTOSystemAlert[]
+}
+
+export const getRealtimeOpsDashboard = (): Promise<RealtimeOpsDashboard> =>
+  get<RealtimeOpsDashboard>('/api/realtime-ops/dashboard')
+
+// ── Sprint 62b: Renewable Auction Results & CfD Analytics ─────────────────
+
+export interface RAAAuctionResultRecord {
+  auction_id: string
+  auction_name: string
+  state: string
+  year: number
+  technology: 'WIND_ONSHORE' | 'WIND_OFFSHORE' | 'UTILITY_SOLAR' | 'HYBRID' | 'STORAGE'
+  capacity_mw: number
+  strike_price_aud_mwh: number
+  reference_price_aud_mwh: number
+  cfd_term_years: number
+  developer: string
+  cod_year: number
+  status: 'CONTRACTED' | 'UNDER_CONSTRUCTION' | 'COMMISSIONED' | 'TERMINATED'
+}
+
+export interface RAATechnologyTrendRecord {
+  technology: string
+  year: number
+  auction_count: number
+  avg_strike_price_aud_mwh: number
+  min_strike_price_aud_mwh: number
+  total_contracted_mw: number
+  oversubscription_ratio: number
+  cost_reduction_pct_from_2018: number
+}
+
+export interface RAAPerformanceRecord {
+  project_name: string
+  technology: string
+  state: string
+  contracted_capacity_mw: number
+  actual_capacity_factor_pct: number
+  bid_capacity_factor_pct: number
+  annual_generation_twh: number
+  cfd_payment_m_aud: number
+  market_revenue_m_aud: number
+}
+
+export interface RAAStateComparisonRecord {
+  state: string
+  total_contracted_mw: number
+  avg_strike_price_aud_mwh: number
+  cheapest_technology: string
+  auction_pipeline_mw: number
+  policy_target_mw: number
+  completion_pct: number
+}
+
+export interface RenewableAuctionDashboard {
+  timestamp: string
+  auction_results: RAAAuctionResultRecord[]
+  technology_trends: RAATechnologyTrendRecord[]
+  performance: RAAPerformanceRecord[]
+  state_comparison: RAAStateComparisonRecord[]
+}
+
+export const getRenewableAuctionDashboard = (): Promise<RenewableAuctionDashboard> =>
+  get<RenewableAuctionDashboard>('/api/renewable-auction/dashboard')

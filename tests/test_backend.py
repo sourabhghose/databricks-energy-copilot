@@ -7582,3 +7582,473 @@ class TestStorageOptimisationAnalytics:
             assert r["revenue_impact_m_aud"] == 0.0, (
                 f"{r['bess_id']} year 1 should have zero revenue impact"
             )
+
+
+# ===========================================================================
+# Sprint 62a — NEM 5-Minute Settlement & Prudential Analytics
+# ===========================================================================
+
+class TestSettlementAnalytics:
+    """Sprint 62a — NEM 5-Minute Settlement & Prudential Analytics endpoint tests."""
+
+    def test_settlement_analytics_dashboard(self, client):
+        resp = client.get(
+            "/api/settlement-analytics/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        d = resp.json()
+
+        # ── Top-level structure ────────────────────────────────────────────
+        for key in ("timestamp", "settlements", "prudential", "shortfalls", "exposures"):
+            assert key in d, f"Missing key: {key}"
+
+        # ── Settlement records ─────────────────────────────────────────────
+        settlements = d["settlements"]
+        assert len(settlements) == 10, f"Expected 10 settlement records, got {len(settlements)}"
+
+        valid_regions = {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+        for s in settlements:
+            assert s["region"] in valid_regions, f"Invalid region: {s['region']}"
+            assert s["total_energy_value_m_aud"] > 0, "total_energy_value must be positive"
+            assert s["avg_settlement_price_aud"] > 0, "avg_settlement_price must be positive"
+            assert s["peak_interval_price_aud"] > s["avg_settlement_price_aud"], (
+                "Peak interval price must exceed average settlement price"
+            )
+            assert s["settlement_variance_m_aud"] > 0, "settlement_variance must be positive"
+            assert s["positive_residue_m_aud"] > 0, "positive_residue must be positive"
+            assert s["negative_residue_m_aud"] > 0, "negative_residue must be positive"
+            # positive residue should exceed negative residue
+            assert s["positive_residue_m_aud"] > s["negative_residue_m_aud"], (
+                "Positive residue should exceed negative residue"
+            )
+
+        # SA1 should have highest variance (volatile renewables)
+        sa_records = [s for s in settlements if s["region"] == "SA1"]
+        nsw_records = [s for s in settlements if s["region"] == "NSW1"]
+        assert sa_records, "SA1 records missing"
+        assert nsw_records, "NSW1 records missing"
+        avg_sa_variance = sum(s["settlement_variance_m_aud"] for s in sa_records) / len(sa_records)
+        avg_nsw_variance = sum(s["settlement_variance_m_aud"] for s in nsw_records) / len(nsw_records)
+        assert avg_sa_variance > avg_nsw_variance, (
+            "SA1 should have higher settlement variance than NSW1 due to renewable volatility"
+        )
+
+        # Weeks covered
+        weeks = {s["week"] for s in settlements}
+        assert len(weeks) >= 4, f"Expected at least 4 weeks of data, got {len(weeks)}"
+
+        # ── Prudential records ─────────────────────────────────────────────
+        prudential = d["prudential"]
+        assert len(prudential) == 12, f"Expected 12 prudential records, got {len(prudential)}"
+
+        valid_collateral = {"BANK_GUARANTEE", "CASH", "LETTER_OF_CREDIT"}
+        valid_statuses = {"COMPLIANT", "WARNING", "BREACH"}
+
+        for p in prudential:
+            assert p["credit_support_m_aud"] > 0, "credit_support must be positive"
+            assert p["maximum_credit_limit_m_aud"] >= p["credit_support_m_aud"], (
+                f"{p['participant']}: max limit must be >= credit support"
+            )
+            assert 0 < p["utilisation_pct"] <= 100, (
+                f"{p['participant']}: utilisation {p['utilisation_pct']} out of range"
+            )
+            assert p["collateral_type"] in valid_collateral, (
+                f"Invalid collateral type: {p['collateral_type']}"
+            )
+            assert p["compliance_status"] in valid_statuses, (
+                f"Invalid compliance status: {p['compliance_status']}"
+            )
+            assert p["credit_rating"], f"{p['participant']}: credit_rating must not be empty"
+
+        # AGL Energy should have the highest maximum credit limit
+        limits = {p["participant"]: p["maximum_credit_limit_m_aud"] for p in prudential}
+        assert limits["AGL Energy"] == max(limits.values()), (
+            "AGL Energy should have the highest maximum credit limit"
+        )
+
+        # Walcha Energy should be in BREACH
+        walcha = next(p for p in prudential if p["participant"] == "Walcha Energy")
+        assert walcha["compliance_status"] == "BREACH", (
+            "Walcha Energy should have BREACH compliance status"
+        )
+
+        # At least 1 BREACH record
+        breach_count = sum(1 for p in prudential if p["compliance_status"] == "BREACH")
+        assert breach_count >= 1, "Expected at least 1 BREACH record"
+
+        # At least 1 WARNING record
+        warning_count = sum(1 for p in prudential if p["compliance_status"] == "WARNING")
+        assert warning_count >= 1, "Expected at least 1 WARNING record"
+
+        # Utilisation for BREACH participant should be highest
+        breach_record = next(p for p in prudential if p["compliance_status"] == "BREACH")
+        assert breach_record["utilisation_pct"] == max(p["utilisation_pct"] for p in prudential), (
+            "BREACH participant should have highest utilisation"
+        )
+
+        # ── Shortfall records ──────────────────────────────────────────────
+        shortfalls = d["shortfalls"]
+        assert len(shortfalls) == 5, f"Expected 5 shortfall records, got {len(shortfalls)}"
+
+        valid_shortfall_types = {"SETTLEMENT", "PRUDENTIAL", "MARKET_FEES"}
+        for sf in shortfalls:
+            assert sf["shortfall_m_aud"] > 0, "shortfall_m_aud must be positive"
+            assert sf["shortfall_type"] in valid_shortfall_types, (
+                f"Invalid shortfall type: {sf['shortfall_type']}"
+            )
+            assert sf["resolution_days"] > 0, "resolution_days must be positive"
+            assert sf["event_id"], "event_id must not be empty"
+            assert sf["date"], "date must not be empty"
+            assert sf["aemo_action"], "aemo_action must not be empty"
+            assert isinstance(sf["financial_security_drawn"], bool), (
+                "financial_security_drawn must be boolean"
+            )
+
+        # Events where financial security drawn should have DRAW_FINANCIAL_SECURITY action
+        drawn_events = [sf for sf in shortfalls if sf["financial_security_drawn"]]
+        for e in drawn_events:
+            assert e["aemo_action"] == "DRAW_FINANCIAL_SECURITY", (
+                f"Event {e['event_id']}: financial_security_drawn=True must have DRAW_FINANCIAL_SECURITY action"
+            )
+
+        # Walcha Energy should have shortfall events
+        walcha_shortfalls = [sf for sf in shortfalls if sf["participant"] == "Walcha Energy"]
+        assert len(walcha_shortfalls) >= 1, "Walcha Energy should have at least 1 shortfall event"
+
+        # Largest shortfall should have financial security drawn
+        largest = max(shortfalls, key=lambda sf: sf["shortfall_m_aud"])
+        assert largest["financial_security_drawn"], (
+            "Largest shortfall event should have financial security drawn"
+        )
+
+        # ── Exposure records ───────────────────────────────────────────────
+        exposures = d["exposures"]
+        assert len(exposures) == 20, f"Expected 20 exposure records, got {len(exposures)}"
+
+        for e in exposures:
+            assert e["gross_energy_purchase_m_aud"] > 0, "gross_purchase must be positive"
+            assert e["gross_energy_sale_m_aud"] > 0, "gross_sale must be positive"
+            assert e["exposure_utilisation_pct"] > 0, "exposure_utilisation_pct must be positive"
+            assert e["region"] in valid_regions, f"Invalid region: {e['region']}"
+            assert e["participant"], "participant must not be empty"
+            assert e["week"], "week must not be empty"
+            # net position = purchase - sale (positive = net buyer, negative = net seller)
+            expected_net = e["gross_energy_purchase_m_aud"] - e["gross_energy_sale_m_aud"]
+            assert abs(expected_net - e["net_position_m_aud"]) < 0.1, (
+                f"net_position_m_aud mismatch for {e['participant']} {e['week']}"
+            )
+
+        # AGL Energy should be present in exposures
+        agl_exposures = [e for e in exposures if e["participant"] == "AGL Energy"]
+        assert len(agl_exposures) >= 1, "AGL Energy must have exposure records"
+
+        # Top 5 participants should all be present
+        participants_in_exposures = {e["participant"] for e in exposures}
+        for expected in ("AGL Energy", "Origin Energy", "EnergyAustralia", "Snowy Hydro", "Alinta Energy"):
+            assert expected in participants_in_exposures, f"Missing participant: {expected}"
+
+        # 4 weeks of exposure data
+        weeks_in_exposures = {e["week"] for e in exposures}
+        assert len(weeks_in_exposures) >= 4, (
+            f"Expected at least 4 weeks of exposure data, got {len(weeks_in_exposures)}"
+        )
+
+
+class TestRealtimeOperationsDashboard:
+    """Sprint 62c — NEM Real-Time Operational Overview Dashboard tests."""
+
+    def test_realtime_ops_dashboard(self, client):
+        resp = client.get(
+            "/api/realtime-ops/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        body = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "regions", "interconnectors", "fcas", "alerts"):
+            assert key in body, f"Missing top-level key: {key}"
+
+        # ---- Regions ----
+        regions = body["regions"]
+        assert len(regions) == 5, f"Expected 5 region snapshots, got {len(regions)}"
+
+        region_codes = {r["region"] for r in regions}
+        assert region_codes == {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}, (
+            f"Expected all 5 NEM regions, got {region_codes}"
+        )
+
+        for r in regions:
+            assert r["total_demand_mw"] > 0, f"{r['region']} demand must be positive"
+            assert r["generation_mw"] > 0, f"{r['region']} generation must be positive"
+            assert r["spot_price_aud_mwh"] > 0, f"{r['region']} price must be positive"
+            assert 49.0 < r["frequency_hz"] < 51.0, (
+                f"{r['region']} frequency out of plausible range: {r['frequency_hz']}"
+            )
+            assert r["reserve_mw"] >= 0, f"{r['region']} reserve must be non-negative"
+            assert isinstance(r["generation_mix"], dict), "generation_mix must be a dict"
+            mix_total = sum(r["generation_mix"].values())
+            assert mix_total > 0, f"{r['region']} generation mix total must be positive"
+
+        # SA1 should have the highest spot price (mock data price spike)
+        sa1 = next(r for r in regions if r["region"] == "SA1")
+        assert sa1["spot_price_aud_mwh"] > 500, (
+            f"SA1 should have high spot price (>$500), got {sa1['spot_price_aud_mwh']}"
+        )
+
+        # TAS1 should have significant hydro
+        tas1 = next(r for r in regions if r["region"] == "TAS1")
+        assert tas1["generation_mix"].get("hydro", 0) > 400, (
+            f"TAS1 should have >400 MW hydro, got {tas1['generation_mix'].get('hydro', 0)}"
+        )
+
+        # ---- Interconnectors ----
+        interconnectors = body["interconnectors"]
+        assert len(interconnectors) == 6, (
+            f"Expected 6 interconnector records, got {len(interconnectors)}"
+        )
+
+        ic_names = {ic["interconnector"] for ic in interconnectors}
+        assert "BASSLINK" in ic_names, "BASSLINK must be present"
+        assert "V-SA" in ic_names, "V-SA must be present"
+        assert "QNI" in ic_names, "QNI must be present"
+
+        for ic in interconnectors:
+            assert ic["capacity_mw"] > 0, f"{ic['interconnector']} capacity must be positive"
+            assert 0 <= ic["utilisation_pct"] <= 100, (
+                f"{ic['interconnector']} utilisation out of range: {ic['utilisation_pct']}"
+            )
+            assert 0 <= ic["marginal_loss"] < 0.05, (
+                f"{ic['interconnector']} marginal loss implausible: {ic['marginal_loss']}"
+            )
+            assert isinstance(ic["binding"], bool), "binding must be bool"
+
+        # V-SA should be binding in mock data
+        v_sa = next(ic for ic in interconnectors if ic["interconnector"] == "V-SA")
+        assert v_sa["binding"] is True, "V-SA should be binding"
+
+        # ---- FCAS ----
+        fcas = body["fcas"]
+        assert len(fcas) == 8, f"Expected 8 FCAS service snapshots, got {len(fcas)}"
+
+        fcas_services = {f["service"] for f in fcas}
+        for svc in ("RAISE_6SEC", "RAISE_60SEC", "RAISE_5MIN", "RAISE_REG",
+                    "LOWER_6SEC", "LOWER_60SEC", "LOWER_5MIN", "LOWER_REG"):
+            assert svc in fcas_services, f"Missing FCAS service: {svc}"
+
+        for f in fcas:
+            assert f["cleared_mw"] > 0, f"{f['service']} cleared_mw must be positive"
+            assert f["requirement_mw"] > 0, f"{f['service']} requirement_mw must be positive"
+            assert f["clearing_price_aud_mw"] >= 0, f"{f['service']} price must be non-negative"
+            assert f["surplus_pct"] >= 0, f"{f['service']} surplus must be non-negative"
+            # Cleared MW should be >= requirement
+            assert f["cleared_mw"] >= f["requirement_mw"], (
+                f"{f['service']} cleared MW {f['cleared_mw']} < requirement {f['requirement_mw']}"
+            )
+
+        # Regulation services should have higher prices than contingency
+        raise_reg = next(f for f in fcas if f["service"] == "RAISE_REG")
+        raise_6sec = next(f for f in fcas if f["service"] == "RAISE_6SEC")
+        assert raise_reg["clearing_price_aud_mw"] > raise_6sec["clearing_price_aud_mw"], (
+            "RAISE_REG should have higher clearing price than RAISE_6SEC"
+        )
+
+        # ---- Alerts ----
+        alerts = body["alerts"]
+        assert len(alerts) == 6, f"Expected 6 system alerts, got {len(alerts)}"
+
+        severities = {a["severity"] for a in alerts}
+        assert "CRITICAL" in severities, "Should have at least one CRITICAL alert"
+        assert "WARNING" in severities, "Should have at least one WARNING alert"
+        assert "INFO" in severities, "Should have at least one INFO alert"
+
+        categories = {a["category"] for a in alerts}
+        assert "PRICE" in categories, "Should have a PRICE category alert"
+        assert "FREQUENCY" in categories, "Should have a FREQUENCY category alert"
+
+        for a in alerts:
+            assert a["alert_id"], "alert_id must not be empty"
+            assert a["message"], "message must not be empty"
+            assert a["region"], "region must not be empty"
+            assert a["timestamp"], "timestamp must not be empty"
+            assert isinstance(a["acknowledged"], bool), "acknowledged must be bool"
+            assert a["severity"] in ("INFO", "WARNING", "CRITICAL"), (
+                f"Invalid severity: {a['severity']}"
+            )
+            assert a["category"] in ("PRICE", "FREQUENCY", "RESERVE", "CONSTRAINT", "MARKET"), (
+                f"Invalid category: {a['category']}"
+            )
+
+        # The CRITICAL alert should be for SA1 price
+        critical_alerts = [a for a in alerts if a["severity"] == "CRITICAL"]
+        assert any(a["region"] == "SA1" for a in critical_alerts), (
+            "Should have a CRITICAL alert for SA1"
+        )
+
+        # Mix of acknowledged / unacknowledged
+        ack_count = sum(1 for a in alerts if a["acknowledged"])
+        unack_count = sum(1 for a in alerts if not a["acknowledged"])
+        assert ack_count > 0, "Should have at least one acknowledged alert"
+        assert unack_count > 0, "Should have at least one unacknowledged alert"
+
+
+class TestRenewableAuctionAnalytics:
+    """Sprint 62b — Renewable Energy Auction Results & CfD Analytics endpoint tests."""
+
+    def test_renewable_auction_dashboard(self, client, auth_headers):
+        resp = client.get(
+            "/api/renewable-auction/dashboard",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        d = resp.json()
+
+        # ── Top-level structure ────────────────────────────────────────────
+        for key in ("timestamp", "auction_results", "technology_trends", "performance", "state_comparison"):
+            assert key in d, f"Missing top-level key: {key}"
+
+        # ── Auction results ────────────────────────────────────────────────
+        results = d["auction_results"]
+        assert len(results) == 15, f"Expected 15 auction result records, got {len(results)}"
+
+        valid_technologies = {"WIND_ONSHORE", "WIND_OFFSHORE", "UTILITY_SOLAR", "HYBRID", "STORAGE"}
+        valid_statuses = {"CONTRACTED", "UNDER_CONSTRUCTION", "COMMISSIONED", "TERMINATED"}
+        valid_states = {"NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"}
+
+        for r in results:
+            assert r["auction_id"], "auction_id must be non-empty"
+            assert r["auction_name"], "auction_name must be non-empty"
+            assert r["state"] in valid_states, f"Invalid state: {r['state']}"
+            assert 2015 <= r["year"] <= 2030, f"Year out of range: {r['year']}"
+            assert r["technology"] in valid_technologies, f"Invalid technology: {r['technology']}"
+            assert r["capacity_mw"] > 0, "capacity_mw must be positive"
+            assert r["strike_price_aud_mwh"] > 0, "strike_price_aud_mwh must be positive"
+            assert r["reference_price_aud_mwh"] > 0, "reference_price_aud_mwh must be positive"
+            assert 5 <= r["cfd_term_years"] <= 25, f"cfd_term_years out of range: {r['cfd_term_years']}"
+            assert r["developer"], "developer must be non-empty"
+            assert 2020 <= r["cod_year"] <= 2035, f"cod_year out of range: {r['cod_year']}"
+            assert r["status"] in valid_statuses, f"Invalid status: {r['status']}"
+
+        # All technologies represented
+        techs_present = {r["technology"] for r in results}
+        for tech in {"WIND_ONSHORE", "UTILITY_SOLAR", "HYBRID", "STORAGE"}:
+            assert tech in techs_present, f"Missing technology in auction results: {tech}"
+
+        # At least one TERMINATED record
+        terminated = [r for r in results if r["status"] == "TERMINATED"]
+        assert len(terminated) >= 1, "Expected at least one TERMINATED record"
+
+        # Lowest strike price should be from UTILITY_SOLAR (typically cheapest)
+        cheapest = min(results, key=lambda r: r["strike_price_aud_mwh"])
+        assert cheapest["technology"] == "UTILITY_SOLAR", (
+            f"Expected cheapest to be UTILITY_SOLAR, got {cheapest['technology']}"
+        )
+
+        # ── Technology trends ──────────────────────────────────────────────
+        trends = d["technology_trends"]
+        assert len(trends) == 20, f"Expected 20 technology trend records, got {len(trends)}"
+
+        valid_trend_techs = {"WIND_ONSHORE", "UTILITY_SOLAR", "HYBRID", "STORAGE"}
+        for t in trends:
+            assert t["technology"] in valid_trend_techs, f"Invalid trend technology: {t['technology']}"
+            assert 2018 <= t["year"] <= 2025, f"Trend year out of range: {t['year']}"
+            assert t["auction_count"] > 0, "auction_count must be positive"
+            assert t["avg_strike_price_aud_mwh"] > 0, "avg_strike_price must be positive"
+            assert t["min_strike_price_aud_mwh"] > 0, "min_strike_price must be positive"
+            assert t["min_strike_price_aud_mwh"] <= t["avg_strike_price_aud_mwh"], (
+                "min_strike_price must be <= avg_strike_price"
+            )
+            assert t["total_contracted_mw"] > 0, "total_contracted_mw must be positive"
+            assert t["oversubscription_ratio"] >= 1.0, "oversubscription_ratio must be >= 1"
+            assert 0 <= t["cost_reduction_pct_from_2018"] <= 100, (
+                f"cost_reduction_pct out of range: {t['cost_reduction_pct_from_2018']}"
+            )
+
+        # Exactly 4 technologies with 5 years each
+        for tech in valid_trend_techs:
+            tech_records = [t for t in trends if t["technology"] == tech]
+            assert len(tech_records) == 5, f"Expected 5 year records for {tech}, got {len(tech_records)}"
+            years = sorted(r["year"] for r in tech_records)
+            assert years == [2018, 2019, 2020, 2021, 2022], f"Years mismatch for {tech}: {years}"
+
+        # 2018 baseline should have 0% cost reduction
+        for tech in valid_trend_techs:
+            baseline = next(t for t in trends if t["technology"] == tech and t["year"] == 2018)
+            assert baseline["cost_reduction_pct_from_2018"] == 0.0, (
+                f"{tech} 2018 baseline cost_reduction should be 0, got {baseline['cost_reduction_pct_from_2018']}"
+            )
+
+        # UTILITY_SOLAR should have lower avg strike than STORAGE in latest year
+        solar_2022 = next(t for t in trends if t["technology"] == "UTILITY_SOLAR" and t["year"] == 2022)
+        storage_2022 = next(t for t in trends if t["technology"] == "STORAGE" and t["year"] == 2022)
+        assert solar_2022["avg_strike_price_aud_mwh"] < storage_2022["avg_strike_price_aud_mwh"], (
+            "Solar should have lower strike than storage in 2022"
+        )
+
+        # ── Performance records ────────────────────────────────────────────
+        perf = d["performance"]
+        assert len(perf) == 10, f"Expected 10 performance records, got {len(perf)}"
+
+        for p in perf:
+            assert p["project_name"], "project_name must be non-empty"
+            assert p["technology"] in valid_technologies, f"Invalid tech: {p['technology']}"
+            assert p["state"] in valid_states, f"Invalid state: {p['state']}"
+            assert p["contracted_capacity_mw"] > 0, "contracted_capacity_mw must be positive"
+            assert 0 < p["actual_capacity_factor_pct"] < 100, (
+                f"actual_capacity_factor_pct out of range: {p['actual_capacity_factor_pct']}"
+            )
+            assert 0 < p["bid_capacity_factor_pct"] < 100, (
+                f"bid_capacity_factor_pct out of range: {p['bid_capacity_factor_pct']}"
+            )
+            assert p["annual_generation_twh"] > 0, "annual_generation_twh must be positive"
+            assert p["cfd_payment_m_aud"] >= 0, "cfd_payment_m_aud must be non-negative"
+            assert p["market_revenue_m_aud"] > 0, "market_revenue_m_aud must be positive"
+
+        # At least one record with CfD payment > 0 (receiving support)
+        paying = [p for p in perf if p["cfd_payment_m_aud"] > 0]
+        assert len(paying) >= 1, "Expected at least one project receiving CfD payment"
+
+        # Wind onshore should have highest average capacity factors
+        wind_cf = [p["actual_capacity_factor_pct"] for p in perf if p["technology"] == "WIND_ONSHORE"]
+        solar_cf = [p["actual_capacity_factor_pct"] for p in perf if p["technology"] == "UTILITY_SOLAR"]
+        assert wind_cf and solar_cf, "Expected both wind and solar performance records"
+        assert sum(wind_cf) / len(wind_cf) > sum(solar_cf) / len(solar_cf), (
+            "Wind should have higher average CF than solar"
+        )
+
+        # ── State comparison ───────────────────────────────────────────────
+        states = d["state_comparison"]
+        assert len(states) == 5, f"Expected 5 state comparison records, got {len(states)}"
+
+        for s in states:
+            assert s["state"] in valid_states, f"Invalid state: {s['state']}"
+            assert s["total_contracted_mw"] > 0, "total_contracted_mw must be positive"
+            assert s["avg_strike_price_aud_mwh"] > 0, "avg_strike_price must be positive"
+            assert s["cheapest_technology"] in valid_technologies, (
+                f"Invalid cheapest_technology: {s['cheapest_technology']}"
+            )
+            assert s["auction_pipeline_mw"] > 0, "auction_pipeline_mw must be positive"
+            assert s["policy_target_mw"] > 0, "policy_target_mw must be positive"
+            assert 0 <= s["completion_pct"] <= 100, (
+                f"completion_pct out of range: {s['completion_pct']}"
+            )
+            # Pipeline should not exceed policy target
+            assert s["auction_pipeline_mw"] <= s["policy_target_mw"], (
+                f"{s['state']} pipeline ({s['auction_pipeline_mw']}) exceeds policy target ({s['policy_target_mw']})"
+            )
+
+        # VIC should have highest contracted capacity (strong VRET programme)
+        vic = next((s for s in states if s["state"] == "VIC"), None)
+        assert vic is not None, "VIC state record missing"
+        nsw = next((s for s in states if s["state"] == "NSW"), None)
+        assert nsw is not None, "NSW state record missing"
+        assert vic["total_contracted_mw"] > nsw["total_contracted_mw"], (
+            "VIC should have higher contracted MW than NSW"
+        )
+
+        # UTILITY_SOLAR should be cheapest technology in most states
+        solar_cheapest_count = sum(1 for s in states if s["cheapest_technology"] == "UTILITY_SOLAR")
+        assert solar_cheapest_count >= 3, (
+            f"Expected UTILITY_SOLAR cheapest in >=3 states, got {solar_cheapest_count}"
+        )

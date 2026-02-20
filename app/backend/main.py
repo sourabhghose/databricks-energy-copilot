@@ -44175,3 +44175,640 @@ def get_dnsp_analytics_dashboard():
         der_hosting=[r.dict() for r in _DPA_DER_HOSTING],
         investments=[r.dict() for r in _DPA_INVESTMENTS],
     )
+
+
+# ============================================================================
+# Sprint 62a — NEM 5-Minute Settlement & Prudential Analytics
+# ============================================================================
+
+class WSASettlementRecord(BaseModel):
+    week: str
+    region: str
+    total_energy_value_m_aud: float
+    avg_settlement_price_aud: float
+    peak_interval_price_aud: float
+    settlement_variance_m_aud: float   # 5-min vs 30-min residue
+    positive_residue_m_aud: float
+    negative_residue_m_aud: float
+
+
+class WSAPrudentialRecord(BaseModel):
+    participant: str
+    credit_support_m_aud: float
+    maximum_credit_limit_m_aud: float
+    utilisation_pct: float
+    collateral_type: str   # BANK_GUARANTEE / CASH / LETTER_OF_CREDIT
+    credit_rating: str
+    compliance_status: str  # COMPLIANT / WARNING / BREACH
+
+
+class WSAShortfallRecord(BaseModel):
+    event_id: str
+    date: str
+    participant: str
+    shortfall_m_aud: float
+    shortfall_type: str   # SETTLEMENT / PRUDENTIAL / MARKET_FEES
+    resolution_days: int
+    financial_security_drawn: bool
+    aemo_action: str
+
+
+class WSAParticipantExposureRecord(BaseModel):
+    participant: str
+    week: str
+    gross_energy_purchase_m_aud: float
+    gross_energy_sale_m_aud: float
+    net_position_m_aud: float
+    exposure_utilisation_pct: float
+    region: str
+
+
+class SettlementAnalyticsDashboard(BaseModel):
+    timestamp: str
+    settlements: List[WSASettlementRecord]
+    prudential: List[WSAPrudentialRecord]
+    shortfalls: List[WSAShortfallRecord]
+    exposures: List[WSAParticipantExposureRecord]
+
+
+# ── Mock data ────────────────────────────────────────────────────────────────
+
+_WSA_SETTLEMENTS: List[WSASettlementRecord] = [
+    WSASettlementRecord(week="2024-W01", region="NSW1",  total_energy_value_m_aud=412.3, avg_settlement_price_aud=87.4,  peak_interval_price_aud=2840.0, settlement_variance_m_aud=18.2,  positive_residue_m_aud=22.7,  negative_residue_m_aud=4.5),
+    WSASettlementRecord(week="2024-W01", region="VIC1",  total_energy_value_m_aud=318.6, avg_settlement_price_aud=83.2,  peak_interval_price_aud=2650.0, settlement_variance_m_aud=14.8,  positive_residue_m_aud=18.3,  negative_residue_m_aud=3.5),
+    WSASettlementRecord(week="2024-W02", region="NSW1",  total_energy_value_m_aud=396.1, avg_settlement_price_aud=82.1,  peak_interval_price_aud=3100.0, settlement_variance_m_aud=21.4,  positive_residue_m_aud=26.9,  negative_residue_m_aud=5.5),
+    WSASettlementRecord(week="2024-W02", region="QLD1",  total_energy_value_m_aud=347.8, avg_settlement_price_aud=78.9,  peak_interval_price_aud=2450.0, settlement_variance_m_aud=12.3,  positive_residue_m_aud=15.1,  negative_residue_m_aud=2.8),
+    WSASettlementRecord(week="2024-W03", region="SA1",   total_energy_value_m_aud=189.4, avg_settlement_price_aud=104.7, peak_interval_price_aud=4200.0, settlement_variance_m_aud=31.6,  positive_residue_m_aud=38.2,  negative_residue_m_aud=6.6),
+    WSASettlementRecord(week="2024-W03", region="VIC1",  total_energy_value_m_aud=302.5, avg_settlement_price_aud=80.5,  peak_interval_price_aud=2800.0, settlement_variance_m_aud=16.9,  positive_residue_m_aud=20.4,  negative_residue_m_aud=3.5),
+    WSASettlementRecord(week="2024-W04", region="NSW1",  total_energy_value_m_aud=428.7, avg_settlement_price_aud=91.2,  peak_interval_price_aud=3550.0, settlement_variance_m_aud=24.7,  positive_residue_m_aud=30.1,  negative_residue_m_aud=5.4),
+    WSASettlementRecord(week="2024-W04", region="QLD1",  total_energy_value_m_aud=361.2, avg_settlement_price_aud=81.4,  peak_interval_price_aud=2750.0, settlement_variance_m_aud=15.2,  positive_residue_m_aud=18.9,  negative_residue_m_aud=3.7),
+    WSASettlementRecord(week="2024-W05", region="TAS1",  total_energy_value_m_aud=98.3,  avg_settlement_price_aud=68.9,  peak_interval_price_aud=1850.0, settlement_variance_m_aud=6.4,   positive_residue_m_aud=7.8,   negative_residue_m_aud=1.4),
+    WSASettlementRecord(week="2024-W05", region="SA1",   total_energy_value_m_aud=207.6, avg_settlement_price_aud=112.3, peak_interval_price_aud=4800.0, settlement_variance_m_aud=37.8,  positive_residue_m_aud=45.2,  negative_residue_m_aud=7.4),
+]
+
+_WSA_PRUDENTIAL: List[WSAPrudentialRecord] = [
+    WSAPrudentialRecord(participant="AGL Energy",           credit_support_m_aud=180.0, maximum_credit_limit_m_aud=250.0, utilisation_pct=72.0, collateral_type="BANK_GUARANTEE",    credit_rating="A-",  compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="Origin Energy",        credit_support_m_aud=165.0, maximum_credit_limit_m_aud=220.0, utilisation_pct=75.0, collateral_type="BANK_GUARANTEE",    credit_rating="BBB+",compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="EnergyAustralia",      credit_support_m_aud=142.0, maximum_credit_limit_m_aud=185.0, utilisation_pct=76.8, collateral_type="CASH",              credit_rating="A",   compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="Snowy Hydro",          credit_support_m_aud=95.0,  maximum_credit_limit_m_aud=120.0, utilisation_pct=79.2, collateral_type="BANK_GUARANTEE",    credit_rating="AA-", compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="Alinta Energy",        credit_support_m_aud=72.0,  maximum_credit_limit_m_aud=90.0,  utilisation_pct=80.0, collateral_type="LETTER_OF_CREDIT", credit_rating="BBB", compliance_status="WARNING"),
+    WSAPrudentialRecord(participant="Neoen Australia",      credit_support_m_aud=48.0,  maximum_credit_limit_m_aud=60.0,  utilisation_pct=80.0, collateral_type="CASH",              credit_rating="BB+", compliance_status="WARNING"),
+    WSAPrudentialRecord(participant="Infigen Energy",       credit_support_m_aud=31.5,  maximum_credit_limit_m_aud=40.0,  utilisation_pct=78.8, collateral_type="LETTER_OF_CREDIT", credit_rating="BB",  compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="Tilt Renewables",      credit_support_m_aud=28.0,  maximum_credit_limit_m_aud=35.0,  utilisation_pct=80.0, collateral_type="BANK_GUARANTEE",    credit_rating="BB+", compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="Pacific Hydro",        credit_support_m_aud=55.0,  maximum_credit_limit_m_aud=65.0,  utilisation_pct=84.6, collateral_type="CASH",              credit_rating="BBB-",compliance_status="WARNING"),
+    WSAPrudentialRecord(participant="Stanwell Corporation", credit_support_m_aud=88.0,  maximum_credit_limit_m_aud=110.0, utilisation_pct=80.0, collateral_type="BANK_GUARANTEE",    credit_rating="A",   compliance_status="COMPLIANT"),
+    WSAPrudentialRecord(participant="CS Energy",            credit_support_m_aud=62.0,  maximum_credit_limit_m_aud=75.0,  utilisation_pct=82.7, collateral_type="BANK_GUARANTEE",    credit_rating="BBB", compliance_status="WARNING"),
+    WSAPrudentialRecord(participant="Walcha Energy",        credit_support_m_aud=12.5,  maximum_credit_limit_m_aud=15.0,  utilisation_pct=96.0, collateral_type="CASH",              credit_rating="B+",  compliance_status="BREACH"),
+]
+
+_WSA_SHORTFALLS: List[WSAShortfallRecord] = [
+    WSAShortfallRecord(event_id="SF-2024-001", date="2024-01-15", participant="Walcha Energy",   shortfall_m_aud=2.8,  shortfall_type="SETTLEMENT",    resolution_days=12, financial_security_drawn=True,  aemo_action="DRAW_FINANCIAL_SECURITY"),
+    WSAShortfallRecord(event_id="SF-2024-002", date="2024-02-28", participant="Neoen Australia", shortfall_m_aud=1.4,  shortfall_type="PRUDENTIAL",    resolution_days=7,  financial_security_drawn=False, aemo_action="PAYMENT_ARRANGEMENT"),
+    WSAShortfallRecord(event_id="SF-2024-003", date="2024-04-09", participant="Infigen Energy",  shortfall_m_aud=0.9,  shortfall_type="MARKET_FEES",   resolution_days=4,  financial_security_drawn=False, aemo_action="LATE_PAYMENT_NOTICE"),
+    WSAShortfallRecord(event_id="SF-2024-004", date="2024-07-22", participant="Walcha Energy",   shortfall_m_aud=3.6,  shortfall_type="SETTLEMENT",    resolution_days=18, financial_security_drawn=True,  aemo_action="DRAW_FINANCIAL_SECURITY"),
+    WSAShortfallRecord(event_id="SF-2024-005", date="2024-10-03", participant="CS Energy",       shortfall_m_aud=5.2,  shortfall_type="PRUDENTIAL",    resolution_days=9,  financial_security_drawn=True,  aemo_action="DRAW_FINANCIAL_SECURITY"),
+]
+
+_WSA_EXPOSURES: List[WSAParticipantExposureRecord] = [
+    WSAParticipantExposureRecord(participant="AGL Energy",      week="2024-W01", gross_energy_purchase_m_aud=285.4, gross_energy_sale_m_aud=310.2, net_position_m_aud=-24.8, exposure_utilisation_pct=68.2, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Origin Energy",   week="2024-W01", gross_energy_purchase_m_aud=198.7, gross_energy_sale_m_aud=220.5, net_position_m_aud=-21.8, exposure_utilisation_pct=71.4, region="QLD1"),
+    WSAParticipantExposureRecord(participant="EnergyAustralia", week="2024-W01", gross_energy_purchase_m_aud=172.3, gross_energy_sale_m_aud=155.8, net_position_m_aud=16.5,  exposure_utilisation_pct=74.6, region="VIC1"),
+    WSAParticipantExposureRecord(participant="Snowy Hydro",     week="2024-W01", gross_energy_purchase_m_aud=88.2,  gross_energy_sale_m_aud=112.6, net_position_m_aud=-24.4, exposure_utilisation_pct=76.1, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Alinta Energy",   week="2024-W01", gross_energy_purchase_m_aud=64.5,  gross_energy_sale_m_aud=70.1,  net_position_m_aud=-5.6,  exposure_utilisation_pct=79.8, region="SA1"),
+    WSAParticipantExposureRecord(participant="AGL Energy",      week="2024-W02", gross_energy_purchase_m_aud=292.1, gross_energy_sale_m_aud=318.4, net_position_m_aud=-26.3, exposure_utilisation_pct=70.5, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Origin Energy",   week="2024-W02", gross_energy_purchase_m_aud=204.3, gross_energy_sale_m_aud=228.9, net_position_m_aud=-24.6, exposure_utilisation_pct=73.2, region="QLD1"),
+    WSAParticipantExposureRecord(participant="EnergyAustralia", week="2024-W02", gross_energy_purchase_m_aud=165.8, gross_energy_sale_m_aud=148.4, net_position_m_aud=17.4,  exposure_utilisation_pct=75.9, region="VIC1"),
+    WSAParticipantExposureRecord(participant="Snowy Hydro",     week="2024-W02", gross_energy_purchase_m_aud=91.7,  gross_energy_sale_m_aud=118.3, net_position_m_aud=-26.6, exposure_utilisation_pct=77.8, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Alinta Energy",   week="2024-W02", gross_energy_purchase_m_aud=68.2,  gross_energy_sale_m_aud=74.8,  net_position_m_aud=-6.6,  exposure_utilisation_pct=81.3, region="SA1"),
+    WSAParticipantExposureRecord(participant="AGL Energy",      week="2024-W03", gross_energy_purchase_m_aud=278.6, gross_energy_sale_m_aud=302.7, net_position_m_aud=-24.1, exposure_utilisation_pct=67.1, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Origin Energy",   week="2024-W03", gross_energy_purchase_m_aud=211.8, gross_energy_sale_m_aud=235.4, net_position_m_aud=-23.6, exposure_utilisation_pct=74.8, region="QLD1"),
+    WSAParticipantExposureRecord(participant="EnergyAustralia", week="2024-W03", gross_energy_purchase_m_aud=168.4, gross_energy_sale_m_aud=152.1, net_position_m_aud=16.3,  exposure_utilisation_pct=73.8, region="VIC1"),
+    WSAParticipantExposureRecord(participant="Snowy Hydro",     week="2024-W03", gross_energy_purchase_m_aud=94.3,  gross_energy_sale_m_aud=121.7, net_position_m_aud=-27.4, exposure_utilisation_pct=79.2, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Alinta Energy",   week="2024-W03", gross_energy_purchase_m_aud=71.4,  gross_energy_sale_m_aud=78.6,  net_position_m_aud=-7.2,  exposure_utilisation_pct=83.1, region="SA1"),
+    WSAParticipantExposureRecord(participant="AGL Energy",      week="2024-W04", gross_energy_purchase_m_aud=301.4, gross_energy_sale_m_aud=327.8, net_position_m_aud=-26.4, exposure_utilisation_pct=72.4, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Origin Energy",   week="2024-W04", gross_energy_purchase_m_aud=219.6, gross_energy_sale_m_aud=244.2, net_position_m_aud=-24.6, exposure_utilisation_pct=76.3, region="QLD1"),
+    WSAParticipantExposureRecord(participant="EnergyAustralia", week="2024-W04", gross_energy_purchase_m_aud=174.2, gross_energy_sale_m_aud=158.6, net_position_m_aud=15.6,  exposure_utilisation_pct=77.4, region="VIC1"),
+    WSAParticipantExposureRecord(participant="Snowy Hydro",     week="2024-W04", gross_energy_purchase_m_aud=97.8,  gross_energy_sale_m_aud=124.9, net_position_m_aud=-27.1, exposure_utilisation_pct=80.6, region="NSW1"),
+    WSAParticipantExposureRecord(participant="Alinta Energy",   week="2024-W04", gross_energy_purchase_m_aud=74.1,  gross_energy_sale_m_aud=81.3,  net_position_m_aud=-7.2,  exposure_utilisation_pct=84.7, region="SA1"),
+]
+
+
+@app.get("/api/settlement-analytics/dashboard", dependencies=[Depends(verify_api_key)])
+def get_settlement_analytics_dashboard() -> SettlementAnalyticsDashboard:
+    """NEM 5-Minute Settlement & Prudential Analytics dashboard."""
+    return SettlementAnalyticsDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        settlements=_WSA_SETTLEMENTS,
+        prudential=_WSA_PRUDENTIAL,
+        shortfalls=_WSA_SHORTFALLS,
+        exposures=_WSA_EXPOSURES,
+    )
+
+# ===========================================================================
+# Sprint 62c — NEM Real-Time Operational Overview Dashboard
+# ===========================================================================
+
+class RTORegionSnapshot(BaseModel):
+    region: str
+    timestamp: str
+    total_demand_mw: float
+    generation_mw: float
+    rooftop_solar_mw: float
+    net_interchange_mw: float
+    spot_price_aud_mwh: float
+    frequency_hz: float
+    reserve_mw: float
+    generation_mix: Dict[str, float]
+
+
+class RTOInterconnectorFlow(BaseModel):
+    interconnector: str
+    from_region: str
+    to_region: str
+    flow_mw: float
+    capacity_mw: float
+    utilisation_pct: float
+    binding: bool
+    marginal_loss: float
+
+
+class RTOFcasSnapshot(BaseModel):
+    service: str
+    cleared_mw: float
+    clearing_price_aud_mw: float
+    requirement_mw: float
+    surplus_pct: float
+
+
+class RTOSystemAlert(BaseModel):
+    alert_id: str
+    severity: str  # INFO / WARNING / CRITICAL
+    category: str  # PRICE / FREQUENCY / RESERVE / CONSTRAINT / MARKET
+    message: str
+    region: str
+    timestamp: str
+    acknowledged: bool
+
+
+class RealtimeOpsDashboard(BaseModel):
+    timestamp: str
+    regions: List[RTORegionSnapshot]
+    interconnectors: List[RTOInterconnectorFlow]
+    fcas: List[RTOFcasSnapshot]
+    alerts: List[RTOSystemAlert]
+
+
+_RTO_REGIONS: List[RTORegionSnapshot] = [
+    RTORegionSnapshot(
+        region="NSW1",
+        timestamp="2026-02-20T04:30:00+00:00",
+        total_demand_mw=8420.5,
+        generation_mw=8610.2,
+        rooftop_solar_mw=1240.3,
+        net_interchange_mw=-189.7,
+        spot_price_aud_mwh=87.45,
+        frequency_hz=49.99,
+        reserve_mw=1450.8,
+        generation_mix={
+            "coal": 4820.0,
+            "gas": 980.5,
+            "wind": 620.3,
+            "solar": 710.4,
+            "hydro": 290.0,
+            "battery": 145.0,
+            "other": 44.0,
+        },
+    ),
+    RTORegionSnapshot(
+        region="QLD1",
+        timestamp="2026-02-20T04:30:00+00:00",
+        total_demand_mw=6850.0,
+        generation_mw=7120.5,
+        rooftop_solar_mw=980.2,
+        net_interchange_mw=-270.5,
+        spot_price_aud_mwh=124.30,
+        frequency_hz=50.01,
+        reserve_mw=1180.5,
+        generation_mix={
+            "coal": 3850.0,
+            "gas": 1420.0,
+            "wind": 385.5,
+            "solar": 830.0,
+            "hydro": 480.0,
+            "battery": 100.0,
+            "other": 55.0,
+        },
+    ),
+    RTORegionSnapshot(
+        region="VIC1",
+        timestamp="2026-02-20T04:30:00+00:00",
+        total_demand_mw=5280.4,
+        generation_mw=5640.8,
+        rooftop_solar_mw=730.5,
+        net_interchange_mw=-360.4,
+        spot_price_aud_mwh=72.80,
+        frequency_hz=50.00,
+        reserve_mw=980.2,
+        generation_mix={
+            "coal": 2180.0,
+            "gas": 780.0,
+            "wind": 1420.0,
+            "solar": 480.0,
+            "hydro": 620.0,
+            "battery": 100.8,
+            "other": 60.0,
+        },
+    ),
+    RTORegionSnapshot(
+        region="SA1",
+        timestamp="2026-02-20T04:30:00+00:00",
+        total_demand_mw=1640.2,
+        generation_mw=1980.5,
+        rooftop_solar_mw=420.8,
+        net_interchange_mw=-340.3,
+        spot_price_aud_mwh=698.50,
+        frequency_hz=49.97,
+        reserve_mw=240.5,
+        generation_mix={
+            "coal": 0.0,
+            "gas": 480.0,
+            "wind": 920.5,
+            "solar": 310.0,
+            "hydro": 0.0,
+            "battery": 240.0,
+            "other": 30.0,
+        },
+    ),
+    RTORegionSnapshot(
+        region="TAS1",
+        timestamp="2026-02-20T04:30:00+00:00",
+        total_demand_mw=1120.8,
+        generation_mw=1380.2,
+        rooftop_solar_mw=85.4,
+        net_interchange_mw=-259.4,
+        spot_price_aud_mwh=68.20,
+        frequency_hz=50.02,
+        reserve_mw=380.5,
+        generation_mix={
+            "coal": 0.0,
+            "gas": 0.0,
+            "wind": 420.0,
+            "solar": 60.0,
+            "hydro": 880.2,
+            "battery": 10.0,
+            "other": 10.0,
+        },
+    ),
+]
+
+_RTO_INTERCONNECTORS: List[RTOInterconnectorFlow] = [
+    RTOInterconnectorFlow(
+        interconnector="QNI",
+        from_region="QLD1",
+        to_region="NSW1",
+        flow_mw=620.5,
+        capacity_mw=1078.0,
+        utilisation_pct=57.6,
+        binding=False,
+        marginal_loss=0.0042,
+    ),
+    RTOInterconnectorFlow(
+        interconnector="NSW1-QLD1",
+        from_region="NSW1",
+        to_region="QLD1",
+        flow_mw=-85.2,
+        capacity_mw=600.0,
+        utilisation_pct=14.2,
+        binding=False,
+        marginal_loss=0.0038,
+    ),
+    RTOInterconnectorFlow(
+        interconnector="VIC1-NSW1",
+        from_region="VIC1",
+        to_region="NSW1",
+        flow_mw=480.8,
+        capacity_mw=1900.0,
+        utilisation_pct=25.3,
+        binding=False,
+        marginal_loss=0.0055,
+    ),
+    RTOInterconnectorFlow(
+        interconnector="V-SA",
+        from_region="VIC1",
+        to_region="SA1",
+        flow_mw=340.3,
+        capacity_mw=630.0,
+        utilisation_pct=54.0,
+        binding=True,
+        marginal_loss=0.0087,
+    ),
+    RTOInterconnectorFlow(
+        interconnector="V-S-MNSP1",
+        from_region="SA1",
+        to_region="VIC1",
+        flow_mw=-120.5,
+        capacity_mw=220.0,
+        utilisation_pct=54.8,
+        binding=False,
+        marginal_loss=0.0092,
+    ),
+    RTOInterconnectorFlow(
+        interconnector="BASSLINK",
+        from_region="TAS1",
+        to_region="VIC1",
+        flow_mw=259.4,
+        capacity_mw=594.0,
+        utilisation_pct=43.7,
+        binding=False,
+        marginal_loss=0.0125,
+    ),
+]
+
+_RTO_FCAS: List[RTOFcasSnapshot] = [
+    RTOFcasSnapshot(
+        service="RAISE_6SEC",
+        cleared_mw=680.5,
+        clearing_price_aud_mw=12.80,
+        requirement_mw=620.0,
+        surplus_pct=9.8,
+    ),
+    RTOFcasSnapshot(
+        service="RAISE_60SEC",
+        cleared_mw=580.2,
+        clearing_price_aud_mw=8.40,
+        requirement_mw=530.0,
+        surplus_pct=9.5,
+    ),
+    RTOFcasSnapshot(
+        service="RAISE_5MIN",
+        cleared_mw=820.4,
+        clearing_price_aud_mw=6.20,
+        requirement_mw=780.0,
+        surplus_pct=5.2,
+    ),
+    RTOFcasSnapshot(
+        service="RAISE_REG",
+        cleared_mw=250.8,
+        clearing_price_aud_mw=18.60,
+        requirement_mw=220.0,
+        surplus_pct=14.0,
+    ),
+    RTOFcasSnapshot(
+        service="LOWER_6SEC",
+        cleared_mw=720.3,
+        clearing_price_aud_mw=9.50,
+        requirement_mw=680.0,
+        surplus_pct=5.9,
+    ),
+    RTOFcasSnapshot(
+        service="LOWER_60SEC",
+        cleared_mw=540.0,
+        clearing_price_aud_mw=7.30,
+        requirement_mw=500.0,
+        surplus_pct=8.0,
+    ),
+    RTOFcasSnapshot(
+        service="LOWER_5MIN",
+        cleared_mw=780.5,
+        clearing_price_aud_mw=5.80,
+        requirement_mw=740.0,
+        surplus_pct=5.5,
+    ),
+    RTOFcasSnapshot(
+        service="LOWER_REG",
+        cleared_mw=230.4,
+        clearing_price_aud_mw=15.20,
+        requirement_mw=210.0,
+        surplus_pct=9.7,
+    ),
+]
+
+_RTO_ALERTS: List[RTOSystemAlert] = [
+    RTOSystemAlert(
+        alert_id="ALT-20260220-001",
+        severity="CRITICAL",
+        category="PRICE",
+        message="SA1 spot price exceeded $600/MWh — high-price event in progress. Interconnector V-SA binding.",
+        region="SA1",
+        timestamp="2026-02-20T04:28:00+00:00",
+        acknowledged=False,
+    ),
+    RTOSystemAlert(
+        alert_id="ALT-20260220-002",
+        severity="WARNING",
+        category="FREQUENCY",
+        message="SA1 system frequency deviation: 49.97 Hz — monitoring under-frequency event.",
+        region="SA1",
+        timestamp="2026-02-20T04:29:30+00:00",
+        acknowledged=False,
+    ),
+    RTOSystemAlert(
+        alert_id="ALT-20260220-003",
+        severity="WARNING",
+        category="CONSTRAINT",
+        message="V-SA interconnector binding at 54% utilisation — flow constrained southbound.",
+        region="VIC1",
+        timestamp="2026-02-20T04:25:00+00:00",
+        acknowledged=False,
+    ),
+    RTOSystemAlert(
+        alert_id="ALT-20260220-004",
+        severity="INFO",
+        category="RESERVE",
+        message="SA1 operating reserve below 300 MW threshold — LOR1 condition imminent if demand rises.",
+        region="SA1",
+        timestamp="2026-02-20T04:15:00+00:00",
+        acknowledged=True,
+    ),
+    RTOSystemAlert(
+        alert_id="ALT-20260220-005",
+        severity="INFO",
+        category="MARKET",
+        message="QLD1 spot price above $100/MWh — demand response participants may be activated.",
+        region="QLD1",
+        timestamp="2026-02-20T04:20:00+00:00",
+        acknowledged=True,
+    ),
+    RTOSystemAlert(
+        alert_id="ALT-20260220-006",
+        severity="WARNING",
+        category="RESERVE",
+        message="NEM-wide RAISE_REG surplus tightening — 14% above requirement; monitor for LOR2 escalation.",
+        region="NEM",
+        timestamp="2026-02-20T04:10:00+00:00",
+        acknowledged=False,
+    ),
+]
+
+
+@app.get("/api/realtime-ops/dashboard", dependencies=[Depends(verify_api_key)])
+def get_realtime_ops_dashboard() -> RealtimeOpsDashboard:
+    from datetime import datetime, timezone
+    return RealtimeOpsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        regions=[r.dict() for r in _RTO_REGIONS],
+        interconnectors=[r.dict() for r in _RTO_INTERCONNECTORS],
+        fcas=[r.dict() for r in _RTO_FCAS],
+        alerts=[r.dict() for r in _RTO_ALERTS],
+    )
+
+
+# ============================================================
+# Sprint 62b — Renewable Energy Auction Results & CfD Analytics
+# ============================================================
+
+class RAATechnologyEnum(str, Enum):
+    WIND_ONSHORE  = "WIND_ONSHORE"
+    WIND_OFFSHORE = "WIND_OFFSHORE"
+    UTILITY_SOLAR = "UTILITY_SOLAR"
+    HYBRID        = "HYBRID"
+    STORAGE       = "STORAGE"
+
+class RAAStatusEnum(str, Enum):
+    CONTRACTED         = "CONTRACTED"
+    UNDER_CONSTRUCTION = "UNDER_CONSTRUCTION"
+    COMMISSIONED       = "COMMISSIONED"
+    TERMINATED         = "TERMINATED"
+
+class RAAAuctionResultRecord(BaseModel):
+    auction_id: str
+    auction_name: str
+    state: str
+    year: int
+    technology: RAATechnologyEnum
+    capacity_mw: float
+    strike_price_aud_mwh: float
+    reference_price_aud_mwh: float
+    cfd_term_years: int
+    developer: str
+    cod_year: int
+    status: RAAStatusEnum
+
+class RAATechnologyTrendRecord(BaseModel):
+    technology: str
+    year: int
+    auction_count: int
+    avg_strike_price_aud_mwh: float
+    min_strike_price_aud_mwh: float
+    total_contracted_mw: float
+    oversubscription_ratio: float
+    cost_reduction_pct_from_2018: float
+
+class RAAPerformanceRecord(BaseModel):
+    project_name: str
+    technology: str
+    state: str
+    contracted_capacity_mw: float
+    actual_capacity_factor_pct: float
+    bid_capacity_factor_pct: float
+    annual_generation_twh: float
+    cfd_payment_m_aud: float
+    market_revenue_m_aud: float
+
+class RAAStateComparisonRecord(BaseModel):
+    state: str
+    total_contracted_mw: float
+    avg_strike_price_aud_mwh: float
+    cheapest_technology: str
+    auction_pipeline_mw: float
+    policy_target_mw: float
+    completion_pct: float
+
+class RenewableAuctionDashboard(BaseModel):
+    timestamp: str
+    auction_results: List[dict]
+    technology_trends: List[dict]
+    performance: List[dict]
+    state_comparison: List[dict]
+
+
+# ── Mock data ────────────────────────────────────────────────────────────────
+
+_RAA_AUCTION_RESULTS: List[RAAAuctionResultRecord] = [
+    # NSW LTESA / REZ contracts
+    RAAAuctionResultRecord(auction_id="LTESA-2022-001", auction_name="NSW LTESA Round 1", state="NSW", year=2022, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=280.0, strike_price_aud_mwh=52.10, reference_price_aud_mwh=68.40, cfd_term_years=15, developer="AGL Energy", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
+    RAAAuctionResultRecord(auction_id="LTESA-2022-002", auction_name="NSW LTESA Round 1", state="NSW", year=2022, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=320.0, strike_price_aud_mwh=61.30, reference_price_aud_mwh=68.40, cfd_term_years=15, developer="Tilt Renewables", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
+    RAAAuctionResultRecord(auction_id="LTESA-2022-003", auction_name="NSW LTESA Round 1", state="NSW", year=2022, technology=RAATechnologyEnum.HYBRID, capacity_mw=150.0, strike_price_aud_mwh=74.80, reference_price_aud_mwh=68.40, cfd_term_years=15, developer="Neoen", cod_year=2026, status=RAAStatusEnum.CONTRACTED),
+    RAAAuctionResultRecord(auction_id="LTESA-2023-001", auction_name="NSW LTESA Round 2", state="NSW", year=2023, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=400.0, strike_price_aud_mwh=48.60, reference_price_aud_mwh=71.20, cfd_term_years=15, developer="Origin Energy", cod_year=2026, status=RAAStatusEnum.CONTRACTED),
+    RAAAuctionResultRecord(auction_id="LTESA-2023-002", auction_name="NSW LTESA Round 2", state="NSW", year=2023, technology=RAATechnologyEnum.STORAGE, capacity_mw=200.0, strike_price_aud_mwh=82.40, reference_price_aud_mwh=71.20, cfd_term_years=10, developer="Akaysha Energy", cod_year=2027, status=RAAStatusEnum.CONTRACTED),
+    # VIC VRET contracts
+    RAAAuctionResultRecord(auction_id="VRET-2019-001", auction_name="Victorian VRET Round 2", state="VIC", year=2019, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=530.0, strike_price_aud_mwh=58.00, reference_price_aud_mwh=75.00, cfd_term_years=15, developer="Vestas / CIP", cod_year=2022, status=RAAStatusEnum.COMMISSIONED),
+    RAAAuctionResultRecord(auction_id="VRET-2019-002", auction_name="Victorian VRET Round 2", state="VIC", year=2019, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=128.0, strike_price_aud_mwh=62.50, reference_price_aud_mwh=75.00, cfd_term_years=15, developer="Lightsource BP", cod_year=2022, status=RAAStatusEnum.COMMISSIONED),
+    RAAAuctionResultRecord(auction_id="VRET-2021-001", auction_name="Victorian VRET Round 3", state="VIC", year=2021, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=340.0, strike_price_aud_mwh=44.20, reference_price_aud_mwh=72.00, cfd_term_years=15, developer="Neoen", cod_year=2024, status=RAAStatusEnum.COMMISSIONED),
+    RAAAuctionResultRecord(auction_id="VRET-2021-002", auction_name="Victorian VRET Round 3", state="VIC", year=2021, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=460.0, strike_price_aud_mwh=55.70, reference_price_aud_mwh=72.00, cfd_term_years=15, developer="RES Australia", cod_year=2024, status=RAAStatusEnum.COMMISSIONED),
+    # QLD QRET contracts
+    RAAAuctionResultRecord(auction_id="QRET-2020-001", auction_name="QLD QRET Round 1", state="QLD", year=2020, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=600.0, strike_price_aud_mwh=45.80, reference_price_aud_mwh=65.00, cfd_term_years=20, developer="Acciona", cod_year=2023, status=RAAStatusEnum.COMMISSIONED),
+    RAAAuctionResultRecord(auction_id="QRET-2022-001", auction_name="QLD QRET Round 2", state="QLD", year=2022, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=390.0, strike_price_aud_mwh=59.40, reference_price_aud_mwh=67.00, cfd_term_years=15, developer="Windlab", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
+    RAAAuctionResultRecord(auction_id="QRET-2022-002", auction_name="QLD QRET Round 2", state="QLD", year=2022, technology=RAATechnologyEnum.HYBRID, capacity_mw=220.0, strike_price_aud_mwh=68.90, reference_price_aud_mwh=67.00, cfd_term_years=15, developer="SunCable", cod_year=2026, status=RAAStatusEnum.CONTRACTED),
+    # SA REZ contracts
+    RAAAuctionResultRecord(auction_id="SA-REZ-2021-001", auction_name="SA REZ Tender", state="SA", year=2021, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=240.0, strike_price_aud_mwh=53.20, reference_price_aud_mwh=69.50, cfd_term_years=15, developer="Pacific Hydro", cod_year=2024, status=RAAStatusEnum.COMMISSIONED),
+    RAAAuctionResultRecord(auction_id="SA-REZ-2022-001", auction_name="SA REZ Tender Round 2", state="SA", year=2022, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=175.0, strike_price_aud_mwh=41.50, reference_price_aud_mwh=69.50, cfd_term_years=15, developer="Beon Energy", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
+    # Terminated example
+    RAAAuctionResultRecord(auction_id="LTESA-2021-T01", auction_name="NSW LTESA Pilot", state="NSW", year=2021, technology=RAATechnologyEnum.WIND_OFFSHORE, capacity_mw=500.0, strike_price_aud_mwh=98.00, reference_price_aud_mwh=68.40, cfd_term_years=20, developer="BlueFloat Energy", cod_year=2028, status=RAAStatusEnum.TERMINATED),
+]
+
+_RAA_TECHNOLOGY_TRENDS: List[RAATechnologyTrendRecord] = [
+    # UTILITY_SOLAR — 5 years
+    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2018, auction_count=3, avg_strike_price_aud_mwh=82.50, min_strike_price_aud_mwh=78.00, total_contracted_mw=420.0, oversubscription_ratio=2.1, cost_reduction_pct_from_2018=0.0),
+    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2019, auction_count=4, avg_strike_price_aud_mwh=72.40, min_strike_price_aud_mwh=64.00, total_contracted_mw=680.0, oversubscription_ratio=2.8, cost_reduction_pct_from_2018=12.2),
+    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2020, auction_count=5, avg_strike_price_aud_mwh=59.30, min_strike_price_aud_mwh=45.80, total_contracted_mw=1240.0, oversubscription_ratio=3.5, cost_reduction_pct_from_2018=28.1),
+    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2021, auction_count=6, avg_strike_price_aud_mwh=51.80, min_strike_price_aud_mwh=41.50, total_contracted_mw=1850.0, oversubscription_ratio=4.2, cost_reduction_pct_from_2018=37.2),
+    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2022, auction_count=7, avg_strike_price_aud_mwh=47.20, min_strike_price_aud_mwh=38.60, total_contracted_mw=2380.0, oversubscription_ratio=5.1, cost_reduction_pct_from_2018=42.8),
+    # WIND_ONSHORE — 5 years
+    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2018, auction_count=4, avg_strike_price_aud_mwh=74.20, min_strike_price_aud_mwh=68.00, total_contracted_mw=580.0, oversubscription_ratio=1.8, cost_reduction_pct_from_2018=0.0),
+    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2019, auction_count=5, avg_strike_price_aud_mwh=68.90, min_strike_price_aud_mwh=58.00, total_contracted_mw=920.0, oversubscription_ratio=2.2, cost_reduction_pct_from_2018=7.1),
+    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2020, auction_count=5, avg_strike_price_aud_mwh=64.40, min_strike_price_aud_mwh=56.00, total_contracted_mw=1100.0, oversubscription_ratio=2.6, cost_reduction_pct_from_2018=13.2),
+    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2021, auction_count=6, avg_strike_price_aud_mwh=59.10, min_strike_price_aud_mwh=53.20, total_contracted_mw=1480.0, oversubscription_ratio=3.1, cost_reduction_pct_from_2018=20.4),
+    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2022, auction_count=7, avg_strike_price_aud_mwh=57.80, min_strike_price_aud_mwh=51.00, total_contracted_mw=1720.0, oversubscription_ratio=3.8, cost_reduction_pct_from_2018=22.1),
+    # HYBRID — 5 years
+    RAATechnologyTrendRecord(technology="HYBRID", year=2018, auction_count=1, avg_strike_price_aud_mwh=105.00, min_strike_price_aud_mwh=105.00, total_contracted_mw=80.0, oversubscription_ratio=1.2, cost_reduction_pct_from_2018=0.0),
+    RAATechnologyTrendRecord(technology="HYBRID", year=2019, auction_count=2, avg_strike_price_aud_mwh=95.40, min_strike_price_aud_mwh=88.00, total_contracted_mw=210.0, oversubscription_ratio=1.5, cost_reduction_pct_from_2018=9.1),
+    RAATechnologyTrendRecord(technology="HYBRID", year=2020, auction_count=2, avg_strike_price_aud_mwh=86.20, min_strike_price_aud_mwh=79.00, total_contracted_mw=340.0, oversubscription_ratio=1.9, cost_reduction_pct_from_2018=17.9),
+    RAATechnologyTrendRecord(technology="HYBRID", year=2021, auction_count=3, avg_strike_price_aud_mwh=78.40, min_strike_price_aud_mwh=72.00, total_contracted_mw=520.0, oversubscription_ratio=2.4, cost_reduction_pct_from_2018=25.3),
+    RAATechnologyTrendRecord(technology="HYBRID", year=2022, auction_count=3, avg_strike_price_aud_mwh=71.30, min_strike_price_aud_mwh=68.90, total_contracted_mw=680.0, oversubscription_ratio=2.8, cost_reduction_pct_from_2018=32.1),
+    # STORAGE — 5 years
+    RAATechnologyTrendRecord(technology="STORAGE", year=2018, auction_count=1, avg_strike_price_aud_mwh=148.00, min_strike_price_aud_mwh=148.00, total_contracted_mw=50.0, oversubscription_ratio=1.1, cost_reduction_pct_from_2018=0.0),
+    RAATechnologyTrendRecord(technology="STORAGE", year=2019, auction_count=1, avg_strike_price_aud_mwh=132.50, min_strike_price_aud_mwh=130.00, total_contracted_mw=100.0, oversubscription_ratio=1.3, cost_reduction_pct_from_2018=10.5),
+    RAATechnologyTrendRecord(technology="STORAGE", year=2020, auction_count=2, avg_strike_price_aud_mwh=115.80, min_strike_price_aud_mwh=110.00, total_contracted_mw=250.0, oversubscription_ratio=1.7, cost_reduction_pct_from_2018=21.8),
+    RAATechnologyTrendRecord(technology="STORAGE", year=2021, auction_count=2, avg_strike_price_aud_mwh=98.60, min_strike_price_aud_mwh=92.00, total_contracted_mw=400.0, oversubscription_ratio=2.1, cost_reduction_pct_from_2018=33.4),
+    RAATechnologyTrendRecord(technology="STORAGE", year=2022, auction_count=3, avg_strike_price_aud_mwh=84.20, min_strike_price_aud_mwh=79.00, total_contracted_mw=680.0, oversubscription_ratio=2.6, cost_reduction_pct_from_2018=43.1),
+]
+
+_RAA_PERFORMANCE: List[RAAPerformanceRecord] = [
+    RAAPerformanceRecord(project_name="Rye Park Wind Farm", technology="WIND_ONSHORE", state="NSW", contracted_capacity_mw=396.0, actual_capacity_factor_pct=38.2, bid_capacity_factor_pct=36.0, annual_generation_twh=1.32, cfd_payment_m_aud=14.8, market_revenue_m_aud=52.1),
+    RAAPerformanceRecord(project_name="Bungaban Solar Farm", technology="UTILITY_SOLAR", state="QLD", contracted_capacity_mw=600.0, actual_capacity_factor_pct=29.4, bid_capacity_factor_pct=28.0, annual_generation_twh=1.54, cfd_payment_m_aud=0.0, market_revenue_m_aud=38.6),
+    RAAPerformanceRecord(project_name="Coppabella Solar", technology="UTILITY_SOLAR", state="NSW", contracted_capacity_mw=280.0, actual_capacity_factor_pct=31.2, bid_capacity_factor_pct=30.5, annual_generation_twh=0.76, cfd_payment_m_aud=4.2, market_revenue_m_aud=28.4),
+    RAAPerformanceRecord(project_name="Cattle Hill Wind Farm", technology="WIND_ONSHORE", state="TAS", contracted_capacity_mw=148.0, actual_capacity_factor_pct=45.8, bid_capacity_factor_pct=42.0, annual_generation_twh=0.59, cfd_payment_m_aud=0.0, market_revenue_m_aud=24.8),
+    RAAPerformanceRecord(project_name="Neoen Bulgana Green Power Hub", technology="HYBRID", state="VIC", contracted_capacity_mw=204.0, actual_capacity_factor_pct=34.7, bid_capacity_factor_pct=33.0, annual_generation_twh=0.62, cfd_payment_m_aud=6.8, market_revenue_m_aud=31.2),
+    RAAPerformanceRecord(project_name="Lal Lal Wind Farm", technology="WIND_ONSHORE", state="VIC", contracted_capacity_mw=228.0, actual_capacity_factor_pct=39.5, bid_capacity_factor_pct=38.5, annual_generation_twh=0.79, cfd_payment_m_aud=2.1, market_revenue_m_aud=35.6),
+    RAAPerformanceRecord(project_name="Murra Warra II Wind", technology="WIND_ONSHORE", state="VIC", contracted_capacity_mw=209.0, actual_capacity_factor_pct=36.8, bid_capacity_factor_pct=37.0, annual_generation_twh=0.67, cfd_payment_m_aud=8.4, market_revenue_m_aud=29.8),
+    RAAPerformanceRecord(project_name="Darlington Point Solar", technology="UTILITY_SOLAR", state="NSW", contracted_capacity_mw=275.0, actual_capacity_factor_pct=28.8, bid_capacity_factor_pct=31.0, annual_generation_twh=0.69, cfd_payment_m_aud=16.2, market_revenue_m_aud=21.4),
+    RAAPerformanceRecord(project_name="Crystal Brook Energy Park", technology="HYBRID", state="SA", contracted_capacity_mw=280.0, actual_capacity_factor_pct=36.4, bid_capacity_factor_pct=35.0, annual_generation_twh=0.89, cfd_payment_m_aud=5.3, market_revenue_m_aud=38.1),
+    RAAPerformanceRecord(project_name="Snapper Point Gas-Solar BESS", technology="STORAGE", state="SA", contracted_capacity_mw=200.0, actual_capacity_factor_pct=22.1, bid_capacity_factor_pct=25.0, annual_generation_twh=0.39, cfd_payment_m_aud=22.8, market_revenue_m_aud=18.6),
+]
+
+_RAA_STATE_COMPARISON: List[RAAStateComparisonRecord] = [
+    RAAStateComparisonRecord(state="NSW", total_contracted_mw=1850.0, avg_strike_price_aud_mwh=58.20, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=2400.0, policy_target_mw=5000.0, completion_pct=37.0),
+    RAAStateComparisonRecord(state="VIC", total_contracted_mw=2180.0, avg_strike_price_aud_mwh=53.80, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=3100.0, policy_target_mw=6500.0, completion_pct=33.5),
+    RAAStateComparisonRecord(state="QLD", total_contracted_mw=1560.0, avg_strike_price_aud_mwh=51.60, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=4200.0, policy_target_mw=8000.0, completion_pct=19.5),
+    RAAStateComparisonRecord(state="SA", total_contracted_mw=940.0, avg_strike_price_aud_mwh=49.40, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=1800.0, policy_target_mw=3000.0, completion_pct=31.3),
+    RAAStateComparisonRecord(state="WA", total_contracted_mw=620.0, avg_strike_price_aud_mwh=55.10, cheapest_technology="WIND_ONSHORE", auction_pipeline_mw=1200.0, policy_target_mw=2000.0, completion_pct=31.0),
+]
+
+
+# ── Endpoint ────────────────────────────────────────────────────────────────
+
+@app.get(
+    "/api/renewable-auction/dashboard",
+    response_model=RenewableAuctionDashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+def get_renewable_auction_dashboard():
+    from datetime import datetime, timezone
+    return RenewableAuctionDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        auction_results=[r.dict() for r in _RAA_AUCTION_RESULTS],
+        technology_trends=[r.dict() for r in _RAA_TECHNOLOGY_TRENDS],
+        performance=[r.dict() for r in _RAA_PERFORMANCE],
+        state_comparison=[r.dict() for r in _RAA_STATE_COMPARISON],
+    )

@@ -67,6 +67,7 @@ import {
   Globe,
   Globe2,
   ShieldCheck,
+  CreditCard,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -222,11 +223,15 @@ import LdesEconomicsAnalytics from './pages/LdesEconomicsAnalytics'
 import GasTransitionAnalytics from './pages/GasTransitionAnalytics'
 import ProsumerAnalytics from './pages/ProsumerAnalytics'
 import StorageOptimisationAnalytics from './pages/StorageOptimisationAnalytics'
+import SettlementAnalytics from './pages/SettlementAnalytics'
+import RealtimeOperationsDashboard from './pages/RealtimeOperationsDashboard'
+import RenewableAuctionAnalytics from './pages/RenewableAuctionAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
   { to: '/live',         label: 'Live Market',  Icon: Zap             },
+  { to: '/realtime-operations', label: 'Live Ops Dashboard', Icon: Radio },
   { to: '/forecasts',    label: 'Forecasts',    Icon: TrendingUp      },
   { to: '/market-depth', label: 'Market Depth', Icon: TrendingUp      },
   { to: '/copilot',      label: 'Copilot',      Icon: MessageSquare   },
@@ -378,6 +383,8 @@ const NAV_ITEMS = [
   { to: '/dnsp-analytics',                 label: 'DNSP Performance & Investment', Icon: Network        },
   { to: '/reliability-standard-analytics', label: 'NEM Reliability Standard',     Icon: ShieldCheck    },
   { to: '/storage-optimisation-analytics', label: 'Storage Revenue Optimisation', Icon: Battery },
+  { to: '/settlement-analytics',           label: '5-Min Settlement & Prudential', Icon: CreditCard },
+  { to: '/renewable-auction-analytics',   label: 'Renewable Auction & CfD',      Icon: Award      },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -609,6 +616,9 @@ export default function App() {
               <Route path="/dnsp-analytics"                element={<DnspPerformanceAnalytics />}             />
               <Route path="/reliability-standard-analytics" element={<ReliabilityStandardAnalytics />} />
               <Route path="/storage-optimisation-analytics" element={<StorageOptimisationAnalytics />} />
+              <Route path="/settlement-analytics"          element={<SettlementAnalytics />}          />
+              <Route path="/realtime-operations" element={<RealtimeOperationsDashboard />} />
+              <Route path="/renewable-auction-analytics" element={<RenewableAuctionAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
