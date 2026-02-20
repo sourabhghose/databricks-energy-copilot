@@ -277,6 +277,9 @@ import EnergyPovertyAnalytics from './pages/EnergyPovertyAnalytics'
 import HedgeEffectivenessAnalytics from './pages/HedgeEffectivenessAnalytics'
 import CBAMTradeExposureAnalytics from './pages/CBAMTradeExposureAnalytics'
 import DemandResponseProgramAnalytics from './pages/DemandResponseProgramAnalytics'
+import InterconnectorCongestionAnalytics from './pages/InterconnectorCongestionAnalytics'
+import PPAMarketAnalytics from './pages/PPAMarketAnalytics'
+import BatteryDispatchStrategyAnalytics from './pages/BatteryDispatchStrategyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -484,6 +487,9 @@ const NAV_ITEMS = [
   { to: '/hedge-effectiveness',         label: 'Hedge Effectiveness',           Icon: Shield        },
   { to: '/cbam-trade-exposure',         label: 'CBAM Trade Exposure',           Icon: Globe          },
   { to: '/demand-response-programs',   label: 'Demand Response Programs',     Icon: Sliders        },
+  { to: '/interconnector-congestion',  label: 'Interconnector Congestion',    Icon: GitMerge       },
+  { to: '/ppa-market',                label: 'PPA Market Analytics',         Icon: FileText       },
+  { to: '/battery-dispatch-strategy', label: 'Battery Dispatch Strategy',    Icon: Battery        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -766,6 +772,9 @@ export default function App() {
               <Route path="/hedge-effectiveness"         element={<HedgeEffectivenessAnalytics />}         />
               <Route path="/cbam-trade-exposure"         element={<CBAMTradeExposureAnalytics />}          />
               <Route path="/demand-response-programs"   element={<DemandResponseProgramAnalytics />}     />
+              <Route path="/interconnector-congestion"   element={<InterconnectorCongestionAnalytics />}  />
+              <Route path="/ppa-market"                  element={<PPAMarketAnalytics />}                 />
+              <Route path="/battery-dispatch-strategy"   element={<BatteryDispatchStrategyAnalytics />}   />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

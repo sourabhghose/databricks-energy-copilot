@@ -11892,3 +11892,230 @@ export interface CBATEDashboard {
 
 export const getCBAMTradeExposureDashboard = (): Promise<CBATEDashboard> =>
   get<CBATEDashboard>('/api/cbam-trade-exposure/dashboard');
+
+// ---------------------------------------------------------------------------
+// ICC — Interconnector Congestion & Constraint Analytics
+// ---------------------------------------------------------------------------
+
+export interface ICCInterconnectorRecord {
+  interconnector_id: string;
+  from_region: string;
+  to_region: string;
+  import_limit_mw: number;
+  export_limit_mw: number;
+  current_flow_mw: number;
+  utilisation_pct: number;
+  binding_hours_per_year: number;
+  congestion_cost_annual_m: number;
+  upgrade_status: string;
+}
+
+export interface ICCCongestionRecord {
+  month: string;
+  interconnector_id: string;
+  binding_hours: number;
+  price_separation_events: number;
+  avg_price_differential: number;
+  max_price_differential: number;
+  congestion_rent_m: number;
+  direction: string;
+}
+
+export interface ICCConstraintRecord {
+  constraint_id: string;
+  constraint_name: string;
+  interconnectors_affected: string[];
+  reason: string;
+  binding_frequency_pct: number;
+  avg_shadow_price: number;
+  annual_cost_m: number;
+  redispatch_cost_m: number;
+}
+
+export interface ICCRegionalSpreadRecord {
+  date: string;
+  hour: number;
+  nsw1_price: number;
+  qld1_price: number;
+  vic1_price: number;
+  sa1_price: number;
+  tas1_price: number;
+  max_spread: number;
+  spread_cause: string;
+}
+
+export interface ICCSRARecord {
+  auction_quarter: string;
+  interconnector_id: string;
+  sra_units_offered: number;
+  sra_units_sold: number;
+  clearing_price: number;
+  total_revenue_m: number;
+  buyer_type: string;
+}
+
+export interface ICCDashboard {
+  interconnectors: ICCInterconnectorRecord[];
+  congestion: ICCCongestionRecord[];
+  constraints: ICCConstraintRecord[];
+  regional_spreads: ICCRegionalSpreadRecord[];
+  sra_auctions: ICCSRARecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getInterconnectorCongestionDashboard = (): Promise<ICCDashboard> =>
+  get<ICCDashboard>('/api/interconnector-congestion/dashboard');
+
+// ── Sprint 79b: Grid-Scale Battery Dispatch Strategy Analytics ──────────────
+
+export interface BSDBatteryRecord {
+  asset_id: string;
+  name: string;
+  owner: string;
+  region: string;
+  capacity_mw: number;
+  energy_mwh: number;
+  duration_hr: number;
+  technology: string;
+  commissioning_year: number;
+  primary_strategy: string;
+  fcas_revenue_pct: number;
+  arbitrage_revenue_pct: number;
+  network_revenue_pct: number;
+  utilisation_pct: number;
+  cycles_per_day: number;
+}
+
+export interface BSDDispatchProfileRecord {
+  asset_id: string;
+  hour: number;
+  avg_charge_mw: number;
+  avg_discharge_mw: number;
+  fcas_raise_mw: number;
+  fcas_lower_mw: number;
+  net_position_mw: number;
+  state_of_charge_pct: number;
+}
+
+export interface BSDStrategyPerformanceRecord {
+  strategy: string;
+  region: string;
+  quarter: string;
+  revenue_per_mwh_capacity: number;
+  arbitrage_spread_captured: number;
+  fcas_service_hours_pct: number;
+  cycle_count: number;
+  degradation_cost_per_mwh: number;
+  net_revenue_per_mwh: number;
+}
+
+export interface BSDMarketParticipationRecord {
+  asset_id: string;
+  month: string;
+  energy_traded_mwh: number;
+  fcas_raise_mwh: number;
+  fcas_lower_mwh: number;
+  contingency_fcas_mwh: number;
+  avg_charge_price: number;
+  avg_discharge_price: number;
+  avg_fcas_raise_price: number;
+  total_revenue_k: number;
+}
+
+export interface BSDOptimalDispatchRecord {
+  scenario: string;
+  region: string;
+  optimal_duration_hr: number;
+  optimal_charge_window: string;
+  optimal_discharge_window: string;
+  expected_daily_revenue: number;
+  expected_annual_revenue_m: number;
+  simple_payback_years: number;
+}
+
+export interface BSDDashboard {
+  batteries: BSDBatteryRecord[];
+  dispatch_profiles: BSDDispatchProfileRecord[];
+  strategy_performance: BSDStrategyPerformanceRecord[];
+  market_participation: BSDMarketParticipationRecord[];
+  optimal_dispatch: BSDOptimalDispatchRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getBatteryDispatchStrategyDashboard = (): Promise<BSDDashboard> =>
+  get<BSDDashboard>('/api/battery-dispatch-strategy/dashboard');
+
+// ── Sprint 79c — PPA Market Analytics ────────────────────────────────────────
+
+export interface PPADealRecord {
+  deal_id: string;
+  buyer: string;
+  seller: string;
+  technology: string;
+  region: string;
+  capacity_mw: number;
+  annual_energy_gwh: number;
+  ppa_price: number;
+  contract_duration_years: number;
+  signed_year: number;
+  start_year: number;
+  deal_type: string;
+  structure: string;
+  green_certificate: boolean;
+}
+
+export interface PPAPriceIndexRecord {
+  quarter: string;
+  region: string;
+  technology: string;
+  avg_ppa_price: number;
+  median_ppa_price: number;
+  min_ppa_price: number;
+  max_ppa_price: number;
+  deal_count: number;
+  total_mw: number;
+  vs_spot_premium_pct: number;
+}
+
+export interface PPABuyerRecord {
+  buyer_sector: string;
+  deal_count: number;
+  total_mw: number;
+  avg_deal_size_mw: number;
+  avg_ppa_price: number;
+  avg_duration_years: number;
+  green_target_pct: number;
+  pct_with_lgcs: number;
+}
+
+export interface PPARiskRecord {
+  risk_type: string;
+  description: string;
+  mitigation: string;
+  deal_structure: string;
+  impact: string;
+  probability: string;
+}
+
+export interface PPAPipelineRecord {
+  year: number;
+  region: string;
+  signed_mw: number;
+  under_negotiation_mw: number;
+  total_pipeline_mw: number;
+  avg_price: number;
+  dominant_technology: string;
+  yoy_growth_pct: number;
+}
+
+export interface PPADashboard {
+  deals: PPADealRecord[];
+  price_index: PPAPriceIndexRecord[];
+  buyers: PPABuyerRecord[];
+  risks: PPARiskRecord[];
+  pipeline: PPAPipelineRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getPPAMarketDashboard = (): Promise<PPADashboard> =>
+  get<PPADashboard>('/api/ppa-market/dashboard');

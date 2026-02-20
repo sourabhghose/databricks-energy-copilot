@@ -54039,3 +54039,1073 @@ async def get_drp_dashboard():
     result = _build_drp_dashboard()
     _cache_set(_drp_cache, "drp", result)
     return result
+
+
+# ---------------------------------------------------------------------------
+# ICC — Interconnector Congestion & Constraint Analytics
+# ---------------------------------------------------------------------------
+
+class ICCInterconnectorRecord(BaseModel):
+    interconnector_id: str
+    from_region: str
+    to_region: str
+    import_limit_mw: float
+    export_limit_mw: float
+    current_flow_mw: float
+    utilisation_pct: float
+    binding_hours_per_year: float
+    congestion_cost_annual_m: float
+    upgrade_status: str
+
+
+class ICCCongestionRecord(BaseModel):
+    month: str
+    interconnector_id: str
+    binding_hours: int
+    price_separation_events: int
+    avg_price_differential: float
+    max_price_differential: float
+    congestion_rent_m: float
+    direction: str
+
+
+class ICCConstraintRecord(BaseModel):
+    constraint_id: str
+    constraint_name: str
+    interconnectors_affected: List[str]
+    reason: str
+    binding_frequency_pct: float
+    avg_shadow_price: float
+    annual_cost_m: float
+    redispatch_cost_m: float
+
+
+class ICCRegionalSpreadRecord(BaseModel):
+    date: str
+    hour: int
+    nsw1_price: float
+    qld1_price: float
+    vic1_price: float
+    sa1_price: float
+    tas1_price: float
+    max_spread: float
+    spread_cause: str
+
+
+class ICCSRARecord(BaseModel):
+    auction_quarter: str
+    interconnector_id: str
+    sra_units_offered: int
+    sra_units_sold: int
+    clearing_price: float
+    total_revenue_m: float
+    buyer_type: str
+
+
+class ICCDashboard(BaseModel):
+    interconnectors: List[ICCInterconnectorRecord]
+    congestion: List[ICCCongestionRecord]
+    constraints: List[ICCConstraintRecord]
+    regional_spreads: List[ICCRegionalSpreadRecord]
+    sra_auctions: List[ICCSRARecord]
+    summary: dict
+
+
+def _build_icc_dashboard() -> ICCDashboard:
+    import random
+    rng = random.Random(42)
+
+    # ---- 7 NEM interconnectors ----
+    interconnectors = [
+        ICCInterconnectorRecord(
+            interconnector_id="VIC1-NSW1",
+            from_region="VIC",
+            to_region="NSW",
+            import_limit_mw=1350.0,
+            export_limit_mw=1600.0,
+            current_flow_mw=820.0,
+            utilisation_pct=51.3,
+            binding_hours_per_year=410.0,
+            congestion_cost_annual_m=52.0,
+            upgrade_status="OPERATING",
+        ),
+        ICCInterconnectorRecord(
+            interconnector_id="QNI",
+            from_region="QLD",
+            to_region="NSW",
+            import_limit_mw=1078.0,
+            export_limit_mw=600.0,
+            current_flow_mw=430.0,
+            utilisation_pct=39.9,
+            binding_hours_per_year=320.0,
+            congestion_cost_annual_m=38.0,
+            upgrade_status="UPGRADE_PLANNED",
+        ),
+        ICCInterconnectorRecord(
+            interconnector_id="V-SA",
+            from_region="VIC",
+            to_region="SA",
+            import_limit_mw=600.0,
+            export_limit_mw=500.0,
+            current_flow_mw=420.0,
+            utilisation_pct=70.0,
+            binding_hours_per_year=680.0,
+            congestion_cost_annual_m=96.0,
+            upgrade_status="UPGRADE_PLANNED",
+        ),
+        ICCInterconnectorRecord(
+            interconnector_id="Heywood",
+            from_region="VIC",
+            to_region="SA",
+            import_limit_mw=650.0,
+            export_limit_mw=500.0,
+            current_flow_mw=460.0,
+            utilisation_pct=70.8,
+            binding_hours_per_year=640.0,
+            congestion_cost_annual_m=88.0,
+            upgrade_status="OPERATING",
+        ),
+        ICCInterconnectorRecord(
+            interconnector_id="Murraylink",
+            from_region="VIC",
+            to_region="SA",
+            import_limit_mw=220.0,
+            export_limit_mw=220.0,
+            current_flow_mw=110.0,
+            utilisation_pct=50.0,
+            binding_hours_per_year=180.0,
+            congestion_cost_annual_m=18.0,
+            upgrade_status="OPERATING",
+        ),
+        ICCInterconnectorRecord(
+            interconnector_id="Basslink",
+            from_region="TAS",
+            to_region="VIC",
+            import_limit_mw=594.0,
+            export_limit_mw=478.0,
+            current_flow_mw=310.0,
+            utilisation_pct=52.2,
+            binding_hours_per_year=390.0,
+            congestion_cost_annual_m=48.0,
+            upgrade_status="UPGRADE_IN_PROGRESS",
+        ),
+        ICCInterconnectorRecord(
+            interconnector_id="EnergyConnect",
+            from_region="SA",
+            to_region="NSW",
+            import_limit_mw=800.0,
+            export_limit_mw=800.0,
+            current_flow_mw=420.0,
+            utilisation_pct=52.5,
+            binding_hours_per_year=220.0,
+            congestion_cost_annual_m=44.0,
+            upgrade_status="OPERATING",
+        ),
+    ]
+
+    # ---- 84 congestion records (7 interconnectors × 12 months) ----
+    ic_ids = [
+        ("VIC1-NSW1", "NSW_TO_VIC", 34, 2.8),
+        ("QNI",       "QLD_TO_NSW", 27, 2.1),
+        ("V-SA",      "VIC_TO_SA",  57, 6.2),
+        ("Heywood",   "VIC_TO_SA",  53, 5.8),
+        ("Murraylink","VIC_TO_SA",  15, 1.1),
+        ("Basslink",  "TAS_TO_VIC", 32, 3.2),
+        ("EnergyConnect","SA_TO_NSW",18, 2.8),
+    ]
+    months = [
+        "2024-01","2024-02","2024-03","2024-04","2024-05","2024-06",
+        "2024-07","2024-08","2024-09","2024-10","2024-11","2024-12",
+    ]
+    summer_boost = {"2024-01": 1.6, "2024-02": 1.5, "2024-12": 1.4,
+                    "2024-07": 1.3, "2024-08": 1.2}
+    congestion = []
+    for ic_id, direction, base_hours, base_rent in ic_ids:
+        for month in months:
+            boost = summer_boost.get(month, 1.0)
+            bh = int(base_hours * boost * rng.uniform(0.85, 1.15))
+            pse = int(bh * rng.uniform(0.15, 0.30))
+            avg_pd = round(rng.uniform(18.0, 65.0) * boost, 1)
+            max_pd = round(avg_pd * rng.uniform(2.2, 4.5), 1)
+            rent = round(base_rent * boost * rng.uniform(0.8, 1.2), 2)
+            congestion.append(ICCCongestionRecord(
+                month=month,
+                interconnector_id=ic_id,
+                binding_hours=bh,
+                price_separation_events=pse,
+                avg_price_differential=avg_pd,
+                max_price_differential=max_pd,
+                congestion_rent_m=rent,
+                direction=direction,
+            ))
+
+    # ---- 10 constraint records ----
+    constraints = [
+        ICCConstraintRecord(
+            constraint_id="N>>N-NSW1-VIC1-1",
+            constraint_name="VIC1-NSW1 Thermal Limit North",
+            interconnectors_affected=["VIC1-NSW1"],
+            reason="THERMAL",
+            binding_frequency_pct=4.7,
+            avg_shadow_price=38.2,
+            annual_cost_m=21.4,
+            redispatch_cost_m=8.6,
+        ),
+        ICCConstraintRecord(
+            constraint_id="S>>S-HEYWOOD",
+            constraint_name="Heywood Export Stability Limit",
+            interconnectors_affected=["Heywood", "V-SA"],
+            reason="STABILITY",
+            binding_frequency_pct=7.3,
+            avg_shadow_price=54.8,
+            annual_cost_m=32.1,
+            redispatch_cost_m=14.2,
+        ),
+        ICCConstraintRecord(
+            constraint_id="V^^V-QNI-THERMALLIMIT",
+            constraint_name="QNI Thermal Limit (Queensland Export)",
+            interconnectors_affected=["QNI"],
+            reason="THERMAL",
+            binding_frequency_pct=3.6,
+            avg_shadow_price=29.4,
+            annual_cost_m=16.8,
+            redispatch_cost_m=6.1,
+        ),
+        ICCConstraintRecord(
+            constraint_id="S>>S-BASSLINK-1",
+            constraint_name="Basslink Transfer Limit N-1",
+            interconnectors_affected=["Basslink"],
+            reason="N-1_CONTINGENCY",
+            binding_frequency_pct=4.5,
+            avg_shadow_price=42.0,
+            annual_cost_m=19.2,
+            redispatch_cost_m=9.4,
+        ),
+        ICCConstraintRecord(
+            constraint_id="N>>N-SA-VOLTAGE",
+            constraint_name="SA Voltage Stability Limit",
+            interconnectors_affected=["V-SA", "Heywood", "Murraylink"],
+            reason="VOLTAGE",
+            binding_frequency_pct=8.1,
+            avg_shadow_price=67.5,
+            annual_cost_m=38.4,
+            redispatch_cost_m=17.8,
+        ),
+        ICCConstraintRecord(
+            constraint_id="V^^V-ENERGYCONNECT-THERMAL",
+            constraint_name="EnergyConnect Thermal Capacity Limit",
+            interconnectors_affected=["EnergyConnect"],
+            reason="THERMAL",
+            binding_frequency_pct=2.5,
+            avg_shadow_price=22.1,
+            annual_cost_m=9.8,
+            redispatch_cost_m=3.4,
+        ),
+        ICCConstraintRecord(
+            constraint_id="N>>N-TAS-IMPORT",
+            constraint_name="Basslink Tasmania Import N-1",
+            interconnectors_affected=["Basslink"],
+            reason="N-1_CONTINGENCY",
+            binding_frequency_pct=5.8,
+            avg_shadow_price=48.3,
+            annual_cost_m=24.6,
+            redispatch_cost_m=11.2,
+        ),
+        ICCConstraintRecord(
+            constraint_id="S>>S-MURRAYLINK-VOLTAGE",
+            constraint_name="Murraylink Reactive Power Limit",
+            interconnectors_affected=["Murraylink"],
+            reason="VOLTAGE",
+            binding_frequency_pct=2.1,
+            avg_shadow_price=18.7,
+            annual_cost_m=6.3,
+            redispatch_cost_m=2.1,
+        ),
+        ICCConstraintRecord(
+            constraint_id="N>>N-VIC-NSW-STABILITY",
+            constraint_name="VIC-NSW Rotor Angle Stability",
+            interconnectors_affected=["VIC1-NSW1"],
+            reason="STABILITY",
+            binding_frequency_pct=1.8,
+            avg_shadow_price=15.6,
+            annual_cost_m=5.2,
+            redispatch_cost_m=1.8,
+        ),
+        ICCConstraintRecord(
+            constraint_id="S>>S-QNI-N1-CONTINGENCY",
+            constraint_name="QNI N-1 Contingency Limit",
+            interconnectors_affected=["QNI"],
+            reason="N-1_CONTINGENCY",
+            binding_frequency_pct=3.2,
+            avg_shadow_price=26.9,
+            annual_cost_m=12.6,
+            redispatch_cost_m=5.0,
+        ),
+    ]
+
+    # ---- 100 regional spread records ----
+    # Summer day (2024-01-17): 20 hours of high SA/NSW separation + 80 normal hours
+    spread_causes_high = ["CONGESTION", "WIND_GENERATION", "FCAS"]
+    spread_causes_low  = ["NORMAL", "LOW_DEMAND", "NORMAL", "NORMAL"]
+    regional_spreads = []
+    # 20 high-separation hours (SA price spike day)
+    for h in range(6, 22):  # 6am to 9pm
+        sa_base = rng.uniform(180.0, 620.0)
+        nsw = round(rng.uniform(60.0, 120.0), 2)
+        qld = round(rng.uniform(55.0, 110.0), 2)
+        vic = round(rng.uniform(70.0, 130.0), 2)
+        sa  = round(sa_base, 2)
+        tas = round(rng.uniform(50.0, 100.0), 2)
+        prices = [nsw, qld, vic, sa, tas]
+        regional_spreads.append(ICCRegionalSpreadRecord(
+            date="2024-01-17",
+            hour=h,
+            nsw1_price=nsw,
+            qld1_price=qld,
+            vic1_price=vic,
+            sa1_price=sa,
+            tas1_price=tas,
+            max_spread=round(max(prices) - min(prices), 2),
+            spread_cause=rng.choice(spread_causes_high),
+        ))
+    # 80 normal/mild hours across other dates
+    dates_normal = [
+        ("2024-03-15", 14), ("2024-03-15", 16), ("2024-05-20", 10),
+        ("2024-05-20", 14), ("2024-07-22", 8),  ("2024-07-22", 18),
+        ("2024-09-10", 12), ("2024-09-10", 17), ("2024-11-05", 9),
+        ("2024-11-05", 15),
+    ]
+    fill_dates = [
+        "2024-02-10","2024-04-08","2024-06-14","2024-08-19",
+        "2024-10-03","2024-12-20","2024-01-25","2024-03-28",
+    ]
+    normal_records_needed = 80
+    n_idx = 0
+    for date, hr in dates_normal:
+        if n_idx >= normal_records_needed:
+            break
+        nsw = round(rng.uniform(50.0, 90.0), 2)
+        qld = round(rng.uniform(48.0, 88.0), 2)
+        vic = round(rng.uniform(45.0, 85.0), 2)
+        sa  = round(rng.uniform(52.0, 95.0), 2)
+        tas = round(rng.uniform(40.0, 80.0), 2)
+        prices = [nsw, qld, vic, sa, tas]
+        regional_spreads.append(ICCRegionalSpreadRecord(
+            date=date, hour=hr,
+            nsw1_price=nsw, qld1_price=qld, vic1_price=vic,
+            sa1_price=sa, tas1_price=tas,
+            max_spread=round(max(prices) - min(prices), 2),
+            spread_cause=rng.choice(spread_causes_low),
+        ))
+        n_idx += 1
+    # Fill remaining to reach >=100 total
+    for fd in fill_dates:
+        for hr in range(0, 24):
+            if len(regional_spreads) >= 100:
+                break
+            nsw = round(rng.uniform(45.0, 85.0), 2)
+            qld = round(rng.uniform(43.0, 83.0), 2)
+            vic = round(rng.uniform(42.0, 80.0), 2)
+            sa  = round(rng.uniform(48.0, 90.0), 2)
+            tas = round(rng.uniform(38.0, 76.0), 2)
+            prices = [nsw, qld, vic, sa, tas]
+            regional_spreads.append(ICCRegionalSpreadRecord(
+                date=fd, hour=hr,
+                nsw1_price=nsw, qld1_price=qld, vic1_price=vic,
+                sa1_price=sa, tas1_price=tas,
+                max_spread=round(max(prices) - min(prices), 2),
+                spread_cause=rng.choice(spread_causes_low),
+            ))
+        if len(regional_spreads) >= 100:
+            break
+
+    # ---- 14 SRA records (7 interconnectors × 2 quarters) ----
+    quarters = ["Q3-2024", "Q4-2024"]
+    buyer_types = ["GENERATOR", "RETAILER", "TRADER"]
+    sra_auctions = []
+    sra_params = [
+        ("VIC1-NSW1", 1200, 8.4),
+        ("QNI",       900,  5.6),
+        ("V-SA",      480,  9.8),
+        ("Heywood",   520,  9.2),
+        ("Murraylink",200,  3.1),
+        ("Basslink",  480,  6.8),
+        ("EnergyConnect",640, 5.2),
+    ]
+    for quarter in quarters:
+        for ic_id, offered, rev_base in sra_params:
+            sold = int(offered * rng.uniform(0.70, 0.92))
+            cp = round(rev_base * 1e6 / (sold if sold > 0 else 1) / 1e3, 2)
+            sra_auctions.append(ICCSRARecord(
+                auction_quarter=quarter,
+                interconnector_id=ic_id,
+                sra_units_offered=offered,
+                sra_units_sold=sold,
+                clearing_price=cp,
+                total_revenue_m=round(rev_base * rng.uniform(0.85, 1.15), 2),
+                buyer_type=rng.choice(buyer_types),
+            ))
+
+    return ICCDashboard(
+        interconnectors=interconnectors,
+        congestion=congestion,
+        constraints=constraints,
+        regional_spreads=regional_spreads,
+        sra_auctions=sra_auctions,
+        summary={
+            "total_binding_hours_annual": 2840,
+            "total_congestion_cost_m": 384,
+            "most_congested": "V-SA",
+            "avg_max_spread_peak": 124.0,
+            "sra_total_revenue_m": 48.2,
+            "constraint_cost_m": 156,
+        },
+    )
+
+
+_icc_cache: dict = {}
+
+
+@app.get("/api/interconnector-congestion/dashboard", response_model=ICCDashboard, dependencies=[Depends(verify_api_key)])
+async def get_icc_dashboard():
+    cached = _cache_get(_icc_cache, "icc")
+    if cached:
+        return cached
+    result = _build_icc_dashboard()
+    _cache_set(_icc_cache, "icc", result)
+    return result
+
+
+# ============================================================
+# Sprint 79b — Grid-Scale Battery Dispatch Strategy Analytics
+# ============================================================
+
+class BSDBatteryRecord(BaseModel):
+    asset_id: str
+    name: str
+    owner: str
+    region: str
+    capacity_mw: float
+    energy_mwh: float
+    duration_hr: float
+    technology: str  # LFP / NMC / FLOW / NAS
+    commissioning_year: int
+    primary_strategy: str  # ARBITRAGE / FCAS_DOMINANT / HYBRID / NETWORK_SUPPORT / TRADING
+    fcas_revenue_pct: float
+    arbitrage_revenue_pct: float
+    network_revenue_pct: float
+    utilisation_pct: float
+    cycles_per_day: float
+
+
+class BSDDispatchProfileRecord(BaseModel):
+    asset_id: str
+    hour: int  # 0-23
+    avg_charge_mw: float    # negative = charging
+    avg_discharge_mw: float  # positive = discharging
+    fcas_raise_mw: float
+    fcas_lower_mw: float
+    net_position_mw: float  # discharge - charge
+    state_of_charge_pct: float
+
+
+class BSDStrategyPerformanceRecord(BaseModel):
+    strategy: str  # ARBITRAGE / FCAS_DOMINANT / HYBRID / PEAK_SHIFTING / NETWORK_SUPPORT
+    region: str
+    quarter: str
+    revenue_per_mwh_capacity: float
+    arbitrage_spread_captured: float
+    fcas_service_hours_pct: float
+    cycle_count: int
+    degradation_cost_per_mwh: float
+    net_revenue_per_mwh: float
+
+
+class BSDMarketParticipationRecord(BaseModel):
+    asset_id: str
+    month: str
+    energy_traded_mwh: float
+    fcas_raise_mwh: float
+    fcas_lower_mwh: float
+    contingency_fcas_mwh: float
+    avg_charge_price: float
+    avg_discharge_price: float
+    avg_fcas_raise_price: float
+    total_revenue_k: float
+
+
+class BSDOptimalDispatchRecord(BaseModel):
+    scenario: str  # CURRENT_MARKET / HIGH_VRE / HIGH_PRICE_VOL / NETWORK_CONSTRAINED
+    region: str
+    optimal_duration_hr: float
+    optimal_charge_window: str
+    optimal_discharge_window: str
+    expected_daily_revenue: float
+    expected_annual_revenue_m: float
+    simple_payback_years: float
+
+
+class BSDDashboard(BaseModel):
+    batteries: List[BSDBatteryRecord]
+    dispatch_profiles: List[BSDDispatchProfileRecord]
+    strategy_performance: List[BSDStrategyPerformanceRecord]
+    market_participation: List[BSDMarketParticipationRecord]
+    optimal_dispatch: List[BSDOptimalDispatchRecord]
+    summary: dict
+
+
+def _build_bsd_dashboard() -> BSDDashboard:
+    import random
+    rng = random.Random(79)
+
+    # ------------------------------------------------------------------ batteries
+    batteries_raw = [
+        ("BSS-001", "Hornsdale Power Reserve",        "Neoen",             "SA",  150.0, 194.0,  1.3, "LFP",  2017, "FCAS_DOMINANT"),
+        ("BSS-002", "Waratah Super Battery",           "AGL",               "NSW", 850.0, 1680.0, 2.0, "LFP",  2024, "HYBRID"),
+        ("BSS-003", "Victorian Big Battery",           "Neoen/AEMO",        "VIC", 300.0, 450.0,  1.5, "LFP",  2021, "FCAS_DOMINANT"),
+        ("BSS-004", "Torrens Island BESS",             "AGL",               "SA",  250.0, 500.0,  2.0, "NMC",  2023, "ARBITRAGE"),
+        ("BSS-005", "Wallgrove Grid Battery",          "Transgrid",         "NSW", 50.0,  75.0,   1.5, "LFP",  2021, "NETWORK_SUPPORT"),
+        ("BSS-006", "Gannawarra Energy Storage System","Edify/Wirsol",      "VIC", 25.0,  50.0,   2.0, "NMC",  2019, "ARBITRAGE"),
+        ("BSS-007", "Mugga Lane Solar Park BESS",      "ActewAGL",          "NSW", 20.0,  40.0,   2.0, "LFP",  2022, "NETWORK_SUPPORT"),
+        ("BSS-008", "Darlington Point BESS",           "Vena Energy",       "NSW", 100.0, 200.0,  2.0, "LFP",  2023, "HYBRID"),
+        ("BSS-009", "Wandoan South BESS",              "MacGen/Keppel",     "QLD", 570.0, 2280.0, 4.0, "LFP",  2025, "TRADING"),
+        ("BSS-010", "Liddell Battery Storage",        "AGL",               "NSW", 500.0, 2000.0, 4.0, "FLOW", 2024, "HYBRID"),
+    ]
+
+    strategy_fcas = {
+        "FCAS_DOMINANT":   (72.0, 18.0, 10.0),
+        "HYBRID":          (48.0, 38.0, 14.0),
+        "ARBITRAGE":       (18.0, 72.0,  8.0),
+        "NETWORK_SUPPORT": (15.0, 20.0, 65.0),
+        "TRADING":         (35.0, 55.0, 10.0),
+    }
+
+    batteries: List[BSDBatteryRecord] = []
+    for row in batteries_raw:
+        aid, name, owner, region, cap, energy, dur, tech, yr, strategy = row
+        fcas_pct, arb_pct, net_pct = strategy_fcas[strategy]
+        fcas_pct   += rng.uniform(-4, 4)
+        arb_pct    += rng.uniform(-4, 4)
+        net_pct    += rng.uniform(-2, 2)
+        total = fcas_pct + arb_pct + net_pct
+        batteries.append(BSDBatteryRecord(
+            asset_id=aid,
+            name=name,
+            owner=owner,
+            region=region,
+            capacity_mw=cap,
+            energy_mwh=energy,
+            duration_hr=dur,
+            technology=tech,
+            commissioning_year=yr,
+            primary_strategy=strategy,
+            fcas_revenue_pct=round(fcas_pct / total * 100, 1),
+            arbitrage_revenue_pct=round(arb_pct / total * 100, 1),
+            network_revenue_pct=round(net_pct / total * 100, 1),
+            utilisation_pct=round(rng.uniform(62.0, 88.0), 1),
+            cycles_per_day=round(rng.uniform(1.2, 2.4), 2),
+        ))
+
+    # ------------------------------------------------------------------ dispatch profiles (10 assets × 24 hours)
+    # Typical NEM BESS hourly profile: charge midday (solar surplus), discharge evening peak
+    dispatch_profiles: List[BSDDispatchProfileRecord] = []
+    for bat in batteries:
+        soc = rng.uniform(40.0, 60.0)
+        for h in range(24):
+            # Solar surplus window 09-14 → charge; evening peak 17-21 → discharge
+            if 9 <= h <= 13:
+                charge = round(bat.capacity_mw * rng.uniform(0.55, 0.85), 1)
+                discharge = 0.0
+                soc = min(100.0, soc + rng.uniform(4.0, 7.0))
+            elif 17 <= h <= 20:
+                charge = 0.0
+                discharge = round(bat.capacity_mw * rng.uniform(0.65, 0.95), 1)
+                soc = max(5.0, soc - rng.uniform(6.0, 10.0))
+            elif h < 7:
+                # Off-peak overnight — minor FCAS, low charge
+                charge = round(bat.capacity_mw * rng.uniform(0.02, 0.12), 1)
+                discharge = 0.0
+                soc = min(100.0, soc + rng.uniform(0.5, 1.5))
+            else:
+                charge = 0.0
+                discharge = 0.0
+            fcas_raise = round(bat.capacity_mw * rng.uniform(0.05, 0.25), 1)
+            fcas_lower = round(bat.capacity_mw * rng.uniform(0.03, 0.18), 1)
+            net = round(discharge - charge, 1)
+            dispatch_profiles.append(BSDDispatchProfileRecord(
+                asset_id=bat.asset_id,
+                hour=h,
+                avg_charge_mw=-charge,
+                avg_discharge_mw=discharge,
+                fcas_raise_mw=fcas_raise,
+                fcas_lower_mw=fcas_lower,
+                net_position_mw=net,
+                state_of_charge_pct=round(soc, 1),
+            ))
+
+    # ------------------------------------------------------------------ strategy performance (5 strategies × 4 regions × 1 quarter = 20)
+    strategies = ["ARBITRAGE", "FCAS_DOMINANT", "HYBRID", "PEAK_SHIFTING", "NETWORK_SUPPORT"]
+    regions = ["SA", "NSW", "VIC", "QLD"]
+    quarter = "2024-Q3"
+
+    # Base revenue profiles per strategy
+    strategy_base = {
+        "ARBITRAGE":       (95.0,  82.0, 22.0, 280, 3.8, 91.2),
+        "FCAS_DOMINANT":   (142.0, 45.0, 88.0, 195, 2.9, 139.1),
+        "HYBRID":          (118.0, 63.0, 62.0, 240, 3.3, 114.7),
+        "PEAK_SHIFTING":   (74.0,  35.0, 15.0, 210, 3.1, 70.9),
+        "NETWORK_SUPPORT": (58.0,  22.0, 12.0, 180, 2.6, 55.4),
+    }
+    region_multiplier = {"SA": 1.18, "NSW": 1.05, "VIC": 1.10, "QLD": 0.96}
+
+    strategy_performance: List[BSDStrategyPerformanceRecord] = []
+    for strat in strategies:
+        base = strategy_base[strat]
+        for reg in regions:
+            mult = region_multiplier[reg]
+            strategy_performance.append(BSDStrategyPerformanceRecord(
+                strategy=strat,
+                region=reg,
+                quarter=quarter,
+                revenue_per_mwh_capacity=round(base[0] * mult + rng.uniform(-5, 5), 2),
+                arbitrage_spread_captured=round(base[1] * mult + rng.uniform(-8, 8), 2),
+                fcas_service_hours_pct=round(base[2] + rng.uniform(-3, 3), 1),
+                cycle_count=int(base[3] + rng.randint(-15, 15)),
+                degradation_cost_per_mwh=round(base[4] + rng.uniform(-0.3, 0.3), 2),
+                net_revenue_per_mwh=round(base[5] * mult + rng.uniform(-4, 4), 2),
+            ))
+
+    # ------------------------------------------------------------------ market participation (5 assets × 12 months = 60)
+    tracked_assets = batteries[:5]
+    months = [
+        "2024-01","2024-02","2024-03","2024-04","2024-05","2024-06",
+        "2024-07","2024-08","2024-09","2024-10","2024-11","2024-12",
+    ]
+    market_participation: List[BSDMarketParticipationRecord] = []
+    for bat in tracked_assets:
+        base_energy = bat.capacity_mw * bat.cycles_per_day * 28
+        for month in months:
+            # Summer months (Dec-Feb) and winter (Jun-Jul) have higher participation
+            m = int(month.split("-")[1])
+            season_mult = 1.2 if m in (12, 1, 2, 6, 7) else 1.0
+            energy_traded = round(base_energy * season_mult * rng.uniform(0.85, 1.15), 0)
+            fcas_raise    = round(bat.capacity_mw * 0.3 * 28 * rng.uniform(0.6, 0.9), 0)
+            fcas_lower    = round(bat.capacity_mw * 0.2 * 28 * rng.uniform(0.5, 0.8), 0)
+            contingency   = round(bat.capacity_mw * 0.15 * 28 * rng.uniform(0.4, 0.7), 0)
+            avg_ch_price  = round(rng.uniform(40.0, 85.0), 2)
+            avg_dis_price = round(rng.uniform(120.0, 280.0), 2)
+            avg_fcas_r    = round(rng.uniform(8.0, 45.0), 2)
+            revenue_k     = round(
+                (avg_dis_price * energy_traded / 1000)
+                - (avg_ch_price * energy_traded / 1000)
+                + (avg_fcas_r * (fcas_raise + fcas_lower) / 1000),
+                1,
+            )
+            market_participation.append(BSDMarketParticipationRecord(
+                asset_id=bat.asset_id,
+                month=month,
+                energy_traded_mwh=energy_traded,
+                fcas_raise_mwh=fcas_raise,
+                fcas_lower_mwh=fcas_lower,
+                contingency_fcas_mwh=contingency,
+                avg_charge_price=avg_ch_price,
+                avg_discharge_price=avg_dis_price,
+                avg_fcas_raise_price=avg_fcas_r,
+                total_revenue_k=revenue_k,
+            ))
+
+    # ------------------------------------------------------------------ optimal dispatch (5 scenarios × 4 regions = 20)
+    scenarios_data = {
+        "CURRENT_MARKET":      (2.0, "09:00-14:00", "17:00-21:00", 12400, 4.52, 8.8),
+        "HIGH_VRE":            (2.5, "10:00-15:00", "17:00-22:00", 15800, 5.77, 7.2),
+        "HIGH_PRICE_VOL":      (1.5, "11:00-14:00", "18:00-21:00", 18600, 6.79, 6.1),
+        "NETWORK_CONSTRAINED": (4.0, "00:00-06:00", "07:00-09:00", 8200,  2.99, 12.5),
+        "EXTREME_PEAK":        (1.0, "12:00-14:00", "17:00-19:00", 22000, 8.03, 5.2),
+    }
+    region_capex = {"SA": 1_400_000, "NSW": 1_350_000, "VIC": 1_380_000, "QLD": 1_320_000}
+
+    optimal_dispatch: List[BSDOptimalDispatchRecord] = []
+    for scenario, sdata in scenarios_data.items():
+        dur, ch_win, dis_win, daily_rev_base, ann_rev_m_base, payback_base = sdata
+        for reg in regions:
+            cap_mult = region_capex[reg] / 1_380_000
+            daily_rev = round(daily_rev_base * cap_mult + rng.uniform(-500, 500), 0)
+            ann_rev_m = round(ann_rev_m_base * cap_mult + rng.uniform(-0.15, 0.15), 2)
+            payback   = round(payback_base / cap_mult + rng.uniform(-0.3, 0.3), 1)
+            optimal_dispatch.append(BSDOptimalDispatchRecord(
+                scenario=scenario,
+                region=reg,
+                optimal_duration_hr=dur,
+                optimal_charge_window=ch_win,
+                optimal_discharge_window=dis_win,
+                expected_daily_revenue=daily_rev,
+                expected_annual_revenue_m=ann_rev_m,
+                simple_payback_years=payback,
+            ))
+
+    return BSDDashboard(
+        batteries=batteries,
+        dispatch_profiles=dispatch_profiles,
+        strategy_performance=strategy_performance,
+        market_participation=market_participation,
+        optimal_dispatch=optimal_dispatch,
+        summary={
+            "total_installed_mw": 4280,
+            "total_installed_mwh": 9840,
+            "avg_fcas_revenue_pct": 58.3,
+            "avg_utilisation_pct": 72.4,
+            "avg_cycles_per_day": 1.8,
+            "highest_revenue_strategy": "FCAS_DOMINANT",
+            "total_annual_revenue_m": 284,
+        },
+    )
+
+
+_bsd_cache: dict = {}
+
+
+@app.get("/api/battery-dispatch-strategy/dashboard", response_model=BSDDashboard, dependencies=[Depends(verify_api_key)])
+async def get_bsd_dashboard():
+    cached = _cache_get(_bsd_cache, "bsd")
+    if cached:
+        return cached
+    result = _build_bsd_dashboard()
+    _cache_set(_bsd_cache, "bsd", result)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Sprint 79c — PPA Market Analytics (prefix PPA)
+# Endpoint: /api/ppa-market/dashboard
+# ---------------------------------------------------------------------------
+
+class PPADealRecord(BaseModel):
+    deal_id: str
+    buyer: str
+    seller: str
+    technology: str          # WIND / SOLAR / HYBRID / STORAGE_BACKED / HYDRO
+    region: str
+    capacity_mw: float
+    annual_energy_gwh: float
+    ppa_price: float         # $/MWh
+    contract_duration_years: int
+    signed_year: int
+    start_year: int
+    deal_type: str           # CORPORATE / UTILITY / GOVERNMENT / AGGREGATED
+    structure: str           # FIXED_PRICE / INDEXED / FLOOR_CEILING / PAY_AS_PRODUCED
+    green_certificate: bool  # LGC included
+
+
+class PPAPriceIndexRecord(BaseModel):
+    quarter: str
+    region: str
+    technology: str
+    avg_ppa_price: float
+    median_ppa_price: float
+    min_ppa_price: float
+    max_ppa_price: float
+    deal_count: int
+    total_mw: float
+    vs_spot_premium_pct: float  # PPA price vs forecast spot
+
+
+class PPABuyerRecord(BaseModel):
+    buyer_sector: str          # TECH / FINANCE / MINING / MANUFACTURING / GOVERNMENT / RETAIL / PROPERTY
+    deal_count: int
+    total_mw: float
+    avg_deal_size_mw: float
+    avg_ppa_price: float
+    avg_duration_years: float
+    green_target_pct: float    # % of sector with RE100 or similar target
+    pct_with_lgcs: float
+
+
+class PPARiskRecord(BaseModel):
+    risk_type: str    # VOLUME / PRICE / CURTAILMENT / COUNTERPARTY / SHAPE / BASIS / REGULATORY
+    description: str
+    mitigation: str
+    deal_structure: str  # which structures mitigate this
+    impact: str          # HIGH / MEDIUM / LOW
+    probability: str     # HIGH / MEDIUM / LOW
+
+
+class PPAPipelineRecord(BaseModel):
+    year: int
+    region: str
+    signed_mw: float
+    under_negotiation_mw: float
+    total_pipeline_mw: float
+    avg_price: float
+    dominant_technology: str
+    yoy_growth_pct: float
+
+
+class PPADashboard(BaseModel):
+    deals: List[PPADealRecord]
+    price_index: List[PPAPriceIndexRecord]
+    buyers: List[PPABuyerRecord]
+    risks: List[PPARiskRecord]
+    pipeline: List[PPAPipelineRecord]
+    summary: dict
+
+
+def _build_ppa_dashboard() -> PPADashboard:
+    import random
+
+    rng = random.Random(20250220)
+
+    regions = ["QLD", "NSW", "VIC", "SA"]
+    technologies = ["WIND", "SOLAR", "HYBRID", "STORAGE_BACKED", "HYDRO"]
+    deal_types = ["CORPORATE", "UTILITY", "GOVERNMENT", "AGGREGATED"]
+    structures = ["FIXED_PRICE", "INDEXED", "FLOOR_CEILING", "PAY_AS_PRODUCED"]
+    buyers_pool = [
+        ("Meta Platforms", "TECH"),
+        ("Amazon Web Services", "TECH"),
+        ("Microsoft Australia", "TECH"),
+        ("Google Cloud", "TECH"),
+        ("Commonwealth Bank", "FINANCE"),
+        ("ANZ Bank", "FINANCE"),
+        ("BHP Billiton", "MINING"),
+        ("Rio Tinto", "MINING"),
+        ("Fortescue Metals", "MINING"),
+        ("South32", "MINING"),
+        ("BlueScope Steel", "MANUFACTURING"),
+        ("Incitec Pivot", "MANUFACTURING"),
+        ("Coles Group", "RETAIL"),
+        ("Woolworths Group", "RETAIL"),
+        ("Lendlease", "PROPERTY"),
+        ("Mirvac", "PROPERTY"),
+        ("NSW Government", "GOVERNMENT"),
+        ("QLD Government", "GOVERNMENT"),
+        ("VIC Government", "GOVERNMENT"),
+        ("SA Government", "GOVERNMENT"),
+        ("ARENA Australia", "GOVERNMENT"),
+        ("Transurban", "MANUFACTURING"),
+        ("Toll Group", "MANUFACTURING"),
+        ("University of Melbourne", "GOVERNMENT"),
+        ("Snowy Hydro", "UTILITY"),
+    ]
+    sellers_pool = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Neoen",
+        "Iberdrola Australia", "Tilt Renewables", "Acciona Energia",
+        "CWP Renewables", "Pacific Energy", "Windlab", "Ørsted Australia",
+        "Vestas Australia", "Sapphire Wind Farm", "Pacific Hydro",
+    ]
+
+    deals: List[PPADealRecord] = []
+    for i in range(25):
+        buyer_name, buyer_sector_hint = buyers_pool[i]
+        technology = rng.choice(technologies)
+        region = rng.choice(regions)
+        signed_year = rng.randint(2020, 2024)
+        capacity_mw = round(rng.uniform(30, 400), 1)
+        cf = 0.38 if technology in ("WIND", "HYBRID") else 0.28
+        annual_energy = round(capacity_mw * cf * 8760 / 1000, 1)
+        ppa_price = round(rng.uniform(42, 78), 2)
+        duration = rng.randint(7, 20)
+        deal_type = rng.choice(deal_types)
+        structure = rng.choice(structures)
+        lgc = rng.random() > 0.25
+        deals.append(PPADealRecord(
+            deal_id=f"PPA-AU-{2020 + i:04d}",
+            buyer=buyer_name,
+            seller=rng.choice(sellers_pool),
+            technology=technology,
+            region=region,
+            capacity_mw=capacity_mw,
+            annual_energy_gwh=annual_energy,
+            ppa_price=ppa_price,
+            contract_duration_years=duration,
+            signed_year=signed_year,
+            start_year=signed_year + rng.randint(1, 2),
+            deal_type=deal_type,
+            structure=structure,
+            green_certificate=lgc,
+        ))
+
+    # --- Price Index: 8 quarters × 5 regions = 40 records ---
+    quarters = ["Q1-2023", "Q2-2023", "Q3-2023", "Q4-2023",
+                "Q1-2024", "Q2-2024", "Q3-2024", "Q4-2024"]
+    price_index: List[PPAPriceIndexRecord] = []
+    price_base = {"QLD": 54.0, "NSW": 57.0, "VIC": 55.0, "SA": 61.0, "WA": 52.0}
+    tech_adj = {"WIND": 0.0, "SOLAR": -4.0, "HYBRID": 2.5, "STORAGE_BACKED": 6.0, "HYDRO": 3.0}
+    for q_idx, q in enumerate(quarters):
+        trend = q_idx * 0.8  # gradual upward trend
+        for region in ["QLD", "NSW", "VIC", "SA", "WA"]:
+            for tech in ["WIND", "SOLAR"]:
+                base = price_base[region] + tech_adj[tech] + trend + rng.uniform(-2, 2)
+                avg_p = round(base, 2)
+                med_p = round(base - rng.uniform(0, 1.5), 2)
+                min_p = round(base - rng.uniform(4, 8), 2)
+                max_p = round(base + rng.uniform(5, 12), 2)
+                spot_fwd = round(rng.uniform(55, 80), 2)
+                vs_spot = round((avg_p - spot_fwd) / spot_fwd * 100, 1)
+                dc = rng.randint(2, 8)
+                tot_mw = round(rng.uniform(50, 350), 0)
+                price_index.append(PPAPriceIndexRecord(
+                    quarter=q,
+                    region=region,
+                    technology=tech,
+                    avg_ppa_price=avg_p,
+                    median_ppa_price=med_p,
+                    min_ppa_price=min_p,
+                    max_ppa_price=max_p,
+                    deal_count=dc,
+                    total_mw=tot_mw,
+                    vs_spot_premium_pct=vs_spot,
+                ))
+
+    # --- Buyer Sectors: 8 records ---
+    buyers_data = [
+        ("TECH",          14, 1840.0, 131.4, 58.2, 13.5, 92.0, 88.0),
+        ("FINANCE",        8,  620.0,  77.5, 61.0, 12.0, 70.0, 65.0),
+        ("MINING",        12, 1540.0, 128.3, 54.8, 14.2, 55.0, 72.0),
+        ("MANUFACTURING",  9,  780.0,  86.7, 57.3, 11.8, 48.0, 61.0),
+        ("GOVERNMENT",    10,  690.0,  69.0, 59.1, 15.0, 80.0, 90.0),
+        ("RETAIL",         7,  520.0,  74.3, 62.4, 10.5, 60.0, 78.0),
+        ("PROPERTY",       5,  320.0,  64.0, 63.7,  9.5, 45.0, 55.0),
+        ("UTILITY",        4,  540.0, 135.0, 51.2, 18.0, 30.0, 40.0),
+    ]
+    buyers: List[PPABuyerRecord] = []
+    for (sector, dc, total_mw, avg_sz, avg_p, avg_dur, gt_pct, lgc_pct) in buyers_data:
+        buyers.append(PPABuyerRecord(
+            buyer_sector=sector,
+            deal_count=dc,
+            total_mw=total_mw,
+            avg_deal_size_mw=avg_sz,
+            avg_ppa_price=avg_p,
+            avg_duration_years=avg_dur,
+            green_target_pct=gt_pct,
+            pct_with_lgcs=lgc_pct,
+        ))
+
+    # --- Risk Register: 8 records ---
+    risks: List[PPARiskRecord] = [
+        PPARiskRecord(
+            risk_type="VOLUME",
+            description="Actual generation below contracted volume due to resource variability or underperformance",
+            mitigation="Include cap on buyer's payment obligation; use P90 generation estimates in sizing",
+            deal_structure="PAY_AS_PRODUCED",
+            impact="HIGH",
+            probability="MEDIUM",
+        ),
+        PPARiskRecord(
+            risk_type="PRICE",
+            description="Long-term wholesale price decline erodes value of fixed-price PPA relative to spot market",
+            mitigation="Indexed or floor/ceiling structures; portfolio diversification across contract tenors",
+            deal_structure="INDEXED / FLOOR_CEILING",
+            impact="HIGH",
+            probability="MEDIUM",
+        ),
+        PPARiskRecord(
+            risk_type="CURTAILMENT",
+            description="Network congestion or AEMO dispatch instructions curtail output below contracted levels",
+            mitigation="Include curtailment risk-sharing clause; network studies pre-signing",
+            deal_structure="FIXED_PRICE",
+            impact="HIGH",
+            probability="HIGH",
+        ),
+        PPARiskRecord(
+            risk_type="COUNTERPARTY",
+            description="Buyer or seller default on contractual obligations over long contract tenor",
+            mitigation="Credit support annexe; parent guarantees; letter of credit; step-in rights",
+            deal_structure="ALL",
+            impact="HIGH",
+            probability="LOW",
+        ),
+        PPARiskRecord(
+            risk_type="SHAPE",
+            description="Generation profile does not match buyer's load profile, creating residual spot exposure",
+            mitigation="Hybrid PPA combining solar and wind; storage-backed PPAs; firming contracts",
+            deal_structure="HYBRID / STORAGE_BACKED",
+            impact="MEDIUM",
+            probability="HIGH",
+        ),
+        PPARiskRecord(
+            risk_type="BASIS",
+            description="Difference between contract reference node price and buyer's actual site price",
+            mitigation="Reference same connection point; use regional reference price with basis swap overlay",
+            deal_structure="FIXED_PRICE / INDEXED",
+            impact="MEDIUM",
+            probability="MEDIUM",
+        ),
+        PPARiskRecord(
+            risk_type="REGULATORY",
+            description="Policy changes to renewable certificates, LRET scheme, or market rules affect PPA economics",
+            mitigation="Regulatory change clause allowing price renegotiation; LGC pass-through provisions",
+            deal_structure="ALL",
+            impact="MEDIUM",
+            probability="LOW",
+        ),
+        PPARiskRecord(
+            risk_type="TRANSMISSION",
+            description="Delay or cancellation of transmission project reduces offtake value or forces contract exit",
+            mitigation="Material adverse change clause triggered by ISP project delay >24 months",
+            deal_structure="FIXED_PRICE",
+            impact="MEDIUM",
+            probability="MEDIUM",
+        ),
+    ]
+
+    # --- Pipeline: 5 years × 4 NEM regions = 20 records ---
+    pipeline_base = {
+        "QLD": {"signed": 520, "nego": 380, "price": 55.0, "tech": "SOLAR", "yoy": 0.0},
+        "NSW": {"signed": 680, "nego": 490, "price": 58.0, "tech": "WIND",  "yoy": 0.0},
+        "VIC": {"signed": 610, "nego": 420, "price": 56.5, "tech": "WIND",  "yoy": 0.0},
+        "SA":  {"signed": 310, "nego": 240, "price": 62.0, "tech": "HYBRID","yoy": 0.0},
+    }
+    years = [2022, 2023, 2024, 2025, 2026]
+    pipeline: List[PPAPipelineRecord] = []
+    for yr_idx, yr in enumerate(years):
+        for region, base in pipeline_base.items():
+            growth = 1.0 + yr_idx * 0.12
+            signed = round(base["signed"] * growth + rng.uniform(-30, 30), 0)
+            nego = round(base["nego"] * growth + rng.uniform(-20, 20), 0)
+            total = signed + nego
+            avg_p = round(base["price"] + yr_idx * 0.9 + rng.uniform(-1, 1), 2)
+            prev_growth = (1.0 + (yr_idx - 1) * 0.12) if yr_idx > 0 else 1.0
+            prev_signed = base["signed"] * prev_growth
+            yoy = round((signed - prev_signed) / prev_signed * 100, 1) if prev_signed > 0 else 0.0
+            pipeline.append(PPAPipelineRecord(
+                year=yr,
+                region=region,
+                signed_mw=signed,
+                under_negotiation_mw=nego,
+                total_pipeline_mw=total,
+                avg_price=avg_p,
+                dominant_technology=base["tech"],
+                yoy_growth_pct=yoy,
+            ))
+
+    summary = {
+        "total_deals_2024": 25,
+        "total_mw_signed": 4850,
+        "avg_ppa_price_2024": 58.4,
+        "avg_duration_years": 12.3,
+        "corporate_share_pct": 64.2,
+        "wind_share_pct": 48.0,
+        "solar_share_pct": 38.5,
+        "pipeline_2025_mw": 2840,
+    }
+
+    return PPADashboard(
+        deals=deals,
+        price_index=price_index,
+        buyers=buyers,
+        risks=risks,
+        pipeline=pipeline,
+        summary=summary,
+    )
+
+
+_ppa_market_cache: dict = {}
+
+
+@app.get("/api/ppa-market/dashboard", response_model=PPADashboard, dependencies=[Depends(verify_api_key)])
+async def get_ppa_market_dashboard():
+    cached = _cache_get(_ppa_market_cache, "ppa_market")
+    if cached:
+        return cached
+    result = _build_ppa_dashboard()
+    _cache_set(_ppa_market_cache, "ppa_market", result)
+    return result

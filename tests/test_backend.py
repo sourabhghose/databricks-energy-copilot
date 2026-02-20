@@ -10777,3 +10777,55 @@ class TestDemandResponseProgramsEndpoint:
     def test_capacity_count_at_least_15(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["capacity"]) >= 15
+
+
+class TestInterconnectorCongestionEndpoint:
+    """Sprint 79a — NEM Interconnector Congestion & Constraint Analytics (prefix ICC)"""
+
+    endpoint = "/api/interconnector-congestion/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_congestion_count_at_least_70(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["congestion"]) >= 70
+
+    def test_regional_spreads_count_at_least_80(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["regional_spreads"]) >= 80
+
+
+class TestPPAMarketEndpoint:
+    """Sprint 79c — PPA Market Analytics (prefix PPA)"""
+
+    endpoint = "/api/ppa-market/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_deals_count_at_least_20(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["deals"]) >= 20
+
+    def test_price_index_count_at_least_35(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["price_index"]) >= 35
+
+
+class TestBatteryDispatchStrategyEndpoint:
+    endpoint = "/api/battery-dispatch-strategy/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_batteries_count_at_least_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["batteries"]) >= 8
+
+    def test_dispatch_profiles_count_at_least_200(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["dispatch_profiles"]) >= 200
