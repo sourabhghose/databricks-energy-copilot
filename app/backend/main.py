@@ -50667,3 +50667,747 @@ def get_offshore_wind_dev_analytics_dashboard(api_key: str = Depends(verify_api_
             "floating_count": sum(1 for p in projects if p.technology == "FLOATING"),
         }
     )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Sprint 75a — Pumped Hydro Resource Assessment Analytics (prefix PHA)
+# ════════════════════════════════════════════════════════════════════════════
+
+class PHASiteRecord(BaseModel):
+    site_id: str
+    name: str
+    state: str
+    upper_reservoir: str
+    lower_reservoir: str
+    head_m: float
+    storage_gwh: float
+    capacity_mw: float
+    area_ha: float
+    distance_to_grid_km: float
+    environmental_class: str   # CLASS_A / CLASS_B / CLASS_C / CLASS_D
+    development_status: str    # IDENTIFIED / FEASIBILITY / APPROVED / CONSTRUCTION / OPERATING
+    capex_bn: float
+    lcoe_per_mwh: float
+    water_requirements_ml_yr: float
+
+
+class PHAHydroStateRecord(BaseModel):
+    state: str
+    total_sites_identified: int
+    total_potential_gw: float
+    total_potential_gwh: float
+    class_a_sites: int
+    class_b_sites: int
+    under_development_gw: float
+    operating_gw: float
+    avg_head_m: float
+
+
+class PHAStorageNeedRecord(BaseModel):
+    scenario: str              # NEM_2030 / NEM_2040 / NEM_2050
+    region: str
+    variable_renewable_pct: float
+    storage_needed_gwh: float
+    storage_needed_gw: float
+    phes_share_pct: float
+    battery_share_pct: float
+    other_storage_share_pct: float
+    firming_gap_gwh: float
+
+
+class PHAHeadDurationRecord(BaseModel):
+    state: str
+    head_range: str            # "100-200m" / "200-400m" / "400-600m" / "600-900m" / ">900m"
+    site_count: int
+    total_capacity_mw: float
+    total_storage_gwh: float
+    avg_capex_per_mw_m: float
+
+
+class PHAWaterConstraintRecord(BaseModel):
+    site_id: str
+    annual_evaporation_ml: float
+    annual_seepage_ml: float
+    annual_makeup_water_ml: float
+    water_source: str          # RAINFALL / RIVER / GROUNDWATER / RECYCLED
+    water_stress_level: str    # LOW / MEDIUM / HIGH / EXTREME
+    climate_change_risk: str   # LOW / MEDIUM / HIGH
+
+
+class PHADashboard(BaseModel):
+    sites: List[PHASiteRecord]
+    state_summary: List[PHAHydroStateRecord]
+    storage_needs: List[PHAStorageNeedRecord]
+    head_duration: List[PHAHeadDurationRecord]
+    water_constraints: List[PHAWaterConstraintRecord]
+    summary: dict
+
+
+@app.get("/api/pumped-hydro-resource-assessment/dashboard", response_model=PHADashboard,
+         dependencies=[Depends(verify_api_key)])
+def get_pumped_hydro_resource_assessment_dashboard():
+    import random
+
+    rng = random.Random(20250575)
+
+    # ── 18 site records ─────────────────────────────────────────────────────
+    sites_raw = [
+        # (site_id, name, state, upper_res, lower_res, head_m, storage_gwh, cap_mw, area_ha,
+        #  dist_km, env_class, status, capex_bn, lcoe, water_ml)
+        ("S01", "Snowy 2.0", "NSW", "Lake Tantangara", "Lake Eucumbene", 700.0, 350.0, 2000.0,
+         14000.0, 3.0, "CLASS_A", "CONSTRUCTION", 12.0, 95.0, 1200.0),
+        ("S02", "Oven Mountain", "NSW", "Oven Mountain Upper", "Rocky Plain Reservoir", 600.0, 30.0,
+         600.0, 1200.0, 28.0, "CLASS_B", "FEASIBILITY", 1.8, 115.0, 210.0),
+        ("S03", "Shoalhaven Scheme Expansion", "NSW", "Fitzroy Falls Reservoir", "Lake Yarrunga",
+         480.0, 12.0, 240.0, 850.0, 6.0, "CLASS_A", "FEASIBILITY", 0.9, 108.0, 180.0),
+        ("S04", "Nariel Creek PHES", "VIC", "Nariel Upper", "Nariel Lower", 520.0, 20.0, 500.0,
+         900.0, 35.0, "CLASS_B", "IDENTIFIED", 1.6, 122.0, 145.0),
+        ("S05", "Eildon Expansion", "VIC", "Lake Eildon Upper", "Lake Eildon", 250.0, 50.0, 400.0,
+         3200.0, 8.0, "CLASS_A", "FEASIBILITY", 1.4, 112.0, 320.0),
+        ("S06", "Wivenhoe Pump Storage", "QLD", "Lake Wivenhoe Upper", "Lake Wivenhoe", 100.0, 5.8,
+         570.0, 2200.0, 12.0, "CLASS_B", "OPERATING", 1.0, 90.0, 650.0),
+        ("S07", "Kidston Pumped Storage", "QLD", "Kidston Upper", "Kidston Lower", 200.0, 2.0,
+         250.0, 320.0, 42.0, "CLASS_A", "CONSTRUCTION", 0.78, 118.0, 80.0),
+        ("S08", "Borumba Dam PHES", "QLD", "Borumba Upper", "Borumba Reservoir", 320.0, 15.0,
+         2000.0, 1800.0, 18.0, "CLASS_A", "APPROVED", 4.5, 105.0, 480.0),
+        ("S09", "Pioneer–Burdekin", "QLD", "Pioneer Upper", "Burdekin River", 900.0, 50.0, 5000.0,
+         6200.0, 55.0, "CLASS_C", "FEASIBILITY", 14.0, 130.0, 920.0),
+        ("S10", "Genex Kidston Stage 2", "QLD", "Kidston Stage2 Upper", "Kidston Stage2 Lower",
+         230.0, 4.0, 500.0, 600.0, 45.0, "CLASS_A", "FEASIBILITY", 1.2, 120.0, 95.0),
+        ("S11", "Cultana PHES", "SA", "Cultana Upper", "Spencer Gulf", 300.0, 40.0, 600.0,
+         2800.0, 22.0, "CLASS_B", "IDENTIFIED", 2.2, 128.0, 60.0),
+        ("S12", "Kangaroo Island PHES", "SA", "KI Upper", "Southern Ocean", 220.0, 6.0, 200.0,
+         450.0, 95.0, "CLASS_C", "IDENTIFIED", 0.85, 145.0, 40.0),
+        ("S13", "Gordon Power Station Expansion", "TAS", "Lake Gordon", "Lake Pedder", 180.0, 12000.0,
+         600.0, 82000.0, 5.0, "CLASS_A", "OPERATING", 0.6, 78.0, 850.0),
+        ("S14", "Henty PHES", "TAS", "Henty Upper", "Henty Lower", 450.0, 10.0, 400.0,
+         680.0, 30.0, "CLASS_A", "FEASIBILITY", 1.1, 102.0, 155.0),
+        ("S15", "Lake Cethana Expansion", "TAS", "Cethana Upper", "Lake Cethana", 350.0, 8.0, 300.0,
+         520.0, 20.0, "CLASS_B", "IDENTIFIED", 0.95, 110.0, 130.0),
+        ("S16", "Tantangara–Blowering Link", "NSW", "Lake Tantangara", "Blowering Reservoir",
+         820.0, 25.0, 800.0, 2100.0, 15.0, "CLASS_B", "IDENTIFIED", 3.2, 132.0, 280.0),
+        ("S17", "Wyangala PHES", "NSW", "Wyangala Upper", "Wyangala Dam", 190.0, 18.0, 600.0,
+         1400.0, 25.0, "CLASS_C", "IDENTIFIED", 2.0, 135.0, 360.0),
+        ("S18", "Thomson–Cardinia Link", "VIC", "Thomson Upper", "Cardinia Reservoir", 410.0, 22.0,
+         700.0, 1600.0, 14.0, "CLASS_A", "FEASIBILITY", 2.3, 113.0, 270.0),
+    ]
+
+    sites: list = []
+    for row in sites_raw:
+        sites.append(PHASiteRecord(
+            site_id=row[0], name=row[1], state=row[2],
+            upper_reservoir=row[3], lower_reservoir=row[4],
+            head_m=row[5], storage_gwh=row[6], capacity_mw=row[7],
+            area_ha=row[8], distance_to_grid_km=row[9],
+            environmental_class=row[10], development_status=row[11],
+            capex_bn=row[12], lcoe_per_mwh=row[13],
+            water_requirements_ml_yr=row[14],
+        ))
+
+    # ── 5 state summary records ──────────────────────────────────────────────
+    state_summary_raw = [
+        # state, sites_id, pot_gw, pot_gwh, cl_a, cl_b, under_dev_gw, op_gw, avg_head
+        ("NSW", 5, 12.5, 145.0, 2, 2, 2.0, 0.0, 558.0),
+        ("VIC", 3, 7.8, 72.0, 1, 2, 0.7, 0.0, 393.0),
+        ("QLD", 5, 13.2, 76.8, 3, 1, 7.0, 0.57, 350.0),
+        ("SA",  2, 2.0, 46.0, 0, 1, 0.0, 0.0, 260.0),
+        ("TAS", 3, 7.0, 12018.0, 2, 1, 0.0, 0.6, 327.0),
+    ]
+    state_summary: list = []
+    for row in state_summary_raw:
+        state_summary.append(PHAHydroStateRecord(
+            state=row[0], total_sites_identified=row[1],
+            total_potential_gw=row[2], total_potential_gwh=row[3],
+            class_a_sites=row[4], class_b_sites=row[5],
+            under_development_gw=row[6], operating_gw=row[7],
+            avg_head_m=row[8],
+        ))
+
+    # ── 15 storage need records (3 scenarios × 5 NEM regions) ───────────────
+    _regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    _scenario_params = {
+        "NEM_2030": dict(
+            NSW=(55.0, 22.0, 3.8, 52.0, 30.0, 18.0, 8.0),
+            VIC=(60.0, 18.0, 2.8, 48.0, 35.0, 17.0, 6.0),
+            QLD=(50.0, 15.0, 2.5, 42.0, 28.0, 20.0, 9.0),
+            SA =(70.0, 12.0, 2.0, 36.0, 40.0, 24.0, 5.0),
+            TAS=(72.0, 8.0,  1.2, 22.0, 65.0, 20.0, 2.5),
+        ),
+        "NEM_2040": dict(
+            NSW=(75.0, 55.0, 9.5, 61.0, 25.0, 14.0, 18.0),
+            VIC=(80.0, 48.0, 8.0, 58.0, 28.0, 14.0, 14.0),
+            QLD=(70.0, 40.0, 7.0, 52.0, 30.0, 18.0, 16.0),
+            SA =(88.0, 35.0, 5.5, 48.0, 35.0, 17.0, 12.0),
+            TAS=(85.0, 20.0, 3.0, 35.0, 55.0, 15.0, 5.5),
+        ),
+        "NEM_2050": dict(
+            NSW=(95.0, 120.0, 18.0, 55.0, 28.0, 17.0, 38.0),
+            VIC=(96.0, 105.0, 16.0, 52.0, 30.0, 18.0, 32.0),
+            QLD=(92.0, 90.0, 14.0, 50.0, 32.0, 18.0, 28.0),
+            SA =(99.0, 75.0, 12.0, 46.0, 36.0, 18.0, 22.0),
+            TAS=(100.0, 40.0, 6.0, 55.0, 30.0, 15.0, 12.0),
+        ),
+    }
+    storage_needs: list = []
+    for _scenario, _reg_data in _scenario_params.items():
+        for _region in _regions:
+            _p = _reg_data[_region]
+            storage_needs.append(PHAStorageNeedRecord(
+                scenario=_scenario, region=_region,
+                variable_renewable_pct=_p[0],
+                storage_needed_gwh=_p[1],
+                storage_needed_gw=_p[2],
+                phes_share_pct=_p[3],
+                battery_share_pct=_p[4],
+                other_storage_share_pct=_p[5],
+                firming_gap_gwh=_p[6],
+            ))
+
+    # ── 25 head duration records (5 states × 5 head ranges) ─────────────────
+    _head_ranges = ["100-200m", "200-400m", "400-600m", "600-900m", ">900m"]
+    _hd_data = {
+        # state -> [site_count, cap_mw, stor_gwh, capex_per_mw_m] per head_range
+        "NSW": [(3, 600, 18, 1.8), (4, 1400, 55, 2.0), (3, 800, 30, 2.4), (2, 800, 25, 2.8), (1, 500, 15, 3.2)],
+        "VIC": [(2, 400, 22, 1.7), (3, 1100, 44, 1.9), (2, 700, 22, 2.3), (1, 400, 12, 2.7), (0,   0,  0, 0.0)],
+        "QLD": [(4, 1140, 23, 1.6), (3, 750, 17, 1.8), (2, 500, 15, 2.2), (1, 5000, 50, 2.6), (1, 800, 20, 3.0)],
+        "SA":  [(1, 200, 6, 1.9), (2, 600, 40, 2.1), (1, 200, 6, 2.5), (0, 0, 0, 0.0), (0, 0, 0, 0.0)],
+        "TAS": [(1, 600, 12000, 1.5), (2, 700, 18, 1.8), (2, 500, 10, 2.2), (1, 300, 8, 2.6), (0, 0, 0, 0.0)],
+    }
+    head_duration: list = []
+    for _state, _rows in _hd_data.items():
+        for _hr, _row in zip(_head_ranges, _rows):
+            head_duration.append(PHAHeadDurationRecord(
+                state=_state, head_range=_hr,
+                site_count=_row[0], total_capacity_mw=float(_row[1]),
+                total_storage_gwh=float(_row[2]), avg_capex_per_mw_m=_row[3],
+            ))
+
+    # ── 12 water constraint records ─────────────────────────────────────────
+    _wc_raw = [
+        ("S01", 850.0, 120.0, 230.0, "RIVER",       "LOW",    "MEDIUM"),
+        ("S03", 280.0, 40.0,  95.0,  "RAINFALL",    "LOW",    "LOW"),
+        ("S07", 310.0, 25.0,  80.0,  "GROUNDWATER", "MEDIUM", "HIGH"),
+        ("S08", 540.0, 85.0,  180.0, "RIVER",       "LOW",    "MEDIUM"),
+        ("S09", 980.0, 150.0, 340.0, "RIVER",       "MEDIUM", "HIGH"),
+        ("S10", 290.0, 30.0,  75.0,  "GROUNDWATER", "HIGH",   "HIGH"),
+        ("S11", 420.0, 60.0,  145.0, "GROUNDWATER", "EXTREME","HIGH"),
+        ("S12", 180.0, 20.0,  50.0,  "RAINFALL",    "HIGH",   "HIGH"),
+        ("S13", 700.0, 90.0,  200.0, "RAINFALL",    "LOW",    "LOW"),
+        ("S14", 240.0, 35.0,  85.0,  "RAINFALL",    "LOW",    "LOW"),
+        ("S16", 390.0, 55.0,  120.0, "RIVER",       "MEDIUM", "MEDIUM"),
+        ("S18", 310.0, 45.0,  100.0, "RIVER",       "LOW",    "MEDIUM"),
+    ]
+    water_constraints: list = []
+    for _w in _wc_raw:
+        water_constraints.append(PHAWaterConstraintRecord(
+            site_id=_w[0],
+            annual_evaporation_ml=_w[1],
+            annual_seepage_ml=_w[2],
+            annual_makeup_water_ml=_w[3],
+            water_source=_w[4],
+            water_stress_level=_w[5],
+            climate_change_risk=_w[6],
+        ))
+
+    return PHADashboard(
+        sites=sites,
+        state_summary=state_summary,
+        storage_needs=storage_needs,
+        head_duration=head_duration,
+        water_constraints=water_constraints,
+        summary={
+            "total_identified_sites": 18,
+            "total_potential_gw": 42.5,
+            "total_potential_gwh": 512.0,
+            "class_a_sites": 6,
+            "operating_gw": 1.8,
+            "under_development_gw": 3.2,
+            "avg_lcoe_per_mwh": 118.0,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 75b — NEM Frequency Control Performance Analytics (prefix FCP)
+# ---------------------------------------------------------------------------
+
+class FCPFrequencyRecord(BaseModel):
+    date: str
+    region: str
+    avg_frequency_hz: float
+    std_frequency_hz: float
+    time_in_normal_band_pct: float
+    time_above_50_15_pct: float
+    time_below_49_85_pct: float
+    rocof_max_hz_per_sec: float
+    nadir_hz: Optional[float]
+    zenith_hz: Optional[float]
+    nofb_events: int
+
+
+class FCPProviderRecord(BaseModel):
+    provider_id: str
+    company: str
+    technology: str
+    service: str
+    region: str
+    registered_mw: float
+    avg_enabled_mw: float
+    enablement_rate_pct: float
+    avg_revenue_per_mw_hr: float
+    compliance_rate_pct: float
+    performance_score: float
+
+
+class FCPEventRecord(BaseModel):
+    event_id: str
+    datetime: str
+    region: str
+    event_type: str
+    trigger: str
+    frequency_nadir_hz: float
+    recovery_time_sec: float
+    ufls_activated: bool
+    energy_shed_mwh: float
+    fcas_response_mw: float
+
+
+class FCPBandwidthRecord(BaseModel):
+    month: str
+    region: str
+    raise_6sec_cost_m: float
+    raise_60sec_cost_m: float
+    raise_5min_cost_m: float
+    lower_6sec_cost_m: float
+    lower_60sec_cost_m: float
+    lower_5min_cost_m: float
+    contingency_raise_cost_m: float
+    contingency_lower_cost_m: float
+    total_cost_m: float
+
+
+class FCPComplianceRecord(BaseModel):
+    provider_id: str
+    company: str
+    quarter: str
+    service: str
+    non_compliance_events: int
+    causer_pays_charge_k: float
+    performance_flag: str
+
+
+class FCPDashboard(BaseModel):
+    frequency_performance: List[FCPFrequencyRecord]
+    providers: List[FCPProviderRecord]
+    events: List[FCPEventRecord]
+    bandwidth_costs: List[FCPBandwidthRecord]
+    compliance: List[FCPComplianceRecord]
+    summary: dict
+
+
+@app.get("/api/frequency-control-performance/dashboard", response_model=FCPDashboard)
+def get_frequency_control_performance_dashboard(api_key: str = Depends(verify_api_key)):
+    import random
+    rng = random.Random(9901)
+
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    months_2024 = [
+        "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06",
+        "2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12",
+    ]
+
+    # --- 60 frequency performance records (12 months × 5 regions) ---
+    freq_perf: list = []
+    region_nadir_base = {"NSW": 49.72, "VIC": 49.68, "QLD": 49.75, "SA": 49.55, "TAS": 49.60}
+    region_zenith_base = {"NSW": 50.28, "VIC": 50.32, "QLD": 50.25, "SA": 50.45, "TAS": 50.40}
+    region_normal_band = {"NSW": 98.9, "VIC": 98.7, "QLD": 99.1, "SA": 97.8, "TAS": 98.2}
+    region_nofb = {"NSW": 2, "VIC": 3, "QLD": 1, "SA": 6, "TAS": 4}
+
+    for month in months_2024:
+        for region in regions:
+            normal_pct = round(region_normal_band[region] + rng.uniform(-0.4, 0.4), 2)
+            above_pct = round(rng.uniform(0.2, 0.9), 2)
+            below_pct = round(100.0 - normal_pct - above_pct, 2)
+            freq_perf.append(FCPFrequencyRecord(
+                date=month,
+                region=region,
+                avg_frequency_hz=round(50.0 + rng.uniform(-0.03, 0.03), 4),
+                std_frequency_hz=round(rng.uniform(0.035, 0.080), 4),
+                time_in_normal_band_pct=normal_pct,
+                time_above_50_15_pct=above_pct,
+                time_below_49_85_pct=below_pct,
+                rocof_max_hz_per_sec=round(rng.uniform(0.8, 2.4), 3),
+                nadir_hz=round(region_nadir_base[region] + rng.uniform(-0.08, 0.08), 3),
+                zenith_hz=round(region_zenith_base[region] + rng.uniform(-0.05, 0.05), 3),
+                nofb_events=region_nofb[region] + rng.randint(-1, 2),
+            ))
+
+    # --- 20 provider records ---
+    provider_data = [
+        ("AGL001", "AGL Energy",          "BATTERY",      "RAISE_6SEC",         "NSW", 100.0),
+        ("AGL002", "AGL Energy",          "GAS_TURBINE",  "RAISE_60SEC",        "NSW",  80.0),
+        ("ORI001", "Origin Energy",       "BATTERY",      "LOWER_6SEC",         "QLD", 150.0),
+        ("ORI002", "Origin Energy",       "HYDRO",        "CONTINGENCY_RAISE",  "QLD", 200.0),
+        ("MER001", "Meridian Energy",     "HYDRO",        "RAISE_5MIN",         "TAS", 250.0),
+        ("MER002", "Meridian Energy",     "HYDRO",        "LOWER_5MIN",         "TAS", 180.0),
+        ("SNO001", "Snowy Hydro",         "HYDRO",        "CONTINGENCY_RAISE",  "NSW", 500.0),
+        ("SNO002", "Snowy Hydro",         "HYDRO",        "CONTINGENCY_LOWER",  "NSW", 500.0),
+        ("ERG001", "EnergyAustralia",     "GAS_TURBINE",  "RAISE_6SEC",         "VIC",  60.0),
+        ("ERG002", "EnergyAustralia",     "BATTERY",      "LOWER_6SEC",         "VIC",  80.0),
+        ("NEO001", "Neoen",               "BATTERY",      "RAISE_6SEC",         "SA",  100.0),
+        ("NEO002", "Neoen",               "WIND",         "RAISE_60SEC",        "SA",   70.0),
+        ("TES001", "Tesla Energy",        "BATTERY",      "LOWER_6SEC",         "SA",  100.0),
+        ("TES002", "Tesla Energy",        "BATTERY",      "LOWER_60SEC",        "SA",   80.0),
+        ("APA001", "APA Group",           "GAS_TURBINE",  "RAISE_60SEC",        "QLD",  90.0),
+        ("APA002", "APA Group",           "DIESEL",       "CONTINGENCY_RAISE",  "SA",   30.0),
+        ("TAT001", "TasNetworks",         "HYDRO",        "LOWER_5MIN",         "TAS", 120.0),
+        ("EDL001", "EDL Energy",          "DIESEL",       "RAISE_6SEC",         "QLD",  20.0),
+        ("CWP001", "CleanCo Queensland",  "HYDRO",        "CONTINGENCY_LOWER",  "QLD", 160.0),
+        ("IPO001", "Ipswich Power",       "GAS_TURBINE",  "LOWER_60SEC",        "QLD",  50.0),
+    ]
+    providers: list = []
+    for pid, company, tech, service, region, reg_mw in provider_data:
+        er = round(rng.uniform(72.0, 96.0), 1)
+        cr = round(rng.uniform(91.0, 99.5), 1)
+        ps = round((er * 0.3 + cr * 0.7) * rng.uniform(0.97, 1.03), 1)
+        ps = min(100.0, max(0.0, ps))
+        providers.append(FCPProviderRecord(
+            provider_id=pid,
+            company=company,
+            technology=tech,
+            service=service,
+            region=region,
+            registered_mw=reg_mw,
+            avg_enabled_mw=round(reg_mw * rng.uniform(0.55, 0.90), 1),
+            enablement_rate_pct=er,
+            avg_revenue_per_mw_hr=round(rng.uniform(8.5, 65.0), 2),
+            compliance_rate_pct=cr,
+            performance_score=ps,
+        ))
+
+    # --- 15 frequency event records ---
+    event_data = [
+        ("EVT001", "2022-02-12T14:23:00", "SA",  "UNDER_FREQUENCY",    "GENERATOR_TRIP",        49.31, 38.2, True,  112.0, 320.0),
+        ("EVT002", "2022-05-08T09:47:00", "VIC", "CREDIBLE_CONTINGENCY","INTERCONNECTOR_TRIP",   49.52,  8.5, False,   0.0, 580.0),
+        ("EVT003", "2022-08-19T18:15:00", "NSW", "UNDER_FREQUENCY",    "GENERATOR_TRIP",        49.44, 22.1, False,   0.0, 410.0),
+        ("EVT004", "2022-11-03T07:30:00", "QLD", "OVER_FREQUENCY",     "LOAD_TRIP",             50.52, 14.3, False,   0.0, 195.0),
+        ("EVT005", "2023-01-25T21:05:00", "SA",  "NON_CREDIBLE",       "GENERATOR_TRIP",        49.18, 52.7, True,  215.0, 480.0),
+        ("EVT006", "2023-03-14T11:40:00", "TAS", "UNDER_FREQUENCY",    "INTERCONNECTOR_TRIP",   49.58, 11.9, False,   0.0, 270.0),
+        ("EVT007", "2023-06-22T16:55:00", "VIC", "CREDIBLE_CONTINGENCY","GENERATOR_TRIP",        49.47, 19.6, False,   0.0, 620.0),
+        ("EVT008", "2023-08-07T08:20:00", "NSW", "UNDER_FREQUENCY",    "DEMAND_FORECAST_ERROR", 49.62,  7.3, False,   0.0, 145.0),
+        ("EVT009", "2023-10-30T20:12:00", "SA",  "UNDER_FREQUENCY",    "GENERATOR_TRIP",        49.28, 44.8, True,  178.0, 395.0),
+        ("EVT010", "2023-12-11T13:37:00", "QLD", "OVER_FREQUENCY",     "LOAD_TRIP",             50.61, 16.2, False,   0.0, 220.0),
+        ("EVT011", "2024-02-29T06:15:00", "NSW", "CREDIBLE_CONTINGENCY","INTERCONNECTOR_TRIP",   49.51, 10.4, False,   0.0, 540.0),
+        ("EVT012", "2024-04-17T22:43:00", "VIC", "UNDER_FREQUENCY",    "GENERATOR_TRIP",        49.39, 31.5, True,   95.0, 370.0),
+        ("EVT013", "2024-07-03T15:28:00", "SA",  "NON_CREDIBLE",       "GENERATOR_TRIP",        49.09, 67.3, True,  342.0, 510.0),
+        ("EVT014", "2024-09-18T10:51:00", "QLD", "UNDER_FREQUENCY",    "GENERATOR_TRIP",        49.55, 13.8, False,   0.0, 295.0),
+        ("EVT015", "2024-11-25T19:09:00", "TAS", "CREDIBLE_CONTINGENCY","INTERCONNECTOR_TRIP",   49.49,  9.2, False,   0.0, 230.0),
+    ]
+    events: list = []
+    for row in event_data:
+        events.append(FCPEventRecord(
+            event_id=row[0], datetime=row[1], region=row[2],
+            event_type=row[3], trigger=row[4],
+            frequency_nadir_hz=row[5], recovery_time_sec=row[6],
+            ufls_activated=row[7], energy_shed_mwh=row[8], fcas_response_mw=row[9],
+        ))
+
+    # --- 48 bandwidth cost records (12 months × 4 key regions) ---
+    bandwidth_regions = ["NSW", "VIC", "QLD", "SA"]
+    bandwidth_base = {
+        "NSW": (1.8, 2.1, 2.6, 1.2, 1.5, 1.9, 3.1, 2.4),
+        "VIC": (2.2, 2.5, 3.0, 1.5, 1.8, 2.2, 3.6, 2.8),
+        "QLD": (1.5, 1.8, 2.2, 1.0, 1.3, 1.6, 2.7, 2.0),
+        "SA":  (3.1, 3.5, 4.0, 2.0, 2.5, 3.0, 5.2, 4.1),
+    }
+    bandwidth_costs: list = []
+    for month in months_2024:
+        for region in bandwidth_regions:
+            b = bandwidth_base[region]
+            r6  = round(b[0] * rng.uniform(0.88, 1.12), 2)
+            r60 = round(b[1] * rng.uniform(0.88, 1.12), 2)
+            r5  = round(b[2] * rng.uniform(0.88, 1.12), 2)
+            l6  = round(b[3] * rng.uniform(0.88, 1.12), 2)
+            l60 = round(b[4] * rng.uniform(0.88, 1.12), 2)
+            l5  = round(b[5] * rng.uniform(0.88, 1.12), 2)
+            cr  = round(b[6] * rng.uniform(0.88, 1.12), 2)
+            cl  = round(b[7] * rng.uniform(0.88, 1.12), 2)
+            bandwidth_costs.append(FCPBandwidthRecord(
+                month=month, region=region,
+                raise_6sec_cost_m=r6, raise_60sec_cost_m=r60, raise_5min_cost_m=r5,
+                lower_6sec_cost_m=l6, lower_60sec_cost_m=l60, lower_5min_cost_m=l5,
+                contingency_raise_cost_m=cr, contingency_lower_cost_m=cl,
+                total_cost_m=round(r6 + r60 + r5 + l6 + l60 + l5 + cr + cl, 2),
+            ))
+
+    # --- 20 compliance records (5 providers × 4 quarters) ---
+    compliance_providers = [
+        ("AGL001", "AGL Energy",         "RAISE_6SEC"),
+        ("ORI001", "Origin Energy",      "LOWER_6SEC"),
+        ("SNO001", "Snowy Hydro",        "CONTINGENCY_RAISE"),
+        ("NEO001", "Neoen",              "RAISE_6SEC"),
+        ("TES001", "Tesla Energy",       "LOWER_6SEC"),
+    ]
+    quarters = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    compliance_scores = {
+        "AGL001": [1, 0, 2, 1],
+        "ORI001": [0, 0, 1, 0],
+        "SNO001": [0, 1, 0, 0],
+        "NEO001": [3, 2, 4, 2],
+        "TES001": [1, 1, 1, 2],
+    }
+    flag_map = {0: "GREEN", 1: "GREEN", 2: "AMBER", 3: "AMBER", 4: "RED"}
+    compliance: list = []
+    for pid, company, service in compliance_providers:
+        for qi, quarter in enumerate(quarters):
+            nc = compliance_scores[pid][qi]
+            flag = flag_map.get(nc, "RED")
+            compliance.append(FCPComplianceRecord(
+                provider_id=pid,
+                company=company,
+                quarter=quarter,
+                service=service,
+                non_compliance_events=nc,
+                causer_pays_charge_k=round(nc * rng.uniform(8.5, 24.0), 1),
+                performance_flag=flag,
+            ))
+
+    return FCPDashboard(
+        frequency_performance=freq_perf,
+        providers=providers,
+        events=events,
+        bandwidth_costs=bandwidth_costs,
+        compliance=compliance,
+        summary={
+            "avg_time_in_normal_band_pct": 98.7,
+            "total_fcas_cost_2024_m": 892.0,
+            "contingency_events_2024": 6,
+            "best_performer": "AGL Energy",
+            "total_registered_providers": 20,
+            "avg_compliance_rate_pct": 96.8,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 75c — Cost-Reflective Tariff Reform Analytics (prefix CTR)
+# ---------------------------------------------------------------------------
+class CTRTariffStructureRecord(BaseModel):
+    distributor: str
+    state: str
+    tariff_class: str  # RESIDENTIAL / SME / LARGE_INDUSTRIAL / EV_CHARGING
+    tariff_type: str  # FLAT / TOU / DEMAND / CAPACITY / DYNAMIC
+    peak_rate_c_per_kwh: float
+    off_peak_rate_c_per_kwh: float
+    shoulder_rate_c_per_kwh: float
+    demand_charge_per_kw_month: float
+    daily_supply_charge: float
+    customer_count: int
+    opt_in_rate_pct: float  # % of eligible customers who opted in
+
+class CTRReformTimelineRecord(BaseModel):
+    distributor: str
+    reform_phase: str  # PHASE_1 / PHASE_2 / PHASE_3
+    start_year: int
+    end_year: int
+    target_customers: str
+    key_change: str
+    cost_reflectivity_score: float  # 0-10, higher = more cost reflective
+    aer_approval_status: str  # PENDING / APPROVED / IN_PROGRESS / COMPLETED
+
+class CTRCustomerBillImpactRecord(BaseModel):
+    customer_type: str
+    tariff_from: str
+    tariff_to: str
+    avg_annual_bill_before: float
+    avg_annual_bill_after: float
+    bill_change_pct: float
+    flexibility_benefit: float  # savings from load shifting
+    solar_impact: float  # savings from rooftop solar export
+
+class CTRPeakContributionRecord(BaseModel):
+    distributor: str
+    customer_segment: str
+    peak_contribution_pct: float  # % of network peak caused by segment
+    cost_allocation_pct: float  # % of network cost allocated to segment
+    equity_gap_pct: float  # cost_allocation - peak_contribution (positive = cross-subsidy)
+
+class CTRDERTariffRecord(BaseModel):
+    state: str
+    quarter: str
+    der_type: str  # SOLAR_PV / BATTERY / EV / HEAT_PUMP
+    penetration_pct: float
+    export_tariff_c_per_kwh: float
+    two_way_tariff_implemented: bool
+    network_hosting_capacity_pct: float  # % of network capacity available for DER
+    constraint_events_per_month: int
+
+class CTRDashboard(BaseModel):
+    tariff_structures: List[CTRTariffStructureRecord]
+    reform_timeline: List[CTRReformTimelineRecord]
+    bill_impacts: List[CTRCustomerBillImpactRecord]
+    peak_contributions: List[CTRPeakContributionRecord]
+    der_tariffs: List[CTRDERTariffRecord]
+    summary: dict
+
+
+@app.get("/api/cost-reflective-tariff-reform/dashboard", response_model=CTRDashboard)
+def get_cost_reflective_tariff_reform_dashboard():
+    import random
+
+    distributors = [
+        ("Ausgrid",    "NSW"),
+        ("Endeavour",  "NSW"),
+        ("Essential",  "NSW"),
+        ("SAPN",       "SA"),
+        ("Powercor",   "VIC"),
+    ]
+    tariff_classes = ["RESIDENTIAL", "SME", "LARGE_INDUSTRIAL", "EV_CHARGING"]
+    tariff_type_map = {
+        "RESIDENTIAL":    ["FLAT", "TOU", "CAPACITY"],
+        "SME":            ["TOU", "DEMAND", "CAPACITY"],
+        "LARGE_INDUSTRIAL": ["DEMAND", "CAPACITY", "DYNAMIC"],
+        "EV_CHARGING":    ["TOU", "CAPACITY", "DYNAMIC"],
+    }
+    opt_in_map = {
+        "FLAT": 100.0,
+        "TOU":  28.5,
+        "DEMAND": 42.0,
+        "CAPACITY": 17.2,
+        "DYNAMIC": 8.9,
+    }
+
+    tariff_structures: list = []
+    for dist, state in distributors:
+        for tc in tariff_classes:
+            tt = random.choice(tariff_type_map[tc])
+            peak   = round(random.uniform(28.0, 52.0), 2)
+            off_pk = round(random.uniform(8.0, 18.0), 2)
+            shld   = round(random.uniform(16.0, 28.0), 2)
+            demand = round(random.uniform(0.0, 22.0) if tt in ("DEMAND", "CAPACITY") else 0.0, 2)
+            dsc    = round(random.uniform(0.85, 1.65), 4)
+            cust   = random.randint(8_000, 480_000)
+            oir    = round(opt_in_map[tt] + random.uniform(-4.0, 4.0), 1)
+            tariff_structures.append(CTRTariffStructureRecord(
+                distributor=dist, state=state, tariff_class=tc, tariff_type=tt,
+                peak_rate_c_per_kwh=peak, off_peak_rate_c_per_kwh=off_pk,
+                shoulder_rate_c_per_kwh=shld, demand_charge_per_kw_month=demand,
+                daily_supply_charge=dsc, customer_count=cust, opt_in_rate_pct=oir,
+            ))
+
+    reform_data = [
+        ("Ausgrid",   "PHASE_1", 2022, 2024, "Large C&I customers",      "Mandatory TOU for large C&I",               6.5, "COMPLETED"),
+        ("Ausgrid",   "PHASE_2", 2024, 2026, "SME customers",             "Default TOU for SME; opt-out flat",         7.2, "IN_PROGRESS"),
+        ("Ausgrid",   "PHASE_3", 2026, 2028, "All residential customers", "Capacity tariff pilot rollout",             8.4, "PENDING"),
+        ("Endeavour", "PHASE_1", 2023, 2025, "Large C&I customers",       "Demand tariff mandatory",                   6.8, "IN_PROGRESS"),
+        ("Endeavour", "PHASE_2", 2025, 2027, "SME & EV charging sites",   "Two-way tariff with export signal",         7.8, "PENDING"),
+        ("Endeavour", "PHASE_3", 2027, 2029, "Residential default TOU",   "Full cost-reflective residential tariff",   8.9, "PENDING"),
+        ("SAPN",      "PHASE_1", 2021, 2023, "All customer classes",      "Revenue cap reform & TOU default",          7.0, "COMPLETED"),
+        ("SAPN",      "PHASE_2", 2023, 2025, "High-DER feeders",          "Dynamic export tariff for solar-rich areas",8.2, "APPROVED"),
+        ("SAPN",      "PHASE_3", 2025, 2027, "Residential mass rollout",  "Capacity charge pilot 5,000 customers",     8.7, "IN_PROGRESS"),
+        ("Powercor",  "PHASE_1", 2023, 2025, "Large C&I and SME",         "Transition from flat to demand tariff",     6.2, "APPROVED"),
+        ("Powercor",  "PHASE_2", 2025, 2027, "EV tariff customers",       "EV-specific off-peak incentive tariff",     7.5, "PENDING"),
+        ("Essential", "PHASE_1", 2024, 2026, "Rural large C&I",           "Cost-reflective network tariff overhaul",   6.0, "IN_PROGRESS"),
+    ]
+    reform_timeline = [CTRReformTimelineRecord(
+        distributor=d, reform_phase=ph, start_year=sy, end_year=ey,
+        target_customers=tc, key_change=kc, cost_reflectivity_score=cs,
+        aer_approval_status=status,
+    ) for d, ph, sy, ey, tc, kc, cs, status in reform_data]
+
+    bill_impact_data = [
+        # RESIDENTIAL
+        ("RESIDENTIAL", "FLAT",     "TOU",      1_450, 1_380, -4.8,  95.0,   0.0),
+        ("RESIDENTIAL", "FLAT",     "CAPACITY", 1_450, 1_310, -9.7, 145.0,   0.0),
+        ("RESIDENTIAL", "TOU",      "CAPACITY", 1_380, 1_295, -6.2,  82.0,   0.0),
+        ("RESIDENTIAL", "FLAT",     "TOU",      1_780, 1_640, -7.9, 115.0, 210.0),  # solar household
+        # SME
+        ("SME",          "FLAT",    "TOU",      8_200, 7_640, -6.8, 320.0,   0.0),
+        ("SME",          "FLAT",    "DEMAND",   8_200, 7_950, -3.0, 180.0,   0.0),
+        ("SME",          "TOU",     "CAPACITY", 7_640, 7_200, -5.8, 260.0, 480.0),
+        ("SME",          "DEMAND",  "CAPACITY", 7_950, 7_550, -5.0, 220.0,   0.0),
+        # LARGE_INDUSTRIAL
+        ("LARGE_C&I",    "FLAT",    "DEMAND",  145_000, 138_500, -4.5, 4_200.0,    0.0),
+        ("LARGE_C&I",    "DEMAND",  "CAPACITY",138_500, 132_000, -4.7, 5_800.0,    0.0),
+        ("LARGE_C&I",    "FLAT",    "CAPACITY",145_000, 129_500,-10.7, 8_200.0,    0.0),
+        ("LARGE_C&I",    "DEMAND",  "DYNAMIC", 138_500, 131_000, -5.4, 6_500.0, 2_100.0),
+        # EV_CHARGING
+        ("EV_OWNER",     "FLAT",    "TOU",      2_200, 1_850, -15.9, 380.0,    0.0),
+        ("EV_OWNER",     "FLAT",    "CAPACITY", 2_200, 1_720, -21.8, 510.0,    0.0),
+        ("EV_OWNER",     "TOU",     "CAPACITY", 1_850, 1_680,  -9.2, 195.0,    0.0),
+        ("EV_OWNER",     "TOU",     "DYNAMIC",  1_850, 1_610, -13.0, 265.0,    0.0),
+    ]
+    bill_impacts = [CTRCustomerBillImpactRecord(
+        customer_type=ct, tariff_from=tf, tariff_to=tt,
+        avg_annual_bill_before=bef, avg_annual_bill_after=aft,
+        bill_change_pct=chg, flexibility_benefit=flex, solar_impact=sol,
+    ) for ct, tf, tt, bef, aft, chg, flex, sol in bill_impact_data]
+
+    segments = ["RESIDENTIAL", "SME", "LARGE_C&I", "EV_CHARGING"]
+    peak_contribution_data = {
+        "Ausgrid":   {"RESIDENTIAL": (38.2, 44.5), "SME": (22.1, 24.8), "LARGE_C&I": (35.0, 26.5), "EV_CHARGING": (4.7, 4.2)},
+        "Endeavour": {"RESIDENTIAL": (41.5, 47.0), "SME": (20.5, 23.1), "LARGE_C&I": (32.8, 25.4), "EV_CHARGING": (5.2, 4.5)},
+        "Essential": {"RESIDENTIAL": (45.0, 50.5), "SME": (18.0, 21.0), "LARGE_C&I": (33.5, 25.0), "EV_CHARGING": (3.5, 3.5)},
+        "SAPN":      {"RESIDENTIAL": (35.0, 41.0), "SME": (24.0, 26.5), "LARGE_C&I": (36.5, 28.0), "EV_CHARGING": (4.5, 4.5)},
+        "Powercor":  {"RESIDENTIAL": (39.5, 46.0), "SME": (21.0, 24.0), "LARGE_C&I": (34.0, 26.2), "EV_CHARGING": (5.5, 3.8)},
+    }
+    peak_contributions: list = []
+    for dist, _ in distributors:
+        for seg in segments:
+            pc, ca = peak_contribution_data[dist][seg]
+            peak_contributions.append(CTRPeakContributionRecord(
+                distributor=dist, customer_segment=seg,
+                peak_contribution_pct=round(pc, 1),
+                cost_allocation_pct=round(ca, 1),
+                equity_gap_pct=round(ca - pc, 1),
+            ))
+
+    states = ["NSW", "VIC", "SA", "QLD", "WA"]
+    quarters = ["2024-Q3", "2024-Q4"]
+    der_types = ["SOLAR_PV", "BATTERY", "EV", "HEAT_PUMP"]
+    der_base = {
+        ("NSW", "SOLAR_PV"): (38.5, 6.2), ("NSW", "BATTERY"): (12.4, 0.0),
+        ("NSW", "EV"):       (8.1,  0.0), ("NSW", "HEAT_PUMP"): (5.3, 0.0),
+        ("VIC", "SOLAR_PV"): (34.2, 5.8), ("VIC", "BATTERY"): (10.8, 0.0),
+        ("VIC", "EV"):       (9.5,  0.0), ("VIC", "HEAT_PUMP"): (7.2, 0.0),
+        ("SA",  "SOLAR_PV"): (52.1, 7.4), ("SA",  "BATTERY"): (18.6, 0.0),
+        ("SA",  "EV"):       (7.4,  0.0), ("SA",  "HEAT_PUMP"): (4.8, 0.0),
+        ("QLD", "SOLAR_PV"): (44.8, 5.6), ("QLD", "BATTERY"): (9.2,  0.0),
+        ("QLD", "EV"):       (6.3,  0.0), ("QLD", "HEAT_PUMP"): (3.9, 0.0),
+        ("WA",  "SOLAR_PV"): (41.0, 4.9), ("WA",  "BATTERY"): (11.5, 0.0),
+        ("WA",  "EV"):       (5.8,  0.0), ("WA",  "HEAT_PUMP"): (4.1, 0.0),
+    }
+    two_way_implemented = {("SA", "SOLAR_PV"): True, ("SA", "BATTERY"): True,
+                           ("VIC", "SOLAR_PV"): True, ("NSW", "SOLAR_PV"): False}
+    der_tariffs: list = []
+    for state in states:
+        for q_idx, quarter in enumerate(quarters):
+            for der in der_types:
+                base_pen, base_exp = der_base[(state, der)]
+                pen   = round(base_pen + q_idx * random.uniform(0.5, 1.8), 1)
+                exp_t = round(base_exp + random.uniform(0.0, 1.2), 2)
+                two_way = two_way_implemented.get((state, der), False)
+                hosting = round(random.uniform(42.0, 88.0), 1)
+                events  = random.randint(0, 12)
+                der_tariffs.append(CTRDERTariffRecord(
+                    state=state, quarter=quarter, der_type=der,
+                    penetration_pct=pen, export_tariff_c_per_kwh=exp_t,
+                    two_way_tariff_implemented=two_way,
+                    network_hosting_capacity_pct=hosting,
+                    constraint_events_per_month=events,
+                ))
+
+    return CTRDashboard(
+        tariff_structures=tariff_structures,
+        reform_timeline=reform_timeline,
+        bill_impacts=bill_impacts,
+        peak_contributions=peak_contributions,
+        der_tariffs=der_tariffs,
+        summary={
+            "avg_opt_in_rate_pct": 23.4,
+            "distributors_with_tou_mandatory": 2,
+            "avg_equity_gap_pct": 8.2,
+            "der_penetration_avg_pct": 31.5,
+            "total_customers_on_capacity_tariff_k": 145,
+        },
+    )

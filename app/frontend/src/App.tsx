@@ -265,6 +265,9 @@ import ExtremeWeatherResilienceAnalytics from './pages/ExtremeWeatherResilienceA
 import SpotPriceVolatilityRegimeAnalytics from './pages/SpotPriceVolatilityRegimeAnalytics'
 import IndustrialElectrificationAnalytics from './pages/IndustrialElectrificationAnalytics'
 import OffshoreWindDevAnalytics from './pages/OffshoreWindDevAnalytics'
+import PumpedHydroResourceAssessmentAnalytics from './pages/PumpedHydroResourceAssessmentAnalytics'
+import FrequencyControlPerformanceAnalytics from './pages/FrequencyControlPerformanceAnalytics'
+import CostReflectiveTariffReformAnalytics from './pages/CostReflectiveTariffReformAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -460,6 +463,9 @@ const NAV_ITEMS = [
   { to: '/spot-price-volatility-regime', label: 'Spot Price Volatility Regime', Icon: Activity  },
   { to: '/industrial-electrification', label: 'Industrial Electrification',   Icon: Zap        },
   { to: '/offshore-wind-dev-analytics', label: 'Offshore Wind Dev Pipeline',  Icon: Wind       },
+  { to: '/pumped-hydro-resource-assessment', label: 'Pumped Hydro Resource Assessment', Icon: Droplets },
+  { to: '/frequency-control-performance', label: 'NEM Frequency Control Performance', Icon: Radio  },
+  { to: '/cost-reflective-tariff-reform', label: 'Cost-Reflective Tariff Reform', Icon: BarChart2 },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -730,6 +736,9 @@ export default function App() {
               <Route path="/spot-price-volatility-regime" element={<SpotPriceVolatilityRegimeAnalytics />} />
               <Route path="/industrial-electrification" element={<IndustrialElectrificationAnalytics />} />
               <Route path="/offshore-wind-dev-analytics" element={<OffshoreWindDevAnalytics />} />
+              <Route path="/pumped-hydro-resource-assessment" element={<PumpedHydroResourceAssessmentAnalytics />} />
+              <Route path="/frequency-control-performance" element={<FrequencyControlPerformanceAnalytics />} />
+              <Route path="/cost-reflective-tariff-reform" element={<CostReflectiveTariffReformAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

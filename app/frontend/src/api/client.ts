@@ -11003,3 +11003,229 @@ export interface IEPDashboard {
 
 export const getIndustrialElectrificationDashboard = (): Promise<IEPDashboard> =>
   get<IEPDashboard>('/api/industrial-electrification/dashboard');
+
+// ── Sprint 75a: Pumped Hydro Resource Assessment Analytics (PHA) ─────────
+
+export interface PHASiteRecord {
+  site_id: string;
+  name: string;
+  state: string;
+  upper_reservoir: string;
+  lower_reservoir: string;
+  head_m: number;
+  storage_gwh: number;
+  capacity_mw: number;
+  area_ha: number;
+  distance_to_grid_km: number;
+  environmental_class: string;
+  development_status: string;
+  capex_bn: number;
+  lcoe_per_mwh: number;
+  water_requirements_ml_yr: number;
+}
+
+export interface PHAHydroStateRecord {
+  state: string;
+  total_sites_identified: number;
+  total_potential_gw: number;
+  total_potential_gwh: number;
+  class_a_sites: number;
+  class_b_sites: number;
+  under_development_gw: number;
+  operating_gw: number;
+  avg_head_m: number;
+}
+
+export interface PHAStorageNeedRecord {
+  scenario: string;
+  region: string;
+  variable_renewable_pct: number;
+  storage_needed_gwh: number;
+  storage_needed_gw: number;
+  phes_share_pct: number;
+  battery_share_pct: number;
+  other_storage_share_pct: number;
+  firming_gap_gwh: number;
+}
+
+export interface PHAHeadDurationRecord {
+  state: string;
+  head_range: string;
+  site_count: number;
+  total_capacity_mw: number;
+  total_storage_gwh: number;
+  avg_capex_per_mw_m: number;
+}
+
+export interface PHAWaterConstraintRecord {
+  site_id: string;
+  annual_evaporation_ml: number;
+  annual_seepage_ml: number;
+  annual_makeup_water_ml: number;
+  water_source: string;
+  water_stress_level: string;
+  climate_change_risk: string;
+}
+
+export interface PHADashboard {
+  sites: PHASiteRecord[];
+  state_summary: PHAHydroStateRecord[];
+  storage_needs: PHAStorageNeedRecord[];
+  head_duration: PHAHeadDurationRecord[];
+  water_constraints: PHAWaterConstraintRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getPumpedHydroResourceAssessmentDashboard = (): Promise<PHADashboard> =>
+  get<PHADashboard>('/api/pumped-hydro-resource-assessment/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 75b — NEM Frequency Control Performance Analytics (prefix FCP)
+// ---------------------------------------------------------------------------
+
+export interface FCPFrequencyRecord {
+  date: string;
+  region: string;
+  avg_frequency_hz: number;
+  std_frequency_hz: number;
+  time_in_normal_band_pct: number;
+  time_above_50_15_pct: number;
+  time_below_49_85_pct: number;
+  rocof_max_hz_per_sec: number;
+  nadir_hz: number | null;
+  zenith_hz: number | null;
+  nofb_events: number;
+}
+
+export interface FCPProviderRecord {
+  provider_id: string;
+  company: string;
+  technology: string;
+  service: string;
+  region: string;
+  registered_mw: number;
+  avg_enabled_mw: number;
+  enablement_rate_pct: number;
+  avg_revenue_per_mw_hr: number;
+  compliance_rate_pct: number;
+  performance_score: number;
+}
+
+export interface FCPEventRecord {
+  event_id: string;
+  datetime: string;
+  region: string;
+  event_type: string;
+  trigger: string;
+  frequency_nadir_hz: number;
+  recovery_time_sec: number;
+  ufls_activated: boolean;
+  energy_shed_mwh: number;
+  fcas_response_mw: number;
+}
+
+export interface FCPBandwidthRecord {
+  month: string;
+  region: string;
+  raise_6sec_cost_m: number;
+  raise_60sec_cost_m: number;
+  raise_5min_cost_m: number;
+  lower_6sec_cost_m: number;
+  lower_60sec_cost_m: number;
+  lower_5min_cost_m: number;
+  contingency_raise_cost_m: number;
+  contingency_lower_cost_m: number;
+  total_cost_m: number;
+}
+
+export interface FCPComplianceRecord {
+  provider_id: string;
+  company: string;
+  quarter: string;
+  service: string;
+  non_compliance_events: number;
+  causer_pays_charge_k: number;
+  performance_flag: string;
+}
+
+export interface FCPDashboard {
+  frequency_performance: FCPFrequencyRecord[];
+  providers: FCPProviderRecord[];
+  events: FCPEventRecord[];
+  bandwidth_costs: FCPBandwidthRecord[];
+  compliance: FCPComplianceRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getFrequencyControlPerformanceDashboard = (): Promise<FCPDashboard> =>
+  get<FCPDashboard>('/api/frequency-control-performance/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 75c — Cost-Reflective Tariff Reform Analytics (CTR)
+// ---------------------------------------------------------------------------
+export interface CTRTariffStructureRecord {
+  distributor: string;
+  state: string;
+  tariff_class: string;
+  tariff_type: string;
+  peak_rate_c_per_kwh: number;
+  off_peak_rate_c_per_kwh: number;
+  shoulder_rate_c_per_kwh: number;
+  demand_charge_per_kw_month: number;
+  daily_supply_charge: number;
+  customer_count: number;
+  opt_in_rate_pct: number;
+}
+
+export interface CTRReformTimelineRecord {
+  distributor: string;
+  reform_phase: string;
+  start_year: number;
+  end_year: number;
+  target_customers: string;
+  key_change: string;
+  cost_reflectivity_score: number;
+  aer_approval_status: string;
+}
+
+export interface CTRCustomerBillImpactRecord {
+  customer_type: string;
+  tariff_from: string;
+  tariff_to: string;
+  avg_annual_bill_before: number;
+  avg_annual_bill_after: number;
+  bill_change_pct: number;
+  flexibility_benefit: number;
+  solar_impact: number;
+}
+
+export interface CTRPeakContributionRecord {
+  distributor: string;
+  customer_segment: string;
+  peak_contribution_pct: number;
+  cost_allocation_pct: number;
+  equity_gap_pct: number;
+}
+
+export interface CTRDERTariffRecord {
+  state: string;
+  quarter: string;
+  der_type: string;
+  penetration_pct: number;
+  export_tariff_c_per_kwh: number;
+  two_way_tariff_implemented: boolean;
+  network_hosting_capacity_pct: number;
+  constraint_events_per_month: number;
+}
+
+export interface CTRDashboard {
+  tariff_structures: CTRTariffStructureRecord[];
+  reform_timeline: CTRReformTimelineRecord[];
+  bill_impacts: CTRCustomerBillImpactRecord[];
+  peak_contributions: CTRPeakContributionRecord[];
+  der_tariffs: CTRDERTariffRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getCostReflectiveTariffReformDashboard = (): Promise<CTRDashboard> =>
+  get<CTRDashboard>('/api/cost-reflective-tariff-reform/dashboard');
