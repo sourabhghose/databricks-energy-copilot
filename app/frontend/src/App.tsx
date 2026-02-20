@@ -65,6 +65,7 @@ import {
   Map,
   GitMerge,
   Globe,
+  Globe2,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -212,6 +213,9 @@ import CbamTradeAnalytics from './pages/CbamTradeAnalytics'
 import CongestionRevenueAnalytics from './pages/CongestionRevenueAnalytics'
 import ClimatePhysicalRisk from './pages/ClimatePhysicalRisk'
 import EnergyAffordabilityAnalytics from './pages/EnergyAffordabilityAnalytics'
+import ElectrificationAnalytics from './pages/ElectrificationAnalytics'
+import ElectricityExportInfra from './pages/ElectricityExportInfra'
+import LdesEconomicsAnalytics from './pages/LdesEconomicsAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -359,6 +363,9 @@ const NAV_ITEMS = [
   { to: '/congestion-revenue-analytics', label: 'Congestion Revenue & SRA',  Icon: Network        },
   { to: '/climate-physical-risk',       label: 'Climate Physical Risk',      Icon: Thermometer    },
   { to: '/energy-affordability',        label: 'Energy Affordability',         Icon: DollarSign     },
+  { to: '/electrification-analytics',  label: 'Building Electrification',     Icon: Flame          },
+  { to: '/electricity-export-infra',   label: 'Electricity Export Infra',     Icon: Globe2         },
+  { to: '/ldes-economics',             label: 'LDES Economics',               Icon: Database       },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -581,6 +588,9 @@ export default function App() {
               <Route path="/congestion-revenue-analytics" element={<CongestionRevenueAnalytics />} />
               <Route path="/climate-physical-risk"       element={<ClimatePhysicalRisk />}         />
               <Route path="/energy-affordability"        element={<EnergyAffordabilityAnalytics />} />
+              <Route path="/electrification-analytics"   element={<ElectrificationAnalytics />}     />
+              <Route path="/electricity-export-infra"    element={<ElectricityExportInfra />}       />
+              <Route path="/ldes-economics"              element={<LdesEconomicsAnalytics />}       />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

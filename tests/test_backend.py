@@ -6313,3 +6313,434 @@ class TestClimatePhysicalRisk:
         # Best BCR measure should have BCR > 5
         best_bcr = max(m["benefit_cost_ratio"] for m in d["adaptation_measures"])
         assert best_bcr > 5.0
+
+
+# ---------------------------------------------------------------------------
+# Sprint 59c — Australian Electricity Export Infrastructure
+# ---------------------------------------------------------------------------
+
+# TestElectricityExportInfra
+# Validates GET /api/electricity-export/dashboard
+
+class TestElectricityExportInfra:
+    """Tests for the Electricity Export Infrastructure dashboard endpoint."""
+
+    def test_electricity_export_dashboard(self, client, auth_headers):
+        resp = client.get("/api/electricity-export/dashboard", headers=auth_headers)
+        assert resp.status_code == 200
+
+        d = resp.json()
+        # Top-level keys
+        assert "timestamp" in d
+        assert "cable_projects" in d
+        assert "renewable_zones" in d
+        assert "export_markets" in d
+        assert "economic_projections" in d
+
+        # ── cable_projects: exactly 7 records ──────────────────────────────
+        assert len(d["cable_projects"]) == 7
+        valid_cable_statuses = {"OPERATING", "CONSTRUCTION", "APPROVED", "PROPOSED", "CANCELLED"}
+        valid_technologies = {"HVDC", "HVAC"}
+        for p in d["cable_projects"]:
+            assert p["project_id"]
+            assert p["name"]
+            assert p["route"]
+            assert p["capacity_gw"] > 0
+            assert p["length_km"] > 0
+            assert p["capex_bn_aud"] > 0
+            assert p["technology"] in valid_technologies
+            assert p["status"] in valid_cable_statuses
+            assert p["proponent"]
+            assert p["expected_cod"] > 2020
+
+        # Sun Cable AAPowerLink should be PROPOSED with capacity 3.2 GW
+        sun_cable = next(p for p in d["cable_projects"] if "Sun Cable AAPowerLink" in p["name"])
+        assert sun_cable["status"] == "PROPOSED"
+        assert sun_cable["capacity_gw"] == 3.2
+
+        # Marinus Link records (both legs) should be APPROVED
+        marinus = [p for p in d["cable_projects"] if "Marinus Link" in p["name"]]
+        assert len(marinus) == 2
+        for m in marinus:
+            assert m["status"] == "APPROVED"
+
+        # ── renewable_zones: exactly 8 records ─────────────────────────────
+        assert len(d["renewable_zones"]) == 8
+        valid_resources = {"SOLAR", "WIND", "HYBRID"}
+        for z in d["renewable_zones"]:
+            assert z["zone_id"]
+            assert z["zone_name"]
+            assert z["state"]
+            assert z["primary_resource"] in valid_resources
+            assert z["potential_gw"] > 0
+            assert z["committed_gw"] >= 0
+            assert z["estimated_lcoe_aud_mwh"] > 0
+            assert z["grid_connection_cost_bn_aud"] > 0
+
+        # At least 3 export-oriented zones
+        export_zones = [z for z in d["renewable_zones"] if z["export_oriented"]]
+        assert len(export_zones) >= 3
+
+        # All three resource types must be represented
+        resources_present = {z["primary_resource"] for z in d["renewable_zones"]}
+        assert "SOLAR" in resources_present
+        assert "WIND" in resources_present
+        assert "HYBRID" in resources_present
+
+        # ── export_markets: exactly 8 records ──────────────────────────────
+        assert len(d["export_markets"]) == 8
+        expected_countries = {"Japan", "Singapore", "Indonesia", "South Korea",
+                               "Philippines", "Malaysia", "India", "China"}
+        actual_countries = {m["destination_country"] for m in d["export_markets"]}
+        assert actual_countries == expected_countries
+
+        valid_forms = {"ELECTRICITY", "GREEN_H2", "GREEN_AMMONIA", "LNG_CCS"}
+        valid_agreement_statuses = {"SIGNED", "NEGOTIATING", "MOU", "NONE"}
+        for m in d["export_markets"]:
+            assert m["import_potential_twh_yr"] > 0
+            assert m["preferred_form"] in valid_forms
+            assert m["agreement_status"] in valid_agreement_statuses
+            assert m["bilateral_trade_bn_aud"] > 0
+
+        # Japan and Singapore should be SIGNED
+        japan = next(m for m in d["export_markets"] if m["destination_country"] == "Japan")
+        singapore = next(m for m in d["export_markets"] if m["destination_country"] == "Singapore")
+        assert japan["agreement_status"] == "SIGNED"
+        assert singapore["agreement_status"] == "SIGNED"
+
+        # China should have the highest import potential
+        china = next(m for m in d["export_markets"] if m["destination_country"] == "China")
+        assert china["import_potential_twh_yr"] == max(m["import_potential_twh_yr"] for m in d["export_markets"])
+
+        # ── economic_projections: exactly 15 records (3 scenarios × 5 years) ─
+        assert len(d["economic_projections"]) == 15
+        scenarios = {p["scenario"] for p in d["economic_projections"]}
+        assert len(scenarios) == 3
+        assert "Conservative" in scenarios
+        assert "Moderate" in scenarios
+        assert "Accelerated" in scenarios
+
+        years = {p["year"] for p in d["economic_projections"]}
+        assert len(years) == 5
+
+        for p in d["economic_projections"]:
+            assert p["export_revenue_bn_aud"] > 0
+            assert p["jobs_created_k"] > 0
+            assert p["investment_attracted_bn_aud"] > 0
+            assert p["renewable_capacity_gw"] > 0
+            assert p["co2_abated_mt"] > 0
+
+        # Accelerated scenario always has higher revenue than Conservative for each year
+        for year in years:
+            acc = next(p for p in d["economic_projections"] if p["scenario"] == "Accelerated" and p["year"] == year)
+            con = next(p for p in d["economic_projections"] if p["scenario"] == "Conservative" and p["year"] == year)
+            assert acc["export_revenue_bn_aud"] > con["export_revenue_bn_aud"]
+
+        # Final year (2035) Accelerated revenue should be > 50 bn AUD
+        acc_2035 = next(p for p in d["economic_projections"] if p["scenario"] == "Accelerated" and p["year"] == max(years))
+        assert acc_2035["export_revenue_bn_aud"] > 50.0
+
+
+class TestElectrificationAnalytics:
+    """Tests for GET /api/electrification/dashboard (Sprint 59a)."""
+
+    def test_electrification_dashboard(self):
+        """Validates full structure, counts, enums, and key data invariants."""
+        resp = client.get(
+            "/api/electrification/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert resp.status_code == 200, resp.text
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "adoption", "load_impacts", "gas_networks", "programs"):
+            assert key in d, f"Missing top-level key: {key}"
+
+        # --- adoption: 25 records (5 appliance types × 5 states) ---
+        assert len(d["adoption"]) == 25, f"Expected 25 adoption records, got {len(d['adoption'])}"
+        valid_states = {"NSW", "VIC", "QLD", "SA", "WA"}
+        valid_appliance_types = {
+            "HEAT_PUMP_HVAC", "HEAT_PUMP_WATER", "INDUCTION_COOKTOP", "EV_CHARGER", "ALL_ELECTRIC_HOME"
+        }
+        states_seen: set = set()
+        appliance_types_seen: set = set()
+        for rec in d["adoption"]:
+            assert rec["state"] in valid_states
+            assert rec["appliance_type"] in valid_appliance_types
+            assert rec["total_units_k"] > 0
+            assert rec["annual_additions_k"] > 0
+            assert 0 < rec["market_penetration_pct"] < 100
+            assert rec["avg_install_cost_aud"] > 0
+            assert rec["payback_years"] > 0
+            states_seen.add(rec["state"])
+            appliance_types_seen.add(rec["appliance_type"])
+        assert states_seen == valid_states
+        assert appliance_types_seen == valid_appliance_types
+
+        # Induction cooktop should have the lowest avg install cost
+        by_type_cost = {}
+        for atype in valid_appliance_types:
+            recs = [r for r in d["adoption"] if r["appliance_type"] == atype]
+            by_type_cost[atype] = sum(r["avg_install_cost_aud"] for r in recs) / len(recs)
+        assert by_type_cost["INDUCTION_COOKTOP"] == min(by_type_cost.values()), \
+            "Induction cooktop should have the lowest avg install cost"
+
+        # All-Electric Home should have the highest avg install cost
+        assert by_type_cost["ALL_ELECTRIC_HOME"] == max(by_type_cost.values()), \
+            "All-Electric Home should have the highest avg install cost"
+
+        # --- load_impacts: 20 records (5 states × 4 years 2024-2027) ---
+        assert len(d["load_impacts"]) == 20, f"Expected 20 load impact records, got {len(d['load_impacts'])}"
+        valid_years = {2024, 2025, 2026, 2027}
+        years_seen: set = set()
+        li_states_seen: set = set()
+        for rec in d["load_impacts"]:
+            assert rec["state"] in valid_states
+            assert rec["year"] in valid_years
+            assert rec["additional_peak_mw"] > 0
+            assert rec["additional_annual_gwh"] > 0
+            assert rec["gas_displaced_pj"] > 0
+            assert rec["co2_reduction_kt"] > 0
+            assert rec["grid_augmentation_cost_m_aud"] > 0
+            assert rec["flexibility_potential_mw"] > 0
+            years_seen.add(rec["year"])
+            li_states_seen.add(rec["state"])
+        assert years_seen == valid_years
+        assert li_states_seen == valid_states
+
+        # Peak demand should increase year-over-year for each state
+        for state in valid_states:
+            state_recs = sorted(
+                [r for r in d["load_impacts"] if r["state"] == state],
+                key=lambda r: r["year"]
+            )
+            for i in range(1, len(state_recs)):
+                assert state_recs[i]["additional_peak_mw"] > state_recs[i-1]["additional_peak_mw"], \
+                    f"{state}: peak demand should increase year over year"
+
+        # VIC should have higher cumulative peak demand than SA
+        vic_2027 = next(r for r in d["load_impacts"] if r["state"] == "VIC" and r["year"] == 2027)
+        sa_2027  = next(r for r in d["load_impacts"] if r["state"] == "SA"  and r["year"] == 2027)
+        assert vic_2027["additional_peak_mw"] > sa_2027["additional_peak_mw"], \
+            "VIC 2027 peak demand should exceed SA 2027"
+
+        # --- gas_networks: 8 records ---
+        assert len(d["gas_networks"]) == 8, f"Expected 8 gas network records, got {len(d['gas_networks'])}"
+        valid_regulatory_statuses = {"ALLOWED", "UNDER_REVIEW", "RESTRICTED", "BANNED"}
+        reg_statuses_seen: set = set()
+        for rec in d["gas_networks"]:
+            assert rec["network_name"]
+            assert rec["state"]
+            assert rec["residential_connections_k"] > 0
+            assert rec["annual_consumption_pj"] > 0
+            assert 0 < rec["electrification_risk_pct"] < 100
+            assert rec["asset_value_m_aud"] > 0
+            assert rec["stranded_asset_risk_m_aud"] > 0
+            assert rec["stranded_asset_risk_m_aud"] < rec["asset_value_m_aud"], \
+                f"{rec['network_name']}: stranded risk should be less than total asset value"
+            assert rec["regulatory_status"] in valid_regulatory_statuses
+            reg_statuses_seen.add(rec["regulatory_status"])
+
+        # All 4 regulatory statuses must be represented
+        assert reg_statuses_seen == valid_regulatory_statuses, \
+            f"All regulatory statuses should appear; got {reg_statuses_seen}"
+
+        # Network with BANNED status should have highest electrification_risk_pct
+        banned_net = next((r for r in d["gas_networks"] if r["regulatory_status"] == "BANNED"), None)
+        assert banned_net is not None
+        max_risk = max(r["electrification_risk_pct"] for r in d["gas_networks"])
+        assert banned_net["electrification_risk_pct"] == max_risk, \
+            "BANNED network should have highest electrification risk"
+
+        # --- programs: 10 records ---
+        assert len(d["programs"]) == 10, f"Expected 10 program records, got {len(d['programs'])}"
+        valid_program_types = {"REBATE", "LOAN", "VPP_INCENTIVE", "BULK_PURCHASE"}
+        prog_types_seen: set = set()
+        for rec in d["programs"]:
+            assert rec["program_name"]
+            assert rec["state"]
+            assert rec["program_type"] in valid_program_types
+            assert rec["annual_budget_m_aud"] > 0
+            assert rec["appliances_supported"]
+            assert rec["uptake_rate_pct"] > 0
+            assert rec["co2_abatement_cost_aud_tonne"] > 0
+            prog_types_seen.add(rec["program_type"])
+
+        # All 4 program types must be represented
+        assert prog_types_seen == valid_program_types, \
+            f"All program types should appear; got {prog_types_seen}"
+
+        # Bulk purchase programs should have lowest average abatement cost
+        bulk_avg = sum(
+            r["co2_abatement_cost_aud_tonne"]
+            for r in d["programs"] if r["program_type"] == "BULK_PURCHASE"
+        ) / len([r for r in d["programs"] if r["program_type"] == "BULK_PURCHASE"])
+        rebate_avg = sum(
+            r["co2_abatement_cost_aud_tonne"]
+            for r in d["programs"] if r["program_type"] == "REBATE"
+        ) / len([r for r in d["programs"] if r["program_type"] == "REBATE"])
+        assert bulk_avg < rebate_avg, "BULK_PURCHASE programs should have lower abatement cost than REBATE on average"
+
+        # Rebate programs should have rebate_amount_aud > 0
+        for rec in d["programs"]:
+            if rec["program_type"] == "REBATE":
+                assert rec["rebate_amount_aud"] > 0, \
+                    f"{rec['program_name']}: REBATE programs must have rebate_amount_aud > 0"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 59b — Long Duration Energy Storage (LDES) Economics
+# ---------------------------------------------------------------------------
+
+class TestLdesEconomicsAnalytics:
+    """Tests for GET /api/ldes-economics/dashboard (Sprint 59b)."""
+
+    def test_ldes_economics_dashboard(self):
+        """Validates full structure, record counts, enums, and key data invariants."""
+        resp = client.get(
+            "/api/ldes-economics/dashboard",
+            headers={"X-API-Key": "test-api-key"},
+        )
+        assert resp.status_code == 200, resp.text
+        d = resp.json()
+
+        # Top-level keys
+        for key in ("timestamp", "technologies", "economic_cases", "projects", "seasonal_patterns"):
+            assert key in d, f"Missing top-level key: {key}"
+
+        # --- technologies: exactly 10 records ---
+        assert len(d["technologies"]) == 10, (
+            f"Expected 10 technology records, got {len(d['technologies'])}"
+        )
+        valid_tech_ids = {
+            "PUMPED_HYDRO", "COMPRESSED_AIR", "FLOW_VANADIUM", "FLOW_ZINC",
+            "LIQUID_AIR", "GREEN_HYDROGEN_STORAGE", "THERMAL_MOLTEN_SALT",
+            "GRAVITY_RAIL", "IRON_AIR", "ADIABATIC_CAES",
+        }
+        tech_ids_seen = set()
+        for tech in d["technologies"]:
+            assert tech["tech_id"] in valid_tech_ids, f"Unknown tech_id: {tech['tech_id']}"
+            assert tech["name"], "Technology name must not be empty"
+            assert tech["duration_range_hr"], "duration_range_hr must not be empty"
+            assert tech["current_lcos_aud_mwh"] > 0
+            assert tech["target_lcos_2035_aud_mwh"] > 0
+            assert tech["target_lcos_2035_aud_mwh"] < tech["current_lcos_aud_mwh"], (
+                f"{tech['name']}: 2035 target must be lower than current LCOS"
+            )
+            assert 1 <= tech["technology_readiness_level"] <= 9
+            assert tech["capex_aud_kwh"] > 0
+            assert 0 < tech["round_trip_efficiency_pct"] <= 100
+            assert tech["self_discharge_rate_pct_day"] >= 0
+            assert tech["project_lifetime_years"] > 0
+            assert tech["australian_projects"] >= 0
+            tech_ids_seen.add(tech["tech_id"])
+        assert tech_ids_seen == valid_tech_ids, "Not all 10 tech_ids present"
+
+        # Pumped hydro must have the highest TRL
+        ph = next(t for t in d["technologies"] if t["tech_id"] == "PUMPED_HYDRO")
+        max_trl = max(t["technology_readiness_level"] for t in d["technologies"])
+        assert ph["technology_readiness_level"] == max_trl
+
+        # At least 4 technologies at TRL >= 7 (commercial / demonstration)
+        trl7_count = sum(1 for t in d["technologies"] if t["technology_readiness_level"] >= 7)
+        assert trl7_count >= 4, f"Expected >=4 technologies at TRL>=7, got {trl7_count}"
+
+        # --- economic_cases: exactly 3 scenario records ---
+        assert len(d["economic_cases"]) == 3, (
+            f"Expected 3 economic case records, got {len(d['economic_cases'])}"
+        )
+        valid_scenarios = {"HIGH_VRE_90", "HIGH_VRE_75", "MEDIUM_VRE_60"}
+        scenarios_seen = set()
+        for ec in d["economic_cases"]:
+            assert ec["scenario"] in valid_scenarios, f"Unknown scenario: {ec['scenario']}"
+            assert ec["duration_optimal_hr"] > 0
+            assert ec["storage_required_gwh"] > 0
+            assert ec["ldes_capacity_gw"] > 0
+            assert ec["avoided_curtailment_gwh"] > 0
+            assert ec["system_cost_saving_m_aud"] > 0
+            assert ec["optimal_technology"]
+            assert ec["breakeven_lcos_aud_mwh"] > 0
+            scenarios_seen.add(ec["scenario"])
+        assert scenarios_seen == valid_scenarios
+
+        # Higher VRE penetration should require more storage
+        by_scenario = {ec["scenario"]: ec for ec in d["economic_cases"]}
+        assert (
+            by_scenario["HIGH_VRE_90"]["storage_required_gwh"]
+            > by_scenario["HIGH_VRE_75"]["storage_required_gwh"]
+            > by_scenario["MEDIUM_VRE_60"]["storage_required_gwh"]
+        ), "Storage required should increase with VRE penetration"
+
+        # Higher VRE should have greater system savings
+        assert (
+            by_scenario["HIGH_VRE_90"]["system_cost_saving_m_aud"]
+            > by_scenario["MEDIUM_VRE_60"]["system_cost_saving_m_aud"]
+        )
+
+        # --- projects: exactly 12 records ---
+        assert len(d["projects"]) == 12, (
+            f"Expected 12 project records, got {len(d['projects'])}"
+        )
+        valid_statuses = {"OPERATING", "CONSTRUCTION", "APPROVED", "PROPOSED"}
+        statuses_seen = set()
+        for proj in d["projects"]:
+            assert proj["project_name"]
+            assert proj["technology"]
+            assert proj["region"]
+            assert proj["capacity_gwh"] > 0
+            assert proj["power_mw"] > 0
+            assert proj["status"] in valid_statuses, f"Unknown status: {proj['status']}"
+            assert proj["proponent"]
+            assert proj["capex_m_aud"] > 0
+            assert 2020 <= proj["expected_cod"] <= 2040
+            assert proj["energy_to_power_ratio"] > 0
+            statuses_seen.add(proj["status"])
+        # All 4 status types should appear
+        assert statuses_seen == valid_statuses, f"Missing statuses: {valid_statuses - statuses_seen}"
+
+        # Snowy 2.0 should be the largest project by capacity
+        snowy = next((p for p in d["projects"] if "Snowy" in p["project_name"]), None)
+        assert snowy is not None, "Snowy 2.0 project not found"
+        max_capacity = max(p["capacity_gwh"] for p in d["projects"])
+        assert snowy["capacity_gwh"] == max_capacity
+
+        # At least one PUMPED_HYDRO project in CONSTRUCTION
+        phes_construction = [
+            p for p in d["projects"]
+            if p["technology"] == "PUMPED_HYDRO" and p["status"] == "CONSTRUCTION"
+        ]
+        assert len(phes_construction) >= 1
+
+        # --- seasonal_patterns: exactly 12 records (one per month) ---
+        assert len(d["seasonal_patterns"]) == 12, (
+            f"Expected 12 seasonal pattern records, got {len(d['seasonal_patterns'])}"
+        )
+        expected_months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"}
+        months_seen = set()
+        for sp in d["seasonal_patterns"]:
+            assert sp["month"] in expected_months, f"Unknown month: {sp['month']}"
+            assert sp["vre_surplus_gwh"] > 0
+            assert sp["vre_deficit_gwh"] > 0
+            assert sp["optimal_charge_gwh"] > 0
+            assert sp["optimal_discharge_gwh"] > 0
+            assert 0 < sp["storage_utilisation_pct"] <= 100
+            assert sp["price_arbitrage_aud_mwh"] > 0
+            # Optimal charge should be <= surplus
+            assert sp["optimal_charge_gwh"] <= sp["vre_surplus_gwh"]
+            # Optimal discharge should be <= deficit
+            assert sp["optimal_discharge_gwh"] <= sp["vre_deficit_gwh"]
+            months_seen.add(sp["month"])
+        assert months_seen == expected_months
+
+        # Winter months (Jun, Jul) should have higher price arbitrage than summer (Dec, Jan)
+        by_month = {sp["month"]: sp for sp in d["seasonal_patterns"]}
+        avg_winter_arb = (by_month["Jun"]["price_arbitrage_aud_mwh"] + by_month["Jul"]["price_arbitrage_aud_mwh"]) / 2
+        avg_summer_arb = (by_month["Dec"]["price_arbitrage_aud_mwh"] + by_month["Jan"]["price_arbitrage_aud_mwh"]) / 2
+        assert avg_winter_arb > avg_summer_arb, (
+            "Winter price arbitrage should exceed summer arbitrage in a high-VRE NEM"
+        )
+
+        # Summer should have higher VRE surplus than winter
+        assert by_month["Jan"]["vre_surplus_gwh"] > by_month["Jun"]["vre_surplus_gwh"]
+        assert by_month["Dec"]["vre_surplus_gwh"] > by_month["Jul"]["vre_surplus_gwh"]

@@ -8005,3 +8005,186 @@ export interface EnergyAffordabilityDashboard {
 
 export const getEnergyAffordabilityDashboard = (): Promise<EnergyAffordabilityDashboard> =>
   get<EnergyAffordabilityDashboard>('/api/energy-affordability/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 59b — Long Duration Energy Storage (LDES) Economics
+// ---------------------------------------------------------------------------
+
+export interface LDETechnologyRecord {
+  tech_id: string
+  name: string
+  duration_range_hr: string
+  current_lcos_aud_mwh: number
+  target_lcos_2035_aud_mwh: number
+  technology_readiness_level: number
+  capex_aud_kwh: number
+  round_trip_efficiency_pct: number
+  self_discharge_rate_pct_day: number
+  project_lifetime_years: number
+  australian_projects: number
+}
+
+export interface LDEEconomicCaseRecord {
+  scenario: 'HIGH_VRE_90' | 'HIGH_VRE_75' | 'MEDIUM_VRE_60'
+  duration_optimal_hr: number
+  storage_required_gwh: number
+  ldes_capacity_gw: number
+  avoided_curtailment_gwh: number
+  system_cost_saving_m_aud: number
+  optimal_technology: string
+  breakeven_lcos_aud_mwh: number
+}
+
+export interface LDEProjectRecord {
+  project_name: string
+  technology: string
+  region: string
+  capacity_gwh: number
+  power_mw: number
+  status: 'OPERATING' | 'CONSTRUCTION' | 'APPROVED' | 'PROPOSED'
+  proponent: string
+  capex_m_aud: number
+  expected_cod: number
+  energy_to_power_ratio: number
+}
+
+export interface LDESeasonalRecord {
+  month: string
+  vre_surplus_gwh: number
+  vre_deficit_gwh: number
+  optimal_charge_gwh: number
+  optimal_discharge_gwh: number
+  storage_utilisation_pct: number
+  price_arbitrage_aud_mwh: number
+}
+
+export interface LdesEconomicsDashboard {
+  timestamp: string
+  technologies: LDETechnologyRecord[]
+  economic_cases: LDEEconomicCaseRecord[]
+  projects: LDEProjectRecord[]
+  seasonal_patterns: LDESeasonalRecord[]
+}
+
+export const getLdesEconomicsDashboard = (): Promise<LdesEconomicsDashboard> =>
+  get<LdesEconomicsDashboard>('/api/ldes-economics/dashboard')
+
+// ── Sprint 59c: Australian Electricity Export Infrastructure ─────────────────
+
+export interface EEICableProjectRecord {
+  project_id: string
+  name: string
+  route: string
+  capacity_gw: number
+  length_km: number
+  capex_bn_aud: number
+  technology: 'HVDC' | 'HVAC'
+  status: 'OPERATING' | 'CONSTRUCTION' | 'APPROVED' | 'PROPOSED' | 'CANCELLED'
+  proponent: string
+  expected_cod: number
+  energy_export_twh_yr: number
+}
+
+export interface EEIRenewableZoneRecord {
+  zone_id: string
+  zone_name: string
+  state: string
+  primary_resource: 'SOLAR' | 'WIND' | 'HYBRID'
+  potential_gw: number
+  committed_gw: number
+  export_oriented: boolean
+  nearest_port_km: number
+  land_area_km2: number
+  estimated_lcoe_aud_mwh: number
+  grid_connection_cost_bn_aud: number
+}
+
+export interface EEIExportMarketRecord {
+  destination_country: string
+  import_potential_twh_yr: number
+  current_imports_twh_yr: number
+  preferred_form: 'ELECTRICITY' | 'GREEN_H2' | 'GREEN_AMMONIA' | 'LNG_CCS'
+  carbon_price_usd_tonne: number
+  agreement_status: 'SIGNED' | 'NEGOTIATING' | 'MOU' | 'NONE'
+  bilateral_trade_bn_aud: number
+}
+
+export interface EEIEconomicProjectionRecord {
+  scenario: string
+  year: number
+  export_revenue_bn_aud: number
+  jobs_created_k: number
+  investment_attracted_bn_aud: number
+  renewable_capacity_gw: number
+  co2_abated_mt: number
+}
+
+export interface ElectricityExportDashboard {
+  timestamp: string
+  cable_projects: EEICableProjectRecord[]
+  renewable_zones: EEIRenewableZoneRecord[]
+  export_markets: EEIExportMarketRecord[]
+  economic_projections: EEIEconomicProjectionRecord[]
+}
+
+export const getElectricityExportDashboard = (): Promise<ElectricityExportDashboard> =>
+  get<ElectricityExportDashboard>('/api/electricity-export/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 59a — Building Electrification & Heat Pump Analytics
+// ---------------------------------------------------------------------------
+
+export interface BEAAdoptionRecord {
+  state: string
+  year: number
+  appliance_type: 'HEAT_PUMP_HVAC' | 'HEAT_PUMP_WATER' | 'INDUCTION_COOKTOP' | 'EV_CHARGER' | 'ALL_ELECTRIC_HOME'
+  total_units_k: number
+  annual_additions_k: number
+  market_penetration_pct: number
+  avg_install_cost_aud: number
+  payback_years: number
+}
+
+export interface BEALoadImpactRecord {
+  state: string
+  year: number
+  additional_peak_mw: number
+  additional_annual_gwh: number
+  gas_displaced_pj: number
+  co2_reduction_kt: number
+  grid_augmentation_cost_m_aud: number
+  flexibility_potential_mw: number
+}
+
+export interface BEAGasNetworkRecord {
+  network_name: string
+  state: string
+  residential_connections_k: number
+  annual_consumption_pj: number
+  electrification_risk_pct: number
+  asset_value_m_aud: number
+  stranded_asset_risk_m_aud: number
+  regulatory_status: 'ALLOWED' | 'UNDER_REVIEW' | 'RESTRICTED' | 'BANNED'
+}
+
+export interface BEAProgramRecord {
+  program_name: string
+  state: string
+  program_type: 'REBATE' | 'LOAN' | 'VPP_INCENTIVE' | 'BULK_PURCHASE'
+  annual_budget_m_aud: number
+  appliances_supported: string
+  rebate_amount_aud: number
+  uptake_rate_pct: number
+  co2_abatement_cost_aud_tonne: number
+}
+
+export interface ElectrificationDashboard {
+  timestamp: string
+  adoption: BEAAdoptionRecord[]
+  load_impacts: BEALoadImpactRecord[]
+  gas_networks: BEAGasNetworkRecord[]
+  programs: BEAProgramRecord[]
+}
+
+export const getElectrificationDashboard = (): Promise<ElectrificationDashboard> =>
+  get<ElectrificationDashboard>('/api/electrification/dashboard')

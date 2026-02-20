@@ -42387,3 +42387,565 @@ def get_energy_affordability_dashboard() -> EnergyAffordabilityDashboard:
         solar_impact=_EAH_SOLAR_IMPACT,
         assistance_programs=_EAH_ASSISTANCE_PROGRAMS,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 59c — Australian Electricity Export Infrastructure
+# ---------------------------------------------------------------------------
+
+class EEICableProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    route: str
+    capacity_gw: float
+    length_km: float
+    capex_bn_aud: float
+    technology: str   # HVDC / HVAC
+    status: str       # OPERATING/CONSTRUCTION/APPROVED/PROPOSED/CANCELLED
+    proponent: str
+    expected_cod: int
+    energy_export_twh_yr: float
+
+class EEIRenewableZoneRecord(BaseModel):
+    zone_id: str
+    zone_name: str
+    state: str
+    primary_resource: str   # SOLAR/WIND/HYBRID
+    potential_gw: float
+    committed_gw: float
+    export_oriented: bool
+    nearest_port_km: float
+    land_area_km2: float
+    estimated_lcoe_aud_mwh: float
+    grid_connection_cost_bn_aud: float
+
+class EEIExportMarketRecord(BaseModel):
+    destination_country: str
+    import_potential_twh_yr: float
+    current_imports_twh_yr: float
+    preferred_form: str   # ELECTRICITY/GREEN_H2/GREEN_AMMONIA/LNG_CCS
+    carbon_price_usd_tonne: float
+    agreement_status: str  # SIGNED/NEGOTIATING/MOU/NONE
+    bilateral_trade_bn_aud: float
+
+class EEIEconomicProjectionRecord(BaseModel):
+    scenario: str
+    year: int
+    export_revenue_bn_aud: float
+    jobs_created_k: int
+    investment_attracted_bn_aud: float
+    renewable_capacity_gw: float
+    co2_abated_mt: float
+
+class ElectricityExportDashboard(BaseModel):
+    timestamp: str
+    cable_projects: List[EEICableProjectRecord]
+    renewable_zones: List[EEIRenewableZoneRecord]
+    export_markets: List[EEIExportMarketRecord]
+    economic_projections: List[EEIEconomicProjectionRecord]
+
+
+_EEI_CABLE_PROJECTS: List[EEICableProjectRecord] = [
+    EEICableProjectRecord(
+        project_id="CP001", name="Sun Cable AAPowerLink",
+        route="NT Darwin → Singapore", capacity_gw=3.2, length_km=4200,
+        capex_bn_aud=35.0, technology="HVDC", status="PROPOSED",
+        proponent="Sun Cable", expected_cod=2030, energy_export_twh_yr=17.5,
+    ),
+    EEICableProjectRecord(
+        project_id="CP002", name="Australia-Asia PowerLink (Domestic)",
+        route="NT Solar Farm → Darwin", capacity_gw=3.2, length_km=800,
+        capex_bn_aud=7.0, technology="HVDC", status="PROPOSED",
+        proponent="Sun Cable", expected_cod=2029, energy_export_twh_yr=0.0,
+    ),
+    EEICableProjectRecord(
+        project_id="CP003", name="Marinus Link (Leg 1)",
+        route="Tasmania Heybridge → Victoria Loch Sport", capacity_gw=0.75, length_km=255,
+        capex_bn_aud=3.8, technology="HVDC", status="APPROVED",
+        proponent="TasNetworks / AusNet", expected_cod=2031, energy_export_twh_yr=3.5,
+    ),
+    EEICableProjectRecord(
+        project_id="CP004", name="Marinus Link (Leg 2)",
+        route="Tasmania → Victoria (second circuit)", capacity_gw=0.75, length_km=255,
+        capex_bn_aud=3.8, technology="HVDC", status="APPROVED",
+        proponent="TasNetworks / AusNet", expected_cod=2033, energy_export_twh_yr=3.5,
+    ),
+    EEICableProjectRecord(
+        project_id="CP005", name="Bass Strait Cable Upgrade",
+        route="Tasmania → Victoria (Basslink upgrade)", capacity_gw=0.5, length_km=290,
+        capex_bn_aud=1.2, technology="HVDC", status="PROPOSED",
+        proponent="Transgrid / TasNetworks", expected_cod=2028, energy_export_twh_yr=2.1,
+    ),
+    EEICableProjectRecord(
+        project_id="CP006", name="Japan-Australia Energy Link (JAEL)",
+        route="WA Pilbara → Japan (conceptual)", capacity_gw=5.0, length_km=7200,
+        capex_bn_aud=62.0, technology="HVDC", status="PROPOSED",
+        proponent="Consortium JAEL", expected_cod=2035, energy_export_twh_yr=25.0,
+    ),
+    EEICableProjectRecord(
+        project_id="CP007", name="NZ-Australia Clean Energy Link",
+        route="New Zealand → Victoria", capacity_gw=1.5, length_km=2250,
+        capex_bn_aud=14.5, technology="HVDC", status="PROPOSED",
+        proponent="TransPower / AusNet", expected_cod=2034, energy_export_twh_yr=6.0,
+    ),
+]
+
+_EEI_RENEWABLE_ZONES: List[EEIRenewableZoneRecord] = [
+    EEIRenewableZoneRecord(
+        zone_id="RZ001", zone_name="Darwin Solar Precinct", state="NT",
+        primary_resource="SOLAR", potential_gw=20.0, committed_gw=5.8,
+        export_oriented=True, nearest_port_km=12.0, land_area_km2=5800,
+        estimated_lcoe_aud_mwh=32.0, grid_connection_cost_bn_aud=1.2,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ002", zone_name="Barkly Tablelands REZ", state="NT",
+        primary_resource="SOLAR", potential_gw=15.0, committed_gw=2.0,
+        export_oriented=True, nearest_port_km=320.0, land_area_km2=12000,
+        estimated_lcoe_aud_mwh=28.5, grid_connection_cost_bn_aud=2.8,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ003", zone_name="Pilbara Renewable Energy Zone", state="WA",
+        primary_resource="HYBRID", potential_gw=25.0, committed_gw=4.5,
+        export_oriented=True, nearest_port_km=45.0, land_area_km2=18000,
+        estimated_lcoe_aud_mwh=30.0, grid_connection_cost_bn_aud=3.5,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ004", zone_name="North Queensland REZ", state="QLD",
+        primary_resource="SOLAR", potential_gw=10.0, committed_gw=3.2,
+        export_oriented=False, nearest_port_km=85.0, land_area_km2=6200,
+        estimated_lcoe_aud_mwh=34.0, grid_connection_cost_bn_aud=1.8,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ005", zone_name="Snowy-Monaro Wind Zone", state="NSW",
+        primary_resource="WIND", potential_gw=6.0, committed_gw=2.8,
+        export_oriented=False, nearest_port_km=280.0, land_area_km2=3400,
+        estimated_lcoe_aud_mwh=45.0, grid_connection_cost_bn_aud=1.1,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ006", zone_name="Tasmania Hydro-Wind Complex", state="TAS",
+        primary_resource="HYBRID", potential_gw=4.5, committed_gw=1.9,
+        export_oriented=True, nearest_port_km=60.0, land_area_km2=2100,
+        estimated_lcoe_aud_mwh=40.0, grid_connection_cost_bn_aud=0.9,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ007", zone_name="South Australian Wind Belt", state="SA",
+        primary_resource="WIND", potential_gw=8.0, committed_gw=3.5,
+        export_oriented=False, nearest_port_km=120.0, land_area_km2=4800,
+        estimated_lcoe_aud_mwh=38.0, grid_connection_cost_bn_aud=1.4,
+    ),
+    EEIRenewableZoneRecord(
+        zone_id="RZ008", zone_name="Kimberley Offshore Wind Precinct", state="WA",
+        primary_resource="WIND", potential_gw=12.0, committed_gw=0.5,
+        export_oriented=True, nearest_port_km=20.0, land_area_km2=8500,
+        estimated_lcoe_aud_mwh=52.0, grid_connection_cost_bn_aud=4.2,
+    ),
+]
+
+_EEI_EXPORT_MARKETS: List[EEIExportMarketRecord] = [
+    EEIExportMarketRecord(
+        destination_country="Japan", import_potential_twh_yr=120.0,
+        current_imports_twh_yr=0.0, preferred_form="ELECTRICITY",
+        carbon_price_usd_tonne=85.0, agreement_status="SIGNED",
+        bilateral_trade_bn_aud=68.0,
+    ),
+    EEIExportMarketRecord(
+        destination_country="Singapore", import_potential_twh_yr=32.0,
+        current_imports_twh_yr=0.0, preferred_form="ELECTRICITY",
+        carbon_price_usd_tonne=55.0, agreement_status="SIGNED",
+        bilateral_trade_bn_aud=18.5,
+    ),
+    EEIExportMarketRecord(
+        destination_country="South Korea", import_potential_twh_yr=85.0,
+        current_imports_twh_yr=0.0, preferred_form="GREEN_H2",
+        carbon_price_usd_tonne=72.0, agreement_status="NEGOTIATING",
+        bilateral_trade_bn_aud=42.0,
+    ),
+    EEIExportMarketRecord(
+        destination_country="Indonesia", import_potential_twh_yr=45.0,
+        current_imports_twh_yr=0.0, preferred_form="ELECTRICITY",
+        carbon_price_usd_tonne=12.0, agreement_status="MOU",
+        bilateral_trade_bn_aud=22.0,
+    ),
+    EEIExportMarketRecord(
+        destination_country="Philippines", import_potential_twh_yr=30.0,
+        current_imports_twh_yr=0.0, preferred_form="GREEN_AMMONIA",
+        carbon_price_usd_tonne=8.0, agreement_status="MOU",
+        bilateral_trade_bn_aud=12.0,
+    ),
+    EEIExportMarketRecord(
+        destination_country="Malaysia", import_potential_twh_yr=25.0,
+        current_imports_twh_yr=0.0, preferred_form="GREEN_AMMONIA",
+        carbon_price_usd_tonne=15.0, agreement_status="NEGOTIATING",
+        bilateral_trade_bn_aud=16.5,
+    ),
+    EEIExportMarketRecord(
+        destination_country="India", import_potential_twh_yr=200.0,
+        current_imports_twh_yr=0.0, preferred_form="GREEN_H2",
+        carbon_price_usd_tonne=6.0, agreement_status="NONE",
+        bilateral_trade_bn_aud=35.0,
+    ),
+    EEIExportMarketRecord(
+        destination_country="China", import_potential_twh_yr=250.0,
+        current_imports_twh_yr=0.0, preferred_form="GREEN_AMMONIA",
+        carbon_price_usd_tonne=10.0, agreement_status="NONE",
+        bilateral_trade_bn_aud=245.0,
+    ),
+]
+
+_EEI_ECONOMIC_PROJECTIONS: List[EEIEconomicProjectionRecord] = [
+    # Scenario: Conservative
+    EEIEconomicProjectionRecord(scenario="Conservative", year=2027, export_revenue_bn_aud=0.5, jobs_created_k=5, investment_attracted_bn_aud=8.0, renewable_capacity_gw=2.0, co2_abated_mt=2.0),
+    EEIEconomicProjectionRecord(scenario="Conservative", year=2029, export_revenue_bn_aud=1.5, jobs_created_k=12, investment_attracted_bn_aud=20.0, renewable_capacity_gw=5.0, co2_abated_mt=8.0),
+    EEIEconomicProjectionRecord(scenario="Conservative", year=2031, export_revenue_bn_aud=3.0, jobs_created_k=22, investment_attracted_bn_aud=35.0, renewable_capacity_gw=8.5, co2_abated_mt=18.0),
+    EEIEconomicProjectionRecord(scenario="Conservative", year=2033, export_revenue_bn_aud=5.5, jobs_created_k=35, investment_attracted_bn_aud=55.0, renewable_capacity_gw=13.0, co2_abated_mt=30.0),
+    EEIEconomicProjectionRecord(scenario="Conservative", year=2035, export_revenue_bn_aud=8.0, jobs_created_k=48, investment_attracted_bn_aud=78.0, renewable_capacity_gw=18.0, co2_abated_mt=45.0),
+    # Scenario: Moderate
+    EEIEconomicProjectionRecord(scenario="Moderate", year=2027, export_revenue_bn_aud=1.2, jobs_created_k=10, investment_attracted_bn_aud=18.0, renewable_capacity_gw=4.0, co2_abated_mt=5.0),
+    EEIEconomicProjectionRecord(scenario="Moderate", year=2029, export_revenue_bn_aud=4.0, jobs_created_k=28, investment_attracted_bn_aud=50.0, renewable_capacity_gw=10.0, co2_abated_mt=20.0),
+    EEIEconomicProjectionRecord(scenario="Moderate", year=2031, export_revenue_bn_aud=8.5, jobs_created_k=55, investment_attracted_bn_aud=95.0, renewable_capacity_gw=18.0, co2_abated_mt=42.0),
+    EEIEconomicProjectionRecord(scenario="Moderate", year=2033, export_revenue_bn_aud=15.0, jobs_created_k=90, investment_attracted_bn_aud=160.0, renewable_capacity_gw=28.0, co2_abated_mt=75.0),
+    EEIEconomicProjectionRecord(scenario="Moderate", year=2035, export_revenue_bn_aud=24.0, jobs_created_k=135, investment_attracted_bn_aud=245.0, renewable_capacity_gw=40.0, co2_abated_mt=115.0),
+    # Scenario: Accelerated
+    EEIEconomicProjectionRecord(scenario="Accelerated", year=2027, export_revenue_bn_aud=2.5, jobs_created_k=18, investment_attracted_bn_aud=35.0, renewable_capacity_gw=7.0, co2_abated_mt=10.0),
+    EEIEconomicProjectionRecord(scenario="Accelerated", year=2029, export_revenue_bn_aud=8.0, jobs_created_k=55, investment_attracted_bn_aud=100.0, renewable_capacity_gw=18.0, co2_abated_mt=38.0),
+    EEIEconomicProjectionRecord(scenario="Accelerated", year=2031, export_revenue_bn_aud=18.0, jobs_created_k=110, investment_attracted_bn_aud=210.0, renewable_capacity_gw=32.0, co2_abated_mt=80.0),
+    EEIEconomicProjectionRecord(scenario="Accelerated", year=2033, export_revenue_bn_aud=35.0, jobs_created_k=195, investment_attracted_bn_aud=380.0, renewable_capacity_gw=52.0, co2_abated_mt=145.0),
+    EEIEconomicProjectionRecord(scenario="Accelerated", year=2035, export_revenue_bn_aud=58.0, jobs_created_k=310, investment_attracted_bn_aud=600.0, renewable_capacity_gw=78.0, co2_abated_mt=240.0),
+]
+
+
+@app.get("/api/electricity-export/dashboard", dependencies=[Depends(verify_api_key)])
+def get_electricity_export_dashboard() -> ElectricityExportDashboard:
+    return ElectricityExportDashboard(
+        timestamp=datetime.utcnow().isoformat(),
+        cable_projects=_EEI_CABLE_PROJECTS,
+        renewable_zones=_EEI_RENEWABLE_ZONES,
+        export_markets=_EEI_EXPORT_MARKETS,
+        economic_projections=_EEI_ECONOMIC_PROJECTIONS,
+    )
+
+
+# ===========================================================================
+# Sprint 59a — Building Electrification & Heat Pump Analytics
+# ===========================================================================
+
+class _BEAApplianceType(str, Enum):
+    HEAT_PUMP_HVAC     = "HEAT_PUMP_HVAC"
+    HEAT_PUMP_WATER    = "HEAT_PUMP_WATER"
+    INDUCTION_COOKTOP  = "INDUCTION_COOKTOP"
+    EV_CHARGER         = "EV_CHARGER"
+    ALL_ELECTRIC_HOME  = "ALL_ELECTRIC_HOME"
+
+class _BEARegulatoryStatus(str, Enum):
+    ALLOWED       = "ALLOWED"
+    UNDER_REVIEW  = "UNDER_REVIEW"
+    RESTRICTED    = "RESTRICTED"
+    BANNED        = "BANNED"
+
+class _BEAProgramType(str, Enum):
+    REBATE          = "REBATE"
+    LOAN            = "LOAN"
+    VPP_INCENTIVE   = "VPP_INCENTIVE"
+    BULK_PURCHASE   = "BULK_PURCHASE"
+
+
+class BEAAdoptionRecord(BaseModel):
+    state: str
+    year: int
+    appliance_type: str
+    total_units_k: float
+    annual_additions_k: float
+    market_penetration_pct: float
+    avg_install_cost_aud: float
+    payback_years: float
+
+
+class BEALoadImpactRecord(BaseModel):
+    state: str
+    year: int
+    additional_peak_mw: float
+    additional_annual_gwh: float
+    gas_displaced_pj: float
+    co2_reduction_kt: float
+    grid_augmentation_cost_m_aud: float
+    flexibility_potential_mw: float
+
+
+class BEAGasNetworkRecord(BaseModel):
+    network_name: str
+    state: str
+    residential_connections_k: int
+    annual_consumption_pj: float
+    electrification_risk_pct: float
+    asset_value_m_aud: float
+    stranded_asset_risk_m_aud: float
+    regulatory_status: str
+
+
+class BEAProgramRecord(BaseModel):
+    program_name: str
+    state: str
+    program_type: str
+    annual_budget_m_aud: float
+    appliances_supported: str
+    rebate_amount_aud: float
+    uptake_rate_pct: float
+    co2_abatement_cost_aud_tonne: float
+
+
+class ElectrificationDashboard(BaseModel):
+    timestamp: str
+    adoption: list[BEAAdoptionRecord]
+    load_impacts: list[BEALoadImpactRecord]
+    gas_networks: list[BEAGasNetworkRecord]
+    programs: list[BEAProgramRecord]
+
+
+# ---------------------------------------------------------------------------
+# Mock data — adoption records: 5 appliance types × 5 states (25 records)
+# ---------------------------------------------------------------------------
+_BEA_ADOPTION: list[BEAAdoptionRecord] = [
+    # NSW
+    BEAAdoptionRecord(state="NSW", year=2024, appliance_type="HEAT_PUMP_HVAC",    total_units_k=312.0,  annual_additions_k=48.5,  market_penetration_pct=8.4,  avg_install_cost_aud=4200.0, payback_years=7.2),
+    BEAAdoptionRecord(state="NSW", year=2024, appliance_type="HEAT_PUMP_WATER",   total_units_k=185.0,  annual_additions_k=32.1,  market_penetration_pct=5.0,  avg_install_cost_aud=2800.0, payback_years=6.1),
+    BEAAdoptionRecord(state="NSW", year=2024, appliance_type="INDUCTION_COOKTOP", total_units_k=420.0,  annual_additions_k=68.0,  market_penetration_pct=11.3, avg_install_cost_aud=1400.0, payback_years=4.2),
+    BEAAdoptionRecord(state="NSW", year=2024, appliance_type="EV_CHARGER",        total_units_k=95.0,   annual_additions_k=22.4,  market_penetration_pct=2.6,  avg_install_cost_aud=1800.0, payback_years=5.8),
+    BEAAdoptionRecord(state="NSW", year=2024, appliance_type="ALL_ELECTRIC_HOME", total_units_k=28.0,   annual_additions_k=6.2,   market_penetration_pct=0.8,  avg_install_cost_aud=18500.0,payback_years=12.4),
+    # VIC
+    BEAAdoptionRecord(state="VIC", year=2024, appliance_type="HEAT_PUMP_HVAC",    total_units_k=285.0,  annual_additions_k=52.3,  market_penetration_pct=9.1,  avg_install_cost_aud=4100.0, payback_years=6.8),
+    BEAAdoptionRecord(state="VIC", year=2024, appliance_type="HEAT_PUMP_WATER",   total_units_k=210.0,  annual_additions_k=41.6,  market_penetration_pct=6.7,  avg_install_cost_aud=2700.0, payback_years=5.6),
+    BEAAdoptionRecord(state="VIC", year=2024, appliance_type="INDUCTION_COOKTOP", total_units_k=380.0,  annual_additions_k=72.5,  market_penetration_pct=12.1, avg_install_cost_aud=1350.0, payback_years=3.9),
+    BEAAdoptionRecord(state="VIC", year=2024, appliance_type="EV_CHARGER",        total_units_k=88.0,   annual_additions_k=21.8,  market_penetration_pct=2.8,  avg_install_cost_aud=1750.0, payback_years=5.5),
+    BEAAdoptionRecord(state="VIC", year=2024, appliance_type="ALL_ELECTRIC_HOME", total_units_k=35.0,   annual_additions_k=8.9,   market_penetration_pct=1.1,  avg_install_cost_aud=17800.0,payback_years=11.8),
+    # QLD
+    BEAAdoptionRecord(state="QLD", year=2024, appliance_type="HEAT_PUMP_HVAC",    total_units_k=198.0,  annual_additions_k=28.4,  market_penetration_pct=6.2,  avg_install_cost_aud=4300.0, payback_years=8.1),
+    BEAAdoptionRecord(state="QLD", year=2024, appliance_type="HEAT_PUMP_WATER",   total_units_k=142.0,  annual_additions_k=24.8,  market_penetration_pct=4.5,  avg_install_cost_aud=2850.0, payback_years=6.8),
+    BEAAdoptionRecord(state="QLD", year=2024, appliance_type="INDUCTION_COOKTOP", total_units_k=265.0,  annual_additions_k=44.1,  market_penetration_pct=8.3,  avg_install_cost_aud=1450.0, payback_years=4.5),
+    BEAAdoptionRecord(state="QLD", year=2024, appliance_type="EV_CHARGER",        total_units_k=62.0,   annual_additions_k=15.2,  market_penetration_pct=1.9,  avg_install_cost_aud=1820.0, payback_years=6.2),
+    BEAAdoptionRecord(state="QLD", year=2024, appliance_type="ALL_ELECTRIC_HOME", total_units_k=18.0,   annual_additions_k=4.1,   market_penetration_pct=0.6,  avg_install_cost_aud=19200.0,payback_years=13.5),
+    # SA
+    BEAAdoptionRecord(state="SA",  year=2024, appliance_type="HEAT_PUMP_HVAC",    total_units_k=92.0,   annual_additions_k=15.8,  market_penetration_pct=10.2, avg_install_cost_aud=4050.0, payback_years=6.4),
+    BEAAdoptionRecord(state="SA",  year=2024, appliance_type="HEAT_PUMP_WATER",   total_units_k=68.0,   annual_additions_k=13.4,  market_penetration_pct=7.5,  avg_install_cost_aud=2650.0, payback_years=5.2),
+    BEAAdoptionRecord(state="SA",  year=2024, appliance_type="INDUCTION_COOKTOP", total_units_k=115.0,  annual_additions_k=22.6,  market_penetration_pct=12.7, avg_install_cost_aud=1380.0, payback_years=3.8),
+    BEAAdoptionRecord(state="SA",  year=2024, appliance_type="EV_CHARGER",        total_units_k=38.0,   annual_additions_k=9.6,   market_penetration_pct=4.2,  avg_install_cost_aud=1690.0, payback_years=5.1),
+    BEAAdoptionRecord(state="SA",  year=2024, appliance_type="ALL_ELECTRIC_HOME", total_units_k=14.0,   annual_additions_k=3.8,   market_penetration_pct=1.5,  avg_install_cost_aud=17200.0,payback_years=10.9),
+    # WA
+    BEAAdoptionRecord(state="WA",  year=2024, appliance_type="HEAT_PUMP_HVAC",    total_units_k=145.0,  annual_additions_k=20.2,  market_penetration_pct=7.1,  avg_install_cost_aud=4150.0, payback_years=7.6),
+    BEAAdoptionRecord(state="WA",  year=2024, appliance_type="HEAT_PUMP_WATER",   total_units_k=98.0,   annual_additions_k=17.5,  market_penetration_pct=4.8,  avg_install_cost_aud=2750.0, payback_years=6.3),
+    BEAAdoptionRecord(state="WA",  year=2024, appliance_type="INDUCTION_COOKTOP", total_units_k=175.0,  annual_additions_k=29.8,  market_penetration_pct=8.6,  avg_install_cost_aud=1420.0, payback_years=4.1),
+    BEAAdoptionRecord(state="WA",  year=2024, appliance_type="EV_CHARGER",        total_units_k=48.0,   annual_additions_k=12.4,  market_penetration_pct=2.4,  avg_install_cost_aud=1760.0, payback_years=5.7),
+    BEAAdoptionRecord(state="WA",  year=2024, appliance_type="ALL_ELECTRIC_HOME", total_units_k=11.0,   annual_additions_k=2.8,   market_penetration_pct=0.5,  avg_install_cost_aud=18100.0,payback_years=12.8),
+]
+
+# ---------------------------------------------------------------------------
+# Mock data — load impact records: 5 states × 4 years (20 records)
+# ---------------------------------------------------------------------------
+_BEA_LOAD_IMPACTS: list[BEALoadImpactRecord] = [
+    # NSW
+    BEALoadImpactRecord(state="NSW", year=2024, additional_peak_mw=285.0,  additional_annual_gwh=1820.0, gas_displaced_pj=4.8,  co2_reduction_kt=420.0,  grid_augmentation_cost_m_aud=185.0, flexibility_potential_mw=210.0),
+    BEALoadImpactRecord(state="NSW", year=2025, additional_peak_mw=420.0,  additional_annual_gwh=2650.0, gas_displaced_pj=7.2,  co2_reduction_kt=640.0,  grid_augmentation_cost_m_aud=265.0, flexibility_potential_mw=310.0),
+    BEALoadImpactRecord(state="NSW", year=2026, additional_peak_mw=610.0,  additional_annual_gwh=3840.0, gas_displaced_pj=10.5, co2_reduction_kt=940.0,  grid_augmentation_cost_m_aud=380.0, flexibility_potential_mw=450.0),
+    BEALoadImpactRecord(state="NSW", year=2027, additional_peak_mw=840.0,  additional_annual_gwh=5280.0, gas_displaced_pj=14.2, co2_reduction_kt=1280.0, grid_augmentation_cost_m_aud=520.0, flexibility_potential_mw=620.0),
+    # VIC
+    BEALoadImpactRecord(state="VIC", year=2024, additional_peak_mw=310.0,  additional_annual_gwh=1960.0, gas_displaced_pj=8.4,  co2_reduction_kt=580.0,  grid_augmentation_cost_m_aud=210.0, flexibility_potential_mw=240.0),
+    BEALoadImpactRecord(state="VIC", year=2025, additional_peak_mw=475.0,  additional_annual_gwh=2980.0, gas_displaced_pj=12.6, co2_reduction_kt=880.0,  grid_augmentation_cost_m_aud=310.0, flexibility_potential_mw=360.0),
+    BEALoadImpactRecord(state="VIC", year=2026, additional_peak_mw=695.0,  additional_annual_gwh=4310.0, gas_displaced_pj=18.1, co2_reduction_kt=1280.0, grid_augmentation_cost_m_aud=440.0, flexibility_potential_mw=520.0),
+    BEALoadImpactRecord(state="VIC", year=2027, additional_peak_mw=960.0,  additional_annual_gwh=5920.0, gas_displaced_pj=24.5, co2_reduction_kt=1760.0, grid_augmentation_cost_m_aud=610.0, flexibility_potential_mw=720.0),
+    # QLD
+    BEALoadImpactRecord(state="QLD", year=2024, additional_peak_mw=195.0,  additional_annual_gwh=1240.0, gas_displaced_pj=2.8,  co2_reduction_kt=260.0,  grid_augmentation_cost_m_aud=140.0, flexibility_potential_mw=150.0),
+    BEALoadImpactRecord(state="QLD", year=2025, additional_peak_mw=285.0,  additional_annual_gwh=1810.0, gas_displaced_pj=4.1,  co2_reduction_kt=380.0,  grid_augmentation_cost_m_aud=200.0, flexibility_potential_mw=220.0),
+    BEALoadImpactRecord(state="QLD", year=2026, additional_peak_mw=405.0,  additional_annual_gwh=2560.0, gas_displaced_pj=5.9,  co2_reduction_kt=540.0,  grid_augmentation_cost_m_aud=280.0, flexibility_potential_mw=315.0),
+    BEALoadImpactRecord(state="QLD", year=2027, additional_peak_mw=555.0,  additional_annual_gwh=3490.0, gas_displaced_pj=7.9,  co2_reduction_kt=730.0,  grid_augmentation_cost_m_aud=375.0, flexibility_potential_mw=430.0),
+    # SA
+    BEALoadImpactRecord(state="SA",  year=2024, additional_peak_mw=95.0,   additional_annual_gwh=590.0,  gas_displaced_pj=1.8,  co2_reduction_kt=120.0,  grid_augmentation_cost_m_aud=65.0,  flexibility_potential_mw=75.0),
+    BEALoadImpactRecord(state="SA",  year=2025, additional_peak_mw=145.0,  additional_annual_gwh=895.0,  gas_displaced_pj=2.7,  co2_reduction_kt=185.0,  grid_augmentation_cost_m_aud=95.0,  flexibility_potential_mw=115.0),
+    BEALoadImpactRecord(state="SA",  year=2026, additional_peak_mw=210.0,  additional_annual_gwh=1280.0, gas_displaced_pj=3.9,  co2_reduction_kt=265.0,  grid_augmentation_cost_m_aud=135.0, flexibility_potential_mw=165.0),
+    BEALoadImpactRecord(state="SA",  year=2027, additional_peak_mw=290.0,  additional_annual_gwh=1740.0, gas_displaced_pj=5.2,  co2_reduction_kt=360.0,  grid_augmentation_cost_m_aud=185.0, flexibility_potential_mw=225.0),
+    # WA
+    BEALoadImpactRecord(state="WA",  year=2024, additional_peak_mw=145.0,  additional_annual_gwh=920.0,  gas_displaced_pj=2.2,  co2_reduction_kt=195.0,  grid_augmentation_cost_m_aud=105.0, flexibility_potential_mw=110.0),
+    BEALoadImpactRecord(state="WA",  year=2025, additional_peak_mw=215.0,  additional_annual_gwh=1360.0, gas_displaced_pj=3.3,  co2_reduction_kt=290.0,  grid_augmentation_cost_m_aud=155.0, flexibility_potential_mw=165.0),
+    BEALoadImpactRecord(state="WA",  year=2026, additional_peak_mw=310.0,  additional_annual_gwh=1950.0, gas_displaced_pj=4.7,  co2_reduction_kt=415.0,  grid_augmentation_cost_m_aud=220.0, flexibility_potential_mw=235.0),
+    BEALoadImpactRecord(state="WA",  year=2027, additional_peak_mw=425.0,  additional_annual_gwh=2650.0, gas_displaced_pj=6.4,  co2_reduction_kt=565.0,  grid_augmentation_cost_m_aud=295.0, flexibility_potential_mw=320.0),
+]
+
+# ---------------------------------------------------------------------------
+# Mock data — gas network records: 8 records
+# ---------------------------------------------------------------------------
+_BEA_GAS_NETWORKS: list[BEAGasNetworkRecord] = [
+    BEAGasNetworkRecord(network_name="Jemena Gas Networks",          state="NSW", residential_connections_k=1180, annual_consumption_pj=58.4,  electrification_risk_pct=38.2, asset_value_m_aud=4800.0, stranded_asset_risk_m_aud=1835.0, regulatory_status="UNDER_REVIEW"),
+    BEAGasNetworkRecord(network_name="Multinet Gas",                  state="VIC", residential_connections_k=680,  annual_consumption_pj=32.1,  electrification_risk_pct=52.8, asset_value_m_aud=2850.0, stranded_asset_risk_m_aud=1505.0, regulatory_status="RESTRICTED"),
+    BEAGasNetworkRecord(network_name="AusNet Gas Distribution",       state="VIC", residential_connections_k=720,  annual_consumption_pj=34.8,  electrification_risk_pct=48.5, asset_value_m_aud=3100.0, stranded_asset_risk_m_aud=1503.5, regulatory_status="RESTRICTED"),
+    BEAGasNetworkRecord(network_name="Evoenergy (ACT Gas)",           state="NSW", residential_connections_k=165,  annual_consumption_pj=8.2,   electrification_risk_pct=72.4, asset_value_m_aud=680.0,  stranded_asset_risk_m_aud=492.3,  regulatory_status="BANNED"),
+    BEAGasNetworkRecord(network_name="Allgas Energy",                 state="QLD", residential_connections_k=510,  annual_consumption_pj=21.6,  electrification_risk_pct=28.4, asset_value_m_aud=2100.0, stranded_asset_risk_m_aud=596.4,  regulatory_status="ALLOWED"),
+    BEAGasNetworkRecord(network_name="Atco Gas Australia",            state="WA",  residential_connections_k=740,  annual_consumption_pj=31.5,  electrification_risk_pct=22.1, asset_value_m_aud=2950.0, stranded_asset_risk_m_aud=652.0,  regulatory_status="ALLOWED"),
+    BEAGasNetworkRecord(network_name="Australian Gas Networks (SA)",  state="SA",  residential_connections_k=420,  annual_consumption_pj=18.9,  electrification_risk_pct=44.6, asset_value_m_aud=1780.0, stranded_asset_risk_m_aud=793.9,  regulatory_status="UNDER_REVIEW"),
+    BEAGasNetworkRecord(network_name="Tas Gas Networks",              state="TAS", residential_connections_k=82,   annual_consumption_pj=4.1,   electrification_risk_pct=31.8, asset_value_m_aud=320.0,  stranded_asset_risk_m_aud=101.8,  regulatory_status="ALLOWED"),
+]
+
+# ---------------------------------------------------------------------------
+# Mock data — program records: 10 records
+# ---------------------------------------------------------------------------
+_BEA_PROGRAMS: list[BEAProgramRecord] = [
+    BEAProgramRecord(program_name="VIC Gas Substitution Roadmap Rebates",   state="VIC", program_type="REBATE",        annual_budget_m_aud=85.0,  appliances_supported="Heat pump HVAC, Heat pump water heater, Induction cooktop", rebate_amount_aud=1400.0, uptake_rate_pct=42.5, co2_abatement_cost_aud_tonne=48.0),
+    BEAProgramRecord(program_name="NSW Electrify Everything Incentive",      state="NSW", program_type="REBATE",        annual_budget_m_aud=72.0,  appliances_supported="Heat pump HVAC, Heat pump water heater",                   rebate_amount_aud=1200.0, uptake_rate_pct=38.2, co2_abatement_cost_aud_tonne=52.0),
+    BEAProgramRecord(program_name="SA Home Electrification Loan",            state="SA",  program_type="LOAN",          annual_budget_m_aud=40.0,  appliances_supported="All electric appliances, Solar panels",                    rebate_amount_aud=0.0,    uptake_rate_pct=21.4, co2_abatement_cost_aud_tonne=35.0),
+    BEAProgramRecord(program_name="QLD Bulk Buy Heat Pump Program",          state="QLD", program_type="BULK_PURCHASE", annual_budget_m_aud=28.0,  appliances_supported="Heat pump water heater",                                   rebate_amount_aud=650.0,  uptake_rate_pct=54.8, co2_abatement_cost_aud_tonne=28.0),
+    BEAProgramRecord(program_name="VIC Virtual Power Plant Heat Pump Bonus", state="VIC", program_type="VPP_INCENTIVE", annual_budget_m_aud=32.0,  appliances_supported="Heat pump HVAC with smart controls",                      rebate_amount_aud=800.0,  uptake_rate_pct=18.9, co2_abatement_cost_aud_tonne=41.0),
+    BEAProgramRecord(program_name="NSW Induction Cooktop Cashback",          state="NSW", program_type="REBATE",        annual_budget_m_aud=18.0,  appliances_supported="Induction cooktop",                                        rebate_amount_aud=400.0,  uptake_rate_pct=61.3, co2_abatement_cost_aud_tonne=22.0),
+    BEAProgramRecord(program_name="WA Household Electrification Grant",      state="WA",  program_type="REBATE",        annual_budget_m_aud=24.0,  appliances_supported="Heat pump water heater, EV charger",                       rebate_amount_aud=900.0,  uptake_rate_pct=28.7, co2_abatement_cost_aud_tonne=58.0),
+    BEAProgramRecord(program_name="SA Smart EV Charger VPP Incentive",       state="SA",  program_type="VPP_INCENTIVE", annual_budget_m_aud=15.0,  appliances_supported="Smart EV charger with V2G capability",                    rebate_amount_aud=600.0,  uptake_rate_pct=14.2, co2_abatement_cost_aud_tonne=38.0),
+    BEAProgramRecord(program_name="QLD All-Electric Home Loan Scheme",       state="QLD", program_type="LOAN",          annual_budget_m_aud=35.0,  appliances_supported="Complete home electrification package",                    rebate_amount_aud=0.0,    uptake_rate_pct=9.8,  co2_abatement_cost_aud_tonne=31.0),
+    BEAProgramRecord(program_name="VIC Bulk Induction Cooktop Community",    state="VIC", program_type="BULK_PURCHASE", annual_budget_m_aud=12.0,  appliances_supported="Induction cooktop, Induction portable",                    rebate_amount_aud=350.0,  uptake_rate_pct=68.4, co2_abatement_cost_aud_tonne=19.0),
+]
+
+
+@app.get("/api/electrification/dashboard", dependencies=[Depends(verify_api_key)])
+def get_electrification_dashboard() -> ElectrificationDashboard:
+    """Sprint 59a — Building Electrification & Heat Pump Analytics dashboard."""
+    return ElectrificationDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        adoption=_BEA_ADOPTION,
+        load_impacts=_BEA_LOAD_IMPACTS,
+        gas_networks=_BEA_GAS_NETWORKS,
+        programs=_BEA_PROGRAMS,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 59b — Long Duration Energy Storage (LDES) Economics
+# ---------------------------------------------------------------------------
+
+class _LDETechId(str, Enum):
+    PUMPED_HYDRO          = "PUMPED_HYDRO"
+    COMPRESSED_AIR        = "COMPRESSED_AIR"
+    FLOW_VANADIUM         = "FLOW_VANADIUM"
+    FLOW_ZINC             = "FLOW_ZINC"
+    LIQUID_AIR            = "LIQUID_AIR"
+    GREEN_HYDROGEN_STORAGE = "GREEN_HYDROGEN_STORAGE"
+    THERMAL_MOLTEN_SALT   = "THERMAL_MOLTEN_SALT"
+    GRAVITY_RAIL          = "GRAVITY_RAIL"
+    IRON_AIR              = "IRON_AIR"
+    ADIABATIC_CAES        = "ADIABATIC_CAES"
+
+class _LDEScenario(str, Enum):
+    HIGH_VRE_90  = "HIGH_VRE_90"
+    HIGH_VRE_75  = "HIGH_VRE_75"
+    MEDIUM_VRE_60 = "MEDIUM_VRE_60"
+
+class _LDEProjectStatus(str, Enum):
+    OPERATING    = "OPERATING"
+    CONSTRUCTION = "CONSTRUCTION"
+    APPROVED     = "APPROVED"
+    PROPOSED     = "PROPOSED"
+
+class LDETechnologyRecord(BaseModel):
+    tech_id: str
+    name: str
+    duration_range_hr: str
+    current_lcos_aud_mwh: float
+    target_lcos_2035_aud_mwh: float
+    technology_readiness_level: int
+    capex_aud_kwh: float
+    round_trip_efficiency_pct: float
+    self_discharge_rate_pct_day: float
+    project_lifetime_years: int
+    australian_projects: int
+
+class LDEEconomicCaseRecord(BaseModel):
+    scenario: str
+    duration_optimal_hr: float
+    storage_required_gwh: float
+    ldes_capacity_gw: float
+    avoided_curtailment_gwh: float
+    system_cost_saving_m_aud: float
+    optimal_technology: str
+    breakeven_lcos_aud_mwh: float
+
+class LDEProjectRecord(BaseModel):
+    project_name: str
+    technology: str
+    region: str
+    capacity_gwh: float
+    power_mw: float
+    status: str
+    proponent: str
+    capex_m_aud: float
+    expected_cod: int
+    energy_to_power_ratio: float
+
+class LDESeasonalRecord(BaseModel):
+    month: str
+    vre_surplus_gwh: float
+    vre_deficit_gwh: float
+    optimal_charge_gwh: float
+    optimal_discharge_gwh: float
+    storage_utilisation_pct: float
+    price_arbitrage_aud_mwh: float
+
+class LdesEconomicsDashboard(BaseModel):
+    timestamp: str
+    technologies: List[LDETechnologyRecord]
+    economic_cases: List[LDEEconomicCaseRecord]
+    projects: List[LDEProjectRecord]
+    seasonal_patterns: List[LDESeasonalRecord]
+
+_LDE_TECHNOLOGIES: List[LDETechnologyRecord] = [
+    LDETechnologyRecord(tech_id="PUMPED_HYDRO",           name="Pumped Hydro",             duration_range_hr="8–24",   current_lcos_aud_mwh=150.0, target_lcos_2035_aud_mwh=120.0, technology_readiness_level=9, capex_aud_kwh=180.0,  round_trip_efficiency_pct=80.0, self_discharge_rate_pct_day=0.01, project_lifetime_years=50, australian_projects=8),
+    LDETechnologyRecord(tech_id="COMPRESSED_AIR",         name="Compressed Air (CAES)",    duration_range_hr="10–30",  current_lcos_aud_mwh=210.0, target_lcos_2035_aud_mwh=160.0, technology_readiness_level=7, capex_aud_kwh=100.0,  round_trip_efficiency_pct=64.0, self_discharge_rate_pct_day=0.05, project_lifetime_years=30, australian_projects=1),
+    LDETechnologyRecord(tech_id="FLOW_VANADIUM",          name="Vanadium Flow Battery",    duration_range_hr="8–24",   current_lcos_aud_mwh=280.0, target_lcos_2035_aud_mwh=175.0, technology_readiness_level=8, capex_aud_kwh=350.0,  round_trip_efficiency_pct=72.0, self_discharge_rate_pct_day=0.1,  project_lifetime_years=25, australian_projects=4),
+    LDETechnologyRecord(tech_id="FLOW_ZINC",              name="Zinc-Bromine Flow Battery",duration_range_hr="6–12",   current_lcos_aud_mwh=260.0, target_lcos_2035_aud_mwh=155.0, technology_readiness_level=7, capex_aud_kwh=320.0,  round_trip_efficiency_pct=68.0, self_discharge_rate_pct_day=0.2,  project_lifetime_years=20, australian_projects=2),
+    LDETechnologyRecord(tech_id="LIQUID_AIR",             name="Liquid Air Energy Storage",duration_range_hr="8–100",  current_lcos_aud_mwh=320.0, target_lcos_2035_aud_mwh=180.0, technology_readiness_level=6, capex_aud_kwh=260.0,  round_trip_efficiency_pct=55.0, self_discharge_rate_pct_day=0.3,  project_lifetime_years=30, australian_projects=1),
+    LDETechnologyRecord(tech_id="GREEN_HYDROGEN_STORAGE", name="Green Hydrogen Storage",   duration_range_hr="48–2160",current_lcos_aud_mwh=450.0, target_lcos_2035_aud_mwh=250.0, technology_readiness_level=6, capex_aud_kwh=80.0,   round_trip_efficiency_pct=36.0, self_discharge_rate_pct_day=0.05, project_lifetime_years=20, australian_projects=3),
+    LDETechnologyRecord(tech_id="THERMAL_MOLTEN_SALT",    name="Molten Salt Thermal",      duration_range_hr="8–16",   current_lcos_aud_mwh=195.0, target_lcos_2035_aud_mwh=140.0, technology_readiness_level=8, capex_aud_kwh=140.0,  round_trip_efficiency_pct=98.0, self_discharge_rate_pct_day=0.02, project_lifetime_years=30, australian_projects=2),
+    LDETechnologyRecord(tech_id="GRAVITY_RAIL",           name="Gravity Rail Storage",     duration_range_hr="4–12",   current_lcos_aud_mwh=190.0, target_lcos_2035_aud_mwh=130.0, technology_readiness_level=5, capex_aud_kwh=120.0,  round_trip_efficiency_pct=78.0, self_discharge_rate_pct_day=0.0,  project_lifetime_years=40, australian_projects=0),
+    LDETechnologyRecord(tech_id="IRON_AIR",               name="Iron-Air Battery",         duration_range_hr="100+",   current_lcos_aud_mwh=380.0, target_lcos_2035_aud_mwh=120.0, technology_readiness_level=5, capex_aud_kwh=60.0,   round_trip_efficiency_pct=40.0, self_discharge_rate_pct_day=0.5,  project_lifetime_years=20, australian_projects=0),
+    LDETechnologyRecord(tech_id="ADIABATIC_CAES",         name="Adiabatic CAES (A-CAES)",  duration_range_hr="10–40",  current_lcos_aud_mwh=240.0, target_lcos_2035_aud_mwh=145.0, technology_readiness_level=4, capex_aud_kwh=90.0,   round_trip_efficiency_pct=70.0, self_discharge_rate_pct_day=0.04, project_lifetime_years=35, australian_projects=0),
+]
+
+_LDE_ECONOMIC_CASES: List[LDEEconomicCaseRecord] = [
+    LDEEconomicCaseRecord(scenario="HIGH_VRE_90",  duration_optimal_hr=24.0, storage_required_gwh=180.0, ldes_capacity_gw=7.5, avoided_curtailment_gwh=42000.0, system_cost_saving_m_aud=4800.0, optimal_technology="PUMPED_HYDRO",       breakeven_lcos_aud_mwh=185.0),
+    LDEEconomicCaseRecord(scenario="HIGH_VRE_75",  duration_optimal_hr=16.0, storage_required_gwh=120.0, ldes_capacity_gw=7.5, avoided_curtailment_gwh=28000.0, system_cost_saving_m_aud=3100.0, optimal_technology="FLOW_VANADIUM",      breakeven_lcos_aud_mwh=220.0),
+    LDEEconomicCaseRecord(scenario="MEDIUM_VRE_60",duration_optimal_hr=10.0, storage_required_gwh=75.0,  ldes_capacity_gw=7.5, avoided_curtailment_gwh=14000.0, system_cost_saving_m_aud=1600.0, optimal_technology="THERMAL_MOLTEN_SALT",breakeven_lcos_aud_mwh=260.0),
+]
+
+_LDE_PROJECTS: List[LDEProjectRecord] = [
+    LDEProjectRecord(project_name="Snowy 2.0",                 technology="PUMPED_HYDRO",          region="NSW",  capacity_gwh=350.0, power_mw=2000,  status="CONSTRUCTION", proponent="Snowy Hydro",        capex_m_aud=12000.0, expected_cod=2028, energy_to_power_ratio=175.0),
+    LDEProjectRecord(project_name="Pioneer-Burdekin PHES",     technology="PUMPED_HYDRO",          region="QLD",  capacity_gwh=24.0,  power_mw=5000,  status="APPROVED",     proponent="Queensland Hydro",   capex_m_aud=14100.0, expected_cod=2032, energy_to_power_ratio=4.8),
+    LDEProjectRecord(project_name="Borumba Dam PHES",          technology="PUMPED_HYDRO",          region="QLD",  capacity_gwh=9.6,   power_mw=2000,  status="APPROVED",     proponent="Queensland Hydro",   capex_m_aud=7100.0,  expected_cod=2030, energy_to_power_ratio=4.8),
+    LDEProjectRecord(project_name="Battery of the Nation",     technology="PUMPED_HYDRO",          region="TAS",  capacity_gwh=14.4,  power_mw=600,   status="PROPOSED",     proponent="Hydro Tasmania",     capex_m_aud=2800.0,  expected_cod=2031, energy_to_power_ratio=24.0),
+    LDEProjectRecord(project_name="Kidston PHES",              technology="PUMPED_HYDRO",          region="QLD",  capacity_gwh=1.2,   power_mw=250,   status="APPROVED",     proponent="Genex Power",        capex_m_aud=777.0,   expected_cod=2027, energy_to_power_ratio=4.8),
+    LDEProjectRecord(project_name="AGL Vanadium Flow Pilot",   technology="FLOW_VANADIUM",         region="SA",   capacity_gwh=0.01,  power_mw=2,     status="OPERATING",    proponent="AGL Energy",         capex_m_aud=8.0,     expected_cod=2023, energy_to_power_ratio=5.0),
+    LDEProjectRecord(project_name="Onslow Vanadium Project",   technology="FLOW_VANADIUM",         region="WA",   capacity_gwh=0.064, power_mw=8,     status="PROPOSED",     proponent="Invinity Energy",    capex_m_aud=45.0,    expected_cod=2027, energy_to_power_ratio=8.0),
+    LDEProjectRecord(project_name="Port Augusta CSP-Molten Salt",technology="THERMAL_MOLTEN_SALT", region="SA",   capacity_gwh=1.1,   power_mw=150,   status="OPERATING",    proponent="SolarReserve",       capex_m_aud=650.0,   expected_cod=2020, energy_to_power_ratio=7.3),
+    LDEProjectRecord(project_name="Whyalla Green H2 Hub",      technology="GREEN_HYDROGEN_STORAGE",region="SA",   capacity_gwh=40.0,  power_mw=200,   status="PROPOSED",     proponent="GFG Alliance",       capex_m_aud=2400.0,  expected_cod=2029, energy_to_power_ratio=200.0),
+    LDEProjectRecord(project_name="HyP SA Hydrogen Project",   technology="GREEN_HYDROGEN_STORAGE",region="SA",   capacity_gwh=0.014, power_mw=1,     status="OPERATING",    proponent="AGN / Neoen",        capex_m_aud=5.0,     expected_cod=2022, energy_to_power_ratio=14.0),
+    LDEProjectRecord(project_name="Compressed Air Quarry Pilot",technology="COMPRESSED_AIR",       region="VIC",  capacity_gwh=0.05,  power_mw=5,     status="PROPOSED",     proponent="Hydrostor",          capex_m_aud=30.0,    expected_cod=2028, energy_to_power_ratio=10.0),
+    LDEProjectRecord(project_name="Iron-Air Demonstration",    technology="IRON_AIR",              region="NSW",  capacity_gwh=0.01,  power_mw=1,     status="PROPOSED",     proponent="Form Energy AU",     capex_m_aud=15.0,    expected_cod=2029, energy_to_power_ratio=10.0),
+]
+
+_LDE_SEASONAL: List[LDESeasonalRecord] = [
+    LDESeasonalRecord(month="Jan", vre_surplus_gwh=420.0, vre_deficit_gwh=85.0,  optimal_charge_gwh=380.0, optimal_discharge_gwh=72.0,  storage_utilisation_pct=62.0, price_arbitrage_aud_mwh=145.0),
+    LDESeasonalRecord(month="Feb", vre_surplus_gwh=395.0, vre_deficit_gwh=90.0,  optimal_charge_gwh=355.0, optimal_discharge_gwh=78.0,  storage_utilisation_pct=58.0, price_arbitrage_aud_mwh=138.0),
+    LDESeasonalRecord(month="Mar", vre_surplus_gwh=340.0, vre_deficit_gwh=110.0, optimal_charge_gwh=305.0, optimal_discharge_gwh=97.0,  storage_utilisation_pct=54.0, price_arbitrage_aud_mwh=162.0),
+    LDESeasonalRecord(month="Apr", vre_surplus_gwh=270.0, vre_deficit_gwh=155.0, optimal_charge_gwh=240.0, optimal_discharge_gwh=140.0, storage_utilisation_pct=48.0, price_arbitrage_aud_mwh=195.0),
+    LDESeasonalRecord(month="May", vre_surplus_gwh=180.0, vre_deficit_gwh=240.0, optimal_charge_gwh=155.0, optimal_discharge_gwh=218.0, storage_utilisation_pct=72.0, price_arbitrage_aud_mwh=258.0),
+    LDESeasonalRecord(month="Jun", vre_surplus_gwh=120.0, vre_deficit_gwh=310.0, optimal_charge_gwh=100.0, optimal_discharge_gwh=285.0, storage_utilisation_pct=88.0, price_arbitrage_aud_mwh=315.0),
+    LDESeasonalRecord(month="Jul", vre_surplus_gwh=130.0, vre_deficit_gwh=295.0, optimal_charge_gwh=110.0, optimal_discharge_gwh=270.0, storage_utilisation_pct=85.0, price_arbitrage_aud_mwh=298.0),
+    LDESeasonalRecord(month="Aug", vre_surplus_gwh=165.0, vre_deficit_gwh=265.0, optimal_charge_gwh=142.0, optimal_discharge_gwh=242.0, storage_utilisation_pct=78.0, price_arbitrage_aud_mwh=275.0),
+    LDESeasonalRecord(month="Sep", vre_surplus_gwh=240.0, vre_deficit_gwh=190.0, optimal_charge_gwh=215.0, optimal_discharge_gwh=170.0, storage_utilisation_pct=65.0, price_arbitrage_aud_mwh=220.0),
+    LDESeasonalRecord(month="Oct", vre_surplus_gwh=320.0, vre_deficit_gwh=130.0, optimal_charge_gwh=288.0, optimal_discharge_gwh=115.0, storage_utilisation_pct=57.0, price_arbitrage_aud_mwh=175.0),
+    LDESeasonalRecord(month="Nov", vre_surplus_gwh=380.0, vre_deficit_gwh=100.0, optimal_charge_gwh=342.0, optimal_discharge_gwh=88.0,  storage_utilisation_pct=60.0, price_arbitrage_aud_mwh=155.0),
+    LDESeasonalRecord(month="Dec", vre_surplus_gwh=440.0, vre_deficit_gwh=80.0,  optimal_charge_gwh=398.0, optimal_discharge_gwh=68.0,  storage_utilisation_pct=59.0, price_arbitrage_aud_mwh=140.0),
+]
+
+
+@app.get("/api/ldes-economics/dashboard", dependencies=[Depends(verify_api_key)])
+def get_ldes_economics_dashboard() -> LdesEconomicsDashboard:
+    """Sprint 59b — Long Duration Energy Storage Economics dashboard."""
+    return LdesEconomicsDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        technologies=_LDE_TECHNOLOGIES,
+        economic_cases=_LDE_ECONOMIC_CASES,
+        projects=_LDE_PROJECTS,
+        seasonal_patterns=_LDE_SEASONAL,
+    )
