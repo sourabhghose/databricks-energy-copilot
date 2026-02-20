@@ -13226,3 +13226,218 @@ export interface EDTDashboard {
 
 export const getDigitalTransformationDashboard = (): Promise<EDTDashboard> =>
   get<EDTDashboard>('/api/digital-transformation/dashboard');
+
+// Sprint 85c — CER Orchestration Analytics
+export interface CEROOrchestratorRecord {
+  orchestrator_id: string
+  company: string
+  platform: string
+  cer_types_managed: string[]
+  devices_enrolled: number
+  total_capacity_mw: number
+  total_storage_mwh: number
+  regions_operating: string[]
+  revenue_streams: string[]
+}
+
+export interface CEROEventRecord {
+  event_id: string
+  date: string
+  orchestrator_id: string
+  event_type: string
+  requested_mw: number
+  delivered_mw: number
+  response_rate_pct: number
+  duration_min: number
+  devices_activated: number
+  revenue_k: number
+  customer_bill_impact: number
+}
+
+export interface CEROProtocolRecord {
+  protocol: string
+  cer_types: string[]
+  devices_using_thousands: number
+  interoperability_score: number
+  latency_ms: number
+  adoption_trend: string
+  regulatory_mandated: boolean
+}
+
+export interface CEROGridServiceRecord {
+  service: string
+  region: string
+  cer_capacity_mw: number
+  cer_share_of_total_pct: number
+  avg_response_time_sec: number
+  annual_revenue_m: number
+  growth_yoy_pct: number
+}
+
+export interface CEROBenefitRecord {
+  benefit_type: string
+  quarter: string
+  cer_contribution_m: number
+  per_device_annual: number
+  system_wide_m: number
+  confidence: string
+}
+
+export interface CERODashboard {
+  orchestrators: CEROOrchestratorRecord[]
+  events: CEROEventRecord[]
+  protocols: CEROProtocolRecord[]
+  grid_services: CEROGridServiceRecord[]
+  benefits: CEROBenefitRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getCEROrchestrationDashboard = (): Promise<CERODashboard> =>
+  get<CERODashboard>('/api/cer-orchestration/dashboard');
+
+// ---- NEM Negative Price Event Analytics — Sprint 85a ----
+
+export interface NPEFrequencyRecord {
+  year: number
+  region: string
+  negative_price_intervals: number
+  negative_price_hours: number
+  pct_of_year: number
+  avg_negative_price: number
+  deepest_price: number
+  consecutive_negative_hrs_max: number
+  total_negative_energy_mwh: number
+}
+
+export interface NPEDriverRecord {
+  region: string
+  quarter: string
+  rooftop_solar_contribution_pct: number
+  wind_contribution_pct: number
+  must_run_baseload_pct: number
+  pumped_hydro_pct: number
+  low_demand_pct: number
+  combined_export_constraint_pct: number
+}
+
+export interface NPEBatteryOpportunityRecord {
+  region: string
+  year: number
+  negative_price_mwh_available: number
+  optimal_charge_value_m: number
+  battery_capacity_mw_needed: number
+  avg_charge_price: number
+  arbitrage_spread_to_peak: number
+}
+
+export interface NPEMustRunRecord {
+  plant_name: string
+  technology: string
+  region: string
+  min_stable_load_mw: number
+  technical_min_mw: number
+  startup_cost_k: number
+  ramp_rate_mw_min: number
+  negative_price_hours_yr: number
+  estimated_loss_m_yr: number
+}
+
+export interface NPEMarketDesignRecord {
+  mechanism: string
+  description: string
+  estimated_negative_price_reduction_pct: number
+  implementation_cost_m: number
+  aemo_recommendation: boolean
+  status: string
+}
+
+export interface NPEDashboard {
+  frequency: NPEFrequencyRecord[]
+  drivers: NPEDriverRecord[]
+  battery_opportunity: NPEBatteryOpportunityRecord[]
+  must_run: NPEMustRunRecord[]
+  market_design: NPEMarketDesignRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getNegativePriceEventsDashboard = (): Promise<NPEDashboard> =>
+  get<NPEDashboard>('/api/negative-price-events/dashboard');
+
+// ─── Sprint 85b: Energy Transition Finance & Capital Markets Analytics ───────
+
+export interface ETFGreenBondRecord {
+  bond_id: string
+  issuer: string
+  issuer_type: string
+  issue_date: string
+  maturity_date: string
+  face_value_m: number
+  currency: string
+  coupon_pct: number
+  use_of_proceeds: string
+  certification: string
+  yield_at_issue_pct: number
+  green_premium_bps: number
+}
+
+export interface ETFCapitalFlowRecord {
+  year: number
+  asset_class: string
+  equity_investment_bn: number
+  debt_investment_bn: number
+  total_bn: number
+  domestic_pct: number
+  foreign_pct: number
+  institutional_pct: number
+  retail_pct: number
+  govt_pct: number
+}
+
+export interface ETFESGRecord {
+  company: string
+  ticker: string
+  sector: string
+  esg_overall_score: number
+  environmental_score: number
+  social_score: number
+  governance_score: number
+  carbon_intensity_t_per_mwh: number
+  renewables_pct: number
+  esg_rating_agency: string
+  esg_trend: string
+}
+
+export interface ETFCostOfCapitalRecord {
+  year: number
+  asset_class: string
+  risk_free_rate_pct: number
+  equity_risk_premium_pct: number
+  technology_risk_premium_pct: number
+  wacc_pct: number
+  debt_cost_pct: number
+  equity_cost_pct: number
+  gearing_pct: number
+  country_risk_premium_pct: number
+}
+
+export interface ETFInstitutionalRecord {
+  investor_type: string
+  total_aum_bn: number
+  energy_allocation_pct: number
+  renewable_target_pct: number
+  divested_fossil_pct: number
+  net_zero_commitment_year: number | null
+  preferred_instrument: string
+}
+
+export interface ETFDashboard {
+  green_bonds: ETFGreenBondRecord[]
+  capital_flows: ETFCapitalFlowRecord[]
+  esg_ratings: ETFESGRecord[]
+  cost_of_capital: ETFCostOfCapitalRecord[]
+  institutional: ETFInstitutionalRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getEnergyTransitionFinanceDashboard = (): Promise<ETFDashboard> =>
+  get<ETFDashboard>('/api/energy-transition-finance/dashboard');

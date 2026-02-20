@@ -298,6 +298,9 @@ import CommunityEnergyAnalytics from './pages/CommunityEnergyAnalytics'
 import GridCybersecurityAnalytics from './pages/GridCybersecurityAnalytics'
 import MarketParticipantFinancialAnalytics from './pages/MarketParticipantFinancialAnalytics'
 import DigitalTransformationAnalytics from './pages/DigitalTransformationAnalytics'
+import NegativePriceEventAnalytics from './pages/NegativePriceEventAnalytics'
+import CEROrchestrationAnalytics from './pages/CEROrchestrationAnalytics'
+import EnergyTransitionFinanceAnalytics from './pages/EnergyTransitionFinanceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -523,6 +526,9 @@ const NAV_ITEMS = [
   { to: '/grid-cybersecurity',          label: 'Grid Cybersecurity & Resilience',     Icon: Lock          },
   { to: '/market-participant-financial', label: 'Market Participant Financial Health', Icon: CreditCard    },
   { to: '/digital-transformation',      label: 'Digital Transformation Analytics',   Icon: Smartphone    },
+  { to: '/energy-transition-finance',   label: 'Energy Transition Finance',          Icon: DollarSign    },
+  { to: '/negative-price-events',       label: 'NEM Negative Price Events',          Icon: TrendingDown  },
+  { to: '/cer-orchestration',           label: 'CER Orchestration Analytics',        Icon: Wifi          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -823,6 +829,9 @@ export default function App() {
               <Route path="/grid-cybersecurity"           element={<GridCybersecurityAnalytics />}           />
               <Route path="/market-participant-financial" element={<MarketParticipantFinancialAnalytics />}  />
               <Route path="/digital-transformation"       element={<DigitalTransformationAnalytics />}       />
+              <Route path="/energy-transition-finance"   element={<EnergyTransitionFinanceAnalytics />}     />
+              <Route path="/negative-price-events"        element={<NegativePriceEventAnalytics />}          />
+              <Route path="/cer-orchestration"             element={<CEROrchestrationAnalytics />}            />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -59451,3 +59451,821 @@ async def get_digital_transformation_dashboard():
     result = _build_edt_dashboard()
     _cache_set(_edt_cache, "edt", result)
     return result
+
+# ---------------------------------------------------------------------------
+# Sprint 85c — CER Orchestration Analytics
+# ---------------------------------------------------------------------------
+
+class CEROOrchestratorRecord(BaseModel):
+    orchestrator_id: str
+    company: str
+    platform: str
+    cer_types_managed: List[str]
+    devices_enrolled: int
+    total_capacity_mw: float
+    total_storage_mwh: float
+    regions_operating: List[str]
+    revenue_streams: List[str]
+
+class CEROEventRecord(BaseModel):
+    event_id: str
+    date: str
+    orchestrator_id: str
+    event_type: str
+    requested_mw: float
+    delivered_mw: float
+    response_rate_pct: float
+    duration_min: float
+    devices_activated: int
+    revenue_k: float
+    customer_bill_impact: float
+
+class CEROProtocolRecord(BaseModel):
+    protocol: str
+    cer_types: List[str]
+    devices_using_thousands: float
+    interoperability_score: float
+    latency_ms: float
+    adoption_trend: str
+    regulatory_mandated: bool
+
+class CEROGridServiceRecord(BaseModel):
+    service: str
+    region: str
+    cer_capacity_mw: float
+    cer_share_of_total_pct: float
+    avg_response_time_sec: float
+    annual_revenue_m: float
+    growth_yoy_pct: float
+
+class CEROBenefitRecord(BaseModel):
+    benefit_type: str
+    quarter: str
+    cer_contribution_m: float
+    per_device_annual: float
+    system_wide_m: float
+    confidence: str
+
+class CERODashboard(BaseModel):
+    orchestrators: List[CEROOrchestratorRecord]
+    events: List[CEROEventRecord]
+    protocols: List[CEROProtocolRecord]
+    grid_services: List[CEROGridServiceRecord]
+    benefits: List[CEROBenefitRecord]
+    summary: dict
+
+_cero_cache: dict = {}
+
+def _build_cero_dashboard() -> CERODashboard:
+    import random
+
+    orchestrators = [
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-001",
+            company="Tesla Energy",
+            platform="Tesla Autobidder",
+            cer_types_managed=["BATTERY", "SOLAR"],
+            devices_enrolled=42000,
+            total_capacity_mw=340.0,
+            total_storage_mwh=680.0,
+            regions_operating=["NSW", "VIC", "SA", "QLD"],
+            revenue_streams=["FCAS", "ARBITRAGE", "WHOLESALE"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-002",
+            company="SwitchDin",
+            platform="SwitchDin Droplet",
+            cer_types_managed=["SOLAR", "BATTERY", "EV", "HEAT_PUMP"],
+            devices_enrolled=38500,
+            total_capacity_mw=280.0,
+            total_storage_mwh=520.0,
+            regions_operating=["NSW", "VIC", "QLD", "WA"],
+            revenue_streams=["FCAS", "NETWORK_SUPPORT", "RETAIL_TARIFF_OPT"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-003",
+            company="Reposit Power",
+            platform="Reposit",
+            cer_types_managed=["BATTERY", "SOLAR"],
+            devices_enrolled=29000,
+            total_capacity_mw=195.0,
+            total_storage_mwh=390.0,
+            regions_operating=["NSW", "VIC", "SA", "ACT"],
+            revenue_streams=["FCAS", "ARBITRAGE", "RETAIL_TARIFF_OPT"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-004",
+            company="Amber Electric",
+            platform="Amber Smart Home",
+            cer_types_managed=["BATTERY", "EV", "AC", "POOL_PUMP"],
+            devices_enrolled=55000,
+            total_capacity_mw=210.0,
+            total_storage_mwh=320.0,
+            regions_operating=["NSW", "VIC", "SA", "QLD", "ACT"],
+            revenue_streams=["ARBITRAGE", "RETAIL_TARIFF_OPT", "WHOLESALE"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-005",
+            company="AGL Energy",
+            platform="AGL VPP",
+            cer_types_managed=["BATTERY", "SOLAR", "EV"],
+            devices_enrolled=34000,
+            total_capacity_mw=260.0,
+            total_storage_mwh=480.0,
+            regions_operating=["NSW", "VIC", "SA", "QLD"],
+            revenue_streams=["FCAS", "WHOLESALE", "NETWORK_SUPPORT"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-006",
+            company="Origin Energy",
+            platform="Origin Loop",
+            cer_types_managed=["BATTERY", "SOLAR", "HEAT_PUMP", "EV"],
+            devices_enrolled=28000,
+            total_capacity_mw=175.0,
+            total_storage_mwh=310.0,
+            regions_operating=["NSW", "VIC", "QLD"],
+            revenue_streams=["FCAS", "ARBITRAGE", "NETWORK_SUPPORT", "RETAIL_TARIFF_OPT"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-007",
+            company="Ausgrid Virtual Power",
+            platform="Ausgrid CER Platform",
+            cer_types_managed=["SOLAR", "BATTERY", "EV", "POOL_PUMP", "AC"],
+            devices_enrolled=31500,
+            total_capacity_mw=195.0,
+            total_storage_mwh=290.0,
+            regions_operating=["NSW"],
+            revenue_streams=["NETWORK_SUPPORT", "FCAS", "ARBITRAGE"],
+        ),
+        CEROOrchestratorRecord(
+            orchestrator_id="ORC-008",
+            company="PowerClerk Australia",
+            platform="PowerClerk HEMS",
+            cer_types_managed=["SOLAR", "BATTERY", "HEAT_PUMP", "AC"],
+            devices_enrolled=26000,
+            total_capacity_mw=185.0,
+            total_storage_mwh=250.0,
+            regions_operating=["VIC", "SA", "WA"],
+            revenue_streams=["RETAIL_TARIFF_OPT", "ARBITRAGE", "NETWORK_SUPPORT"],
+        ),
+    ]
+
+    event_templates = [
+        ("FCAS_RAISE",          60.0,  0.95, 5.0),
+        ("FCAS_LOWER",          45.0,  0.93, 5.0),
+        ("PEAK_DEMAND_RESPONSE",120.0, 0.82, 60.0),
+        ("GRID_EMERGENCY",      200.0, 0.78, 30.0),
+        ("ARBITRAGE",           80.0,  0.90, 120.0),
+        ("NETWORK_RELIEF",      90.0,  0.85, 45.0),
+    ]
+
+    dates_2023 = [
+        "2023-01-18","2023-02-14","2023-03-07","2023-04-21","2023-05-16",
+        "2023-06-09","2023-07-04","2023-08-22","2023-09-11","2023-10-30",
+        "2023-11-15","2023-12-02",
+    ]
+    dates_2024 = [
+        "2024-01-10","2024-02-07","2024-03-19","2024-04-25","2024-05-13",
+        "2024-06-20","2024-07-08","2024-08-14","2024-09-03","2024-10-17",
+        "2024-11-22","2024-12-06","2024-12-19","2024-12-28","2024-09-30",
+        "2024-10-01","2024-11-05","2024-01-28",
+    ]
+
+    events: List[CEROEventRecord] = []
+    orc_ids = [o.orchestrator_id for o in orchestrators]
+    all_dates = dates_2023 + dates_2024
+    random.seed(42)
+    for i, date in enumerate(all_dates):
+        etype, req_mw, rr_base, dur = event_templates[i % len(event_templates)]
+        orc_id = orc_ids[i % len(orc_ids)]
+        response_rate = round(min(1.0, rr_base + random.uniform(-0.06, 0.06)) * 100, 1)
+        delivered = round(req_mw * response_rate / 100, 1)
+        devices_act = int(req_mw * 80 + random.uniform(-500, 500))
+        rev_k = round(req_mw * 0.8 + random.uniform(5, 30), 1)
+        bill_impact = round(random.uniform(8, 45), 2)
+        events.append(CEROEventRecord(
+            event_id=f"EVT-{2023 + (i >= 12)}-{str(i+1).zfill(3)}",
+            date=date,
+            orchestrator_id=orc_id,
+            event_type=etype,
+            requested_mw=req_mw,
+            delivered_mw=delivered,
+            response_rate_pct=response_rate,
+            duration_min=dur,
+            devices_activated=max(0, devices_act),
+            revenue_k=rev_k,
+            customer_bill_impact=bill_impact,
+        ))
+    # Additional events to reach >= 30
+    extra_data = [
+        ("2024-02-15", "FCAS_RAISE",          55.0,  0.92, 5.0,   "ORC-001"),
+        ("2024-03-22", "PEAK_DEMAND_RESPONSE", 140.0, 0.79, 60.0,  "ORC-003"),
+        ("2024-05-29", "ARBITRAGE",             70.0, 0.91, 120.0, "ORC-005"),
+        ("2024-06-11", "NETWORK_RELIEF",        85.0, 0.84, 45.0,  "ORC-006"),
+        ("2024-07-30", "GRID_EMERGENCY",       180.0, 0.76, 30.0,  "ORC-002"),
+        ("2024-08-20", "FCAS_LOWER",            48.0, 0.94, 5.0,   "ORC-004"),
+        ("2024-09-18", "PEAK_DEMAND_RESPONSE", 130.0, 0.81, 60.0,  "ORC-007"),
+        ("2024-10-25", "ARBITRAGE",             75.0, 0.89, 120.0, "ORC-008"),
+        ("2024-11-14", "FCAS_RAISE",            62.0, 0.93, 5.0,   "ORC-001"),
+        ("2024-12-31", "GRID_EMERGENCY",       210.0, 0.75, 30.0,  "ORC-005"),
+        ("2023-07-12", "NETWORK_RELIEF",        95.0, 0.86, 45.0,  "ORC-003"),
+        ("2023-09-05", "FCAS_LOWER",            42.0, 0.95, 5.0,   "ORC-006"),
+    ]
+    for j, (dt, etype, req_mw, rr_base, dur, orc_id) in enumerate(extra_data):
+        response_rate = round(min(1.0, rr_base + random.uniform(-0.04, 0.04)) * 100, 1)
+        delivered = round(req_mw * response_rate / 100, 1)
+        devices_act = int(req_mw * 80 + random.uniform(-400, 400))
+        rev_k = round(req_mw * 0.8 + random.uniform(5, 30), 1)
+        bill_impact = round(random.uniform(8, 45), 2)
+        events.append(CEROEventRecord(
+            event_id=f"EVT-EX-{str(j+1).zfill(3)}",
+            date=dt,
+            orchestrator_id=orc_id,
+            event_type=etype,
+            requested_mw=req_mw,
+            delivered_mw=delivered,
+            response_rate_pct=response_rate,
+            duration_min=dur,
+            devices_activated=max(0, devices_act),
+            revenue_k=rev_k,
+            customer_bill_impact=bill_impact,
+        ))
+
+    protocols = [
+        CEROProtocolRecord(
+            protocol="CSIP_AUS",
+            cer_types=["SOLAR", "BATTERY", "EV"],
+            devices_using_thousands=82.5,
+            interoperability_score=8.4,
+            latency_ms=350.0,
+            adoption_trend="GROWING",
+            regulatory_mandated=True,
+        ),
+        CEROProtocolRecord(
+            protocol="IEEE2030_5",
+            cer_types=["SOLAR", "BATTERY", "EV", "HEAT_PUMP"],
+            devices_using_thousands=54.2,
+            interoperability_score=8.8,
+            latency_ms=280.0,
+            adoption_trend="GROWING",
+            regulatory_mandated=True,
+        ),
+        CEROProtocolRecord(
+            protocol="OPENADR",
+            cer_types=["AC", "POOL_PUMP", "HEAT_PUMP", "INDUSTRIAL_LOAD"],
+            devices_using_thousands=38.0,
+            interoperability_score=7.6,
+            latency_ms=500.0,
+            adoption_trend="STABLE",
+            regulatory_mandated=False,
+        ),
+        CEROProtocolRecord(
+            protocol="OCPP",
+            cer_types=["EV"],
+            devices_using_thousands=29.4,
+            interoperability_score=8.1,
+            latency_ms=420.0,
+            adoption_trend="GROWING",
+            regulatory_mandated=False,
+        ),
+        CEROProtocolRecord(
+            protocol="OADR2",
+            cer_types=["AC", "POOL_PUMP", "HEAT_PUMP"],
+            devices_using_thousands=15.8,
+            interoperability_score=6.5,
+            latency_ms=650.0,
+            adoption_trend="DECLINING",
+            regulatory_mandated=False,
+        ),
+        CEROProtocolRecord(
+            protocol="PROPRIETARY",
+            cer_types=["BATTERY", "SOLAR", "EV", "HEAT_PUMP", "AC", "POOL_PUMP"],
+            devices_using_thousands=64.1,
+            interoperability_score=5.2,
+            latency_ms=200.0,
+            adoption_trend="DECLINING",
+            regulatory_mandated=False,
+        ),
+    ]
+
+    services = ["RAISE_FCAS", "LOWER_FCAS", "PEAK_SHIFTING", "EXPORT_LIMIT", "NETWORK_VOLTAGE"]
+    regions = ["NSW", "VIC", "SA", "QLD"]
+    service_params = {
+        "RAISE_FCAS":      (95.0,  28.5, 1.2,  42.0, 31.0),
+        "LOWER_FCAS":      (80.0,  24.2, 1.4,  35.0, 27.0),
+        "PEAK_SHIFTING":   (320.0, 18.6, 8.5,  28.0, 42.0),
+        "EXPORT_LIMIT":    (210.0, 14.8, 6.2,   8.5, 18.0),
+        "NETWORK_VOLTAGE": (140.0, 10.4, 4.8,  12.0, 24.0),
+    }
+    region_factor = {"NSW": 1.0, "VIC": 0.88, "SA": 0.65, "QLD": 0.78}
+    grid_services: List[CEROGridServiceRecord] = []
+    for svc in services:
+        cap, share, rsp, rev, growth = service_params[svc]
+        for region in regions:
+            rf = region_factor[region]
+            grid_services.append(CEROGridServiceRecord(
+                service=svc,
+                region=region,
+                cer_capacity_mw=round(cap * rf, 1),
+                cer_share_of_total_pct=round(share * (0.9 + rf * 0.1), 1),
+                avg_response_time_sec=round(rsp * (1.0 + (1 - rf) * 0.2), 2),
+                annual_revenue_m=round(rev * rf, 1),
+                growth_yoy_pct=round(growth * (0.85 + rf * 0.15), 1),
+            ))
+
+    benefit_types = ["BILL_SAVINGS", "FCAS_REVENUE", "NETWORK_DEFERRAL", "CARBON_ABATEMENT", "GRID_STABILITY"]
+    quarters = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    benefit_params = {
+        "BILL_SAVINGS":      (28.0, 840.0, 112.0, "HIGH"),
+        "FCAS_REVENUE":      (12.5, 380.0,  50.0, "HIGH"),
+        "NETWORK_DEFERRAL":  (18.0, 210.0,  72.0, "MEDIUM"),
+        "CARBON_ABATEMENT":  ( 8.5, 145.0,  34.0, "MEDIUM"),
+        "GRID_STABILITY":    ( 6.2,  95.0,  24.8, "LOW"),
+    }
+    q_growth = {"2024-Q1": 0.88, "2024-Q2": 0.96, "2024-Q3": 1.08, "2024-Q4": 1.08}
+    benefits: List[CEROBenefitRecord] = []
+    for bt in benefit_types:
+        base_contrib, per_dev, sys_wide, conf = benefit_params[bt]
+        for q in quarters:
+            qf = q_growth[q]
+            benefits.append(CEROBenefitRecord(
+                benefit_type=bt,
+                quarter=q,
+                cer_contribution_m=round(base_contrib * qf, 2),
+                per_device_annual=round(per_dev, 1),
+                system_wide_m=round(sys_wide * qf, 1),
+                confidence=conf,
+            ))
+
+    summary = {
+        "total_devices_enrolled_thousands": 284,
+        "total_capacity_mw": 1840,
+        "avg_response_rate_pct": 84.2,
+        "total_annual_revenue_m": 124,
+        "cer_share_fcas_pct": 28.4,
+        "bill_savings_per_device_yr": 840,
+        "events_2024": 18,
+    }
+
+    return CERODashboard(
+        orchestrators=orchestrators,
+        events=events,
+        protocols=protocols,
+        grid_services=grid_services,
+        benefits=benefits,
+        summary=summary,
+    )
+
+@app.get("/api/cer-orchestration/dashboard", response_model=CERODashboard, dependencies=[Depends(verify_api_key)])
+async def get_cer_orchestration_dashboard():
+    cached = _cache_get(_cero_cache, "cero")
+    if cached:
+        return cached
+    result = _build_cero_dashboard()
+    _cache_set(_cero_cache, "cero", result)
+    return result
+
+# ============================================================
+# NEM Negative Price Event Analytics — Sprint 85a
+# ============================================================
+
+class NPEFrequencyRecord(BaseModel):
+    year: int
+    region: str
+    negative_price_intervals: int      # 5-min intervals with price < $0
+    negative_price_hours: float
+    pct_of_year: float
+    avg_negative_price: float          # $/MWh during negative periods
+    deepest_price: float               # most negative price $/MWh
+    consecutive_negative_hrs_max: float
+    total_negative_energy_mwh: float
+
+class NPEDriverRecord(BaseModel):
+    region: str
+    quarter: str
+    rooftop_solar_contribution_pct: float   # % of negative periods driven by high rooftop solar
+    wind_contribution_pct: float
+    must_run_baseload_pct: float            # coal/gas units that can't ramp down
+    pumped_hydro_pct: float
+    low_demand_pct: float                   # overnight low demand
+    combined_export_constraint_pct: float   # interconnector unable to export surplus
+
+class NPEBatteryOpportunityRecord(BaseModel):
+    region: str
+    year: int
+    negative_price_mwh_available: float     # energy available at negative prices
+    optimal_charge_value_m: float           # revenue from charging during negative prices
+    battery_capacity_mw_needed: float
+    avg_charge_price: float
+    arbitrage_spread_to_peak: float
+
+class NPEMustRunRecord(BaseModel):
+    plant_name: str
+    technology: str   # COAL / GAS / NUCLEAR_HYDRO / COGENERATION
+    region: str
+    min_stable_load_mw: float
+    technical_min_mw: float       # minimum generation when operating
+    startup_cost_k: float
+    ramp_rate_mw_min: float
+    negative_price_hours_yr: float   # hours plant was generating during negative prices
+    estimated_loss_m_yr: float       # financial loss from must-run during negative prices
+
+class NPEMarketDesignRecord(BaseModel):
+    mechanism: str    # FLOOR_PRICE_REFORM / STORAGE_INCENTIVE / etc.
+    description: str
+    estimated_negative_price_reduction_pct: float
+    implementation_cost_m: float
+    aemo_recommendation: bool
+    status: str       # IMPLEMENTED / PROPOSED / UNDER_REVIEW / REJECTED
+
+class NPEDashboard(BaseModel):
+    frequency: List[NPEFrequencyRecord]
+    drivers: List[NPEDriverRecord]
+    battery_opportunity: List[NPEBatteryOpportunityRecord]
+    must_run: List[NPEMustRunRecord]
+    market_design: List[NPEMarketDesignRecord]
+    summary: dict
+
+_npe_cache: Dict[str, Any] = {}
+
+def _build_npe_dashboard() -> NPEDashboard:
+    import random
+    rng = random.Random(42)
+
+    REGIONS = ["SA1", "VIC1", "NSW1", "QLD1", "TAS1"]
+    YEARS = list(range(2018, 2025))  # 2018-2024
+
+    # ---- Frequency: 5 regions × 7 years = 35 records ----
+    # SA leads, TAS lowest; intervals grow YoY
+    BASE_INTERVALS = {
+        "SA1": 12000, "VIC1": 8500, "NSW1": 6200, "QLD1": 5400, "TAS1": 2800
+    }
+    YOY_GROWTH = 1.18  # ~18% per year
+
+    frequency: List[NPEFrequencyRecord] = []
+    for region in REGIONS:
+        base = BASE_INTERVALS[region]
+        for i, year in enumerate(YEARS):
+            intervals = int(base * (YOY_GROWTH ** i) * rng.uniform(0.92, 1.08))
+            hrs = round(intervals * 5 / 60, 1)
+            pct = round(hrs / 8760 * 100, 2)
+            avg_neg = round(rng.uniform(-85, -30), 1)
+            deepest = round(rng.uniform(-1000, -200), 1)
+            consec = round(rng.uniform(2.5, 14.0), 1)
+            energy = round(intervals * 5 / 60 * rng.uniform(800, 2400), 0)
+            frequency.append(NPEFrequencyRecord(
+                year=year,
+                region=region,
+                negative_price_intervals=intervals,
+                negative_price_hours=hrs,
+                pct_of_year=pct,
+                avg_negative_price=avg_neg,
+                deepest_price=deepest,
+                consecutive_negative_hrs_max=consec,
+                total_negative_energy_mwh=energy,
+            ))
+
+    # ---- Drivers: 5 regions × 8 quarters (Q1 2023 – Q4 2024) = 40 records ----
+    quarters = [
+        "Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023",
+        "Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024",
+    ]
+    SOLAR_WEIGHT = {"SA1": 0.42, "VIC1": 0.35, "NSW1": 0.30, "QLD1": 0.32, "TAS1": 0.08}
+    WIND_WEIGHT  = {"SA1": 0.28, "VIC1": 0.22, "NSW1": 0.18, "QLD1": 0.15, "TAS1": 0.20}
+
+    drivers: List[NPEDriverRecord] = []
+    for region in REGIONS:
+        for quarter in quarters:
+            solar = round(SOLAR_WEIGHT[region] * rng.uniform(0.85, 1.15) * 100, 1)
+            wind  = round(WIND_WEIGHT[region]  * rng.uniform(0.85, 1.15) * 100, 1)
+            must  = round(rng.uniform(8.0, 22.0), 1)
+            phyd  = round(rng.uniform(2.0, 8.0), 1)
+            low_d = round(rng.uniform(5.0, 15.0), 1)
+            export= round(max(0.0, 100.0 - solar - wind - must - phyd - low_d), 1)
+            drivers.append(NPEDriverRecord(
+                region=region,
+                quarter=quarter,
+                rooftop_solar_contribution_pct=min(solar, 55.0),
+                wind_contribution_pct=min(wind, 40.0),
+                must_run_baseload_pct=must,
+                pumped_hydro_pct=phyd,
+                low_demand_pct=low_d,
+                combined_export_constraint_pct=export,
+            ))
+
+    # ---- Battery Opportunity: 5 regions × 3 years (2022/2023/2024) = 15 records ----
+    BATT_BASE = {"SA1": 48.0, "VIC1": 38.0, "NSW1": 30.0, "QLD1": 26.0, "TAS1": 14.0}
+    battery_opportunity: List[NPEBatteryOpportunityRecord] = []
+    for region in REGIONS:
+        for yr_offset, year in enumerate([2022, 2023, 2024]):
+            scale = 1.0 + yr_offset * 0.22
+            neg_mwh = round(BATT_BASE[region] * scale * 1000 * rng.uniform(0.90, 1.10), 0)
+            value_m = round(neg_mwh * rng.uniform(0.055, 0.085) / 1000, 1)
+            cap_mw  = round(rng.uniform(100, 400), 0)
+            avg_chg = round(rng.uniform(-72, -18), 1)
+            spread  = round(rng.uniform(180, 420), 1)
+            battery_opportunity.append(NPEBatteryOpportunityRecord(
+                region=region,
+                year=year,
+                negative_price_mwh_available=neg_mwh,
+                optimal_charge_value_m=value_m,
+                battery_capacity_mw_needed=cap_mw,
+                avg_charge_price=avg_chg,
+                arbitrage_spread_to_peak=spread,
+            ))
+
+    # ---- Must-Run Plant: 10 records ----
+    must_run: List[NPEMustRunRecord] = [
+        NPEMustRunRecord(plant_name="Loy Yang A U1",   technology="COAL",        region="VIC1", min_stable_load_mw=280.0, technical_min_mw=220.0, startup_cost_k=480.0, ramp_rate_mw_min=2.5, negative_price_hours_yr=820.0, estimated_loss_m_yr=14.2),
+        NPEMustRunRecord(plant_name="Loy Yang A U2",   technology="COAL",        region="VIC1", min_stable_load_mw=280.0, technical_min_mw=220.0, startup_cost_k=480.0, ramp_rate_mw_min=2.5, negative_price_hours_yr=790.0, estimated_loss_m_yr=13.6),
+        NPEMustRunRecord(plant_name="Eraring U1",      technology="COAL",        region="NSW1", min_stable_load_mw=350.0, technical_min_mw=280.0, startup_cost_k=520.0, ramp_rate_mw_min=2.2, negative_price_hours_yr=640.0, estimated_loss_m_yr=10.8),
+        NPEMustRunRecord(plant_name="Eraring U2",      technology="COAL",        region="NSW1", min_stable_load_mw=350.0, technical_min_mw=280.0, startup_cost_k=520.0, ramp_rate_mw_min=2.2, negative_price_hours_yr=610.0, estimated_loss_m_yr=10.2),
+        NPEMustRunRecord(plant_name="Callide C U3",    technology="COAL",        region="QLD1", min_stable_load_mw=230.0, technical_min_mw=180.0, startup_cost_k=390.0, ramp_rate_mw_min=2.8, negative_price_hours_yr=520.0, estimated_loss_m_yr=7.6),
+        NPEMustRunRecord(plant_name="Pelican Pt GT1",  technology="GAS",         region="SA1",  min_stable_load_mw=240.0, technical_min_mw=120.0, startup_cost_k=180.0, ramp_rate_mw_min=8.0, negative_price_hours_yr=380.0, estimated_loss_m_yr=5.2),
+        NPEMustRunRecord(plant_name="Torrens Island B",technology="GAS",         region="SA1",  min_stable_load_mw=200.0, technical_min_mw=100.0, startup_cost_k=160.0, ramp_rate_mw_min=7.5, negative_price_hours_yr=420.0, estimated_loss_m_yr=6.1),
+        NPEMustRunRecord(plant_name="Snowy 2.0 Pump",  technology="NUCLEAR_HYDRO",region="NSW1",min_stable_load_mw=0.0,   technical_min_mw=350.0, startup_cost_k=50.0,  ramp_rate_mw_min=15.0, negative_price_hours_yr=210.0, estimated_loss_m_yr=1.8),
+        NPEMustRunRecord(plant_name="Braemar PP U1",   technology="GAS",         region="QLD1", min_stable_load_mw=175.0, technical_min_mw=90.0,  startup_cost_k=140.0, ramp_rate_mw_min=9.0, negative_price_hours_yr=290.0, estimated_loss_m_yr=3.4),
+        NPEMustRunRecord(plant_name="Mortlake PP U1",  technology="GAS",         region="VIC1", min_stable_load_mw=180.0, technical_min_mw=95.0,  startup_cost_k=145.0, ramp_rate_mw_min=9.5, negative_price_hours_yr=310.0, estimated_loss_m_yr=3.9),
+    ]
+
+    # ---- Market Design: 8 records ----
+    market_design: List[NPEMarketDesignRecord] = [
+        NPEMarketDesignRecord(mechanism="5MIN_SETTLEMENT",              description="Transition from 30-min to 5-min settlement reduces gaming incentives and sharpens price signals during negative price periods.", estimated_negative_price_reduction_pct=12.0, implementation_cost_m=180.0, aemo_recommendation=True,  status="IMPLEMENTED"),
+        NPEMarketDesignRecord(mechanism="STORAGE_INCENTIVE",            description="Capital grants and CfD contracts to accelerate grid-scale battery deployment to absorb surplus renewable energy.", estimated_negative_price_reduction_pct=22.0, implementation_cost_m=2400.0, aemo_recommendation=True,  status="IMPLEMENTED"),
+        NPEMarketDesignRecord(mechanism="FLOOR_PRICE_REFORM",           description="Review of the market price floor (-$1000/MWh) to assess whether a less extreme floor reduces perverse incentives for generators.", estimated_negative_price_reduction_pct=8.0,  implementation_cost_m=15.0,  aemo_recommendation=False, status="UNDER_REVIEW"),
+        NPEMarketDesignRecord(mechanism="INTERCONNECTOR_UPGRADE",       description="Expand SA-VIC and VIC-NSW interconnector capacity so surplus renewable energy can be exported instead of causing local negative prices.", estimated_negative_price_reduction_pct=18.0, implementation_cost_m=1800.0, aemo_recommendation=True,  status="PROPOSED"),
+        NPEMarketDesignRecord(mechanism="DEMAND_FLEXIBILITY",           description="Time-of-use pricing and smart appliance programs to shift flexible loads (hot water, EVs, pool pumps) to negative price windows.", estimated_negative_price_reduction_pct=10.0, implementation_cost_m=320.0, aemo_recommendation=True,  status="PROPOSED"),
+        NPEMarketDesignRecord(mechanism="VRE_CURTAILMENT_PROTOCOL",     description="Mandatory curtailment protocol for VRE generators during extreme oversupply when system security is threatened.", estimated_negative_price_reduction_pct=15.0, implementation_cost_m=40.0,  aemo_recommendation=False, status="UNDER_REVIEW"),
+        NPEMarketDesignRecord(mechanism="PUMPED_HYDRO_OPTIMISATION",    description="Operational protocols requiring pumped hydro to prioritise charging during negative price windows rather than dispatching at low prices.", estimated_negative_price_reduction_pct=9.0,  implementation_cost_m=25.0,  aemo_recommendation=True,  status="IMPLEMENTED"),
+        NPEMarketDesignRecord(mechanism="MUST_RUN_COMPENSATION_REFORM", description="Reform of must-run compensation so coal/gas units have stronger financial incentive to reduce output or mothball units during high-VRE periods.", estimated_negative_price_reduction_pct=14.0, implementation_cost_m=60.0,  aemo_recommendation=False, status="REJECTED"),
+    ]
+
+    summary = {
+        "total_negative_intervals_2024": 48420,
+        "pct_of_year_sa1": 24.8,
+        "avg_negative_price_2024": -68.4,
+        "battery_arbitrage_value_m": 284,
+        "deepest_price": -1000.0,
+        "most_negative_region": "SA1",
+        "yoy_increase_pct": 18.4,
+    }
+
+    return NPEDashboard(
+        frequency=frequency,
+        drivers=drivers,
+        battery_opportunity=battery_opportunity,
+        must_run=must_run,
+        market_design=market_design,
+        summary=summary,
+    )
+
+@app.get("/api/negative-price-events/dashboard", response_model=NPEDashboard, dependencies=[Depends(verify_api_key)])
+async def get_negative_price_events_dashboard():
+    cached = _cache_get(_npe_cache, "npe")
+    if cached:
+        return cached
+    result = _build_npe_dashboard()
+    _cache_set(_npe_cache, "npe", result)
+    return result
+
+
+# ============================================================
+# Sprint 85b — Energy Transition Finance & Capital Markets Analytics
+# ============================================================
+
+class ETFGreenBondRecord(BaseModel):
+    bond_id: str
+    issuer: str
+    issuer_type: str  # UTILITY / GOVERNMENT / BANK / DEVELOPER / TNSP
+    issue_date: str
+    maturity_date: str
+    face_value_m: float
+    currency: str  # AUD / USD / EUR
+    coupon_pct: float
+    use_of_proceeds: str  # SOLAR / WIND / STORAGE / TRANSMISSION / EV / EFFICIENCY / MIXED
+    certification: str  # CBI / ICMA / EU_TAXONOMY / NONE
+    yield_at_issue_pct: float
+    green_premium_bps: float  # greenium over comparable conventional bond
+
+class ETFCapitalFlowRecord(BaseModel):
+    year: int
+    asset_class: str  # WIND / SOLAR / STORAGE / TRANSMISSION / HYDRO / HYDROGEN / EV_INFRA
+    equity_investment_bn: float
+    debt_investment_bn: float
+    total_bn: float
+    domestic_pct: float
+    foreign_pct: float
+    institutional_pct: float
+    retail_pct: float
+    govt_pct: float
+
+class ETFESGRecord(BaseModel):
+    company: str
+    ticker: str
+    sector: str  # GENERATOR / INTEGRATED / RETAILER / TNSP / DNSP
+    esg_overall_score: float  # 0-100
+    environmental_score: float
+    social_score: float
+    governance_score: float
+    carbon_intensity_t_per_mwh: float
+    renewables_pct: float
+    esg_rating_agency: str  # MSCI / Sustainalytics / S&P / ISS
+    esg_trend: str  # IMPROVING / STABLE / DETERIORATING
+
+class ETFCostOfCapitalRecord(BaseModel):
+    year: int
+    asset_class: str
+    risk_free_rate_pct: float
+    equity_risk_premium_pct: float
+    technology_risk_premium_pct: float
+    wacc_pct: float
+    debt_cost_pct: float
+    equity_cost_pct: float
+    gearing_pct: float
+    country_risk_premium_pct: float
+
+class ETFInstitutionalRecord(BaseModel):
+    investor_type: str  # SUPERANNUATION / SOVEREIGN_WEALTH / INSURANCE / PENSION / PRIVATE_EQUITY / INFRASTRUCTURE_FUND
+    total_aum_bn: float
+    energy_allocation_pct: float
+    renewable_target_pct: float
+    divested_fossil_pct: float  # % of prior fossil fuel holdings divested
+    net_zero_commitment_year: Optional[int]
+    preferred_instrument: str  # EQUITY / DEBT / INFRASTRUCTURE / PPAs
+
+class ETFDashboard(BaseModel):
+    green_bonds: List[ETFGreenBondRecord]
+    capital_flows: List[ETFCapitalFlowRecord]
+    esg_ratings: List[ETFESGRecord]
+    cost_of_capital: List[ETFCostOfCapitalRecord]
+    institutional: List[ETFInstitutionalRecord]
+    summary: dict
+
+
+_etf_cache: Dict[str, Any] = {}
+
+
+def _build_etf_dashboard() -> ETFDashboard:
+    import random
+    rng = random.Random(20240101)
+
+    # ── Green Bonds (20 records, Australian energy sector 2019-2024) ─────────
+    _gb_data = [
+        ("AGL001", "AGL Energy",            "UTILITY",    "2019-03-15", "2024-03-15", 500.0,  "AUD", 3.25, "SOLAR",        "ICMA",       3.40,  8.0),
+        ("ORG002", "Origin Energy",         "UTILITY",    "2019-09-10", "2026-09-10", 350.0,  "AUD", 3.50, "WIND",         "CBI",        3.62, 12.0),
+        ("NEL003", "NEP/Transend",          "TNSP",       "2020-02-20", "2030-02-20", 800.0,  "AUD", 2.85, "TRANSMISSION", "ICMA",       2.95, 10.0),
+        ("INF004", "Infratech Finance",     "BANK",       "2020-07-01", "2025-07-01", 1000.0, "AUD", 2.40, "MIXED",        "CBI",        2.52, 12.0),
+        ("TLS005", "Tilt Renewables",       "DEVELOPER",  "2020-11-15", "2027-11-15", 275.0,  "AUD", 3.10, "WIND",         "CBI",        3.22,  9.0),
+        ("CWY006", "Clean Energy Finance",  "GOVERNMENT", "2021-01-20", "2031-01-20", 2000.0, "AUD", 1.75, "MIXED",        "EU_TAXONOMY",1.83, 14.0),
+        ("SNW007", "Snowy Hydro",           "GOVERNMENT", "2021-04-06", "2028-04-06", 1500.0, "AUD", 2.05, "HYDRO",        "ICMA",       2.14,  9.0),
+        ("MEZ008", "Meridian Energy",       "UTILITY",    "2021-07-22", "2026-07-22", 300.0,  "USD", 2.30, "WIND",         "ICMA",       2.40, 10.0),
+        ("MQU009", "Macquarie Green",       "BANK",       "2021-10-14", "2028-10-14", 750.0,  "EUR", 0.85, "SOLAR",        "EU_TAXONOMY",0.94, 11.0),
+        ("APA010", "APA Group",             "TNSP",       "2021-12-01", "2031-12-01", 500.0,  "AUD", 2.60, "TRANSMISSION", "CBI",        2.70, 10.0),
+        ("ACN011", "Acciona Energy",        "DEVELOPER",  "2022-02-10", "2029-02-10", 450.0,  "EUR", 1.20, "WIND",         "EU_TAXONOMY",1.29, 15.0),
+        ("ERM012", "ERM Power",             "RETAILER",   "2022-05-18", "2027-05-18", 200.0,  "AUD", 3.80, "EFFICIENCY",   "ICMA",       3.92, 12.0),
+        ("TAG013", "Transgrid",             "TNSP",       "2022-08-09", "2032-08-09", 900.0,  "AUD", 3.15, "TRANSMISSION", "CBI",        3.25, 10.0),
+        ("VEZ014", "Vector Energy",         "DNSP",       "2022-11-03", "2030-11-03", 400.0,  "NZD", 4.10, "EFFICIENCY",   "ICMA",       4.18,  8.0),
+        ("CEF015", "CEFC Bond II",          "GOVERNMENT", "2023-01-25", "2033-01-25", 1500.0, "AUD", 3.55, "MIXED",        "EU_TAXONOMY",3.63, 18.0),
+        ("SUP016", "Superannuation Green",  "BANK",       "2023-04-19", "2030-04-19", 600.0,  "AUD", 4.00, "STORAGE",      "CBI",        4.08, 22.0),
+        ("RES017", "Risen Energy Aus",      "DEVELOPER",  "2023-07-07", "2028-07-07", 350.0,  "USD", 5.40, "SOLAR",        "ICMA",       5.50, 14.0),
+        ("NEN018", "NSW Electricity Net.",  "GOVERNMENT", "2023-10-20", "2030-10-20", 700.0,  "AUD", 4.30, "TRANSMISSION", "ICMA",       4.38, 16.0),
+        ("EVN019", "EVenergy Fund",         "DEVELOPER",  "2024-02-14", "2029-02-14", 250.0,  "AUD", 4.65, "EV",           "ICMA",       4.72, 20.0),
+        ("ANN020", "AGL New Energies",      "UTILITY",    "2024-06-01", "2031-06-01", 800.0,  "AUD", 4.85, "SOLAR",        "CBI",        4.94, 19.0),
+    ]
+    green_bonds = [
+        ETFGreenBondRecord(
+            bond_id=r[0], issuer=r[1], issuer_type=r[2], issue_date=r[3],
+            maturity_date=r[4], face_value_m=r[5], currency=r[6],
+            coupon_pct=r[7], use_of_proceeds=r[8], certification=r[9],
+            yield_at_issue_pct=r[10], green_premium_bps=r[11],
+        )
+        for r in _gb_data
+    ]
+
+    # ── Capital Flows (35 records: 7 asset classes × 5 years 2020-2024) ──────
+    _cf_asset_classes = ["WIND", "SOLAR", "STORAGE", "TRANSMISSION", "HYDRO", "HYDROGEN", "EV_INFRA"]
+    _cf_base = {
+        "WIND":         [(2020, 3.2, 5.8), (2021, 3.8, 6.4), (2022, 4.5, 7.2), (2023, 5.1, 8.4), (2024, 5.8, 9.2)],
+        "SOLAR":        [(2020, 4.1, 7.2), (2021, 5.2, 8.6), (2022, 6.4, 9.8), (2023, 7.8, 11.4),(2024, 9.2, 13.2)],
+        "STORAGE":      [(2020, 0.8, 1.4), (2021, 1.2, 2.0), (2022, 2.1, 3.2), (2023, 3.4, 5.0), (2024, 4.8, 6.8)],
+        "TRANSMISSION": [(2020, 2.4, 4.2), (2021, 2.8, 4.8), (2022, 3.5, 5.6), (2023, 4.2, 6.8), (2024, 5.0, 7.8)],
+        "HYDRO":        [(2020, 1.8, 3.2), (2021, 2.0, 3.6), (2022, 2.2, 4.0), (2023, 2.4, 4.4), (2024, 2.6, 4.8)],
+        "HYDROGEN":     [(2020, 0.2, 0.4), (2021, 0.4, 0.8), (2022, 0.8, 1.4), (2023, 1.4, 2.4), (2024, 2.2, 3.6)],
+        "EV_INFRA":     [(2020, 0.3, 0.5), (2021, 0.5, 0.8), (2022, 0.8, 1.2), (2023, 1.2, 1.8), (2024, 1.8, 2.6)],
+    }
+    capital_flows = []
+    for ac, rows in _cf_base.items():
+        for (yr, eq, debt) in rows:
+            total = round(eq + debt, 2)
+            dom   = round(rng.uniform(52, 68), 1)
+            capital_flows.append(ETFCapitalFlowRecord(
+                year=yr, asset_class=ac,
+                equity_investment_bn=eq, debt_investment_bn=debt, total_bn=total,
+                domestic_pct=dom, foreign_pct=round(100 - dom, 1),
+                institutional_pct=round(rng.uniform(55, 72), 1),
+                retail_pct=round(rng.uniform(6, 14), 1),
+                govt_pct=round(rng.uniform(15, 30), 1),
+            ))
+
+    # ── ESG Ratings (12 records — major ASX-listed energy companies) ─────────
+    _esg_data = [
+        ("AGL Energy",           "AGL",  "INTEGRATED",  52.4, 48.2, 55.6, 60.8, 0.82, 18.4, "MSCI",          "IMPROVING"),
+        ("Origin Energy",        "ORG",  "INTEGRATED",  55.8, 50.4, 58.2, 62.4, 0.74, 22.6, "Sustainalytics","IMPROVING"),
+        ("Meridian Energy NZ",   "MEZ",  "GENERATOR",   78.4, 88.2, 72.4, 68.8, 0.02, 98.4, "MSCI",          "STABLE"),
+        ("Contact Energy",       "CEN",  "GENERATOR",   74.2, 82.4, 70.8, 66.8, 0.04, 94.2, "S&P",           "STABLE"),
+        ("Infigen Energy",       "IFN",  "GENERATOR",   68.4, 78.2, 62.4, 58.8, 0.00, 100.0,"MSCI",          "STABLE"),
+        ("APA Group",            "APA",  "TNSP",        58.2, 54.4, 60.8, 62.8, 0.48, 12.4, "Sustainalytics","IMPROVING"),
+        ("Transgrid",            "TGD",  "TNSP",        62.4, 58.8, 64.4, 66.8, 0.18, 0.0,  "ISS",           "IMPROVING"),
+        ("Endeavour Energy",     "EDN",  "DNSP",        60.2, 56.4, 62.4, 64.8, 0.08, 0.0,  "ISS",           "STABLE"),
+        ("Ausgrid",              "AUS",  "DNSP",        61.8, 58.2, 63.4, 65.4, 0.06, 0.0,  "MSCI",          "STABLE"),
+        ("ERM Power",            "EPW",  "RETAILER",    48.4, 40.2, 52.8, 56.8, 0.62, 45.8, "Sustainalytics","IMPROVING"),
+        ("Alinta Energy",        "AEI",  "INTEGRATED",  44.2, 38.4, 48.8, 52.8, 0.94, 14.2, "S&P",           "DETERIORATING"),
+        ("Energy Australia",     "EA",   "INTEGRATED",  50.8, 46.4, 54.2, 58.4, 0.78, 20.6, "MSCI",          "IMPROVING"),
+    ]
+    esg_ratings = [
+        ETFESGRecord(
+            company=r[0], ticker=r[1], sector=r[2],
+            esg_overall_score=r[3], environmental_score=r[4],
+            social_score=r[5], governance_score=r[6],
+            carbon_intensity_t_per_mwh=r[7], renewables_pct=r[8],
+            esg_rating_agency=r[9], esg_trend=r[10],
+        )
+        for r in _esg_data
+    ]
+
+    # ── Cost of Capital (35 records: 7 asset classes × 5 years) ─────────────
+    _coc_rfr  = {2020: 1.20, 2021: 1.05, 2022: 2.40, 2023: 4.10, 2024: 4.35}
+    _coc_tech = {
+        "WIND":         {"erp": 4.8, "trp": 1.2, "wacc_base": 6.8, "dc": 4.2, "ec": 9.4, "gear": 62.0, "crp": 0.30},
+        "SOLAR":        {"erp": 4.6, "trp": 0.9, "wacc_base": 6.4, "dc": 4.0, "ec": 9.0, "gear": 64.0, "crp": 0.30},
+        "STORAGE":      {"erp": 5.2, "trp": 2.4, "wacc_base": 8.2, "dc": 5.0, "ec":11.0, "gear": 55.0, "crp": 0.30},
+        "TRANSMISSION": {"erp": 3.8, "trp": 0.6, "wacc_base": 5.8, "dc": 3.6, "ec": 8.4, "gear": 68.0, "crp": 0.25},
+        "HYDRO":        {"erp": 4.2, "trp": 0.8, "wacc_base": 6.2, "dc": 3.8, "ec": 9.0, "gear": 65.0, "crp": 0.30},
+        "HYDROGEN":     {"erp": 6.4, "trp": 4.2, "wacc_base":10.4, "dc": 6.2, "ec":13.8, "gear": 45.0, "crp": 0.30},
+        "EV_INFRA":     {"erp": 5.8, "trp": 2.8, "wacc_base": 8.8, "dc": 5.4, "ec":11.8, "gear": 52.0, "crp": 0.30},
+    }
+    cost_of_capital = []
+    for yr in [2020, 2021, 2022, 2023, 2024]:
+        rfr = _coc_rfr[yr]
+        rfr_adj = rfr - _coc_rfr[2020]
+        for ac, p in _coc_tech.items():
+            cost_of_capital.append(ETFCostOfCapitalRecord(
+                year=yr, asset_class=ac,
+                risk_free_rate_pct=round(rfr, 2),
+                equity_risk_premium_pct=round(p["erp"], 2),
+                technology_risk_premium_pct=round(p["trp"], 2),
+                wacc_pct=round(p["wacc_base"] + rfr_adj * 0.6, 2),
+                debt_cost_pct=round(p["dc"] + rfr_adj * 0.7, 2),
+                equity_cost_pct=round(p["ec"] + rfr_adj * 0.5, 2),
+                gearing_pct=round(p["gear"], 1),
+                country_risk_premium_pct=round(p["crp"], 2),
+            ))
+
+    # ── Institutional Investors (7 records) ──────────────────────────────────
+    _inst_data = [
+        ("SUPERANNUATION",     3840.0, 4.8, 15.0, 42.4, 2050, "INFRASTRUCTURE"),
+        ("SOVEREIGN_WEALTH",    820.0, 6.2, 20.0, 28.4, 2045, "EQUITY"),
+        ("INSURANCE",          1240.0, 3.2, 10.0, 22.8, 2050, "DEBT"),
+        ("PENSION",             580.0, 4.0, 12.0, 34.2, 2050, "INFRASTRUCTURE"),
+        ("PRIVATE_EQUITY",      420.0, 8.4, 25.0, 18.6, None, "EQUITY"),
+        ("INFRASTRUCTURE_FUND", 680.0, 22.4, 40.0, 52.4, 2040, "INFRASTRUCTURE"),
+        ("FAMILY_OFFICE",       180.0, 5.6, 18.0, 14.8, None, "PPAs"),
+    ]
+    institutional = [
+        ETFInstitutionalRecord(
+            investor_type=r[0], total_aum_bn=r[1],
+            energy_allocation_pct=r[2], renewable_target_pct=r[3],
+            divested_fossil_pct=r[4], net_zero_commitment_year=r[5],
+            preferred_instrument=r[6],
+        )
+        for r in _inst_data
+    ]
+
+    summary = {
+        "total_green_bonds_on_issue_bn": 18.4,
+        "total_clean_energy_investment_2024_bn": 28.4,
+        "avg_greenium_bps": 12.4,
+        "avg_esg_score": 58.4,
+        "renewables_weighted_wacc_pct": 6.8,
+        "institutional_energy_allocation_pct": 4.2,
+        "divested_fossil_pct": 38.4,
+    }
+
+    return ETFDashboard(
+        green_bonds=green_bonds,
+        capital_flows=capital_flows,
+        esg_ratings=esg_ratings,
+        cost_of_capital=cost_of_capital,
+        institutional=institutional,
+        summary=summary,
+    )
+
+
+@app.get("/api/energy-transition-finance/dashboard", response_model=ETFDashboard, dependencies=[Depends(verify_api_key)])
+async def get_energy_transition_finance_dashboard():
+    cached = _cache_get(_etf_cache, "etf")
+    if cached:
+        return cached
+    result = _build_etf_dashboard()
+    _cache_set(_etf_cache, "etf", result)
+    return result

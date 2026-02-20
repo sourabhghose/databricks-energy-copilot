@@ -11069,3 +11069,51 @@ class TestDigitalTransformationEndpoint:
     def test_investment_count_at_least_15(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["investment"]) >= 15
+
+
+class TestCEROrchestrationEndpoint:
+    endpoint = "/api/cer-orchestration/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_orchestrators_count_at_least_6(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["orchestrators"]) >= 6
+
+    def test_events_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["events"]) >= 25
+
+
+class TestNegativePriceEventsEndpoint:
+    endpoint = "/api/negative-price-events/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_frequency_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["frequency"]) >= 30
+
+    def test_drivers_count_at_least_35(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["drivers"]) >= 35
+
+
+class TestEnergyTransitionFinanceEndpoint:
+    endpoint = "/api/energy-transition-finance/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_green_bonds_count_at_least_15(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["green_bonds"]) >= 15
+
+    def test_capital_flows_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["capital_flows"]) >= 30
