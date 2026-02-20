@@ -1476,3 +1476,53 @@ Added Generator Planned Outage & Maintenance Scheduling Analytics page covering 
 **Routing (`app/frontend/src/App.tsx`):** Added `import VolatilityRegimeAnalytics`; nav entry with `TrendingUp` icon at `/volatility-regime-analytics`; `Route` element `<VolatilityRegimeAnalytics />`.
 
 **Tests (`tests/test_backend.py`):** `TestVolatilityRegimeAnalytics.test_volatility_regime_dashboard` validates: 60 regime records across 5 regions and 12 months, SA1 has highest avg volatility index vs all other regions, 8 cluster events with valid trigger enums and price ordering (max > avg), 4 hedging records with EXTREME > HIGH > NORMAL > LOW ordering for both hedge ratio and cap strike, 12 transition records covering all 4 from-regime states with valid probability and no self-transitions.
+
+---
+
+## Sprint 57b — Power System Black Start & System Restart Analytics (2026-02-20)
+
+**Backend (`app/backend/main.py`):** Appended Pydantic models `BSARestartZoneRecord`, `BSABlackStartUnitRecord`, `BSASystemStrengthRecord`, `BSARestoreProgressRecord`, and `BlackStartDashboard`. Added mock data factories producing 10 restart zone records (2 per NEM region: NSW1, VIC1, QLD1, SA1, TAS1), 12 black start unit records spanning OCGT/CCGT/Hydro/Coal Steam/Synchronous Condenser technologies with FULL/PARTIAL capability and MARKET/CONTRACTED/MANDATORY contract types, 5 system strength records (one per NEM region — SA1 flagged INADEQUATE with fault level below minimum due to high IBR penetration at 74.6%), and 20 restore progress records (10 hourly steps × 2 scenarios: BEST_CASE and WORST_CASE). Endpoint: `GET /api/black-start/dashboard` using `@app.get()` with `dependencies=[Depends(verify_api_key)]`.
+
+**Frontend (`app/frontend/src/pages/BlackStartCapability.tsx`):** New page built with Recharts (LineChart, BarChart, Cell) and lucide-react (ShieldAlert). Dark Tailwind theme throughout. Sections:
+- Header with ShieldAlert icon and data timestamp
+- 4 KPI cards: total black start capacity (MW), zones assessed ADEQUATE count, fastest restore estimate (hours), system strength INADEQUATE region count
+- Restart zone grid cards — anchor units, cranking path, adequacy badge (green/amber/red), restore hours, zone load MW, last tested date
+- Black start unit table — unit name/ID, technology badge (colour-coded by type), capability badge, cranking MW, self-excitation indicator, contract type badge, contract value, compliance status
+- System strength table + side-by-side bar chart — region fault level vs minimum required (MVA), IBR %, strength providers, status badge; bar chart cells coloured by adequacy status
+- System restore progress line chart — BEST_CASE (green) and WORST_CASE (red) percentage restored over 10 hours with 50% and 80% reference lines
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces `BSARestartZoneRecord`, `BSABlackStartUnitRecord`, `BSASystemStrengthRecord`, `BSARestoreProgressRecord`, `BlackStartDashboard` and `getBlackStartDashboard()` exported function calling `GET /api/black-start/dashboard`.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `import BlackStartCapability`; nav entry with `ShieldAlert` icon at `/black-start-capability`; `Route` element `<BlackStartCapability />`.
+
+**Tests (`tests/test_backend.py`):** `TestBlackStartCapability.test_black_start_dashboard` validates: 200 response, 10 restart zone records covering all 5 NEM regions with exactly 2 per region, all adequacy/capability/contract enum values valid, 12 black start unit records with FULL capability units having cranking_power_mw > 0 and MANDATORY contracts having zero contract value, 5 system strength records (one per region) with SA1 INADEQUATE and highest IBR percentage, 20 restore progress records (10 per scenario across BEST_CASE and WORST_CASE), BEST_CASE ahead of WORST_CASE at hour 5, both scenarios starting at 0% load at hour 0.
+
+## Sprint 57a — FCAS & Ancillary Services Cost Allocation Analytics — 2026-02-20
+
+**Backend (`app/backend/main.py`):** Appended Pydantic models (`ASCServiceType`, `ASCAllocationMechanism`, `ASCCauseType` enums; `ASCServiceRecord`, `ASCProviderRecord`, `ASCCostAllocationRecord`, `ASCCauserPaysRecord`, `AncillaryCostDashboard`) and `GET /api/ancillary-cost/dashboard` endpoint with `Depends(verify_api_key)`. Mock dataset: 24 service records (8 FCAS services across 3 months Jan-Mar 2024) with RAISE_REG having highest clearing prices, 20 provider records across diverse technologies, 15 cost allocation records (5 NEM regions x 3 months) with SA1 highest cost/MWh, and 12 causer-pays records covering all 4 cause types.
+
+**Frontend (`app/frontend/src/pages/AncillaryServicesCost.tsx`):** New page created with: Header + 4 KPI cards (Total FCAS Cost Q1 2024, Most Expensive Service, Highest Cost Region $/MWh, RAISE_REG Market HHI); service cost monthly trend LineChart (8 services as colour-coded lines); provider revenue PieChart (top 8 by revenue); regional cost allocation table (region/cost/share/mechanism badge); causer-pays leaderboard (ranked with badges, factor progress bars, cause type badges); provider performance table (20 providers sorted by revenue with market share progress bars).
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript types `ASCServiceType`, `ASCAllocationMechanism`, `ASCCauseType` and interfaces `ASCServiceRecord`, `ASCProviderRecord`, `ASCCostAllocationRecord`, `ASCCauserPaysRecord`, `AncillaryCostDashboard` plus `getAncillaryCostDashboard()` exported function calling `GET /api/ancillary-cost/dashboard`.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `import AncillaryServicesCost`; nav entry with `Gauge` icon at `/ancillary-services-cost`; `Route` element `<AncillaryServicesCost />`.
+
+**Tests (`tests/test_backend.py`):** `TestAncillaryServicesCost.test_ancillary_cost_dashboard` validates: 200 response, 24 service records with all 8 service types across 3 months, RAISE_REG avg clearing price > RAISE_6SEC (and LOWER_REG > LOWER_6SEC), all HHI values between 0 and 1, 20 provider records, 15 cost allocation records with SA1 highest $/MWh and NSW1 highest energy market share, all mechanism enums valid, 12 causer-pays records with AGL Energy holding top factor (0.182), INTERCONNECTOR and GENERATION_VARIATION cause types present.
+
+## Sprint 57c — CBAM & Australian Export Trade Analytics — 2026-02-20
+
+**Backend (`app/backend/main.py`):** Appended Pydantic enums (`_CBAExportSector`, `_CBAPolicyStatus`, `_CBACleanProduct`) and models (`CBAExportSectorRecord`, `CBATradeFlowRecord`, `CBACleanExportRecord`, `CBAPolicyRecord`, `CbamTradeDashboard`) and `GET /api/cbam-trade/dashboard` endpoint with `Depends(verify_api_key)`. Mock dataset: 8 export sector records (ALUMINIUM/STEEL/CEMENT/CHEMICALS/LNG/CLEAN_HYDROGEN/GREEN_AMMONIA/BATTERY_MATERIALS), 20 trade flow records (10 trading partners × 2 sectors each: EU/UK/USA/Canada/Japan/South Korea/Germany/Netherlands/India/China), 6 clean export product records (GREEN_HYDROGEN/GREEN_AMMONIA/GREEN_STEEL/CLEAN_ALUMINUM/SILICON_METAL/LITHIUM_HYDROXIDE), 5 CBAM policy records (EU/UK/USA/Canada/Japan with ENACTED/PROPOSED/UNDER_REVIEW statuses).
+
+**Frontend (`app/frontend/src/pages/CbamTradeAnalytics.tsx`):** New page created with:
+- Header + 4 KPI cards: total CBAM exposure (sum across all sectors in M AUD), largest exposed sector (ALUMINIUM at A$1,420M), clean export market opportunity (sum of addressable market sizes in bn AUD), number of enacted CBAM policies
+- Export sector exposure table — sorted by CBAM exposure descending, showing export value, carbon intensity, CBAM exposure (red/amber/green colour-coded), clean alternative badge, transition timeline, and competitive advantage text
+- Trade flow bubble chart — ScatterChart with x=CBAM tariff rate, y=embedded carbon kt CO₂, bubble size=export volume kt, each trading partner in a distinct colour with custom tooltip showing all fields
+- Clean export opportunity bar chart — BarChart showing Production Cost vs Target Price per product (AUD/tonne), with market size in tooltip
+- Clean export product detail cards — 6 cards sorted by competitiveness rank showing cost gap (red/green), market size, 2030 target, and key markets
+- Policy tracker table — country flag emoji, policy name, carbon price (amber), implementation year, sectors covered, AU exposure (red >1000, amber >300), status badge (green=ENACTED, amber=PROPOSED, blue=UNDER_REVIEW)
+
+**API client (`app/frontend/src/api/client.ts`):** Appended TypeScript interfaces (`CBAExportSectorRecord`, `CBATradeFlowRecord`, `CBACleanExportRecord`, `CBAPolicyRecord`, `CbamTradeDashboard`) and `getCbamTradeDashboard()` exported function.
+
+**Routing (`app/frontend/src/App.tsx`):** Added `Globe` to lucide-react imports; added `import CbamTradeAnalytics`; nav entry with `Globe` icon at `/cbam-trade-analytics`; `Route` element `<CbamTradeAnalytics />`.
+
+**Tests (`tests/test_backend.py`):** `TestCbamTradeAnalytics.test_cbam_trade_dashboard` validates: top-level structure (timestamp/export_sectors/trade_flows/clean_exports/policies), all 8 sector records with valid enums and non-negative exposures, CLEAN_HYDROGEN and GREEN_AMMONIA have zero CBAM exposure, ALUMINIUM has the highest CBAM exposure, 20 trade flow records across exactly 10 trading partners all for year=2025, EU has the highest CBAM tariff rate, 6 clean export product records with all required fields, LITHIUM_HYDROXIDE has the largest market size, 5 policy records with valid status enums, EU and UK are ENACTED, EU has the highest AU exposure and highest carbon price.

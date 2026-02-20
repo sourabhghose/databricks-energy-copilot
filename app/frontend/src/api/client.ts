@@ -7641,3 +7641,190 @@ export interface VolatilityRegimeDashboard {
 
 export const getVolatilityRegimeDashboard = (): Promise<VolatilityRegimeDashboard> =>
   get<VolatilityRegimeDashboard>('/api/volatility-regime/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 57b — Power System Black Start & System Restart Analytics
+// ---------------------------------------------------------------------------
+
+export interface BSARestartZoneRecord {
+  zone_id: string
+  region: string
+  anchor_units: string[]
+  total_black_start_mw: number
+  cranking_path: string
+  estimated_restore_hours: number
+  zone_load_mw: number
+  adequacy_status: 'ADEQUATE' | 'MARGINAL' | 'INADEQUATE'
+  last_tested_date: string
+}
+
+export interface BSABlackStartUnitRecord {
+  unit_id: string
+  unit_name: string
+  technology: string
+  region: string
+  black_start_capability: 'FULL' | 'PARTIAL' | 'NONE'
+  cranking_power_mw: number
+  self_excitation: boolean
+  contract_type: 'MARKET' | 'CONTRACTED' | 'MANDATORY'
+  contract_value_m_aud_yr: number
+  test_compliance: string
+}
+
+export interface BSASystemStrengthRecord {
+  region: string
+  fault_level_mva: number
+  minimum_fault_level_mva: number
+  system_strength_status: 'ADEQUATE' | 'MARGINAL' | 'INADEQUATE'
+  synchronous_generation_mw: number
+  inverter_based_resources_pct: number
+  strength_providers: string[]
+}
+
+export interface BSARestoreProgressRecord {
+  scenario: string
+  hour: number
+  restored_load_mw: number
+  restored_load_pct: number
+  active_zones: number
+  generation_online_mw: number
+  milestone: string
+}
+
+export interface BlackStartDashboard {
+  timestamp: string
+  restart_zones: BSARestartZoneRecord[]
+  black_start_units: BSABlackStartUnitRecord[]
+  system_strength: BSASystemStrengthRecord[]
+  restore_progress: BSARestoreProgressRecord[]
+}
+
+export const getBlackStartDashboard = (): Promise<BlackStartDashboard> =>
+  get<BlackStartDashboard>('/api/black-start/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 57a — FCAS & Ancillary Services Cost Allocation Analytics
+// ---------------------------------------------------------------------------
+
+export type ASCServiceType =
+  | 'RAISE_6SEC'
+  | 'RAISE_60SEC'
+  | 'RAISE_5MIN'
+  | 'LOWER_6SEC'
+  | 'LOWER_60SEC'
+  | 'LOWER_5MIN'
+  | 'RAISE_REG'
+  | 'LOWER_REG'
+
+export type ASCAllocationMechanism = 'CAUSER_PAYS' | 'PRO_RATA'
+
+export type ASCCauseType =
+  | 'LOAD_VARIATION'
+  | 'GENERATION_VARIATION'
+  | 'INTERCONNECTOR'
+  | 'MARKET_NOTICE'
+
+export interface ASCServiceRecord {
+  service:               ASCServiceType
+  month:                 string
+  clearing_price_aud_mw: number
+  volume_mw:             number
+  total_cost_m_aud:      number
+  num_providers:         number
+  herfindahl_index:      number
+}
+
+export interface ASCProviderRecord {
+  participant:             string
+  service:                 string
+  enabled_mw:              number
+  revenue_m_aud:           number
+  market_share_pct:        number
+  avg_enablement_rate_pct: number
+  technology:              string
+}
+
+export interface ASCCostAllocationRecord {
+  region:                  string
+  month:                   string
+  total_fcas_cost_m_aud:   number
+  energy_market_share_pct: number
+  allocated_cost_m_aud:    number
+  cost_per_mwh_aud:        number
+  allocation_mechanism:    ASCAllocationMechanism
+}
+
+export interface ASCCauserPaysRecord {
+  participant:             string
+  service:                 string
+  causer_pays_factor:      number
+  cost_contribution_m_aud: number
+  cause_type:              ASCCauseType
+  month:                   string
+}
+
+export interface AncillaryCostDashboard {
+  timestamp:        string
+  services:         ASCServiceRecord[]
+  providers:        ASCProviderRecord[]
+  cost_allocations: ASCCostAllocationRecord[]
+  causer_pays:      ASCCauserPaysRecord[]
+}
+
+export const getAncillaryCostDashboard = (): Promise<AncillaryCostDashboard> =>
+  get<AncillaryCostDashboard>('/api/ancillary-cost/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 57c — CBAM & Australian Export Trade Analytics
+// ---------------------------------------------------------------------------
+
+export interface CBAExportSectorRecord {
+  sector: string
+  export_value_bn_aud: number
+  carbon_intensity_tco2_per_tonne: number
+  cbam_exposure_m_aud: number
+  clean_alternative_available: boolean
+  transition_timeline_years: number
+  australian_competitive_advantage: string
+}
+
+export interface CBATradeFlowRecord {
+  trading_partner: string
+  sector: string
+  export_volume_kt: number
+  embedded_carbon_kt_co2: number
+  cbam_tariff_rate_pct: number
+  cbam_cost_m_aud: number
+  year: number
+}
+
+export interface CBACleanExportRecord {
+  product: string
+  production_cost_aud_tonne: number
+  target_price_aud_tonne: number
+  market_size_bn_aud: number
+  competitiveness_rank: number
+  key_markets: string[]
+  target_2030_kt: number
+}
+
+export interface CBAPolicyRecord {
+  country: string
+  policy_name: string
+  implementation_year: number
+  carbon_price_aud_tonne: number
+  sectors_covered: string[]
+  australia_exposure_m_aud: number
+  policy_status: 'ENACTED' | 'PROPOSED' | 'UNDER_REVIEW'
+}
+
+export interface CbamTradeDashboard {
+  timestamp: string
+  export_sectors: CBAExportSectorRecord[]
+  trade_flows: CBATradeFlowRecord[]
+  clean_exports: CBACleanExportRecord[]
+  policies: CBAPolicyRecord[]
+}
+
+export const getCbamTradeDashboard = (): Promise<CbamTradeDashboard> =>
+  get<CbamTradeDashboard>('/api/cbam-trade/dashboard')

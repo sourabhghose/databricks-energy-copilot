@@ -40712,3 +40712,809 @@ def get_participant_market_share_dashboard() -> MarketShareDashboard:
         ownership_changes=_PMS_OWNERSHIP_CHANGES,
         regional_shares=_PMS_REGIONAL_SHARES,
     )
+
+
+# ===========================================================================
+# Sprint 57b — Power System Black Start & System Restart Analytics
+# ===========================================================================
+
+class BSARestartZoneRecord(BaseModel):
+    zone_id: str
+    region: str
+    anchor_units: List[str]
+    total_black_start_mw: float
+    cranking_path: str
+    estimated_restore_hours: float
+    zone_load_mw: float
+    adequacy_status: str  # ADEQUATE | MARGINAL | INADEQUATE
+    last_tested_date: str
+
+
+class BSABlackStartUnitRecord(BaseModel):
+    unit_id: str
+    unit_name: str
+    technology: str
+    region: str
+    black_start_capability: str  # FULL | PARTIAL | NONE
+    cranking_power_mw: float
+    self_excitation: bool
+    contract_type: str  # MARKET | CONTRACTED | MANDATORY
+    contract_value_m_aud_yr: float
+    test_compliance: str
+
+
+class BSASystemStrengthRecord(BaseModel):
+    region: str
+    fault_level_mva: float
+    minimum_fault_level_mva: float
+    system_strength_status: str  # ADEQUATE | MARGINAL | INADEQUATE
+    synchronous_generation_mw: float
+    inverter_based_resources_pct: float
+    strength_providers: List[str]
+
+
+class BSARestoreProgressRecord(BaseModel):
+    scenario: str
+    hour: float
+    restored_load_mw: float
+    restored_load_pct: float
+    active_zones: int
+    generation_online_mw: float
+    milestone: str
+
+
+class BlackStartDashboard(BaseModel):
+    timestamp: str
+    restart_zones: List[BSARestartZoneRecord]
+    black_start_units: List[BSABlackStartUnitRecord]
+    system_strength: List[BSASystemStrengthRecord]
+    restore_progress: List[BSARestoreProgressRecord]
+
+
+def _bsa_restart_zones() -> List[BSARestartZoneRecord]:
+    return [
+        BSARestartZoneRecord(
+            zone_id="BSZ-NSW-01", region="NSW1",
+            anchor_units=["ERGT01", "BNGSF1"],
+            total_black_start_mw=850.0, cranking_path="Eraring → Newcastle → Sydney CBD",
+            estimated_restore_hours=8.5, zone_load_mw=4200.0,
+            adequacy_status="ADEQUATE", last_tested_date="2024-11-15",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-NSW-02", region="NSW1",
+            anchor_units=["UPPTUMUT", "TUMUT3"],
+            total_black_start_mw=540.0, cranking_path="Tumut 3 → Wagga Wagga → Canberra",
+            estimated_restore_hours=11.0, zone_load_mw=2800.0,
+            adequacy_status="MARGINAL", last_tested_date="2024-06-20",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-VIC-01", region="VIC1",
+            anchor_units=["LAVNORTH", "JEERALANG"],
+            total_black_start_mw=720.0, cranking_path="Laverton North → Melbourne CBD → Geelong",
+            estimated_restore_hours=9.0, zone_load_mw=3800.0,
+            adequacy_status="ADEQUATE", last_tested_date="2024-10-08",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-VIC-02", region="VIC1",
+            anchor_units=["MORTLK11", "ANGAST1"],
+            total_black_start_mw=380.0, cranking_path="Mortlake → Ballarat → Bendigo",
+            estimated_restore_hours=13.5, zone_load_mw=1900.0,
+            adequacy_status="INADEQUATE", last_tested_date="2023-09-14",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-QLD-01", region="QLD1",
+            anchor_units=["TARONG01", "TARONG02"],
+            total_black_start_mw=1050.0, cranking_path="Tarong → Ipswich → Brisbane CBD",
+            estimated_restore_hours=7.5, zone_load_mw=4600.0,
+            adequacy_status="ADEQUATE", last_tested_date="2024-12-01",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-QLD-02", region="QLD1",
+            anchor_units=["KAREEYA1", "KAREEYA2"],
+            total_black_start_mw=430.0, cranking_path="Kareeya → Cairns → Townsville",
+            estimated_restore_hours=10.0, zone_load_mw=1600.0,
+            adequacy_status="ADEQUATE", last_tested_date="2024-09-22",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-SA-01", region="SA1",
+            anchor_units=["PPCCGT", "LBBG1"],
+            total_black_start_mw=320.0, cranking_path="Pelican Point → Adelaide CBD → Barker Inlet",
+            estimated_restore_hours=12.0, zone_load_mw=1500.0,
+            adequacy_status="MARGINAL", last_tested_date="2024-07-11",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-SA-02", region="SA1",
+            anchor_units=["TORRB1", "SNUGGERY"],
+            total_black_start_mw=210.0, cranking_path="Torrens Island → Port Augusta → Whyalla",
+            estimated_restore_hours=16.0, zone_load_mw=950.0,
+            adequacy_status="INADEQUATE", last_tested_date="2023-04-05",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-TAS-01", region="TAS1",
+            anchor_units=["GORDON", "POATINA"],
+            total_black_start_mw=630.0, cranking_path="Gordon → Hobart CBD → Launceston",
+            estimated_restore_hours=6.0, zone_load_mw=1100.0,
+            adequacy_status="ADEQUATE", last_tested_date="2024-11-30",
+        ),
+        BSARestartZoneRecord(
+            zone_id="BSZ-TAS-02", region="TAS1",
+            anchor_units=["LIAPOOTAH", "TUNGATINAH"],
+            total_black_start_mw=310.0, cranking_path="Liapootah → Burnie → Devonport",
+            estimated_restore_hours=8.0, zone_load_mw=580.0,
+            adequacy_status="ADEQUATE", last_tested_date="2024-08-19",
+        ),
+    ]
+
+
+def _bsa_black_start_units() -> List[BSABlackStartUnitRecord]:
+    return [
+        BSABlackStartUnitRecord(
+            unit_id="ERGT01", unit_name="Eraring Gas Turbine 1",
+            technology="Open Cycle Gas Turbine", region="NSW1",
+            black_start_capability="FULL", cranking_power_mw=150.0,
+            self_excitation=True, contract_type="CONTRACTED",
+            contract_value_m_aud_yr=4.2, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="BNGSF1", unit_name="Bango Solar Farm (Sync Cond)",
+            technology="Synchronous Condenser", region="NSW1",
+            black_start_capability="PARTIAL", cranking_power_mw=0.0,
+            self_excitation=True, contract_type="MARKET",
+            contract_value_m_aud_yr=1.8, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="UPPTUMUT", unit_name="Upper Tumut Hydro",
+            technology="Hydro", region="NSW1",
+            black_start_capability="FULL", cranking_power_mw=210.0,
+            self_excitation=True, contract_type="MANDATORY",
+            contract_value_m_aud_yr=0.0, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="LAVNORTH", unit_name="Laverton North OCGT",
+            technology="Open Cycle Gas Turbine", region="VIC1",
+            black_start_capability="FULL", cranking_power_mw=120.0,
+            self_excitation=True, contract_type="CONTRACTED",
+            contract_value_m_aud_yr=3.6, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="JEERALANG", unit_name="Jeeralang A Gas Turbine",
+            technology="Open Cycle Gas Turbine", region="VIC1",
+            black_start_capability="FULL", cranking_power_mw=95.0,
+            self_excitation=True, contract_type="CONTRACTED",
+            contract_value_m_aud_yr=2.9, test_compliance="NON_COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="MORTLK11", unit_name="Mortlake Power Station U1",
+            technology="Combined Cycle Gas Turbine", region="VIC1",
+            black_start_capability="PARTIAL", cranking_power_mw=85.0,
+            self_excitation=False, contract_type="MARKET",
+            contract_value_m_aud_yr=2.1, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="TARONG01", unit_name="Tarong Power Station U1",
+            technology="Coal Steam", region="QLD1",
+            black_start_capability="FULL", cranking_power_mw=280.0,
+            self_excitation=True, contract_type="MANDATORY",
+            contract_value_m_aud_yr=0.0, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="KAREEYA1", unit_name="Kareeya Hydro U1",
+            technology="Hydro", region="QLD1",
+            black_start_capability="FULL", cranking_power_mw=110.0,
+            self_excitation=True, contract_type="MANDATORY",
+            contract_value_m_aud_yr=0.0, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="PPCCGT", unit_name="Pelican Point CCGT",
+            technology="Combined Cycle Gas Turbine", region="SA1",
+            black_start_capability="PARTIAL", cranking_power_mw=75.0,
+            self_excitation=False, contract_type="CONTRACTED",
+            contract_value_m_aud_yr=5.1, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="TORRB1", unit_name="Torrens Island B GT",
+            technology="Open Cycle Gas Turbine", region="SA1",
+            black_start_capability="FULL", cranking_power_mw=60.0,
+            self_excitation=True, contract_type="CONTRACTED",
+            contract_value_m_aud_yr=3.3, test_compliance="NON_COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="GORDON", unit_name="Gordon Hydro Power Station",
+            technology="Hydro", region="TAS1",
+            black_start_capability="FULL", cranking_power_mw=230.0,
+            self_excitation=True, contract_type="MANDATORY",
+            contract_value_m_aud_yr=0.0, test_compliance="COMPLIANT",
+        ),
+        BSABlackStartUnitRecord(
+            unit_id="POATINA", unit_name="Poatina Hydro Power Station",
+            technology="Hydro", region="TAS1",
+            black_start_capability="FULL", cranking_power_mw=180.0,
+            self_excitation=True, contract_type="MANDATORY",
+            contract_value_m_aud_yr=0.0, test_compliance="COMPLIANT",
+        ),
+    ]
+
+
+def _bsa_system_strength() -> List[BSASystemStrengthRecord]:
+    return [
+        BSASystemStrengthRecord(
+            region="NSW1", fault_level_mva=8500.0, minimum_fault_level_mva=5000.0,
+            system_strength_status="ADEQUATE", synchronous_generation_mw=7200.0,
+            inverter_based_resources_pct=28.5,
+            strength_providers=["Eraring", "Bayswater", "Liddell Syncon", "Hunter Valley GT"],
+        ),
+        BSASystemStrengthRecord(
+            region="VIC1", fault_level_mva=6200.0, minimum_fault_level_mva=4500.0,
+            system_strength_status="MARGINAL", synchronous_generation_mw=4100.0,
+            inverter_based_resources_pct=41.2,
+            strength_providers=["Loy Yang A", "Newport GT", "AGL Loy Yang Syncon"],
+        ),
+        BSASystemStrengthRecord(
+            region="QLD1", fault_level_mva=9100.0, minimum_fault_level_mva=5500.0,
+            system_strength_status="ADEQUATE", synchronous_generation_mw=8400.0,
+            inverter_based_resources_pct=22.8,
+            strength_providers=["Tarong", "Callide", "Gladstone", "Swanbank GT"],
+        ),
+        BSASystemStrengthRecord(
+            region="SA1", fault_level_mva=1800.0, minimum_fault_level_mva=2200.0,
+            system_strength_status="INADEQUATE", synchronous_generation_mw=680.0,
+            inverter_based_resources_pct=74.6,
+            strength_providers=["Pelican Point", "Torrens Island B"],
+        ),
+        BSASystemStrengthRecord(
+            region="TAS1", fault_level_mva=3400.0, minimum_fault_level_mva=1800.0,
+            system_strength_status="ADEQUATE", synchronous_generation_mw=2900.0,
+            inverter_based_resources_pct=15.3,
+            strength_providers=["Gordon", "Poatina", "Hydro Tasmania Fleet"],
+        ),
+    ]
+
+
+def _bsa_restore_progress() -> List[BSARestoreProgressRecord]:
+    scenarios = {
+        "BEST_CASE": [
+            (0,  0.0,  0.0,  0, 0.0,    "Black start initiated"),
+            (1,  850.0, 5.8,  2, 950.0,  "Anchor units online"),
+            (2,  2100.0, 14.3, 3, 2300.0, "Zone 1 cranking complete"),
+            (3,  4200.0, 28.6, 4, 4600.0, "Critical loads restored"),
+            (4,  6800.0, 46.3, 5, 7200.0, "50% load target achieved"),
+            (5,  9100.0, 61.9, 6, 9800.0, "Industrial loads reconnecting"),
+            (6,  11200.0, 76.2, 7, 11800.0, "Interconnector synchronised"),
+            (7,  12800.0, 87.1, 8, 13400.0, "Residential load bulk restore"),
+            (8,  13900.0, 94.6, 9, 14500.0, "Final zones reconnecting"),
+            (9,  14200.0, 96.6, 10, 14700.0, "Full restoration achieved"),
+        ],
+        "WORST_CASE": [
+            (0,  0.0,  0.0,  0, 0.0,    "Black start initiated"),
+            (1,  400.0, 2.7,  1, 450.0,  "Primary anchor online — delays"),
+            (2,  900.0, 6.1,  2, 1100.0, "Zone 1 partial cranking"),
+            (3,  1800.0, 12.2, 2, 2100.0, "Equipment fault — rerouting"),
+            (4,  3200.0, 21.8, 3, 3600.0, "Critical loads restored"),
+            (5,  5100.0, 34.7, 4, 5800.0, "Zone 3 cranking started"),
+            (6,  7400.0, 50.3, 5, 8100.0, "50% load milestone"),
+            (7,  9600.0, 65.3, 6, 10400.0, "Interconnector synchronised"),
+            (8,  11500.0, 78.2, 7, 12200.0, "Bulk residential restore"),
+            (9,  13100.0, 89.1, 8, 13900.0, "Final zone reconnecting"),
+        ],
+    }
+    records: List[BSARestoreProgressRecord] = []
+    total_load = 14700.0
+    for scenario, steps in scenarios.items():
+        for hour, load_mw, load_pct, zones, gen_mw, milestone in steps:
+            records.append(BSARestoreProgressRecord(
+                scenario=scenario,
+                hour=float(hour),
+                restored_load_mw=load_mw,
+                restored_load_pct=load_pct if load_pct > 0 else round(load_mw / total_load * 100, 1),
+                active_zones=zones,
+                generation_online_mw=gen_mw,
+                milestone=milestone,
+            ))
+    return records
+
+
+_BSA_RESTART_ZONES   = _bsa_restart_zones()
+_BSA_BLACK_START_UNITS = _bsa_black_start_units()
+_BSA_SYSTEM_STRENGTH   = _bsa_system_strength()
+_BSA_RESTORE_PROGRESS  = _bsa_restore_progress()
+
+
+@app.get("/api/black-start/dashboard", response_model=BlackStartDashboard,
+         dependencies=[Depends(verify_api_key)])
+def get_black_start_dashboard() -> BlackStartDashboard:
+    """Power System Black Start & System Restart Analytics dashboard."""
+    return BlackStartDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        restart_zones=_BSA_RESTART_ZONES,
+        black_start_units=_BSA_BLACK_START_UNITS,
+        system_strength=_BSA_SYSTEM_STRENGTH,
+        restore_progress=_BSA_RESTORE_PROGRESS,
+    )
+
+
+# ===========================================================================
+# Sprint 57a — FCAS & Ancillary Services Cost Allocation Analytics
+# ===========================================================================
+
+from enum import Enum as _ASCEnum
+
+
+class ASCServiceType(str, _ASCEnum):
+    RAISE_6SEC  = "RAISE_6SEC"
+    RAISE_60SEC = "RAISE_60SEC"
+    RAISE_5MIN  = "RAISE_5MIN"
+    LOWER_6SEC  = "LOWER_6SEC"
+    LOWER_60SEC = "LOWER_60SEC"
+    LOWER_5MIN  = "LOWER_5MIN"
+    RAISE_REG   = "RAISE_REG"
+    LOWER_REG   = "LOWER_REG"
+
+
+class ASCAllocationMechanism(str, _ASCEnum):
+    CAUSER_PAYS = "CAUSER_PAYS"
+    PRO_RATA    = "PRO_RATA"
+
+
+class ASCCauseType(str, _ASCEnum):
+    LOAD_VARIATION         = "LOAD_VARIATION"
+    GENERATION_VARIATION   = "GENERATION_VARIATION"
+    INTERCONNECTOR         = "INTERCONNECTOR"
+    MARKET_NOTICE          = "MARKET_NOTICE"
+
+
+class ASCServiceRecord(BaseModel):
+    service:               ASCServiceType
+    month:                 str
+    clearing_price_aud_mw: float
+    volume_mw:             float
+    total_cost_m_aud:      float
+    num_providers:         int
+    herfindahl_index:      float
+
+
+class ASCProviderRecord(BaseModel):
+    participant:             str
+    service:                 str
+    enabled_mw:              float
+    revenue_m_aud:           float
+    market_share_pct:        float
+    avg_enablement_rate_pct: float
+    technology:              str
+
+
+class ASCCostAllocationRecord(BaseModel):
+    region:                  str
+    month:                   str
+    total_fcas_cost_m_aud:   float
+    energy_market_share_pct: float
+    allocated_cost_m_aud:    float
+    cost_per_mwh_aud:        float
+    allocation_mechanism:    ASCAllocationMechanism
+
+
+class ASCCauserPaysRecord(BaseModel):
+    participant:             str
+    service:                 str
+    causer_pays_factor:      float
+    cost_contribution_m_aud: float
+    cause_type:              ASCCauseType
+    month:                   str
+
+
+class AncillaryCostDashboard(BaseModel):
+    timestamp:        str
+    services:         List[ASCServiceRecord]
+    providers:        List[ASCProviderRecord]
+    cost_allocations: List[ASCCostAllocationRecord]
+    causer_pays:      List[ASCCauserPaysRecord]
+
+
+# ---------------------------------------------------------------------------
+# Mock data — 24 service records (8 services x 3 months: Jan-Mar 2024)
+# ---------------------------------------------------------------------------
+
+_ASC_SERVICES: List[ASCServiceRecord] = [
+    # January 2024
+    ASCServiceRecord(service=ASCServiceType.RAISE_6SEC,  month="2024-01", clearing_price_aud_mw=38.5,  volume_mw=420.0, total_cost_m_aud=0.81, num_providers=12, herfindahl_index=0.142),
+    ASCServiceRecord(service=ASCServiceType.RAISE_60SEC, month="2024-01", clearing_price_aud_mw=22.1,  volume_mw=390.0, total_cost_m_aud=0.43, num_providers=10, herfindahl_index=0.161),
+    ASCServiceRecord(service=ASCServiceType.RAISE_5MIN,  month="2024-01", clearing_price_aud_mw=18.4,  volume_mw=360.0, total_cost_m_aud=0.33, num_providers=9,  herfindahl_index=0.178),
+    ASCServiceRecord(service=ASCServiceType.LOWER_6SEC,  month="2024-01", clearing_price_aud_mw=14.2,  volume_mw=400.0, total_cost_m_aud=0.28, num_providers=11, herfindahl_index=0.153),
+    ASCServiceRecord(service=ASCServiceType.LOWER_60SEC, month="2024-01", clearing_price_aud_mw=9.8,   volume_mw=370.0, total_cost_m_aud=0.18, num_providers=10, herfindahl_index=0.165),
+    ASCServiceRecord(service=ASCServiceType.LOWER_5MIN,  month="2024-01", clearing_price_aud_mw=7.6,   volume_mw=340.0, total_cost_m_aud=0.13, num_providers=8,  herfindahl_index=0.189),
+    ASCServiceRecord(service=ASCServiceType.RAISE_REG,   month="2024-01", clearing_price_aud_mw=112.4, volume_mw=130.0, total_cost_m_aud=0.73, num_providers=6,  herfindahl_index=0.312),
+    ASCServiceRecord(service=ASCServiceType.LOWER_REG,   month="2024-01", clearing_price_aud_mw=98.7,  volume_mw=130.0, total_cost_m_aud=0.64, num_providers=6,  herfindahl_index=0.298),
+    # February 2024
+    ASCServiceRecord(service=ASCServiceType.RAISE_6SEC,  month="2024-02", clearing_price_aud_mw=42.1,  volume_mw=435.0, total_cost_m_aud=0.92, num_providers=12, herfindahl_index=0.138),
+    ASCServiceRecord(service=ASCServiceType.RAISE_60SEC, month="2024-02", clearing_price_aud_mw=25.8,  volume_mw=400.0, total_cost_m_aud=0.52, num_providers=10, herfindahl_index=0.155),
+    ASCServiceRecord(service=ASCServiceType.RAISE_5MIN,  month="2024-02", clearing_price_aud_mw=21.2,  volume_mw=370.0, total_cost_m_aud=0.39, num_providers=9,  herfindahl_index=0.172),
+    ASCServiceRecord(service=ASCServiceType.LOWER_6SEC,  month="2024-02", clearing_price_aud_mw=16.5,  volume_mw=410.0, total_cost_m_aud=0.34, num_providers=11, herfindahl_index=0.148),
+    ASCServiceRecord(service=ASCServiceType.LOWER_60SEC, month="2024-02", clearing_price_aud_mw=11.3,  volume_mw=380.0, total_cost_m_aud=0.21, num_providers=10, herfindahl_index=0.159),
+    ASCServiceRecord(service=ASCServiceType.LOWER_5MIN,  month="2024-02", clearing_price_aud_mw=8.9,   volume_mw=350.0, total_cost_m_aud=0.16, num_providers=8,  herfindahl_index=0.182),
+    ASCServiceRecord(service=ASCServiceType.RAISE_REG,   month="2024-02", clearing_price_aud_mw=128.6, volume_mw=130.0, total_cost_m_aud=0.84, num_providers=6,  herfindahl_index=0.321),
+    ASCServiceRecord(service=ASCServiceType.LOWER_REG,   month="2024-02", clearing_price_aud_mw=115.2, volume_mw=130.0, total_cost_m_aud=0.75, num_providers=6,  herfindahl_index=0.308),
+    # March 2024
+    ASCServiceRecord(service=ASCServiceType.RAISE_6SEC,  month="2024-03", clearing_price_aud_mw=35.7,  volume_mw=415.0, total_cost_m_aud=0.74, num_providers=13, herfindahl_index=0.131),
+    ASCServiceRecord(service=ASCServiceType.RAISE_60SEC, month="2024-03", clearing_price_aud_mw=19.4,  volume_mw=385.0, total_cost_m_aud=0.37, num_providers=11, herfindahl_index=0.149),
+    ASCServiceRecord(service=ASCServiceType.RAISE_5MIN,  month="2024-03", clearing_price_aud_mw=16.1,  volume_mw=355.0, total_cost_m_aud=0.29, num_providers=10, herfindahl_index=0.165),
+    ASCServiceRecord(service=ASCServiceType.LOWER_6SEC,  month="2024-03", clearing_price_aud_mw=12.8,  volume_mw=395.0, total_cost_m_aud=0.25, num_providers=12, herfindahl_index=0.141),
+    ASCServiceRecord(service=ASCServiceType.LOWER_60SEC, month="2024-03", clearing_price_aud_mw=8.5,   volume_mw=365.0, total_cost_m_aud=0.16, num_providers=11, herfindahl_index=0.152),
+    ASCServiceRecord(service=ASCServiceType.LOWER_5MIN,  month="2024-03", clearing_price_aud_mw=6.4,   volume_mw=335.0, total_cost_m_aud=0.11, num_providers=9,  herfindahl_index=0.175),
+    ASCServiceRecord(service=ASCServiceType.RAISE_REG,   month="2024-03", clearing_price_aud_mw=105.8, volume_mw=130.0, total_cost_m_aud=0.69, num_providers=6,  herfindahl_index=0.304),
+    ASCServiceRecord(service=ASCServiceType.LOWER_REG,   month="2024-03", clearing_price_aud_mw=92.3,  volume_mw=130.0, total_cost_m_aud=0.60, num_providers=6,  herfindahl_index=0.291),
+]
+
+# 20 provider records
+_ASC_PROVIDERS: List[ASCProviderRecord] = [
+    ASCProviderRecord(participant="AGL Energy",           service="RAISE_REG",   enabled_mw=82.0,  revenue_m_aud=2.84, market_share_pct=21.3, avg_enablement_rate_pct=88.4, technology="Gas (CCGT)"),
+    ASCProviderRecord(participant="Origin Energy",         service="RAISE_REG",   enabled_mw=74.0,  revenue_m_aud=2.56, market_share_pct=19.2, avg_enablement_rate_pct=85.7, technology="Gas (CCGT)"),
+    ASCProviderRecord(participant="Snowy Hydro",           service="RAISE_6SEC",  enabled_mw=310.0, revenue_m_aud=1.95, market_share_pct=16.8, avg_enablement_rate_pct=79.3, technology="Hydro"),
+    ASCProviderRecord(participant="Neoen",                 service="RAISE_6SEC",  enabled_mw=250.0, revenue_m_aud=1.71, market_share_pct=14.7, avg_enablement_rate_pct=91.2, technology="Battery (BESS)"),
+    ASCProviderRecord(participant="EnergyAustralia",       service="LOWER_REG",   enabled_mw=68.0,  revenue_m_aud=1.98, market_share_pct=17.8, avg_enablement_rate_pct=83.1, technology="Gas (CCGT)"),
+    ASCProviderRecord(participant="Meridian Energy",       service="RAISE_60SEC", enabled_mw=195.0, revenue_m_aud=1.23, market_share_pct=11.4, avg_enablement_rate_pct=76.8, technology="Hydro"),
+    ASCProviderRecord(participant="Tesla (Hornsdale)",     service="RAISE_6SEC",  enabled_mw=185.0, revenue_m_aud=1.48, market_share_pct=12.7, avg_enablement_rate_pct=93.5, technology="Battery (BESS)"),
+    ASCProviderRecord(participant="Engie",                 service="LOWER_6SEC",  enabled_mw=145.0, revenue_m_aud=0.97, market_share_pct=9.8,  avg_enablement_rate_pct=77.4, technology="Gas (OCGT)"),
+    ASCProviderRecord(participant="CS Energy",             service="LOWER_60SEC", enabled_mw=175.0, revenue_m_aud=0.82, market_share_pct=8.6,  avg_enablement_rate_pct=74.2, technology="Coal"),
+    ASCProviderRecord(participant="Macquarie Energy",      service="LOWER_5MIN",  enabled_mw=130.0, revenue_m_aud=0.58, market_share_pct=7.9,  avg_enablement_rate_pct=71.6, technology="Gas (OCGT)"),
+    ASCProviderRecord(participant="Alinta Energy",         service="RAISE_5MIN",  enabled_mw=155.0, revenue_m_aud=0.73, market_share_pct=8.4,  avg_enablement_rate_pct=72.9, technology="Gas (CCGT)"),
+    ASCProviderRecord(participant="Pacific Hydro",         service="RAISE_60SEC", enabled_mw=140.0, revenue_m_aud=0.89, market_share_pct=8.2,  avg_enablement_rate_pct=78.5, technology="Hydro"),
+    ASCProviderRecord(participant="BHP Billiton",          service="LOWER_REG",   enabled_mw=55.0,  revenue_m_aud=0.61, market_share_pct=5.5,  avg_enablement_rate_pct=68.3, technology="Industrial Load"),
+    ASCProviderRecord(participant="Rio Tinto",             service="LOWER_6SEC",  enabled_mw=48.0,  revenue_m_aud=0.42, market_share_pct=4.3,  avg_enablement_rate_pct=65.1, technology="Industrial Load"),
+    ASCProviderRecord(participant="Stanwell",              service="RAISE_5MIN",  enabled_mw=120.0, revenue_m_aud=0.55, market_share_pct=6.3,  avg_enablement_rate_pct=70.8, technology="Coal"),
+    ASCProviderRecord(participant="InterGen",              service="LOWER_5MIN",  enabled_mw=95.0,  revenue_m_aud=0.38, market_share_pct=5.1,  avg_enablement_rate_pct=67.4, technology="Gas (CCGT)"),
+    ASCProviderRecord(participant="Delta Electricity",     service="RAISE_REG",   enabled_mw=44.0,  revenue_m_aud=0.62, market_share_pct=4.7,  avg_enablement_rate_pct=73.2, technology="Coal"),
+    ASCProviderRecord(participant="Hydro Tasmania",        service="RAISE_60SEC", enabled_mw=165.0, revenue_m_aud=1.05, market_share_pct=9.6,  avg_enablement_rate_pct=81.7, technology="Hydro"),
+    ASCProviderRecord(participant="Beach Energy",          service="LOWER_60SEC", enabled_mw=72.0,  revenue_m_aud=0.34, market_share_pct=3.6,  avg_enablement_rate_pct=63.8, technology="Gas (OCGT)"),
+    ASCProviderRecord(participant="Acciona Energy",        service="RAISE_6SEC",  enabled_mw=88.0,  revenue_m_aud=0.64, market_share_pct=5.5,  avg_enablement_rate_pct=84.2, technology="Wind"),
+]
+
+# 15 cost allocation records (5 regions x 3 months)
+_ASC_COST_ALLOCATIONS: List[ASCCostAllocationRecord] = [
+    # January 2024
+    ASCCostAllocationRecord(region="NSW1", month="2024-01", total_fcas_cost_m_aud=3.53, energy_market_share_pct=34.2, allocated_cost_m_aud=1.21, cost_per_mwh_aud=0.82, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="QLD1", month="2024-01", total_fcas_cost_m_aud=3.53, energy_market_share_pct=28.6, allocated_cost_m_aud=1.01, cost_per_mwh_aud=0.74, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="VIC1", month="2024-01", total_fcas_cost_m_aud=3.53, energy_market_share_pct=22.4, allocated_cost_m_aud=0.79, cost_per_mwh_aud=0.68, allocation_mechanism=ASCAllocationMechanism.PRO_RATA),
+    ASCCostAllocationRecord(region="SA1",  month="2024-01", total_fcas_cost_m_aud=3.53, energy_market_share_pct=9.8,  allocated_cost_m_aud=0.35, cost_per_mwh_aud=1.34, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="TAS1", month="2024-01", total_fcas_cost_m_aud=3.53, energy_market_share_pct=5.0,  allocated_cost_m_aud=0.18, cost_per_mwh_aud=0.61, allocation_mechanism=ASCAllocationMechanism.PRO_RATA),
+    # February 2024
+    ASCCostAllocationRecord(region="NSW1", month="2024-02", total_fcas_cost_m_aud=4.13, energy_market_share_pct=34.0, allocated_cost_m_aud=1.40, cost_per_mwh_aud=0.95, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="QLD1", month="2024-02", total_fcas_cost_m_aud=4.13, energy_market_share_pct=28.9, allocated_cost_m_aud=1.19, cost_per_mwh_aud=0.87, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="VIC1", month="2024-02", total_fcas_cost_m_aud=4.13, energy_market_share_pct=22.1, allocated_cost_m_aud=0.91, cost_per_mwh_aud=0.79, allocation_mechanism=ASCAllocationMechanism.PRO_RATA),
+    ASCCostAllocationRecord(region="SA1",  month="2024-02", total_fcas_cost_m_aud=4.13, energy_market_share_pct=9.9,  allocated_cost_m_aud=0.41, cost_per_mwh_aud=1.56, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="TAS1", month="2024-02", total_fcas_cost_m_aud=4.13, energy_market_share_pct=5.1,  allocated_cost_m_aud=0.21, cost_per_mwh_aud=0.71, allocation_mechanism=ASCAllocationMechanism.PRO_RATA),
+    # March 2024
+    ASCCostAllocationRecord(region="NSW1", month="2024-03", total_fcas_cost_m_aud=3.21, energy_market_share_pct=33.8, allocated_cost_m_aud=1.09, cost_per_mwh_aud=0.74, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="QLD1", month="2024-03", total_fcas_cost_m_aud=3.21, energy_market_share_pct=29.1, allocated_cost_m_aud=0.93, cost_per_mwh_aud=0.68, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="VIC1", month="2024-03", total_fcas_cost_m_aud=3.21, energy_market_share_pct=22.3, allocated_cost_m_aud=0.72, cost_per_mwh_aud=0.62, allocation_mechanism=ASCAllocationMechanism.PRO_RATA),
+    ASCCostAllocationRecord(region="SA1",  month="2024-03", total_fcas_cost_m_aud=3.21, energy_market_share_pct=9.7,  allocated_cost_m_aud=0.31, cost_per_mwh_aud=1.18, allocation_mechanism=ASCAllocationMechanism.CAUSER_PAYS),
+    ASCCostAllocationRecord(region="TAS1", month="2024-03", total_fcas_cost_m_aud=3.21, energy_market_share_pct=5.1,  allocated_cost_m_aud=0.16, cost_per_mwh_aud=0.54, allocation_mechanism=ASCAllocationMechanism.PRO_RATA),
+]
+
+# 12 causer-pays records
+_ASC_CAUSER_PAYS: List[ASCCauserPaysRecord] = [
+    ASCCauserPaysRecord(participant="AGL Energy",            service="RAISE_REG",   causer_pays_factor=0.182, cost_contribution_m_aud=0.41, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-01"),
+    ASCCauserPaysRecord(participant="Origin Energy",          service="LOWER_REG",   causer_pays_factor=0.154, cost_contribution_m_aud=0.35, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-01"),
+    ASCCauserPaysRecord(participant="BHP Billiton",           service="RAISE_6SEC",  causer_pays_factor=0.127, cost_contribution_m_aud=0.28, cause_type=ASCCauseType.LOAD_VARIATION,        month="2024-01"),
+    ASCCauserPaysRecord(participant="Rio Tinto",              service="LOWER_6SEC",  causer_pays_factor=0.109, cost_contribution_m_aud=0.19, cause_type=ASCCauseType.LOAD_VARIATION,        month="2024-02"),
+    ASCCauserPaysRecord(participant="Snowy Hydro",            service="RAISE_5MIN",  causer_pays_factor=0.096, cost_contribution_m_aud=0.17, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-02"),
+    ASCCauserPaysRecord(participant="EnergyAustralia",        service="LOWER_5MIN",  causer_pays_factor=0.088, cost_contribution_m_aud=0.14, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-02"),
+    ASCCauserPaysRecord(participant="CS Energy",              service="RAISE_60SEC", causer_pays_factor=0.074, cost_contribution_m_aud=0.11, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-03"),
+    ASCCauserPaysRecord(participant="Interconnector SA-VIC",  service="RAISE_REG",   causer_pays_factor=0.068, cost_contribution_m_aud=0.09, cause_type=ASCCauseType.INTERCONNECTOR,       month="2024-03"),
+    ASCCauserPaysRecord(participant="Stanwell",               service="LOWER_60SEC", causer_pays_factor=0.062, cost_contribution_m_aud=0.08, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-01"),
+    ASCCauserPaysRecord(participant="Alinta Energy",          service="RAISE_6SEC",  causer_pays_factor=0.058, cost_contribution_m_aud=0.07, cause_type=ASCCauseType.MARKET_NOTICE,         month="2024-02"),
+    ASCCauserPaysRecord(participant="Delta Electricity",      service="LOWER_REG",   causer_pays_factor=0.051, cost_contribution_m_aud=0.06, cause_type=ASCCauseType.GENERATION_VARIATION, month="2024-03"),
+    ASCCauserPaysRecord(participant="Interconnector NSW-VIC", service="LOWER_6SEC",  causer_pays_factor=0.044, cost_contribution_m_aud=0.05, cause_type=ASCCauseType.INTERCONNECTOR,       month="2024-03"),
+]
+
+
+@app.get("/api/ancillary-cost/dashboard", response_model=AncillaryCostDashboard,
+         dependencies=[Depends(verify_api_key)])
+def get_ancillary_cost_dashboard() -> AncillaryCostDashboard:
+    """FCAS & Ancillary Services Cost Allocation Analytics dashboard."""
+    return AncillaryCostDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        services=_ASC_SERVICES,
+        providers=_ASC_PROVIDERS,
+        cost_allocations=_ASC_COST_ALLOCATIONS,
+        causer_pays=_ASC_CAUSER_PAYS,
+    )
+
+
+# ===========================================================================
+# Sprint 57c — Carbon Border Adjustment Mechanism (CBAM) &
+#              Australian Export Trade Analytics
+# ===========================================================================
+
+class _CBAExportSector(str, Enum):
+    ALUMINIUM        = "ALUMINIUM"
+    STEEL            = "STEEL"
+    CEMENT           = "CEMENT"
+    CHEMICALS        = "CHEMICALS"
+    LNG              = "LNG"
+    CLEAN_HYDROGEN   = "CLEAN_HYDROGEN"
+    GREEN_AMMONIA    = "GREEN_AMMONIA"
+    BATTERY_MATERIALS = "BATTERY_MATERIALS"
+
+class _CBAPolicyStatus(str, Enum):
+    ENACTED      = "ENACTED"
+    PROPOSED     = "PROPOSED"
+    UNDER_REVIEW = "UNDER_REVIEW"
+
+class _CBACleanProduct(str, Enum):
+    GREEN_HYDROGEN   = "GREEN_HYDROGEN"
+    GREEN_AMMONIA    = "GREEN_AMMONIA"
+    GREEN_STEEL      = "GREEN_STEEL"
+    CLEAN_ALUMINUM   = "CLEAN_ALUMINUM"
+    SILICON_METAL    = "SILICON_METAL"
+    LITHIUM_HYDROXIDE = "LITHIUM_HYDROXIDE"
+
+class CBAExportSectorRecord(BaseModel):
+    sector: _CBAExportSector
+    export_value_bn_aud: float
+    carbon_intensity_tco2_per_tonne: float
+    cbam_exposure_m_aud: float
+    clean_alternative_available: bool
+    transition_timeline_years: int
+    australian_competitive_advantage: str
+
+class CBATradeFlowRecord(BaseModel):
+    trading_partner: str
+    sector: str
+    export_volume_kt: float
+    embedded_carbon_kt_co2: float
+    cbam_tariff_rate_pct: float
+    cbam_cost_m_aud: float
+    year: int
+
+class CBACleanExportRecord(BaseModel):
+    product: _CBACleanProduct
+    production_cost_aud_tonne: float
+    target_price_aud_tonne: float
+    market_size_bn_aud: float
+    competitiveness_rank: int
+    key_markets: List[str]
+    target_2030_kt: float
+
+class CBAPolicyRecord(BaseModel):
+    country: str
+    policy_name: str
+    implementation_year: int
+    carbon_price_aud_tonne: float
+    sectors_covered: List[str]
+    australia_exposure_m_aud: float
+    policy_status: _CBAPolicyStatus
+
+class CbamTradeDashboard(BaseModel):
+    timestamp: str
+    export_sectors: List[CBAExportSectorRecord]
+    trade_flows: List[CBATradeFlowRecord]
+    clean_exports: List[CBACleanExportRecord]
+    policies: List[CBAPolicyRecord]
+
+# ---------------------------------------------------------------------------
+# Mock data
+# ---------------------------------------------------------------------------
+
+_CBA_EXPORT_SECTORS: List[CBAExportSectorRecord] = [
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.ALUMINIUM,
+        export_value_bn_aud=6.8,
+        carbon_intensity_tco2_per_tonne=8.4,
+        cbam_exposure_m_aud=1420.0,
+        clean_alternative_available=True,
+        transition_timeline_years=6,
+        australian_competitive_advantage="Abundant renewable energy for green smelting; low-cost bauxite reserves",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.STEEL,
+        export_value_bn_aud=3.2,
+        carbon_intensity_tco2_per_tonne=1.9,
+        cbam_exposure_m_aud=580.0,
+        clean_alternative_available=True,
+        transition_timeline_years=8,
+        australian_competitive_advantage="DRI-EAF pathway using green H2; proximity to Asian steel markets",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.CEMENT,
+        export_value_bn_aud=0.9,
+        carbon_intensity_tco2_per_tonne=0.82,
+        cbam_exposure_m_aud=130.0,
+        clean_alternative_available=False,
+        transition_timeline_years=12,
+        australian_competitive_advantage="Limestone reserves; CCS potential in WA",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.CHEMICALS,
+        export_value_bn_aud=2.1,
+        carbon_intensity_tco2_per_tonne=2.3,
+        cbam_exposure_m_aud=310.0,
+        clean_alternative_available=True,
+        transition_timeline_years=7,
+        australian_competitive_advantage="Gas feedstock transitioning to green H2; electrification pathways",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.LNG,
+        export_value_bn_aud=74.0,
+        carbon_intensity_tco2_per_tonne=0.41,
+        cbam_exposure_m_aud=890.0,
+        clean_alternative_available=False,
+        transition_timeline_years=15,
+        australian_competitive_advantage="World's largest LNG exporter; existing Asian supply agreements",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.CLEAN_HYDROGEN,
+        export_value_bn_aud=0.4,
+        carbon_intensity_tco2_per_tonne=0.02,
+        cbam_exposure_m_aud=0.0,
+        clean_alternative_available=True,
+        transition_timeline_years=0,
+        australian_competitive_advantage="World-class solar and wind resources; ARENA & CEFC funding pipeline",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.GREEN_AMMONIA,
+        export_value_bn_aud=0.2,
+        carbon_intensity_tco2_per_tonne=0.05,
+        cbam_exposure_m_aud=0.0,
+        clean_alternative_available=True,
+        transition_timeline_years=0,
+        australian_competitive_advantage="Stranded RE zones in WA and NT; port infrastructure at Dampier & Darwin",
+    ),
+    CBAExportSectorRecord(
+        sector=_CBAExportSector.BATTERY_MATERIALS,
+        export_value_bn_aud=8.6,
+        carbon_intensity_tco2_per_tonne=0.15,
+        cbam_exposure_m_aud=45.0,
+        clean_alternative_available=True,
+        transition_timeline_years=3,
+        australian_competitive_advantage="World's largest lithium reserves; nickel and cobalt endowment",
+    ),
+]
+
+_CBA_TRADE_FLOWS: List[CBATradeFlowRecord] = [
+    # EU — ALUMINIUM & STEEL (CBAM fully enacted)
+    CBATradeFlowRecord(trading_partner="European Union", sector="ALUMINIUM", export_volume_kt=820.0, embedded_carbon_kt_co2=6888.0, cbam_tariff_rate_pct=5.8, cbam_cost_m_aud=390.0, year=2025),
+    CBATradeFlowRecord(trading_partner="European Union", sector="STEEL",     export_volume_kt=210.0, embedded_carbon_kt_co2=399.0,  cbam_tariff_rate_pct=5.8, cbam_cost_m_aud=95.0,  year=2025),
+    # UK — ALUMINIUM & STEEL (CBAM enacted)
+    CBATradeFlowRecord(trading_partner="United Kingdom", sector="ALUMINIUM", export_volume_kt=340.0, embedded_carbon_kt_co2=2856.0, cbam_tariff_rate_pct=5.2, cbam_cost_m_aud=148.0, year=2025),
+    CBATradeFlowRecord(trading_partner="United Kingdom", sector="STEEL",     export_volume_kt=85.0,  embedded_carbon_kt_co2=161.5,  cbam_tariff_rate_pct=5.2, cbam_cost_m_aud=37.0,  year=2025),
+    # USA — CHEMICALS & LNG (proposed)
+    CBATradeFlowRecord(trading_partner="United States",  sector="CHEMICALS", export_volume_kt=620.0, embedded_carbon_kt_co2=1426.0, cbam_tariff_rate_pct=3.1, cbam_cost_m_aud=110.0, year=2025),
+    CBATradeFlowRecord(trading_partner="United States",  sector="LNG",       export_volume_kt=9200.0,embedded_carbon_kt_co2=3772.0, cbam_tariff_rate_pct=3.1, cbam_cost_m_aud=280.0, year=2025),
+    # Canada — ALUMINIUM & CEMENT
+    CBATradeFlowRecord(trading_partner="Canada",         sector="ALUMINIUM", export_volume_kt=190.0, embedded_carbon_kt_co2=1596.0, cbam_tariff_rate_pct=4.0, cbam_cost_m_aud=62.0,  year=2025),
+    CBATradeFlowRecord(trading_partner="Canada",         sector="CEMENT",    export_volume_kt=310.0, embedded_carbon_kt_co2=254.2,  cbam_tariff_rate_pct=4.0, cbam_cost_m_aud=38.0,  year=2025),
+    # Japan — STEEL & LNG
+    CBATradeFlowRecord(trading_partner="Japan",          sector="STEEL",     export_volume_kt=680.0, embedded_carbon_kt_co2=1292.0, cbam_tariff_rate_pct=2.5, cbam_cost_m_aud=78.0,  year=2025),
+    CBATradeFlowRecord(trading_partner="Japan",          sector="LNG",       export_volume_kt=24000.0,embedded_carbon_kt_co2=9840.0,cbam_tariff_rate_pct=2.5, cbam_cost_m_aud=190.0, year=2025),
+    # South Korea — BATTERY_MATERIALS & CHEMICALS
+    CBATradeFlowRecord(trading_partner="South Korea",    sector="BATTERY_MATERIALS", export_volume_kt=450.0, embedded_carbon_kt_co2=67.5, cbam_tariff_rate_pct=2.0, cbam_cost_m_aud=14.0, year=2025),
+    CBATradeFlowRecord(trading_partner="South Korea",    sector="CHEMICALS",         export_volume_kt=380.0, embedded_carbon_kt_co2=874.0,cbam_tariff_rate_pct=2.0, cbam_cost_m_aud=56.0, year=2025),
+    # Germany — ALUMINIUM & STEEL
+    CBATradeFlowRecord(trading_partner="Germany",        sector="ALUMINIUM", export_volume_kt=280.0, embedded_carbon_kt_co2=2352.0, cbam_tariff_rate_pct=5.8, cbam_cost_m_aud=126.0, year=2025),
+    CBATradeFlowRecord(trading_partner="Germany",        sector="STEEL",     export_volume_kt=140.0, embedded_carbon_kt_co2=266.0,  cbam_tariff_rate_pct=5.8, cbam_cost_m_aud=62.0,  year=2025),
+    # Netherlands — LNG & CHEMICALS
+    CBATradeFlowRecord(trading_partner="Netherlands",    sector="LNG",       export_volume_kt=8500.0, embedded_carbon_kt_co2=3485.0,cbam_tariff_rate_pct=5.8, cbam_cost_m_aud=260.0, year=2025),
+    CBATradeFlowRecord(trading_partner="Netherlands",    sector="CHEMICALS", export_volume_kt=290.0,  embedded_carbon_kt_co2=667.0, cbam_tariff_rate_pct=5.8, cbam_cost_m_aud=82.0,  year=2025),
+    # India — BATTERY_MATERIALS & STEEL
+    CBATradeFlowRecord(trading_partner="India",          sector="BATTERY_MATERIALS", export_volume_kt=820.0, embedded_carbon_kt_co2=123.0, cbam_tariff_rate_pct=1.5, cbam_cost_m_aud=9.0,  year=2025),
+    CBATradeFlowRecord(trading_partner="India",          sector="STEEL",             export_volume_kt=320.0, embedded_carbon_kt_co2=608.0, cbam_tariff_rate_pct=1.5, cbam_cost_m_aud=28.0, year=2025),
+    # China — LNG & ALUMINIUM
+    CBATradeFlowRecord(trading_partner="China",          sector="LNG",       export_volume_kt=18000.0, embedded_carbon_kt_co2=7380.0,cbam_tariff_rate_pct=0.8, cbam_cost_m_aud=68.0,  year=2025),
+    CBATradeFlowRecord(trading_partner="China",          sector="ALUMINIUM", export_volume_kt=510.0,   embedded_carbon_kt_co2=4284.0,cbam_tariff_rate_pct=0.8, cbam_cost_m_aud=32.0,  year=2025),
+]
+
+_CBA_CLEAN_EXPORTS: List[CBACleanExportRecord] = [
+    CBACleanExportRecord(
+        product=_CBACleanProduct.GREEN_HYDROGEN,
+        production_cost_aud_tonne=6800.0,
+        target_price_aud_tonne=4500.0,
+        market_size_bn_aud=42.0,
+        competitiveness_rank=3,
+        key_markets=["Japan", "South Korea", "Germany", "Netherlands"],
+        target_2030_kt=500.0,
+    ),
+    CBACleanExportRecord(
+        product=_CBACleanProduct.GREEN_AMMONIA,
+        production_cost_aud_tonne=1250.0,
+        target_price_aud_tonne=900.0,
+        market_size_bn_aud=18.0,
+        competitiveness_rank=2,
+        key_markets=["Japan", "South Korea", "India"],
+        target_2030_kt=1200.0,
+    ),
+    CBACleanExportRecord(
+        product=_CBACleanProduct.GREEN_STEEL,
+        production_cost_aud_tonne=1100.0,
+        target_price_aud_tonne=850.0,
+        market_size_bn_aud=95.0,
+        competitiveness_rank=4,
+        key_markets=["European Union", "United Kingdom", "United States"],
+        target_2030_kt=800.0,
+    ),
+    CBACleanExportRecord(
+        product=_CBACleanProduct.CLEAN_ALUMINUM,
+        production_cost_aud_tonne=3200.0,
+        target_price_aud_tonne=2800.0,
+        market_size_bn_aud=55.0,
+        competitiveness_rank=1,
+        key_markets=["European Union", "United Kingdom", "Japan", "United States"],
+        target_2030_kt=2500.0,
+    ),
+    CBACleanExportRecord(
+        product=_CBACleanProduct.SILICON_METAL,
+        production_cost_aud_tonne=2100.0,
+        target_price_aud_tonne=1900.0,
+        market_size_bn_aud=8.5,
+        competitiveness_rank=2,
+        key_markets=["Japan", "South Korea", "Germany"],
+        target_2030_kt=150.0,
+    ),
+    CBACleanExportRecord(
+        product=_CBACleanProduct.LITHIUM_HYDROXIDE,
+        production_cost_aud_tonne=14500.0,
+        target_price_aud_tonne=28000.0,
+        market_size_bn_aud=120.0,
+        competitiveness_rank=1,
+        key_markets=["United States", "European Union", "Japan", "South Korea", "China"],
+        target_2030_kt=350.0,
+    ),
+]
+
+_CBA_POLICIES: List[CBAPolicyRecord] = [
+    CBAPolicyRecord(
+        country="European Union",
+        policy_name="EU Carbon Border Adjustment Mechanism (CBAM Regulation 2023/956)",
+        implementation_year=2026,
+        carbon_price_aud_tonne=105.0,
+        sectors_covered=["STEEL", "ALUMINIUM", "CEMENT", "CHEMICALS", "FERTILISERS", "ELECTRICITY"],
+        australia_exposure_m_aud=1420.0,
+        policy_status=_CBAPolicyStatus.ENACTED,
+    ),
+    CBAPolicyRecord(
+        country="United Kingdom",
+        policy_name="UK CBAM (Finance Act 2024)",
+        implementation_year=2027,
+        carbon_price_aud_tonne=98.0,
+        sectors_covered=["STEEL", "ALUMINIUM", "CEMENT", "CHEMICALS", "CERAMICS", "GLASS"],
+        australia_exposure_m_aud=290.0,
+        policy_status=_CBAPolicyStatus.ENACTED,
+    ),
+    CBAPolicyRecord(
+        country="United States",
+        policy_name="Clean Competition Act (CCA) — Senate Bill",
+        implementation_year=2028,
+        carbon_price_aud_tonne=62.0,
+        sectors_covered=["STEEL", "ALUMINIUM", "CEMENT", "LNG", "CHEMICALS"],
+        australia_exposure_m_aud=480.0,
+        policy_status=_CBAPolicyStatus.PROPOSED,
+    ),
+    CBAPolicyRecord(
+        country="Canada",
+        policy_name="Canadian Carbon Border Adjustment — ECCC Consultation",
+        implementation_year=2028,
+        carbon_price_aud_tonne=78.0,
+        sectors_covered=["STEEL", "ALUMINIUM", "CEMENT"],
+        australia_exposure_m_aud=115.0,
+        policy_status=_CBAPolicyStatus.UNDER_REVIEW,
+    ),
+    CBAPolicyRecord(
+        country="Japan",
+        policy_name="GX Carbon Border Adjustment (GX Transition Bond Framework)",
+        implementation_year=2030,
+        carbon_price_aud_tonne=35.0,
+        sectors_covered=["STEEL", "LNG", "CHEMICALS"],
+        australia_exposure_m_aud=310.0,
+        policy_status=_CBAPolicyStatus.UNDER_REVIEW,
+    ),
+]
+
+
+@app.get("/api/cbam-trade/dashboard", dependencies=[Depends(verify_api_key)])
+def get_cbam_trade_dashboard() -> CbamTradeDashboard:
+    """Sprint 57c — CBAM & Australian Export Trade Analytics dashboard."""
+    return CbamTradeDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        export_sectors=_CBA_EXPORT_SECTORS,
+        trade_flows=_CBA_TRADE_FLOWS,
+        clean_exports=_CBA_CLEAN_EXPORTS,
+        policies=_CBA_POLICIES,
+    )

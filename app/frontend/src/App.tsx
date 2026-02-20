@@ -64,6 +64,7 @@ import {
   ArrowLeftRight,
   Map,
   GitMerge,
+  Globe,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -205,6 +206,9 @@ import StorageTechRoadmap from './pages/StorageTechRoadmap'
 import PlannedOutageAnalytics from './pages/PlannedOutageAnalytics'
 import MarketShareTracker from './pages/MarketShareTracker'
 import VolatilityRegimeAnalytics from './pages/VolatilityRegimeAnalytics'
+import BlackStartCapability from './pages/BlackStartCapability'
+import AncillaryServicesCost from './pages/AncillaryServicesCost'
+import CbamTradeAnalytics from './pages/CbamTradeAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -346,6 +350,9 @@ const NAV_ITEMS = [
   { to: '/renewable-integration-cost', label: 'Renewable Integration Cost',   Icon: GitMerge       },
   { to: '/planned-outage-analytics',  label: 'Planned Outage & Maintenance', Icon: Calendar       },
   { to: '/volatility-regime-analytics', label: 'Volatility Regime Analytics', Icon: TrendingUp    },
+  { to: '/black-start-capability',      label: 'Black Start Capability',       Icon: ShieldAlert   },
+  { to: '/ancillary-services-cost',     label: 'Ancillary Services Cost',      Icon: Gauge          },
+  { to: '/cbam-trade-analytics',       label: 'CBAM Trade Analytics',         Icon: Globe          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -562,6 +569,9 @@ export default function App() {
               <Route path="/planned-outage-analytics"    element={<PlannedOutageAnalytics />}      />
               <Route path="/market-share-tracker"        element={<MarketShareTracker />}          />
               <Route path="/volatility-regime-analytics" element={<VolatilityRegimeAnalytics />}   />
+              <Route path="/black-start-capability"      element={<BlackStartCapability />}         />
+              <Route path="/ancillary-services-cost"    element={<AncillaryServicesCost />}        />
+              <Route path="/cbam-trade-analytics"       element={<CbamTradeAnalytics />}          />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

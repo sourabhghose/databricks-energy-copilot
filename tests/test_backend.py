@@ -5571,3 +5571,390 @@ class TestVolatilityRegimeAnalytics:
         # All 4 regimes must appear as from_regime
         from_regimes = {t["from_regime"] for t in d["transitions"]}
         assert from_regimes == valid_t_regimes
+
+
+# ===========================================================================
+# Sprint 57b — Power System Black Start & System Restart Analytics
+# ===========================================================================
+
+class TestBlackStartCapability:
+    """Sprint 57b — Black Start & System Restart Analytics endpoint tests."""
+
+    def test_black_start_dashboard(self, client: TestClient) -> None:
+        resp = client.get(
+            "/api/black-start/dashboard",
+            headers={"x-api-key": "test-key"},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "restart_zones" in d
+        assert "black_start_units" in d
+        assert "system_strength" in d
+        assert "restore_progress" in d
+
+        # ------------------------------------------------------------------
+        # restart_zones: 10 records (2 per NEM region)
+        # ------------------------------------------------------------------
+        assert len(d["restart_zones"]) == 10
+        valid_regions = {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+        valid_adequacy = {"ADEQUATE", "MARGINAL", "INADEQUATE"}
+        regions_seen: set = set()
+        for zone in d["restart_zones"]:
+            assert zone["zone_id"].startswith("BSZ-")
+            assert zone["region"] in valid_regions
+            assert isinstance(zone["anchor_units"], list)
+            assert len(zone["anchor_units"]) >= 1
+            assert zone["total_black_start_mw"] > 0
+            assert zone["cranking_path"]
+            assert zone["estimated_restore_hours"] > 0
+            assert zone["zone_load_mw"] > 0
+            assert zone["adequacy_status"] in valid_adequacy
+            assert zone["last_tested_date"]
+            regions_seen.add(zone["region"])
+
+        # All 5 NEM regions must be present
+        assert regions_seen == valid_regions
+
+        # Each region must have exactly 2 zones
+        from collections import Counter
+        region_counts = Counter(z["region"] for z in d["restart_zones"])
+        assert all(c == 2 for c in region_counts.values())
+
+        # ------------------------------------------------------------------
+        # black_start_units: 12 records
+        # ------------------------------------------------------------------
+        assert len(d["black_start_units"]) == 12
+        valid_capability = {"FULL", "PARTIAL", "NONE"}
+        valid_contract = {"MARKET", "CONTRACTED", "MANDATORY"}
+        for unit in d["black_start_units"]:
+            assert unit["unit_id"]
+            assert unit["unit_name"]
+            assert unit["technology"]
+            assert unit["region"] in valid_regions
+            assert unit["black_start_capability"] in valid_capability
+            assert unit["cranking_power_mw"] >= 0
+            assert isinstance(unit["self_excitation"], bool)
+            assert unit["contract_type"] in valid_contract
+            assert unit["contract_value_m_aud_yr"] >= 0
+            assert unit["test_compliance"] in {"COMPLIANT", "NON_COMPLIANT"}
+
+        # FULL capability units must have cranking_power_mw > 0
+        for unit in d["black_start_units"]:
+            if unit["black_start_capability"] == "FULL":
+                assert unit["cranking_power_mw"] > 0
+
+        # MANDATORY contracts must have zero contract value (covered by regulation)
+        for unit in d["black_start_units"]:
+            if unit["contract_type"] == "MANDATORY":
+                assert unit["contract_value_m_aud_yr"] == 0
+
+        # ------------------------------------------------------------------
+        # system_strength: 5 records (one per NEM region)
+        # ------------------------------------------------------------------
+        assert len(d["system_strength"]) == 5
+        valid_strength_status = {"ADEQUATE", "MARGINAL", "INADEQUATE"}
+        strength_regions: set = set()
+        for ss in d["system_strength"]:
+            assert ss["region"] in valid_regions
+            assert ss["fault_level_mva"] > 0
+            assert ss["minimum_fault_level_mva"] > 0
+            assert ss["system_strength_status"] in valid_strength_status
+            assert ss["synchronous_generation_mw"] > 0
+            assert 0 <= ss["inverter_based_resources_pct"] <= 100
+            assert isinstance(ss["strength_providers"], list)
+            assert len(ss["strength_providers"]) >= 1
+            strength_regions.add(ss["region"])
+
+        assert strength_regions == valid_regions
+
+        # SA1 must be INADEQUATE (high IBR penetration scenario)
+        sa_strength = next(s for s in d["system_strength"] if s["region"] == "SA1")
+        assert sa_strength["system_strength_status"] == "INADEQUATE"
+        assert sa_strength["fault_level_mva"] < sa_strength["minimum_fault_level_mva"]
+
+        # SA1 must have the highest IBR percentage
+        ibr_pcts = {s["region"]: s["inverter_based_resources_pct"] for s in d["system_strength"]}
+        assert ibr_pcts["SA1"] == max(ibr_pcts.values())
+
+        # ------------------------------------------------------------------
+        # restore_progress: 20 records (10 hours × 2 scenarios)
+        # ------------------------------------------------------------------
+        assert len(d["restore_progress"]) == 20
+        valid_scenarios = {"BEST_CASE", "WORST_CASE"}
+        scenarios_seen: set = set()
+        for rp in d["restore_progress"]:
+            assert rp["scenario"] in valid_scenarios
+            assert rp["hour"] >= 0
+            assert rp["restored_load_mw"] >= 0
+            assert 0 <= rp["restored_load_pct"] <= 100
+            assert rp["active_zones"] >= 0
+            assert rp["generation_online_mw"] >= 0
+            assert rp["milestone"]
+            scenarios_seen.add(rp["scenario"])
+
+        assert scenarios_seen == valid_scenarios
+
+        # Each scenario must have exactly 10 hourly records
+        scenario_counts = Counter(r["scenario"] for r in d["restore_progress"])
+        assert all(c == 10 for c in scenario_counts.values())
+
+        # Business logic: BEST_CASE must restore more load than WORST_CASE at hour 5
+        best_h5 = next(
+            r["restored_load_pct"] for r in d["restore_progress"]
+            if r["scenario"] == "BEST_CASE" and r["hour"] == 5
+        )
+        worst_h5 = next(
+            r["restored_load_pct"] for r in d["restore_progress"]
+            if r["scenario"] == "WORST_CASE" and r["hour"] == 5
+        )
+        assert best_h5 > worst_h5
+
+        # Hour 0 should have 0% load restored for both scenarios
+        for rp in d["restore_progress"]:
+            if rp["hour"] == 0:
+                assert rp["restored_load_pct"] == 0.0
+                assert rp["restored_load_mw"] == 0.0
+
+
+# ===========================================================================
+# Sprint 57a — FCAS & Ancillary Services Cost Allocation Analytics
+# ===========================================================================
+
+class TestAncillaryServicesCost:
+    """Tests for GET /api/ancillary-cost/dashboard."""
+
+    def test_ancillary_cost_dashboard(self, client: TestClient) -> None:
+        resp = client.get(
+            "/api/ancillary-cost/dashboard",
+            headers={"x-api-key": "test-api-key"},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level keys
+        assert "timestamp" in d
+        assert "services" in d
+        assert "providers" in d
+        assert "cost_allocations" in d
+        assert "causer_pays" in d
+
+        # 24 service records: 8 services x 3 months
+        assert len(d["services"]) == 24
+        valid_services = {
+            "RAISE_6SEC", "RAISE_60SEC", "RAISE_5MIN",
+            "LOWER_6SEC", "LOWER_60SEC", "LOWER_5MIN",
+            "RAISE_REG", "LOWER_REG",
+        }
+        for svc in d["services"]:
+            assert svc["service"] in valid_services
+            assert svc["clearing_price_aud_mw"] > 0
+            assert svc["volume_mw"] > 0
+            assert svc["total_cost_m_aud"] > 0
+            assert svc["num_providers"] >= 1
+            assert 0 < svc["herfindahl_index"] < 1
+
+        # All 8 service types must be present
+        service_types_found = {s["service"] for s in d["services"]}
+        assert service_types_found == valid_services
+
+        # Months present: 2024-01, 2024-02, 2024-03
+        months_found = {s["month"] for s in d["services"]}
+        assert months_found == {"2024-01", "2024-02", "2024-03"}
+
+        # RAISE_REG must have highest average clearing price (regulation is most expensive)
+        by_service: dict = {}
+        for svc in d["services"]:
+            by_service.setdefault(svc["service"], []).append(svc["clearing_price_aud_mw"])
+        avg_prices = {k: sum(v) / len(v) for k, v in by_service.items()}
+        assert avg_prices["RAISE_REG"] > avg_prices["RAISE_6SEC"]
+        assert avg_prices["LOWER_REG"] > avg_prices["LOWER_6SEC"]
+
+        # 20 provider records
+        assert len(d["providers"]) == 20
+        for p in d["providers"]:
+            assert p["participant"]
+            assert p["service"]
+            assert p["enabled_mw"] > 0
+            assert p["revenue_m_aud"] > 0
+            assert 0 < p["market_share_pct"] <= 100
+            assert 0 < p["avg_enablement_rate_pct"] <= 100
+            assert p["technology"]
+
+        # 15 cost allocation records: 5 regions x 3 months
+        assert len(d["cost_allocations"]) == 15
+        valid_mechanisms = {"CAUSER_PAYS", "PRO_RATA"}
+        valid_regions = {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}
+        for ca in d["cost_allocations"]:
+            assert ca["region"] in valid_regions
+            assert ca["allocation_mechanism"] in valid_mechanisms
+            assert ca["total_fcas_cost_m_aud"] > 0
+            assert 0 < ca["energy_market_share_pct"] <= 100
+            assert ca["allocated_cost_m_aud"] > 0
+            assert ca["cost_per_mwh_aud"] > 0
+
+        # All 5 regions must appear
+        regions_found = {ca["region"] for ca in d["cost_allocations"]}
+        assert regions_found == valid_regions
+
+        # SA1 must have highest cost_per_mwh_aud among all allocations
+        sa1_cpMwh = [ca["cost_per_mwh_aud"] for ca in d["cost_allocations"] if ca["region"] == "SA1"]
+        other_avg = [ca["cost_per_mwh_aud"] for ca in d["cost_allocations"] if ca["region"] != "SA1"]
+        assert min(sa1_cpMwh) > min(other_avg)
+
+        # NSW1 must have highest energy_market_share_pct
+        nsw_shares = [ca["energy_market_share_pct"] for ca in d["cost_allocations"] if ca["region"] == "NSW1"]
+        qld_shares = [ca["energy_market_share_pct"] for ca in d["cost_allocations"] if ca["region"] == "QLD1"]
+        assert sum(nsw_shares) / len(nsw_shares) > sum(qld_shares) / len(qld_shares)
+
+        # 12 causer-pays records
+        assert len(d["causer_pays"]) == 12
+        valid_cause_types = {
+            "LOAD_VARIATION", "GENERATION_VARIATION", "INTERCONNECTOR", "MARKET_NOTICE"
+        }
+        for cp in d["causer_pays"]:
+            assert cp["participant"]
+            assert cp["service"]
+            assert 0 < cp["causer_pays_factor"] < 1
+            assert cp["cost_contribution_m_aud"] > 0
+            assert cp["cause_type"] in valid_cause_types
+            assert cp["month"] in {"2024-01", "2024-02", "2024-03"}
+
+        # Causer-pays factors must be strictly decreasing when sorted
+        factors = sorted([cp["causer_pays_factor"] for cp in d["causer_pays"]], reverse=True)
+        assert factors == sorted(factors, reverse=True)
+
+        # Business logic: highest factor participant should be AGL Energy (0.182)
+        top_cp = max(d["causer_pays"], key=lambda x: x["causer_pays_factor"])
+        assert top_cp["participant"] == "AGL Energy"
+        assert top_cp["causer_pays_factor"] == pytest.approx(0.182, abs=0.001)
+
+        # INTERCONNECTOR cause types must be present
+        cause_types_found = {cp["cause_type"] for cp in d["causer_pays"]}
+        assert "INTERCONNECTOR" in cause_types_found
+        assert "GENERATION_VARIATION" in cause_types_found
+
+
+class TestCbamTradeAnalytics:
+    """Sprint 57c — CBAM & Australian Export Trade Analytics endpoint tests."""
+
+    def test_cbam_trade_dashboard(self, client: TestClient) -> None:
+        resp = client.get(
+            "/api/cbam-trade/dashboard",
+            headers={"x-api-key": "test-key"},
+        )
+        assert resp.status_code == 200
+        d = resp.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "export_sectors" in d
+        assert "trade_flows" in d
+        assert "clean_exports" in d
+        assert "policies" in d
+
+        # export_sectors: exactly 8 records
+        assert len(d["export_sectors"]) == 8
+        valid_sectors = {
+            "ALUMINIUM", "STEEL", "CEMENT", "CHEMICALS",
+            "LNG", "CLEAN_HYDROGEN", "GREEN_AMMONIA", "BATTERY_MATERIALS",
+        }
+        sectors_seen = set()
+        for s in d["export_sectors"]:
+            assert s["sector"] in valid_sectors
+            assert s["export_value_bn_aud"] > 0
+            assert s["carbon_intensity_tco2_per_tonne"] >= 0
+            assert s["cbam_exposure_m_aud"] >= 0
+            assert isinstance(s["clean_alternative_available"], bool)
+            assert s["transition_timeline_years"] >= 0
+            assert s["australian_competitive_advantage"]
+            sectors_seen.add(s["sector"])
+        assert sectors_seen == valid_sectors
+
+        # CBAM_EXPOSURE: CLEAN_HYDROGEN and GREEN_AMMONIA should be 0
+        zero_exposure = {
+            s["sector"]
+            for s in d["export_sectors"]
+            if s["cbam_exposure_m_aud"] == 0.0
+        }
+        assert "CLEAN_HYDROGEN" in zero_exposure
+        assert "GREEN_AMMONIA" in zero_exposure
+
+        # ALUMINIUM must have the highest CBAM exposure
+        by_sector = {s["sector"]: s for s in d["export_sectors"]}
+        assert by_sector["ALUMINIUM"]["cbam_exposure_m_aud"] == max(
+            s["cbam_exposure_m_aud"] for s in d["export_sectors"]
+        )
+
+        # trade_flows: exactly 20 records (10 partners × 2 sectors)
+        assert len(d["trade_flows"]) == 20
+        partners_seen = set()
+        for f in d["trade_flows"]:
+            assert f["trading_partner"]
+            assert f["sector"]
+            assert f["export_volume_kt"] > 0
+            assert f["embedded_carbon_kt_co2"] > 0
+            assert 0 < f["cbam_tariff_rate_pct"] <= 10
+            assert f["cbam_cost_m_aud"] >= 0
+            assert f["year"] == 2025
+            partners_seen.add(f["trading_partner"])
+        assert len(partners_seen) == 10
+
+        # EU must have the highest tariff rate
+        eu_rates = [f["cbam_tariff_rate_pct"] for f in d["trade_flows"] if f["trading_partner"] == "European Union"]
+        max_rate = max(f["cbam_tariff_rate_pct"] for f in d["trade_flows"])
+        assert all(r == max_rate for r in eu_rates)
+
+        # clean_exports: exactly 6 records
+        assert len(d["clean_exports"]) == 6
+        valid_products = {
+            "GREEN_HYDROGEN", "GREEN_AMMONIA", "GREEN_STEEL",
+            "CLEAN_ALUMINUM", "SILICON_METAL", "LITHIUM_HYDROXIDE",
+        }
+        products_seen = set()
+        for c in d["clean_exports"]:
+            assert c["product"] in valid_products
+            assert c["production_cost_aud_tonne"] > 0
+            assert c["target_price_aud_tonne"] > 0
+            assert c["market_size_bn_aud"] > 0
+            assert c["competitiveness_rank"] >= 1
+            assert len(c["key_markets"]) >= 1
+            assert c["target_2030_kt"] > 0
+            products_seen.add(c["product"])
+        assert products_seen == valid_products
+
+        # LITHIUM_HYDROXIDE should have the largest market size (120 bn AUD)
+        by_product = {c["product"]: c for c in d["clean_exports"]}
+        assert by_product["LITHIUM_HYDROXIDE"]["market_size_bn_aud"] == max(
+            c["market_size_bn_aud"] for c in d["clean_exports"]
+        )
+
+        # policies: exactly 5 records
+        assert len(d["policies"]) == 5
+        valid_statuses = {"ENACTED", "PROPOSED", "UNDER_REVIEW"}
+        countries_seen = set()
+        for p in d["policies"]:
+            assert p["country"]
+            assert p["policy_name"]
+            assert p["implementation_year"] >= 2025
+            assert p["carbon_price_aud_tonne"] > 0
+            assert len(p["sectors_covered"]) >= 1
+            assert p["australia_exposure_m_aud"] >= 0
+            assert p["policy_status"] in valid_statuses
+            countries_seen.add(p["country"])
+        assert len(countries_seen) == 5
+
+        # EU must be ENACTED and have highest AU exposure
+        by_country = {p["country"]: p for p in d["policies"]}
+        assert by_country["European Union"]["policy_status"] == "ENACTED"
+        assert by_country["United Kingdom"]["policy_status"] == "ENACTED"
+        assert by_country["European Union"]["australia_exposure_m_aud"] == max(
+            p["australia_exposure_m_aud"] for p in d["policies"]
+        )
+
+        # EU must have highest carbon price
+        assert by_country["European Union"]["carbon_price_aud_tonne"] == max(
+            p["carbon_price_aud_tonne"] for p in d["policies"]
+        )
