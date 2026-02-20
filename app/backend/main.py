@@ -38452,3 +38452,741 @@ def get_isp_progress_scenarios():
 )
 def get_isp_progress_delivery_risks():
     return _ISP_DELIVERY_RISKS
+
+
+# ---------------------------------------------------------------------------
+# Sprint 53c — Firming Technology Economics
+# ---------------------------------------------------------------------------
+
+class FirmingTechnologyRecord(BaseModel):
+    tech_id: str
+    name: str  # OCGT/CCGT/HYDROGEN_TURBINE/BATTERY_4HR/BATTERY_8HR/PUMPED_HYDRO/BIOMASS/DEMAND_RESPONSE
+    category: str  # GENERATION/STORAGE/DEMAND
+    capex_m_aud_mw: float
+    opex_m_aud_mw_yr: float
+    lcos_aud_mwh: float
+    capacity_factor_pct: float
+    response_time_min: float
+    duration_hours: Optional[float]
+    co2_kg_mwh: float
+    commercial_maturity: str  # COMMERCIAL/DEMONSTRATION/EMERGING
+
+
+class FirmingDispatchRecord(BaseModel):
+    tech_id: str
+    scenario: str
+    dispatch_events_yr: int
+    avg_duration_hr: float
+    avg_revenue_m_aud_yr: float
+    capacity_payment_m_aud_yr: float
+    total_revenue_m_aud_yr: float
+
+
+class FirmingCostCurveRecord(BaseModel):
+    scenario: str
+    firming_requirement_pct: float
+    avg_firming_cost_aud_mwh: float
+    optimal_mix_str: str
+    total_system_cost_m_aud_yr: float
+
+
+class FirmingScenarioRecord(BaseModel):
+    scenario_id: str
+    name: str  # HIGH_VRE_90PCT/MEDIUM_VRE_70PCT/LOW_VRE_50PCT
+    vre_penetration_pct: float
+    firming_capacity_gw: float
+    recommended_mix: str
+    avg_lcoe_aud_mwh: float
+
+
+class FirmingTechDashboard(BaseModel):
+    timestamp: str
+    technologies: List[FirmingTechnologyRecord]
+    dispatch_records: List[FirmingDispatchRecord]
+    cost_curves: List[FirmingCostCurveRecord]
+    scenarios: List[FirmingScenarioRecord]
+
+
+# --- mock data ---
+
+_FIRMING_TECHNOLOGIES: List[FirmingTechnologyRecord] = [
+    FirmingTechnologyRecord(
+        tech_id="OCGT",
+        name="OCGT",
+        category="GENERATION",
+        capex_m_aud_mw=0.95,
+        opex_m_aud_mw_yr=0.018,
+        lcos_aud_mwh=185.0,
+        capacity_factor_pct=8.5,
+        response_time_min=10.0,
+        duration_hours=None,
+        co2_kg_mwh=580.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="CCGT",
+        name="CCGT",
+        category="GENERATION",
+        capex_m_aud_mw=1.45,
+        opex_m_aud_mw_yr=0.022,
+        lcos_aud_mwh=145.0,
+        capacity_factor_pct=35.0,
+        response_time_min=20.0,
+        duration_hours=None,
+        co2_kg_mwh=390.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="HYDROGEN_TURBINE",
+        name="HYDROGEN_TURBINE",
+        category="GENERATION",
+        capex_m_aud_mw=1.80,
+        opex_m_aud_mw_yr=0.028,
+        lcos_aud_mwh=320.0,
+        capacity_factor_pct=12.0,
+        response_time_min=8.0,
+        duration_hours=None,
+        co2_kg_mwh=5.0,
+        commercial_maturity="DEMONSTRATION",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="BATTERY_4HR",
+        name="BATTERY_4HR",
+        category="STORAGE",
+        capex_m_aud_mw=1.20,
+        opex_m_aud_mw_yr=0.012,
+        lcos_aud_mwh=135.0,
+        capacity_factor_pct=18.0,
+        response_time_min=0.03,
+        duration_hours=4.0,
+        co2_kg_mwh=28.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="BATTERY_8HR",
+        name="BATTERY_8HR",
+        category="STORAGE",
+        capex_m_aud_mw=2.10,
+        opex_m_aud_mw_yr=0.016,
+        lcos_aud_mwh=175.0,
+        capacity_factor_pct=22.0,
+        response_time_min=0.03,
+        duration_hours=8.0,
+        co2_kg_mwh=28.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="PUMPED_HYDRO",
+        name="PUMPED_HYDRO",
+        category="STORAGE",
+        capex_m_aud_mw=3.80,
+        opex_m_aud_mw_yr=0.009,
+        lcos_aud_mwh=115.0,
+        capacity_factor_pct=25.0,
+        response_time_min=2.0,
+        duration_hours=24.0,
+        co2_kg_mwh=12.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="BIOMASS",
+        name="BIOMASS",
+        category="GENERATION",
+        capex_m_aud_mw=4.20,
+        opex_m_aud_mw_yr=0.055,
+        lcos_aud_mwh=235.0,
+        capacity_factor_pct=65.0,
+        response_time_min=60.0,
+        duration_hours=None,
+        co2_kg_mwh=25.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+    FirmingTechnologyRecord(
+        tech_id="DEMAND_RESPONSE",
+        name="DEMAND_RESPONSE",
+        category="DEMAND",
+        capex_m_aud_mw=0.08,
+        opex_m_aud_mw_yr=0.004,
+        lcos_aud_mwh=65.0,
+        capacity_factor_pct=5.0,
+        response_time_min=15.0,
+        duration_hours=4.0,
+        co2_kg_mwh=0.0,
+        commercial_maturity="COMMERCIAL",
+    ),
+]
+
+_FIRMING_DISPATCH_RECORDS: List[FirmingDispatchRecord] = [
+    # HIGH_VRE_90PCT scenario
+    FirmingDispatchRecord(tech_id="OCGT",             scenario="HIGH_VRE_90PCT", dispatch_events_yr=82,  avg_duration_hr=3.2,  avg_revenue_m_aud_yr=18.5, capacity_payment_m_aud_yr=6.2,  total_revenue_m_aud_yr=24.7),
+    FirmingDispatchRecord(tech_id="CCGT",             scenario="HIGH_VRE_90PCT", dispatch_events_yr=45,  avg_duration_hr=8.5,  avg_revenue_m_aud_yr=22.8, capacity_payment_m_aud_yr=9.5,  total_revenue_m_aud_yr=32.3),
+    FirmingDispatchRecord(tech_id="HYDROGEN_TURBINE", scenario="HIGH_VRE_90PCT", dispatch_events_yr=68,  avg_duration_hr=4.1,  avg_revenue_m_aud_yr=15.2, capacity_payment_m_aud_yr=7.8,  total_revenue_m_aud_yr=23.0),
+    FirmingDispatchRecord(tech_id="BATTERY_4HR",      scenario="HIGH_VRE_90PCT", dispatch_events_yr=245, avg_duration_hr=3.8,  avg_revenue_m_aud_yr=28.6, capacity_payment_m_aud_yr=5.4,  total_revenue_m_aud_yr=34.0),
+    FirmingDispatchRecord(tech_id="BATTERY_8HR",      scenario="HIGH_VRE_90PCT", dispatch_events_yr=185, avg_duration_hr=7.2,  avg_revenue_m_aud_yr=35.4, capacity_payment_m_aud_yr=8.1,  total_revenue_m_aud_yr=43.5),
+    FirmingDispatchRecord(tech_id="PUMPED_HYDRO",     scenario="HIGH_VRE_90PCT", dispatch_events_yr=120, avg_duration_hr=18.5, avg_revenue_m_aud_yr=42.8, capacity_payment_m_aud_yr=12.6, total_revenue_m_aud_yr=55.4),
+    FirmingDispatchRecord(tech_id="BIOMASS",          scenario="HIGH_VRE_90PCT", dispatch_events_yr=35,  avg_duration_hr=24.0, avg_revenue_m_aud_yr=19.5, capacity_payment_m_aud_yr=8.9,  total_revenue_m_aud_yr=28.4),
+    FirmingDispatchRecord(tech_id="DEMAND_RESPONSE",  scenario="HIGH_VRE_90PCT", dispatch_events_yr=95,  avg_duration_hr=3.0,  avg_revenue_m_aud_yr=8.2,  capacity_payment_m_aud_yr=3.1,  total_revenue_m_aud_yr=11.3),
+    # MEDIUM_VRE_70PCT scenario
+    FirmingDispatchRecord(tech_id="OCGT",             scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=55,  avg_duration_hr=4.8,  avg_revenue_m_aud_yr=14.2, capacity_payment_m_aud_yr=5.5, total_revenue_m_aud_yr=19.7),
+    FirmingDispatchRecord(tech_id="CCGT",             scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=68,  avg_duration_hr=10.2, avg_revenue_m_aud_yr=28.5, capacity_payment_m_aud_yr=10.2, total_revenue_m_aud_yr=38.7),
+    FirmingDispatchRecord(tech_id="HYDROGEN_TURBINE", scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=42,  avg_duration_hr=5.5,  avg_revenue_m_aud_yr=11.8, capacity_payment_m_aud_yr=6.2, total_revenue_m_aud_yr=18.0),
+    FirmingDispatchRecord(tech_id="BATTERY_4HR",      scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=165, avg_duration_hr=3.5,  avg_revenue_m_aud_yr=20.4, capacity_payment_m_aud_yr=4.8, total_revenue_m_aud_yr=25.2),
+    FirmingDispatchRecord(tech_id="BATTERY_8HR",      scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=120, avg_duration_hr=6.8,  avg_revenue_m_aud_yr=28.2, capacity_payment_m_aud_yr=7.5, total_revenue_m_aud_yr=35.7),
+    FirmingDispatchRecord(tech_id="PUMPED_HYDRO",     scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=85,  avg_duration_hr=16.0, avg_revenue_m_aud_yr=35.6, capacity_payment_m_aud_yr=11.2, total_revenue_m_aud_yr=46.8),
+    FirmingDispatchRecord(tech_id="BIOMASS",          scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=55,  avg_duration_hr=22.0, avg_revenue_m_aud_yr=24.8, capacity_payment_m_aud_yr=9.2, total_revenue_m_aud_yr=34.0),
+    FirmingDispatchRecord(tech_id="DEMAND_RESPONSE",  scenario="MEDIUM_VRE_70PCT", dispatch_events_yr=65,  avg_duration_hr=2.8,  avg_revenue_m_aud_yr=6.5,  capacity_payment_m_aud_yr=2.8, total_revenue_m_aud_yr=9.3),
+]
+
+_FIRMING_COST_CURVES: List[FirmingCostCurveRecord] = [
+    # HIGH_VRE_90PCT
+    FirmingCostCurveRecord(scenario="HIGH_VRE_90PCT", firming_requirement_pct=10.0, avg_firming_cost_aud_mwh=45.0,  optimal_mix_str="Battery 60% + OCGT 40%",          total_system_cost_m_aud_yr=820.0),
+    FirmingCostCurveRecord(scenario="HIGH_VRE_90PCT", firming_requirement_pct=15.0, avg_firming_cost_aud_mwh=62.0,  optimal_mix_str="Battery 50% + OCGT 35% + DR 15%",  total_system_cost_m_aud_yr=1140.0),
+    FirmingCostCurveRecord(scenario="HIGH_VRE_90PCT", firming_requirement_pct=20.0, avg_firming_cost_aud_mwh=82.0,  optimal_mix_str="PHES 40% + Battery 40% + OCGT 20%", total_system_cost_m_aud_yr=1520.0),
+    FirmingCostCurveRecord(scenario="HIGH_VRE_90PCT", firming_requirement_pct=25.0, avg_firming_cost_aud_mwh=105.0, optimal_mix_str="PHES 45% + CCGT 30% + Battery 25%", total_system_cost_m_aud_yr=1950.0),
+    FirmingCostCurveRecord(scenario="HIGH_VRE_90PCT", firming_requirement_pct=30.0, avg_firming_cost_aud_mwh=132.0, optimal_mix_str="PHES 50% + CCGT 35% + H2 15%",      total_system_cost_m_aud_yr=2450.0),
+    # MEDIUM_VRE_70PCT
+    FirmingCostCurveRecord(scenario="MEDIUM_VRE_70PCT", firming_requirement_pct=10.0, avg_firming_cost_aud_mwh=38.0, optimal_mix_str="CCGT 50% + Battery 30% + DR 20%",   total_system_cost_m_aud_yr=680.0),
+    FirmingCostCurveRecord(scenario="MEDIUM_VRE_70PCT", firming_requirement_pct=15.0, avg_firming_cost_aud_mwh=52.0, optimal_mix_str="CCGT 45% + Battery 35% + OCGT 20%", total_system_cost_m_aud_yr=940.0),
+    FirmingCostCurveRecord(scenario="MEDIUM_VRE_70PCT", firming_requirement_pct=20.0, avg_firming_cost_aud_mwh=68.0, optimal_mix_str="PHES 35% + CCGT 40% + Battery 25%", total_system_cost_m_aud_yr=1240.0),
+    FirmingCostCurveRecord(scenario="MEDIUM_VRE_70PCT", firming_requirement_pct=25.0, avg_firming_cost_aud_mwh=88.0, optimal_mix_str="PHES 40% + CCGT 35% + OCGT 25%",   total_system_cost_m_aud_yr=1620.0),
+    FirmingCostCurveRecord(scenario="MEDIUM_VRE_70PCT", firming_requirement_pct=30.0, avg_firming_cost_aud_mwh=112.0, optimal_mix_str="PHES 45% + CCGT 40% + Biomass 15%", total_system_cost_m_aud_yr=2060.0),
+    # LOW_VRE_50PCT
+    FirmingCostCurveRecord(scenario="LOW_VRE_50PCT", firming_requirement_pct=10.0, avg_firming_cost_aud_mwh=28.0, optimal_mix_str="CCGT 60% + Battery 25% + DR 15%",   total_system_cost_m_aud_yr=510.0),
+    FirmingCostCurveRecord(scenario="LOW_VRE_50PCT", firming_requirement_pct=15.0, avg_firming_cost_aud_mwh=38.0, optimal_mix_str="CCGT 55% + Battery 30% + OCGT 15%", total_system_cost_m_aud_yr=695.0),
+    FirmingCostCurveRecord(scenario="LOW_VRE_50PCT", firming_requirement_pct=20.0, avg_firming_cost_aud_mwh=50.0, optimal_mix_str="CCGT 50% + PHES 30% + Battery 20%", total_system_cost_m_aud_yr=920.0),
+    FirmingCostCurveRecord(scenario="LOW_VRE_50PCT", firming_requirement_pct=25.0, avg_firming_cost_aud_mwh=65.0, optimal_mix_str="CCGT 45% + PHES 35% + Biomass 20%", total_system_cost_m_aud_yr=1195.0),
+    FirmingCostCurveRecord(scenario="LOW_VRE_50PCT", firming_requirement_pct=30.0, avg_firming_cost_aud_mwh=84.0, optimal_mix_str="CCGT 40% + PHES 40% + OCGT 20%",   total_system_cost_m_aud_yr=1545.0),
+]
+
+_FIRMING_SCENARIOS: List[FirmingScenarioRecord] = [
+    FirmingScenarioRecord(
+        scenario_id="HIGH_VRE_90PCT",
+        name="HIGH_VRE_90PCT",
+        vre_penetration_pct=90.0,
+        firming_capacity_gw=18.5,
+        recommended_mix="PHES 45% + Battery 8HR 25% + CCGT 20% + H2 Turbine 10%",
+        avg_lcoe_aud_mwh=95.0,
+    ),
+    FirmingScenarioRecord(
+        scenario_id="MEDIUM_VRE_70PCT",
+        name="MEDIUM_VRE_70PCT",
+        vre_penetration_pct=70.0,
+        firming_capacity_gw=13.2,
+        recommended_mix="CCGT 40% + Battery 4HR 30% + PHES 20% + DR 10%",
+        avg_lcoe_aud_mwh=82.0,
+    ),
+    FirmingScenarioRecord(
+        scenario_id="LOW_VRE_50PCT",
+        name="LOW_VRE_50PCT",
+        vre_penetration_pct=50.0,
+        firming_capacity_gw=8.8,
+        recommended_mix="CCGT 55% + Battery 4HR 25% + OCGT 15% + DR 5%",
+        avg_lcoe_aud_mwh=72.0,
+    ),
+]
+
+
+def _make_firming_tech_dashboard() -> FirmingTechDashboard:
+    return FirmingTechDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        technologies=_FIRMING_TECHNOLOGIES,
+        dispatch_records=_FIRMING_DISPATCH_RECORDS,
+        cost_curves=_FIRMING_COST_CURVES,
+        scenarios=_FIRMING_SCENARIOS,
+    )
+
+
+@app.get(
+    "/api/firming-technology/dashboard",
+    response_model=FirmingTechDashboard,
+    tags=["Firming Technology Economics"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_firming_technology_dashboard():
+    return _make_firming_tech_dashboard()
+
+
+# ===========================================================================
+# Sprint 53a — Energy Market Stress Testing
+# ===========================================================================
+
+from enum import Enum as PyEnum
+
+
+class MSTSeverity(str, PyEnum):
+    MILD = "MILD"
+    MODERATE = "MODERATE"
+    SEVERE = "SEVERE"
+    EXTREME = "EXTREME"
+
+
+class MSTMetric(str, PyEnum):
+    PRICE = "PRICE"
+    AVAILABILITY = "AVAILABILITY"
+    RELIABILITY = "RELIABILITY"
+    REVENUE = "REVENUE"
+
+
+class MSTComponent(str, PyEnum):
+    SOLAR_GENERATION = "SOLAR_GENERATION"
+    WIND_GENERATION = "WIND_GENERATION"
+    GAS_SUPPLY = "GAS_SUPPLY"
+    INTERCONNECTOR = "INTERCONNECTOR"
+    DEMAND = "DEMAND"
+    STORAGE = "STORAGE"
+
+
+class MarketStressScenario(BaseModel):
+    scenario_id: str
+    name: str
+    description: str
+    trigger_event: str
+    severity: MSTSeverity
+    probability_pct: float
+    duration_days: int
+
+
+class StressTestResult(BaseModel):
+    scenario_id: str
+    region: str
+    metric: MSTMetric
+    baseline_value: float
+    stressed_value: float
+    impact_pct: float
+    recovery_days: int
+
+
+class SystemVulnerabilityRecord(BaseModel):
+    component: MSTComponent
+    vulnerability_score: float
+    single_point_of_failure: bool
+    mitigation_status: str
+
+
+class StressTestKpiRecord(BaseModel):
+    scenario: str
+    avg_price_spike_pct: float
+    max_price_aud_mwh: float
+    unserved_energy_mwh: float
+    affected_consumers_k: float
+    economic_cost_m_aud: float
+
+
+class MarketStressDashboard(BaseModel):
+    timestamp: str
+    scenarios: list[MarketStressScenario]
+    results: list[StressTestResult]
+    vulnerabilities: list[SystemVulnerabilityRecord]
+    kpis: list[StressTestKpiRecord]
+
+
+_MST_SCENARIOS: list[MarketStressScenario] = [
+    MarketStressScenario(
+        scenario_id="SC001",
+        name="Heatwave Demand Surge",
+        description="Prolonged heatwave drives peak residential and commercial cooling demand above 35 GW across eastern states, straining NEM dispatch capacity and triggering price cap events.",
+        trigger_event="7-day sustained temperatures >42°C across QLD, NSW, VIC simultaneously",
+        severity=MSTSeverity.SEVERE,
+        probability_pct=12.5,
+        duration_days=7,
+    ),
+    MarketStressScenario(
+        scenario_id="SC002",
+        name="Gas Supply Disruption",
+        description="Major east-coast gas pipeline failure curtails gas-fired generation capacity by 3,200 MW during winter peak, forcing expensive diesel backup and significant price spikes.",
+        trigger_event="Longford gas processing plant outage combined with STTM shortfall",
+        severity=MSTSeverity.SEVERE,
+        probability_pct=8.3,
+        duration_days=14,
+    ),
+    MarketStressScenario(
+        scenario_id="SC003",
+        name="Basslink Cable Trip",
+        description="Unplanned Basslink HVDC interconnector outage isolates Tasmania from mainland NEM, eliminating ~600 MW import capability and creating islanded system operation risk.",
+        trigger_event="Basslink cable fault requiring 45-day repair schedule",
+        severity=MSTSeverity.MODERATE,
+        probability_pct=18.7,
+        duration_days=45,
+    ),
+    MarketStressScenario(
+        scenario_id="SC004",
+        name="Cyber Attack on SCADA",
+        description="Sophisticated state-actor cyber intrusion compromises AEMO SCADA/EMS systems, degrading real-time visibility of 1,800 monitoring points and forcing manual dispatch protocols.",
+        trigger_event="Zero-day exploit targeting industrial control systems across multiple DUIDs",
+        severity=MSTSeverity.EXTREME,
+        probability_pct=2.1,
+        duration_days=5,
+    ),
+    MarketStressScenario(
+        scenario_id="SC005",
+        name="Extreme Wind Drought",
+        description="Blocking high-pressure system causes 10-day near-zero wind generation across SA, VIC, and NSW simultaneously, removing ~8,500 MW of nameplate wind capacity from dispatch.",
+        trigger_event="Persistent anticyclone centred over Great Australian Bight",
+        severity=MSTSeverity.SEVERE,
+        probability_pct=9.4,
+        duration_days=10,
+    ),
+    MarketStressScenario(
+        scenario_id="SC006",
+        name="Solar Eclipse Event",
+        description="Total solar eclipse traversing NSW and QLD causes rapid 6,200 MW solar generation ramp-down over 4 minutes, testing FCAS markets and AEMO's inertia management protocols.",
+        trigger_event="Annular solar eclipse path crossing NEM solar-heavy regions at 1 PM peak",
+        severity=MSTSeverity.MILD,
+        probability_pct=0.3,
+        duration_days=1,
+    ),
+    MarketStressScenario(
+        scenario_id="SC007",
+        name="Major Generator Failure",
+        description="Simultaneous unplanned outage of Eraring (2,880 MW) and Loy Yang A Unit 4 (560 MW) reduces available capacity by 3,440 MW, triggering LOR3 conditions and RERT activation.",
+        trigger_event="Boiler tube failure at Eraring coinciding with Loy Yang A transformer fault",
+        severity=MSTSeverity.SEVERE,
+        probability_pct=5.8,
+        duration_days=21,
+    ),
+    MarketStressScenario(
+        scenario_id="SC008",
+        name="Combined Heatwave + Wind Drought",
+        description="Compound extreme event combining 40°C+ temperatures with near-zero wind across all eastern states, representing the worst-case scenario for NEM security and price outcomes.",
+        trigger_event="Omega blocking pattern driving simultaneous heatwave and wind drought across NEM",
+        severity=MSTSeverity.EXTREME,
+        probability_pct=1.7,
+        duration_days=6,
+    ),
+]
+
+_MST_RESULTS: list[StressTestResult] = [
+    # SC001 — Heatwave across 5 regions
+    StressTestResult(scenario_id="SC001", region="NSW1", metric=MSTMetric.PRICE, baseline_value=87.50, stressed_value=14500.00, impact_pct=16471.4, recovery_days=3),
+    StressTestResult(scenario_id="SC001", region="VIC1", metric=MSTMetric.PRICE, baseline_value=82.30, stressed_value=15100.00, impact_pct=18248.1, recovery_days=3),
+    StressTestResult(scenario_id="SC001", region="QLD1", metric=MSTMetric.PRICE, baseline_value=91.10, stressed_value=13800.00, impact_pct=15051.6, recovery_days=2),
+    StressTestResult(scenario_id="SC001", region="SA1",  metric=MSTMetric.PRICE, baseline_value=95.40, stressed_value=16600.00, impact_pct=17297.7, recovery_days=4),
+    StressTestResult(scenario_id="SC001", region="TAS1", metric=MSTMetric.PRICE, baseline_value=78.20, stressed_value=9800.00,  impact_pct=12432.2, recovery_days=2),
+    # SC002 — Gas supply
+    StressTestResult(scenario_id="SC002", region="NSW1", metric=MSTMetric.AVAILABILITY, baseline_value=14200.0, stressed_value=11000.0, impact_pct=-22.5, recovery_days=10),
+    StressTestResult(scenario_id="SC002", region="VIC1", metric=MSTMetric.AVAILABILITY, baseline_value=9800.0,  stressed_value=7200.0,  impact_pct=-26.5, recovery_days=14),
+    StressTestResult(scenario_id="SC002", region="QLD1", metric=MSTMetric.AVAILABILITY, baseline_value=12400.0, stressed_value=9600.0,  impact_pct=-22.6, recovery_days=8),
+    StressTestResult(scenario_id="SC002", region="SA1",  metric=MSTMetric.AVAILABILITY, baseline_value=3800.0,  stressed_value=2200.0,  impact_pct=-42.1, recovery_days=12),
+    StressTestResult(scenario_id="SC002", region="TAS1", metric=MSTMetric.AVAILABILITY, baseline_value=2900.0,  stressed_value=2700.0,  impact_pct=-6.9,  recovery_days=5),
+    # SC003 — Basslink
+    StressTestResult(scenario_id="SC003", region="TAS1", metric=MSTMetric.RELIABILITY, baseline_value=99.97, stressed_value=98.80, impact_pct=-1.17, recovery_days=45),
+    StressTestResult(scenario_id="SC003", region="VIC1", metric=MSTMetric.RELIABILITY, baseline_value=99.95, stressed_value=99.71, impact_pct=-0.24, recovery_days=20),
+    StressTestResult(scenario_id="SC003", region="SA1",  metric=MSTMetric.RELIABILITY, baseline_value=99.92, stressed_value=99.65, impact_pct=-0.27, recovery_days=15),
+    StressTestResult(scenario_id="SC003", region="NSW1", metric=MSTMetric.RELIABILITY, baseline_value=99.96, stressed_value=99.88, impact_pct=-0.08, recovery_days=10),
+    StressTestResult(scenario_id="SC003", region="QLD1", metric=MSTMetric.RELIABILITY, baseline_value=99.94, stressed_value=99.90, impact_pct=-0.04, recovery_days=5),
+    # SC008 — Combined extreme (price metric for comparison)
+    StressTestResult(scenario_id="SC008", region="NSW1", metric=MSTMetric.PRICE, baseline_value=87.50, stressed_value=15100.00, impact_pct=17257.1, recovery_days=5),
+    StressTestResult(scenario_id="SC008", region="VIC1", metric=MSTMetric.PRICE, baseline_value=82.30, stressed_value=15500.00, impact_pct=18834.7, recovery_days=6),
+    StressTestResult(scenario_id="SC008", region="QLD1", metric=MSTMetric.PRICE, baseline_value=91.10, stressed_value=15100.00, impact_pct=16476.4, recovery_days=5),
+    StressTestResult(scenario_id="SC008", region="SA1",  metric=MSTMetric.PRICE, baseline_value=95.40, stressed_value=15500.00, impact_pct=16146.5, recovery_days=6),
+    StressTestResult(scenario_id="SC008", region="TAS1", metric=MSTMetric.PRICE, baseline_value=78.20, stressed_value=12400.00, impact_pct=15764.7, recovery_days=4),
+]
+
+_MST_VULNERABILITIES: list[SystemVulnerabilityRecord] = [
+    SystemVulnerabilityRecord(
+        component=MSTComponent.SOLAR_GENERATION,
+        vulnerability_score=62.0,
+        single_point_of_failure=False,
+        mitigation_status="FCAS procurement increased; minimum inertia floor in place",
+    ),
+    SystemVulnerabilityRecord(
+        component=MSTComponent.WIND_GENERATION,
+        vulnerability_score=71.0,
+        single_point_of_failure=False,
+        mitigation_status="Diverse geographic spread; storage co-location mandated from 2025",
+    ),
+    SystemVulnerabilityRecord(
+        component=MSTComponent.GAS_SUPPLY,
+        vulnerability_score=79.0,
+        single_point_of_failure=True,
+        mitigation_status="Gas supply emergency protocol active; LNG import terminal under review",
+    ),
+    SystemVulnerabilityRecord(
+        component=MSTComponent.INTERCONNECTOR,
+        vulnerability_score=55.0,
+        single_point_of_failure=True,
+        mitigation_status="Basslink reliability upgrade approved; HumeLink adds NSW-VIC redundancy",
+    ),
+    SystemVulnerabilityRecord(
+        component=MSTComponent.DEMAND,
+        vulnerability_score=68.0,
+        single_point_of_failure=False,
+        mitigation_status="RERT panels expanded; VPP demand response aggregators registered",
+    ),
+    SystemVulnerabilityRecord(
+        component=MSTComponent.STORAGE,
+        vulnerability_score=44.0,
+        single_point_of_failure=False,
+        mitigation_status="Big Battery SA and VIC operational; 9 GWh additional BESS by 2027",
+    ),
+]
+
+_MST_KPIS: list[StressTestKpiRecord] = [
+    StressTestKpiRecord(scenario="Heatwave Demand Surge",          avg_price_spike_pct=16500.0, max_price_aud_mwh=16600.0,  unserved_energy_mwh=42800.0,  affected_consumers_k=820.0,  economic_cost_m_aud=1840.0),
+    StressTestKpiRecord(scenario="Gas Supply Disruption",          avg_price_spike_pct=3800.0,  max_price_aud_mwh=9200.0,   unserved_energy_mwh=68500.0,  affected_consumers_k=430.0,  economic_cost_m_aud=2650.0),
+    StressTestKpiRecord(scenario="Basslink Cable Trip",            avg_price_spike_pct=420.0,   max_price_aud_mwh=2800.0,   unserved_energy_mwh=8400.0,   affected_consumers_k=95.0,   economic_cost_m_aud=340.0),
+    StressTestKpiRecord(scenario="Cyber Attack on SCADA",          avg_price_spike_pct=2100.0,  max_price_aud_mwh=15100.0,  unserved_energy_mwh=115000.0, affected_consumers_k=1200.0, economic_cost_m_aud=4800.0),
+    StressTestKpiRecord(scenario="Extreme Wind Drought",           avg_price_spike_pct=5600.0,  max_price_aud_mwh=12400.0,  unserved_energy_mwh=95000.0,  affected_consumers_k=680.0,  economic_cost_m_aud=3200.0),
+    StressTestKpiRecord(scenario="Solar Eclipse Event",            avg_price_spike_pct=890.0,   max_price_aud_mwh=4100.0,   unserved_energy_mwh=1200.0,   affected_consumers_k=18.0,   economic_cost_m_aud=48.0),
+    StressTestKpiRecord(scenario="Major Generator Failure",        avg_price_spike_pct=7200.0,  max_price_aud_mwh=14500.0,  unserved_energy_mwh=78000.0,  affected_consumers_k=550.0,  economic_cost_m_aud=2900.0),
+    StressTestKpiRecord(scenario="Combined Heatwave + Wind Drought", avg_price_spike_pct=18200.0, max_price_aud_mwh=15500.0, unserved_energy_mwh=187000.0, affected_consumers_k=1850.0, economic_cost_m_aud=7400.0),
+]
+
+
+@app.get(
+    "/api/market-stress/dashboard",
+    response_model=MarketStressDashboard,
+    tags=["Market Stress Testing"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_market_stress_dashboard():
+    from datetime import datetime, timezone
+    return MarketStressDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        scenarios=_MST_SCENARIOS,
+        results=_MST_RESULTS,
+        vulnerabilities=_MST_VULNERABILITIES,
+        kpis=_MST_KPIS,
+    )
+
+
+# ============================================================
+# Sprint 53b — Electricity Demand Forecasting Models
+# ============================================================
+
+class DFMModelRecord(BaseModel):
+    model_id: str
+    name: str          # ARIMA / LSTM / XGBoost / Prophet / Ensemble / SARIMA
+    region: str
+    mae_mw: float
+    rmse_mw: float
+    mape_pct: float
+    r_squared: float
+    training_data_years: int
+    last_retrained: str
+
+
+class DFMForecastRecord(BaseModel):
+    model_id: str
+    region: str
+    forecast_date: str
+    hour: int          # 0-23
+    forecast_mw: float
+    actual_mw: Optional[float]
+    lower_bound_mw: float
+    upper_bound_mw: float
+    temperature_degc: float
+
+
+class DFMSeasonalPatternRecord(BaseModel):
+    region: str
+    season: str        # SUMMER / AUTUMN / WINTER / SPRING
+    peak_demand_mw: float
+    avg_demand_mw: float
+    min_demand_mw: float
+    peak_hour: int
+    temp_sensitivity_mw_per_degc: float
+
+
+class DFMFeatureImportanceRecord(BaseModel):
+    model_id: str
+    feature: str       # TEMPERATURE / TIME_OF_DAY / DAY_OF_WEEK / HOLIDAY / SOLAR_OUTPUT / ECONOMIC_ACTIVITY / HUMIDITY
+    importance_score: float   # 0-1
+
+
+class DemandForecastModelsDashboard(BaseModel):
+    timestamp: str
+    models: List[DFMModelRecord]
+    forecasts: List[DFMForecastRecord]
+    seasonal_patterns: List[DFMSeasonalPatternRecord]
+    feature_importance: List[DFMFeatureImportanceRecord]
+
+
+# ---- Mock data ----
+
+def _dfm_make_models() -> List[DFMModelRecord]:
+    specs = [
+        # model_id,        name,       region, mae,   rmse,   mape,  r2,    yrs, retrained
+        ("arima_nsw1",    "ARIMA",    "NSW1", 142.3, 198.7,  1.82,  0.961, 5,  "2025-11-01"),
+        ("lstm_nsw1",     "LSTM",     "NSW1",  98.5, 134.2,  1.21,  0.983, 7,  "2025-12-15"),
+        ("xgb_nsw1",      "XGBoost",  "NSW1", 112.8, 151.9,  1.39,  0.977, 7,  "2025-12-20"),
+        ("prophet_nsw1",  "Prophet",  "NSW1", 168.4, 221.5,  2.04,  0.948, 5,  "2025-10-30"),
+        ("ensemble_nsw1", "Ensemble", "NSW1",  85.2, 118.6,  1.05,  0.989, 7,  "2025-12-22"),
+        ("sarima_nsw1",   "SARIMA",   "NSW1", 131.7, 183.4,  1.63,  0.968, 6,  "2025-11-15"),
+        ("arima_vic1",    "ARIMA",    "VIC1", 118.6, 164.3,  1.79,  0.963, 5,  "2025-11-01"),
+        ("lstm_vic1",     "LSTM",     "VIC1",  82.3, 112.7,  1.25,  0.981, 7,  "2025-12-15"),
+        ("xgb_vic1",      "XGBoost",  "VIC1",  94.1, 129.8,  1.43,  0.974, 7,  "2025-12-20"),
+        ("ensemble_vic1", "Ensemble", "VIC1",  71.8,  99.4,  1.09,  0.987, 7,  "2025-12-22"),
+        ("arima_qld1",    "ARIMA",    "QLD1", 135.2, 188.6,  1.87,  0.958, 5,  "2025-11-01"),
+        ("lstm_qld1",     "LSTM",     "QLD1",  91.7, 125.3,  1.27,  0.980, 7,  "2025-12-15"),
+        ("xgb_qld1",      "XGBoost",  "QLD1", 104.5, 143.2,  1.45,  0.975, 7,  "2025-12-20"),
+        ("ensemble_qld1", "Ensemble", "QLD1",  79.3, 109.8,  1.10,  0.986, 7,  "2025-12-22"),
+        ("arima_sa1",     "ARIMA",    "SA1",   38.7,  54.2,  2.03,  0.944, 5,  "2025-11-01"),
+        ("lstm_sa1",      "LSTM",     "SA1",   26.4,  37.1,  1.39,  0.975, 7,  "2025-12-15"),
+        ("xgb_sa1",       "XGBoost",  "SA1",   30.8,  43.5,  1.62,  0.968, 7,  "2025-12-20"),
+        ("ensemble_sa1",  "Ensemble", "SA1",   22.9,  32.4,  1.21,  0.982, 7,  "2025-12-22"),
+        ("arima_tas1",    "ARIMA",    "TAS1",  22.1,  31.4,  1.96,  0.952, 5,  "2025-11-01"),
+        ("lstm_tas1",     "LSTM",     "TAS1",  15.3,  21.8,  1.35,  0.978, 7,  "2025-12-15"),
+        ("ensemble_tas1", "Ensemble", "TAS1",  13.2,  18.9,  1.16,  0.985, 7,  "2025-12-22"),
+    ]
+    return [
+        DFMModelRecord(
+            model_id=s[0], name=s[1], region=s[2],
+            mae_mw=s[3], rmse_mw=s[4], mape_pct=s[5], r_squared=s[6],
+            training_data_years=s[7], last_retrained=s[8],
+        )
+        for s in specs
+    ]
+
+
+def _dfm_make_forecasts() -> List[DFMForecastRecord]:
+    # 48 records: 24 hours × 2 models (LSTM + Ensemble) for NSW1
+    # Realistic NEM NSW1 summer weekday profile
+    base_demands = [
+        7200, 6950, 6780, 6650, 6600, 6720,
+        7100, 7850, 8500, 9100, 9450, 9680,
+        9750, 9620, 9480, 9360, 9520, 9980,
+        10450, 10820, 10580, 9920, 9100, 8200,
+    ]
+    temps = [
+        24.1, 23.5, 23.0, 22.6, 22.3, 22.5,
+        23.4, 25.2, 27.8, 30.4, 32.7, 34.5,
+        35.8, 36.2, 36.5, 36.1, 35.4, 34.2,
+        32.6, 30.8, 28.9, 27.1, 25.8, 24.9,
+    ]
+    # LSTM errors (slight overestimate in shoulders)
+    lstm_offsets = [
+        -45, -30, -20, -15, -10,  25,
+         60,  80,  55,  30,  10,  -5,
+        -20, -30, -15,  10,  25,  40,
+         55,  35,  15, -10, -35, -60,
+    ]
+    # Ensemble errors (smaller)
+    ens_offsets = [
+        -18, -12,  -8,  -5,  -3,  10,
+         22,  30,  20,  12,   5,  -2,
+         -8, -12,  -6,   4,  10,  18,
+         22,  14,   6,  -4, -14, -24,
+    ]
+    records: List[DFMForecastRecord] = []
+    for hour in range(24):
+        actual = float(base_demands[hour])
+        temp = temps[hour]
+        for model_id, name, offsets in [
+            ("lstm_nsw1",     "LSTM",     lstm_offsets),
+            ("ensemble_nsw1", "Ensemble", ens_offsets),
+        ]:
+            forecast = round(actual + offsets[hour], 1)
+            half_ci = round(abs(offsets[hour]) * 2.5 + 40, 1)
+            records.append(DFMForecastRecord(
+                model_id=model_id,
+                region="NSW1",
+                forecast_date="2025-01-15",
+                hour=hour,
+                forecast_mw=forecast,
+                actual_mw=actual,
+                lower_bound_mw=round(forecast - half_ci, 1),
+                upper_bound_mw=round(forecast + half_ci, 1),
+                temperature_degc=temp,
+            ))
+    return records
+
+
+def _dfm_make_seasonal_patterns() -> List[DFMSeasonalPatternRecord]:
+    data = [
+        # region, season,  peak,    avg,    min,   peak_hr, sensitivity
+        ("NSW1", "SUMMER", 14200.0, 9850.0, 6200.0, 14, 185.0),
+        ("NSW1", "AUTUMN",  9800.0, 7400.0, 5100.0, 18, 120.0),
+        ("NSW1", "WINTER", 11500.0, 8200.0, 5800.0, 17, -145.0),
+        ("NSW1", "SPRING",  9200.0, 7100.0, 4900.0, 18,  98.0),
+        ("VIC1", "SUMMER", 10800.0, 8100.0, 4900.0, 15, 160.0),
+        ("VIC1", "AUTUMN",  8200.0, 6500.0, 4200.0, 18,  95.0),
+        ("VIC1", "WINTER",  9600.0, 7100.0, 4700.0, 17, -175.0),
+        ("VIC1", "SPRING",  7800.0, 6200.0, 3900.0, 18,  80.0),
+        ("QLD1", "SUMMER", 10500.0, 8600.0, 5800.0, 14, 210.0),
+        ("QLD1", "AUTUMN",  8900.0, 7200.0, 5100.0, 18, 145.0),
+        ("QLD1", "WINTER",  8200.0, 7000.0, 5400.0, 17, -85.0),
+        ("QLD1", "SPRING",  9100.0, 7400.0, 5200.0, 18, 165.0),
+        ("SA1",  "SUMMER",  3800.0, 2600.0, 1200.0, 15, 72.0),
+        ("SA1",  "AUTUMN",  2700.0, 2000.0, 1050.0, 18, 48.0),
+        ("SA1",  "WINTER",  2900.0, 2150.0, 1100.0, 17, -55.0),
+        ("SA1",  "SPRING",  2600.0, 1950.0, 980.0,  18, 42.0),
+        ("TAS1", "SUMMER",  1750.0, 1350.0, 820.0,  18, 28.0),
+        ("TAS1", "AUTUMN",  1650.0, 1280.0, 780.0,  17, 18.0),
+        ("TAS1", "WINTER",  1900.0, 1450.0, 870.0,  17, -65.0),
+        ("TAS1", "SPRING",  1600.0, 1250.0, 750.0,  18, 15.0),
+    ]
+    return [
+        DFMSeasonalPatternRecord(
+            region=d[0], season=d[1],
+            peak_demand_mw=d[2], avg_demand_mw=d[3], min_demand_mw=d[4],
+            peak_hour=d[5], temp_sensitivity_mw_per_degc=d[6],
+        )
+        for d in data
+    ]
+
+
+def _dfm_make_feature_importance() -> List[DFMFeatureImportanceRecord]:
+    model_features = [
+        ("arima_nsw1",    "TEMPERATURE",       0.05),
+        ("arima_nsw1",    "TIME_OF_DAY",        0.55),
+        ("arima_nsw1",    "DAY_OF_WEEK",        0.28),
+        ("arima_nsw1",    "HOLIDAY",            0.12),
+        ("lstm_nsw1",     "TEMPERATURE",        0.32),
+        ("lstm_nsw1",     "TIME_OF_DAY",        0.28),
+        ("lstm_nsw1",     "DAY_OF_WEEK",        0.15),
+        ("lstm_nsw1",     "HOLIDAY",            0.08),
+        ("lstm_nsw1",     "SOLAR_OUTPUT",       0.07),
+        ("lstm_nsw1",     "ECONOMIC_ACTIVITY",  0.06),
+        ("lstm_nsw1",     "HUMIDITY",           0.04),
+        ("xgb_nsw1",      "TEMPERATURE",        0.35),
+        ("xgb_nsw1",      "TIME_OF_DAY",        0.25),
+        ("xgb_nsw1",      "DAY_OF_WEEK",        0.14),
+        ("xgb_nsw1",      "HOLIDAY",            0.09),
+        ("xgb_nsw1",      "SOLAR_OUTPUT",       0.08),
+        ("xgb_nsw1",      "ECONOMIC_ACTIVITY",  0.05),
+        ("xgb_nsw1",      "HUMIDITY",           0.04),
+        ("ensemble_nsw1", "TEMPERATURE",        0.33),
+        ("ensemble_nsw1", "TIME_OF_DAY",        0.27),
+        ("ensemble_nsw1", "DAY_OF_WEEK",        0.14),
+        ("ensemble_nsw1", "HOLIDAY",            0.08),
+        ("ensemble_nsw1", "SOLAR_OUTPUT",       0.08),
+        ("ensemble_nsw1", "ECONOMIC_ACTIVITY",  0.06),
+        ("ensemble_nsw1", "HUMIDITY",           0.04),
+        ("prophet_nsw1",  "TEMPERATURE",        0.18),
+        ("prophet_nsw1",  "TIME_OF_DAY",        0.40),
+        ("prophet_nsw1",  "DAY_OF_WEEK",        0.25),
+        ("prophet_nsw1",  "HOLIDAY",            0.17),
+        ("sarima_nsw1",   "TIME_OF_DAY",        0.52),
+        ("sarima_nsw1",   "DAY_OF_WEEK",        0.30),
+        ("sarima_nsw1",   "HOLIDAY",            0.10),
+        ("sarima_nsw1",   "TEMPERATURE",        0.08),
+    ]
+    return [
+        DFMFeatureImportanceRecord(
+            model_id=m[0], feature=m[1], importance_score=m[2],
+        )
+        for m in model_features
+    ]
+
+
+_DFM_MODELS            = _dfm_make_models()
+_DFM_FORECASTS         = _dfm_make_forecasts()
+_DFM_SEASONAL_PATTERNS = _dfm_make_seasonal_patterns()
+_DFM_FEATURE_IMPORTANCE= _dfm_make_feature_importance()
+
+
+@app.get(
+    "/api/demand-forecast-models/dashboard",
+    response_model=DemandForecastModelsDashboard,
+    tags=["Demand Forecasting Models"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_demand_forecast_models_dashboard():
+    return DemandForecastModelsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        models=_DFM_MODELS,
+        forecasts=_DFM_FORECASTS,
+        seasonal_patterns=_DFM_SEASONAL_PATTERNS,
+        feature_importance=_DFM_FEATURE_IMPORTANCE,
+    )

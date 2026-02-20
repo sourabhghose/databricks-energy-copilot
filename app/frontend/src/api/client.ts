@@ -5247,6 +5247,14 @@ export const api = {
     get<IspScenarioRecord[]>('/api/isp-progress/scenarios'),
   getIspProgressDeliveryRisks: (): Promise<IspDeliveryRiskRecord[]> =>
     get<IspDeliveryRiskRecord[]>('/api/isp-progress/delivery-risks'),
+  // Sprint 53c — Firming Technology Economics
+  getFirmingTechDashboard: (): Promise<FirmingTechDashboard> =>
+    get<FirmingTechDashboard>('/api/firming-technology/dashboard'),
+
+  // Sprint 53b — Electricity Demand Forecasting Models
+  getDemandForecastModelsDashboard(): Promise<DemandForecastModelsDashboard> {
+    return get<DemandForecastModelsDashboard>('/api/demand-forecast-models/dashboard')
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -6964,3 +6972,159 @@ export interface IspProgressDashboard {
   projects_on_track_pct: number
   step_change_renewable_target_gw_2030: number
 }
+
+// ============================================================
+// Sprint 53b — Electricity Demand Forecasting Models
+// ============================================================
+
+export interface DFMModelRecord {
+  model_id: string
+  name: string
+  region: string
+  mae_mw: number
+  rmse_mw: number
+  mape_pct: number
+  r_squared: number
+  training_data_years: number
+  last_retrained: string
+}
+
+export interface DFMForecastRecord {
+  model_id: string
+  region: string
+  forecast_date: string
+  hour: number
+  forecast_mw: number
+  actual_mw: number | null
+  lower_bound_mw: number
+  upper_bound_mw: number
+  temperature_degc: number
+}
+
+export interface DFMSeasonalPatternRecord {
+  region: string
+  season: string
+  peak_demand_mw: number
+  avg_demand_mw: number
+  min_demand_mw: number
+  peak_hour: number
+  temp_sensitivity_mw_per_degc: number
+}
+
+export interface DFMFeatureImportanceRecord {
+  model_id: string
+  feature: string
+  importance_score: number
+}
+
+export interface DemandForecastModelsDashboard {
+  timestamp: string
+  models: DFMModelRecord[]
+  forecasts: DFMForecastRecord[]
+  seasonal_patterns: DFMSeasonalPatternRecord[]
+  feature_importance: DFMFeatureImportanceRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 53c — Firming Technology Economics
+// ---------------------------------------------------------------------------
+
+export interface FirmingTechnologyRecord {
+  tech_id: string
+  name: string
+  category: string
+  capex_m_aud_mw: number
+  opex_m_aud_mw_yr: number
+  lcos_aud_mwh: number
+  capacity_factor_pct: number
+  response_time_min: number
+  duration_hours: number | null
+  co2_kg_mwh: number
+  commercial_maturity: string
+}
+
+export interface FirmingDispatchRecord {
+  tech_id: string
+  scenario: string
+  dispatch_events_yr: number
+  avg_duration_hr: number
+  avg_revenue_m_aud_yr: number
+  capacity_payment_m_aud_yr: number
+  total_revenue_m_aud_yr: number
+}
+
+export interface FirmingCostCurveRecord {
+  scenario: string
+  firming_requirement_pct: number
+  avg_firming_cost_aud_mwh: number
+  optimal_mix_str: string
+  total_system_cost_m_aud_yr: number
+}
+
+export interface FirmingScenarioRecord {
+  scenario_id: string
+  name: string
+  vre_penetration_pct: number
+  firming_capacity_gw: number
+  recommended_mix: string
+  avg_lcoe_aud_mwh: number
+}
+
+export interface FirmingTechDashboard {
+  timestamp: string
+  technologies: FirmingTechnologyRecord[]
+  dispatch_records: FirmingDispatchRecord[]
+  cost_curves: FirmingCostCurveRecord[]
+  scenarios: FirmingScenarioRecord[]
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 53a — Energy Market Stress Testing
+// ---------------------------------------------------------------------------
+
+export interface MarketStressScenario {
+  scenario_id: string
+  name: string
+  description: string
+  trigger_event: string
+  severity: 'MILD' | 'MODERATE' | 'SEVERE' | 'EXTREME'
+  probability_pct: number
+  duration_days: number
+}
+
+export interface StressTestResult {
+  scenario_id: string
+  region: string
+  metric: 'PRICE' | 'AVAILABILITY' | 'RELIABILITY' | 'REVENUE'
+  baseline_value: number
+  stressed_value: number
+  impact_pct: number
+  recovery_days: number
+}
+
+export interface SystemVulnerabilityRecord {
+  component: string
+  vulnerability_score: number
+  single_point_of_failure: boolean
+  mitigation_status: string
+}
+
+export interface StressTestKpiRecord {
+  scenario: string
+  avg_price_spike_pct: number
+  max_price_aud_mwh: number
+  unserved_energy_mwh: number
+  affected_consumers_k: number
+  economic_cost_m_aud: number
+}
+
+export interface MarketStressDashboard {
+  timestamp: string
+  scenarios: MarketStressScenario[]
+  results: StressTestResult[]
+  vulnerabilities: SystemVulnerabilityRecord[]
+  kpis: StressTestKpiRecord[]
+}
+
+export const getMarketStressDashboard = (): Promise<MarketStressDashboard> =>
+  get<MarketStressDashboard>('/api/market-stress/dashboard')

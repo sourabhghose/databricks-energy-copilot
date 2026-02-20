@@ -192,6 +192,9 @@ import IndustrialDemandFlex from './pages/IndustrialDemandFlex'
 import StorageLca from './pages/StorageLca'
 import InterconnectorFlowAnalytics from './pages/InterconnectorFlowAnalytics'
 import IspProgressTracker from './pages/IspProgressTracker'
+import FirmingTechnologyEconomics from './pages/FirmingTechnologyEconomics'
+import DemandForecastingModels from './pages/DemandForecastingModels'
+import MarketStressTesting from './pages/MarketStressTesting'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -320,7 +323,10 @@ const NAV_ITEMS = [
   { to: '/industrial-demand-flex', label: 'Industrial Demand Flex', Icon: Factory },
   { to: '/storage-lca',       label: 'Storage LCA',        Icon: RefreshCw      },
   { to: '/interconnector-flow-analytics', label: 'Interconnector Flows', Icon: ArrowLeftRight },
-  { to: '/isp-progress',      label: 'ISP Progress',       Icon: Map            },
+  { to: '/isp-progress',                 label: 'ISP Progress',              Icon: Map            },
+  { to: '/firming-technology-economics', label: 'Firming Tech Economics',     Icon: Flame          },
+  { to: '/demand-forecasting-models',   label: 'Demand Forecast Models',     Icon: Brain          },
+  { to: '/market-stress-testing',       label: 'Market Stress Testing',      Icon: ShieldAlert    },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -524,7 +530,10 @@ export default function App() {
               <Route path="/industrial-demand-flex" element={<IndustrialDemandFlex />} />
               <Route path="/storage-lca"       element={<StorageLca />}          />
               <Route path="/interconnector-flow-analytics" element={<InterconnectorFlowAnalytics />} />
-              <Route path="/isp-progress"      element={<IspProgressTracker />} />
+              <Route path="/isp-progress"                 element={<IspProgressTracker />}           />
+              <Route path="/firming-technology-economics" element={<FirmingTechnologyEconomics />}  />
+              <Route path="/demand-forecasting-models"   element={<DemandForecastingModels />}     />
+              <Route path="/market-stress-testing"       element={<MarketStressTesting />}         />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -1264,3 +1264,46 @@
 **Supply risk badge colors:** LOW green, MEDIUM amber, HIGH orange, CRITICAL red
 **Process badge colors:** all gray-700 (process name shown as human-readable label)
 **Maturity badge colors:** EMERGING blue, PILOT amber, COMMERCIAL green, MATURE gray
+
+## Sprint 53c — Firming Technology Economics — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Appended 5 Pydantic models (FirmingTechnologyRecord, FirmingDispatchRecord, FirmingCostCurveRecord, FirmingScenarioRecord, FirmingTechDashboard), realistic NEM mock data (8 technology records, 16 dispatch records across 2 scenarios, 15 cost curve records across 3 VRE scenarios, 3 scenario records), and 1 endpoint `GET /api/firming-technology/dashboard` protected by `verify_api_key`
+- `app/frontend/src/pages/FirmingTechnologyEconomics.tsx` — New page: Flame icon header with title "Firming Technology Economics" and NEM firming description; 4 KPI cards (cheapest LCOS, fastest response, lowest CO2, total firming capacity GW); technology comparison table with CAPEX/OPEX/LCOS/response/CO2/maturity badge columns; LCOS vs Duration scatter chart with bubble size = capacity factor and category-coloured bubbles; stacked revenue bar chart (dispatch + capacity payments) with per-scenario filter toggle; firming cost curve line chart for 3 VRE scenarios vs firming requirement %; scenario comparison cards (HIGH/MEDIUM/LOW VRE)
+- `app/frontend/src/api/client.ts` — Appended 5 TypeScript interfaces (FirmingTechnologyRecord, FirmingDispatchRecord, FirmingCostCurveRecord, FirmingScenarioRecord, FirmingTechDashboard); added `getFirmingTechDashboard()` method to `api` object
+- `app/frontend/src/App.tsx` — Imported FirmingTechnologyEconomics; added `/firming-technology-economics` route and "Firming Tech Economics" nav item (Flame icon)
+- `tests/test_backend.py` — Appended `TestFirmingTechnologyEconomics` class with `test_firming_technology_dashboard()` validating status 200, 8 technologies, 16 dispatch records, 15 cost curves, 3 scenarios, and field shapes
+
+**Mock data highlights:**
+- 8 technologies: OCGT ($185/MWh LCOS, 580 kg/MWh CO2, COMMERCIAL), CCGT ($145, 390, COMMERCIAL), H2 Turbine ($320, 5, DEMONSTRATION), Battery 4HR ($135, 28, COMMERCIAL), Battery 8HR ($175, 28, COMMERCIAL), Pumped Hydro ($115, 12 — cheapest, COMMERCIAL), Biomass ($235, 25, COMMERCIAL), Demand Response ($65 — lowest LCOS, 0 CO2, COMMERCIAL)
+- 3 VRE scenarios: HIGH (90% VRE, 18.5 GW firming, $95/MWh LCOE), MEDIUM (70%, 13.2 GW, $82/MWh), LOW (50%, 8.8 GW, $72/MWh)
+- Cost curves: firming cost rises from $28–45/MWh at 10% requirement to $84–132/MWh at 30%, steeper for higher VRE scenarios
+
+## Sprint 53b — Electricity Demand Forecasting Models (2026-02-20)
+
+Added comparative analytics page for ML-based electricity demand forecasting across NEM regions.
+
+**Backend (`app/backend/main.py`):**
+- Pydantic models: `DFMModelRecord`, `DFMForecastRecord`, `DFMSeasonalPatternRecord`, `DFMFeatureImportanceRecord`, `DemandForecastModelsDashboard`
+- Endpoint: `GET /api/demand-forecast-models/dashboard` — returns 21 model records (6 model types × 5 NEM regions), 48 hourly forecast records (24 h × 2 models for NSW1), 20 seasonal pattern records, and 33 feature importance records with realistic NEM values
+- All names prefixed `DFM` to avoid collisions with existing `DemandForecast*` models
+
+**Frontend (`app/frontend/src/pages/DemandForecastingModels.tsx`):**
+- 4 KPI cards: best MAPE %, best RMSE, best R², total model count
+- Sortable model performance comparison table with per-region filter and green highlight for best MAPE
+- 24-hour ComposedChart (NSW1) with actual vs LSTM vs Ensemble lines and 90% CI bands
+- Horizontal grouped BarChart for feature importance (LSTM / XGBoost / Ensemble, NSW1)
+- Seasonal patterns table with color-coded peak demand and temperature sensitivity
+
+**API client (`app/frontend/src/api/client.ts`):** Added TypeScript interfaces and `getDemandForecastModelsDashboard()` method.
+**Routing (`app/frontend/src/App.tsx`):** Import, nav entry (`Brain` icon), and route at `/demand-forecasting-models`.
+**Tests (`tests/test_backend.py`):** `TestDemandForecastingModels.test_demand_forecast_models_dashboard` validates all response fields, record counts, and data constraints.
+
+## Sprint 53a — Energy Market Stress Testing — 2026-02-20
+
+**Completed:**
+- `app/backend/main.py` — Added Pydantic models (`MarketStressScenario`, `StressTestResult`, `SystemVulnerabilityRecord`, `StressTestKpiRecord`, `MarketStressDashboard`) and `GET /api/market-stress/dashboard` endpoint with realistic NEM mock data: 8 stress scenarios (heatwave, gas disruption, Basslink trip, SCADA cyber attack, wind drought, solar eclipse, major generator failure, combined compound extreme), 20 regional stress results across 5 NEM regions, 6 component vulnerability records, 8 KPI records.
+- `app/frontend/src/pages/MarketStressTesting.tsx` — New React/TypeScript analytics page with: 4 KPI summary cards (worst-case price spike, max unserved energy, most vulnerable component, highest economic cost); 8-row scenario severity matrix table with colour-coded severity badges; RadarChart showing system vulnerability profile across 6 NEM components; grouped BarChart comparing economic cost and unserved energy across all 8 scenarios; colour-coded vulnerability heatmap table with inline score bars; detailed stress results table with baseline vs stressed comparison. Tailwind dark theme (bg-gray-900/bg-gray-800), Recharts, lucide-react icons.
+- `app/frontend/src/api/client.ts` — Appended TypeScript interfaces (`MarketStressScenario`, `StressTestResult`, `SystemVulnerabilityRecord`, `StressTestKpiRecord`, `MarketStressDashboard`) and `getMarketStressDashboard()` exported function.
+- `app/frontend/src/App.tsx` — Added `MarketStressTesting` import, `/market-stress-testing` route, and nav item with `ShieldAlert` icon.
+- `tests/test_backend.py` — Appended `TestMarketStressTesting` class with `test_market_stress_dashboard()` covering top-level structure, scenario enum validation, vulnerability score bounds, and KPI record counts.

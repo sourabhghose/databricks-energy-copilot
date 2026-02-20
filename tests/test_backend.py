@@ -4675,3 +4675,132 @@ class TestIspProgressEndpoints:
         r = client.get("/api/isp-progress/delivery-risks", headers={"X-API-Key": "test-key"})
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestFirmingTechnologyEconomics:
+    def test_firming_technology_dashboard(self, client):
+        r = client.get("/api/firming-technology/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+        d = r.json()
+        assert "technologies" in d
+        assert len(d["technologies"]) == 8
+        assert "dispatch_records" in d
+        assert len(d["dispatch_records"]) == 16
+        assert "cost_curves" in d
+        assert len(d["cost_curves"]) == 15
+        assert "scenarios" in d
+        assert len(d["scenarios"]) == 3
+        # Validate technology record shape
+        tech = d["technologies"][0]
+        assert "tech_id" in tech
+        assert "lcos_aud_mwh" in tech
+        assert "capex_m_aud_mw" in tech
+        assert "co2_kg_mwh" in tech
+        assert "commercial_maturity" in tech
+        # Validate scenario record shape
+        scenario = d["scenarios"][0]
+        assert "scenario_id" in scenario
+        assert "vre_penetration_pct" in scenario
+        assert "firming_capacity_gw" in scenario
+        assert "recommended_mix" in scenario
+        assert "avg_lcoe_aud_mwh" in scenario
+
+
+class TestDemandForecastingModels:
+    def test_demand_forecast_models_dashboard(self, client):
+        r = client.get(
+            "/api/demand-forecast-models/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+
+        # Top-level keys
+        assert "timestamp" in body
+        assert "models" in body
+        assert "forecasts" in body
+        assert "seasonal_patterns" in body
+        assert "feature_importance" in body
+
+        # Models: at least 6 unique model names
+        model_names = {m["name"] for m in body["models"]}
+        assert model_names >= {"ARIMA", "LSTM", "XGBoost", "Prophet", "Ensemble", "SARIMA"}
+
+        # All five NEM regions covered
+        regions = {m["region"] for m in body["models"]}
+        assert regions >= {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}
+
+        # Model fields
+        for m in body["models"]:
+            assert m["mape_pct"] > 0
+            assert 0 < m["r_squared"] <= 1
+            assert m["training_data_years"] > 0
+
+        # Forecast records: 48 records (24 h × 2 models for NSW1)
+        assert len(body["forecasts"]) == 48
+        for f in body["forecasts"]:
+            assert 0 <= f["hour"] <= 23
+            assert f["forecast_mw"] > 0
+            assert f["lower_bound_mw"] < f["forecast_mw"]
+            assert f["upper_bound_mw"] > f["forecast_mw"]
+
+        # Seasonal patterns: 20 records (4 seasons × 5 regions)
+        assert len(body["seasonal_patterns"]) == 20
+        for p in body["seasonal_patterns"]:
+            assert p["season"] in ("SUMMER", "AUTUMN", "WINTER", "SPRING")
+            assert p["peak_demand_mw"] >= p["avg_demand_mw"] >= p["min_demand_mw"]
+            assert 0 <= p["peak_hour"] <= 23
+
+        # Feature importance: scores between 0 and 1
+        for fi in body["feature_importance"]:
+            assert 0 <= fi["importance_score"] <= 1
+            assert fi["feature"] in (
+                "TEMPERATURE", "TIME_OF_DAY", "DAY_OF_WEEK",
+                "HOLIDAY", "SOLAR_OUTPUT", "ECONOMIC_ACTIVITY", "HUMIDITY",
+            )
+
+
+class TestMarketStressTesting:
+    def test_market_stress_dashboard(self, client):
+        r = client.get(
+            "/api/market-stress/dashboard",
+            headers={"X-API-Key": "test-key"},
+        )
+        assert r.status_code == 200
+        d = r.json()
+
+        # Top-level structure
+        assert "timestamp" in d
+        assert "scenarios" in d
+        assert "results" in d
+        assert "vulnerabilities" in d
+        assert "kpis" in d
+
+        # Scenarios
+        assert len(d["scenarios"]) == 8
+        for sc in d["scenarios"]:
+            assert sc["scenario_id"]
+            assert sc["severity"] in ("MILD", "MODERATE", "SEVERE", "EXTREME")
+            assert 0 < sc["probability_pct"] <= 100
+            assert sc["duration_days"] > 0
+
+        # Results — metric enum and value plausibility
+        assert len(d["results"]) > 0
+        for res in d["results"]:
+            assert res["metric"] in ("PRICE", "AVAILABILITY", "RELIABILITY", "REVENUE")
+            assert res["baseline_value"] > 0
+            assert res["recovery_days"] > 0
+
+        # Vulnerabilities — 6 components expected
+        assert len(d["vulnerabilities"]) == 6
+        for v in d["vulnerabilities"]:
+            assert 0 <= v["vulnerability_score"] <= 100
+            assert isinstance(v["single_point_of_failure"], bool)
+
+        # KPIs — 8 records expected
+        assert len(d["kpis"]) == 8
+        for k in d["kpis"]:
+            assert k["avg_price_spike_pct"] >= 0
+            assert k["max_price_aud_mwh"] > 0
+            assert k["unserved_energy_mwh"] >= 0
+            assert k["economic_cost_m_aud"] >= 0
