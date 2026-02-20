@@ -13843,3 +13843,201 @@ export interface LDESADashboard {
 
 export const getLDESAnalyticsDashboard = (): Promise<LDESADashboard> =>
   get<LDESADashboard>('/api/ldes-analytics/dashboard')
+
+// ===== Consumer Switching Retail Churn Analytics (Sprint 88a) =====
+export interface CSRSwitchingRateRecord {
+  region: string;
+  quarter: string;
+  total_customers: number;
+  switchers: number;
+  switching_rate_pct: number;
+  churn_type: string;
+  price_driven_pct: number;
+  service_driven_pct: number;
+}
+
+export interface CSRRetailerMarketShareRecord {
+  retailer: string;
+  region: string;
+  market_share_pct: number;
+  customer_count: number;
+  yoy_change_pct: number;
+  avg_tariff_aud_per_mwh: number;
+  nps_score: number;
+  complaints_per_1000: number;
+}
+
+export interface CSRChurnDriverRecord {
+  driver: string;
+  rank: number;
+  impact_score: number;
+  segment: string;
+  frequency_pct: number;
+  trend: string;
+}
+
+export interface CSRSwitchingFrictionRecord {
+  barrier: string;
+  severity_score: number;
+  affected_pct: number;
+  avg_delay_days: number;
+  policy_response: string;
+  resolved_pct: number;
+}
+
+export interface CSRCompetitivePressureRecord {
+  region: string;
+  hhi_index: number;
+  effective_competitors: number;
+  price_dispersion_pct: number;
+  offer_count: number;
+  best_vs_worst_saving_aud: number;
+}
+
+export interface CSRDashboard {
+  switching_rates: CSRSwitchingRateRecord[];
+  retailer_shares: CSRRetailerMarketShareRecord[];
+  churn_drivers: CSRChurnDriverRecord[];
+  switching_frictions: CSRSwitchingFrictionRecord[];
+  competitive_pressures: CSRCompetitivePressureRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getConsumerSwitchingRetailChurnDashboard = (): Promise<CSRDashboard> =>
+  get<CSRDashboard>('/api/consumer-switching-retail-churn/dashboard')
+
+// ===== Solar Thermal CSP Analytics (Sprint 88b) =====
+export interface CSPXProjectRecord {
+  project_id: string;
+  name: string;
+  technology: string;
+  state: string;
+  capacity_mw: number;
+  storage_hours: number;
+  cf_pct: number;
+  lcoe_aud_per_mwh: number;
+  status: string;
+  online_year: number | null;
+  annual_output_gwh: number;
+}
+
+export interface CSPXResourceRecord {
+  location: string;
+  state: string;
+  dni_kwh_m2_day: number;
+  ghi_kwh_m2_day: number;
+  clearsky_days_per_year: number;
+  optimal_tilt_deg: number;
+  annual_usable_hours: number;
+  suitability_score: number;
+}
+
+export interface CSPXCostRecord {
+  technology: string;
+  year: number;
+  capex_aud_per_kw: number;
+  opex_aud_per_mwh: number;
+  storage_cost_aud_per_kwh: number;
+  lcoe_aud_per_mwh: number;
+  learning_rate_pct: number;
+}
+
+export interface CSPXDispatchRecord {
+  project_id: string;
+  month: string;
+  solar_gen_gwh: number;
+  storage_discharge_gwh: number;
+  total_output_gwh: number;
+  dispatchable_hours: number;
+  curtailment_pct: number;
+  revenue_aud_k: number;
+}
+
+export interface CSPXComparisonRecord {
+  technology: string;
+  dispatchability_score: number;
+  cost_competitiveness: number;
+  grid_services_value: number;
+  land_use_score: number;
+  water_use_score: number;
+  storage_integration: number;
+  overall_score: number;
+}
+
+export interface CSPXDashboard {
+  projects: CSPXProjectRecord[];
+  resources: CSPXResourceRecord[];
+  cost_curves: CSPXCostRecord[];
+  dispatch_profiles: CSPXDispatchRecord[];
+  technology_comparison: CSPXComparisonRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getSolarThermalCSPDashboard = (): Promise<CSPXDashboard> =>
+  get<CSPXDashboard>('/api/solar-thermal-csp/dashboard');
+
+// ===== NEM Post-Reform Market Design Analytics (Sprint 88c) =====
+export interface PRDReformMilestoneRecord {
+  reform_id: string;
+  name: string;
+  category: string;
+  status: string;
+  target_date: string;
+  actual_date: string | null;
+  impact_score: number;
+  stakeholder_support: number;
+  aemo_lead: boolean;
+}
+
+export interface PRDMarketOutcomeRecord {
+  metric: string;
+  pre_reform_value: number;
+  post_reform_value: number;
+  unit: string;
+  change_pct: number;
+  target_value: number | null;
+  assessment: string;
+}
+
+export interface PRDDesignElementRecord {
+  element: string;
+  category: string;
+  rationale: string;
+  implementation_complexity: string;
+  expected_benefit_aud_m: number;
+  actual_benefit_aud_m: number | null;
+  international_precedent: string | null;
+}
+
+export interface PRDStakeholderSentimentRecord {
+  stakeholder_group: string;
+  category: string;
+  support_score: number;
+  key_concern: string;
+  engagement_level: string;
+  submission_count: number;
+}
+
+export interface PRDScenarioOutcomeRecord {
+  scenario: string;
+  reform_package: string;
+  year: number;
+  wholesale_price_aud_mwh: number;
+  reliability_pct: number;
+  emissions_mt: number;
+  consumer_bill_aud: number;
+  renewable_pct: number;
+  investment_aud_bn: number;
+}
+
+export interface PRDDashboard {
+  reform_milestones: PRDReformMilestoneRecord[];
+  market_outcomes: PRDMarketOutcomeRecord[];
+  design_elements: PRDDesignElementRecord[];
+  stakeholder_sentiments: PRDStakeholderSentimentRecord[];
+  scenario_outcomes: PRDScenarioOutcomeRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getNEMPostReformMarketDesignDashboard = (): Promise<PRDDashboard> =>
+  get<PRDDashboard>('/api/nem-post-reform-market-design/dashboard');

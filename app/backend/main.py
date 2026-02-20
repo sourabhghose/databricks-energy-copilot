@@ -61639,3 +61639,559 @@ async def get_ldes_analytics_dashboard():
     result = _build_ldesa_dashboard()
     _cache_set(_ldesa_cache, "ldesa", result)
     return result
+
+
+# ===== Consumer Switching Retail Churn Analytics (Sprint 88a) =====
+
+class CSRSwitchingRateRecord(BaseModel):
+    region: str
+    quarter: str
+    total_customers: int
+    switchers: int
+    switching_rate_pct: float
+    churn_type: str  # RETAILER_SWITCH, TARIFF_CHANGE, MOVE_IN_OUT
+    price_driven_pct: float
+    service_driven_pct: float
+
+class CSRRetailerMarketShareRecord(BaseModel):
+    retailer: str
+    region: str
+    market_share_pct: float
+    customer_count: int
+    yoy_change_pct: float
+    avg_tariff_aud_per_mwh: float
+    nps_score: float
+    complaints_per_1000: float
+
+class CSRChurnDriverRecord(BaseModel):
+    driver: str
+    rank: int
+    impact_score: float
+    segment: str  # RESIDENTIAL, SME, LARGE_COMMERCIAL
+    frequency_pct: float
+    trend: str  # INCREASING, STABLE, DECREASING
+
+class CSRSwitchingFrictionRecord(BaseModel):
+    barrier: str
+    severity_score: float
+    affected_pct: float
+    avg_delay_days: float
+    policy_response: str
+    resolved_pct: float
+
+class CSRCompetitivePressureRecord(BaseModel):
+    region: str
+    hhi_index: float
+    effective_competitors: int
+    price_dispersion_pct: float
+    offer_count: int
+    best_vs_worst_saving_aud: float
+
+class CSRDashboard(BaseModel):
+    switching_rates: List[CSRSwitchingRateRecord]
+    retailer_shares: List[CSRRetailerMarketShareRecord]
+    churn_drivers: List[CSRChurnDriverRecord]
+    switching_frictions: List[CSRSwitchingFrictionRecord]
+    competitive_pressures: List[CSRCompetitivePressureRecord]
+    summary: Dict[str, Any]
+
+
+_csr_cache: Dict[str, Any] = {}
+
+@app.get("/api/consumer-switching-retail-churn/dashboard", response_model=CSRDashboard, dependencies=[Depends(verify_api_key)])
+def get_consumer_switching_retail_churn_dashboard():
+    import random
+    cache_key = "csr_dashboard"
+    cached = _cache_get(_csr_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    quarters = ["Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023", "Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024"]
+    churn_types = ["RETAILER_SWITCH", "TARIFF_CHANGE", "MOVE_IN_OUT"]
+
+    switching_rates = []
+    for r in regions:
+        for q in quarters[:6]:
+            switching_rates.append(CSRSwitchingRateRecord(
+                region=r, quarter=q,
+                total_customers=random.randint(200000, 2000000),
+                switchers=random.randint(5000, 80000),
+                switching_rate_pct=round(random.uniform(1.5, 8.5), 2),
+                churn_type=random.choice(churn_types),
+                price_driven_pct=round(random.uniform(45.0, 70.0), 1),
+                service_driven_pct=round(random.uniform(15.0, 35.0), 1)
+            ))
+
+    retailers = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Red Energy", "Alinta Energy",
+                 "Powershop", "Simply Energy", "Dodo Power & Gas", "OVO Energy", "GloBird Energy"]
+
+    retailer_shares = []
+    for retailer in retailers:
+        for r in regions[:3]:
+            retailer_shares.append(CSRRetailerMarketShareRecord(
+                retailer=retailer, region=r,
+                market_share_pct=round(random.uniform(2.0, 35.0), 1),
+                customer_count=random.randint(10000, 800000),
+                yoy_change_pct=round(random.uniform(-5.0, 5.0), 2),
+                avg_tariff_aud_per_mwh=round(random.uniform(220.0, 380.0), 1),
+                nps_score=round(random.uniform(10.0, 65.0), 1),
+                complaints_per_1000=round(random.uniform(2.0, 25.0), 1)
+            ))
+
+    drivers = ["High electricity prices", "Poor customer service", "Better offer elsewhere",
+               "Moving home", "Green energy preference", "Bill shock", "Contract expiry",
+               "Solar battery bundle", "Digital experience", "Loyalty rewards"]
+    segments = ["RESIDENTIAL", "SME", "LARGE_COMMERCIAL"]
+    trends = ["INCREASING", "STABLE", "DECREASING"]
+
+    churn_drivers = []
+    for i, driver in enumerate(drivers):
+        churn_drivers.append(CSRChurnDriverRecord(
+            driver=driver, rank=i+1,
+            impact_score=round(random.uniform(3.0, 9.5), 2),
+            segment=random.choice(segments),
+            frequency_pct=round(random.uniform(5.0, 45.0), 1),
+            trend=random.choice(trends)
+        ))
+
+    barriers = ["Transfer cooling-off period", "Direct debit complication", "Solar FiT portability",
+                "Security deposit requirement", "Smart meter compatibility", "Contract exit fee",
+                "Information asymmetry", "Digital literacy barriers"]
+
+    switching_frictions = []
+    for barrier in barriers:
+        switching_frictions.append(CSRSwitchingFrictionRecord(
+            barrier=barrier,
+            severity_score=round(random.uniform(2.0, 8.5), 2),
+            affected_pct=round(random.uniform(5.0, 40.0), 1),
+            avg_delay_days=round(random.uniform(1.0, 30.0), 1),
+            policy_response=random.choice(["AER guideline", "Rule change pending", "Industry code", "Consumer protection act"]),
+            resolved_pct=round(random.uniform(30.0, 85.0), 1)
+        ))
+
+    competitive_pressures = []
+    for r in regions:
+        competitive_pressures.append(CSRCompetitivePressureRecord(
+            region=r,
+            hhi_index=round(random.uniform(800.0, 3500.0), 0),
+            effective_competitors=random.randint(3, 18),
+            price_dispersion_pct=round(random.uniform(15.0, 55.0), 1),
+            offer_count=random.randint(20, 150),
+            best_vs_worst_saving_aud=round(random.uniform(150.0, 800.0), 0)
+        ))
+
+    result = CSRDashboard(
+        switching_rates=switching_rates,
+        retailer_shares=retailer_shares,
+        churn_drivers=churn_drivers,
+        switching_frictions=switching_frictions,
+        competitive_pressures=competitive_pressures,
+        summary={
+            "total_regions": len(regions),
+            "national_avg_switching_rate_pct": 4.2,
+            "yoy_switching_change_pct": 0.8,
+            "most_competitive_region": "VIC1",
+            "highest_churn_region": "SA1",
+            "top_churn_driver": "High electricity prices",
+            "avg_saving_on_switch_aud": 320.0,
+            "digital_switching_pct": 62.5
+        }
+    )
+    _cache_set(_csr_cache, cache_key, result)
+    return result
+
+
+# ===== Solar Thermal CSP Analytics (Sprint 88b) =====
+class CSPXProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    technology: str  # PARABOLIC_TROUGH, POWER_TOWER, LINEAR_FRESNEL, DISH_STIRLING
+    state: str
+    capacity_mw: float
+    storage_hours: float
+    cf_pct: float
+    lcoe_aud_per_mwh: float
+    status: str  # OPERATIONAL, UNDER_CONSTRUCTION, PROPOSED, FEASIBILITY
+    online_year: Optional[int]
+    annual_output_gwh: float
+
+class CSPXResourceRecord(BaseModel):
+    location: str
+    state: str
+    dni_kwh_m2_day: float  # Direct Normal Irradiance
+    ghi_kwh_m2_day: float  # Global Horizontal Irradiance
+    clearsky_days_per_year: int
+    optimal_tilt_deg: float
+    annual_usable_hours: int
+    suitability_score: float
+
+class CSPXCostRecord(BaseModel):
+    technology: str
+    year: int
+    capex_aud_per_kw: float
+    opex_aud_per_mwh: float
+    storage_cost_aud_per_kwh: float
+    lcoe_aud_per_mwh: float
+    learning_rate_pct: float
+
+class CSPXDispatchRecord(BaseModel):
+    project_id: str
+    month: str
+    solar_gen_gwh: float
+    storage_discharge_gwh: float
+    total_output_gwh: float
+    dispatchable_hours: int
+    curtailment_pct: float
+    revenue_aud_k: float
+
+class CSPXComparisonRecord(BaseModel):
+    technology: str
+    dispatchability_score: float  # 1-10
+    cost_competitiveness: float   # 1-10
+    grid_services_value: float    # 1-10
+    land_use_score: float         # 1-10 (lower land use = higher score)
+    water_use_score: float        # 1-10 (lower water = higher score)
+    storage_integration: float    # 1-10
+    overall_score: float
+
+class CSPXDashboard(BaseModel):
+    projects: List[CSPXProjectRecord]
+    resources: List[CSPXResourceRecord]
+    cost_curves: List[CSPXCostRecord]
+    dispatch_profiles: List[CSPXDispatchRecord]
+    technology_comparison: List[CSPXComparisonRecord]
+    summary: Dict[str, Any]
+
+_cspx_cache: Dict[str, Any] = {}
+
+@app.get("/api/solar-thermal-csp/dashboard", response_model=CSPXDashboard, dependencies=[Depends(verify_api_key)])
+def get_solar_thermal_csp_dashboard():
+    import random
+    cache_key = "cspx_dashboard"
+    cached = _cache_get(_cspx_cache, cache_key)
+    if cached:
+        return cached
+
+    technologies = ["PARABOLIC_TROUGH", "POWER_TOWER", "LINEAR_FRESNEL", "DISH_STIRLING"]
+    states = ["SA", "WA", "QLD", "NSW", "NT"]
+    statuses = ["OPERATIONAL", "UNDER_CONSTRUCTION", "PROPOSED", "FEASIBILITY"]
+
+    project_names = [
+        "Port Augusta Solar Thermal", "Sundrop Farms CSP", "Aurora Solar Energy Project",
+        "Vast Solar Jemalong", "Vast Solar Mt Isa", "SolarReserve Coobowie",
+        "ARENA Carnarvon CSP", "ClearSun Broken Hill", "SunPower Mildura",
+        "ThermalStar Longreach", "CSPower Ceduna", "SolarThermal Kalgoorlie",
+        "HeatGen Tennant Creek"
+    ]
+
+    projects = []
+    for i, name in enumerate(project_names):
+        tech = random.choice(technologies)
+        state = random.choice(states)
+        cap = round(random.uniform(10.0, 150.0), 1)
+        projects.append(CSPXProjectRecord(
+            project_id=f"CSP-{i+1:03d}",
+            name=name, technology=tech, state=state,
+            capacity_mw=cap,
+            storage_hours=round(random.uniform(4.0, 18.0), 1),
+            cf_pct=round(random.uniform(35.0, 65.0), 1),
+            lcoe_aud_per_mwh=round(random.uniform(120.0, 280.0), 0),
+            status=random.choice(statuses),
+            online_year=random.choice([2019, 2021, 2023, 2025, 2027, 2029, None]),
+            annual_output_gwh=round(cap * random.uniform(0.35, 0.65) * 8760 / 1000, 1)
+        ))
+
+    locations = [
+        ("Port Augusta", "SA"), ("Longreach", "QLD"), ("Carnarvon", "WA"),
+        ("Alice Springs", "NT"), ("Broken Hill", "NSW"), ("Mildura", "VIC"),
+        ("Tennant Creek", "NT"), ("Ceduna", "SA"), ("Mt Isa", "QLD"),
+        ("Kalgoorlie", "WA"), ("Charleville", "QLD"), ("Marree", "SA")
+    ]
+
+    resources = []
+    for loc, st in locations:
+        resources.append(CSPXResourceRecord(
+            location=loc, state=st,
+            dni_kwh_m2_day=round(random.uniform(5.5, 8.5), 2),
+            ghi_kwh_m2_day=round(random.uniform(4.5, 7.5), 2),
+            clearsky_days_per_year=random.randint(200, 320),
+            optimal_tilt_deg=round(random.uniform(20.0, 35.0), 1),
+            annual_usable_hours=random.randint(2200, 3500),
+            suitability_score=round(random.uniform(5.0, 9.5), 2)
+        ))
+
+    cost_curves = []
+    for tech in technologies:
+        for year in range(2020, 2036):
+            base_capex = {"PARABOLIC_TROUGH": 4500, "POWER_TOWER": 5200, "LINEAR_FRESNEL": 3800, "DISH_STIRLING": 6000}.get(tech, 5000)
+            lr = 0.12
+            progress = (year - 2020) / 15.0
+            cost_curves.append(CSPXCostRecord(
+                technology=tech, year=year,
+                capex_aud_per_kw=round(base_capex * (1 - lr * progress) + random.uniform(-200, 200), 0),
+                opex_aud_per_mwh=round(random.uniform(8.0, 20.0), 2),
+                storage_cost_aud_per_kwh=round(25.0 * (1 - 0.08 * progress) + random.uniform(-2, 2), 2),
+                lcoe_aud_per_mwh=round(150.0 * (1 - 0.10 * progress) + random.uniform(-15, 15), 0),
+                learning_rate_pct=round(lr * 100, 1)
+            ))
+
+    months = ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024",
+              "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024"]
+
+    dispatch_profiles = []
+    for proj in projects[:5]:
+        for month in months:
+            solar = round(random.uniform(5.0, 40.0), 1)
+            storage = round(random.uniform(2.0, 15.0), 1)
+            dispatch_profiles.append(CSPXDispatchRecord(
+                project_id=proj.project_id, month=month,
+                solar_gen_gwh=solar,
+                storage_discharge_gwh=storage,
+                total_output_gwh=round(solar + storage, 1),
+                dispatchable_hours=random.randint(12, 20),
+                curtailment_pct=round(random.uniform(0.0, 15.0), 1),
+                revenue_aud_k=round((solar + storage) * random.uniform(80.0, 180.0), 1)
+            ))
+
+    tech_comparison_data = {
+        "PARABOLIC_TROUGH": [7.0, 6.5, 6.0, 6.5, 5.5, 7.5],
+        "POWER_TOWER": [8.5, 5.5, 8.0, 5.5, 5.0, 9.0],
+        "LINEAR_FRESNEL": [6.0, 7.5, 5.0, 7.5, 6.5, 6.0],
+        "DISH_STIRLING": [5.0, 4.5, 4.0, 8.5, 8.5, 4.0]
+    }
+
+    technology_comparison = []
+    for tech, scores in tech_comparison_data.items():
+        overall = round(sum(scores) / len(scores), 2)
+        technology_comparison.append(CSPXComparisonRecord(
+            technology=tech,
+            dispatchability_score=scores[0],
+            cost_competitiveness=scores[1],
+            grid_services_value=scores[2],
+            land_use_score=scores[3],
+            water_use_score=scores[4],
+            storage_integration=scores[5],
+            overall_score=overall
+        ))
+
+    result = CSPXDashboard(
+        projects=projects,
+        resources=resources,
+        cost_curves=cost_curves,
+        dispatch_profiles=dispatch_profiles,
+        technology_comparison=technology_comparison,
+        summary={
+            "total_projects": len(projects),
+            "total_capacity_mw": round(sum(p.capacity_mw for p in projects), 1),
+            "operational_projects": len([p for p in projects if p.status == "OPERATIONAL"]),
+            "best_dni_location": "Longreach",
+            "lowest_lcoe_aud_mwh": 120.0,
+            "avg_storage_hours": 10.5,
+            "technology_count": len(technologies),
+            "australia_csp_potential_gw": 850.0
+        }
+    )
+    _cache_set(_cspx_cache, cache_key, result)
+    return result
+
+# ===== NEM Post-Reform Market Design Analytics (Sprint 88c) =====
+
+class PRDReformMilestoneRecord(BaseModel):
+    reform_id: str
+    name: str
+    category: str  # PRICING, NETWORK, DISPATCH, STORAGE, RETAIL, PLANNING
+    status: str    # IMPLEMENTED, IN_PROGRESS, PROPOSED, DEFERRED
+    target_date: str
+    actual_date: Optional[str]
+    impact_score: float  # 1-10
+    stakeholder_support: float  # pct
+    aemo_lead: bool
+
+class PRDMarketOutcomeRecord(BaseModel):
+    metric: str
+    pre_reform_value: float
+    post_reform_value: float
+    unit: str
+    change_pct: float
+    target_value: Optional[float]
+    assessment: str  # ON_TRACK, AHEAD, BEHIND, ACHIEVED
+
+class PRDDesignElementRecord(BaseModel):
+    element: str
+    category: str
+    rationale: str
+    implementation_complexity: str  # LOW, MEDIUM, HIGH, VERY_HIGH
+    expected_benefit_aud_m: float
+    actual_benefit_aud_m: Optional[float]
+    international_precedent: Optional[str]
+
+class PRDStakeholderSentimentRecord(BaseModel):
+    stakeholder_group: str
+    category: str  # GENERATOR, RETAILER, CONSUMER, NETWORK, REGULATOR
+    support_score: float  # 1-10
+    key_concern: str
+    engagement_level: str  # ACTIVE, MODERATE, LOW
+    submission_count: int
+
+class PRDScenarioOutcomeRecord(BaseModel):
+    scenario: str
+    reform_package: str
+    year: int
+    wholesale_price_aud_mwh: float
+    reliability_pct: float
+    emissions_mt: float
+    consumer_bill_aud: float
+    renewable_pct: float
+    investment_aud_bn: float
+
+class PRDDashboard(BaseModel):
+    reform_milestones: List[PRDReformMilestoneRecord]
+    market_outcomes: List[PRDMarketOutcomeRecord]
+    design_elements: List[PRDDesignElementRecord]
+    stakeholder_sentiments: List[PRDStakeholderSentimentRecord]
+    scenario_outcomes: List[PRDScenarioOutcomeRecord]
+    summary: Dict[str, Any]
+
+_prd_cache: Dict[str, Any] = {}
+
+@app.get("/api/nem-post-reform-market-design/dashboard", response_model=PRDDashboard, dependencies=[Depends(verify_api_key)])
+def get_nem_post_reform_market_design_dashboard():
+    import random
+    cache_key = "prd_dashboard"
+    cached = _cache_get(_prd_cache, cache_key)
+    if cached:
+        return cached
+
+    categories = ["PRICING", "NETWORK", "DISPATCH", "STORAGE", "RETAIL", "PLANNING"]
+    statuses = ["IMPLEMENTED", "IN_PROGRESS", "PROPOSED", "DEFERRED"]
+
+    reforms = [
+        ("PRD-001", "5-Minute Settlement", "PRICING", "IMPLEMENTED", "2021-10-01", "2021-10-01", 8.5, 72.0),
+        ("PRD-002", "Retailer Reliability Obligation", "PRICING", "IMPLEMENTED", "2019-07-01", "2019-07-01", 7.0, 65.0),
+        ("PRD-003", "Integrated System Plan Reforms", "PLANNING", "IN_PROGRESS", "2024-06-01", None, 9.0, 78.0),
+        ("PRD-004", "Electricity Infrastructure Roadmap", "NETWORK", "IN_PROGRESS", "2025-12-01", None, 8.0, 55.0),
+        ("PRD-005", "Two-Sided Market", "DISPATCH", "PROPOSED", "2026-07-01", None, 9.5, 45.0),
+        ("PRD-006", "FCAS Market Reform", "DISPATCH", "IN_PROGRESS", "2025-01-01", None, 7.5, 68.0),
+        ("PRD-007", "Consumer Data Right Energy", "RETAIL", "IMPLEMENTED", "2023-11-01", "2023-11-15", 6.5, 70.0),
+        ("PRD-008", "Storage Rights Framework", "STORAGE", "IN_PROGRESS", "2025-06-01", None, 8.5, 60.0),
+        ("PRD-009", "Inertia Procurement", "NETWORK", "IMPLEMENTED", "2022-03-01", "2022-03-01", 7.0, 75.0),
+        ("PRD-010", "Mandatory Demand Response", "RETAIL", "IN_PROGRESS", "2024-12-01", None, 7.5, 52.0),
+        ("PRD-011", "REZ Coordination Framework", "PLANNING", "IN_PROGRESS", "2025-01-01", None, 8.5, 62.0),
+        ("PRD-012", "Wholesale Market Capacity Mechanism", "PRICING", "PROPOSED", "2027-01-01", None, 9.0, 38.0),
+        ("PRD-013", "Distribution Pricing Reforms", "NETWORK", "DEFERRED", "2026-01-01", None, 6.0, 48.0),
+        ("PRD-014", "Distributed Energy Resources Reforms", "DISPATCH", "IN_PROGRESS", "2025-07-01", None, 8.0, 71.0),
+        ("PRD-015", "Gas Transitional Arrangements", "DISPATCH", "PROPOSED", "2028-01-01", None, 7.0, 42.0),
+    ]
+
+    reform_milestones = []
+    for ref in reforms:
+        reform_milestones.append(PRDReformMilestoneRecord(
+            reform_id=ref[0], name=ref[1], category=ref[2], status=ref[3],
+            target_date=ref[4], actual_date=ref[5],
+            impact_score=ref[6], stakeholder_support=ref[7],
+            aemo_lead=random.choice([True, False])
+        ))
+
+    outcomes = [
+        ("Average wholesale price", 85.0, 72.0, "AUD/MWh", -15.3, 70.0, "ON_TRACK"),
+        ("Renewable energy share", 32.0, 55.0, "%", 71.9, 82.0, "ON_TRACK"),
+        ("NEM reliability", 99.95, 99.97, "%", 0.02, 99.998, "BEHIND"),
+        ("Annual emissions", 158.0, 112.0, "Mt CO2-e", -29.1, 90.0, "ON_TRACK"),
+        ("Consumer bill change", 1850.0, 1720.0, "AUD/year", -7.0, 1600.0, "ON_TRACK"),
+        ("Storage capacity", 1200.0, 4800.0, "MW", 300.0, 8000.0, "BEHIND"),
+        ("Price volatility (std dev)", 125.0, 98.0, "AUD/MWh", -21.6, 80.0, "ON_TRACK"),
+        ("FCAS market cost", 850.0, 680.0, "AUD million", -20.0, 600.0, "ON_TRACK"),
+        ("Interconnector utilisation", 62.0, 74.0, "%", 19.4, 80.0, "ON_TRACK"),
+        ("Generator market HHI", 2100.0, 1850.0, "index", -11.9, 1600.0, "BEHIND"),
+        ("Distribution network capex", 4.2, 5.8, "AUD billion", 38.1, 5.0, "BEHIND"),
+        ("DER connections", 2800000.0, 4200000.0, "count", 50.0, 6000000.0, "ON_TRACK"),
+    ]
+
+    market_outcomes = []
+    for o in outcomes:
+        market_outcomes.append(PRDMarketOutcomeRecord(
+            metric=o[0], pre_reform_value=o[1], post_reform_value=o[2],
+            unit=o[3], change_pct=o[4], target_value=o[5], assessment=o[6]
+        ))
+
+    design_elements = [
+        ("Real-time dispatch signals", "DISPATCH", "Enable price-responsive demand", "MEDIUM", 850.0, 720.0, "UK Balancing Mechanism"),
+        ("Locational marginal pricing", "PRICING", "Reflect network congestion costs", "VERY_HIGH", 1200.0, None, "USA PJM, CAISO"),
+        ("Capacity market mechanism", "PRICING", "Ensure generation adequacy", "HIGH", 400.0, None, "UK Capacity Market"),
+        ("Storage ring-fencing", "STORAGE", "Allow co-located storage trading", "MEDIUM", 600.0, 480.0, "California SGIP"),
+        ("Dynamic network tariffs", "NETWORK", "Send locational investment signals", "HIGH", 350.0, None, "Netherlands"),
+        ("Virtual power plant registry", "DISPATCH", "Aggregate distributed resources", "MEDIUM", 280.0, 210.0, "South Australia VPP"),
+        ("Green power accreditation", "RETAIL", "Consumer renewable tracing", "LOW", 120.0, 110.0, "EU REGO"),
+        ("Integrated resource planning", "PLANNING", "Co-optimise transmission/generation", "HIGH", 950.0, None, "USA IRP"),
+        ("Demand flexibility auctions", "RETAIL", "Procure demand response capacity", "MEDIUM", 220.0, None, "UK Demand Flexibility"),
+        ("Offshore wind connection", "NETWORK", "Dedicated offshore grid", "VERY_HIGH", 2500.0, None, "UK Offshore Transmission"),
+    ]
+
+    design_element_records = []
+    for de in design_elements:
+        design_element_records.append(PRDDesignElementRecord(
+            element=de[0], category=de[1], rationale=de[2],
+            implementation_complexity=de[3],
+            expected_benefit_aud_m=de[4], actual_benefit_aud_m=de[5],
+            international_precedent=de[6]
+        ))
+
+    stakeholders = [
+        ("AGL Energy", "GENERATOR", 5.5, "Stranded asset risk from early coal exit", "ACTIVE", 28),
+        ("Origin Energy", "GENERATOR", 6.0, "Transition timeline uncertainty", "ACTIVE", 24),
+        ("EnergyAustralia", "GENERATOR", 5.8, "Investment signal clarity", "ACTIVE", 19),
+        ("Energy Consumers Australia", "CONSUMER", 7.5, "Bill affordability impacts", "ACTIVE", 35),
+        ("Council of Small Business", "CONSUMER", 6.2, "SME tariff complexity", "MODERATE", 12),
+        ("AER", "REGULATOR", 8.0, "Market power in transition", "ACTIVE", 45),
+        ("AEMO", "REGULATOR", 8.5, "Operability during transition", "ACTIVE", 52),
+        ("TransGrid", "NETWORK", 7.0, "Cost recovery for new investment", "MODERATE", 18),
+        ("ElectraNet", "NETWORK", 6.8, "REZ connection coordination", "MODERATE", 15),
+        ("Simply Energy", "RETAILER", 6.5, "Compliance cost burden", "LOW", 8),
+        ("Business Council of Australia", "CONSUMER", 6.0, "Industrial competitiveness", "MODERATE", 14),
+        ("Australian Conservation Foundation", "CONSUMER", 8.8, "Pace of transition", "ACTIVE", 31),
+    ]
+
+    stakeholder_sentiments = []
+    for s in stakeholders:
+        stakeholder_sentiments.append(PRDStakeholderSentimentRecord(
+            stakeholder_group=s[0], category=s[1], support_score=s[2],
+            key_concern=s[3], engagement_level=s[4], submission_count=s[5]
+        ))
+
+    scenario_packages = ["Baseline Reform", "Accelerated Reform", "Conservative Reform", "Net Zero Fast Track"]
+    scenario_outcomes = []
+    for pkg in scenario_packages:
+        for year in [2025, 2028, 2030, 2035, 2040, 2050]:
+            progress = (year - 2025) / 25.0
+            base_price = {"Baseline Reform": 75, "Accelerated Reform": 65, "Conservative Reform": 90, "Net Zero Fast Track": 60}.get(pkg, 75)
+            scenario_outcomes.append(PRDScenarioOutcomeRecord(
+                scenario=f"{pkg} {year}",
+                reform_package=pkg, year=year,
+                wholesale_price_aud_mwh=round(base_price * (1 - 0.2 * progress) + random.uniform(-5, 5), 1),
+                reliability_pct=round(99.90 + 0.08 * progress + random.uniform(-0.02, 0.02), 3),
+                emissions_mt=round(112.0 * (1 - 0.85 * progress) + random.uniform(-5, 5), 1),
+                consumer_bill_aud=round(1720.0 * (1 - 0.15 * progress) + random.uniform(-50, 50), 0),
+                renewable_pct=round(55.0 + 40.0 * progress + random.uniform(-2, 2), 1),
+                investment_aud_bn=round(8.0 + 15.0 * progress + random.uniform(-1, 1), 1)
+            ))
+
+    result = PRDDashboard(
+        reform_milestones=reform_milestones,
+        market_outcomes=market_outcomes,
+        design_elements=design_element_records,
+        stakeholder_sentiments=stakeholder_sentiments,
+        scenario_outcomes=scenario_outcomes,
+        summary={
+            "total_reforms": len(reform_milestones),
+            "implemented_count": len([r for r in reform_milestones if r.status == "IMPLEMENTED"]),
+            "in_progress_count": len([r for r in reform_milestones if r.status == "IN_PROGRESS"]),
+            "avg_stakeholder_support_pct": round(sum(s.stakeholder_support for s in reform_milestones) / len(reform_milestones), 1),
+            "highest_impact_reform": "Two-Sided Market",
+            "total_expected_benefit_aud_m": sum(d.expected_benefit_aud_m for d in design_element_records),
+            "scenarios_modelled": len(scenario_packages),
+            "net_zero_year_target": 2050
+        }
+    )
+    _cache_set(_prd_cache, cache_key, result)
+    return result

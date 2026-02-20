@@ -306,6 +306,9 @@ import CarbonAccountingAnalytics from './pages/CarbonAccountingAnalytics'
 import WholesaleBiddingStrategyAnalytics from './pages/WholesaleBiddingStrategyAnalytics'
 import EmergencyManagementAnalytics from './pages/EmergencyManagementAnalytics'
 import LDESAnalytics from './pages/LDESAnalytics'
+import ConsumerSwitchingRetailChurnAnalytics from './pages/ConsumerSwitchingRetailChurnAnalytics'
+import SolarThermalCSPAnalytics from './pages/SolarThermalCSPAnalytics'
+import NEMPostReformMarketDesignAnalytics from './pages/NEMPostReformMarketDesignAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -539,6 +542,9 @@ const NAV_ITEMS = [
   { to: '/wholesale-bidding-strategy',  label: 'NEM Wholesale Bidding Strategy Analytics',  Icon: TrendingUp },
   { to: '/ldes-analytics',             label: 'LDES Technology & Investment Analytics',     Icon: Database   },
   { to: '/emergency-management',        label: 'NEM Emergency Management & Contingency Response', Icon: AlertTriangle },
+  { to: '/consumer-switching-retail-churn', label: 'Consumer Switching & Churn', Icon: Users },
+  { to: '/solar-thermal-csp', label: 'Solar Thermal CSP', Icon: Sun },
+  { to: '/nem-post-reform-market-design', label: 'Post-Reform Market Design', Icon: Scale },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -847,6 +853,9 @@ export default function App() {
               <Route path="/wholesale-bidding-strategy"    element={<WholesaleBiddingStrategyAnalytics />}     />
               <Route path="/ldes-analytics"                element={<LDESAnalytics />}                         />
               <Route path="/emergency-management"          element={<EmergencyManagementAnalytics />}           />
+              <Route path="/consumer-switching-retail-churn" element={<ConsumerSwitchingRetailChurnAnalytics />} />
+              <Route path="/solar-thermal-csp" element={<SolarThermalCSPAnalytics />} />
+              <Route path="/nem-post-reform-market-design" element={<NEMPostReformMarketDesignAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

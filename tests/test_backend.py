@@ -11304,3 +11304,138 @@ class TestEmergencyManagementEndpoint:
     def test_summary_rert_activated_2024(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert data["summary"]["rert_activated_2024"] == 3
+
+
+class TestConsumerSwitchingRetailChurnEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_switching_rates_present(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        data = r.json()
+        assert len(data["switching_rates"]) >= 30
+
+    def test_retailer_shares_present(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        data = r.json()
+        assert len(data["retailer_shares"]) >= 10
+
+    def test_churn_drivers_present(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        data = r.json()
+        assert len(data["churn_drivers"]) >= 8
+
+    def test_switching_frictions_present(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        data = r.json()
+        assert len(data["switching_frictions"]) >= 6
+
+    def test_competitive_pressures_present(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        data = r.json()
+        assert len(data["competitive_pressures"]) == 5
+
+    def test_summary_keys(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        data = r.json()
+        assert "national_avg_switching_rate_pct" in data["summary"]
+        assert "top_churn_driver" in data["summary"]
+
+    def test_switching_rate_fields(self, client, auth_headers):
+        r = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        rate = r.json()["switching_rates"][0]
+        assert "region" in rate
+        assert "switching_rate_pct" in rate
+        assert "churn_type" in rate
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        r2 = client.get("/api/consumer-switching-retail-churn/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestSolarThermalCSPEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_projects_present(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        assert len(data["projects"]) >= 10
+
+    def test_resources_present(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        assert len(data["resources"]) >= 10
+
+    def test_cost_curves_present(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        assert len(data["cost_curves"]) >= 40
+
+    def test_dispatch_profiles_present(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        assert len(data["dispatch_profiles"]) >= 12
+
+    def test_technology_comparison_present(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        assert len(data["technology_comparison"]) == 4
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        assert "total_capacity_mw" in data["summary"]
+        assert "best_dni_location" in data["summary"]
+
+    def test_project_fields(self, client, auth_headers):
+        data = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers).json()
+        p = data["projects"][0]
+        assert "technology" in p
+        assert "storage_hours" in p
+        assert "lcoe_aud_per_mwh" in p
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers)
+        r2 = client.get("/api/solar-thermal-csp/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNEMPostReformMarketDesignEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_reform_milestones_present(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        assert len(data["reform_milestones"]) >= 12
+
+    def test_market_outcomes_present(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        assert len(data["market_outcomes"]) >= 8
+
+    def test_design_elements_present(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        assert len(data["design_elements"]) >= 8
+
+    def test_stakeholder_sentiments_present(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        assert len(data["stakeholder_sentiments"]) >= 10
+
+    def test_scenario_outcomes_present(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        assert len(data["scenario_outcomes"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        assert "implemented_count" in data["summary"]
+        assert "highest_impact_reform" in data["summary"]
+
+    def test_reform_milestone_fields(self, client, auth_headers):
+        data = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers).json()
+        m = data["reform_milestones"][0]
+        assert "impact_score" in m
+        assert "stakeholder_support" in m
+        assert "status" in m
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers)
+        r2 = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
