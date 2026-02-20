@@ -5255,6 +5255,10 @@ export const api = {
   getDemandForecastModelsDashboard(): Promise<DemandForecastModelsDashboard> {
     return get<DemandForecastModelsDashboard>('/api/demand-forecast-models/dashboard')
   },
+
+  // Sprint 66a — Social Licence & Energy Transition Equity Analytics
+  getSocialLicenceDashboard: (): Promise<SocialLicenceDashboard> =>
+    get<SocialLicenceDashboard>('/api/social-licence/dashboard'),
 }
 
 // ---------------------------------------------------------------------------
@@ -9257,3 +9261,183 @@ export interface CarbonIntensityDashboard {
 
 export const getCarbonIntensityDashboard = (): Promise<CarbonIntensityDashboard> =>
   get<CarbonIntensityDashboard>('/api/carbon-intensity/dashboard')
+
+// ---------------------------------------------------------------------------
+// AEMO ESOO Generation Adequacy Analytics (Sprint 66b)
+// ---------------------------------------------------------------------------
+
+export interface EGAAdequacyRecord {
+  year: number
+  region: string
+  peak_demand_mw: number
+  available_capacity_mw: number
+  capacity_gap_mw: number
+  use_probability_pct: number
+  capacity_shortage_risk: string
+  new_investment_needed_mw: number
+}
+
+export interface EGAInvestmentPipelineRecord {
+  project_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  expected_cod: number
+  confidence: string
+  investment_m_aud: number
+  capacity_market_eligible: boolean
+}
+
+export interface EGARetirementRecord {
+  unit_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  expected_retirement_year: number
+  retirement_trigger: string
+  replacement_committed: boolean
+  reliability_impact: string
+}
+
+export interface EGAScenarioRecord {
+  scenario: string
+  year: number
+  region: string
+  total_capacity_gw: number
+  vre_capacity_gw: number
+  dispatchable_capacity_gw: number
+  storage_gw: number
+  adequacy_status: string
+}
+
+export interface EsooAdequacyDashboard {
+  timestamp: string
+  adequacy: EGAAdequacyRecord[]
+  investment_pipeline: EGAInvestmentPipelineRecord[]
+  retirements: EGARetirementRecord[]
+  scenarios: EGAScenarioRecord[]
+}
+
+export const getEsooAdequacyDashboard = (): Promise<EsooAdequacyDashboard> =>
+  get<EsooAdequacyDashboard>('/api/esoo-adequacy/dashboard')
+
+// ── Sprint 66c: AI & Digital Twin Analytics ──────────────────────────────────
+
+export type ADTDeploymentStatus = 'PRODUCTION' | 'PILOT' | 'RESEARCH' | 'PLANNED'
+export type ADTTechnology = 'ML' | 'DL' | 'RL' | 'DIGITAL_TWIN' | 'OPTIMIZATION' | 'HYBRID'
+export type ADTAssetType = 'TRANSMISSION_LINE' | 'SUBSTATION' | 'WIND_FARM' | 'SOLAR_FARM' | 'BATTERY' | 'THERMAL_PLANT'
+export type ADTAutomationDomain = 'DISPATCH_OPTIMISATION' | 'BIDDING' | 'HEDGE_EXECUTION' | 'FCAS_OPTIMISATION' | 'FAULT_RESTORATION' | 'DEMAND_RESPONSE'
+export type ADTInvestmentCategory = 'INFRASTRUCTURE' | 'ANALYTICS_PLATFORM' | 'AI_MODELS' | 'DIGITAL_TWINS' | 'CYBERSECURITY' | 'TRAINING'
+export type ADTMaturityLevel = 'EARLY' | 'GROWING' | 'MATURE'
+
+export interface ADTUseCaseRecord {
+  use_case_id: string
+  use_case: string
+  deployment_status: ADTDeploymentStatus
+  accuracy_improvement_pct: number
+  cost_saving_m_aud_yr: number
+  adoption_rate_industry_pct: number
+  technology: ADTTechnology
+  organisations_deployed: number
+}
+
+export interface ADTDigitalTwinRecord {
+  asset_type: ADTAssetType
+  operator: string
+  coverage_pct: number
+  predictive_accuracy_pct: number
+  maintenance_saving_m_aud_yr: number
+  outage_reduction_pct: number
+  data_feeds_count: number
+  implementation_cost_m_aud: number
+}
+
+export interface ADTAutomationRecord {
+  domain: ADTAutomationDomain
+  current_automation_pct: number
+  target_2030_pct: number
+  human_override_rate_pct: number
+  error_rate_pct: number
+  cost_reduction_m_aud_yr: number
+  jobs_affected: number
+}
+
+export interface ADTInvestmentRecord {
+  year: number
+  category: ADTInvestmentCategory
+  investment_m_aud: number
+  organisations: number
+  roi_pct: number
+  maturity_level: ADTMaturityLevel
+}
+
+export interface AiDigitalTwinDashboard {
+  timestamp: string
+  use_cases: ADTUseCaseRecord[]
+  digital_twins: ADTDigitalTwinRecord[]
+  automation: ADTAutomationRecord[]
+  investments: ADTInvestmentRecord[]
+}
+
+export const getAiDigitalTwinDashboard = (): Promise<AiDigitalTwinDashboard> =>
+  get<AiDigitalTwinDashboard>('/api/ai-digital-twin/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 66a — Social Licence & Energy Transition Equity Analytics interfaces
+// ---------------------------------------------------------------------------
+
+export interface SLEProjectRecord {
+  project_id: string
+  project_name: string
+  technology: string
+  region: string
+  state: string
+  community_support_pct: number
+  community_opposition_pct: number
+  neutral_pct: number
+  opposition_reason: string
+  engagement_quality: string
+  status: string
+  aboriginal_land: boolean
+}
+
+export interface SLEFirstNationsRecord {
+  region: string
+  project_count: number
+  indigenous_land_agreements: number
+  benefit_sharing_m_aud: number
+  employment_indigenous_k: number
+  consultation_adequacy: string
+  land_rights_respected: boolean
+  cultural_heritage_issues: number
+}
+
+export interface SLEJustTransitionRecord {
+  region: string
+  affected_workers_k: number
+  retraining_programs: number
+  retraining_uptake_pct: number
+  jobs_created_k: number
+  wage_replacement_pct: number
+  community_fund_m_aud: number
+  timeline_years: number
+  on_track: boolean
+}
+
+export interface SLEEquityRecord {
+  cohort: string
+  electricity_bill_burden_pct: number
+  access_to_solar_pct: number
+  energy_hardship_rate_pct: number
+  program_coverage_pct: number
+  equity_score: number
+  trend: string
+}
+
+export interface SocialLicenceDashboard {
+  timestamp: string
+  projects: SLEProjectRecord[]
+  first_nations: SLEFirstNationsRecord[]
+  just_transition: SLEJustTransitionRecord[]
+  equity: SLEEquityRecord[]
+}

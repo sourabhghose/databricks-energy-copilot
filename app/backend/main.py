@@ -46516,3 +46516,749 @@ def get_carbon_intensity_dashboard() -> CarbonIntensityDashboard:
         technology_emissions=_CIR_TECHNOLOGY_EMISSIONS,
         decarbonisation=_CIR_DECARBONISATION,
     )
+
+
+# ---------------------------------------------------------------------------
+# Models — Social Licence & Energy Transition Equity Analytics (Sprint 66a)
+# ---------------------------------------------------------------------------
+
+class SLEOppositionReason(str, Enum):
+    VISUAL_AMENITY = "VISUAL_AMENITY"
+    NOISE = "NOISE"
+    PROPERTY_VALUE = "PROPERTY_VALUE"
+    LAND_USE = "LAND_USE"
+    CULTURAL_HERITAGE = "CULTURAL_HERITAGE"
+    GRID_RELIABILITY = "GRID_RELIABILITY"
+    NONE = "NONE"
+
+
+class SLEEngagementQuality(str, Enum):
+    EXCELLENT = "EXCELLENT"
+    GOOD = "GOOD"
+    FAIR = "FAIR"
+    POOR = "POOR"
+
+
+class SLEConsultationAdequacy(str, Enum):
+    ADEQUATE = "ADEQUATE"
+    INADEQUATE = "INADEQUATE"
+    OUTSTANDING = "OUTSTANDING"
+
+
+class SLEEquityCohort(str, Enum):
+    LOW_INCOME = "LOW_INCOME"
+    RENTERS = "RENTERS"
+    REMOTE_COMMUNITIES = "REMOTE_COMMUNITIES"
+    FIRST_NATIONS = "FIRST_NATIONS"
+    ELDERLY = "ELDERLY"
+    DISABILITY = "DISABILITY"
+
+
+class SLEEquityTrend(str, Enum):
+    IMPROVING = "IMPROVING"
+    STABLE = "STABLE"
+    WORSENING = "WORSENING"
+
+
+class SLEProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    technology: str
+    region: str
+    state: str
+    community_support_pct: float
+    community_opposition_pct: float
+    neutral_pct: float
+    opposition_reason: SLEOppositionReason
+    engagement_quality: SLEEngagementQuality
+    status: str
+    aboriginal_land: bool
+
+
+class SLEFirstNationsRecord(BaseModel):
+    region: str
+    project_count: int
+    indigenous_land_agreements: int
+    benefit_sharing_m_aud: float
+    employment_indigenous_k: float
+    consultation_adequacy: SLEConsultationAdequacy
+    land_rights_respected: bool
+    cultural_heritage_issues: int
+
+
+class SLEJustTransitionRecord(BaseModel):
+    region: str
+    affected_workers_k: float
+    retraining_programs: int
+    retraining_uptake_pct: float
+    jobs_created_k: float
+    wage_replacement_pct: float
+    community_fund_m_aud: float
+    timeline_years: int
+    on_track: bool
+
+
+class SLEEquityRecord(BaseModel):
+    cohort: SLEEquityCohort
+    electricity_bill_burden_pct: float
+    access_to_solar_pct: float
+    energy_hardship_rate_pct: float
+    program_coverage_pct: float
+    equity_score: float
+    trend: SLEEquityTrend
+
+
+class SocialLicenceDashboard(BaseModel):
+    timestamp: str
+    projects: List[SLEProjectRecord]
+    first_nations: List[SLEFirstNationsRecord]
+    just_transition: List[SLEJustTransitionRecord]
+    equity: List[SLEEquityRecord]
+
+
+# ---------------------------------------------------------------------------
+# Mock data — Social Licence & Energy Transition Equity Analytics (Sprint 66a)
+# ---------------------------------------------------------------------------
+
+_SLE_PROJECTS: List[SLEProjectRecord] = [
+    SLEProjectRecord(
+        project_id="SLE-001", project_name="Goyder's Range Wind Farm", technology="Wind",
+        region="Flinders Ranges", state="SA", community_support_pct=62.0,
+        community_opposition_pct=24.0, neutral_pct=14.0,
+        opposition_reason=SLEOppositionReason.VISUAL_AMENITY,
+        engagement_quality=SLEEngagementQuality.GOOD, status="Under Construction",
+        aboriginal_land=True,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-002", project_name="Liverpool Range Wind Farm", technology="Wind",
+        region="Hunter Valley", state="NSW", community_support_pct=48.0,
+        community_opposition_pct=38.0, neutral_pct=14.0,
+        opposition_reason=SLEOppositionReason.NOISE,
+        engagement_quality=SLEEngagementQuality.FAIR, status="Approved",
+        aboriginal_land=False,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-003", project_name="Sun Cable Solar Array", technology="Solar PV",
+        region="Barkly Tablelands", state="NT", community_support_pct=71.0,
+        community_opposition_pct=12.0, neutral_pct=17.0,
+        opposition_reason=SLEOppositionReason.LAND_USE,
+        engagement_quality=SLEEngagementQuality.EXCELLENT, status="Planning",
+        aboriginal_land=True,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-004", project_name="Robbins Island Wind Farm", technology="Wind",
+        region="Northwest Tasmania", state="TAS", community_support_pct=55.0,
+        community_opposition_pct=31.0, neutral_pct=14.0,
+        opposition_reason=SLEOppositionReason.CULTURAL_HERITAGE,
+        engagement_quality=SLEEngagementQuality.POOR, status="Under Review",
+        aboriginal_land=True,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-005", project_name="Western Downs Solar Farm", technology="Solar PV",
+        region="Western Downs", state="QLD", community_support_pct=79.0,
+        community_opposition_pct=9.0, neutral_pct=12.0,
+        opposition_reason=SLEOppositionReason.NONE,
+        engagement_quality=SLEEngagementQuality.EXCELLENT, status="Operational",
+        aboriginal_land=False,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-006", project_name="Emerald Solar Park", technology="Solar PV",
+        region="Central Queensland", state="QLD", community_support_pct=66.0,
+        community_opposition_pct=20.0, neutral_pct=14.0,
+        opposition_reason=SLEOppositionReason.PROPERTY_VALUE,
+        engagement_quality=SLEEngagementQuality.GOOD, status="Operational",
+        aboriginal_land=False,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-007", project_name="Yandin Wind Farm", technology="Wind",
+        region="Wheatbelt", state="WA", community_support_pct=58.0,
+        community_opposition_pct=28.0, neutral_pct=14.0,
+        opposition_reason=SLEOppositionReason.VISUAL_AMENITY,
+        engagement_quality=SLEEngagementQuality.FAIR, status="Operational",
+        aboriginal_land=False,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-008", project_name="Stubbo Solar Farm", technology="Solar PV",
+        region="Central West NSW", state="NSW", community_support_pct=43.0,
+        community_opposition_pct=42.0, neutral_pct=15.0,
+        opposition_reason=SLEOppositionReason.GRID_RELIABILITY,
+        engagement_quality=SLEEngagementQuality.POOR, status="Approved",
+        aboriginal_land=False,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-009", project_name="Macarthur Wind Farm Extension", technology="Wind",
+        region="Western Victoria", state="VIC", community_support_pct=69.0,
+        community_opposition_pct=18.0, neutral_pct=13.0,
+        opposition_reason=SLEOppositionReason.NONE,
+        engagement_quality=SLEEngagementQuality.GOOD, status="Under Construction",
+        aboriginal_land=False,
+    ),
+    SLEProjectRecord(
+        project_id="SLE-010", project_name="Kidston Pumped Hydro", technology="Pumped Hydro",
+        region="North Queensland", state="QLD", community_support_pct=82.0,
+        community_opposition_pct=8.0, neutral_pct=10.0,
+        opposition_reason=SLEOppositionReason.NONE,
+        engagement_quality=SLEEngagementQuality.EXCELLENT, status="Under Construction",
+        aboriginal_land=False,
+    ),
+]
+
+_SLE_FIRST_NATIONS: List[SLEFirstNationsRecord] = [
+    SLEFirstNationsRecord(
+        region="Northern Territory", project_count=8, indigenous_land_agreements=6,
+        benefit_sharing_m_aud=42.5, employment_indigenous_k=1.2,
+        consultation_adequacy=SLEConsultationAdequacy.OUTSTANDING,
+        land_rights_respected=True, cultural_heritage_issues=1,
+    ),
+    SLEFirstNationsRecord(
+        region="Western Australia", project_count=14, indigenous_land_agreements=9,
+        benefit_sharing_m_aud=38.0, employment_indigenous_k=0.9,
+        consultation_adequacy=SLEConsultationAdequacy.ADEQUATE,
+        land_rights_respected=True, cultural_heritage_issues=3,
+    ),
+    SLEFirstNationsRecord(
+        region="Queensland", project_count=11, indigenous_land_agreements=7,
+        benefit_sharing_m_aud=29.3, employment_indigenous_k=0.7,
+        consultation_adequacy=SLEConsultationAdequacy.ADEQUATE,
+        land_rights_respected=True, cultural_heritage_issues=2,
+    ),
+    SLEFirstNationsRecord(
+        region="South Australia", project_count=6, indigenous_land_agreements=3,
+        benefit_sharing_m_aud=15.8, employment_indigenous_k=0.4,
+        consultation_adequacy=SLEConsultationAdequacy.INADEQUATE,
+        land_rights_respected=False, cultural_heritage_issues=5,
+    ),
+    SLEFirstNationsRecord(
+        region="Tasmania", project_count=4, indigenous_land_agreements=2,
+        benefit_sharing_m_aud=8.2, employment_indigenous_k=0.2,
+        consultation_adequacy=SLEConsultationAdequacy.INADEQUATE,
+        land_rights_respected=False, cultural_heritage_issues=4,
+    ),
+]
+
+_SLE_JUST_TRANSITION: List[SLEJustTransitionRecord] = [
+    SLEJustTransitionRecord(
+        region="Hunter Valley", affected_workers_k=12.5, retraining_programs=8,
+        retraining_uptake_pct=61.0, jobs_created_k=7.2, wage_replacement_pct=88.0,
+        community_fund_m_aud=250.0, timeline_years=10, on_track=True,
+    ),
+    SLEJustTransitionRecord(
+        region="Latrobe Valley", affected_workers_k=9.8, retraining_programs=6,
+        retraining_uptake_pct=54.0, jobs_created_k=5.1, wage_replacement_pct=82.0,
+        community_fund_m_aud=180.0, timeline_years=8, on_track=True,
+    ),
+    SLEJustTransitionRecord(
+        region="Callide", affected_workers_k=3.2, retraining_programs=3,
+        retraining_uptake_pct=42.0, jobs_created_k=1.8, wage_replacement_pct=74.0,
+        community_fund_m_aud=65.0, timeline_years=6, on_track=False,
+    ),
+    SLEJustTransitionRecord(
+        region="Collie", affected_workers_k=2.8, retraining_programs=4,
+        retraining_uptake_pct=58.0, jobs_created_k=2.2, wage_replacement_pct=85.0,
+        community_fund_m_aud=90.0, timeline_years=7, on_track=True,
+    ),
+    SLEJustTransitionRecord(
+        region="Leigh Creek", affected_workers_k=1.4, retraining_programs=2,
+        retraining_uptake_pct=35.0, jobs_created_k=0.7, wage_replacement_pct=68.0,
+        community_fund_m_aud=28.0, timeline_years=5, on_track=False,
+    ),
+]
+
+_SLE_EQUITY: List[SLEEquityRecord] = [
+    SLEEquityRecord(
+        cohort=SLEEquityCohort.LOW_INCOME, electricity_bill_burden_pct=12.4,
+        access_to_solar_pct=18.0, energy_hardship_rate_pct=22.1,
+        program_coverage_pct=45.0, equity_score=4.2, trend=SLEEquityTrend.IMPROVING,
+    ),
+    SLEEquityRecord(
+        cohort=SLEEquityCohort.RENTERS, electricity_bill_burden_pct=9.8,
+        access_to_solar_pct=8.0, energy_hardship_rate_pct=14.5,
+        program_coverage_pct=28.0, equity_score=3.6, trend=SLEEquityTrend.STABLE,
+    ),
+    SLEEquityRecord(
+        cohort=SLEEquityCohort.REMOTE_COMMUNITIES, electricity_bill_burden_pct=18.7,
+        access_to_solar_pct=31.0, energy_hardship_rate_pct=31.2,
+        program_coverage_pct=52.0, equity_score=3.9, trend=SLEEquityTrend.IMPROVING,
+    ),
+    SLEEquityRecord(
+        cohort=SLEEquityCohort.FIRST_NATIONS, electricity_bill_burden_pct=21.3,
+        access_to_solar_pct=22.0, energy_hardship_rate_pct=38.4,
+        program_coverage_pct=41.0, equity_score=3.1, trend=SLEEquityTrend.WORSENING,
+    ),
+    SLEEquityRecord(
+        cohort=SLEEquityCohort.ELDERLY, electricity_bill_burden_pct=11.2,
+        access_to_solar_pct=41.0, energy_hardship_rate_pct=16.8,
+        program_coverage_pct=61.0, equity_score=5.4, trend=SLEEquityTrend.STABLE,
+    ),
+    SLEEquityRecord(
+        cohort=SLEEquityCohort.DISABILITY, electricity_bill_burden_pct=15.6,
+        access_to_solar_pct=14.0, energy_hardship_rate_pct=26.3,
+        program_coverage_pct=38.0, equity_score=3.8, trend=SLEEquityTrend.WORSENING,
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# Endpoint — Social Licence & Energy Transition Equity Analytics (Sprint 66a)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/social-licence/dashboard", dependencies=[Depends(verify_api_key)])
+def get_social_licence_dashboard() -> SocialLicenceDashboard:
+    return SocialLicenceDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        projects=_SLE_PROJECTS,
+        first_nations=_SLE_FIRST_NATIONS,
+        just_transition=_SLE_JUST_TRANSITION,
+        equity=_SLE_EQUITY,
+    )
+
+# ---------------------------------------------------------------------------
+# AEMO ESOO Generation Adequacy Analytics (Sprint 66b)
+# ---------------------------------------------------------------------------
+
+class EGAAdequacyRecord(BaseModel):
+    year: int
+    region: str
+    peak_demand_mw: float
+    available_capacity_mw: float
+    capacity_gap_mw: float
+    use_probability_pct: float
+    capacity_shortage_risk: str  # LOW / MEDIUM / HIGH / CRITICAL
+    new_investment_needed_mw: float
+
+
+class EGAInvestmentPipelineRecord(BaseModel):
+    project_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    expected_cod: int
+    confidence: str  # FIRM / LIKELY / SPECULATIVE
+    investment_m_aud: float
+    capacity_market_eligible: bool
+
+
+class EGARetirementRecord(BaseModel):
+    unit_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    expected_retirement_year: int
+    retirement_trigger: str  # ECONOMICS / AGE / POLICY / OWNER_DECISION
+    replacement_committed: bool
+    reliability_impact: str
+
+
+class EGAScenarioRecord(BaseModel):
+    scenario: str  # STEP_CHANGE / CENTRAL / SLOW_CHANGE / HIGH_DER
+    year: int
+    region: str
+    total_capacity_gw: float
+    vre_capacity_gw: float
+    dispatchable_capacity_gw: float
+    storage_gw: float
+    adequacy_status: str  # ADEQUATE / MARGINAL / INADEQUATE
+
+
+class EsooAdequacyDashboard(BaseModel):
+    timestamp: str
+    adequacy: List[EGAAdequacyRecord]
+    investment_pipeline: List[EGAInvestmentPipelineRecord]
+    retirements: List[EGARetirementRecord]
+    scenarios: List[EGAScenarioRecord]
+
+
+# --- Mock data -----------------------------------------------------------
+
+_EGA_ADEQUACY: List[EGAAdequacyRecord] = [
+    # NSW
+    EGAAdequacyRecord(year=2025, region="NSW", peak_demand_mw=14200, available_capacity_mw=15100, capacity_gap_mw=-900, use_probability_pct=2.1, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2026, region="NSW", peak_demand_mw=14550, available_capacity_mw=14900, capacity_gap_mw=-350, use_probability_pct=4.8, capacity_shortage_risk="LOW", new_investment_needed_mw=200),
+    EGAAdequacyRecord(year=2027, region="NSW", peak_demand_mw=14950, available_capacity_mw=14650, capacity_gap_mw=300, use_probability_pct=9.3, capacity_shortage_risk="MEDIUM", new_investment_needed_mw=600),
+    EGAAdequacyRecord(year=2028, region="NSW", peak_demand_mw=15350, available_capacity_mw=14300, capacity_gap_mw=1050, use_probability_pct=15.7, capacity_shortage_risk="HIGH", new_investment_needed_mw=1200),
+    # VIC
+    EGAAdequacyRecord(year=2025, region="VIC", peak_demand_mw=10100, available_capacity_mw=10800, capacity_gap_mw=-700, use_probability_pct=1.9, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2026, region="VIC", peak_demand_mw=10350, available_capacity_mw=10400, capacity_gap_mw=-50, use_probability_pct=5.5, capacity_shortage_risk="MEDIUM", new_investment_needed_mw=300),
+    EGAAdequacyRecord(year=2027, region="VIC", peak_demand_mw=10650, available_capacity_mw=9900, capacity_gap_mw=750, use_probability_pct=12.4, capacity_shortage_risk="HIGH", new_investment_needed_mw=900),
+    EGAAdequacyRecord(year=2028, region="VIC", peak_demand_mw=10980, available_capacity_mw=9200, capacity_gap_mw=1780, use_probability_pct=21.6, capacity_shortage_risk="CRITICAL", new_investment_needed_mw=2000),
+    # QLD
+    EGAAdequacyRecord(year=2025, region="QLD", peak_demand_mw=9800, available_capacity_mw=10900, capacity_gap_mw=-1100, use_probability_pct=1.2, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2026, region="QLD", peak_demand_mw=10000, available_capacity_mw=10700, capacity_gap_mw=-700, use_probability_pct=2.3, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2027, region="QLD", peak_demand_mw=10250, available_capacity_mw=10450, capacity_gap_mw=-200, use_probability_pct=4.1, capacity_shortage_risk="LOW", new_investment_needed_mw=100),
+    EGAAdequacyRecord(year=2028, region="QLD", peak_demand_mw=10520, available_capacity_mw=10200, capacity_gap_mw=320, use_probability_pct=7.8, capacity_shortage_risk="MEDIUM", new_investment_needed_mw=500),
+    # SA
+    EGAAdequacyRecord(year=2025, region="SA", peak_demand_mw=3400, available_capacity_mw=3600, capacity_gap_mw=-200, use_probability_pct=3.4, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2026, region="SA", peak_demand_mw=3480, available_capacity_mw=3450, capacity_gap_mw=30, use_probability_pct=8.9, capacity_shortage_risk="MEDIUM", new_investment_needed_mw=250),
+    EGAAdequacyRecord(year=2027, region="SA", peak_demand_mw=3560, available_capacity_mw=3350, capacity_gap_mw=210, use_probability_pct=14.2, capacity_shortage_risk="HIGH", new_investment_needed_mw=450),
+    EGAAdequacyRecord(year=2028, region="SA", peak_demand_mw=3650, available_capacity_mw=3200, capacity_gap_mw=450, use_probability_pct=20.1, capacity_shortage_risk="CRITICAL", new_investment_needed_mw=700),
+    # TAS
+    EGAAdequacyRecord(year=2025, region="TAS", peak_demand_mw=1650, available_capacity_mw=2100, capacity_gap_mw=-450, use_probability_pct=0.8, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2026, region="TAS", peak_demand_mw=1680, available_capacity_mw=2050, capacity_gap_mw=-370, use_probability_pct=1.1, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2027, region="TAS", peak_demand_mw=1710, available_capacity_mw=2000, capacity_gap_mw=-290, use_probability_pct=1.5, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+    EGAAdequacyRecord(year=2028, region="TAS", peak_demand_mw=1750, available_capacity_mw=1950, capacity_gap_mw=-200, use_probability_pct=2.0, capacity_shortage_risk="LOW", new_investment_needed_mw=0),
+]
+
+_EGA_INVESTMENT_PIPELINE: List[EGAInvestmentPipelineRecord] = [
+    EGAInvestmentPipelineRecord(project_name="Waratah Super Battery", technology="Battery Storage", region="NSW", capacity_mw=850, expected_cod=2025, confidence="FIRM", investment_m_aud=780, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Eraring Life Extension", technology="Coal", region="NSW", capacity_mw=2880, expected_cod=2027, confidence="FIRM", investment_m_aud=1500, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Snowy 2.0", technology="Pumped Hydro", region="NSW", capacity_mw=2000, expected_cod=2028, confidence="LIKELY", investment_m_aud=12000, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Liddell Peaker Replacement", technology="Gas OCGT", region="NSW", capacity_mw=500, expected_cod=2026, confidence="FIRM", investment_m_aud=450, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Gippsland Battery Energy Storage", technology="Battery Storage", region="VIC", capacity_mw=600, expected_cod=2026, confidence="LIKELY", investment_m_aud=550, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Portland Aluminium BESS", technology="Battery Storage", region="VIC", capacity_mw=200, expected_cod=2025, confidence="FIRM", investment_m_aud=185, capacity_market_eligible=False),
+    EGAInvestmentPipelineRecord(project_name="Moorabool Wind & Storage", technology="Wind + Storage", region="VIC", capacity_mw=420, expected_cod=2026, confidence="LIKELY", investment_m_aud=680, capacity_market_eligible=False),
+    EGAInvestmentPipelineRecord(project_name="Callide C Replacement Gas", technology="Gas CCGT", region="QLD", capacity_mw=750, expected_cod=2027, confidence="LIKELY", investment_m_aud=900, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Pioneer-Burdekin Pumped Hydro", technology="Pumped Hydro", region="QLD", capacity_mw=5000, expected_cod=2035, confidence="SPECULATIVE", investment_m_aud=18000, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Borumba Dam Pumped Hydro", technology="Pumped Hydro", region="QLD", capacity_mw=2000, expected_cod=2031, confidence="LIKELY", investment_m_aud=7000, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Barker Inlet Power Station", technology="Gas OCGT", region="SA", capacity_mw=211, expected_cod=2025, confidence="FIRM", investment_m_aud=295, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="SA Big Battery 2", technology="Battery Storage", region="SA", capacity_mw=500, expected_cod=2026, confidence="LIKELY", investment_m_aud=460, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Olympic Dam Hydrogen Peaker", technology="Hydrogen", region="SA", capacity_mw=150, expected_cod=2028, confidence="SPECULATIVE", investment_m_aud=320, capacity_market_eligible=False),
+    EGAInvestmentPipelineRecord(project_name="Marinus Link Battery", technology="Battery Storage", region="TAS", capacity_mw=750, expected_cod=2030, confidence="LIKELY", investment_m_aud=680, capacity_market_eligible=True),
+    EGAInvestmentPipelineRecord(project_name="Robbins Island Wind Farm", technology="Wind", region="TAS", capacity_mw=1000, expected_cod=2029, confidence="SPECULATIVE", investment_m_aud=2800, capacity_market_eligible=False),
+]
+
+_EGA_RETIREMENTS: List[EGARetirementRecord] = [
+    EGARetirementRecord(unit_name="Eraring Unit 1", technology="Coal", region="NSW", capacity_mw=720, expected_retirement_year=2025, retirement_trigger="ECONOMICS", replacement_committed=True, reliability_impact="MODERATE"),
+    EGARetirementRecord(unit_name="Vales Point B", technology="Coal", region="NSW", capacity_mw=660, expected_retirement_year=2029, retirement_trigger="AGE", replacement_committed=False, reliability_impact="HIGH"),
+    EGARetirementRecord(unit_name="Loy Yang A Unit 1", technology="Coal", region="VIC", capacity_mw=560, expected_retirement_year=2026, retirement_trigger="ECONOMICS", replacement_committed=False, reliability_impact="CRITICAL"),
+    EGARetirementRecord(unit_name="Loy Yang A Unit 2", technology="Coal", region="VIC", capacity_mw=560, expected_retirement_year=2028, retirement_trigger="ECONOMICS", replacement_committed=False, reliability_impact="HIGH"),
+    EGARetirementRecord(unit_name="Loy Yang B Unit 1", technology="Coal", region="VIC", capacity_mw=500, expected_retirement_year=2032, retirement_trigger="AGE", replacement_committed=False, reliability_impact="MODERATE"),
+    EGARetirementRecord(unit_name="Callide C Unit 3", technology="Coal", region="QLD", capacity_mw=420, expected_retirement_year=2028, retirement_trigger="OWNER_DECISION", replacement_committed=True, reliability_impact="MODERATE"),
+    EGARetirementRecord(unit_name="Millmerran Unit 1", technology="Coal", region="QLD", capacity_mw=420, expected_retirement_year=2030, retirement_trigger="POLICY", replacement_committed=False, reliability_impact="LOW"),
+    EGARetirementRecord(unit_name="Tarong Unit 1", technology="Coal", region="QLD", capacity_mw=350, expected_retirement_year=2031, retirement_trigger="ECONOMICS", replacement_committed=False, reliability_impact="LOW"),
+    EGARetirementRecord(unit_name="Northern Power Station", technology="Coal", region="SA", capacity_mw=520, expected_retirement_year=2026, retirement_trigger="POLICY", replacement_committed=True, reliability_impact="HIGH"),
+    EGARetirementRecord(unit_name="Pelican Point Unit 2", technology="Gas CCGT", region="SA", capacity_mw=239, expected_retirement_year=2027, retirement_trigger="ECONOMICS", replacement_committed=False, reliability_impact="MODERATE"),
+]
+
+_EGA_SCENARIOS: List[EGAScenarioRecord] = [
+    # NSW
+    EGAScenarioRecord(scenario="STEP_CHANGE", year=2030, region="NSW", total_capacity_gw=28.5, vre_capacity_gw=18.2, dispatchable_capacity_gw=7.8, storage_gw=2.5, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="CENTRAL", year=2030, region="NSW", total_capacity_gw=24.1, vre_capacity_gw=14.5, dispatchable_capacity_gw=7.5, storage_gw=2.1, adequacy_status="MARGINAL"),
+    EGAScenarioRecord(scenario="SLOW_CHANGE", year=2030, region="NSW", total_capacity_gw=20.8, vre_capacity_gw=10.2, dispatchable_capacity_gw=8.1, storage_gw=2.5, adequacy_status="MARGINAL"),
+    EGAScenarioRecord(scenario="HIGH_DER", year=2030, region="NSW", total_capacity_gw=26.9, vre_capacity_gw=16.8, dispatchable_capacity_gw=6.2, storage_gw=3.9, adequacy_status="ADEQUATE"),
+    # VIC
+    EGAScenarioRecord(scenario="STEP_CHANGE", year=2030, region="VIC", total_capacity_gw=22.3, vre_capacity_gw=15.1, dispatchable_capacity_gw=5.2, storage_gw=2.0, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="CENTRAL", year=2030, region="VIC", total_capacity_gw=17.9, vre_capacity_gw=11.4, dispatchable_capacity_gw=4.8, storage_gw=1.7, adequacy_status="INADEQUATE"),
+    EGAScenarioRecord(scenario="SLOW_CHANGE", year=2030, region="VIC", total_capacity_gw=15.2, vre_capacity_gw=7.8, dispatchable_capacity_gw=5.5, storage_gw=1.9, adequacy_status="INADEQUATE"),
+    EGAScenarioRecord(scenario="HIGH_DER", year=2030, region="VIC", total_capacity_gw=20.4, vre_capacity_gw=13.5, dispatchable_capacity_gw=4.1, storage_gw=2.8, adequacy_status="MARGINAL"),
+    # QLD
+    EGAScenarioRecord(scenario="STEP_CHANGE", year=2030, region="QLD", total_capacity_gw=25.6, vre_capacity_gw=16.8, dispatchable_capacity_gw=7.1, storage_gw=1.7, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="CENTRAL", year=2030, region="QLD", total_capacity_gw=21.4, vre_capacity_gw=13.2, dispatchable_capacity_gw=6.8, storage_gw=1.4, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="SLOW_CHANGE", year=2030, region="QLD", total_capacity_gw=18.7, vre_capacity_gw=9.5, dispatchable_capacity_gw=7.4, storage_gw=1.8, adequacy_status="MARGINAL"),
+    EGAScenarioRecord(scenario="HIGH_DER", year=2030, region="QLD", total_capacity_gw=24.1, vre_capacity_gw=15.4, dispatchable_capacity_gw=5.8, storage_gw=2.9, adequacy_status="ADEQUATE"),
+    # SA
+    EGAScenarioRecord(scenario="STEP_CHANGE", year=2030, region="SA", total_capacity_gw=8.9, vre_capacity_gw=6.4, dispatchable_capacity_gw=1.5, storage_gw=1.0, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="CENTRAL", year=2030, region="SA", total_capacity_gw=6.8, vre_capacity_gw=4.5, dispatchable_capacity_gw=1.4, storage_gw=0.9, adequacy_status="MARGINAL"),
+    EGAScenarioRecord(scenario="SLOW_CHANGE", year=2030, region="SA", total_capacity_gw=5.4, vre_capacity_gw=3.1, dispatchable_capacity_gw=1.6, storage_gw=0.7, adequacy_status="INADEQUATE"),
+    EGAScenarioRecord(scenario="HIGH_DER", year=2030, region="SA", total_capacity_gw=7.9, vre_capacity_gw=5.5, dispatchable_capacity_gw=1.2, storage_gw=1.2, adequacy_status="ADEQUATE"),
+    # TAS
+    EGAScenarioRecord(scenario="STEP_CHANGE", year=2030, region="TAS", total_capacity_gw=5.2, vre_capacity_gw=3.1, dispatchable_capacity_gw=1.8, storage_gw=0.3, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="CENTRAL", year=2030, region="TAS", total_capacity_gw=4.5, vre_capacity_gw=2.5, dispatchable_capacity_gw=1.7, storage_gw=0.3, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="SLOW_CHANGE", year=2030, region="TAS", total_capacity_gw=3.9, vre_capacity_gw=1.8, dispatchable_capacity_gw=1.8, storage_gw=0.3, adequacy_status="ADEQUATE"),
+    EGAScenarioRecord(scenario="HIGH_DER", year=2030, region="TAS", total_capacity_gw=5.0, vre_capacity_gw=3.0, dispatchable_capacity_gw=1.6, storage_gw=0.4, adequacy_status="ADEQUATE"),
+]
+
+
+def _make_esoo_adequacy_dashboard() -> EsooAdequacyDashboard:
+    return EsooAdequacyDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        adequacy=_EGA_ADEQUACY,
+        investment_pipeline=_EGA_INVESTMENT_PIPELINE,
+        retirements=_EGA_RETIREMENTS,
+        scenarios=_EGA_SCENARIOS,
+    )
+
+
+@app.get(
+    "/api/esoo-adequacy/dashboard",
+    response_model=EsooAdequacyDashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+def get_esoo_adequacy_dashboard() -> EsooAdequacyDashboard:
+    return _make_esoo_adequacy_dashboard()
+
+
+# ============================================================
+# Sprint 66c — AI & Digital Twin in the Electricity Sector Analytics
+# ============================================================
+
+class ADTUseCaseEnum(str, Enum):
+    DEMAND_FORECASTING    = "DEMAND_FORECASTING"
+    PRICE_FORECASTING     = "PRICE_FORECASTING"
+    FAULT_DETECTION       = "FAULT_DETECTION"
+    PREDICTIVE_MAINTENANCE = "PREDICTIVE_MAINTENANCE"
+    TRADING_OPTIMISATION  = "TRADING_OPTIMISATION"
+    RENEWABLE_FORECASTING = "RENEWABLE_FORECASTING"
+    LOAD_BALANCING        = "LOAD_BALANCING"
+    CYBERSECURITY         = "CYBERSECURITY"
+
+class ADTDeploymentStatus(str, Enum):
+    PRODUCTION = "PRODUCTION"
+    PILOT      = "PILOT"
+    RESEARCH   = "RESEARCH"
+    PLANNED    = "PLANNED"
+
+class ADTTechnology(str, Enum):
+    ML           = "ML"
+    DL           = "DL"
+    RL           = "RL"
+    DIGITAL_TWIN = "DIGITAL_TWIN"
+    OPTIMIZATION = "OPTIMIZATION"
+    HYBRID       = "HYBRID"
+
+class ADTAssetType(str, Enum):
+    TRANSMISSION_LINE = "TRANSMISSION_LINE"
+    SUBSTATION        = "SUBSTATION"
+    WIND_FARM         = "WIND_FARM"
+    SOLAR_FARM        = "SOLAR_FARM"
+    BATTERY           = "BATTERY"
+    THERMAL_PLANT     = "THERMAL_PLANT"
+
+class ADTAutomationDomain(str, Enum):
+    DISPATCH_OPTIMISATION = "DISPATCH_OPTIMISATION"
+    BIDDING               = "BIDDING"
+    HEDGE_EXECUTION       = "HEDGE_EXECUTION"
+    FCAS_OPTIMISATION     = "FCAS_OPTIMISATION"
+    FAULT_RESTORATION     = "FAULT_RESTORATION"
+    DEMAND_RESPONSE       = "DEMAND_RESPONSE"
+
+class ADTInvestmentCategory(str, Enum):
+    INFRASTRUCTURE      = "INFRASTRUCTURE"
+    ANALYTICS_PLATFORM  = "ANALYTICS_PLATFORM"
+    AI_MODELS           = "AI_MODELS"
+    DIGITAL_TWINS       = "DIGITAL_TWINS"
+    CYBERSECURITY       = "CYBERSECURITY"
+    TRAINING            = "TRAINING"
+
+class ADTMaturityLevel(str, Enum):
+    EARLY   = "EARLY"
+    GROWING = "GROWING"
+    MATURE  = "MATURE"
+
+class ADTUseCaseRecord(BaseModel):
+    use_case_id:             str
+    use_case:                ADTUseCaseEnum
+    deployment_status:       ADTDeploymentStatus
+    accuracy_improvement_pct: float
+    cost_saving_m_aud_yr:    float
+    adoption_rate_industry_pct: float
+    technology:              ADTTechnology
+    organisations_deployed:  int
+
+class ADTDigitalTwinRecord(BaseModel):
+    asset_type:                  ADTAssetType
+    operator:                    str
+    coverage_pct:                float
+    predictive_accuracy_pct:     float
+    maintenance_saving_m_aud_yr: float
+    outage_reduction_pct:        float
+    data_feeds_count:            int
+    implementation_cost_m_aud:   float
+
+class ADTAutomationRecord(BaseModel):
+    domain:                 ADTAutomationDomain
+    current_automation_pct: float
+    target_2030_pct:        float
+    human_override_rate_pct: float
+    error_rate_pct:         float
+    cost_reduction_m_aud_yr: float
+    jobs_affected:          int
+
+class ADTInvestmentRecord(BaseModel):
+    year:              int
+    category:          ADTInvestmentCategory
+    investment_m_aud:  float
+    organisations:     int
+    roi_pct:           float
+    maturity_level:    ADTMaturityLevel
+
+class AiDigitalTwinDashboard(BaseModel):
+    timestamp:    datetime
+    use_cases:    List[ADTUseCaseRecord]
+    digital_twins: List[ADTDigitalTwinRecord]
+    automation:   List[ADTAutomationRecord]
+    investments:  List[ADTInvestmentRecord]
+
+
+_ADT_USE_CASES: List[ADTUseCaseRecord] = [
+    ADTUseCaseRecord(
+        use_case_id="UC-001", use_case=ADTUseCaseEnum.DEMAND_FORECASTING,
+        deployment_status=ADTDeploymentStatus.PRODUCTION,
+        accuracy_improvement_pct=18.5, cost_saving_m_aud_yr=42.3,
+        adoption_rate_industry_pct=74.0, technology=ADTTechnology.DL,
+        organisations_deployed=18,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-002", use_case=ADTUseCaseEnum.PRICE_FORECASTING,
+        deployment_status=ADTDeploymentStatus.PRODUCTION,
+        accuracy_improvement_pct=22.1, cost_saving_m_aud_yr=67.8,
+        adoption_rate_industry_pct=61.0, technology=ADTTechnology.HYBRID,
+        organisations_deployed=14,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-003", use_case=ADTUseCaseEnum.FAULT_DETECTION,
+        deployment_status=ADTDeploymentStatus.PRODUCTION,
+        accuracy_improvement_pct=31.4, cost_saving_m_aud_yr=89.2,
+        adoption_rate_industry_pct=55.0, technology=ADTTechnology.ML,
+        organisations_deployed=12,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-004", use_case=ADTUseCaseEnum.PREDICTIVE_MAINTENANCE,
+        deployment_status=ADTDeploymentStatus.PILOT,
+        accuracy_improvement_pct=26.7, cost_saving_m_aud_yr=54.1,
+        adoption_rate_industry_pct=38.0, technology=ADTTechnology.DIGITAL_TWIN,
+        organisations_deployed=8,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-005", use_case=ADTUseCaseEnum.TRADING_OPTIMISATION,
+        deployment_status=ADTDeploymentStatus.PRODUCTION,
+        accuracy_improvement_pct=15.9, cost_saving_m_aud_yr=123.4,
+        adoption_rate_industry_pct=49.0, technology=ADTTechnology.RL,
+        organisations_deployed=10,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-006", use_case=ADTUseCaseEnum.RENEWABLE_FORECASTING,
+        deployment_status=ADTDeploymentStatus.PRODUCTION,
+        accuracy_improvement_pct=28.3, cost_saving_m_aud_yr=38.6,
+        adoption_rate_industry_pct=68.0, technology=ADTTechnology.DL,
+        organisations_deployed=16,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-007", use_case=ADTUseCaseEnum.LOAD_BALANCING,
+        deployment_status=ADTDeploymentStatus.PILOT,
+        accuracy_improvement_pct=12.4, cost_saving_m_aud_yr=29.7,
+        adoption_rate_industry_pct=31.0, technology=ADTTechnology.OPTIMIZATION,
+        organisations_deployed=7,
+    ),
+    ADTUseCaseRecord(
+        use_case_id="UC-008", use_case=ADTUseCaseEnum.CYBERSECURITY,
+        deployment_status=ADTDeploymentStatus.RESEARCH,
+        accuracy_improvement_pct=44.2, cost_saving_m_aud_yr=18.9,
+        adoption_rate_industry_pct=22.0, technology=ADTTechnology.ML,
+        organisations_deployed=5,
+    ),
+]
+
+_ADT_DIGITAL_TWINS: List[ADTDigitalTwinRecord] = [
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.TRANSMISSION_LINE, operator="TransGrid",
+        coverage_pct=62.0, predictive_accuracy_pct=91.5,
+        maintenance_saving_m_aud_yr=28.4, outage_reduction_pct=34.0,
+        data_feeds_count=1240, implementation_cost_m_aud=18.5,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.SUBSTATION, operator="AusNet",
+        coverage_pct=78.5, predictive_accuracy_pct=94.2,
+        maintenance_saving_m_aud_yr=19.7, outage_reduction_pct=41.0,
+        data_feeds_count=860, implementation_cost_m_aud=12.3,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.WIND_FARM, operator="AGL Energy",
+        coverage_pct=85.0, predictive_accuracy_pct=88.7,
+        maintenance_saving_m_aud_yr=14.2, outage_reduction_pct=28.5,
+        data_feeds_count=2150, implementation_cost_m_aud=9.8,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.SOLAR_FARM, operator="Origin Energy",
+        coverage_pct=72.3, predictive_accuracy_pct=92.1,
+        maintenance_saving_m_aud_yr=11.8, outage_reduction_pct=22.0,
+        data_feeds_count=1680, implementation_cost_m_aud=8.4,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.BATTERY, operator="Neoen",
+        coverage_pct=95.0, predictive_accuracy_pct=96.4,
+        maintenance_saving_m_aud_yr=7.3, outage_reduction_pct=18.0,
+        data_feeds_count=520, implementation_cost_m_aud=5.2,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.THERMAL_PLANT, operator="EnergyAustralia",
+        coverage_pct=54.0, predictive_accuracy_pct=89.3,
+        maintenance_saving_m_aud_yr=41.6, outage_reduction_pct=29.0,
+        data_feeds_count=3200, implementation_cost_m_aud=24.1,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.SUBSTATION, operator="Ausgrid",
+        coverage_pct=81.0, predictive_accuracy_pct=93.8,
+        maintenance_saving_m_aud_yr=22.5, outage_reduction_pct=37.5,
+        data_feeds_count=940, implementation_cost_m_aud=14.7,
+    ),
+    ADTDigitalTwinRecord(
+        asset_type=ADTAssetType.TRANSMISSION_LINE, operator="ElectraNet",
+        coverage_pct=58.5, predictive_accuracy_pct=90.1,
+        maintenance_saving_m_aud_yr=16.3, outage_reduction_pct=26.0,
+        data_feeds_count=980, implementation_cost_m_aud=13.2,
+    ),
+]
+
+_ADT_AUTOMATION: List[ADTAutomationRecord] = [
+    ADTAutomationRecord(
+        domain=ADTAutomationDomain.DISPATCH_OPTIMISATION,
+        current_automation_pct=72.0, target_2030_pct=90.0,
+        human_override_rate_pct=8.5, error_rate_pct=0.4,
+        cost_reduction_m_aud_yr=87.3, jobs_affected=420,
+    ),
+    ADTAutomationRecord(
+        domain=ADTAutomationDomain.BIDDING,
+        current_automation_pct=58.0, target_2030_pct=85.0,
+        human_override_rate_pct=14.2, error_rate_pct=0.7,
+        cost_reduction_m_aud_yr=62.1, jobs_affected=310,
+    ),
+    ADTAutomationRecord(
+        domain=ADTAutomationDomain.HEDGE_EXECUTION,
+        current_automation_pct=44.0, target_2030_pct=75.0,
+        human_override_rate_pct=21.8, error_rate_pct=1.1,
+        cost_reduction_m_aud_yr=38.9, jobs_affected=185,
+    ),
+    ADTAutomationRecord(
+        domain=ADTAutomationDomain.FCAS_OPTIMISATION,
+        current_automation_pct=81.0, target_2030_pct=95.0,
+        human_override_rate_pct=5.3, error_rate_pct=0.2,
+        cost_reduction_m_aud_yr=43.7, jobs_affected=95,
+    ),
+    ADTAutomationRecord(
+        domain=ADTAutomationDomain.FAULT_RESTORATION,
+        current_automation_pct=39.0, target_2030_pct=70.0,
+        human_override_rate_pct=28.6, error_rate_pct=1.8,
+        cost_reduction_m_aud_yr=54.2, jobs_affected=670,
+    ),
+    ADTAutomationRecord(
+        domain=ADTAutomationDomain.DEMAND_RESPONSE,
+        current_automation_pct=52.0, target_2030_pct=80.0,
+        human_override_rate_pct=17.4, error_rate_pct=0.9,
+        cost_reduction_m_aud_yr=29.6, jobs_affected=240,
+    ),
+]
+
+_ADT_INVESTMENTS: List[ADTInvestmentRecord] = [
+    # 2022
+    ADTInvestmentRecord(year=2022, category=ADTInvestmentCategory.INFRASTRUCTURE,     investment_m_aud=145.2, organisations=8,  roi_pct=12.3, maturity_level=ADTMaturityLevel.EARLY),
+    ADTInvestmentRecord(year=2022, category=ADTInvestmentCategory.ANALYTICS_PLATFORM, investment_m_aud=62.4,  organisations=11, roi_pct=18.7, maturity_level=ADTMaturityLevel.EARLY),
+    ADTInvestmentRecord(year=2022, category=ADTInvestmentCategory.AI_MODELS,          investment_m_aud=38.1,  organisations=9,  roi_pct=24.5, maturity_level=ADTMaturityLevel.EARLY),
+    # 2023
+    ADTInvestmentRecord(year=2023, category=ADTInvestmentCategory.INFRASTRUCTURE,     investment_m_aud=178.6, organisations=11, roi_pct=15.8, maturity_level=ADTMaturityLevel.GROWING),
+    ADTInvestmentRecord(year=2023, category=ADTInvestmentCategory.DIGITAL_TWINS,      investment_m_aud=84.3,  organisations=7,  roi_pct=21.2, maturity_level=ADTMaturityLevel.GROWING),
+    ADTInvestmentRecord(year=2023, category=ADTInvestmentCategory.AI_MODELS,          investment_m_aud=57.9,  organisations=13, roi_pct=31.4, maturity_level=ADTMaturityLevel.GROWING),
+    # 2024
+    ADTInvestmentRecord(year=2024, category=ADTInvestmentCategory.INFRASTRUCTURE,     investment_m_aud=221.4, organisations=14, roi_pct=19.2, maturity_level=ADTMaturityLevel.GROWING),
+    ADTInvestmentRecord(year=2024, category=ADTInvestmentCategory.ANALYTICS_PLATFORM, investment_m_aud=103.7, organisations=18, roi_pct=27.6, maturity_level=ADTMaturityLevel.GROWING),
+    ADTInvestmentRecord(year=2024, category=ADTInvestmentCategory.CYBERSECURITY,      investment_m_aud=47.2,  organisations=16, roi_pct=22.1, maturity_level=ADTMaturityLevel.GROWING),
+    # 2025
+    ADTInvestmentRecord(year=2025, category=ADTInvestmentCategory.DIGITAL_TWINS,      investment_m_aud=156.8, organisations=12, roi_pct=34.5, maturity_level=ADTMaturityLevel.MATURE),
+    ADTInvestmentRecord(year=2025, category=ADTInvestmentCategory.AI_MODELS,          investment_m_aud=94.6,  organisations=20, roi_pct=41.8, maturity_level=ADTMaturityLevel.MATURE),
+    ADTInvestmentRecord(year=2025, category=ADTInvestmentCategory.TRAINING,           investment_m_aud=28.3,  organisations=22, roi_pct=15.4, maturity_level=ADTMaturityLevel.MATURE),
+    # 2026
+    ADTInvestmentRecord(year=2026, category=ADTInvestmentCategory.INFRASTRUCTURE,     investment_m_aud=274.1, organisations=17, roi_pct=22.7, maturity_level=ADTMaturityLevel.MATURE),
+    ADTInvestmentRecord(year=2026, category=ADTInvestmentCategory.ANALYTICS_PLATFORM, investment_m_aud=138.5, organisations=24, roi_pct=33.9, maturity_level=ADTMaturityLevel.MATURE),
+    ADTInvestmentRecord(year=2026, category=ADTInvestmentCategory.CYBERSECURITY,      investment_m_aud=68.4,  organisations=21, roi_pct=28.3, maturity_level=ADTMaturityLevel.MATURE),
+]
+
+
+@app.get("/api/ai-digital-twin/dashboard", dependencies=[Depends(verify_api_key)])
+def get_ai_digital_twin_dashboard() -> AiDigitalTwinDashboard:
+    """AI & Digital Twin in the Electricity Sector Analytics dashboard."""
+    return AiDigitalTwinDashboard(
+        timestamp=datetime.now(timezone.utc),
+        use_cases=_ADT_USE_CASES,
+        digital_twins=_ADT_DIGITAL_TWINS,
+        automation=_ADT_AUTOMATION,
+        investments=_ADT_INVESTMENTS,
+    )

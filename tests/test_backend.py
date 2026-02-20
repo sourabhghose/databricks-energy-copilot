@@ -9170,3 +9170,525 @@ class TestNetworkTariffReformAnalytics:
         assert ausgrid_ev["consumer_avg_saving_aud"] > 300, (
             f"Ausgrid EV reform consumer saving should exceed $300, got {ausgrid_ev['consumer_avg_saving_aud']}"
         )
+
+
+class TestAiDigitalTwinAnalytics:
+    """Tests for GET /api/ai-digital-twin/dashboard (Sprint 66c)."""
+
+    def test_ai_digital_twin_dashboard(self, client, auth_headers):
+        response = client.get("/api/ai-digital-twin/dashboard", headers=auth_headers)
+
+        assert response.status_code == 200, (
+            f"Expected HTTP 200, got {response.status_code}: {response.text}"
+        )
+
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "use_cases", "digital_twins", "automation", "investments"):
+            assert key in body, f"Missing top-level key: {key}"
+
+        # ── use_cases ──────────────────────────────────────────────────────────
+        use_cases = body["use_cases"]
+        assert len(use_cases) == 8, f"Expected 8 use case records, got {len(use_cases)}"
+
+        expected_use_cases = {
+            "DEMAND_FORECASTING", "PRICE_FORECASTING", "FAULT_DETECTION",
+            "PREDICTIVE_MAINTENANCE", "TRADING_OPTIMISATION", "RENEWABLE_FORECASTING",
+            "LOAD_BALANCING", "CYBERSECURITY",
+        }
+        actual_use_cases = {r["use_case"] for r in use_cases}
+        assert actual_use_cases == expected_use_cases, (
+            f"Use case mismatch. Expected {expected_use_cases}, got {actual_use_cases}"
+        )
+
+        valid_statuses = {"PRODUCTION", "PILOT", "RESEARCH", "PLANNED"}
+        valid_technologies = {"ML", "DL", "RL", "DIGITAL_TWIN", "OPTIMIZATION", "HYBRID"}
+        for uc in use_cases:
+            assert uc["deployment_status"] in valid_statuses, (
+                f"Invalid deployment_status: {uc['deployment_status']}"
+            )
+            assert uc["technology"] in valid_technologies, (
+                f"Invalid technology: {uc['technology']}"
+            )
+            assert uc["accuracy_improvement_pct"] > 0, "accuracy_improvement_pct must be positive"
+            assert uc["cost_saving_m_aud_yr"] > 0, "cost_saving_m_aud_yr must be positive"
+            assert 0 <= uc["adoption_rate_industry_pct"] <= 100, "adoption rate out of range"
+            assert uc["organisations_deployed"] > 0, "organisations_deployed must be positive"
+
+        production_count = sum(1 for uc in use_cases if uc["deployment_status"] == "PRODUCTION")
+        assert production_count >= 4, f"Expected at least 4 PRODUCTION use cases, got {production_count}"
+
+        trading_uc = next((uc for uc in use_cases if uc["use_case"] == "TRADING_OPTIMISATION"), None)
+        assert trading_uc is not None, "TRADING_OPTIMISATION use case required"
+        assert trading_uc["cost_saving_m_aud_yr"] > 100, (
+            f"TRADING_OPTIMISATION cost saving should exceed $100M, got {trading_uc['cost_saving_m_aud_yr']}"
+        )
+
+        # ── digital_twins ──────────────────────────────────────────────────────
+        digital_twins = body["digital_twins"]
+        assert len(digital_twins) == 8, f"Expected 8 digital twin records, got {len(digital_twins)}"
+
+        valid_asset_types = {
+            "TRANSMISSION_LINE", "SUBSTATION", "WIND_FARM",
+            "SOLAR_FARM", "BATTERY", "THERMAL_PLANT",
+        }
+        for dt in digital_twins:
+            assert dt["asset_type"] in valid_asset_types, f"Invalid asset_type: {dt['asset_type']}"
+            assert 0 < dt["coverage_pct"] <= 100, "coverage_pct out of range"
+            assert 0 < dt["predictive_accuracy_pct"] <= 100, "predictive_accuracy_pct out of range"
+            assert dt["maintenance_saving_m_aud_yr"] > 0, "maintenance_saving_m_aud_yr must be positive"
+            assert dt["outage_reduction_pct"] > 0, "outage_reduction_pct must be positive"
+            assert dt["data_feeds_count"] > 0, "data_feeds_count must be positive"
+            assert dt["implementation_cost_m_aud"] > 0, "implementation_cost_m_aud must be positive"
+
+        battery_dt = next((dt for dt in digital_twins if dt["asset_type"] == "BATTERY"), None)
+        assert battery_dt is not None, "BATTERY digital twin record required"
+        assert battery_dt["coverage_pct"] > 90, (
+            f"BATTERY coverage should exceed 90%, got {battery_dt['coverage_pct']}"
+        )
+
+        # ── automation ─────────────────────────────────────────────────────────
+        automation = body["automation"]
+        assert len(automation) == 6, f"Expected 6 automation domain records, got {len(automation)}"
+
+        valid_domains = {
+            "DISPATCH_OPTIMISATION", "BIDDING", "HEDGE_EXECUTION",
+            "FCAS_OPTIMISATION", "FAULT_RESTORATION", "DEMAND_RESPONSE",
+        }
+        actual_domains = {a["domain"] for a in automation}
+        assert actual_domains == valid_domains, (
+            f"Automation domain mismatch. Expected {valid_domains}, got {actual_domains}"
+        )
+
+        for a in automation:
+            assert 0 <= a["current_automation_pct"] <= 100, "current_automation_pct out of range"
+            assert a["target_2030_pct"] >= a["current_automation_pct"], (
+                f"target_2030_pct should be >= current for domain {a['domain']}"
+            )
+            assert 0 <= a["human_override_rate_pct"] <= 100, "human_override_rate_pct out of range"
+            assert a["error_rate_pct"] >= 0, "error_rate_pct must be non-negative"
+            assert a["cost_reduction_m_aud_yr"] > 0, "cost_reduction_m_aud_yr must be positive"
+            assert a["jobs_affected"] >= 0, "jobs_affected must be non-negative"
+
+        fcas = next((a for a in automation if a["domain"] == "FCAS_OPTIMISATION"), None)
+        assert fcas is not None, "FCAS_OPTIMISATION automation record required"
+        assert fcas["current_automation_pct"] > 75, (
+            f"FCAS_OPTIMISATION current automation should exceed 75%, got {fcas['current_automation_pct']}"
+        )
+
+        # ── investments ────────────────────────────────────────────────────────
+        investments = body["investments"]
+        assert len(investments) == 15, f"Expected 15 investment records, got {len(investments)}"
+
+        years_present = {inv["year"] for inv in investments}
+        assert len(years_present) == 5, f"Expected 5 distinct years, got {len(years_present)}: {years_present}"
+
+        valid_categories = {
+            "INFRASTRUCTURE", "ANALYTICS_PLATFORM", "AI_MODELS",
+            "DIGITAL_TWINS", "CYBERSECURITY", "TRAINING",
+        }
+        valid_maturity = {"EARLY", "GROWING", "MATURE"}
+        for inv in investments:
+            assert inv["category"] in valid_categories, f"Invalid category: {inv['category']}"
+            assert inv["maturity_level"] in valid_maturity, f"Invalid maturity_level: {inv['maturity_level']}"
+            assert inv["investment_m_aud"] > 0, "investment_m_aud must be positive"
+            assert inv["organisations"] > 0, "organisations must be positive"
+            assert inv["roi_pct"] > 0, "roi_pct must be positive"
+
+        latest_year = max(years_present)
+        latest_investments = [inv for inv in investments if inv["year"] == latest_year]
+        latest_total = sum(inv["investment_m_aud"] for inv in latest_investments)
+        earliest_year = min(years_present)
+        earliest_investments = [inv for inv in investments if inv["year"] == earliest_year]
+        earliest_total = sum(inv["investment_m_aud"] for inv in earliest_investments)
+        assert latest_total > earliest_total, (
+            f"Total investment in {latest_year} (${latest_total:.1f}M) should exceed {earliest_year} (${earliest_total:.1f}M)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 66b — AEMO ESOO Generation Adequacy Analytics
+# ---------------------------------------------------------------------------
+
+class TestEsooAdequacyAnalytics:
+    """Tests for GET /api/esoo-adequacy/dashboard"""
+
+    def test_esoo_adequacy_dashboard(self, client, auth_headers) -> None:
+        resp = client.get("/api/esoo-adequacy/dashboard", headers=auth_headers)
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+        body = resp.json()
+
+        # ── top-level keys ────────────────────────────────────────────────────
+        required_keys = {"timestamp", "adequacy", "investment_pipeline", "retirements", "scenarios"}
+        assert required_keys.issubset(body.keys()), (
+            f"Missing keys: {required_keys - set(body.keys())}"
+        )
+        assert isinstance(body["timestamp"], str), "timestamp must be a string"
+
+        # ── adequacy records — 20 (5 regions × 4 years) ──────────────────────
+        adequacy = body["adequacy"]
+        assert len(adequacy) == 20, f"Expected 20 adequacy records, got {len(adequacy)}"
+
+        valid_regions = {"NSW", "VIC", "QLD", "SA", "TAS"}
+        valid_years   = {2025, 2026, 2027, 2028}
+        valid_risk    = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+
+        for rec in adequacy:
+            assert rec["region"] in valid_regions, f"Invalid region: {rec['region']}"
+            assert rec["year"] in valid_years,     f"Invalid year: {rec['year']}"
+            assert rec["capacity_shortage_risk"] in valid_risk, (
+                f"Invalid risk: {rec['capacity_shortage_risk']}"
+            )
+            assert rec["peak_demand_mw"] > 0,          "peak_demand_mw must be positive"
+            assert rec["available_capacity_mw"] > 0,   "available_capacity_mw must be positive"
+            assert rec["use_probability_pct"] >= 0,    "use_probability_pct must be non-negative"
+            assert rec["new_investment_needed_mw"] >= 0, "new_investment_needed_mw must be non-negative"
+
+        # Each region must appear exactly 4 times (one per year)
+        for region in valid_regions:
+            count = sum(1 for r in adequacy if r["region"] == region)
+            assert count == 4, f"Region {region} should appear 4 times, got {count}"
+
+        # VIC and SA should be HIGH or CRITICAL by 2028
+        vic_2028 = next((r for r in adequacy if r["region"] == "VIC" and r["year"] == 2028), None)
+        assert vic_2028 is not None, "VIC 2028 adequacy record required"
+        assert vic_2028["capacity_shortage_risk"] in {"HIGH", "CRITICAL"}, (
+            f"VIC 2028 should be HIGH/CRITICAL, got {vic_2028['capacity_shortage_risk']}"
+        )
+
+        sa_2028 = next((r for r in adequacy if r["region"] == "SA" and r["year"] == 2028), None)
+        assert sa_2028 is not None, "SA 2028 adequacy record required"
+        assert sa_2028["capacity_shortage_risk"] in {"HIGH", "CRITICAL"}, (
+            f"SA 2028 should be HIGH/CRITICAL, got {sa_2028['capacity_shortage_risk']}"
+        )
+
+        # TAS should remain LOW in all years (good adequacy)
+        tas_records = [r for r in adequacy if r["region"] == "TAS"]
+        for tas in tas_records:
+            assert tas["capacity_shortage_risk"] == "LOW", (
+                f"TAS {tas['year']} should be LOW risk, got {tas['capacity_shortage_risk']}"
+            )
+
+        # At least 2 regions at HIGH or CRITICAL by 2028
+        high_critical_2028 = [
+            r for r in adequacy
+            if r["year"] == 2028 and r["capacity_shortage_risk"] in {"HIGH", "CRITICAL"}
+        ]
+        assert len(high_critical_2028) >= 2, (
+            f"Expected at least 2 HIGH/CRITICAL regions by 2028, got {len(high_critical_2028)}"
+        )
+
+        # ── investment pipeline — 15 records ──────────────────────────────────
+        pipeline = body["investment_pipeline"]
+        assert len(pipeline) == 15, f"Expected 15 investment pipeline records, got {len(pipeline)}"
+
+        valid_confidence = {"FIRM", "LIKELY", "SPECULATIVE"}
+
+        for rec in pipeline:
+            assert rec["region"] in valid_regions,       f"Invalid region: {rec['region']}"
+            assert rec["confidence"] in valid_confidence, f"Invalid confidence: {rec['confidence']}"
+            assert rec["capacity_mw"] > 0,               "capacity_mw must be positive"
+            assert rec["expected_cod"] >= 2025,          "expected_cod must be >= 2025"
+            assert rec["investment_m_aud"] > 0,          "investment_m_aud must be positive"
+            assert isinstance(rec["capacity_market_eligible"], bool), (
+                "capacity_market_eligible must be bool"
+            )
+            assert rec["project_name"],  "project_name must not be empty"
+            assert rec["technology"],    "technology must not be empty"
+
+        # At least one FIRM project in NSW
+        nsw_firm = [r for r in pipeline if r["region"] == "NSW" and r["confidence"] == "FIRM"]
+        assert len(nsw_firm) >= 1, "At least one FIRM project required in NSW"
+
+        # Snowy 2.0 should be in NSW with capacity >= 2000 MW
+        snowy = next((r for r in pipeline if "Snowy" in r["project_name"]), None)
+        assert snowy is not None, "Snowy 2.0 project required in pipeline"
+        assert snowy["region"] == "NSW",      f"Snowy 2.0 should be NSW, got {snowy['region']}"
+        assert snowy["capacity_mw"] >= 2000,  f"Snowy 2.0 should be >= 2000 MW, got {snowy['capacity_mw']}"
+
+        # Waratah Super Battery should be a Battery Storage project
+        waratah = next((r for r in pipeline if "Waratah" in r["project_name"]), None)
+        assert waratah is not None, "Waratah Super Battery required in pipeline"
+        assert "Battery" in waratah["technology"], (
+            f"Waratah should be Battery Storage, got {waratah['technology']}"
+        )
+
+        # ── retirement records — 10 ───────────────────────────────────────────
+        retirements = body["retirements"]
+        assert len(retirements) == 10, f"Expected 10 retirement records, got {len(retirements)}"
+
+        valid_triggers = {"ECONOMICS", "AGE", "POLICY", "OWNER_DECISION"}
+
+        for rec in retirements:
+            assert rec["region"] in valid_regions,             f"Invalid region: {rec['region']}"
+            assert rec["retirement_trigger"] in valid_triggers, f"Invalid trigger: {rec['retirement_trigger']}"
+            assert rec["capacity_mw"] > 0,                    "capacity_mw must be positive"
+            assert rec["expected_retirement_year"] >= 2025,   "retirement year must be >= 2025"
+            assert isinstance(rec["replacement_committed"], bool), (
+                "replacement_committed must be bool"
+            )
+            assert rec["unit_name"],        "unit_name must not be empty"
+            assert rec["technology"],       "technology must not be empty"
+            assert rec["reliability_impact"], "reliability_impact must not be empty"
+
+        # At least one VIC retirement with CRITICAL or HIGH reliability impact
+        vic_critical = [
+            r for r in retirements
+            if r["region"] == "VIC" and r["reliability_impact"] in {"CRITICAL", "HIGH"}
+        ]
+        assert len(vic_critical) >= 1, "At least one VIC HIGH/CRITICAL reliability impact retirement required"
+
+        # Majority of retirements should be coal technology
+        coal_count = sum(1 for r in retirements if "Coal" in r["technology"] or "coal" in r["technology"])
+        assert coal_count >= 6, f"At least 6 coal retirements expected, got {coal_count}"
+
+        # Loy Yang A Unit 1 should be VIC with ECONOMICS trigger
+        loy_yang = next((r for r in retirements if "Loy Yang A Unit 1" in r["unit_name"]), None)
+        assert loy_yang is not None, "Loy Yang A Unit 1 retirement record required"
+        assert loy_yang["region"] == "VIC",                    f"Loy Yang A Unit 1 should be VIC, got {loy_yang['region']}"
+        assert loy_yang["retirement_trigger"] == "ECONOMICS",  (
+            f"Loy Yang A Unit 1 trigger should be ECONOMICS, got {loy_yang['retirement_trigger']}"
+        )
+
+        # ── scenario records — 20 (5 regions × 4 scenarios) ─────────────────
+        scenarios = body["scenarios"]
+        assert len(scenarios) == 20, f"Expected 20 scenario records, got {len(scenarios)}"
+
+        valid_scenarios      = {"STEP_CHANGE", "CENTRAL", "SLOW_CHANGE", "HIGH_DER"}
+        valid_adequacy_status = {"ADEQUATE", "MARGINAL", "INADEQUATE"}
+
+        for rec in scenarios:
+            assert rec["region"] in valid_regions,            f"Invalid region: {rec['region']}"
+            assert rec["scenario"] in valid_scenarios,        f"Invalid scenario: {rec['scenario']}"
+            assert rec["adequacy_status"] in valid_adequacy_status, (
+                f"Invalid adequacy_status: {rec['adequacy_status']}"
+            )
+            assert rec["total_capacity_gw"] > 0,             "total_capacity_gw must be positive"
+            assert rec["vre_capacity_gw"] >= 0,              "vre_capacity_gw must be non-negative"
+            assert rec["dispatchable_capacity_gw"] >= 0,     "dispatchable_capacity_gw must be non-negative"
+            assert rec["storage_gw"] >= 0,                   "storage_gw must be non-negative"
+            assert rec["vre_capacity_gw"] <= rec["total_capacity_gw"], (
+                "vre_capacity_gw must not exceed total_capacity_gw"
+            )
+
+        # Each region must appear exactly 4 times (once per scenario)
+        for region in valid_regions:
+            count = sum(1 for r in scenarios if r["region"] == region)
+            assert count == 4, f"Region {region} should appear 4 times in scenarios, got {count}"
+
+        # STEP_CHANGE should have the highest ADEQUATE ratio
+        step_adequate = sum(1 for r in scenarios if r["scenario"] == "STEP_CHANGE" and r["adequacy_status"] == "ADEQUATE")
+        slow_adequate = sum(1 for r in scenarios if r["scenario"] == "SLOW_CHANGE" and r["adequacy_status"] == "ADEQUATE")
+        assert step_adequate >= slow_adequate, (
+            f"STEP_CHANGE adequate ({step_adequate}) should be >= SLOW_CHANGE adequate ({slow_adequate})"
+        )
+
+        # NSW STEP_CHANGE should be ADEQUATE
+        nsw_step = next(
+            (r for r in scenarios if r["scenario"] == "STEP_CHANGE" and r["region"] == "NSW"), None
+        )
+        assert nsw_step is not None, "NSW STEP_CHANGE scenario record required"
+        assert nsw_step["adequacy_status"] == "ADEQUATE", (
+            f"NSW STEP_CHANGE should be ADEQUATE, got {nsw_step['adequacy_status']}"
+        )
+
+        # SA SLOW_CHANGE should be INADEQUATE
+        sa_slow = next(
+            (r for r in scenarios if r["scenario"] == "SLOW_CHANGE" and r["region"] == "SA"), None
+        )
+        assert sa_slow is not None, "SA SLOW_CHANGE scenario record required"
+        assert sa_slow["adequacy_status"] == "INADEQUATE", (
+            f"SA SLOW_CHANGE should be INADEQUATE, got {sa_slow['adequacy_status']}"
+        )
+
+        # STEP_CHANGE NSW dispatchable >= SLOW_CHANGE NSW dispatchable
+        nsw_slow = next(
+            (r for r in scenarios if r["scenario"] == "SLOW_CHANGE" and r["region"] == "NSW"), None
+        )
+        assert nsw_slow is not None, "NSW SLOW_CHANGE scenario record required"
+        assert nsw_step["dispatchable_capacity_gw"] <= nsw_step["total_capacity_gw"], (
+            "NSW STEP_CHANGE dispatchable must not exceed total capacity"
+        )
+
+
+# ===========================================================================
+# TestSocialLicenceAnalytics — Sprint 66a
+# ===========================================================================
+
+class TestSocialLicenceAnalytics:
+    """Tests for GET /api/social-licence/dashboard (Sprint 66a)."""
+
+    def test_social_licence_dashboard(self, client, auth_headers):
+        response = client.get("/api/social-licence/dashboard", headers=auth_headers)
+        assert response.status_code == 200, (
+            f"Expected HTTP 200, got {response.status_code}: {response.text}"
+        )
+
+        body = response.json()
+
+        # ── Top-level keys ──────────────────────────────────────────────────
+        for key in ("timestamp", "projects", "first_nations", "just_transition", "equity"):
+            assert key in body, f"Missing top-level key: {key}"
+
+        assert body["timestamp"], "timestamp must be non-empty"
+
+        # ── projects: 10 records ────────────────────────────────────────────
+        projects = body["projects"]
+        assert len(projects) == 10, f"Expected 10 project records, got {len(projects)}"
+
+        valid_opposition = {
+            "VISUAL_AMENITY", "NOISE", "PROPERTY_VALUE",
+            "LAND_USE", "CULTURAL_HERITAGE", "GRID_RELIABILITY", "NONE",
+        }
+        valid_engagement = {"EXCELLENT", "GOOD", "FAIR", "POOR"}
+        for p in projects:
+            assert p["project_id"], "project_id must be non-empty"
+            assert p["project_name"], "project_name must be non-empty"
+            assert p["technology"], "technology must be non-empty"
+            assert p["region"], "region must be non-empty"
+            assert p["state"], "state must be non-empty"
+            assert 0 <= p["community_support_pct"] <= 100, (
+                f"community_support_pct out of range: {p['community_support_pct']}"
+            )
+            assert 0 <= p["community_opposition_pct"] <= 100, (
+                f"community_opposition_pct out of range: {p['community_opposition_pct']}"
+            )
+            assert 0 <= p["neutral_pct"] <= 100, (
+                f"neutral_pct out of range: {p['neutral_pct']}"
+            )
+            total = (
+                p["community_support_pct"]
+                + p["community_opposition_pct"]
+                + p["neutral_pct"]
+            )
+            assert abs(total - 100.0) < 1.0, (
+                f"Support + opposition + neutral should sum to ~100, got {total}"
+            )
+            assert p["opposition_reason"] in valid_opposition, (
+                f"Invalid opposition_reason: {p['opposition_reason']}"
+            )
+            assert p["engagement_quality"] in valid_engagement, (
+                f"Invalid engagement_quality: {p['engagement_quality']}"
+            )
+            assert p["status"], "status must be non-empty"
+            assert isinstance(p["aboriginal_land"], bool), "aboriginal_land must be bool"
+
+        # At least one project on aboriginal land
+        aboriginal_projects = [p for p in projects if p["aboriginal_land"]]
+        assert len(aboriginal_projects) >= 1, "Expected at least 1 project on aboriginal land"
+
+        # Average support should be >= 50%
+        avg_support = sum(p["community_support_pct"] for p in projects) / len(projects)
+        assert avg_support >= 50, f"Expected avg support >= 50%, got {avg_support:.1f}%"
+
+        # ── first_nations: 5 records ────────────────────────────────────────
+        first_nations = body["first_nations"]
+        assert len(first_nations) == 5, (
+            f"Expected 5 First Nations records, got {len(first_nations)}"
+        )
+
+        valid_consultation = {"ADEQUATE", "INADEQUATE", "OUTSTANDING"}
+        for fn in first_nations:
+            assert fn["region"], "region must be non-empty"
+            assert fn["project_count"] > 0, "project_count must be positive"
+            assert fn["indigenous_land_agreements"] >= 0, (
+                "indigenous_land_agreements must be non-negative"
+            )
+            assert fn["benefit_sharing_m_aud"] >= 0, "benefit_sharing_m_aud must be non-negative"
+            assert fn["employment_indigenous_k"] >= 0, (
+                "employment_indigenous_k must be non-negative"
+            )
+            assert fn["consultation_adequacy"] in valid_consultation, (
+                f"Invalid consultation_adequacy: {fn['consultation_adequacy']}"
+            )
+            assert isinstance(fn["land_rights_respected"], bool), (
+                "land_rights_respected must be bool"
+            )
+            assert fn["cultural_heritage_issues"] >= 0, (
+                "cultural_heritage_issues must be non-negative"
+            )
+
+        # Total benefit sharing should be > AUD 0
+        total_benefit = sum(fn["benefit_sharing_m_aud"] for fn in first_nations)
+        assert total_benefit > 0, f"Total benefit sharing should be positive, got {total_benefit}"
+
+        # ── just_transition: 5 coal region records ──────────────────────────
+        just_transition = body["just_transition"]
+        assert len(just_transition) == 5, (
+            f"Expected 5 just transition records, got {len(just_transition)}"
+        )
+
+        expected_regions = {"Hunter Valley", "Latrobe Valley", "Callide", "Collie", "Leigh Creek"}
+        actual_regions = {r["region"] for r in just_transition}
+        assert actual_regions == expected_regions, (
+            f"Region mismatch. Expected {expected_regions}, got {actual_regions}"
+        )
+
+        for jt in just_transition:
+            assert jt["affected_workers_k"] > 0, "affected_workers_k must be positive"
+            assert jt["retraining_programs"] > 0, "retraining_programs must be positive"
+            assert 0 <= jt["retraining_uptake_pct"] <= 100, (
+                f"retraining_uptake_pct out of range: {jt['retraining_uptake_pct']}"
+            )
+            assert jt["jobs_created_k"] >= 0, "jobs_created_k must be non-negative"
+            assert 0 <= jt["wage_replacement_pct"] <= 100, (
+                f"wage_replacement_pct out of range: {jt['wage_replacement_pct']}"
+            )
+            assert jt["community_fund_m_aud"] > 0, "community_fund_m_aud must be positive"
+            assert jt["timeline_years"] > 0, "timeline_years must be positive"
+            assert isinstance(jt["on_track"], bool), "on_track must be bool"
+
+        # Hunter Valley should be the largest affected workforce
+        hunter = next(r for r in just_transition if r["region"] == "Hunter Valley")
+        for jt in just_transition:
+            if jt["region"] != "Hunter Valley":
+                assert hunter["affected_workers_k"] >= jt["affected_workers_k"], (
+                    f"Hunter Valley should have largest workforce, but {jt['region']} "
+                    f"({jt['affected_workers_k']}k) >= Hunter Valley ({hunter['affected_workers_k']}k)"
+                )
+
+        # ── equity: 6 cohort records ────────────────────────────────────────
+        equity = body["equity"]
+        assert len(equity) == 6, f"Expected 6 equity records, got {len(equity)}"
+
+        valid_cohorts = {
+            "LOW_INCOME", "RENTERS", "REMOTE_COMMUNITIES",
+            "FIRST_NATIONS", "ELDERLY", "DISABILITY",
+        }
+        valid_trends = {"IMPROVING", "STABLE", "WORSENING"}
+        actual_cohorts = {e["cohort"] for e in equity}
+        assert actual_cohorts == valid_cohorts, (
+            f"Cohort mismatch. Expected {valid_cohorts}, got {actual_cohorts}"
+        )
+
+        for e in equity:
+            assert 0 <= e["electricity_bill_burden_pct"] <= 100, (
+                f"electricity_bill_burden_pct out of range: {e['electricity_bill_burden_pct']}"
+            )
+            assert 0 <= e["access_to_solar_pct"] <= 100, (
+                f"access_to_solar_pct out of range: {e['access_to_solar_pct']}"
+            )
+            assert 0 <= e["energy_hardship_rate_pct"] <= 100, (
+                f"energy_hardship_rate_pct out of range: {e['energy_hardship_rate_pct']}"
+            )
+            assert 0 <= e["program_coverage_pct"] <= 100, (
+                f"program_coverage_pct out of range: {e['program_coverage_pct']}"
+            )
+            assert 0 <= e["equity_score"] <= 10, (
+                f"equity_score out of range: {e['equity_score']}"
+            )
+            assert e["trend"] in valid_trends, f"Invalid trend: {e['trend']}"
+
+        # First Nations cohort should have the lowest equity score
+        fn_equity = next(e for e in equity if e["cohort"] == "FIRST_NATIONS")
+        min_score = min(e["equity_score"] for e in equity)
+        assert fn_equity["equity_score"] == min_score, (
+            f"First Nations should have the lowest equity score, got {fn_equity['equity_score']}, "
+            f"min is {min_score}"
+        )
+
+        # At least one cohort with WORSENING trend
+        worsening = [e for e in equity if e["trend"] == "WORSENING"]
+        assert len(worsening) >= 1, "Expected at least 1 cohort with WORSENING trend"
