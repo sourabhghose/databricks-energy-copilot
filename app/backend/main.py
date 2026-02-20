@@ -44675,9 +44675,234 @@ def get_realtime_ops_dashboard() -> RealtimeOpsDashboard:
     )
 
 
-# ============================================================
-# Sprint 62b — Renewable Energy Auction Results & CfD Analytics
-# ============================================================
+# ============================================================================
+# Sprint 86b — Renewable Energy Auction Design & CfD Analytics
+# ============================================================================
+
+# ── Models ───────────────────────────────────────────────────────────────────
+
+class REAAuctionRecord(BaseModel):
+    auction_id: str
+    program: str          # VRE_Tender / LRETF / REZ_Access_Rights / Community_Energy_Program / State_Renewables_Auction / ARENA_Grant
+    jurisdiction: str     # FED / NSW / VIC / QLD / SA / WA / TAS
+    year: int
+    round: int
+    technology_types: List[str]
+    capacity_contracted_mw: float
+    number_of_projects: int
+    oversubscription_ratio: float
+    avg_strike_price: float           # $/MWh for CfDs
+    min_strike_price: float
+    max_strike_price: float
+    contract_duration_years: int
+    govt_revenue_risk_m: float        # max govt payment if prices stay above strike
+
+class REAProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    developer: str
+    technology: str       # WIND / SOLAR / HYBRID / OFFSHORE_WIND / STORAGE_BACKED
+    state: str
+    capacity_mw: float
+    strike_price: float
+    reference_price: str  # e.g. "NSW Hub" / "QLD Hub" / "SA Hub"
+    contract_duration_years: int
+    financial_close_date: Optional[str]
+    commissioning_year: int
+    status: str           # CONTRACTED / CONSTRUCTION / OPERATING / CANCELLED
+    jobs_created: int
+
+class READesignRecord(BaseModel):
+    design_element: str   # PRICE_CAP / TECHNOLOGY_NEUTRAL / LOCATION_SPECIFIC / BUNDLED_LGC / INDEXED_STRIKE / FLOOR_PRICE / CAPACITY_FACTOR_ADJUSTMENT
+    program: str
+    description: str
+    pros: str
+    cons: str
+    adoption_rate_pct: float          # % of programs globally using this design
+    effectiveness_score: float        # 0-10
+
+class REAPriceHistoryRecord(BaseModel):
+    year: int
+    program: str
+    technology: str
+    avg_strike_price: float
+    min_strike_price: float
+    p25_strike_price: float
+    p75_strike_price: float
+    max_strike_price: float
+    number_of_contracts: int
+    total_mw: float
+
+class REAGovernmentExposureRecord(BaseModel):
+    jurisdiction: str
+    year: int
+    total_contracted_mw: float
+    total_cfd_liability_m: float      # max govt payment
+    avg_remaining_contract_years: float
+    market_price_scenario: str        # CURRENT / LOW / HIGH
+    net_govt_position_m: float        # positive = govt receives money (market > strike)
+
+class READashboard(BaseModel):
+    auctions: List[REAAuctionRecord]
+    projects: List[REAProjectRecord]
+    design_elements: List[READesignRecord]
+    price_history: List[REAPriceHistoryRecord]
+    govt_exposure: List[REAGovernmentExposureRecord]
+    summary: dict
+
+# ── Mock data ─────────────────────────────────────────────────────────────────
+
+_REA_AUCTIONS: List[REAAuctionRecord] = [
+    # Federal / LRETF
+    REAAuctionRecord(auction_id="LRETF-2017-R1", program="LRETF", jurisdiction="FED", year=2017, round=1, technology_types=["WIND", "SOLAR"], capacity_contracted_mw=600.0, number_of_projects=4, oversubscription_ratio=2.4, avg_strike_price=74.2, min_strike_price=68.5, max_strike_price=82.0, contract_duration_years=15, govt_revenue_risk_m=180.0),
+    REAAuctionRecord(auction_id="LRETF-2018-R2", program="LRETF", jurisdiction="FED", year=2018, round=2, technology_types=["WIND", "SOLAR", "HYBRID"], capacity_contracted_mw=850.0, number_of_projects=6, oversubscription_ratio=2.8, avg_strike_price=69.8, min_strike_price=62.0, max_strike_price=79.5, contract_duration_years=15, govt_revenue_risk_m=240.0),
+    REAAuctionRecord(auction_id="LRETF-2019-R3", program="LRETF", jurisdiction="FED", year=2019, round=3, technology_types=["WIND", "SOLAR"], capacity_contracted_mw=1100.0, number_of_projects=7, oversubscription_ratio=3.2, avg_strike_price=62.4, min_strike_price=54.1, max_strike_price=74.8, contract_duration_years=15, govt_revenue_risk_m=310.0),
+    # NSW LTESA
+    REAAuctionRecord(auction_id="LTESA-2022-R1", program="State_Renewables_Auction", jurisdiction="NSW", year=2022, round=1, technology_types=["WIND", "SOLAR", "HYBRID", "STORAGE_BACKED"], capacity_contracted_mw=1200.0, number_of_projects=8, oversubscription_ratio=3.8, avg_strike_price=61.5, min_strike_price=48.6, max_strike_price=82.4, contract_duration_years=15, govt_revenue_risk_m=428.0),
+    REAAuctionRecord(auction_id="LTESA-2023-R2", program="State_Renewables_Auction", jurisdiction="NSW", year=2023, round=2, technology_types=["WIND", "SOLAR", "OFFSHORE_WIND", "STORAGE_BACKED"], capacity_contracted_mw=1400.0, number_of_projects=9, oversubscription_ratio=4.1, avg_strike_price=58.2, min_strike_price=44.3, max_strike_price=96.0, contract_duration_years=15, govt_revenue_risk_m=510.0),
+    REAAuctionRecord(auction_id="LTESA-2024-R3", program="State_Renewables_Auction", jurisdiction="NSW", year=2024, round=3, technology_types=["WIND", "SOLAR", "STORAGE_BACKED"], capacity_contracted_mw=1600.0, number_of_projects=10, oversubscription_ratio=4.6, avg_strike_price=54.0, min_strike_price=40.2, max_strike_price=88.0, contract_duration_years=15, govt_revenue_risk_m=590.0),
+    # VIC VRET
+    REAAuctionRecord(auction_id="VRET-2019-R2", program="State_Renewables_Auction", jurisdiction="VIC", year=2019, round=2, technology_types=["WIND", "SOLAR"], capacity_contracted_mw=980.0, number_of_projects=5, oversubscription_ratio=3.0, avg_strike_price=59.5, min_strike_price=53.2, max_strike_price=66.8, contract_duration_years=15, govt_revenue_risk_m=295.0),
+    REAAuctionRecord(auction_id="VRET-2021-R3", program="State_Renewables_Auction", jurisdiction="VIC", year=2021, round=3, technology_types=["WIND", "SOLAR", "HYBRID"], capacity_contracted_mw=1350.0, number_of_projects=7, oversubscription_ratio=3.6, avg_strike_price=51.0, min_strike_price=42.8, max_strike_price=62.5, contract_duration_years=15, govt_revenue_risk_m=385.0),
+    REAAuctionRecord(auction_id="VRET-2023-R4", program="State_Renewables_Auction", jurisdiction="VIC", year=2023, round=4, technology_types=["WIND", "SOLAR", "HYBRID", "OFFSHORE_WIND"], capacity_contracted_mw=1800.0, number_of_projects=10, oversubscription_ratio=4.3, avg_strike_price=47.8, min_strike_price=38.6, max_strike_price=112.0, contract_duration_years=15, govt_revenue_risk_m=480.0),
+    # QLD QRET
+    REAAuctionRecord(auction_id="QRET-2020-R1", program="State_Renewables_Auction", jurisdiction="QLD", year=2020, round=1, technology_types=["SOLAR", "WIND"], capacity_contracted_mw=900.0, number_of_projects=5, oversubscription_ratio=2.6, avg_strike_price=53.8, min_strike_price=45.8, max_strike_price=63.5, contract_duration_years=20, govt_revenue_risk_m=270.0),
+    REAAuctionRecord(auction_id="QRET-2022-R2", program="State_Renewables_Auction", jurisdiction="QLD", year=2022, round=2, technology_types=["SOLAR", "WIND", "HYBRID"], capacity_contracted_mw=1250.0, number_of_projects=7, oversubscription_ratio=3.4, avg_strike_price=62.1, min_strike_price=51.4, max_strike_price=74.2, contract_duration_years=15, govt_revenue_risk_m=362.0),
+    # SA REZ
+    REAAuctionRecord(auction_id="SAREZTEN-2021-R1", program="REZ_Access_Rights", jurisdiction="SA", year=2021, round=1, technology_types=["WIND", "SOLAR"], capacity_contracted_mw=680.0, number_of_projects=4, oversubscription_ratio=2.9, avg_strike_price=49.8, min_strike_price=41.5, max_strike_price=58.2, contract_duration_years=15, govt_revenue_risk_m=204.0),
+    REAAuctionRecord(auction_id="SAREZTEN-2023-R2", program="REZ_Access_Rights", jurisdiction="SA", year=2023, round=2, technology_types=["WIND", "SOLAR", "HYBRID"], capacity_contracted_mw=820.0, number_of_projects=5, oversubscription_ratio=3.1, avg_strike_price=46.5, min_strike_price=38.9, max_strike_price=57.0, contract_duration_years=15, govt_revenue_risk_m=245.0),
+    # Community Energy
+    REAAuctionRecord(auction_id="CEP-2022-R1", program="Community_Energy_Program", jurisdiction="FED", year=2022, round=1, technology_types=["SOLAR", "WIND"], capacity_contracted_mw=120.0, number_of_projects=8, oversubscription_ratio=5.2, avg_strike_price=78.4, min_strike_price=70.0, max_strike_price=90.0, contract_duration_years=10, govt_revenue_risk_m=62.0),
+    # ARENA Grant
+    REAAuctionRecord(auction_id="ARENA-2024-R1", program="ARENA_Grant", jurisdiction="FED", year=2024, round=1, technology_types=["OFFSHORE_WIND", "HYBRID"], capacity_contracted_mw=350.0, number_of_projects=3, oversubscription_ratio=2.1, avg_strike_price=102.5, min_strike_price=95.0, max_strike_price=112.0, contract_duration_years=20, govt_revenue_risk_m=180.0),
+]
+
+_REA_PROJECTS: List[REAProjectRecord] = [
+    REAProjectRecord(project_id="PRJ-001", name="Rye Park Wind Farm", developer="Tilt Renewables", technology="WIND", state="NSW", capacity_mw=396.0, strike_price=61.3, reference_price="NSW Hub", contract_duration_years=15, financial_close_date="2022-09-15", commissioning_year=2023, status="OPERATING", jobs_created=320),
+    REAProjectRecord(project_id="PRJ-002", name="Bungaban Solar Farm", developer="Acciona Energy", technology="SOLAR", state="QLD", capacity_mw=600.0, strike_price=45.8, reference_price="QLD Hub", contract_duration_years=20, financial_close_date="2020-11-20", commissioning_year=2022, status="OPERATING", jobs_created=410),
+    REAProjectRecord(project_id="PRJ-003", name="Darlington Point Solar", developer="Neoen", technology="SOLAR", state="NSW", capacity_mw=275.0, strike_price=52.1, reference_price="NSW Hub", contract_duration_years=15, financial_close_date="2022-07-08", commissioning_year=2024, status="OPERATING", jobs_created=280),
+    REAProjectRecord(project_id="PRJ-004", name="Lal Lal Wind Farm", developer="Goldwind / CIP", technology="WIND", state="VIC", capacity_mw=228.0, strike_price=55.7, reference_price="VIC Hub", contract_duration_years=15, financial_close_date="2019-05-22", commissioning_year=2021, status="OPERATING", jobs_created=260),
+    REAProjectRecord(project_id="PRJ-005", name="Murra Warra Stage II", developer="RES Australia", technology="WIND", state="VIC", capacity_mw=209.0, strike_price=53.4, reference_price="VIC Hub", contract_duration_years=15, financial_close_date="2021-03-10", commissioning_year=2023, status="OPERATING", jobs_created=245),
+    REAProjectRecord(project_id="PRJ-006", name="Crystal Brook Energy Park", developer="Neoen", technology="HYBRID", state="SA", capacity_mw=280.0, strike_price=49.8, reference_price="SA Hub", contract_duration_years=15, financial_close_date="2021-08-14", commissioning_year=2023, status="OPERATING", jobs_created=310),
+    REAProjectRecord(project_id="PRJ-007", name="Bulgana Green Power Hub", developer="Neoen", technology="HYBRID", state="VIC", capacity_mw=204.0, strike_price=51.2, reference_price="VIC Hub", contract_duration_years=15, financial_close_date="2019-06-30", commissioning_year=2021, status="OPERATING", jobs_created=230),
+    REAProjectRecord(project_id="PRJ-008", name="Coppabella Solar Farm", developer="Origin Energy", technology="SOLAR", state="NSW", capacity_mw=280.0, strike_price=48.6, reference_price="NSW Hub", contract_duration_years=15, financial_close_date="2023-02-01", commissioning_year=2025, status="CONSTRUCTION", jobs_created=295),
+    REAProjectRecord(project_id="PRJ-009", name="Stubbo Solar Farm", developer="AGL Energy", technology="SOLAR", state="NSW", capacity_mw=400.0, strike_price=44.3, reference_price="NSW Hub", contract_duration_years=15, financial_close_date="2023-05-18", commissioning_year=2025, status="CONSTRUCTION", jobs_created=380),
+    REAProjectRecord(project_id="PRJ-010", name="Hunter Valley Wind Farm", developer="Windlab", technology="WIND", state="NSW", capacity_mw=360.0, strike_price=58.2, reference_price="NSW Hub", contract_duration_years=15, financial_close_date="2023-09-22", commissioning_year=2026, status="CONSTRUCTION", jobs_created=340),
+    REAProjectRecord(project_id="PRJ-011", name="Plumwood Wind Farm", developer="Pacific Hydro", technology="WIND", state="VIC", capacity_mw=186.0, strike_price=54.0, reference_price="VIC Hub", contract_duration_years=15, financial_close_date="2023-11-10", commissioning_year=2026, status="CONSTRUCTION", jobs_created=210),
+    REAProjectRecord(project_id="PRJ-012", name="Oaklands Hill Solar-Storage", developer="Akaysha Energy", technology="STORAGE_BACKED", state="VIC", capacity_mw=200.0, strike_price=82.4, reference_price="VIC Hub", contract_duration_years=10, financial_close_date="2022-12-01", commissioning_year=2025, status="CONSTRUCTION", jobs_created=185),
+    REAProjectRecord(project_id="PRJ-013", name="Lockyer Valley Solar", developer="Lightsource BP", technology="SOLAR", state="QLD", capacity_mw=310.0, strike_price=51.4, reference_price="QLD Hub", contract_duration_years=15, financial_close_date="2022-10-15", commissioning_year=2025, status="CONSTRUCTION", jobs_created=290),
+    REAProjectRecord(project_id="PRJ-014", name="Kennedy Energy Park Stage 2", developer="Windlab", technology="HYBRID", state="QLD", capacity_mw=140.0, strike_price=68.9, reference_price="QLD Hub", contract_duration_years=15, financial_close_date="2022-08-20", commissioning_year=2026, status="CONSTRUCTION", jobs_created=175),
+    REAProjectRecord(project_id="PRJ-015", name="Port Augusta Renewable Energy Park", developer="Beon Energy", technology="HYBRID", state="SA", capacity_mw=317.0, strike_price=47.8, reference_price="SA Hub", contract_duration_years=15, financial_close_date="2021-04-16", commissioning_year=2023, status="OPERATING", jobs_created=270),
+    REAProjectRecord(project_id="PRJ-016", name="Warro Wind Farm", developer="Bright Energy", technology="WIND", state="WA", capacity_mw=180.0, strike_price=62.5, reference_price="WA Hub", contract_duration_years=15, financial_close_date="2022-03-14", commissioning_year=2025, status="CONSTRUCTION", jobs_created=200),
+    REAProjectRecord(project_id="PRJ-017", name="Emu Downs Solar Farm", developer="Synergy", technology="SOLAR", state="WA", capacity_mw=120.0, strike_price=56.0, reference_price="WA Hub", contract_duration_years=15, financial_close_date="2021-11-30", commissioning_year=2024, status="OPERATING", jobs_created=155),
+    REAProjectRecord(project_id="PRJ-018", name="Moyne Wind Farm", developer="Vestas / CIP", technology="WIND", state="VIC", capacity_mw=530.0, strike_price=58.0, reference_price="VIC Hub", contract_duration_years=15, financial_close_date="2019-04-10", commissioning_year=2022, status="OPERATING", jobs_created=480),
+    REAProjectRecord(project_id="PRJ-019", name="Cattle Hill Wind Farm", developer="Global Power Generation", technology="WIND", state="TAS", capacity_mw=148.0, strike_price=54.8, reference_price="TAS Hub", contract_duration_years=15, financial_close_date="2020-02-28", commissioning_year=2021, status="OPERATING", jobs_created=175),
+    REAProjectRecord(project_id="PRJ-020", name="BlueFloat Gippsland Offshore", developer="BlueFloat Energy", technology="OFFSHORE_WIND", state="VIC", capacity_mw=600.0, strike_price=112.0, reference_price="VIC Hub", contract_duration_years=20, financial_close_date=None, commissioning_year=2031, status="CONTRACTED", jobs_created=850),
+    REAProjectRecord(project_id="PRJ-021", name="Star of the South", developer="Star of the South", technology="OFFSHORE_WIND", state="VIC", capacity_mw=2200.0, strike_price=107.5, reference_price="VIC Hub", contract_duration_years=20, financial_close_date=None, commissioning_year=2032, status="CONTRACTED", jobs_created=2100),
+    REAProjectRecord(project_id="PRJ-022", name="Glenbrook Community Solar", developer="Community Power Agency", technology="SOLAR", state="NSW", capacity_mw=5.0, strike_price=78.4, reference_price="NSW Hub", contract_duration_years=10, financial_close_date="2022-06-01", commissioning_year=2023, status="OPERATING", jobs_created=25),
+    REAProjectRecord(project_id="PRJ-023", name="Broken Hill Community Wind", developer="Community Wind Australia", technology="WIND", state="NSW", capacity_mw=8.0, strike_price=74.2, reference_price="NSW Hub", contract_duration_years=10, financial_close_date="2022-09-30", commissioning_year=2024, status="OPERATING", jobs_created=30),
+    REAProjectRecord(project_id="PRJ-024", name="Hornsdale Power Reserve Stage 4", developer="Neoen", technology="STORAGE_BACKED", state="SA", capacity_mw=150.0, strike_price=88.0, reference_price="SA Hub", contract_duration_years=10, financial_close_date="2023-07-01", commissioning_year=2025, status="CONSTRUCTION", jobs_created=140),
+    REAProjectRecord(project_id="PRJ-025", name="Yaloak South Wind Farm", developer="Tilt Renewables", technology="WIND", state="VIC", capacity_mw=320.0, strike_price=46.5, reference_price="VIC Hub", contract_duration_years=15, financial_close_date="2023-10-15", commissioning_year=2026, status="CONTRACTED", jobs_created=300),
+]
+
+_REA_DESIGN_ELEMENTS: List[READesignRecord] = [
+    READesignRecord(design_element="PRICE_CAP", program="LRETF", description="Sets a ceiling on the strike price that can be bid into the auction to prevent excessive government payments.", pros="Limits government fiscal exposure; encourages cost discipline among developers.", cons="May deter participation if cap set too low; can exclude high-cost but strategic technologies (e.g. offshore wind).", adoption_rate_pct=72.0, effectiveness_score=7.4),
+    READesignRecord(design_element="TECHNOLOGY_NEUTRAL", program="LRETF", description="Accepts bids from any eligible renewable technology, with contracts awarded purely on lowest strike price.", pros="Maximises cost efficiency; avoids government picking technology winners; typically drives solar bids.", cons="Can crowd out strategic/emerging technologies; geographic concentration risk; poor diversity of supply.", adoption_rate_pct=58.0, effectiveness_score=6.8),
+    READesignRecord(design_element="LOCATION_SPECIFIC", program="REZ_Access_Rights", description="Reserves auction capacity for specific geographic regions or Renewable Energy Zones to optimise network utilisation.", pros="Coordinates network investment with generation; reduces curtailment risk; supports regional development.", cons="Restricts competition; can inflate strike prices; requires upfront REZ planning and regulatory coordination.", adoption_rate_pct=41.0, effectiveness_score=8.1),
+    READesignRecord(design_element="BUNDLED_LGC", program="State_Renewables_Auction", description="CfD strike price is assessed against market revenue plus LGC certificate value, not just spot price.", pros="Reduces subsidy requirement where LGC price is high; more transparent true cost of renewable support.", cons="Adds complexity; developers face dual commodity exposure (electricity + LGC); LGC price volatility risk.", adoption_rate_pct=35.0, effectiveness_score=6.2),
+    READesignRecord(design_element="INDEXED_STRIKE", program="State_Renewables_Auction", description="Strike price escalates with CPI over the contract term, protecting developer revenues from inflation.", pros="Reduces developer financing risk; lowers bid prices; attracts lower-cost debt finance.", cons="Increases long-term government liability; harder to model fiscal exposure; limits price benefit in real terms.", adoption_rate_pct=63.0, effectiveness_score=7.9),
+    READesignRecord(design_element="FLOOR_PRICE", program="Community_Energy_Program", description="Guarantees a minimum payment per MWh even if market prices fall below strike, protecting developer cashflows.", pros="Dramatically improves project bankability; enables community/smaller developers to access finance.", cons="Creates open-ended government liability in low-price markets; distorts merchant price signals.", adoption_rate_pct=28.0, effectiveness_score=7.1),
+    READesignRecord(design_element="CAPACITY_FACTOR_ADJUSTMENT", program="LRETF", description="Strike price is normalised to an assumed capacity factor; if actual CF exceeds bid CF, strike resets downwards.", pros="Discourages capacity factor over-optimism in bids; aligns government payments with actual output.", cons="Complex to administer; can deter projects with variable resources; disputes over reference period definition.", adoption_rate_pct=22.0, effectiveness_score=6.5),
+    READesignRecord(design_element="TWO_SIDED_CFD", program="State_Renewables_Auction", description="Payments flow both ways: government pays developer if market < strike, and developer repays government if market > strike.", pros="Full price risk transfer; government shares upside in high-price periods; reduces overall fiscal cost.", cons="Requires government counterparty capacity; can create refinancing risk for debt-funded projects; complex contract.", adoption_rate_pct=45.0, effectiveness_score=8.6),
+]
+
+_REA_PRICE_HISTORY: List[REAPriceHistoryRecord] = [
+    # LRETF — WIND
+    REAPriceHistoryRecord(year=2019, program="LRETF", technology="WIND", avg_strike_price=72.4, min_strike_price=65.0, p25_strike_price=68.5, p75_strike_price=76.2, max_strike_price=82.0, number_of_contracts=8, total_mw=1200.0),
+    REAPriceHistoryRecord(year=2020, program="LRETF", technology="WIND", avg_strike_price=68.1, min_strike_price=60.5, p25_strike_price=64.8, p75_strike_price=72.0, max_strike_price=79.5, number_of_contracts=9, total_mw=1450.0),
+    REAPriceHistoryRecord(year=2021, program="LRETF", technology="WIND", avg_strike_price=63.8, min_strike_price=56.2, p25_strike_price=60.5, p75_strike_price=67.4, max_strike_price=75.1, number_of_contracts=10, total_mw=1700.0),
+    REAPriceHistoryRecord(year=2022, program="LRETF", technology="WIND", avg_strike_price=61.5, min_strike_price=54.0, p25_strike_price=58.2, p75_strike_price=65.0, max_strike_price=72.8, number_of_contracts=11, total_mw=1920.0),
+    REAPriceHistoryRecord(year=2023, program="LRETF", technology="WIND", avg_strike_price=59.2, min_strike_price=52.1, p25_strike_price=56.0, p75_strike_price=62.8, max_strike_price=70.4, number_of_contracts=12, total_mw=2180.0),
+    REAPriceHistoryRecord(year=2024, program="LRETF", technology="WIND", avg_strike_price=57.4, min_strike_price=50.8, p25_strike_price=54.2, p75_strike_price=60.6, max_strike_price=68.5, number_of_contracts=13, total_mw=2400.0),
+    # LRETF — SOLAR
+    REAPriceHistoryRecord(year=2019, program="LRETF", technology="SOLAR", avg_strike_price=64.2, min_strike_price=55.4, p25_strike_price=59.8, p75_strike_price=68.5, max_strike_price=76.0, number_of_contracts=10, total_mw=1800.0),
+    REAPriceHistoryRecord(year=2020, program="LRETF", technology="SOLAR", avg_strike_price=56.8, min_strike_price=46.2, p25_strike_price=51.4, p75_strike_price=62.0, max_strike_price=70.5, number_of_contracts=12, total_mw=2400.0),
+    REAPriceHistoryRecord(year=2021, program="LRETF", technology="SOLAR", avg_strike_price=50.4, min_strike_price=42.0, p25_strike_price=46.5, p75_strike_price=54.8, max_strike_price=64.2, number_of_contracts=14, total_mw=3100.0),
+    REAPriceHistoryRecord(year=2022, program="LRETF", technology="SOLAR", avg_strike_price=47.2, min_strike_price=39.5, p25_strike_price=43.8, p75_strike_price=51.0, max_strike_price=60.4, number_of_contracts=15, total_mw=3600.0),
+    REAPriceHistoryRecord(year=2023, program="LRETF", technology="SOLAR", avg_strike_price=44.8, min_strike_price=37.2, p25_strike_price=41.4, p75_strike_price=48.5, max_strike_price=58.0, number_of_contracts=16, total_mw=4100.0),
+    REAPriceHistoryRecord(year=2024, program="LRETF", technology="SOLAR", avg_strike_price=42.1, min_strike_price=35.0, p25_strike_price=38.8, p75_strike_price=46.2, max_strike_price=55.8, number_of_contracts=17, total_mw=4500.0),
+    # State_Renewables_Auction — WIND
+    REAPriceHistoryRecord(year=2019, program="State_Renewables_Auction", technology="WIND", avg_strike_price=68.5, min_strike_price=58.0, p25_strike_price=63.4, p75_strike_price=73.2, max_strike_price=80.0, number_of_contracts=6, total_mw=980.0),
+    REAPriceHistoryRecord(year=2020, program="State_Renewables_Auction", technology="WIND", avg_strike_price=63.2, min_strike_price=54.8, p25_strike_price=59.0, p75_strike_price=67.5, max_strike_price=76.5, number_of_contracts=7, total_mw=1200.0),
+    REAPriceHistoryRecord(year=2021, program="State_Renewables_Auction", technology="WIND", avg_strike_price=59.0, min_strike_price=51.0, p25_strike_price=55.2, p75_strike_price=63.4, max_strike_price=72.8, number_of_contracts=9, total_mw=1580.0),
+    REAPriceHistoryRecord(year=2022, program="State_Renewables_Auction", technology="WIND", avg_strike_price=56.8, min_strike_price=48.6, p25_strike_price=53.0, p75_strike_price=61.2, max_strike_price=70.4, number_of_contracts=11, total_mw=2050.0),
+    REAPriceHistoryRecord(year=2023, program="State_Renewables_Auction", technology="WIND", avg_strike_price=54.2, min_strike_price=46.5, p25_strike_price=50.8, p75_strike_price=58.4, max_strike_price=68.0, number_of_contracts=13, total_mw=2480.0),
+    REAPriceHistoryRecord(year=2024, program="State_Renewables_Auction", technology="WIND", avg_strike_price=51.8, min_strike_price=44.2, p25_strike_price=48.4, p75_strike_price=55.6, max_strike_price=65.2, number_of_contracts=15, total_mw=2900.0),
+    # REZ_Access_Rights — HYBRID
+    REAPriceHistoryRecord(year=2019, program="REZ_Access_Rights", technology="HYBRID", avg_strike_price=98.5, min_strike_price=88.0, p25_strike_price=92.5, p75_strike_price=104.2, max_strike_price=115.0, number_of_contracts=2, total_mw=210.0),
+    REAPriceHistoryRecord(year=2020, program="REZ_Access_Rights", technology="HYBRID", avg_strike_price=88.4, min_strike_price=79.0, p25_strike_price=83.5, p75_strike_price=93.8, max_strike_price=102.5, number_of_contracts=3, total_mw=380.0),
+    REAPriceHistoryRecord(year=2021, program="REZ_Access_Rights", technology="HYBRID", avg_strike_price=80.2, min_strike_price=71.5, p25_strike_price=76.0, p75_strike_price=85.4, max_strike_price=96.0, number_of_contracts=4, total_mw=560.0),
+    REAPriceHistoryRecord(year=2022, program="REZ_Access_Rights", technology="HYBRID", avg_strike_price=73.8, min_strike_price=65.2, p25_strike_price=69.5, p75_strike_price=78.5, max_strike_price=90.0, number_of_contracts=5, total_mw=740.0),
+    REAPriceHistoryRecord(year=2023, program="REZ_Access_Rights", technology="HYBRID", avg_strike_price=68.4, min_strike_price=60.0, p25_strike_price=64.5, p75_strike_price=73.0, max_strike_price=84.5, number_of_contracts=6, total_mw=920.0),
+    REAPriceHistoryRecord(year=2024, program="REZ_Access_Rights", technology="HYBRID", avg_strike_price=64.2, min_strike_price=56.8, p25_strike_price=60.8, p75_strike_price=68.5, max_strike_price=80.0, number_of_contracts=7, total_mw=1100.0),
+    # Community_Energy_Program — SOLAR
+    REAPriceHistoryRecord(year=2019, program="Community_Energy_Program", technology="SOLAR", avg_strike_price=95.2, min_strike_price=85.0, p25_strike_price=89.5, p75_strike_price=100.4, max_strike_price=112.0, number_of_contracts=5, total_mw=42.0),
+    REAPriceHistoryRecord(year=2020, program="Community_Energy_Program", technology="SOLAR", avg_strike_price=88.4, min_strike_price=78.5, p25_strike_price=83.2, p75_strike_price=93.5, max_strike_price=105.0, number_of_contracts=6, total_mw=58.0),
+    REAPriceHistoryRecord(year=2021, program="Community_Energy_Program", technology="SOLAR", avg_strike_price=82.5, min_strike_price=72.0, p25_strike_price=77.8, p75_strike_price=87.5, max_strike_price=98.0, number_of_contracts=8, total_mw=78.0),
+    REAPriceHistoryRecord(year=2022, program="Community_Energy_Program", technology="SOLAR", avg_strike_price=78.4, min_strike_price=68.5, p25_strike_price=73.5, p75_strike_price=83.2, max_strike_price=94.0, number_of_contracts=10, total_mw=105.0),
+    REAPriceHistoryRecord(year=2023, program="Community_Energy_Program", technology="SOLAR", avg_strike_price=74.2, min_strike_price=65.0, p25_strike_price=69.8, p75_strike_price=79.0, max_strike_price=90.5, number_of_contracts=12, total_mw=138.0),
+    REAPriceHistoryRecord(year=2024, program="Community_Energy_Program", technology="SOLAR", avg_strike_price=70.8, min_strike_price=62.0, p25_strike_price=66.5, p75_strike_price=75.4, max_strike_price=86.0, number_of_contracts=14, total_mw=175.0),
+]
+
+_REA_GOVT_EXPOSURE: List[REAGovernmentExposureRecord] = [
+    # NSW — 3 scenarios
+    REAGovernmentExposureRecord(jurisdiction="NSW", year=2024, total_contracted_mw=4200.0, total_cfd_liability_m=1260.0, avg_remaining_contract_years=12.4, market_price_scenario="CURRENT", net_govt_position_m=-42.5),
+    REAGovernmentExposureRecord(jurisdiction="NSW", year=2024, total_contracted_mw=4200.0, total_cfd_liability_m=1260.0, avg_remaining_contract_years=12.4, market_price_scenario="LOW", net_govt_position_m=-318.0),
+    REAGovernmentExposureRecord(jurisdiction="NSW", year=2024, total_contracted_mw=4200.0, total_cfd_liability_m=1260.0, avg_remaining_contract_years=12.4, market_price_scenario="HIGH", net_govt_position_m=285.0),
+    # VIC — 3 scenarios
+    REAGovernmentExposureRecord(jurisdiction="VIC", year=2024, total_contracted_mw=5130.0, total_cfd_liability_m=1490.0, avg_remaining_contract_years=11.8, market_price_scenario="CURRENT", net_govt_position_m=-68.2),
+    REAGovernmentExposureRecord(jurisdiction="VIC", year=2024, total_contracted_mw=5130.0, total_cfd_liability_m=1490.0, avg_remaining_contract_years=11.8, market_price_scenario="LOW", net_govt_position_m=-412.0),
+    REAGovernmentExposureRecord(jurisdiction="VIC", year=2024, total_contracted_mw=5130.0, total_cfd_liability_m=1490.0, avg_remaining_contract_years=11.8, market_price_scenario="HIGH", net_govt_position_m=364.0),
+    # QLD — 3 scenarios
+    REAGovernmentExposureRecord(jurisdiction="QLD", year=2024, total_contracted_mw=2150.0, total_cfd_liability_m=632.0, avg_remaining_contract_years=13.6, market_price_scenario="CURRENT", net_govt_position_m=-28.4),
+    REAGovernmentExposureRecord(jurisdiction="QLD", year=2024, total_contracted_mw=2150.0, total_cfd_liability_m=632.0, avg_remaining_contract_years=13.6, market_price_scenario="LOW", net_govt_position_m=-198.0),
+    REAGovernmentExposureRecord(jurisdiction="QLD", year=2024, total_contracted_mw=2150.0, total_cfd_liability_m=632.0, avg_remaining_contract_years=13.6, market_price_scenario="HIGH", net_govt_position_m=182.0),
+    # SA — 3 scenarios
+    REAGovernmentExposureRecord(jurisdiction="SA", year=2024, total_contracted_mw=1500.0, total_cfd_liability_m=418.0, avg_remaining_contract_years=10.9, market_price_scenario="CURRENT", net_govt_position_m=-15.8),
+    REAGovernmentExposureRecord(jurisdiction="SA", year=2024, total_contracted_mw=1500.0, total_cfd_liability_m=418.0, avg_remaining_contract_years=10.9, market_price_scenario="LOW", net_govt_position_m=-124.0),
+    REAGovernmentExposureRecord(jurisdiction="SA", year=2024, total_contracted_mw=1500.0, total_cfd_liability_m=418.0, avg_remaining_contract_years=10.9, market_price_scenario="HIGH", net_govt_position_m=112.0),
+    # FED — 3 scenarios
+    REAGovernmentExposureRecord(jurisdiction="FED", year=2024, total_contracted_mw=2550.0, total_cfd_liability_m=640.0, avg_remaining_contract_years=14.2, market_price_scenario="CURRENT", net_govt_position_m=-22.0),
+    REAGovernmentExposureRecord(jurisdiction="FED", year=2024, total_contracted_mw=2550.0, total_cfd_liability_m=640.0, avg_remaining_contract_years=14.2, market_price_scenario="LOW", net_govt_position_m=-188.0),
+    REAGovernmentExposureRecord(jurisdiction="FED", year=2024, total_contracted_mw=2550.0, total_cfd_liability_m=640.0, avg_remaining_contract_years=14.2, market_price_scenario="HIGH", net_govt_position_m=165.0),
+]
+
+# ── Endpoint ──────────────────────────────────────────────────────────────────
+
+@app.get(
+    "/api/renewable-auction/dashboard",
+    response_model=READashboard,
+    dependencies=[Depends(verify_api_key)],
+)
+def get_renewable_auction_dashboard():
+    import random  # noqa: F401
+    return READashboard(
+        auctions=[r.dict() for r in _REA_AUCTIONS],
+        projects=[r.dict() for r in _REA_PROJECTS],
+        design_elements=[r.dict() for r in _REA_DESIGN_ELEMENTS],
+        price_history=[r.dict() for r in _REA_PRICE_HISTORY],
+        govt_exposure=[r.dict() for r in _REA_GOVT_EXPOSURE],
+        summary={
+            "total_auctioned_mw": 18400,
+            "avg_strike_price_2024": 68.4,
+            "yoy_price_decline_pct": 8.4,
+            "total_contracted_projects": 25,
+            "oversubscription_avg": 3.2,
+            "govt_cfd_liability_total_m": 2840,
+        },
+    )
+
+# ── Old RAA enum/model stubs (kept for references elsewhere in codebase) ──────
 
 class RAATechnologyEnum(str, Enum):
     WIND_ONSHORE  = "WIND_ONSHORE"
@@ -44736,104 +44961,7 @@ class RAAStateComparisonRecord(BaseModel):
     policy_target_mw: float
     completion_pct: float
 
-class RenewableAuctionDashboard(BaseModel):
-    timestamp: str
-    auction_results: List[dict]
-    technology_trends: List[dict]
-    performance: List[dict]
-    state_comparison: List[dict]
-
-
-# ── Mock data ────────────────────────────────────────────────────────────────
-
-_RAA_AUCTION_RESULTS: List[RAAAuctionResultRecord] = [
-    # NSW LTESA / REZ contracts
-    RAAAuctionResultRecord(auction_id="LTESA-2022-001", auction_name="NSW LTESA Round 1", state="NSW", year=2022, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=280.0, strike_price_aud_mwh=52.10, reference_price_aud_mwh=68.40, cfd_term_years=15, developer="AGL Energy", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
-    RAAAuctionResultRecord(auction_id="LTESA-2022-002", auction_name="NSW LTESA Round 1", state="NSW", year=2022, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=320.0, strike_price_aud_mwh=61.30, reference_price_aud_mwh=68.40, cfd_term_years=15, developer="Tilt Renewables", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
-    RAAAuctionResultRecord(auction_id="LTESA-2022-003", auction_name="NSW LTESA Round 1", state="NSW", year=2022, technology=RAATechnologyEnum.HYBRID, capacity_mw=150.0, strike_price_aud_mwh=74.80, reference_price_aud_mwh=68.40, cfd_term_years=15, developer="Neoen", cod_year=2026, status=RAAStatusEnum.CONTRACTED),
-    RAAAuctionResultRecord(auction_id="LTESA-2023-001", auction_name="NSW LTESA Round 2", state="NSW", year=2023, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=400.0, strike_price_aud_mwh=48.60, reference_price_aud_mwh=71.20, cfd_term_years=15, developer="Origin Energy", cod_year=2026, status=RAAStatusEnum.CONTRACTED),
-    RAAAuctionResultRecord(auction_id="LTESA-2023-002", auction_name="NSW LTESA Round 2", state="NSW", year=2023, technology=RAATechnologyEnum.STORAGE, capacity_mw=200.0, strike_price_aud_mwh=82.40, reference_price_aud_mwh=71.20, cfd_term_years=10, developer="Akaysha Energy", cod_year=2027, status=RAAStatusEnum.CONTRACTED),
-    # VIC VRET contracts
-    RAAAuctionResultRecord(auction_id="VRET-2019-001", auction_name="Victorian VRET Round 2", state="VIC", year=2019, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=530.0, strike_price_aud_mwh=58.00, reference_price_aud_mwh=75.00, cfd_term_years=15, developer="Vestas / CIP", cod_year=2022, status=RAAStatusEnum.COMMISSIONED),
-    RAAAuctionResultRecord(auction_id="VRET-2019-002", auction_name="Victorian VRET Round 2", state="VIC", year=2019, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=128.0, strike_price_aud_mwh=62.50, reference_price_aud_mwh=75.00, cfd_term_years=15, developer="Lightsource BP", cod_year=2022, status=RAAStatusEnum.COMMISSIONED),
-    RAAAuctionResultRecord(auction_id="VRET-2021-001", auction_name="Victorian VRET Round 3", state="VIC", year=2021, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=340.0, strike_price_aud_mwh=44.20, reference_price_aud_mwh=72.00, cfd_term_years=15, developer="Neoen", cod_year=2024, status=RAAStatusEnum.COMMISSIONED),
-    RAAAuctionResultRecord(auction_id="VRET-2021-002", auction_name="Victorian VRET Round 3", state="VIC", year=2021, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=460.0, strike_price_aud_mwh=55.70, reference_price_aud_mwh=72.00, cfd_term_years=15, developer="RES Australia", cod_year=2024, status=RAAStatusEnum.COMMISSIONED),
-    # QLD QRET contracts
-    RAAAuctionResultRecord(auction_id="QRET-2020-001", auction_name="QLD QRET Round 1", state="QLD", year=2020, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=600.0, strike_price_aud_mwh=45.80, reference_price_aud_mwh=65.00, cfd_term_years=20, developer="Acciona", cod_year=2023, status=RAAStatusEnum.COMMISSIONED),
-    RAAAuctionResultRecord(auction_id="QRET-2022-001", auction_name="QLD QRET Round 2", state="QLD", year=2022, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=390.0, strike_price_aud_mwh=59.40, reference_price_aud_mwh=67.00, cfd_term_years=15, developer="Windlab", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
-    RAAAuctionResultRecord(auction_id="QRET-2022-002", auction_name="QLD QRET Round 2", state="QLD", year=2022, technology=RAATechnologyEnum.HYBRID, capacity_mw=220.0, strike_price_aud_mwh=68.90, reference_price_aud_mwh=67.00, cfd_term_years=15, developer="SunCable", cod_year=2026, status=RAAStatusEnum.CONTRACTED),
-    # SA REZ contracts
-    RAAAuctionResultRecord(auction_id="SA-REZ-2021-001", auction_name="SA REZ Tender", state="SA", year=2021, technology=RAATechnologyEnum.WIND_ONSHORE, capacity_mw=240.0, strike_price_aud_mwh=53.20, reference_price_aud_mwh=69.50, cfd_term_years=15, developer="Pacific Hydro", cod_year=2024, status=RAAStatusEnum.COMMISSIONED),
-    RAAAuctionResultRecord(auction_id="SA-REZ-2022-001", auction_name="SA REZ Tender Round 2", state="SA", year=2022, technology=RAATechnologyEnum.UTILITY_SOLAR, capacity_mw=175.0, strike_price_aud_mwh=41.50, reference_price_aud_mwh=69.50, cfd_term_years=15, developer="Beon Energy", cod_year=2025, status=RAAStatusEnum.UNDER_CONSTRUCTION),
-    # Terminated example
-    RAAAuctionResultRecord(auction_id="LTESA-2021-T01", auction_name="NSW LTESA Pilot", state="NSW", year=2021, technology=RAATechnologyEnum.WIND_OFFSHORE, capacity_mw=500.0, strike_price_aud_mwh=98.00, reference_price_aud_mwh=68.40, cfd_term_years=20, developer="BlueFloat Energy", cod_year=2028, status=RAAStatusEnum.TERMINATED),
-]
-
-_RAA_TECHNOLOGY_TRENDS: List[RAATechnologyTrendRecord] = [
-    # UTILITY_SOLAR — 5 years
-    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2018, auction_count=3, avg_strike_price_aud_mwh=82.50, min_strike_price_aud_mwh=78.00, total_contracted_mw=420.0, oversubscription_ratio=2.1, cost_reduction_pct_from_2018=0.0),
-    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2019, auction_count=4, avg_strike_price_aud_mwh=72.40, min_strike_price_aud_mwh=64.00, total_contracted_mw=680.0, oversubscription_ratio=2.8, cost_reduction_pct_from_2018=12.2),
-    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2020, auction_count=5, avg_strike_price_aud_mwh=59.30, min_strike_price_aud_mwh=45.80, total_contracted_mw=1240.0, oversubscription_ratio=3.5, cost_reduction_pct_from_2018=28.1),
-    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2021, auction_count=6, avg_strike_price_aud_mwh=51.80, min_strike_price_aud_mwh=41.50, total_contracted_mw=1850.0, oversubscription_ratio=4.2, cost_reduction_pct_from_2018=37.2),
-    RAATechnologyTrendRecord(technology="UTILITY_SOLAR", year=2022, auction_count=7, avg_strike_price_aud_mwh=47.20, min_strike_price_aud_mwh=38.60, total_contracted_mw=2380.0, oversubscription_ratio=5.1, cost_reduction_pct_from_2018=42.8),
-    # WIND_ONSHORE — 5 years
-    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2018, auction_count=4, avg_strike_price_aud_mwh=74.20, min_strike_price_aud_mwh=68.00, total_contracted_mw=580.0, oversubscription_ratio=1.8, cost_reduction_pct_from_2018=0.0),
-    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2019, auction_count=5, avg_strike_price_aud_mwh=68.90, min_strike_price_aud_mwh=58.00, total_contracted_mw=920.0, oversubscription_ratio=2.2, cost_reduction_pct_from_2018=7.1),
-    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2020, auction_count=5, avg_strike_price_aud_mwh=64.40, min_strike_price_aud_mwh=56.00, total_contracted_mw=1100.0, oversubscription_ratio=2.6, cost_reduction_pct_from_2018=13.2),
-    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2021, auction_count=6, avg_strike_price_aud_mwh=59.10, min_strike_price_aud_mwh=53.20, total_contracted_mw=1480.0, oversubscription_ratio=3.1, cost_reduction_pct_from_2018=20.4),
-    RAATechnologyTrendRecord(technology="WIND_ONSHORE", year=2022, auction_count=7, avg_strike_price_aud_mwh=57.80, min_strike_price_aud_mwh=51.00, total_contracted_mw=1720.0, oversubscription_ratio=3.8, cost_reduction_pct_from_2018=22.1),
-    # HYBRID — 5 years
-    RAATechnologyTrendRecord(technology="HYBRID", year=2018, auction_count=1, avg_strike_price_aud_mwh=105.00, min_strike_price_aud_mwh=105.00, total_contracted_mw=80.0, oversubscription_ratio=1.2, cost_reduction_pct_from_2018=0.0),
-    RAATechnologyTrendRecord(technology="HYBRID", year=2019, auction_count=2, avg_strike_price_aud_mwh=95.40, min_strike_price_aud_mwh=88.00, total_contracted_mw=210.0, oversubscription_ratio=1.5, cost_reduction_pct_from_2018=9.1),
-    RAATechnologyTrendRecord(technology="HYBRID", year=2020, auction_count=2, avg_strike_price_aud_mwh=86.20, min_strike_price_aud_mwh=79.00, total_contracted_mw=340.0, oversubscription_ratio=1.9, cost_reduction_pct_from_2018=17.9),
-    RAATechnologyTrendRecord(technology="HYBRID", year=2021, auction_count=3, avg_strike_price_aud_mwh=78.40, min_strike_price_aud_mwh=72.00, total_contracted_mw=520.0, oversubscription_ratio=2.4, cost_reduction_pct_from_2018=25.3),
-    RAATechnologyTrendRecord(technology="HYBRID", year=2022, auction_count=3, avg_strike_price_aud_mwh=71.30, min_strike_price_aud_mwh=68.90, total_contracted_mw=680.0, oversubscription_ratio=2.8, cost_reduction_pct_from_2018=32.1),
-    # STORAGE — 5 years
-    RAATechnologyTrendRecord(technology="STORAGE", year=2018, auction_count=1, avg_strike_price_aud_mwh=148.00, min_strike_price_aud_mwh=148.00, total_contracted_mw=50.0, oversubscription_ratio=1.1, cost_reduction_pct_from_2018=0.0),
-    RAATechnologyTrendRecord(technology="STORAGE", year=2019, auction_count=1, avg_strike_price_aud_mwh=132.50, min_strike_price_aud_mwh=130.00, total_contracted_mw=100.0, oversubscription_ratio=1.3, cost_reduction_pct_from_2018=10.5),
-    RAATechnologyTrendRecord(technology="STORAGE", year=2020, auction_count=2, avg_strike_price_aud_mwh=115.80, min_strike_price_aud_mwh=110.00, total_contracted_mw=250.0, oversubscription_ratio=1.7, cost_reduction_pct_from_2018=21.8),
-    RAATechnologyTrendRecord(technology="STORAGE", year=2021, auction_count=2, avg_strike_price_aud_mwh=98.60, min_strike_price_aud_mwh=92.00, total_contracted_mw=400.0, oversubscription_ratio=2.1, cost_reduction_pct_from_2018=33.4),
-    RAATechnologyTrendRecord(technology="STORAGE", year=2022, auction_count=3, avg_strike_price_aud_mwh=84.20, min_strike_price_aud_mwh=79.00, total_contracted_mw=680.0, oversubscription_ratio=2.6, cost_reduction_pct_from_2018=43.1),
-]
-
-_RAA_PERFORMANCE: List[RAAPerformanceRecord] = [
-    RAAPerformanceRecord(project_name="Rye Park Wind Farm", technology="WIND_ONSHORE", state="NSW", contracted_capacity_mw=396.0, actual_capacity_factor_pct=38.2, bid_capacity_factor_pct=36.0, annual_generation_twh=1.32, cfd_payment_m_aud=14.8, market_revenue_m_aud=52.1),
-    RAAPerformanceRecord(project_name="Bungaban Solar Farm", technology="UTILITY_SOLAR", state="QLD", contracted_capacity_mw=600.0, actual_capacity_factor_pct=29.4, bid_capacity_factor_pct=28.0, annual_generation_twh=1.54, cfd_payment_m_aud=0.0, market_revenue_m_aud=38.6),
-    RAAPerformanceRecord(project_name="Coppabella Solar", technology="UTILITY_SOLAR", state="NSW", contracted_capacity_mw=280.0, actual_capacity_factor_pct=31.2, bid_capacity_factor_pct=30.5, annual_generation_twh=0.76, cfd_payment_m_aud=4.2, market_revenue_m_aud=28.4),
-    RAAPerformanceRecord(project_name="Cattle Hill Wind Farm", technology="WIND_ONSHORE", state="TAS", contracted_capacity_mw=148.0, actual_capacity_factor_pct=45.8, bid_capacity_factor_pct=42.0, annual_generation_twh=0.59, cfd_payment_m_aud=0.0, market_revenue_m_aud=24.8),
-    RAAPerformanceRecord(project_name="Neoen Bulgana Green Power Hub", technology="HYBRID", state="VIC", contracted_capacity_mw=204.0, actual_capacity_factor_pct=34.7, bid_capacity_factor_pct=33.0, annual_generation_twh=0.62, cfd_payment_m_aud=6.8, market_revenue_m_aud=31.2),
-    RAAPerformanceRecord(project_name="Lal Lal Wind Farm", technology="WIND_ONSHORE", state="VIC", contracted_capacity_mw=228.0, actual_capacity_factor_pct=39.5, bid_capacity_factor_pct=38.5, annual_generation_twh=0.79, cfd_payment_m_aud=2.1, market_revenue_m_aud=35.6),
-    RAAPerformanceRecord(project_name="Murra Warra II Wind", technology="WIND_ONSHORE", state="VIC", contracted_capacity_mw=209.0, actual_capacity_factor_pct=36.8, bid_capacity_factor_pct=37.0, annual_generation_twh=0.67, cfd_payment_m_aud=8.4, market_revenue_m_aud=29.8),
-    RAAPerformanceRecord(project_name="Darlington Point Solar", technology="UTILITY_SOLAR", state="NSW", contracted_capacity_mw=275.0, actual_capacity_factor_pct=28.8, bid_capacity_factor_pct=31.0, annual_generation_twh=0.69, cfd_payment_m_aud=16.2, market_revenue_m_aud=21.4),
-    RAAPerformanceRecord(project_name="Crystal Brook Energy Park", technology="HYBRID", state="SA", contracted_capacity_mw=280.0, actual_capacity_factor_pct=36.4, bid_capacity_factor_pct=35.0, annual_generation_twh=0.89, cfd_payment_m_aud=5.3, market_revenue_m_aud=38.1),
-    RAAPerformanceRecord(project_name="Snapper Point Gas-Solar BESS", technology="STORAGE", state="SA", contracted_capacity_mw=200.0, actual_capacity_factor_pct=22.1, bid_capacity_factor_pct=25.0, annual_generation_twh=0.39, cfd_payment_m_aud=22.8, market_revenue_m_aud=18.6),
-]
-
-_RAA_STATE_COMPARISON: List[RAAStateComparisonRecord] = [
-    RAAStateComparisonRecord(state="NSW", total_contracted_mw=1850.0, avg_strike_price_aud_mwh=58.20, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=2400.0, policy_target_mw=5000.0, completion_pct=37.0),
-    RAAStateComparisonRecord(state="VIC", total_contracted_mw=2180.0, avg_strike_price_aud_mwh=53.80, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=3100.0, policy_target_mw=6500.0, completion_pct=33.5),
-    RAAStateComparisonRecord(state="QLD", total_contracted_mw=1560.0, avg_strike_price_aud_mwh=51.60, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=4200.0, policy_target_mw=8000.0, completion_pct=19.5),
-    RAAStateComparisonRecord(state="SA", total_contracted_mw=940.0, avg_strike_price_aud_mwh=49.40, cheapest_technology="UTILITY_SOLAR", auction_pipeline_mw=1800.0, policy_target_mw=3000.0, completion_pct=31.3),
-    RAAStateComparisonRecord(state="WA", total_contracted_mw=620.0, avg_strike_price_aud_mwh=55.10, cheapest_technology="WIND_ONSHORE", auction_pipeline_mw=1200.0, policy_target_mw=2000.0, completion_pct=31.0),
-]
-
-
-# ── Endpoint ────────────────────────────────────────────────────────────────
-
-@app.get(
-    "/api/renewable-auction/dashboard",
-    response_model=RenewableAuctionDashboard,
-    dependencies=[Depends(verify_api_key)],
-)
-def get_renewable_auction_dashboard():
-    from datetime import datetime, timezone
-    return RenewableAuctionDashboard(
-        timestamp=datetime.now(timezone.utc).isoformat(),
-        auction_results=[r.dict() for r in _RAA_AUCTION_RESULTS],
-        technology_trends=[r.dict() for r in _RAA_TECHNOLOGY_TRENDS],
-        performance=[r.dict() for r in _RAA_PERFORMANCE],
-        state_comparison=[r.dict() for r in _RAA_STATE_COMPARISON],
-    )
+# (Old RenewableAuctionDashboard model and Sprint 62b data replaced by Sprint 86b REA above)
 
 
 # ============================================================================
@@ -60268,4 +60396,476 @@ async def get_energy_transition_finance_dashboard():
         return cached
     result = _build_etf_dashboard()
     _cache_set(_etf_cache, "etf", result)
+    return result
+
+
+# ============================================================
+# Sprint 86a — NEM System Load Balancing & Reserve Adequacy
+# Prefix: SLB   Endpoint: /api/system-load-balancing/dashboard
+# ============================================================
+
+class SLBReserveRecord(BaseModel):
+    region: str
+    season: str  # SUMMER / AUTUMN / WINTER / SPRING
+    year: int
+    peak_demand_mw: float
+    installed_capacity_mw: float
+    firm_capacity_mw: float
+    reserve_margin_pct: float
+    minimum_reserve_standard_pct: float
+    reserve_gap_mw: float
+    unserved_energy_mwh: float
+    loss_of_load_probability_pct: float
+
+class SLBPASARecord(BaseModel):
+    assessment_date: str
+    region: str
+    forecast_horizon_weeks: int
+    probability_of_exceedance: str  # POE10 / POE50 / POE90
+    peak_demand_forecast_mw: float
+    available_generation_mw: float
+    projected_reserve_margin_mw: float
+    lor_risk: str  # LOR1 / LOR2 / LOR3 / NONE
+
+class SLBDemandGrowthRecord(BaseModel):
+    region: str
+    scenario: str  # CENTRAL / HIGH / LOW
+    year: int
+    annual_max_demand_mw: float
+    annual_energy_twh: float
+    summer_peak_mw: float
+    winter_peak_mw: float
+    ev_load_mw: float
+    industrial_electrification_mw: float
+    demand_side_participation_mw: float
+
+class SLBNewCapacityRecord(BaseModel):
+    region: str
+    year: int
+    committed_capacity_mw: float
+    probable_capacity_mw: float
+    potential_capacity_mw: float
+    retirement_capacity_mw: float
+    net_capacity_change_mw: float
+    technology_mix: str
+
+class SLBReliabilityEventRecord(BaseModel):
+    date: str
+    region: str
+    event_type: str  # LOR1 / LOR2 / LOR3 / LOAD_SHEDDING / RERT_ACTIVATED / NEAR_MISS
+    cause: str
+    duration_hrs: float
+    mw_at_risk: float
+    mw_shed: float
+    cost_m: float
+    resolution: str
+
+class SLBDashboard(BaseModel):
+    reserves: List[SLBReserveRecord]
+    pasa: List[SLBPASARecord]
+    demand_growth: List[SLBDemandGrowthRecord]
+    new_capacity: List[SLBNewCapacityRecord]
+    reliability_events: List[SLBReliabilityEventRecord]
+    summary: dict
+
+_slb_cache: dict = {}
+
+def _build_slb_dashboard() -> SLBDashboard:
+    import random
+    rng = random.Random(86)
+
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    seasons = ["SUMMER", "AUTUMN", "WINTER", "SPRING"]
+    years_reserve = [2023, 2024]
+
+    # ── Region baseline parameters ──────────────────────────────────────────
+    region_params = {
+        "NSW1": {"peak_base": 13800, "inst_mult": 1.42, "min_std": 15.0},
+        "VIC1": {"peak_base": 10200, "inst_mult": 1.38, "min_std": 15.0},
+        "QLD1": {"peak_base": 9800,  "inst_mult": 1.45, "min_std": 15.0},
+        "SA1":  {"peak_base": 3400,  "inst_mult": 1.52, "min_std": 15.0},
+        "TAS1": {"peak_base": 1800,  "inst_mult": 1.65, "min_std": 15.0},
+    }
+    season_demand_adj = {"SUMMER": 1.12, "WINTER": 1.05, "AUTUMN": 0.88, "SPRING": 0.84}
+
+    # ── 40 Reserve Records (5 × 4 × 2) ──────────────────────────────────────
+    reserves = []
+    for yr in years_reserve:
+        yr_adj = 1.02 if yr == 2024 else 1.0
+        for reg in regions:
+            p = region_params[reg]
+            for season in seasons:
+                peak = round(p["peak_base"] * season_demand_adj[season] * yr_adj
+                             + rng.uniform(-200, 200), 1)
+                inst = round(peak * p["inst_mult"] + rng.uniform(-300, 300), 1)
+                firm = round(inst * rng.uniform(0.82, 0.92), 1)
+                rm_pct = round((firm - peak) / peak * 100, 2)
+                min_std = p["min_std"]
+                gap_mw = round((rm_pct - min_std) / 100 * peak, 1)
+                use = round(max(0.0, rng.uniform(0.0, 0.004)), 4)
+                lolp = round(rng.uniform(0.05, 2.8), 3)
+                reserves.append(SLBReserveRecord(
+                    region=reg, season=season, year=yr,
+                    peak_demand_mw=peak, installed_capacity_mw=inst,
+                    firm_capacity_mw=firm, reserve_margin_pct=rm_pct,
+                    minimum_reserve_standard_pct=min_std,
+                    reserve_gap_mw=gap_mw, unserved_energy_mwh=use,
+                    loss_of_load_probability_pct=lolp,
+                ))
+
+    # ── 30 PASA Records (5 × 3 POE × 2 horizons) ────────────────────────────
+    poe_levels = ["POE10", "POE50", "POE90"]
+    horizons = [4, 52]
+    lor_risk_choices = ["NONE", "NONE", "NONE", "LOR1", "LOR2", "LOR3"]
+    pasa = []
+    for reg in regions:
+        p = region_params[reg]
+        for poe in poe_levels:
+            poe_mult = {"POE10": 1.10, "POE50": 1.00, "POE90": 0.92}[poe]
+            for horizon in horizons:
+                avail_derate = 0.88 if horizon == 52 else 0.95
+                peak_fc = round(p["peak_base"] * poe_mult + rng.uniform(-400, 400), 1)
+                avail_gen = round(p["peak_base"] * p["inst_mult"] * avail_derate
+                                  + rng.uniform(-500, 500), 1)
+                proj_rm = round(avail_gen - peak_fc + rng.uniform(-100, 100), 1)
+                lor = rng.choice(lor_risk_choices) if proj_rm < 800 else "NONE"
+                pasa.append(SLBPASARecord(
+                    assessment_date="2024-03-15",
+                    region=reg,
+                    forecast_horizon_weeks=horizon,
+                    probability_of_exceedance=poe,
+                    peak_demand_forecast_mw=peak_fc,
+                    available_generation_mw=avail_gen,
+                    projected_reserve_margin_mw=proj_rm,
+                    lor_risk=lor,
+                ))
+
+    # ── 45 Demand Growth Records (5 × 3 scenarios × 3 years) ─────────────────
+    scenarios = ["CENTRAL", "HIGH", "LOW"]
+    proj_years = [2025, 2030, 2035]
+    scenario_growth = {"CENTRAL": 1.018, "HIGH": 1.032, "LOW": 1.008}
+    demand_growth = []
+    for reg in regions:
+        p = region_params[reg]
+        for scen in scenarios:
+            g = scenario_growth[scen]
+            base_peak = p["peak_base"]
+            for yr in proj_years:
+                yrs_from_base = yr - 2024
+                mult = g ** yrs_from_base
+                ann_max = round(base_peak * mult + rng.uniform(-200, 200), 1)
+                ann_energy = round(ann_max * 8760 * rng.uniform(0.42, 0.52) / 1000, 2)
+                summer = round(ann_max * season_demand_adj["SUMMER"] + rng.uniform(-100, 100), 1)
+                winter = round(ann_max * season_demand_adj["WINTER"] + rng.uniform(-100, 100), 1)
+                ev_load = round(ann_max * rng.uniform(0.02, 0.12) * (yrs_from_base / 11 + 0.1), 1)
+                ind_elec = round(ann_max * rng.uniform(0.01, 0.06) * (yrs_from_base / 11 + 0.05), 1)
+                dsp = round(ann_max * rng.uniform(0.03, 0.08), 1)
+                demand_growth.append(SLBDemandGrowthRecord(
+                    region=reg, scenario=scen, year=yr,
+                    annual_max_demand_mw=ann_max,
+                    annual_energy_twh=ann_energy,
+                    summer_peak_mw=summer,
+                    winter_peak_mw=winter,
+                    ev_load_mw=ev_load,
+                    industrial_electrification_mw=ind_elec,
+                    demand_side_participation_mw=dsp,
+                ))
+
+    # ── 20 New Capacity Records (5 × 4 years) ────────────────────────────────
+    cap_years = [2024, 2025, 2026, 2027]
+    tech_by_region = {
+        "NSW1": "SOLAR+STORAGE", "VIC1": "WIND+STORAGE",
+        "QLD1": "SOLAR", "SA1": "WIND", "TAS1": "HYDRO",
+    }
+    new_capacity = []
+    for reg in regions:
+        for yr in cap_years:
+            committed = round(rng.uniform(200, 900), 1)
+            probable  = round(rng.uniform(100, 600), 1)
+            potential = round(rng.uniform(50, 400), 1)
+            retirement = round(rng.uniform(0, 300), 1)
+            net = round(committed + probable * 0.5 - retirement, 1)
+            new_capacity.append(SLBNewCapacityRecord(
+                region=reg, year=yr,
+                committed_capacity_mw=committed,
+                probable_capacity_mw=probable,
+                potential_capacity_mw=potential,
+                retirement_capacity_mw=retirement,
+                net_capacity_change_mw=net,
+                technology_mix=tech_by_region[reg],
+            ))
+
+    # ── 15 Reliability Event Records (2021-2024) ──────────────────────────────
+    event_data = [
+        ("2021-01-28", "NSW1", "LOR2",         "DEMAND_SPIKE",         2.5,  1200, 0,    4.2,  "RERT"),
+        ("2021-02-12", "VIC1", "LOR3",         "GENERATOR_TRIP",       1.2,  800,  120,  18.4, "DEMAND_RESPONSE"),
+        ("2021-06-10", "SA1",  "LOAD_SHEDDING","WEATHER",              0.8,  600,  240,  32.6, "SELF_RESOLVED"),
+        ("2021-11-25", "QLD1", "LOR1",         "INTERCONNECTOR_TRIP",  3.4,  900,  0,    2.8,  "INTERCONNECTOR"),
+        ("2022-01-20", "NSW1", "RERT_ACTIVATED","DEMAND_SPIKE",        1.8,  1500, 0,    6.4,  "RERT"),
+        ("2022-03-07", "VIC1", "LOR2",         "PLANT_SHORTAGE",       4.2,  1100, 80,   12.8, "DEMAND_RESPONSE"),
+        ("2022-07-14", "QLD1", "NEAR_MISS",    "WEATHER",              0.5,  700,  0,    1.2,  "SELF_RESOLVED"),
+        ("2022-08-22", "SA1",  "LOR3",         "GENERATOR_TRIP",       1.6,  500,  180,  24.6, "INTERCONNECTOR"),
+        ("2023-01-18", "NSW1", "LOR2",         "DEMAND_SPIKE",         2.1,  1300, 0,    5.8,  "RERT"),
+        ("2023-02-24", "VIC1", "LOAD_SHEDDING","WEATHER",              0.9,  900,  320,  42.8, "DEMAND_RESPONSE"),
+        ("2023-06-19", "QLD1", "RERT_ACTIVATED","PLANT_SHORTAGE",      2.8,  1100, 0,    8.4,  "RERT"),
+        ("2023-09-05", "TAS1", "LOR1",         "INTERCONNECTOR_TRIP",  5.6,  400,  0,    3.2,  "INTERCONNECTOR"),
+        ("2024-01-15", "NSW1", "LOR2",         "DEMAND_SPIKE",         1.4,  1400, 0,    4.6,  "RERT"),
+        ("2024-02-08", "SA1",  "LOR3",         "WEATHER",              2.2,  620,  200,  28.4, "DEMAND_RESPONSE"),
+        ("2024-07-22", "VIC1", "NEAR_MISS",    "PLANT_SHORTAGE",       0.7,  850,  0,    1.8,  "SELF_RESOLVED"),
+    ]
+    reliability_events = [
+        SLBReliabilityEventRecord(
+            date=d[0], region=d[1], event_type=d[2], cause=d[3],
+            duration_hrs=d[4], mw_at_risk=d[5], mw_shed=d[6],
+            cost_m=d[7], resolution=d[8],
+        )
+        for d in event_data
+    ]
+
+    summary = {
+        "avg_reserve_margin_pct": 18.4,
+        "regions_below_minimum_standard": 1,
+        "total_lor_events_2024": 8,
+        "total_new_capacity_2024_mw": 2840,
+        "highest_demand_growth_region": "QLD1",
+        "unserved_energy_target_met": True,
+    }
+
+    return SLBDashboard(
+        reserves=reserves,
+        pasa=pasa,
+        demand_growth=demand_growth,
+        new_capacity=new_capacity,
+        reliability_events=reliability_events,
+        summary=summary,
+    )
+
+
+@app.get("/api/system-load-balancing/dashboard", response_model=SLBDashboard, dependencies=[Depends(verify_api_key)])
+async def get_system_load_balancing_dashboard():
+    cached = _cache_get(_slb_cache, "slb")
+    if cached:
+        return cached
+    result = _build_slb_dashboard()
+    _cache_set(_slb_cache, "slb", result)
+    return result
+
+
+# ============================================================================
+# ECA — Electricity Market Carbon Accounting & Scope 2 Emissions Analytics
+# Sprint 86c  |  Endpoint: /api/carbon-accounting/dashboard
+# ============================================================================
+
+class ECAEmissionFactorRecord(BaseModel):
+    region: str
+    year: int
+    location_based_kg_per_mwh: float
+    market_based_residual_mix_kg_per_mwh: float
+    operating_margin_kg_per_mwh: float
+    build_margin_kg_per_mwh: float
+    combined_margin_kg_per_mwh: float
+    source: str  # NGA_FACTORS / GHG_PROTOCOL / CLEAN_ENERGY_REGULATOR
+
+class ECACorporateRecord(BaseModel):
+    company: str
+    sector: str  # MINING / MANUFACTURING / TECH / FINANCIAL / RETAIL / PROPERTY / TRANSPORT
+    state: str
+    electricity_consumption_gwh: float
+    scope2_location_based_kt_co2: float
+    scope2_market_based_kt_co2: float
+    scope2_reduction_pct: float
+    rec_coverage_pct: float
+    renewable_energy_pct: float
+    net_zero_target_year: Optional[int]
+    annual_cost_savings_m: float
+
+class ECAMethodologyRecord(BaseModel):
+    standard: str  # GHG_PROTOCOL / ISO14064 / TCFD / SBTI / AASB_S2 / NGA_METHODOLOGY
+    scope2_approach: str  # LOCATION_BASED / MARKET_BASED / DUAL_REPORTING
+    rec_quality_criteria: str
+    additionality_required: bool
+    temporal_matching: str  # ANNUAL / MONTHLY / HOURLY
+    spatial_matching: str  # NATIONAL / REGIONAL / LOCAL
+    adoption_pct: float
+
+class ECARECQualityRecord(BaseModel):
+    rec_type: str  # LGC / STC / GREENPOWER / INTERNATIONAL_REC / VPP_CERTIFICATE / UNBUNDLED_CERTIFICATE
+    additionality_level: str  # HIGH / MEDIUM / LOW
+    vintage_restrictions: bool
+    geographic_match_required: bool
+    chain_of_custody_required: bool
+    market_price: float
+    credibility_score: float
+
+class ECAGridImpactRecord(BaseModel):
+    region: str
+    quarter: str
+    corporate_rec_demand_twh: float
+    residual_mix_after_claims_pct: float
+    over_claiming_risk_pct: float
+    hour_matching_benefit_pct: float
+    additionality_value_m: float
+
+class ECADashboard(BaseModel):
+    emission_factors: List[ECAEmissionFactorRecord]
+    corporate: List[ECACorporateRecord]
+    methodologies: List[ECAMethodologyRecord]
+    rec_quality: List[ECARECQualityRecord]
+    grid_impact: List[ECAGridImpactRecord]
+    summary: dict
+
+_eca_cache: dict = {}
+
+def _build_eca_dashboard() -> ECADashboard:
+    import random
+    rng = random.Random(8642)
+
+    # ── Emission Factor Records: 5 NEM regions × 6 years (2019-2024) ─────────
+    _ef_region_base = {
+        "NSW": (0.81, 0.60, 0.76, 0.52),
+        "VIC": (0.94, 0.68, 0.88, 0.58),
+        "QLD": (0.80, 0.59, 0.75, 0.51),
+        "SA":  (0.38, 0.26, 0.34, 0.22),
+        "TAS": (0.18, 0.11, 0.16, 0.10),
+    }
+    _ef_sources = ["NGA_FACTORS", "GHG_PROTOCOL", "CLEAN_ENERGY_REGULATOR"]
+    emission_factors = []
+    for region, (loc_base, mkt_base, om_base, bm_base) in _ef_region_base.items():
+        for yr_idx, year in enumerate(range(2019, 2025)):
+            decay = 1.0 - yr_idx * 0.048
+            loc = round(loc_base * decay + rng.uniform(-0.02, 0.02), 3)
+            mkt = round(mkt_base * decay + rng.uniform(-0.015, 0.015), 3)
+            om  = round(om_base  * decay + rng.uniform(-0.02, 0.02), 3)
+            bm  = round(bm_base  * decay + rng.uniform(-0.01, 0.01), 3)
+            cm  = round((om * 0.5 + bm * 0.5) + rng.uniform(-0.01, 0.01), 3)
+            emission_factors.append(ECAEmissionFactorRecord(
+                region=region, year=year,
+                location_based_kg_per_mwh=max(0.05, loc),
+                market_based_residual_mix_kg_per_mwh=max(0.04, mkt),
+                operating_margin_kg_per_mwh=max(0.04, om),
+                build_margin_kg_per_mwh=max(0.03, bm),
+                combined_margin_kg_per_mwh=max(0.04, cm),
+                source=rng.choice(_ef_sources),
+            ))
+
+    # ── Corporate Records (15 large Australian corporations) ─────────────────
+    _corp_data = [
+        ("BHP Group",              "MINING",        "WA",  18_400, 9_568, 3_266, 65.8, 88.4, 72.0, 2030, 42.4),
+        ("Rio Tinto Australia",    "MINING",        "WA",  14_200, 7_384, 2_978, 59.7, 80.2, 65.4, 2030, 38.2),
+        ("Woodside Energy",        "MINING",        "WA",   8_600, 4_472, 2_150, 51.9, 68.4, 55.8, 2050, 22.6),
+        ("BlueScope Steel",        "MANUFACTURING", "NSW",  6_400, 5_888, 3_526, 40.1, 58.6, 48.4, 2050, 18.4),
+        ("Orica Ltd",              "MANUFACTURING", "NSW",  3_200, 2_944, 1_754, 40.4, 62.4, 52.0, 2040, 12.6),
+        ("Amazon Web Services",    "TECH",          "NSW",  4_800, 2_496, 336,   86.5, 96.8, 100.0, 2025, 28.4),
+        ("Microsoft Australia",    "TECH",          "NSW",  2_400, 1_248, 62,    95.0, 98.4, 100.0, 2025, 14.2),
+        ("Commonwealth Bank",      "FINANCIAL",     "NSW",  1_840, 956,   382,   60.0, 72.4, 64.2, 2030, 8.6),
+        ("ANZ Bank",               "FINANCIAL",     "VIC",  1_620, 842,   337,   60.0, 68.4, 60.0, 2030, 7.4),
+        ("Woolworths Group",       "RETAIL",        "NSW",  3_640, 1_893, 757,   60.0, 74.8, 62.4, 2040, 16.8),
+        ("Coles Group",            "RETAIL",        "VIC",  3_280, 1_706, 682,   60.0, 71.2, 58.6, 2040, 14.4),
+        ("Dexus Property Group",   "PROPERTY",      "NSW",  1_280, 666,   267,   59.9, 66.8, 58.4, 2030, 5.8),
+        ("Transurban Group",       "TRANSPORT",     "VIC",   840,  437,   306,   30.0, 42.4, 36.8, 2050, 2.8),
+        ("Sydney Airport",         "TRANSPORT",     "NSW",   620,  322,   193,   40.0, 52.4, 44.0, 2050, 2.2),
+        ("Australia Post",         "TRANSPORT",     "VIC",  1_040, 541,   378,   30.1, 44.8, 38.4, 2050, 3.4),
+    ]
+    corporate = [
+        ECACorporateRecord(
+            company=r[0], sector=r[1], state=r[2],
+            electricity_consumption_gwh=r[3],
+            scope2_location_based_kt_co2=r[4],
+            scope2_market_based_kt_co2=r[5],
+            scope2_reduction_pct=r[6],
+            rec_coverage_pct=r[7],
+            renewable_energy_pct=r[8],
+            net_zero_target_year=r[9],
+            annual_cost_savings_m=r[10],
+        )
+        for r in _corp_data
+    ]
+
+    # ── Methodology Records (7 standards) ────────────────────────────────────
+    _meth_data = [
+        ("GHG_PROTOCOL",     "DUAL_REPORTING",   "Supplier-specific or residual mix EFs; both location & market required",    False, "ANNUAL",   "NATIONAL", 78.4),
+        ("ISO14064",         "LOCATION_BASED",   "Grid average EFs acceptable; market instruments optional",                  False, "ANNUAL",   "NATIONAL", 32.6),
+        ("TCFD",             "DUAL_REPORTING",   "GHG Protocol compliant; both approaches disclosed in TCFD report",          False, "ANNUAL",   "REGIONAL", 58.2),
+        ("SBTI",             "MARKET_BASED",     "24/7 CFE certificates preferred; residual mix disallowed for targets",      True,  "HOURLY",   "LOCAL",    42.8),
+        ("AASB_S2",          "DUAL_REPORTING",   "IFRS S2 aligned; both location & market Scope 2 mandatory from FY2025",    False, "ANNUAL",   "NATIONAL", 24.4),
+        ("NGA_METHODOLOGY",  "LOCATION_BASED",   "Australian NGA Factors; NEM region-specific EFs; annual reporting cycle",  False, "ANNUAL",   "REGIONAL", 88.6),
+        ("CLEAN_ENERGY_REGULATOR", "MARKET_BASED", "GreenPower and LGC retirement; CER registry chain-of-custody required",  True,  "MONTHLY",  "REGIONAL", 36.4),
+    ]
+    methodologies = [
+        ECAMethodologyRecord(
+            standard=r[0], scope2_approach=r[1], rec_quality_criteria=r[2],
+            additionality_required=r[3], temporal_matching=r[4],
+            spatial_matching=r[5], adoption_pct=r[6],
+        )
+        for r in _meth_data
+    ]
+
+    # ── REC Quality Records (7 types) ─────────────────────────────────────────
+    _rec_data = [
+        ("LGC",                  "HIGH",   True,  True,  True,  58.40, 9.2),
+        ("STC",                  "LOW",    False, False, False, 38.20, 4.8),
+        ("GREENPOWER",           "HIGH",   True,  True,  True,  72.60, 9.6),
+        ("INTERNATIONAL_REC",    "MEDIUM", False, False, True,  12.80, 5.4),
+        ("VPP_CERTIFICATE",      "MEDIUM", True,  True,  True,  28.40, 7.2),
+        ("UNBUNDLED_CERTIFICATE","LOW",    False, False, False,  8.40, 3.6),
+        ("24_7_CFE",             "HIGH",   True,  True,  True,  92.40, 9.8),
+    ]
+    rec_quality = [
+        ECARECQualityRecord(
+            rec_type=r[0], additionality_level=r[1],
+            vintage_restrictions=r[2], geographic_match_required=r[3],
+            chain_of_custody_required=r[4],
+            market_price=r[5], credibility_score=r[6],
+        )
+        for r in _rec_data
+    ]
+
+    # ── Grid Impact Records: 5 regions × 4 quarters 2024 ─────────────────────
+    _gi_region_base = {
+        "NSW": (4.8, 48.4, 14.2, 6.8, 68.4),
+        "VIC": (5.6, 52.8, 16.4, 7.4, 74.8),
+        "QLD": (3.8, 44.2, 12.8, 5.6, 58.2),
+        "SA":  (2.4, 28.6, 8.4,  9.2, 42.4),
+        "TAS": (0.8, 14.4, 4.2,  2.8, 18.6),
+    }
+    _quarters = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+    grid_impact = []
+    for region, (rec_base, rm_base, oc_base, hm_base, av_base) in _gi_region_base.items():
+        for qi, quarter in enumerate(_quarters):
+            seasonal = 1.0 + (qi - 1.5) * 0.04
+            grid_impact.append(ECAGridImpactRecord(
+                region=region, quarter=quarter,
+                corporate_rec_demand_twh=round(rec_base * seasonal + rng.uniform(-0.2, 0.2), 2),
+                residual_mix_after_claims_pct=round(rm_base + rng.uniform(-2.0, 2.0), 1),
+                over_claiming_risk_pct=round(oc_base + rng.uniform(-1.0, 1.0), 1),
+                hour_matching_benefit_pct=round(hm_base + rng.uniform(-0.5, 0.5), 1),
+                additionality_value_m=round(av_base * seasonal + rng.uniform(-3.0, 3.0), 1),
+            ))
+
+    summary = {
+        "avg_location_based_kg_mwh_2024": 0.52,
+        "avg_market_based_residual_kg_mwh_2024": 0.38,
+        "corporate_rec_coverage_avg_pct": 48.2,
+        "over_claiming_risk_pct": 12.4,
+        "additionality_value_m": 284,
+        "net_zero_target_count": 10,
+    }
+
+    return ECADashboard(
+        emission_factors=emission_factors,
+        corporate=corporate,
+        methodologies=methodologies,
+        rec_quality=rec_quality,
+        grid_impact=grid_impact,
+        summary=summary,
+    )
+
+
+@app.get("/api/carbon-accounting/dashboard", response_model=ECADashboard, dependencies=[Depends(verify_api_key)])
+async def get_carbon_accounting_dashboard():
+    cached = _cache_get(_eca_cache, "eca")
+    if cached:
+        return cached
+    result = _build_eca_dashboard()
+    _cache_set(_eca_cache, "eca", result)
     return result

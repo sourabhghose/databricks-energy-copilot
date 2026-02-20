@@ -301,6 +301,8 @@ import DigitalTransformationAnalytics from './pages/DigitalTransformationAnalyti
 import NegativePriceEventAnalytics from './pages/NegativePriceEventAnalytics'
 import CEROrchestrationAnalytics from './pages/CEROrchestrationAnalytics'
 import EnergyTransitionFinanceAnalytics from './pages/EnergyTransitionFinanceAnalytics'
+import SystemLoadBalancingAnalytics from './pages/SystemLoadBalancingAnalytics'
+import CarbonAccountingAnalytics from './pages/CarbonAccountingAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -461,7 +463,7 @@ const NAV_ITEMS = [
   { to: '/reliability-standard-analytics', label: 'NEM Reliability Standard',     Icon: ShieldCheck    },
   { to: '/storage-optimisation-analytics', label: 'Storage Revenue Optimisation', Icon: Battery },
   { to: '/settlement-analytics',           label: '5-Min Settlement & Prudential', Icon: CreditCard },
-  { to: '/renewable-auction-analytics',   label: 'Renewable Auction & CfD',      Icon: Award      },
+  { to: '/renewable-auction',             label: 'Renewable Auction Design & CfD Analytics', Icon: Award },
   { to: '/voll-analytics',               label: 'VoLL Outage Cost Analytics',   Icon: AlertTriangle },
   { to: '/demand-flexibility-analytics', label: 'Demand Flexibility & ILM',     Icon: Gauge      },
   { to: '/futures-price-discovery',      label: 'Futures Price Discovery',       Icon: TrendingUp },
@@ -529,6 +531,8 @@ const NAV_ITEMS = [
   { to: '/energy-transition-finance',   label: 'Energy Transition Finance',          Icon: DollarSign    },
   { to: '/negative-price-events',       label: 'NEM Negative Price Events',          Icon: TrendingDown  },
   { to: '/cer-orchestration',           label: 'CER Orchestration Analytics',        Icon: Wifi          },
+  { to: '/system-load-balancing',       label: 'System Load Balancing & Reserve Adequacy', Icon: BarChart2 },
+  { to: '/carbon-accounting',           label: 'Carbon Accounting & Scope 2 Analytics',    Icon: Leaf       },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -764,7 +768,7 @@ export default function App() {
               <Route path="/storage-optimisation-analytics" element={<StorageOptimisationAnalytics />} />
               <Route path="/settlement-analytics"          element={<SettlementAnalytics />}          />
               <Route path="/realtime-operations" element={<RealtimeOperationsDashboard />} />
-              <Route path="/renewable-auction-analytics" element={<RenewableAuctionAnalytics />} />
+              <Route path="/renewable-auction"           element={<RenewableAuctionAnalytics />} />
               <Route path="/voll-analytics"              element={<VollAnalytics />}                />
               <Route path="/demand-flexibility-analytics" element={<DemandFlexibilityAnalytics />} />
               <Route path="/futures-price-discovery"      element={<FuturesPriceDiscovery />}      />
@@ -832,6 +836,8 @@ export default function App() {
               <Route path="/energy-transition-finance"   element={<EnergyTransitionFinanceAnalytics />}     />
               <Route path="/negative-price-events"        element={<NegativePriceEventAnalytics />}          />
               <Route path="/cer-orchestration"             element={<CEROrchestrationAnalytics />}            />
+              <Route path="/system-load-balancing"         element={<SystemLoadBalancingAnalytics />}          />
+              <Route path="/carbon-accounting"             element={<CarbonAccountingAnalytics />}             />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

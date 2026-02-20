@@ -7894,164 +7894,122 @@ class TestRealtimeOperationsDashboard:
 
 
 class TestRenewableAuctionAnalytics:
-    """Sprint 62b — Renewable Energy Auction Results & CfD Analytics endpoint tests."""
+    """Sprint 86b — Renewable Energy Auction Design & CfD Analytics endpoint tests (replaces Sprint 62b)."""
 
-    def test_renewable_auction_dashboard(self, client, auth_headers):
-        resp = client.get(
-            "/api/renewable-auction/dashboard",
-            headers=auth_headers,
-        )
+    endpoint = "/api/renewable-auction/dashboard"
+
+    def test_http_200(self, client, auth_headers):
+        resp = client.get(self.endpoint, headers=auth_headers)
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
-        d = resp.json()
 
-        # ── Top-level structure ────────────────────────────────────────────
-        for key in ("timestamp", "auction_results", "technology_trends", "performance", "state_comparison"):
+    def test_top_level_keys(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        for key in ("auctions", "projects", "design_elements", "price_history", "govt_exposure", "summary"):
             assert key in d, f"Missing top-level key: {key}"
 
-        # ── Auction results ────────────────────────────────────────────────
-        results = d["auction_results"]
-        assert len(results) == 15, f"Expected 15 auction result records, got {len(results)}"
+    def test_auctions_count(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        assert len(d["auctions"]) >= 12, f"Expected >=12 auction records, got {len(d['auctions'])}"
 
-        valid_technologies = {"WIND_ONSHORE", "WIND_OFFSHORE", "UTILITY_SOLAR", "HYBRID", "STORAGE"}
-        valid_statuses = {"CONTRACTED", "UNDER_CONSTRUCTION", "COMMISSIONED", "TERMINATED"}
-        valid_states = {"NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"}
+    def test_auction_record_fields(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        valid_jurisdictions = {"FED", "NSW", "VIC", "QLD", "SA", "WA", "TAS"}
+        for a in d["auctions"]:
+            assert a["auction_id"], "auction_id must be non-empty"
+            assert a["program"], "program must be non-empty"
+            assert a["jurisdiction"] in valid_jurisdictions, f"Invalid jurisdiction: {a['jurisdiction']}"
+            assert 2015 <= a["year"] <= 2030, f"Year out of range: {a['year']}"
+            assert a["round"] >= 1, "round must be >= 1"
+            assert isinstance(a["technology_types"], list) and len(a["technology_types"]) > 0
+            assert a["capacity_contracted_mw"] > 0, "capacity_contracted_mw must be positive"
+            assert a["number_of_projects"] > 0, "number_of_projects must be positive"
+            assert a["oversubscription_ratio"] >= 1.0, "oversubscription_ratio must be >= 1"
+            assert a["avg_strike_price"] > 0, "avg_strike_price must be positive"
+            assert a["min_strike_price"] <= a["avg_strike_price"], "min must be <= avg"
+            assert a["avg_strike_price"] <= a["max_strike_price"], "avg must be <= max"
+            assert 5 <= a["contract_duration_years"] <= 25, "contract_duration_years out of range"
+            assert a["govt_revenue_risk_m"] >= 0, "govt_revenue_risk_m must be non-negative"
 
-        for r in results:
-            assert r["auction_id"], "auction_id must be non-empty"
-            assert r["auction_name"], "auction_name must be non-empty"
-            assert r["state"] in valid_states, f"Invalid state: {r['state']}"
-            assert 2015 <= r["year"] <= 2030, f"Year out of range: {r['year']}"
-            assert r["technology"] in valid_technologies, f"Invalid technology: {r['technology']}"
-            assert r["capacity_mw"] > 0, "capacity_mw must be positive"
-            assert r["strike_price_aud_mwh"] > 0, "strike_price_aud_mwh must be positive"
-            assert r["reference_price_aud_mwh"] > 0, "reference_price_aud_mwh must be positive"
-            assert 5 <= r["cfd_term_years"] <= 25, f"cfd_term_years out of range: {r['cfd_term_years']}"
-            assert r["developer"], "developer must be non-empty"
-            assert 2020 <= r["cod_year"] <= 2035, f"cod_year out of range: {r['cod_year']}"
-            assert r["status"] in valid_statuses, f"Invalid status: {r['status']}"
+    def test_projects_count(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        assert len(d["projects"]) >= 20, f"Expected >=20 project records, got {len(d['projects'])}"
 
-        # All technologies represented
-        techs_present = {r["technology"] for r in results}
-        for tech in {"WIND_ONSHORE", "UTILITY_SOLAR", "HYBRID", "STORAGE"}:
-            assert tech in techs_present, f"Missing technology in auction results: {tech}"
+    def test_project_record_fields(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        valid_statuses = {"CONTRACTED", "CONSTRUCTION", "OPERATING", "CANCELLED"}
+        valid_technologies = {"WIND", "SOLAR", "HYBRID", "OFFSHORE_WIND", "STORAGE_BACKED"}
+        for p in d["projects"]:
+            assert p["project_id"], "project_id must be non-empty"
+            assert p["name"], "name must be non-empty"
+            assert p["developer"], "developer must be non-empty"
+            assert p["technology"] in valid_technologies, f"Invalid technology: {p['technology']}"
+            assert p["capacity_mw"] > 0, "capacity_mw must be positive"
+            assert p["strike_price"] > 0, "strike_price must be positive"
+            assert p["reference_price"], "reference_price must be non-empty"
+            assert p["commissioning_year"] >= 2020, "commissioning_year must be >= 2020"
+            assert p["status"] in valid_statuses, f"Invalid status: {p['status']}"
+            assert p["jobs_created"] >= 0, "jobs_created must be non-negative"
 
-        # At least one TERMINATED record
-        terminated = [r for r in results if r["status"] == "TERMINATED"]
-        assert len(terminated) >= 1, "Expected at least one TERMINATED record"
+    def test_design_elements_count(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        assert len(d["design_elements"]) >= 6, f"Expected >=6 design element records"
 
-        # Lowest strike price should be from UTILITY_SOLAR (typically cheapest)
-        cheapest = min(results, key=lambda r: r["strike_price_aud_mwh"])
-        assert cheapest["technology"] == "UTILITY_SOLAR", (
-            f"Expected cheapest to be UTILITY_SOLAR, got {cheapest['technology']}"
-        )
+    def test_design_element_fields(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        for de in d["design_elements"]:
+            assert de["design_element"], "design_element must be non-empty"
+            assert de["program"], "program must be non-empty"
+            assert de["description"], "description must be non-empty"
+            assert de["pros"], "pros must be non-empty"
+            assert de["cons"], "cons must be non-empty"
+            assert 0 <= de["adoption_rate_pct"] <= 100, "adoption_rate_pct out of range"
+            assert 0 <= de["effectiveness_score"] <= 10, "effectiveness_score out of range"
 
-        # ── Technology trends ──────────────────────────────────────────────
-        trends = d["technology_trends"]
-        assert len(trends) == 20, f"Expected 20 technology trend records, got {len(trends)}"
+    def test_price_history_count(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        assert len(d["price_history"]) >= 25, f"Expected >=25 price history records, got {len(d['price_history'])}"
 
-        valid_trend_techs = {"WIND_ONSHORE", "UTILITY_SOLAR", "HYBRID", "STORAGE"}
-        for t in trends:
-            assert t["technology"] in valid_trend_techs, f"Invalid trend technology: {t['technology']}"
-            assert 2018 <= t["year"] <= 2025, f"Trend year out of range: {t['year']}"
-            assert t["auction_count"] > 0, "auction_count must be positive"
-            assert t["avg_strike_price_aud_mwh"] > 0, "avg_strike_price must be positive"
-            assert t["min_strike_price_aud_mwh"] > 0, "min_strike_price must be positive"
-            assert t["min_strike_price_aud_mwh"] <= t["avg_strike_price_aud_mwh"], (
-                "min_strike_price must be <= avg_strike_price"
-            )
-            assert t["total_contracted_mw"] > 0, "total_contracted_mw must be positive"
-            assert t["oversubscription_ratio"] >= 1.0, "oversubscription_ratio must be >= 1"
-            assert 0 <= t["cost_reduction_pct_from_2018"] <= 100, (
-                f"cost_reduction_pct out of range: {t['cost_reduction_pct_from_2018']}"
-            )
+    def test_price_history_fields(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        for ph in d["price_history"]:
+            assert 2019 <= ph["year"] <= 2024, f"Year out of range: {ph['year']}"
+            assert ph["program"], "program must be non-empty"
+            assert ph["technology"], "technology must be non-empty"
+            assert ph["avg_strike_price"] > 0, "avg_strike_price must be positive"
+            assert ph["min_strike_price"] <= ph["p25_strike_price"], "min must be <= p25"
+            assert ph["p25_strike_price"] <= ph["avg_strike_price"], "p25 must be <= avg"
+            assert ph["avg_strike_price"] <= ph["p75_strike_price"], "avg must be <= p75"
+            assert ph["p75_strike_price"] <= ph["max_strike_price"], "p75 must be <= max"
+            assert ph["number_of_contracts"] > 0, "number_of_contracts must be positive"
+            assert ph["total_mw"] > 0, "total_mw must be positive"
 
-        # Exactly 4 technologies with 5 years each
-        for tech in valid_trend_techs:
-            tech_records = [t for t in trends if t["technology"] == tech]
-            assert len(tech_records) == 5, f"Expected 5 year records for {tech}, got {len(tech_records)}"
-            years = sorted(r["year"] for r in tech_records)
-            assert years == [2018, 2019, 2020, 2021, 2022], f"Years mismatch for {tech}: {years}"
+    def test_govt_exposure_count(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        assert len(d["govt_exposure"]) >= 12, f"Expected >=12 govt_exposure records"
 
-        # 2018 baseline should have 0% cost reduction
-        for tech in valid_trend_techs:
-            baseline = next(t for t in trends if t["technology"] == tech and t["year"] == 2018)
-            assert baseline["cost_reduction_pct_from_2018"] == 0.0, (
-                f"{tech} 2018 baseline cost_reduction should be 0, got {baseline['cost_reduction_pct_from_2018']}"
-            )
+    def test_govt_exposure_scenarios(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        scenarios = {g["market_price_scenario"] for g in d["govt_exposure"]}
+        assert "CURRENT" in scenarios, "Missing CURRENT scenario"
+        assert "LOW" in scenarios, "Missing LOW scenario"
+        assert "HIGH" in scenarios, "Missing HIGH scenario"
 
-        # UTILITY_SOLAR should have lower avg strike than STORAGE in latest year
-        solar_2022 = next(t for t in trends if t["technology"] == "UTILITY_SOLAR" and t["year"] == 2022)
-        storage_2022 = next(t for t in trends if t["technology"] == "STORAGE" and t["year"] == 2022)
-        assert solar_2022["avg_strike_price_aud_mwh"] < storage_2022["avg_strike_price_aud_mwh"], (
-            "Solar should have lower strike than storage in 2022"
-        )
+    def test_summary_keys(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        summary = d["summary"]
+        for key in ("total_auctioned_mw", "avg_strike_price_2024", "yoy_price_decline_pct",
+                    "total_contracted_projects", "oversubscription_avg", "govt_cfd_liability_total_m"):
+            assert key in summary, f"Missing summary key: {key}"
 
-        # ── Performance records ────────────────────────────────────────────
-        perf = d["performance"]
-        assert len(perf) == 10, f"Expected 10 performance records, got {len(perf)}"
-
-        for p in perf:
-            assert p["project_name"], "project_name must be non-empty"
-            assert p["technology"] in valid_technologies, f"Invalid tech: {p['technology']}"
-            assert p["state"] in valid_states, f"Invalid state: {p['state']}"
-            assert p["contracted_capacity_mw"] > 0, "contracted_capacity_mw must be positive"
-            assert 0 < p["actual_capacity_factor_pct"] < 100, (
-                f"actual_capacity_factor_pct out of range: {p['actual_capacity_factor_pct']}"
-            )
-            assert 0 < p["bid_capacity_factor_pct"] < 100, (
-                f"bid_capacity_factor_pct out of range: {p['bid_capacity_factor_pct']}"
-            )
-            assert p["annual_generation_twh"] > 0, "annual_generation_twh must be positive"
-            assert p["cfd_payment_m_aud"] >= 0, "cfd_payment_m_aud must be non-negative"
-            assert p["market_revenue_m_aud"] > 0, "market_revenue_m_aud must be positive"
-
-        # At least one record with CfD payment > 0 (receiving support)
-        paying = [p for p in perf if p["cfd_payment_m_aud"] > 0]
-        assert len(paying) >= 1, "Expected at least one project receiving CfD payment"
-
-        # Wind onshore should have highest average capacity factors
-        wind_cf = [p["actual_capacity_factor_pct"] for p in perf if p["technology"] == "WIND_ONSHORE"]
-        solar_cf = [p["actual_capacity_factor_pct"] for p in perf if p["technology"] == "UTILITY_SOLAR"]
-        assert wind_cf and solar_cf, "Expected both wind and solar performance records"
-        assert sum(wind_cf) / len(wind_cf) > sum(solar_cf) / len(solar_cf), (
-            "Wind should have higher average CF than solar"
-        )
-
-        # ── State comparison ───────────────────────────────────────────────
-        states = d["state_comparison"]
-        assert len(states) == 5, f"Expected 5 state comparison records, got {len(states)}"
-
-        for s in states:
-            assert s["state"] in valid_states, f"Invalid state: {s['state']}"
-            assert s["total_contracted_mw"] > 0, "total_contracted_mw must be positive"
-            assert s["avg_strike_price_aud_mwh"] > 0, "avg_strike_price must be positive"
-            assert s["cheapest_technology"] in valid_technologies, (
-                f"Invalid cheapest_technology: {s['cheapest_technology']}"
-            )
-            assert s["auction_pipeline_mw"] > 0, "auction_pipeline_mw must be positive"
-            assert s["policy_target_mw"] > 0, "policy_target_mw must be positive"
-            assert 0 <= s["completion_pct"] <= 100, (
-                f"completion_pct out of range: {s['completion_pct']}"
-            )
-            # Pipeline should not exceed policy target
-            assert s["auction_pipeline_mw"] <= s["policy_target_mw"], (
-                f"{s['state']} pipeline ({s['auction_pipeline_mw']}) exceeds policy target ({s['policy_target_mw']})"
-            )
-
-        # VIC should have highest contracted capacity (strong VRET programme)
-        vic = next((s for s in states if s["state"] == "VIC"), None)
-        assert vic is not None, "VIC state record missing"
-        nsw = next((s for s in states if s["state"] == "NSW"), None)
-        assert nsw is not None, "NSW state record missing"
-        assert vic["total_contracted_mw"] > nsw["total_contracted_mw"], (
-            "VIC should have higher contracted MW than NSW"
-        )
-
-        # UTILITY_SOLAR should be cheapest technology in most states
-        solar_cheapest_count = sum(1 for s in states if s["cheapest_technology"] == "UTILITY_SOLAR")
-        assert solar_cheapest_count >= 3, (
-            f"Expected UTILITY_SOLAR cheapest in >=3 states, got {solar_cheapest_count}"
-        )
+    def test_summary_values(self, client, auth_headers):
+        d = client.get(self.endpoint, headers=auth_headers).json()
+        s = d["summary"]
+        assert s["total_auctioned_mw"] > 0, "total_auctioned_mw must be positive"
+        assert s["avg_strike_price_2024"] > 0, "avg_strike_price_2024 must be positive"
+        assert s["yoy_price_decline_pct"] > 0, "yoy_price_decline_pct must be positive"
+        assert s["total_contracted_projects"] > 0, "total_contracted_projects must be positive"
+        assert s["oversubscription_avg"] >= 1.0, "oversubscription_avg must be >= 1"
+        assert s["govt_cfd_liability_total_m"] > 0, "govt_cfd_liability_total_m must be positive"
 
 
 # ===========================================================================
@@ -11117,3 +11075,84 @@ class TestEnergyTransitionFinanceEndpoint:
     def test_capital_flows_count_at_least_30(self, client):
         data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
         assert len(data["capital_flows"]) >= 30
+
+
+class TestSystemLoadBalancingEndpoint:
+    endpoint = "/api/system-load-balancing/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_reserves_count_at_least_35(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["reserves"]) >= 35
+
+    def test_demand_growth_count_at_least_40(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["demand_growth"]) >= 40
+
+
+class TestCarbonAccountingEndpoint:
+    endpoint = "/api/carbon-accounting/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_emission_factors_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["emission_factors"]) >= 25
+
+    def test_corporate_count_at_least_12(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["corporate"]) >= 12
+
+
+# ===========================================================================
+# Sprint 86b — Renewable Energy Auction Design & CfD Analytics tests
+# ===========================================================================
+
+class TestRenewableAuctionEndpoint:
+    """Sprint 86b — Renewable Energy Auction Design & CfD Analytics endpoint tests."""
+
+    endpoint = "/api/renewable-auction/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_auctions_count_at_least_12(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["auctions"]) >= 12
+
+    def test_price_history_count_at_least_25(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["price_history"]) >= 25
+
+    def test_projects_count_at_least_20(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["projects"]) >= 20
+
+    def test_design_elements_present(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["design_elements"]) >= 6
+
+    def test_govt_exposure_all_three_scenarios(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        scenarios = {g["market_price_scenario"] for g in data["govt_exposure"]}
+        assert scenarios >= {"CURRENT", "LOW", "HIGH"}
+
+    def test_summary_has_required_fields(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        for k in ("total_auctioned_mw", "avg_strike_price_2024", "yoy_price_decline_pct",
+                  "total_contracted_projects", "oversubscription_avg", "govt_cfd_liability_total_m"):
+            assert k in data["summary"], f"Missing summary key: {k}"
+
+    def test_summary_total_auctioned_mw(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["total_auctioned_mw"] == 18400
+
+    def test_summary_avg_strike_price_2024(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert data["summary"]["avg_strike_price_2024"] == 68.4

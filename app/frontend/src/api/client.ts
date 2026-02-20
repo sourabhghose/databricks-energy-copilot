@@ -8672,62 +8672,90 @@ export interface RealtimeOpsDashboard {
 export const getRealtimeOpsDashboard = (): Promise<RealtimeOpsDashboard> =>
   get<RealtimeOpsDashboard>('/api/realtime-ops/dashboard')
 
-// ── Sprint 62b: Renewable Auction Results & CfD Analytics ─────────────────
+// ── Sprint 86b: Renewable Energy Auction Design & CfD Analytics ───────────
 
-export interface RAAAuctionResultRecord {
+export interface REAAuctionRecord {
   auction_id: string
-  auction_name: string
-  state: string
+  program: string
+  jurisdiction: string
   year: number
-  technology: 'WIND_ONSHORE' | 'WIND_OFFSHORE' | 'UTILITY_SOLAR' | 'HYBRID' | 'STORAGE'
-  capacity_mw: number
-  strike_price_aud_mwh: number
-  reference_price_aud_mwh: number
-  cfd_term_years: number
-  developer: string
-  cod_year: number
-  status: 'CONTRACTED' | 'UNDER_CONSTRUCTION' | 'COMMISSIONED' | 'TERMINATED'
-}
-
-export interface RAATechnologyTrendRecord {
-  technology: string
-  year: number
-  auction_count: number
-  avg_strike_price_aud_mwh: number
-  min_strike_price_aud_mwh: number
-  total_contracted_mw: number
+  round: number
+  technology_types: string[]
+  capacity_contracted_mw: number
+  number_of_projects: number
   oversubscription_ratio: number
-  cost_reduction_pct_from_2018: number
+  avg_strike_price: number
+  min_strike_price: number
+  max_strike_price: number
+  contract_duration_years: number
+  govt_revenue_risk_m: number
 }
 
-export interface RAAPerformanceRecord {
-  project_name: string
+export interface REAProjectRecord {
+  project_id: string
+  name: string
+  developer: string
   technology: string
   state: string
-  contracted_capacity_mw: number
-  actual_capacity_factor_pct: number
-  bid_capacity_factor_pct: number
-  annual_generation_twh: number
-  cfd_payment_m_aud: number
-  market_revenue_m_aud: number
+  capacity_mw: number
+  strike_price: number
+  reference_price: string
+  contract_duration_years: number
+  financial_close_date: string | null
+  commissioning_year: number
+  status: 'CONTRACTED' | 'CONSTRUCTION' | 'OPERATING' | 'CANCELLED'
+  jobs_created: number
 }
 
-export interface RAAStateComparisonRecord {
-  state: string
+export interface READesignRecord {
+  design_element: string
+  program: string
+  description: string
+  pros: string
+  cons: string
+  adoption_rate_pct: number
+  effectiveness_score: number
+}
+
+export interface REAPriceHistoryRecord {
+  year: number
+  program: string
+  technology: string
+  avg_strike_price: number
+  min_strike_price: number
+  p25_strike_price: number
+  p75_strike_price: number
+  max_strike_price: number
+  number_of_contracts: number
+  total_mw: number
+}
+
+export interface REAGovernmentExposureRecord {
+  jurisdiction: string
+  year: number
   total_contracted_mw: number
-  avg_strike_price_aud_mwh: number
-  cheapest_technology: string
-  auction_pipeline_mw: number
-  policy_target_mw: number
-  completion_pct: number
+  total_cfd_liability_m: number
+  avg_remaining_contract_years: number
+  market_price_scenario: 'CURRENT' | 'LOW' | 'HIGH'
+  net_govt_position_m: number
+}
+
+export interface READashboardSummary {
+  total_auctioned_mw: number
+  avg_strike_price_2024: number
+  yoy_price_decline_pct: number
+  total_contracted_projects: number
+  oversubscription_avg: number
+  govt_cfd_liability_total_m: number
 }
 
 export interface RenewableAuctionDashboard {
-  timestamp: string
-  auction_results: RAAAuctionResultRecord[]
-  technology_trends: RAATechnologyTrendRecord[]
-  performance: RAAPerformanceRecord[]
-  state_comparison: RAAStateComparisonRecord[]
+  auctions: REAAuctionRecord[]
+  projects: REAProjectRecord[]
+  design_elements: READesignRecord[]
+  price_history: REAPriceHistoryRecord[]
+  govt_exposure: REAGovernmentExposureRecord[]
+  summary: READashboardSummary
 }
 
 export const getRenewableAuctionDashboard = (): Promise<RenewableAuctionDashboard> =>
@@ -13441,3 +13469,147 @@ export interface ETFDashboard {
 
 export const getEnergyTransitionFinanceDashboard = (): Promise<ETFDashboard> =>
   get<ETFDashboard>('/api/energy-transition-finance/dashboard');
+
+// ── Sprint 86a: NEM System Load Balancing & Reserve Adequacy ───────────────
+
+export interface SLBReserveRecord {
+  region: string
+  season: string
+  year: number
+  peak_demand_mw: number
+  installed_capacity_mw: number
+  firm_capacity_mw: number
+  reserve_margin_pct: number
+  minimum_reserve_standard_pct: number
+  reserve_gap_mw: number
+  unserved_energy_mwh: number
+  loss_of_load_probability_pct: number
+}
+
+export interface SLBPASARecord {
+  assessment_date: string
+  region: string
+  forecast_horizon_weeks: number
+  probability_of_exceedance: string
+  peak_demand_forecast_mw: number
+  available_generation_mw: number
+  projected_reserve_margin_mw: number
+  lor_risk: string
+}
+
+export interface SLBDemandGrowthRecord {
+  region: string
+  scenario: string
+  year: number
+  annual_max_demand_mw: number
+  annual_energy_twh: number
+  summer_peak_mw: number
+  winter_peak_mw: number
+  ev_load_mw: number
+  industrial_electrification_mw: number
+  demand_side_participation_mw: number
+}
+
+export interface SLBNewCapacityRecord {
+  region: string
+  year: number
+  committed_capacity_mw: number
+  probable_capacity_mw: number
+  potential_capacity_mw: number
+  retirement_capacity_mw: number
+  net_capacity_change_mw: number
+  technology_mix: string
+}
+
+export interface SLBReliabilityEventRecord {
+  date: string
+  region: string
+  event_type: string
+  cause: string
+  duration_hrs: number
+  mw_at_risk: number
+  mw_shed: number
+  cost_m: number
+  resolution: string
+}
+
+export interface SLBDashboard {
+  reserves: SLBReserveRecord[]
+  pasa: SLBPASARecord[]
+  demand_growth: SLBDemandGrowthRecord[]
+  new_capacity: SLBNewCapacityRecord[]
+  reliability_events: SLBReliabilityEventRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getSystemLoadBalancingDashboard = (): Promise<SLBDashboard> =>
+  get<SLBDashboard>('/api/system-load-balancing/dashboard');
+
+// ── ECA: Electricity Market Carbon Accounting & Scope 2 Emissions Analytics ──
+
+export interface ECAEmissionFactorRecord {
+  region: string
+  year: number
+  location_based_kg_per_mwh: number
+  market_based_residual_mix_kg_per_mwh: number
+  operating_margin_kg_per_mwh: number
+  build_margin_kg_per_mwh: number
+  combined_margin_kg_per_mwh: number
+  source: string
+}
+
+export interface ECACorporateRecord {
+  company: string
+  sector: string
+  state: string
+  electricity_consumption_gwh: number
+  scope2_location_based_kt_co2: number
+  scope2_market_based_kt_co2: number
+  scope2_reduction_pct: number
+  rec_coverage_pct: number
+  renewable_energy_pct: number
+  net_zero_target_year: number | null
+  annual_cost_savings_m: number
+}
+
+export interface ECAMethodologyRecord {
+  standard: string
+  scope2_approach: string
+  rec_quality_criteria: string
+  additionality_required: boolean
+  temporal_matching: string
+  spatial_matching: string
+  adoption_pct: number
+}
+
+export interface ECARECQualityRecord {
+  rec_type: string
+  additionality_level: string
+  vintage_restrictions: boolean
+  geographic_match_required: boolean
+  chain_of_custody_required: boolean
+  market_price: number
+  credibility_score: number
+}
+
+export interface ECAGridImpactRecord {
+  region: string
+  quarter: string
+  corporate_rec_demand_twh: number
+  residual_mix_after_claims_pct: number
+  over_claiming_risk_pct: number
+  hour_matching_benefit_pct: number
+  additionality_value_m: number
+}
+
+export interface ECADashboard {
+  emission_factors: ECAEmissionFactorRecord[]
+  corporate: ECACorporateRecord[]
+  methodologies: ECAMethodologyRecord[]
+  rec_quality: ECARECQualityRecord[]
+  grid_impact: ECAGridImpactRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getCarbonAccountingDashboard = (): Promise<ECADashboard> =>
+  get<ECADashboard>('/api/carbon-accounting/dashboard')
