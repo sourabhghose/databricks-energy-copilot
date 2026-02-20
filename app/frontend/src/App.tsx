@@ -72,6 +72,8 @@ import {
   Sliders,
   Power,
   Scale,
+  Lock,
+  Smartphone,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -293,6 +295,9 @@ import PriceModelComparisonAnalytics from './pages/PriceModelComparisonAnalytics
 import GasElectricityNexusAnalytics from './pages/GasElectricityNexusAnalytics'
 import BiddingComplianceAnalytics from './pages/BiddingComplianceAnalytics'
 import CommunityEnergyAnalytics from './pages/CommunityEnergyAnalytics'
+import GridCybersecurityAnalytics from './pages/GridCybersecurityAnalytics'
+import MarketParticipantFinancialAnalytics from './pages/MarketParticipantFinancialAnalytics'
+import DigitalTransformationAnalytics from './pages/DigitalTransformationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -515,6 +520,9 @@ const NAV_ITEMS = [
   { to: '/gas-electricity-nexus',        label: 'Gas-Electricity Nexus Analytics',     Icon: Flame         },
   { to: '/bidding-compliance',           label: 'Generator Bidding Compliance',        Icon: AlertOctagon  },
   { to: '/community-energy-analytics',  label: 'Community Energy & Microgrid',        Icon: Home          },
+  { to: '/grid-cybersecurity',          label: 'Grid Cybersecurity & Resilience',     Icon: Lock          },
+  { to: '/market-participant-financial', label: 'Market Participant Financial Health', Icon: CreditCard    },
+  { to: '/digital-transformation',      label: 'Digital Transformation Analytics',   Icon: Smartphone    },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -812,6 +820,9 @@ export default function App() {
               <Route path="/gas-electricity-nexus"         element={<GasElectricityNexusAnalytics />}        />
               <Route path="/bidding-compliance"           element={<BiddingComplianceAnalytics />}          />
               <Route path="/community-energy-analytics"  element={<CommunityEnergyAnalytics />}            />
+              <Route path="/grid-cybersecurity"           element={<GridCybersecurityAnalytics />}           />
+              <Route path="/market-participant-financial" element={<MarketParticipantFinancialAnalytics />}  />
+              <Route path="/digital-transformation"       element={<DigitalTransformationAnalytics />}       />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

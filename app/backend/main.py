@@ -58728,3 +58728,726 @@ async def get_community_energy_microgrid_dashboard():
     result = _build_cea_dashboard()
     _cache_set(_cea_cache, "cea", result)
     return result
+
+
+# ── Electricity Grid Cybersecurity & Resilience Analytics (EGC) ─────────────
+
+class EGCThreatRecord(BaseModel):
+    threat_id: str
+    category: str
+    actor_type: str
+    severity: str
+    targeted_systems: List[str]
+    incidents_2022: int
+    incidents_2023: int
+    incidents_2024: int
+    avg_dwell_time_days: float
+    avg_recovery_time_days: float
+    financial_impact_m: float
+
+class EGCIncidentRecord(BaseModel):
+    incident_id: str
+    date: str
+    organisation_type: str
+    system_affected: str
+    attack_vector: str
+    impact_level: str
+    detected_by: str
+    response_time_hrs: float
+    reported_to_asd: bool
+    publicly_disclosed: bool
+
+class EGCComplianceRecord(BaseModel):
+    organisation: str
+    framework: str
+    compliance_score_pct: float
+    critical_gaps: int
+    last_audit_date: str
+    certification_status: str
+    remediation_budget_m: float
+
+class EGCResilienceRecord(BaseModel):
+    region: str
+    asset_class: str
+    cyber_resilience_score: float
+    redundancy_level: str
+    recovery_time_objective_hrs: float
+    recovery_point_objective_hrs: float
+    last_penetration_test_months: float
+    known_vulnerabilities: int
+    patch_currency_pct: float
+
+class EGCInvestmentRecord(BaseModel):
+    year: int
+    sector: str
+    ot_security_m: float
+    it_security_m: float
+    training_m: float
+    incident_response_m: float
+    total_cyber_investment_m: float
+    as_pct_of_capex: float
+
+class EGCDashboard(BaseModel):
+    threats: List[EGCThreatRecord]
+    incidents: List[EGCIncidentRecord]
+    compliance: List[EGCComplianceRecord]
+    resilience: List[EGCResilienceRecord]
+    investment: List[EGCInvestmentRecord]
+    summary: dict
+
+
+_egc_cache: dict = {}
+
+def _build_egc_dashboard() -> EGCDashboard:
+    import random
+
+    def _t(tid, cat, actor, sev, systems, i22, i23, i24, dwell, rec, fin):
+        return EGCThreatRecord(
+            threat_id=tid, category=cat, actor_type=actor, severity=sev,
+            targeted_systems=systems, incidents_2022=i22, incidents_2023=i23,
+            incidents_2024=i24, avg_dwell_time_days=dwell,
+            avg_recovery_time_days=rec, financial_impact_m=fin,
+        )
+
+    threats = [
+        _t("T001", "RANSOMWARE",    "CRIMINAL",     "CRITICAL", ["SCADA","EMS","IT_CORPORATE"],           4,  6,  8,  18.5, 12.3, 42.0),
+        _t("T002", "APT",           "NATION_STATE",  "CRITICAL", ["SCADA","EMS","MARKET_SYSTEMS"],         2,  3,  3,  94.0,  8.0, 78.5),
+        _t("T003", "PHISHING",      "CRIMINAL",      "HIGH",     ["IT_CORPORATE","AEMO_PORTAL"],           12, 15, 18,   2.1,  0.5,  6.2),
+        _t("T004", "SUPPLY_CHAIN",  "NATION_STATE",  "CRITICAL", ["SCADA","FIRMWARE","VENDOR_SYSTEMS"],    1,  2,  3, 120.0, 21.0, 95.0),
+        _t("T005", "OT_ATTACK",     "NATION_STATE",  "HIGH",     ["SCADA","RTU","PLC"],                    2,  2,  3,  45.0, 18.0, 55.0),
+        _t("T006", "INSIDER",       "INSIDER",       "HIGH",     ["MARKET_SYSTEMS","IT_CORPORATE","EMS"],  3,  4,  4,  30.0,  5.0, 18.0),
+        _t("T007", "DDoS",          "HACKTIVIST",    "MEDIUM",   ["AEMO_PORTAL","MARKET_SYSTEMS"],         5,  7,  6,   0.5,  0.3,  3.5),
+        _t("T008", "PHISHING",      "CRIMINAL",      "MEDIUM",   ["METERING","COMMUNICATIONS"],            8, 10, 12,   1.8,  0.4,  2.8),
+    ]
+
+    def _i(iid, date, org, sys, vec, impact, det, rsp, asd, pub):
+        return EGCIncidentRecord(
+            incident_id=iid, date=date, organisation_type=org,
+            system_affected=sys, attack_vector=vec, impact_level=impact,
+            detected_by=det, response_time_hrs=rsp,
+            reported_to_asd=asd, publicly_disclosed=pub,
+        )
+
+    incidents = [
+        _i("INC-2022-001", "2022-03-14", "DNSP",            "OT_SCADA",        "PHISHING",       "SERVICE_DISRUPTION", "INTERNAL",    8.5,  True,  False),
+        _i("INC-2022-002", "2022-05-22", "GENERATOR",       "IT_CORPORATE",    "RANSOMWARE",     "FINANCIAL",          "INTERNAL",   14.2,  True,  True),
+        _i("INC-2022-003", "2022-07-09", "MARKET_OPERATOR", "MARKET_SYSTEMS",  "APT",            "DATA_BREACH",        "GOVT_INTEL", 22.0,  True,  False),
+        _i("INC-2022-004", "2022-09-01", "TNSP",            "COMMUNICATIONS",  "DDoS",           "SERVICE_DISRUPTION", "INTERNAL",    4.0,  False, False),
+        _i("INC-2022-005", "2022-11-18", "RETAILER",        "IT_CORPORATE",    "PHISHING",       "DATA_BREACH",        "INTERNAL",    6.5,  True,  True),
+        _i("INC-2023-001", "2023-01-28", "GENERATOR",       "OT_SCADA",        "OT_ATTACK",      "OPERATIONAL",        "VENDOR",     36.0,  True,  False),
+        _i("INC-2023-002", "2023-02-15", "DNSP",            "METERING",        "SUPPLY_CHAIN",   "NO_IMPACT",          "VENDOR",     12.0,  True,  False),
+        _i("INC-2023-003", "2023-04-06", "TNSP",            "OT_SCADA",        "RANSOMWARE",     "OPERATIONAL",        "INTERNAL",   48.0,  True,  True),
+        _i("INC-2023-004", "2023-06-12", "MARKET_OPERATOR", "MARKET_SYSTEMS",  "DDoS",           "SERVICE_DISRUPTION", "INTERNAL",    2.5,  False, False),
+        _i("INC-2023-005", "2023-07-24", "REGULATOR",       "IT_CORPORATE",    "PHISHING",       "DATA_BREACH",        "INTERNAL",    9.0,  True,  True),
+        _i("INC-2023-006", "2023-09-03", "GENERATOR",       "IT_CORPORATE",    "INSIDER",        "FINANCIAL",          "INTERNAL",   18.0,  True,  False),
+        _i("INC-2023-007", "2023-10-20", "DNSP",            "OT_SCADA",        "APT",            "OPERATIONAL",        "GOVT_INTEL", 72.0,  True,  False),
+        _i("INC-2024-001", "2024-01-11", "TNSP",            "COMMUNICATIONS",  "PHISHING",       "NO_IMPACT",          "INTERNAL",    3.5,  False, False),
+        _i("INC-2024-002", "2024-02-28", "GENERATOR",       "OT_SCADA",        "RANSOMWARE",     "OPERATIONAL",        "INTERNAL",   24.0,  True,  True),
+        _i("INC-2024-003", "2024-03-15", "DNSP",            "IT_CORPORATE",    "SUPPLY_CHAIN",   "DATA_BREACH",        "VENDOR",     16.5,  True,  True),
+        _i("INC-2024-004", "2024-05-07", "RETAILER",        "METERING",        "PHISHING",       "DATA_BREACH",        "CUSTOMER",    5.0,  True,  True),
+        _i("INC-2024-005", "2024-06-19", "MARKET_OPERATOR", "MARKET_SYSTEMS",  "APT",            "OPERATIONAL",        "GOVT_INTEL", 30.0,  True,  False),
+        _i("INC-2024-006", "2024-08-01", "TNSP",            "OT_SCADA",        "OT_ATTACK",      "OPERATIONAL",        "AEMO_ALERT", 42.0,  True,  False),
+        _i("INC-2024-007", "2024-09-22", "GENERATOR",       "IT_CORPORATE",    "INSIDER",        "FINANCIAL",          "INTERNAL",   11.0,  True,  False),
+        _i("INC-2024-008", "2024-11-05", "DNSP",            "OT_SCADA",        "RANSOMWARE",     "SERVICE_DISRUPTION", "INTERNAL",   20.0,  True,  True),
+    ]
+
+    def _c(org, fw, score, gaps, audit, status, budget):
+        return EGCComplianceRecord(
+            organisation=org, framework=fw, compliance_score_pct=score,
+            critical_gaps=gaps, last_audit_date=audit,
+            certification_status=status, remediation_budget_m=budget,
+        )
+
+    compliance = [
+        _c("AEMO",        "SOCI_ACT",    88.0, 2, "2024-06-30", "CERTIFIED",     4.2),
+        _c("AEMO",        "ISM",         85.0, 3, "2024-03-31", "CERTIFIED",     3.8),
+        _c("AEMO",        "NIST_CSF",    82.0, 4, "2023-12-15", "CERTIFIED",     2.5),
+        _c("TransGrid",   "SOCI_ACT",    76.0, 5, "2024-05-20", "CERTIFIED",     6.5),
+        _c("TransGrid",   "IEC62443",    68.0, 7, "2024-01-10", "PENDING",       5.0),
+        _c("TransGrid",   "ISM",         72.0, 6, "2023-11-30", "CERTIFIED",     3.2),
+        _c("Ausgrid",     "SOCI_ACT",    71.0, 6, "2024-04-15", "CERTIFIED",     8.1),
+        _c("Ausgrid",     "IEC62443",    55.0, 9, "2023-10-20", "NOT_CERTIFIED", 7.4),
+        _c("Ausgrid",     "NIST_CSF",    65.0, 8, "2023-09-01", "PENDING",       4.6),
+        _c("AGL Energy",  "SOCI_ACT",    62.0, 8, "2024-02-28", "PENDING",       5.5),
+        _c("AGL Energy",  "ISM",         58.0, 10,"2023-08-15", "NOT_CERTIFIED", 4.0),
+        _c("AGL Energy",  "NIST_CSF",    60.0, 9, "2023-07-01", "PENDING",       3.0),
+        _c("ElectraNet",  "SOCI_ACT",    79.0, 4, "2024-07-10", "CERTIFIED",     3.6),
+        _c("ElectraNet",  "IEC62443",    72.0, 5, "2024-03-22", "PENDING",       4.1),
+        _c("ElectraNet",  "ISM",         81.0, 3, "2024-01-18", "CERTIFIED",     2.8),
+    ]
+
+    def _r(region, asset, score, red, rto, rpo, pentest, vulns, patch):
+        return EGCResilienceRecord(
+            region=region, asset_class=asset,
+            cyber_resilience_score=score, redundancy_level=red,
+            recovery_time_objective_hrs=rto, recovery_point_objective_hrs=rpo,
+            last_penetration_test_months=pentest,
+            known_vulnerabilities=vulns, patch_currency_pct=patch,
+        )
+
+    resilience = [
+        _r("NSW",  "TRANSMISSION",   72.0, "N-1", 4.0,  1.0,  6.0,  14, 82.0),
+        _r("NSW",  "DISTRIBUTION",   65.0, "N-1", 8.0,  2.0,  9.0,  22, 75.0),
+        _r("NSW",  "GENERATION",     60.0, "N",   12.0, 4.0, 12.0,  30, 70.0),
+        _r("NSW",  "MARKET_SYSTEMS", 80.0, "N-2",  2.0,  0.5,  3.0,   8, 90.0),
+        _r("VIC",  "TRANSMISSION",   70.0, "N-1",  4.0,  1.0,  7.0,  16, 80.0),
+        _r("VIC",  "DISTRIBUTION",   63.0, "N-1",  8.0,  2.0, 10.0,  25, 73.0),
+        _r("VIC",  "GENERATION",     58.0, "N",   12.0,  4.0, 14.0,  35, 68.0),
+        _r("VIC",  "MARKET_SYSTEMS", 78.0, "N-2",  2.0,  0.5,  4.0,  10, 88.0),
+        _r("QLD",  "TRANSMISSION",   68.0, "N-1",  5.0,  1.5,  8.0,  18, 78.0),
+        _r("QLD",  "DISTRIBUTION",   61.0, "N",   10.0,  3.0, 12.0,  28, 72.0),
+        _r("QLD",  "GENERATION",     55.0, "N",   14.0,  5.0, 15.0,  40, 65.0),
+        _r("QLD",  "MARKET_SYSTEMS", 75.0, "N-1",  3.0,  1.0,  5.0,  12, 85.0),
+        _r("SA",   "TRANSMISSION",   74.0, "N-1",  4.0,  1.0,  6.0,  12, 83.0),
+        _r("SA",   "DISTRIBUTION",   67.0, "N-1",  7.0,  2.0,  9.0,  20, 77.0),
+        _r("SA",   "GENERATION",     62.0, "N",   11.0,  3.5, 11.0,  26, 71.0),
+        _r("SA",   "MARKET_SYSTEMS", 79.0, "N-2",  2.0,  0.5,  3.0,   9, 89.0),
+        _r("TAS",  "TRANSMISSION",   76.0, "N-1",  3.5,  1.0,  5.0,  10, 86.0),
+        _r("TAS",  "DISTRIBUTION",   69.0, "N-1",  6.0,  1.5,  8.0,  16, 79.0),
+        _r("TAS",  "GENERATION",     65.0, "N",   10.0,  3.0, 10.0,  22, 74.0),
+        _r("TAS",  "MARKET_SYSTEMS", 81.0, "N-2",  2.0,  0.5,  3.0,   7, 91.0),
+    ]
+
+    def _inv(year, sector, ot, it, train, ir, total, pct):
+        return EGCInvestmentRecord(
+            year=year, sector=sector, ot_security_m=ot, it_security_m=it,
+            training_m=train, incident_response_m=ir,
+            total_cyber_investment_m=total, as_pct_of_capex=pct,
+        )
+
+    investment = [
+        _inv(2020, "GENERATION",          18.0, 22.0, 3.0, 4.0,  47.0, 1.8),
+        _inv(2021, "GENERATION",          20.0, 24.0, 3.5, 5.0,  52.5, 2.0),
+        _inv(2022, "GENERATION",          23.0, 27.0, 4.0, 6.0,  60.0, 2.2),
+        _inv(2023, "GENERATION",          26.0, 30.0, 5.0, 7.0,  68.0, 2.5),
+        _inv(2024, "GENERATION",          30.0, 34.0, 6.0, 8.0,  78.0, 2.8),
+        _inv(2020, "TRANSMISSION",        14.0, 12.0, 2.0, 3.0,  31.0, 2.0),
+        _inv(2021, "TRANSMISSION",        16.0, 14.0, 2.5, 3.5,  36.0, 2.2),
+        _inv(2022, "TRANSMISSION",        18.0, 16.0, 3.0, 4.0,  41.0, 2.5),
+        _inv(2023, "TRANSMISSION",        21.0, 19.0, 3.5, 5.0,  48.5, 2.8),
+        _inv(2024, "TRANSMISSION",        24.0, 22.0, 4.0, 6.0,  56.0, 3.1),
+        _inv(2020, "DISTRIBUTION",        20.0, 18.0, 3.0, 4.0,  45.0, 1.5),
+        _inv(2021, "DISTRIBUTION",        22.0, 20.0, 3.5, 5.0,  50.5, 1.7),
+        _inv(2022, "DISTRIBUTION",        25.0, 23.0, 4.0, 5.5,  57.5, 1.9),
+        _inv(2023, "DISTRIBUTION",        28.0, 26.0, 5.0, 6.0,  65.0, 2.1),
+        _inv(2024, "DISTRIBUTION",        32.0, 30.0, 6.0, 7.0,  75.0, 2.4),
+    ]
+
+    summary = {
+        "total_incidents_2024": 8,
+        "critical_threats": 3,
+        "avg_resilience_score": 68.4,
+        "compliance_certified_pct": 48.0,
+        "total_cyber_investment_2024_m": 284,
+        "avg_response_time_hrs": 18.4,
+        "patch_currency_avg_pct": 78.2,
+    }
+
+    return EGCDashboard(
+        threats=threats,
+        incidents=incidents,
+        compliance=compliance,
+        resilience=resilience,
+        investment=investment,
+        summary=summary,
+    )
+
+
+@app.get("/api/grid-cybersecurity/dashboard", response_model=EGCDashboard, dependencies=[Depends(verify_api_key)])
+async def get_grid_cybersecurity_dashboard():
+    cached = _cache_get(_egc_cache, "egc")
+    if cached:
+        return cached
+    result = _build_egc_dashboard()
+    _cache_set(_egc_cache, "egc", result)
+    return result
+
+# ============================================================
+# Sprint 84b — Wholesale Market Participant Financial Health
+# ============================================================
+
+class WMFParticipantRecord(BaseModel):
+    participant_id: str
+    company: str
+    role: str  # GENERATOR / RETAILER / MARKET_CUSTOMER / TRADER / MARKET_NETWORK_SERVICE_PROVIDER
+    credit_rating: str  # AAA / AA / A / BBB / BB / B / UNRATED
+    prudential_obligation_m: float
+    actual_credit_support_m: float
+    coverage_ratio: float
+    daily_settlement_exposure_m: float
+    max_exposure_m: float
+    credit_risk_flag: str  # GREEN / AMBER / RED
+
+class WMFSettlementRecord(BaseModel):
+    month: str
+    total_settlement_value_m: float
+    number_of_participants: int
+    max_single_participant_exposure_m: float
+    net_market_position_m: float
+    undercollateralised_m: float
+    late_payments_count: int
+    disputes_count: int
+
+class WMFDefaultRecord(BaseModel):
+    year: int
+    default_events: int
+    total_default_value_m: float
+    recovered_pct: float
+    market_impact_m: float
+    trigger: str  # INSOLVENCY / FAILURE_TO_PAY / VOLUNTARY_SUSPENSION / REGULATORY
+
+class WMFCreditSupportRecord(BaseModel):
+    support_type: str  # BANK_GUARANTEE / CASH / LETTER_OF_CREDIT / PARENT_GUARANTEE / INSURANCE_BOND
+    total_lodged_m: float
+    participants_using: int
+    avg_duration_months: float
+    renewal_frequency_per_yr: float
+    acceptance_rate_pct: float
+
+class WMFPrudentialRecord(BaseModel):
+    quarter: str
+    total_prudential_requirement_m: float
+    total_credit_support_lodged_m: float
+    market_coverage_ratio: float
+    amber_participants: int
+    red_participants: int
+    waiver_requests: int
+    waivers_granted: int
+
+class WMFDashboard(BaseModel):
+    participants: List[WMFParticipantRecord]
+    settlement: List[WMFSettlementRecord]
+    defaults: List[WMFDefaultRecord]
+    credit_support: List[WMFCreditSupportRecord]
+    prudential: List[WMFPrudentialRecord]
+    summary: dict
+
+_wmf_cache: dict = {}
+
+def _build_wmf_dashboard() -> WMFDashboard:
+    import random
+    rng = random.Random(84)
+
+    def _p(pid, company, role, rating, oblig, actual, daily_exp, max_exp, flag):
+        cov = round(actual / oblig, 3) if oblig else 0.0
+        return WMFParticipantRecord(
+            participant_id=pid, company=company, role=role,
+            credit_rating=rating,
+            prudential_obligation_m=oblig,
+            actual_credit_support_m=actual,
+            coverage_ratio=cov,
+            daily_settlement_exposure_m=daily_exp,
+            max_exposure_m=max_exp,
+            credit_risk_flag=flag,
+        )
+
+    participants = [
+        _p("AGL001",  "AGL Energy",                     "GENERATOR",                    "BBB",  320.0,  390.0,  42.1, 210.0, "GREEN"),
+        _p("ORI001",  "Origin Energy",                  "RETAILER",                     "BBB",  280.0,  315.0,  38.4, 188.0, "GREEN"),
+        _p("ENG001",  "Engie Australia",                "GENERATOR",                    "A",    240.0,  290.0,  32.6, 165.0, "GREEN"),
+        _p("SNO001",  "Snowy Hydro",                    "GENERATOR",                    "AA",   190.0,  240.0,  28.2, 148.0, "GREEN"),
+        _p("MER001",  "Meridian Energy Australia",      "GENERATOR",                    "A",    175.0,  210.0,  25.8, 130.0, "GREEN"),
+        _p("ALP001",  "Alinta Energy",                  "RETAILER",                     "BBB",  160.0,  185.0,  23.4, 118.0, "GREEN"),
+        _p("CLP001",  "CleanCo Queensland",             "GENERATOR",                    "AA",   145.0,  175.0,  21.0, 108.0, "GREEN"),
+        _p("ERM001",  "ERM Power",                      "MARKET_CUSTOMER",              "BB",   130.0,  140.0,  18.6,  98.0, "AMBER"),
+        _p("GDF001",  "GDF Suez Energy",                "GENERATOR",                    "A",    120.0,  148.0,  17.2,  90.0, "GREEN"),
+        _p("TSY001",  "Tilt Renewables",                "GENERATOR",                    "BBB",  115.0,  128.0,  16.4,  85.0, "GREEN"),
+        _p("CAN001",  "Canopy Energy",                  "RETAILER",                     "BB",    98.0,   95.0,  14.2,  72.0, "AMBER"),
+        _p("SFP001",  "Sunset Power International",     "GENERATOR",                    "BBB",   92.0,  110.0,  13.8,  68.0, "GREEN"),
+        _p("RED001",  "Red Energy",                     "RETAILER",                     "A",     88.0,  105.0,  13.2,  65.0, "GREEN"),
+        _p("POW001",  "Powershop Australia",            "MARKET_CUSTOMER",              "BBB",   80.0,   88.0,  12.4,  60.0, "GREEN"),
+        _p("TRD001",  "Macquarie Energy",               "TRADER",                       "A",     75.0,   92.0,  11.6,  58.0, "GREEN"),
+        _p("NVE001",  "Neoen Australia",                "GENERATOR",                    "BB",    68.0,   62.0,  10.8,  54.0, "AMBER"),
+        _p("UGO001",  "Uniti Group Energy",             "MARKET_CUSTOMER",              "B",     58.0,   44.0,   9.2,  46.0, "RED"),
+        _p("FRO001",  "Flow Power",                     "MARKET_CUSTOMER",              "BB",    52.0,   50.0,   8.4,  42.0, "AMBER"),
+        _p("PVT001",  "Pacific Venture Energy",         "TRADER",                       "UNRATED", 45.0, 28.0,  7.6,  38.0, "RED"),
+        _p("TNS001",  "TransGrid (Network Services)",   "MARKET_NETWORK_SERVICE_PROVIDER","AA",  38.0,   48.0,   6.2,  30.0, "GREEN"),
+    ]
+
+    months_2023 = [f"2023-{m:02d}" for m in range(1, 13)]
+    months_2024 = [f"2024-{m:02d}" for m in range(1, 13)]
+
+    def _s(month, total_val, n_part, max_exp, net_pos, undercol, late, disputes):
+        return WMFSettlementRecord(
+            month=month,
+            total_settlement_value_m=total_val,
+            number_of_participants=n_part,
+            max_single_participant_exposure_m=max_exp,
+            net_market_position_m=net_pos,
+            undercollateralised_m=undercol,
+            late_payments_count=late,
+            disputes_count=disputes,
+        )
+
+    settlement = [
+        _s("2023-01", 1820.4, 142, 210.0,  28.4, 14.2, 2, 1),
+        _s("2023-02", 1640.8, 140, 195.2,  22.1, 12.8, 1, 0),
+        _s("2023-03", 1720.2, 141, 200.5,  24.8, 13.6, 3, 2),
+        _s("2023-04", 1580.6, 139, 188.4,  20.2, 11.4, 1, 1),
+        _s("2023-05", 1650.0, 140, 192.8,  21.8, 12.2, 2, 1),
+        _s("2023-06", 1710.4, 141, 198.0,  25.4, 14.8, 4, 2),
+        _s("2023-07", 1890.6, 143, 218.4,  32.6, 18.4, 3, 2),
+        _s("2023-08", 1980.2, 144, 228.8,  35.2, 20.2, 5, 3),
+        _s("2023-09", 1840.8, 142, 214.2,  30.8, 16.8, 2, 1),
+        _s("2023-10", 1760.4, 141, 206.4,  26.4, 15.2, 2, 2),
+        _s("2023-11", 1680.0, 140, 198.8,  23.6, 13.8, 1, 1),
+        _s("2023-12", 1820.8, 142, 212.4,  29.8, 17.4, 3, 2),
+        _s("2024-01", 1940.2, 144, 224.6,  34.2, 19.6, 3, 2),
+        _s("2024-02", 1760.8, 142, 208.4,  27.8, 15.8, 2, 1),
+        _s("2024-03", 1830.4, 143, 214.8,  30.4, 17.2, 2, 2),
+        _s("2024-04", 1690.0, 141, 200.2,  24.6, 14.0, 1, 1),
+        _s("2024-05", 1750.6, 142, 206.8,  26.8, 15.4, 2, 1),
+        _s("2024-06", 1810.2, 143, 212.4,  28.8, 16.6, 3, 2),
+        _s("2024-07", 1980.8, 145, 232.6,  38.4, 22.4, 4, 3),
+        _s("2024-08", 2060.4, 146, 242.8,  41.8, 24.8, 5, 3),
+        _s("2024-09", 1900.6, 144, 220.4,  33.6, 19.2, 3, 2),
+        _s("2024-10", 1840.2, 143, 214.6,  30.2, 17.8, 2, 2),
+        _s("2024-11", 1770.8, 142, 208.2,  27.4, 16.0, 2, 1),
+        _s("2024-12", 1920.4, 144, 224.0,  35.8, 20.6, 3, 2),
+    ]
+
+    def _d(year, events, total_val, recovered, market_impact, trigger):
+        return WMFDefaultRecord(
+            year=year, default_events=events,
+            total_default_value_m=total_val, recovered_pct=recovered,
+            market_impact_m=market_impact, trigger=trigger,
+        )
+
+    defaults = [
+        _d(2015, 2, 18.4, 72.0,  5.2, "FAILURE_TO_PAY"),
+        _d(2016, 1, 12.8, 84.0,  2.0, "INSOLVENCY"),
+        _d(2017, 0,  0.0,  0.0,  0.0, "FAILURE_TO_PAY"),
+        _d(2018, 1,  8.6, 90.0,  0.9, "VOLUNTARY_SUSPENSION"),
+        _d(2019, 2, 22.4, 68.0,  7.2, "INSOLVENCY"),
+        _d(2020, 3, 38.2, 55.0, 17.2, "FAILURE_TO_PAY"),
+        _d(2021, 1, 14.6, 78.0,  3.2, "REGULATORY"),
+        _d(2022, 2, 28.8, 62.0,  10.9, "INSOLVENCY"),
+        _d(2023, 1, 16.4, 74.0,  4.3, "FAILURE_TO_PAY"),
+        _d(2024, 1, 24.0, 60.0,  9.6, "INSOLVENCY"),
+    ]
+
+    credit_support = [
+        WMFCreditSupportRecord(
+            support_type="BANK_GUARANTEE",
+            total_lodged_m=1840.0, participants_using=98,
+            avg_duration_months=12.0, renewal_frequency_per_yr=1.0,
+            acceptance_rate_pct=98.4,
+        ),
+        WMFCreditSupportRecord(
+            support_type="CASH",
+            total_lodged_m=420.0, participants_using=42,
+            avg_duration_months=0.0, renewal_frequency_per_yr=0.0,
+            acceptance_rate_pct=100.0,
+        ),
+        WMFCreditSupportRecord(
+            support_type="LETTER_OF_CREDIT",
+            total_lodged_m=580.0, participants_using=38,
+            avg_duration_months=6.0, renewal_frequency_per_yr=2.0,
+            acceptance_rate_pct=96.8,
+        ),
+        WMFCreditSupportRecord(
+            support_type="PARENT_GUARANTEE",
+            total_lodged_m=310.0, participants_using=24,
+            avg_duration_months=24.0, renewal_frequency_per_yr=0.5,
+            acceptance_rate_pct=88.2,
+        ),
+        WMFCreditSupportRecord(
+            support_type="INSURANCE_BOND",
+            total_lodged_m=170.0, participants_using=18,
+            avg_duration_months=12.0, renewal_frequency_per_yr=1.0,
+            acceptance_rate_pct=92.4,
+        ),
+    ]
+
+    def _pr(quarter, req, lodged, coverage, amber, red, waiver_req, waiver_granted):
+        return WMFPrudentialRecord(
+            quarter=quarter,
+            total_prudential_requirement_m=req,
+            total_credit_support_lodged_m=lodged,
+            market_coverage_ratio=coverage,
+            amber_participants=amber,
+            red_participants=red,
+            waiver_requests=waiver_req,
+            waivers_granted=waiver_granted,
+        )
+
+    prudential = [
+        _pr("Q1 2023", 2520.0, 2960.0, 1.175, 6, 3, 4, 2),
+        _pr("Q2 2023", 2560.0, 2990.0, 1.168, 5, 2, 3, 2),
+        _pr("Q3 2023", 2640.0, 3080.0, 1.167, 7, 3, 5, 3),
+        _pr("Q4 2023", 2600.0, 3040.0, 1.169, 6, 2, 4, 2),
+        _pr("Q1 2024", 2680.0, 3120.0, 1.164, 8, 3, 6, 3),
+        _pr("Q2 2024", 2720.0, 3180.0, 1.169, 6, 2, 4, 2),
+        _pr("Q3 2024", 2800.0, 3320.0, 1.186, 5, 2, 3, 2),
+        _pr("Q4 2024", 2840.0, 3350.0, 1.180, 4, 2, 3, 2),
+    ]
+
+    summary = {
+        "total_participants": 20,
+        "total_prudential_requirement_m": 2840,
+        "market_coverage_ratio": 1.18,
+        "red_flagged_participants": 2,
+        "default_events_2024": 1,
+        "total_default_value_2015_2024_m": 184,
+        "avg_credit_rating": "BBB",
+    }
+
+    return WMFDashboard(
+        participants=participants,
+        settlement=settlement,
+        defaults=defaults,
+        credit_support=credit_support,
+        prudential=prudential,
+        summary=summary,
+    )
+
+@app.get("/api/market-participant-financial/dashboard", response_model=WMFDashboard, dependencies=[Depends(verify_api_key)])
+async def get_market_participant_financial_dashboard():
+    cached = _cache_get(_wmf_cache, "wmf")
+    if cached:
+        return cached
+    result = _build_wmf_dashboard()
+    _cache_set(_wmf_cache, "wmf", result)
+    return result
+
+# ---------------------------------------------------------------------------
+# EDT — Electricity Sector Digital Transformation Analytics
+# ---------------------------------------------------------------------------
+
+class EDTTechnologyRecord(BaseModel):
+    technology: str
+    sector: str
+    adoption_rate_pct: float
+    adoption_2030_target_pct: float
+    maturity_level: str
+    annual_investment_m: float
+    expected_roi_pct: float
+    implementation_challenges: str
+    regulatory_barrier: bool
+
+class EDTMaturityRecord(BaseModel):
+    organisation_type: str
+    organisation: str
+    overall_maturity_score: float
+    data_management_score: float
+    automation_score: float
+    analytics_score: float
+    cybersecurity_score: float
+    customer_digital_score: float
+    workforce_digital_score: float
+    benchmark_vs_global: float
+
+class EDTInvestmentRecord(BaseModel):
+    year: int
+    sector: str
+    smart_grid_m: float
+    ai_analytics_m: float
+    iot_sensors_m: float
+    cloud_infrastructure_m: float
+    cybersecurity_m: float
+    customer_platforms_m: float
+    total_digital_m: float
+    digital_as_pct_capex: float
+
+class EDTOutcomeRecord(BaseModel):
+    technology: str
+    outcome_metric: str
+    baseline_value: float
+    current_value: float
+    improvement_pct: float
+    attributable_to_digital_pct: float
+    unit: str
+
+class EDTSkillsRecord(BaseModel):
+    skill_area: str
+    current_fte: int
+    required_2030_fte: int
+    gap_2030: int
+    avg_salary: float
+    training_investment_m: float
+    external_hire_difficulty: str
+
+class EDTDashboard(BaseModel):
+    technologies: List[EDTTechnologyRecord]
+    maturity: List[EDTMaturityRecord]
+    investment: List[EDTInvestmentRecord]
+    outcomes: List[EDTOutcomeRecord]
+    skills: List[EDTSkillsRecord]
+    summary: dict
+
+_edt_cache: dict = {}
+
+def _build_edt_dashboard() -> EDTDashboard:
+    import random
+
+    def _tech(technology, sector, adoption, target, maturity, inv, roi, challenges, barrier):
+        return EDTTechnologyRecord(
+            technology=technology, sector=sector,
+            adoption_rate_pct=adoption, adoption_2030_target_pct=target,
+            maturity_level=maturity, annual_investment_m=inv,
+            expected_roi_pct=roi, implementation_challenges=challenges,
+            regulatory_barrier=barrier,
+        )
+
+    technologies = [
+        _tech("SMART_METERS", "DISTRIBUTION", 84.2, 97.0, "EARLY_MAJORITY", 320.0, 18.4,
+              "Legacy meter replacement costs and customer data privacy requirements", False),
+        _tech("AMI", "DISTRIBUTION", 72.5, 95.0, "EARLY_MAJORITY", 280.0, 22.1,
+              "Two-way communication infrastructure rollout and interoperability standards", True),
+        _tech("SCADA_UPGRADE", "TRANSMISSION", 68.0, 90.0, "EARLY_ADOPTER", 210.0, 15.8,
+              "Integration with legacy control systems and OT cybersecurity constraints", True),
+        _tech("AI_ANALYTICS", "MARKET_OPERATIONS", 45.3, 80.0, "EARLY_ADOPTER", 185.0, 34.7,
+              "Data quality issues and model explainability for regulatory compliance", False),
+        _tech("BLOCKCHAIN", "RETAIL", 8.2, 25.0, "PIONEER", 42.0, 12.3,
+              "Scalability limitations and lack of regulatory recognition for P2P trading", True),
+        _tech("DIGITAL_TWINS", "GENERATION", 22.8, 60.0, "PIONEER", 95.0, 28.9,
+              "High initial modelling costs and real-time data integration complexity", False),
+        _tech("EDGE_COMPUTING", "DISTRIBUTION", 31.4, 70.0, "EARLY_ADOPTER", 120.0, 21.5,
+              "Device standardisation and remote site connectivity in rural areas", False),
+        _tech("5G_PRIVATE_NETWORK", "TRANSMISSION", 18.6, 55.0, "PIONEER", 88.0, 19.2,
+              "Spectrum allocation and high infrastructure deployment costs", True),
+        _tech("DRONE_INSPECTION", "TRANSMISSION", 56.7, 85.0, "EARLY_MAJORITY", 64.0, 31.4,
+              "CASA regulatory approvals for beyond visual line of sight operations", True),
+        _tech("AR_VR_MAINTENANCE", "GENERATION", 14.9, 45.0, "PIONEER", 38.0, 24.6,
+              "Workforce adoption barriers and hardware costs for field technicians", False),
+    ]
+
+    def _mat(org_type, org, overall, data_mgmt, automation, analytics, cyber, customer, workforce, benchmark):
+        return EDTMaturityRecord(
+            organisation_type=org_type, organisation=org,
+            overall_maturity_score=overall, data_management_score=data_mgmt,
+            automation_score=automation, analytics_score=analytics,
+            cybersecurity_score=cyber, customer_digital_score=customer,
+            workforce_digital_score=workforce, benchmark_vs_global=benchmark,
+        )
+
+    maturity = [
+        _mat("TNSP",      "TransGrid",              7.8, 8.2, 7.5, 7.9, 8.4, 6.8, 7.2,  +18.2),
+        _mat("TNSP",      "AusNet Transmission",    7.2, 7.8, 6.9, 7.4, 7.8, 6.2, 6.8,  +9.1),
+        _mat("DNSP",      "Ausgrid",                7.4, 7.6, 7.1, 7.8, 7.2, 7.9, 6.9,  +12.1),
+        _mat("DNSP",      "Endeavour Energy",       6.8, 7.0, 6.5, 6.9, 6.8, 7.2, 6.4,  +3.0),
+        _mat("DNSP",      "Western Power",          6.5, 6.8, 6.2, 6.7, 7.0, 6.5, 5.9,  -1.5),
+        _mat("DNSP",      "Energex",                6.9, 7.2, 6.6, 7.0, 6.9, 7.0, 6.2,  +4.5),
+        _mat("GENERATOR", "AGL Energy",             6.2, 6.5, 5.8, 6.4, 6.0, 6.8, 5.9,  -6.1),
+        _mat("GENERATOR", "Origin Energy",          6.4, 6.7, 6.0, 6.6, 6.2, 7.0, 6.1,  -3.0),
+        _mat("GENERATOR", "EnergyAustralia",        5.9, 6.1, 5.5, 6.0, 5.8, 6.4, 5.6,  -10.6),
+        _mat("RETAILER",  "Alinta Energy",          5.8, 5.5, 5.2, 5.9, 5.6, 7.2, 5.4,  -12.1),
+        _mat("AGGREGATOR","Reposit Power",          8.4, 8.8, 8.6, 9.0, 7.8, 8.2, 8.0,  +27.3),
+        _mat("AGGREGATOR","Amber Electric",         8.1, 8.4, 8.2, 8.8, 7.5, 9.2, 7.8,  +22.7),
+    ]
+
+    def _inv(year, sector, sg, ai, iot, cloud, cyber, cust, total, pct):
+        return EDTInvestmentRecord(
+            year=year, sector=sector, smart_grid_m=sg, ai_analytics_m=ai,
+            iot_sensors_m=iot, cloud_infrastructure_m=cloud, cybersecurity_m=cyber,
+            customer_platforms_m=cust, total_digital_m=total, digital_as_pct_capex=pct,
+        )
+
+    investment = [
+        # TRANSMISSION — 2020–2024
+        _inv(2020, "TRANSMISSION", 95.0,  18.0, 12.0, 22.0, 28.0, 8.0,  183.0, 10.2),
+        _inv(2021, "TRANSMISSION", 108.0, 24.0, 15.0, 28.0, 34.0, 9.0,  218.0, 11.8),
+        _inv(2022, "TRANSMISSION", 125.0, 32.0, 19.0, 35.0, 42.0, 11.0, 264.0, 13.4),
+        _inv(2023, "TRANSMISSION", 148.0, 42.0, 24.0, 44.0, 52.0, 14.0, 324.0, 15.8),
+        _inv(2024, "TRANSMISSION", 172.0, 55.0, 30.0, 56.0, 64.0, 18.0, 395.0, 17.9),
+        # DISTRIBUTION — 2020–2024
+        _inv(2020, "DISTRIBUTION", 185.0, 22.0, 28.0, 18.0, 24.0, 32.0, 309.0, 12.4),
+        _inv(2021, "DISTRIBUTION", 212.0, 30.0, 35.0, 24.0, 30.0, 42.0, 373.0, 14.1),
+        _inv(2022, "DISTRIBUTION", 248.0, 42.0, 44.0, 32.0, 38.0, 55.0, 459.0, 15.9),
+        _inv(2023, "DISTRIBUTION", 294.0, 58.0, 55.0, 42.0, 48.0, 72.0, 569.0, 17.8),
+        _inv(2024, "DISTRIBUTION", 348.0, 78.0, 68.0, 56.0, 60.0, 92.0, 702.0, 20.1),
+        # GENERATION — 2020–2024
+        _inv(2020, "GENERATION",   42.0,  28.0, 18.0, 24.0, 15.0, 12.0, 139.0, 7.8),
+        _inv(2021, "GENERATION",   52.0,  38.0, 22.0, 30.0, 18.0, 15.0, 175.0, 9.2),
+        _inv(2022, "GENERATION",   64.0,  50.0, 28.0, 38.0, 22.0, 19.0, 221.0, 11.0),
+        _inv(2023, "GENERATION",   78.0,  65.0, 35.0, 48.0, 28.0, 24.0, 278.0, 12.9),
+        _inv(2024, "GENERATION",   96.0,  84.0, 44.0, 62.0, 35.0, 30.0, 351.0, 14.8),
+        # RETAIL — 2020–2024
+        _inv(2020, "RETAIL",       8.0,   22.0, 5.0,  28.0, 12.0, 48.0, 123.0, 8.4),
+        _inv(2021, "RETAIL",       9.0,   28.0, 6.0,  35.0, 15.0, 62.0, 155.0, 10.1),
+        _inv(2022, "RETAIL",       11.0,  36.0, 8.0,  44.0, 19.0, 78.0, 196.0, 12.2),
+        _inv(2023, "RETAIL",       13.0,  46.0, 10.0, 55.0, 24.0, 98.0, 246.0, 14.5),
+        _inv(2024, "RETAIL",       16.0,  58.0, 12.0, 68.0, 30.0, 122.0, 306.0, 16.8),
+    ]
+
+    def _out(technology, metric, baseline, current, improvement, attributable, unit):
+        return EDTOutcomeRecord(
+            technology=technology, outcome_metric=metric,
+            baseline_value=baseline, current_value=current,
+            improvement_pct=improvement, attributable_to_digital_pct=attributable,
+            unit=unit,
+        )
+
+    outcomes = [
+        # SMART_METERS
+        _out("SMART_METERS", "RELIABILITY_IMPROVEMENT",   142.0,  98.0,   31.0,  72.0, "minutes SAIDI"),
+        _out("SMART_METERS", "COST_REDUCTION",             85.0,  62.0,   27.1,  68.0, "$/customer/yr ops"),
+        _out("SMART_METERS", "CUSTOMER_SATISFACTION",      62.0,  74.0,   19.4,  55.0, "NPS score"),
+        _out("SMART_METERS", "OUTAGE_REDUCTION",           18.2,  12.4,   31.9,  78.0, "outages/100km/yr"),
+        # AI_ANALYTICS
+        _out("AI_ANALYTICS", "COST_REDUCTION",            120.0,  78.0,   35.0,  85.0, "$/MWh dispatch cost"),
+        _out("AI_ANALYTICS", "EMISSIONS_REDUCTION",       0.82,   0.64,   22.0,  60.0, "tCO2/MWh"),
+        _out("AI_ANALYTICS", "WORKFORCE_PRODUCTIVITY",     1.0,    1.34,  34.0,  80.0, "tasks/FTE index"),
+        _out("AI_ANALYTICS", "RELIABILITY_IMPROVEMENT",  168.0,  124.0,  26.2,  65.0, "minutes SAIDI"),
+        # DIGITAL_TWINS
+        _out("DIGITAL_TWINS", "COST_REDUCTION",           210.0, 154.0,  26.7,  74.0, "$/asset maintenance"),
+        _out("DIGITAL_TWINS", "OUTAGE_REDUCTION",          24.0,  16.2,  32.5,  82.0, "unplanned outages/yr"),
+        _out("DIGITAL_TWINS", "WORKFORCE_PRODUCTIVITY",    1.0,    1.28,  28.0,  70.0, "tasks/FTE index"),
+        _out("DIGITAL_TWINS", "EMISSIONS_REDUCTION",       0.76,   0.61,  19.7,  45.0, "tCO2/MWh"),
+        # EDGE_COMPUTING
+        _out("EDGE_COMPUTING", "RELIABILITY_IMPROVEMENT", 155.0, 118.0,  23.9,  58.0, "minutes SAIDI"),
+        _out("EDGE_COMPUTING", "COST_REDUCTION",           72.0,  54.0,  25.0,  62.0, "$/customer/yr ops"),
+        _out("EDGE_COMPUTING", "OUTAGE_REDUCTION",         20.4,  14.8,  27.5,  66.0, "outages/100km/yr"),
+        _out("EDGE_COMPUTING", "CUSTOMER_SATISFACTION",    58.0,  68.0,  17.2,  48.0, "NPS score"),
+        # DRONE_INSPECTION
+        _out("DRONE_INSPECTION", "COST_REDUCTION",        180.0, 112.0,  37.8,  90.0, "$/tower inspection"),
+        _out("DRONE_INSPECTION", "WORKFORCE_PRODUCTIVITY", 1.0,    1.52,  52.0,  88.0, "tasks/FTE index"),
+        _out("DRONE_INSPECTION", "OUTAGE_REDUCTION",       15.8,  10.2,  35.4,  75.0, "outages/100km/yr"),
+        _out("DRONE_INSPECTION", "EMISSIONS_REDUCTION",    0.42,   0.34,  19.0,  40.0, "tCO2 helicopter ops"),
+    ]
+
+    def _sk(skill_area, current, required, gap, salary, training, difficulty):
+        return EDTSkillsRecord(
+            skill_area=skill_area, current_fte=current,
+            required_2030_fte=required, gap_2030=gap,
+            avg_salary=salary, training_investment_m=training,
+            external_hire_difficulty=difficulty,
+        )
+
+    skills = [
+        _sk("DATA_SCIENCE",       820,  2200, 1380, 148000.0, 42.0, "HIGH"),
+        _sk("CLOUD_ENGINEERING",  540,  1680, 1140, 138000.0, 38.0, "HIGH"),
+        _sk("OT_CYBERSECURITY",   310,  1050,  740, 155000.0, 28.0, "HIGH"),
+        _sk("DIGITAL_TWIN",       180,   720,  540, 145000.0, 18.0, "HIGH"),
+        _sk("AI_ML",              640,  2400, 1760, 158000.0, 55.0, "HIGH"),
+        _sk("AUTOMATION",         720,  2100, 1380, 132000.0, 35.0, "MEDIUM"),
+        _sk("CUSTOMER_UX",        480,  1560, 1080, 122000.0, 25.0, "MEDIUM"),
+        _sk("5G_NETWORK_OPS",     120,   620,  500, 128000.0, 15.0, "HIGH"),
+    ]
+
+    summary = {
+        "avg_adoption_smart_meters_pct": 84.2,
+        "avg_digital_maturity_score": 6.4,
+        "total_digital_investment_2024_m": 1840,
+        "top_roi_technology": "AI_ANALYTICS",
+        "skills_gap_2030": 12400,
+        "digital_capex_pct": 18.4,
+    }
+
+    return EDTDashboard(
+        technologies=technologies,
+        maturity=maturity,
+        investment=investment,
+        outcomes=outcomes,
+        skills=skills,
+        summary=summary,
+    )
+
+@app.get("/api/digital-transformation/dashboard", response_model=EDTDashboard, dependencies=[Depends(verify_api_key)])
+async def get_digital_transformation_dashboard():
+    cached = _cache_get(_edt_cache, "edt")
+    if cached:
+        return cached
+    result = _build_edt_dashboard()
+    _cache_set(_edt_cache, "edt", result)
+    return result

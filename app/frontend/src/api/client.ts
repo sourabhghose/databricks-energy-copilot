@@ -13009,3 +13009,220 @@ export interface CEADashboard {
 
 export const getCommunityEnergyDashboard = (): Promise<CEADashboard> =>
   get<CEADashboard>('/api/community-energy-microgrid/dashboard');
+
+// ── Electricity Grid Cybersecurity & Resilience Analytics (EGC) ─────────────
+
+export interface EGCThreatRecord {
+  threat_id: string
+  category: string
+  actor_type: string
+  severity: string
+  targeted_systems: string[]
+  incidents_2022: number
+  incidents_2023: number
+  incidents_2024: number
+  avg_dwell_time_days: number
+  avg_recovery_time_days: number
+  financial_impact_m: number
+}
+
+export interface EGCIncidentRecord {
+  incident_id: string
+  date: string
+  organisation_type: string
+  system_affected: string
+  attack_vector: string
+  impact_level: string
+  detected_by: string
+  response_time_hrs: number
+  reported_to_asd: boolean
+  publicly_disclosed: boolean
+}
+
+export interface EGCComplianceRecord {
+  organisation: string
+  framework: string
+  compliance_score_pct: number
+  critical_gaps: number
+  last_audit_date: string
+  certification_status: string
+  remediation_budget_m: number
+}
+
+export interface EGCResilienceRecord {
+  region: string
+  asset_class: string
+  cyber_resilience_score: number
+  redundancy_level: string
+  recovery_time_objective_hrs: number
+  recovery_point_objective_hrs: number
+  last_penetration_test_months: number
+  known_vulnerabilities: number
+  patch_currency_pct: number
+}
+
+export interface EGCInvestmentRecord {
+  year: number
+  sector: string
+  ot_security_m: number
+  it_security_m: number
+  training_m: number
+  incident_response_m: number
+  total_cyber_investment_m: number
+  as_pct_of_capex: number
+}
+
+export interface EGCDashboard {
+  threats: EGCThreatRecord[]
+  incidents: EGCIncidentRecord[]
+  compliance: EGCComplianceRecord[]
+  resilience: EGCResilienceRecord[]
+  investment: EGCInvestmentRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getGridCybersecurityDashboard = (): Promise<EGCDashboard> =>
+  get<EGCDashboard>('/api/grid-cybersecurity/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 84b — Wholesale Market Participant Financial Health
+// ---------------------------------------------------------------------------
+
+export interface WMFParticipantRecord {
+  participant_id: string
+  company: string
+  role: string
+  credit_rating: string
+  prudential_obligation_m: number
+  actual_credit_support_m: number
+  coverage_ratio: number
+  daily_settlement_exposure_m: number
+  max_exposure_m: number
+  credit_risk_flag: string
+}
+
+export interface WMFSettlementRecord {
+  month: string
+  total_settlement_value_m: number
+  number_of_participants: number
+  max_single_participant_exposure_m: number
+  net_market_position_m: number
+  undercollateralised_m: number
+  late_payments_count: number
+  disputes_count: number
+}
+
+export interface WMFDefaultRecord {
+  year: number
+  default_events: number
+  total_default_value_m: number
+  recovered_pct: number
+  market_impact_m: number
+  trigger: string
+}
+
+export interface WMFCreditSupportRecord {
+  support_type: string
+  total_lodged_m: number
+  participants_using: number
+  avg_duration_months: number
+  renewal_frequency_per_yr: number
+  acceptance_rate_pct: number
+}
+
+export interface WMFPrudentialRecord {
+  quarter: string
+  total_prudential_requirement_m: number
+  total_credit_support_lodged_m: number
+  market_coverage_ratio: number
+  amber_participants: number
+  red_participants: number
+  waiver_requests: number
+  waivers_granted: number
+}
+
+export interface WMFDashboard {
+  participants: WMFParticipantRecord[]
+  settlement: WMFSettlementRecord[]
+  defaults: WMFDefaultRecord[]
+  credit_support: WMFCreditSupportRecord[]
+  prudential: WMFPrudentialRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getMarketParticipantFinancialDashboard = (): Promise<WMFDashboard> =>
+  get<WMFDashboard>('/api/market-participant-financial/dashboard');
+
+// ---------------------------------------------------------------------------
+// EDT — Electricity Sector Digital Transformation Analytics
+// ---------------------------------------------------------------------------
+
+export interface EDTTechnologyRecord {
+  technology: string
+  sector: string
+  adoption_rate_pct: number
+  adoption_2030_target_pct: number
+  maturity_level: string
+  annual_investment_m: number
+  expected_roi_pct: number
+  implementation_challenges: string
+  regulatory_barrier: boolean
+}
+
+export interface EDTMaturityRecord {
+  organisation_type: string
+  organisation: string
+  overall_maturity_score: number
+  data_management_score: number
+  automation_score: number
+  analytics_score: number
+  cybersecurity_score: number
+  customer_digital_score: number
+  workforce_digital_score: number
+  benchmark_vs_global: number
+}
+
+export interface EDTInvestmentRecord {
+  year: number
+  sector: string
+  smart_grid_m: number
+  ai_analytics_m: number
+  iot_sensors_m: number
+  cloud_infrastructure_m: number
+  cybersecurity_m: number
+  customer_platforms_m: number
+  total_digital_m: number
+  digital_as_pct_capex: number
+}
+
+export interface EDTOutcomeRecord {
+  technology: string
+  outcome_metric: string
+  baseline_value: number
+  current_value: number
+  improvement_pct: number
+  attributable_to_digital_pct: number
+  unit: string
+}
+
+export interface EDTSkillsRecord {
+  skill_area: string
+  current_fte: number
+  required_2030_fte: number
+  gap_2030: number
+  avg_salary: number
+  training_investment_m: number
+  external_hire_difficulty: string
+}
+
+export interface EDTDashboard {
+  technologies: EDTTechnologyRecord[]
+  maturity: EDTMaturityRecord[]
+  investment: EDTInvestmentRecord[]
+  outcomes: EDTOutcomeRecord[]
+  skills: EDTSkillsRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getDigitalTransformationDashboard = (): Promise<EDTDashboard> =>
+  get<EDTDashboard>('/api/digital-transformation/dashboard');
