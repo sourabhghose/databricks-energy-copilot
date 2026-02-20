@@ -10790,3 +10790,216 @@ export interface EWRDashboard {
 
 export const getExtremeWeatherResilienceDashboard = (): Promise<EWRDashboard> =>
   get<EWRDashboard>('/api/extreme-weather-resilience/dashboard');
+
+// ---------------------------------------------------------------------------
+// Offshore Wind Development Pipeline Analytics  (Sprint 74c)  prefix: OWDA
+// ---------------------------------------------------------------------------
+
+export interface OWDAProjectRecord {
+  project_id: string;
+  name: string;
+  developer: string;
+  state: string;
+  technology: string;
+  capacity_mw: number;
+  water_depth_m: number;
+  distance_from_shore_km: number;
+  status: string;
+  declared_offshore_area: boolean;
+  target_commissioning: number;
+  capex_bn: number;
+  lcoe_per_mwh: number;
+  jobs_construction: number;
+  jobs_operational: number;
+}
+
+export interface OWDAZoneRecord {
+  zone_id: string;
+  zone_name: string;
+  state: string;
+  total_area_km2: number;
+  potential_capacity_gw: number;
+  declared: boolean;
+  declaration_year: number | null;
+  projects_count: number;
+  avg_wind_speed_ms: number;
+  grid_connection_km: number;
+  environmental_sensitivity: string;
+}
+
+export interface OWDASupplyChainRecord {
+  component: string;
+  current_aus_capacity_units_yr: number;
+  required_2030_units_yr: number;
+  required_2035_units_yr: number;
+  gap_2030: number;
+  investment_needed_m: number;
+  lead_time_years: number;
+}
+
+export interface OWDACostCurveRecord {
+  year: number;
+  scenario: string;
+  lcoe_per_mwh: number;
+  capex_per_mw_m: number;
+  capacity_factor_pct: number;
+  cumulative_capacity_gw: number;
+}
+
+export interface OWDAGridImpactRecord {
+  region: string;
+  scenario_year: number;
+  offshore_capacity_gw: number;
+  curtailment_pct: number;
+  congestion_cost_m: number;
+  transmission_upgrade_bn: number;
+  firming_capacity_gw: number;
+}
+
+export interface OWDADashboard {
+  projects: OWDAProjectRecord[];
+  zones: OWDAZoneRecord[];
+  supply_chain: OWDASupplyChainRecord[];
+  cost_curves: OWDACostCurveRecord[];
+  grid_impacts: OWDAGridImpactRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getOffshoreWindDevAnalyticsDashboard = (): Promise<OWDADashboard> =>
+  get<OWDADashboard>('/api/offshore-wind-dev-analytics/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 74a — Spot Price Volatility Regime Analytics
+// ---------------------------------------------------------------------------
+
+export interface SVRRegimeRecord {
+  region: string;
+  regime: string;
+  start_date: string;
+  end_date: string;
+  duration_days: number;
+  mean_price: number;
+  std_price: number;
+  max_price: number;
+  min_price: number;
+  spike_count: number;
+  negative_count: number;
+}
+
+export interface SVRTransitionMatrix {
+  from_regime: string;
+  to_regime: string;
+  transition_probability: number;
+  avg_duration_days: number;
+}
+
+export interface SVRVolatilityMetric {
+  region: string;
+  quarter: string;
+  realized_volatility_annualized: number;
+  garch_volatility: number;
+  conditional_var_95: number;
+  conditional_var_99: number;
+  price_range_pct: number;
+  iqr_price: number;
+}
+
+export interface SVRSpikeCluster {
+  cluster_id: number;
+  region: string;
+  start_datetime: string;
+  end_datetime: string;
+  duration_intervals: number;
+  peak_price: number;
+  total_cost_m: number;
+  primary_cause: string;
+}
+
+export interface SVRRegimeDriver {
+  regime: string;
+  driver: string;
+  correlation: number;
+  significance: string;
+}
+
+export interface SVRDashboard {
+  regimes: SVRRegimeRecord[];
+  transition_matrix: SVRTransitionMatrix[];
+  volatility_metrics: SVRVolatilityMetric[];
+  spike_clusters: SVRSpikeCluster[];
+  regime_drivers: SVRRegimeDriver[];
+  summary: Record<string, unknown>;
+}
+
+export const getSpotPriceVolatilityRegimeDashboard = (): Promise<SVRDashboard> =>
+  get<SVRDashboard>('/api/spot-price-volatility-regime/dashboard');
+
+// ============================================================
+// Industrial Electrification Pathway Analytics — Sprint 74b
+// ============================================================
+
+export interface IEPSectorRecord {
+  sector: string;
+  current_energy_pj: number;
+  current_electric_pct: number;
+  target_electric_pct_2030: number;
+  target_electric_pct_2050: number;
+  incremental_demand_twh_2030: number;
+  incremental_demand_twh_2050: number;
+  abatement_potential_mt_co2: number;
+  electrification_cost_per_tonne: number;
+}
+
+export interface IEPProjectRecord {
+  project_id: string;
+  company: string;
+  sector: string;
+  technology: string;
+  region: string;
+  capacity_mw: number;
+  annual_energy_gwh: number;
+  capex_m: number;
+  opex_m_yr: number;
+  co2_abatement_kt_yr: number;
+  status: string;
+  commissioning_year: number;
+}
+
+export interface IEPLoadShapeRecord {
+  sector: string;
+  hour: number;
+  load_factor_current: number;
+  load_factor_2030: number;
+  load_factor_2050: number;
+  flexibility_pct: number;
+}
+
+export interface IEPBarrierRecord {
+  barrier: string;
+  severity: string;
+  affected_sectors: string[];
+  policy_response: string;
+  investment_needed_m: number;
+}
+
+export interface IEPInvestmentRecord {
+  year: number;
+  sector: string;
+  capex_bn: number;
+  opex_bn: number;
+  energy_efficiency_bn: number;
+  grid_upgrade_bn: number;
+  total_bn: number;
+}
+
+export interface IEPDashboard {
+  sectors: IEPSectorRecord[];
+  projects: IEPProjectRecord[];
+  load_shapes: IEPLoadShapeRecord[];
+  barriers: IEPBarrierRecord[];
+  investment_pathway: IEPInvestmentRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getIndustrialElectrificationDashboard = (): Promise<IEPDashboard> =>
+  get<IEPDashboard>('/api/industrial-electrification/dashboard');

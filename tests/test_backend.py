@@ -10512,3 +10512,54 @@ class TestExtremeWeatherResilienceDashboard:
         assert s["total_economic_cost_m"] >= 2000
         assert s["close_to_lor_events"] >= 2
         assert s["total_adaptation_investment_m"] >= 900
+
+
+class TestSpotPriceVolatilityRegimeEndpoint:
+    endpoint = "/api/spot-price-volatility-regime/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_regime_count_minimum(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        regimes = data["regimes"]
+        assert len(regimes) >= 20, f"Expected >= 20 regime records, got {len(regimes)}"
+
+    def test_volatility_metrics_count_minimum(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        metrics = data["volatility_metrics"]
+        assert len(metrics) >= 30, f"Expected >= 30 volatility metric records, got {len(metrics)}"
+
+class TestIndustrialElectrificationEndpoint:
+    endpoint = "/api/industrial-electrification/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_sectors_count_equals_8(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["sectors"]) == 8
+
+    def test_load_shapes_count_at_least_150(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["load_shapes"]) >= 150
+
+
+class TestOffshoreWindDevAnalyticsEndpoint:
+    """Sprint 74c — Offshore Wind Development Pipeline Analytics (prefix OWDA)"""
+
+    endpoint = "/api/offshore-wind-dev-analytics/dashboard"
+
+    def test_http_200(self, client):
+        response = client.get(self.endpoint, headers={"x-api-key": "test-key"})
+        assert response.status_code == 200
+
+    def test_projects_count_at_least_12(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["projects"]) >= 12
+
+    def test_cost_curves_count_at_least_30(self, client):
+        data = client.get(self.endpoint, headers={"x-api-key": "test-key"}).json()
+        assert len(data["cost_curves"]) >= 30

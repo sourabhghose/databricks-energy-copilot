@@ -262,6 +262,9 @@ import MerchantRenewableAnalytics from './pages/MerchantRenewableAnalytics'
 import RetailerCompetitionAnalytics from './pages/RetailerCompetitionAnalytics'
 import StorageCostCurvesAnalytics from './pages/StorageCostCurvesAnalytics'
 import ExtremeWeatherResilienceAnalytics from './pages/ExtremeWeatherResilienceAnalytics'
+import SpotPriceVolatilityRegimeAnalytics from './pages/SpotPriceVolatilityRegimeAnalytics'
+import IndustrialElectrificationAnalytics from './pages/IndustrialElectrificationAnalytics'
+import OffshoreWindDevAnalytics from './pages/OffshoreWindDevAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -454,6 +457,9 @@ const NAV_ITEMS = [
   { to: '/retailer-competition', label: 'Retailer Competition',          Icon: Users          },
   { to: '/storage-cost-curves', label: 'Storage Cost Curves',            Icon: TrendingDown   },
   { to: '/extreme-weather-resilience', label: 'Extreme Weather Resilience', Icon: Tornado        },
+  { to: '/spot-price-volatility-regime', label: 'Spot Price Volatility Regime', Icon: Activity  },
+  { to: '/industrial-electrification', label: 'Industrial Electrification',   Icon: Zap        },
+  { to: '/offshore-wind-dev-analytics', label: 'Offshore Wind Dev Pipeline',  Icon: Wind       },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -721,6 +727,9 @@ export default function App() {
               <Route path="/retailer-competition" element={<RetailerCompetitionAnalytics />} />
               <Route path="/storage-cost-curves" element={<StorageCostCurvesAnalytics />} />
               <Route path="/extreme-weather-resilience" element={<ExtremeWeatherResilienceAnalytics />} />
+              <Route path="/spot-price-volatility-regime" element={<SpotPriceVolatilityRegimeAnalytics />} />
+              <Route path="/industrial-electrification" element={<IndustrialElectrificationAnalytics />} />
+              <Route path="/offshore-wind-dev-analytics" element={<OffshoreWindDevAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -49944,3 +49944,726 @@ def get_extreme_weather_resilience_dashboard():
             "highest_bcr_measure": "Real-Time Thermal Monitoring (5.5x)",
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 74a — Spot Price Volatility Regime Analytics
+# ---------------------------------------------------------------------------
+
+class SVRRegimeRecord(BaseModel):
+    region: str
+    regime: str  # LOW_VOL / NORMAL / HIGH_VOL / EXTREME
+    start_date: str
+    end_date: str
+    duration_days: int
+    mean_price: float
+    std_price: float
+    max_price: float
+    min_price: float
+    spike_count: int  # prices > $300/MWh
+    negative_count: int  # prices < $0
+
+class SVRTransitionMatrix(BaseModel):
+    from_regime: str
+    to_regime: str
+    transition_probability: float
+    avg_duration_days: float
+
+class SVRVolatilityMetric(BaseModel):
+    region: str
+    quarter: str  # e.g. "2024-Q1"
+    realized_volatility_annualized: float
+    garch_volatility: float
+    conditional_var_95: float
+    conditional_var_99: float
+    price_range_pct: float  # (max-min)/mean * 100
+    iqr_price: float
+
+class SVRSpikeCluster(BaseModel):
+    cluster_id: int
+    region: str
+    start_datetime: str
+    end_datetime: str
+    duration_intervals: int  # 5-min dispatch intervals
+    peak_price: float
+    total_cost_m: float
+    primary_cause: str  # LOW_WIND / HIGH_DEMAND / CONSTRAINT / OUTAGE / STRATEGIC_BIDDING
+
+class SVRRegimeDriver(BaseModel):
+    regime: str
+    driver: str
+    correlation: float
+    significance: str  # HIGH / MEDIUM / LOW
+
+class SVRDashboard(BaseModel):
+    regimes: List[SVRRegimeRecord]
+    transition_matrix: List[SVRTransitionMatrix]
+    volatility_metrics: List[SVRVolatilityMetric]
+    spike_clusters: List[SVRSpikeCluster]
+    regime_drivers: List[SVRRegimeDriver]
+    summary: dict
+
+
+@app.get("/api/spot-price-volatility-regime/dashboard", dependencies=[Depends(verify_api_key)])
+def get_spot_price_volatility_regime_dashboard() -> SVRDashboard:
+    import random
+    import math
+
+    rng = random.Random(74)
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    regime_types = ["LOW_VOL", "NORMAL", "HIGH_VOL", "EXTREME"]
+
+    # ---- 25 Regime Records (5 per region) ----
+    period_windows = [
+        ("2020-01-01", "2020-06-30", 181),
+        ("2020-07-01", "2020-12-31", 184),
+        ("2021-01-01", "2021-09-30", 273),
+        ("2022-01-01", "2022-06-30", 181),
+        ("2022-07-01", "2023-03-31", 273),
+        ("2023-04-01", "2023-09-30", 183),
+        ("2023-10-01", "2024-03-31", 183),
+        ("2024-04-01", "2024-09-30", 183),
+        ("2024-10-01", "2024-12-31", 92),
+    ]
+
+    regime_params = {
+        "LOW_VOL":  {"mean": (40, 70),   "std": (5, 15),   "max": (80, 150),   "min": (10, 30),  "spike_rate": 0.001, "neg_rate": 0.001},
+        "NORMAL":   {"mean": (70, 120),  "std": (15, 40),  "max": (200, 400),  "min": (0, 20),   "spike_rate": 0.02,  "neg_rate": 0.005},
+        "HIGH_VOL": {"mean": (120, 250), "std": (60, 120), "max": (500, 1500), "min": (-10, 10), "spike_rate": 0.08,  "neg_rate": 0.02},
+        "EXTREME":  {"mean": (200, 500), "std": (150, 300),"max": (2000, 15000),"min": (-50, 0), "spike_rate": 0.18,  "neg_rate": 0.06},
+    }
+
+    regimes: List[SVRRegimeRecord] = []
+    regime_sequence = (
+        ["LOW_VOL", "NORMAL", "NORMAL", "HIGH_VOL", "EXTREME"] +
+        ["NORMAL", "LOW_VOL", "HIGH_VOL", "NORMAL", "LOW_VOL"] +
+        ["HIGH_VOL", "NORMAL", "EXTREME", "NORMAL", "HIGH_VOL"] +
+        ["EXTREME", "HIGH_VOL", "NORMAL", "LOW_VOL", "NORMAL"] +
+        ["LOW_VOL", "NORMAL", "HIGH_VOL", "NORMAL", "LOW_VOL"]
+    )
+
+    rec_idx = 0
+    for ri, region in enumerate(regions):
+        for pi in range(5):
+            window = period_windows[(ri * 5 + pi) % len(period_windows)]
+            regime_name = regime_sequence[rec_idx]
+            params = regime_params[regime_name]
+            mean_p = rng.uniform(*params["mean"])
+            std_p = rng.uniform(*params["std"])
+            max_p = mean_p + rng.uniform(*params["max"]) / 10
+            min_p = rng.uniform(*params["min"])
+            dur = window[2]
+            intervals = dur * 288  # 5-min intervals per day
+            spike_count = int(intervals * params["spike_rate"] * rng.uniform(0.8, 1.2))
+            neg_count = int(intervals * params["neg_rate"] * rng.uniform(0.8, 1.2))
+            regimes.append(SVRRegimeRecord(
+                region=region,
+                regime=regime_name,
+                start_date=window[0],
+                end_date=window[1],
+                duration_days=dur,
+                mean_price=round(mean_p, 2),
+                std_price=round(std_p, 2),
+                max_price=round(max_p, 2),
+                min_price=round(min_p, 2),
+                spike_count=spike_count,
+                negative_count=neg_count,
+            ))
+            rec_idx += 1
+
+    # ---- 16 Transition Matrix Entries (4x4) ----
+    transition_raw = {
+        ("LOW_VOL",  "LOW_VOL"):  (0.72, 45.0),
+        ("LOW_VOL",  "NORMAL"):   (0.22, 12.0),
+        ("LOW_VOL",  "HIGH_VOL"): (0.05, 8.0),
+        ("LOW_VOL",  "EXTREME"):  (0.01, 3.0),
+        ("NORMAL",   "LOW_VOL"):  (0.18, 14.0),
+        ("NORMAL",   "NORMAL"):   (0.62, 28.0),
+        ("NORMAL",   "HIGH_VOL"): (0.16, 10.0),
+        ("NORMAL",   "EXTREME"):  (0.04, 5.0),
+        ("HIGH_VOL", "LOW_VOL"):  (0.05, 7.0),
+        ("HIGH_VOL", "NORMAL"):   (0.40, 18.0),
+        ("HIGH_VOL", "HIGH_VOL"): (0.42, 22.0),
+        ("HIGH_VOL", "EXTREME"):  (0.13, 6.0),
+        ("EXTREME",  "LOW_VOL"):  (0.02, 4.0),
+        ("EXTREME",  "NORMAL"):   (0.25, 10.0),
+        ("EXTREME",  "HIGH_VOL"): (0.38, 12.0),
+        ("EXTREME",  "EXTREME"):  (0.35, 8.0),
+    }
+
+    transition_matrix: List[SVRTransitionMatrix] = [
+        SVRTransitionMatrix(
+            from_regime=fr,
+            to_regime=to,
+            transition_probability=prob,
+            avg_duration_days=dur,
+        )
+        for (fr, to), (prob, dur) in transition_raw.items()
+    ]
+
+    # ---- 40 Volatility Metrics (5 regions x 8 quarters: 2023-Q1 to 2024-Q4) ----
+    quarters = [f"{yr}-Q{q}" for yr in [2023, 2024] for q in range(1, 5)]
+    base_rv = {"NSW1": 1.45, "QLD1": 1.38, "VIC1": 1.62, "SA1": 2.15, "TAS1": 1.28}
+    volatility_metrics: List[SVRVolatilityMetric] = []
+    for region in regions:
+        base = base_rv[region]
+        for qi, quarter in enumerate(quarters):
+            seasonal = 1.0 + 0.25 * math.sin(math.pi * qi / 4)
+            rv = round(base * seasonal * rng.uniform(0.85, 1.15), 3)
+            gv = round(rv * rng.uniform(0.88, 1.12), 3)
+            mean_q = rng.uniform(80, 180)
+            cvar95 = round(mean_q * rng.uniform(3.5, 6.0), 2)
+            cvar99 = round(cvar95 * rng.uniform(1.3, 1.8), 2)
+            price_range = round(rng.uniform(150, 600) / mean_q * 100, 2)
+            iqr = round(rng.uniform(20, 120), 2)
+            volatility_metrics.append(SVRVolatilityMetric(
+                region=region,
+                quarter=quarter,
+                realized_volatility_annualized=rv,
+                garch_volatility=gv,
+                conditional_var_95=cvar95,
+                conditional_var_99=cvar99,
+                price_range_pct=price_range,
+                iqr_price=iqr,
+            ))
+
+    # ---- 12 Spike Cluster Records ----
+    spike_data = [
+        (1,  "SA1",  "2021-01-28T13:00", "2021-01-28T19:30", 78,  14200.0, 142.5, "LOW_WIND"),
+        (2,  "NSW1", "2022-01-18T14:30", "2022-01-18T18:00", 42,  8900.0,  87.3,  "HIGH_DEMAND"),
+        (3,  "VIC1", "2022-02-01T11:00", "2022-02-01T17:30", 78,  9500.0,  93.8,  "CONSTRAINT"),
+        (4,  "QLD1", "2022-07-19T08:00", "2022-07-19T20:00", 144, 15000.0, 198.2, "OUTAGE"),
+        (5,  "SA1",  "2022-07-20T09:00", "2022-07-20T21:00", 144, 15000.0, 210.4, "STRATEGIC_BIDDING"),
+        (6,  "NSW1", "2022-12-15T15:00", "2022-12-15T20:00", 60,  7800.0,  68.9,  "HIGH_DEMAND"),
+        (7,  "VIC1", "2023-02-14T12:30", "2023-02-14T18:30", 72,  11200.0, 105.6, "LOW_WIND"),
+        (8,  "SA1",  "2023-08-08T10:00", "2023-08-08T22:00", 144, 15000.0, 225.1, "LOW_WIND"),
+        (9,  "NSW1", "2023-12-29T16:00", "2023-12-29T22:30", 78,  9800.0,  112.3, "HIGH_DEMAND"),
+        (10, "QLD1", "2024-01-15T13:00", "2024-01-15T19:00", 72,  8500.0,  78.4,  "OUTAGE"),
+        (11, "TAS1", "2024-06-22T07:00", "2024-06-22T15:00", 96,  6200.0,  45.8,  "CONSTRAINT"),
+        (12, "SA1",  "2024-09-05T11:00", "2024-09-05T22:00", 132, 14500.0, 198.7, "LOW_WIND"),
+    ]
+    spike_clusters: List[SVRSpikeCluster] = [
+        SVRSpikeCluster(
+            cluster_id=cid, region=reg,
+            start_datetime=st, end_datetime=et,
+            duration_intervals=dur_i,
+            peak_price=pk, total_cost_m=cost,
+            primary_cause=cause,
+        )
+        for cid, reg, st, et, dur_i, pk, cost, cause in spike_data
+    ]
+
+    # ---- 20 Regime Driver Records (4 regimes x 5 drivers) ----
+    drivers_raw = [
+        ("LOW_VOL",  "Renewable_Penetration_Pct", 0.68,  "HIGH"),
+        ("LOW_VOL",  "Demand_MW",                 -0.45, "HIGH"),
+        ("LOW_VOL",  "Interconnector_Flow_MW",    0.32,  "MEDIUM"),
+        ("LOW_VOL",  "Gas_Price_GJ",              0.28,  "MEDIUM"),
+        ("LOW_VOL",  "Temperature_Anomaly_C",     -0.18, "LOW"),
+        ("NORMAL",   "Demand_MW",                 0.55,  "HIGH"),
+        ("NORMAL",   "Gas_Price_GJ",              0.48,  "HIGH"),
+        ("NORMAL",   "Wind_Generation_MW",        -0.42, "HIGH"),
+        ("NORMAL",   "Interconnector_Flow_MW",    0.35,  "MEDIUM"),
+        ("NORMAL",   "Temperature_Anomaly_C",     0.22,  "LOW"),
+        ("HIGH_VOL", "Gas_Price_GJ",              0.72,  "HIGH"),
+        ("HIGH_VOL", "Temperature_Anomaly_C",     0.65,  "HIGH"),
+        ("HIGH_VOL", "Renewable_Penetration_Pct", -0.58, "HIGH"),
+        ("HIGH_VOL", "Demand_MW",                 0.52,  "MEDIUM"),
+        ("HIGH_VOL", "Interconnector_Flow_MW",    -0.38, "MEDIUM"),
+        ("EXTREME",  "Temperature_Anomaly_C",     0.82,  "HIGH"),
+        ("EXTREME",  "Gas_Price_GJ",              0.78,  "HIGH"),
+        ("EXTREME",  "Wind_Generation_MW",        -0.74, "HIGH"),
+        ("EXTREME",  "Interconnector_Flow_MW",    -0.62, "HIGH"),
+        ("EXTREME",  "Demand_MW",                 0.55,  "MEDIUM"),
+    ]
+    regime_drivers: List[SVRRegimeDriver] = [
+        SVRRegimeDriver(regime=reg, driver=drv, correlation=corr, significance=sig)
+        for reg, drv, corr, sig in drivers_raw
+    ]
+
+    return SVRDashboard(
+        regimes=regimes,
+        transition_matrix=transition_matrix,
+        volatility_metrics=volatility_metrics,
+        spike_clusters=spike_clusters,
+        regime_drivers=regime_drivers,
+        summary={
+            "total_regimes_identified": 25,
+            "extreme_regime_pct": 8.2,
+            "avg_spike_duration_hrs": 3.4,
+            "most_volatile_region": "SA1",
+            "regime_persistence_avg_days": 28.5,
+        },
+    )
+
+# ============================================================
+# Industrial Electrification Pathway Analytics — Sprint 74b
+# ============================================================
+
+class IEPSectorRecord(BaseModel):
+    sector: str  # MINING / STEEL / ALUMINIUM / CEMENT / CHEMICALS / FOOD_BEVERAGE / PAPER / GLASS
+    current_energy_pj: float
+    current_electric_pct: float
+    target_electric_pct_2030: float
+    target_electric_pct_2050: float
+    incremental_demand_twh_2030: float
+    incremental_demand_twh_2050: float
+    abatement_potential_mt_co2: float
+    electrification_cost_per_tonne: float
+
+class IEPProjectRecord(BaseModel):
+    project_id: str
+    company: str
+    sector: str
+    technology: str  # ELECTRIC_ARC_FURNACE / ELECTRIC_BOILER / HEAT_PUMP / ELECTROLYSIS / etc
+    region: str
+    capacity_mw: float
+    annual_energy_gwh: float
+    capex_m: float
+    opex_m_yr: float
+    co2_abatement_kt_yr: float
+    status: str  # OPERATING / CONSTRUCTION / COMMITTED / ANNOUNCED
+    commissioning_year: int
+
+class IEPLoadShapeRecord(BaseModel):
+    sector: str
+    hour: int  # 0-23
+    load_factor_current: float
+    load_factor_2030: float
+    load_factor_2050: float
+    flexibility_pct: float  # % of load that is flexible/shiftable
+
+class IEPBarrierRecord(BaseModel):
+    barrier: str
+    severity: str  # HIGH / MEDIUM / LOW
+    affected_sectors: List[str]
+    policy_response: str
+    investment_needed_m: float
+
+class IEPInvestmentRecord(BaseModel):
+    year: int
+    sector: str
+    capex_bn: float
+    opex_bn: float
+    energy_efficiency_bn: float
+    grid_upgrade_bn: float
+    total_bn: float
+
+class IEPDashboard(BaseModel):
+    sectors: List[IEPSectorRecord]
+    projects: List[IEPProjectRecord]
+    load_shapes: List[IEPLoadShapeRecord]
+    barriers: List[IEPBarrierRecord]
+    investment_pathway: List[IEPInvestmentRecord]
+    summary: dict
+
+@app.get("/api/industrial-electrification/dashboard", response_model=IEPDashboard, dependencies=[Depends(verify_api_key)])
+def get_industrial_electrification_dashboard():
+    import random
+
+    sectors = [
+        IEPSectorRecord(sector="MINING",        current_energy_pj=320.5, current_electric_pct=38.2, target_electric_pct_2030=52.0, target_electric_pct_2050=80.5, incremental_demand_twh_2030=7.8,  incremental_demand_twh_2050=34.2, abatement_potential_mt_co2=8.5,  electrification_cost_per_tonne=42.0),
+        IEPSectorRecord(sector="STEEL",         current_energy_pj=185.2, current_electric_pct=12.5, target_electric_pct_2030=35.0, target_electric_pct_2050=85.0, incremental_demand_twh_2030=9.2,  incremental_demand_twh_2050=51.8, abatement_potential_mt_co2=18.2, electrification_cost_per_tonne=95.0),
+        IEPSectorRecord(sector="ALUMINIUM",     current_energy_pj=225.8, current_electric_pct=72.0, target_electric_pct_2030=85.0, target_electric_pct_2050=98.0, incremental_demand_twh_2030=5.1,  incremental_demand_twh_2050=12.8, abatement_potential_mt_co2=6.8,  electrification_cost_per_tonne=28.0),
+        IEPSectorRecord(sector="CEMENT",        current_energy_pj=98.4,  current_electric_pct=18.0, target_electric_pct_2030=32.0, target_electric_pct_2050=68.0, incremental_demand_twh_2030=3.6,  incremental_demand_twh_2050=18.5, abatement_potential_mt_co2=9.2,  electrification_cost_per_tonne=115.0),
+        IEPSectorRecord(sector="CHEMICALS",     current_energy_pj=142.6, current_electric_pct=22.5, target_electric_pct_2030=42.0, target_electric_pct_2050=78.0, incremental_demand_twh_2030=8.5,  incremental_demand_twh_2050=36.4, abatement_potential_mt_co2=11.5, electrification_cost_per_tonne=78.0),
+        IEPSectorRecord(sector="FOOD_BEVERAGE", current_energy_pj=76.3,  current_electric_pct=45.0, target_electric_pct_2030=62.0, target_electric_pct_2050=88.0, incremental_demand_twh_2030=4.2,  incremental_demand_twh_2050=14.6, abatement_potential_mt_co2=4.1,  electrification_cost_per_tonne=35.0),
+        IEPSectorRecord(sector="PAPER",         current_energy_pj=52.1,  current_electric_pct=32.0, target_electric_pct_2030=50.0, target_electric_pct_2050=82.0, incremental_demand_twh_2030=3.1,  incremental_demand_twh_2050=11.8, abatement_potential_mt_co2=3.2,  electrification_cost_per_tonne=55.0),
+        IEPSectorRecord(sector="GLASS",         current_energy_pj=28.7,  current_electric_pct=25.0, target_electric_pct_2030=40.0, target_electric_pct_2050=72.0, incremental_demand_twh_2030=1.2,  incremental_demand_twh_2050=5.4,  abatement_potential_mt_co2=2.8,  electrification_cost_per_tonne=88.0),
+    ]
+
+    projects = [
+        IEPProjectRecord(project_id="IEP001", company="BlueScope Steel",          sector="STEEL",         technology="ELECTRIC_ARC_FURNACE",  region="NSW1", capacity_mw=450.0, annual_energy_gwh=3240.0, capex_m=2800.0, opex_m_yr=85.0,  co2_abatement_kt_yr=3200.0, status="COMMITTED",    commissioning_year=2028),
+        IEPProjectRecord(project_id="IEP002", company="Fortescue Metals",          sector="MINING",        technology="ELECTRIC_HAUL_TRUCKS",   region="WA1",  capacity_mw=180.0, annual_energy_gwh=1260.0, capex_m=620.0,  opex_m_yr=28.0,  co2_abatement_kt_yr=850.0,  status="CONSTRUCTION", commissioning_year=2026),
+        IEPProjectRecord(project_id="IEP003", company="Incitec Pivot",             sector="CHEMICALS",     technology="ELECTROLYSIS",           region="QLD1", capacity_mw=250.0, annual_energy_gwh=1980.0, capex_m=1450.0, opex_m_yr=42.0,  co2_abatement_kt_yr=1420.0, status="ANNOUNCED",    commissioning_year=2030),
+        IEPProjectRecord(project_id="IEP004", company="Rio Tinto Aluminium",       sector="ALUMINIUM",     technology="INERT_ANODE_SMELTING",   region="QLD1", capacity_mw=320.0, annual_energy_gwh=2688.0, capex_m=1820.0, opex_m_yr=55.0,  co2_abatement_kt_yr=1850.0, status="COMMITTED",    commissioning_year=2029),
+        IEPProjectRecord(project_id="IEP005", company="Boral Cement",              sector="CEMENT",        technology="ELECTRIC_KILN",          region="VIC1", capacity_mw=85.0,  annual_energy_gwh=680.0,  capex_m=380.0,  opex_m_yr=18.0,  co2_abatement_kt_yr=480.0,  status="ANNOUNCED",    commissioning_year=2031),
+        IEPProjectRecord(project_id="IEP006", company="BHP Olympic Dam",           sector="MINING",        technology="ELECTRIC_BOILER",        region="SA1",  capacity_mw=65.0,  annual_energy_gwh=520.0,  capex_m=145.0,  opex_m_yr=9.0,   co2_abatement_kt_yr=310.0,  status="OPERATING",    commissioning_year=2023),
+        IEPProjectRecord(project_id="IEP007", company="Orica",                     sector="CHEMICALS",     technology="HEAT_PUMP",              region="NSW1", capacity_mw=42.0,  annual_energy_gwh=320.0,  capex_m=88.0,   opex_m_yr=5.5,   co2_abatement_kt_yr=185.0,  status="OPERATING",    commissioning_year=2024),
+        IEPProjectRecord(project_id="IEP008", company="Lion Dairy & Drinks",       sector="FOOD_BEVERAGE", technology="HEAT_PUMP",              region="VIC1", capacity_mw=18.0,  annual_energy_gwh=140.0,  capex_m=32.0,   opex_m_yr=2.8,   co2_abatement_kt_yr=78.0,   status="OPERATING",    commissioning_year=2022),
+        IEPProjectRecord(project_id="IEP009", company="Nippon Steel Australia",    sector="STEEL",         technology="ELECTRIC_ARC_FURNACE",   region="SA1",  capacity_mw=280.0, annual_energy_gwh=2100.0, capex_m=1650.0, opex_m_yr=52.0,  co2_abatement_kt_yr=2100.0, status="COMMITTED",    commissioning_year=2029),
+        IEPProjectRecord(project_id="IEP010", company="Visy Paper",                sector="PAPER",         technology="ELECTRIC_BOILER",        region="NSW1", capacity_mw=28.0,  annual_energy_gwh=210.0,  capex_m=55.0,   opex_m_yr=4.2,   co2_abatement_kt_yr=125.0,  status="OPERATING",    commissioning_year=2023),
+        IEPProjectRecord(project_id="IEP011", company="O-I Glass",                 sector="GLASS",         technology="ELECTRIC_MELTING_FURNACE", region="NSW1", capacity_mw=35.0, annual_energy_gwh=280.0,  capex_m=125.0,  opex_m_yr=7.8,   co2_abatement_kt_yr=162.0,  status="CONSTRUCTION", commissioning_year=2026),
+        IEPProjectRecord(project_id="IEP012", company="Newmont Boddington",        sector="MINING",        technology="ELECTRIC_HAUL_TRUCKS",   region="WA1",  capacity_mw=95.0,  annual_energy_gwh=720.0,  capex_m=285.0,  opex_m_yr=14.5,  co2_abatement_kt_yr=425.0,  status="COMMITTED",    commissioning_year=2027),
+    ]
+
+    sector_load_profiles = {
+        "MINING":        {"base": 0.72, "peak_hours": [8, 9, 10, 14, 15, 16], "off_hours": [0, 1, 2, 3, 4, 5], "flex": 0.28},
+        "STEEL":         {"base": 0.88, "peak_hours": [7, 8, 9, 13, 14, 15, 16], "off_hours": [1, 2, 3], "flex": 0.12},
+        "ALUMINIUM":     {"base": 0.95, "peak_hours": [], "off_hours": [], "flex": 0.05},
+        "CEMENT":        {"base": 0.78, "peak_hours": [6, 7, 8, 9, 14, 15], "off_hours": [0, 1, 2, 22, 23], "flex": 0.22},
+        "CHEMICALS":     {"base": 0.82, "peak_hours": [8, 9, 10, 13, 14, 15], "off_hours": [0, 1, 2, 3], "flex": 0.18},
+        "FOOD_BEVERAGE": {"base": 0.65, "peak_hours": [6, 7, 8, 9, 10, 11, 14, 15, 16], "off_hours": [0, 1, 2, 3, 22, 23], "flex": 0.35},
+        "PAPER":         {"base": 0.85, "peak_hours": [7, 8, 14, 15], "off_hours": [0, 1, 2, 3], "flex": 0.15},
+        "GLASS":         {"base": 0.90, "peak_hours": [8, 9, 13, 14], "off_hours": [1, 2, 3], "flex": 0.10},
+    }
+
+    load_shapes = []
+    for sector_name, profile in sector_load_profiles.items():
+        base = profile["base"]
+        for hour in range(24):
+            if hour in profile["peak_hours"]:
+                lf_current = round(min(1.0, base + random.uniform(0.05, 0.12)), 3)
+            elif hour in profile["off_hours"]:
+                lf_current = round(max(0.3, base - random.uniform(0.08, 0.18)), 3)
+            else:
+                lf_current = round(base + random.uniform(-0.03, 0.03), 3)
+            lf_2030 = round(min(1.0, lf_current * random.uniform(1.02, 1.08)), 3)
+            lf_2050 = round(min(1.0, lf_current * random.uniform(1.08, 1.18)), 3)
+            load_shapes.append(IEPLoadShapeRecord(
+                sector=sector_name, hour=hour,
+                load_factor_current=lf_current,
+                load_factor_2030=lf_2030,
+                load_factor_2050=lf_2050,
+                flexibility_pct=round(profile["flex"] * 100, 1),
+            ))
+
+    barriers = [
+        IEPBarrierRecord(barrier="CAPEX_COST",           severity="HIGH",   affected_sectors=["STEEL","CEMENT","CHEMICALS","GLASS"],          policy_response="Green industrial policy grants; concessional finance via CEFC; production tax credits",            investment_needed_m=8500.0),
+        IEPBarrierRecord(barrier="GRID_CAPACITY",        severity="HIGH",   affected_sectors=["MINING","STEEL","ALUMINIUM","CHEMICALS"],       policy_response="Accelerated transmission augmentation; industrial precincts with dedicated grid connections",        investment_needed_m=4200.0),
+        IEPBarrierRecord(barrier="TECHNOLOGY_READINESS", severity="HIGH",   affected_sectors=["CEMENT","GLASS","STEEL"],                       policy_response="R&D co-investment; technology demonstration programs; international collaboration (IEA)",            investment_needed_m=950.0),
+        IEPBarrierRecord(barrier="SKILLS_WORKFORCE",     severity="MEDIUM", affected_sectors=["MINING","STEEL","CHEMICALS","FOOD_BEVERAGE"],   policy_response="TAFE electrification trades curriculum; apprenticeship incentives; industry-led training hubs",     investment_needed_m=320.0),
+        IEPBarrierRecord(barrier="POLICY_UNCERTAINTY",   severity="MEDIUM", affected_sectors=["STEEL","CEMENT","CHEMICALS","PAPER","GLASS"],   policy_response="Long-term industrial decarbonisation strategy; 10-year policy certainty framework; carbon border adjustment", investment_needed_m=0.0),
+        IEPBarrierRecord(barrier="FUEL_SUPPLY",          severity="MEDIUM", affected_sectors=["MINING","CHEMICALS"],                           policy_response="Green hydrogen supply agreements; renewable energy procurement frameworks; PPA market development",   investment_needed_m=2800.0),
+        IEPBarrierRecord(barrier="ELECTRICITY_PRICE",    severity="HIGH",   affected_sectors=["ALUMINIUM","STEEL","CEMENT","CHEMICALS","GLASS"], policy_response="Industrial electricity tariff reform; direct access to renewable energy; demand response incentives", investment_needed_m=0.0),
+        IEPBarrierRecord(barrier="CARBON_LEAKAGE",       severity="LOW",    affected_sectors=["STEEL","CEMENT","ALUMINIUM"],                   policy_response="Carbon border adjustment mechanism; free permit allocation for trade-exposed industries",              investment_needed_m=0.0),
+    ]
+
+    investment_pathway = []
+    sector_investment_profiles = {
+        "STEEL": {
+            "capex":     [0.4, 0.6, 0.9, 1.4, 2.1, 2.8, 3.2, 3.5, 3.4, 3.2],
+            "opex":      [0.1, 0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 0.9, 1.0, 1.1],
+            "ee":        [0.05, 0.06, 0.08, 0.10, 0.12, 0.14, 0.15, 0.15, 0.14, 0.13],
+            "grid":      [0.08, 0.12, 0.18, 0.25, 0.35, 0.45, 0.48, 0.50, 0.48, 0.45],
+        },
+        "MINING": {
+            "capex":     [0.3, 0.5, 0.7, 1.0, 1.4, 1.8, 2.0, 2.1, 2.0, 1.9],
+            "opex":      [0.08, 0.12, 0.15, 0.20, 0.28, 0.35, 0.42, 0.48, 0.52, 0.55],
+            "ee":        [0.04, 0.05, 0.07, 0.09, 0.10, 0.11, 0.12, 0.12, 0.11, 0.11],
+            "grid":      [0.05, 0.08, 0.12, 0.18, 0.25, 0.32, 0.35, 0.36, 0.35, 0.33],
+        },
+        "CHEMICALS": {
+            "capex":     [0.2, 0.35, 0.55, 0.80, 1.10, 1.45, 1.65, 1.75, 1.70, 1.60],
+            "opex":      [0.06, 0.09, 0.12, 0.16, 0.22, 0.28, 0.34, 0.38, 0.41, 0.44],
+            "ee":        [0.03, 0.04, 0.06, 0.08, 0.09, 0.10, 0.11, 0.11, 0.10, 0.10],
+            "grid":      [0.04, 0.06, 0.09, 0.14, 0.19, 0.25, 0.28, 0.29, 0.28, 0.26],
+        },
+    }
+    for idx, year in enumerate(range(2025, 2035)):
+        for sector_name, profile in sector_investment_profiles.items():
+            capex = round(profile["capex"][idx], 3)
+            opex  = round(profile["opex"][idx], 3)
+            ee    = round(profile["ee"][idx], 3)
+            grid  = round(profile["grid"][idx], 3)
+            investment_pathway.append(IEPInvestmentRecord(
+                year=year, sector=sector_name,
+                capex_bn=capex, opex_bn=opex,
+                energy_efficiency_bn=ee, grid_upgrade_bn=grid,
+                total_bn=round(capex + opex + ee + grid, 3),
+            ))
+
+    operating_count  = sum(1 for p in projects if p.status == "OPERATING")
+    committed_count  = sum(1 for p in projects if p.status == "COMMITTED")
+    return IEPDashboard(
+        sectors=sectors,
+        projects=projects,
+        load_shapes=load_shapes,
+        barriers=barriers,
+        investment_pathway=investment_pathway,
+        summary={
+            "total_incremental_demand_twh_2030": 45.2,
+            "total_incremental_demand_twh_2050": 187.5,
+            "total_abatement_potential_mt": 68.3,
+            "operating_projects": operating_count,
+            "committed_projects": committed_count,
+            "total_investment_needed_bn": 42.8,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Offshore Wind Development Pipeline Analytics  (Sprint 74c)
+# Prefix: OWDA  —  distinct from OWP (OffshoreWindPipeline, Sprint 31b)
+# ---------------------------------------------------------------------------
+
+class OWDAProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    developer: str
+    state: str          # VIC / NSW / WA / SA / TAS / QLD
+    technology: str     # FIXED_BOTTOM / FLOATING / OPERATING
+    capacity_mw: float
+    water_depth_m: float
+    distance_from_shore_km: float
+    status: str         # FEASIBILITY / EIS / APPROVED / CONSTRUCTION / OPERATING
+    declared_offshore_area: bool
+    target_commissioning: int   # year
+    capex_bn: float
+    lcoe_per_mwh: float
+    jobs_construction: int
+    jobs_operational: int
+
+class OWDAZoneRecord(BaseModel):
+    zone_id: str
+    zone_name: str
+    state: str
+    total_area_km2: float
+    potential_capacity_gw: float
+    declared: bool
+    declaration_year: Optional[int]
+    projects_count: int
+    avg_wind_speed_ms: float
+    grid_connection_km: float
+    environmental_sensitivity: str   # HIGH / MEDIUM / LOW
+
+class OWDASupplyChainRecord(BaseModel):
+    component: str   # MONOPILE / JACKET / TURBINE / CABLE / INSTALLATION_VESSEL / PORT
+    current_aus_capacity_units_yr: int
+    required_2030_units_yr: int
+    required_2035_units_yr: int
+    gap_2030: int
+    investment_needed_m: float
+    lead_time_years: float
+
+class OWDACostCurveRecord(BaseModel):
+    year: int
+    scenario: str     # BASE / FAST_DEPLOYMENT / SLOW_DEPLOYMENT
+    lcoe_per_mwh: float
+    capex_per_mw_m: float
+    capacity_factor_pct: float
+    cumulative_capacity_gw: float
+
+class OWDAGridImpactRecord(BaseModel):
+    region: str
+    scenario_year: int   # 2030 / 2035 / 2040 / 2050
+    offshore_capacity_gw: float
+    curtailment_pct: float
+    congestion_cost_m: float
+    transmission_upgrade_bn: float
+    firming_capacity_gw: float
+
+class OWDADashboard(BaseModel):
+    projects: List[OWDAProjectRecord]
+    zones: List[OWDAZoneRecord]
+    supply_chain: List[OWDASupplyChainRecord]
+    cost_curves: List[OWDACostCurveRecord]
+    grid_impacts: List[OWDAGridImpactRecord]
+    summary: dict
+
+
+@app.get("/api/offshore-wind-dev-analytics/dashboard", response_model=OWDADashboard)
+def get_offshore_wind_dev_analytics_dashboard(api_key: str = Depends(verify_api_key)):
+    import random
+    random.seed(74)
+
+    projects = [
+        OWDAProjectRecord(project_id="OWDA-VIC-001", name="Star of the South", developer="Star of the South Energy",
+                          state="VIC", technology="FIXED_BOTTOM", capacity_mw=2200.0, water_depth_m=40.0,
+                          distance_from_shore_km=25.0, status="EIS", declared_offshore_area=True,
+                          target_commissioning=2029, capex_bn=7.8, lcoe_per_mwh=102.0,
+                          jobs_construction=3400, jobs_operational=260),
+        OWDAProjectRecord(project_id="OWDA-VIC-002", name="Gippsland Offshore Wind 1", developer="BlueFloat Energy",
+                          state="VIC", technology="FIXED_BOTTOM", capacity_mw=1500.0, water_depth_m=35.0,
+                          distance_from_shore_km=20.0, status="FEASIBILITY", declared_offshore_area=True,
+                          target_commissioning=2031, capex_bn=5.2, lcoe_per_mwh=108.0,
+                          jobs_construction=2200, jobs_operational=170),
+        OWDAProjectRecord(project_id="OWDA-VIC-003", name="Bass Strait Offshore Wind", developer="Macquarie Green",
+                          state="VIC", technology="FIXED_BOTTOM", capacity_mw=800.0, water_depth_m=50.0,
+                          distance_from_shore_km=35.0, status="FEASIBILITY", declared_offshore_area=True,
+                          target_commissioning=2033, capex_bn=3.1, lcoe_per_mwh=112.0,
+                          jobs_construction=1200, jobs_operational=95),
+        OWDAProjectRecord(project_id="OWDA-VIC-004", name="Gippsland Floating Pilot", developer="Equinor Australia",
+                          state="VIC", technology="FLOATING", capacity_mw=200.0, water_depth_m=120.0,
+                          distance_from_shore_km=55.0, status="FEASIBILITY", declared_offshore_area=False,
+                          target_commissioning=2035, capex_bn=1.4, lcoe_per_mwh=185.0,
+                          jobs_construction=380, jobs_operational=45),
+        OWDAProjectRecord(project_id="OWDA-NSW-001", name="Hunter Offshore Wind 1", developer="Engie Australia",
+                          state="NSW", technology="FIXED_BOTTOM", capacity_mw=1000.0, water_depth_m=38.0,
+                          distance_from_shore_km=22.0, status="EIS", declared_offshore_area=True,
+                          target_commissioning=2030, capex_bn=3.8, lcoe_per_mwh=105.0,
+                          jobs_construction=1600, jobs_operational=130),
+        OWDAProjectRecord(project_id="OWDA-NSW-002", name="Hunter Coast Offshore 2", developer="AGL Offshore",
+                          state="NSW", technology="FIXED_BOTTOM", capacity_mw=750.0, water_depth_m=42.0,
+                          distance_from_shore_km=28.0, status="FEASIBILITY", declared_offshore_area=True,
+                          target_commissioning=2032, capex_bn=2.9, lcoe_per_mwh=109.0,
+                          jobs_construction=1100, jobs_operational=100),
+        OWDAProjectRecord(project_id="OWDA-NSW-003", name="Illawarra Floating Demo", developer="Hexicon AB",
+                          state="NSW", technology="FLOATING", capacity_mw=100.0, water_depth_m=180.0,
+                          distance_from_shore_km=70.0, status="FEASIBILITY", declared_offshore_area=False,
+                          target_commissioning=2036, capex_bn=0.9, lcoe_per_mwh=210.0,
+                          jobs_construction=190, jobs_operational=22),
+        OWDAProjectRecord(project_id="OWDA-WA-001", name="Bunbury Offshore Wind", developer="Copenhagen Offshore Partners",
+                          state="WA", technology="FIXED_BOTTOM", capacity_mw=1800.0, water_depth_m=32.0,
+                          distance_from_shore_km=18.0, status="APPROVED", declared_offshore_area=True,
+                          target_commissioning=2028, capex_bn=6.1, lcoe_per_mwh=98.0,
+                          jobs_construction=2700, jobs_operational=210),
+        OWDAProjectRecord(project_id="OWDA-WA-002", name="Perth South Offshore Wind", developer="Shell Energy Australia",
+                          state="WA", technology="FIXED_BOTTOM", capacity_mw=600.0, water_depth_m=28.0,
+                          distance_from_shore_km=15.0, status="CONSTRUCTION", declared_offshore_area=True,
+                          target_commissioning=2027, capex_bn=2.1, lcoe_per_mwh=92.0,
+                          jobs_construction=950, jobs_operational=85),
+        OWDAProjectRecord(project_id="OWDA-WA-003", name="Exmouth Deep Water Floating", developer="BW Ideol",
+                          state="WA", technology="FLOATING", capacity_mw=300.0, water_depth_m=250.0,
+                          distance_from_shore_km=90.0, status="FEASIBILITY", declared_offshore_area=False,
+                          target_commissioning=2037, capex_bn=2.5, lcoe_per_mwh=195.0,
+                          jobs_construction=420, jobs_operational=50),
+        OWDAProjectRecord(project_id="OWDA-SA-001", name="Yorke Peninsula Offshore", developer="OceanEx Energy",
+                          state="SA", technology="FIXED_BOTTOM", capacity_mw=900.0, water_depth_m=36.0,
+                          distance_from_shore_km=23.0, status="EIS", declared_offshore_area=False,
+                          target_commissioning=2031, capex_bn=3.4, lcoe_per_mwh=106.0,
+                          jobs_construction=1350, jobs_operational=110),
+        OWDAProjectRecord(project_id="OWDA-TAS-001", name="Tasman Sea Offshore Wind", developer="Windlab Offshore",
+                          state="TAS", technology="FIXED_BOTTOM", capacity_mw=1200.0, water_depth_m=44.0,
+                          distance_from_shore_km=30.0, status="FEASIBILITY", declared_offshore_area=False,
+                          target_commissioning=2033, capex_bn=4.5, lcoe_per_mwh=114.0,
+                          jobs_construction=1800, jobs_operational=145),
+        OWDAProjectRecord(project_id="OWDA-TAS-002", name="Bass Strait Floating Array", developer="SBM Offshore",
+                          state="TAS", technology="FLOATING", capacity_mw=400.0, water_depth_m=160.0,
+                          distance_from_shore_km=65.0, status="FEASIBILITY", declared_offshore_area=False,
+                          target_commissioning=2038, capex_bn=3.2, lcoe_per_mwh=188.0,
+                          jobs_construction=560, jobs_operational=60),
+        OWDAProjectRecord(project_id="OWDA-QLD-001", name="Townsville Offshore Wind", developer="RWE Offshore Australia",
+                          state="QLD", technology="FIXED_BOTTOM", capacity_mw=750.0, water_depth_m=30.0,
+                          distance_from_shore_km=16.0, status="FEASIBILITY", declared_offshore_area=False,
+                          target_commissioning=2034, capex_bn=2.8, lcoe_per_mwh=110.0,
+                          jobs_construction=1100, jobs_operational=95),
+        OWDAProjectRecord(project_id="OWDA-WA-004", name="Geraldton Offshore Pilot", developer="Vattenfall Australia",
+                          state="WA", technology="OPERATING", capacity_mw=50.0, water_depth_m=22.0,
+                          distance_from_shore_km=10.0, status="OPERATING", declared_offshore_area=True,
+                          target_commissioning=2024, capex_bn=0.22, lcoe_per_mwh=88.0,
+                          jobs_construction=0, jobs_operational=30),
+    ]
+
+    zones = [
+        OWDAZoneRecord(zone_id="OIZ-GIP-01", zone_name="Gippsland Offshore Infrastructure Zone", state="VIC",
+                       total_area_km2=15000.0, potential_capacity_gw=13.0, declared=True, declaration_year=2023,
+                       projects_count=3, avg_wind_speed_ms=9.8, grid_connection_km=45.0,
+                       environmental_sensitivity="MEDIUM"),
+        OWDAZoneRecord(zone_id="OIZ-HUN-01", zone_name="Hunter Offshore Infrastructure Zone", state="NSW",
+                       total_area_km2=5600.0, potential_capacity_gw=5.5, declared=True, declaration_year=2024,
+                       projects_count=2, avg_wind_speed_ms=9.2, grid_connection_km=38.0,
+                       environmental_sensitivity="MEDIUM"),
+        OWDAZoneRecord(zone_id="OIZ-BUN-01", zone_name="Bunbury Offshore Infrastructure Zone", state="WA",
+                       total_area_km2=7200.0, potential_capacity_gw=6.0, declared=True, declaration_year=2023,
+                       projects_count=2, avg_wind_speed_ms=10.1, grid_connection_km=28.0,
+                       environmental_sensitivity="LOW"),
+        OWDAZoneRecord(zone_id="OIZ-YOR-01", zone_name="Yorke Peninsula Zone", state="SA",
+                       total_area_km2=3800.0, potential_capacity_gw=3.5, declared=False, declaration_year=None,
+                       projects_count=1, avg_wind_speed_ms=9.5, grid_connection_km=52.0,
+                       environmental_sensitivity="HIGH"),
+        OWDAZoneRecord(zone_id="OIZ-TAS-01", zone_name="Tasmanian South Coast Zone", state="TAS",
+                       total_area_km2=9500.0, potential_capacity_gw=8.5, declared=False, declaration_year=None,
+                       projects_count=2, avg_wind_speed_ms=11.2, grid_connection_km=60.0,
+                       environmental_sensitivity="HIGH"),
+        OWDAZoneRecord(zone_id="OIZ-QLD-01", zone_name="North Queensland Offshore Zone", state="QLD",
+                       total_area_km2=4200.0, potential_capacity_gw=4.0, declared=False, declaration_year=None,
+                       projects_count=1, avg_wind_speed_ms=8.9, grid_connection_km=35.0,
+                       environmental_sensitivity="MEDIUM"),
+        OWDAZoneRecord(zone_id="OIZ-WA-02", zone_name="Perth Metropolitan Offshore Zone", state="WA",
+                       total_area_km2=2800.0, potential_capacity_gw=2.5, declared=False, declaration_year=None,
+                       projects_count=1, avg_wind_speed_ms=9.6, grid_connection_km=22.0,
+                       environmental_sensitivity="LOW"),
+        OWDAZoneRecord(zone_id="OIZ-VIC-02", zone_name="Portland Bay Offshore Zone", state="VIC",
+                       total_area_km2=6100.0, potential_capacity_gw=5.8, declared=False, declaration_year=None,
+                       projects_count=0, avg_wind_speed_ms=10.4, grid_connection_km=55.0,
+                       environmental_sensitivity="MEDIUM"),
+    ]
+
+    supply_chain = [
+        OWDASupplyChainRecord(component="MONOPILE", current_aus_capacity_units_yr=0, required_2030_units_yr=120,
+                              required_2035_units_yr=280, gap_2030=120, investment_needed_m=850.0, lead_time_years=4.0),
+        OWDASupplyChainRecord(component="JACKET", current_aus_capacity_units_yr=8, required_2030_units_yr=60,
+                              required_2035_units_yr=140, gap_2030=52, investment_needed_m=420.0, lead_time_years=3.5),
+        OWDASupplyChainRecord(component="TURBINE", current_aus_capacity_units_yr=0, required_2030_units_yr=80,
+                              required_2035_units_yr=190, gap_2030=80, investment_needed_m=1200.0, lead_time_years=5.0),
+        OWDASupplyChainRecord(component="CABLE", current_aus_capacity_units_yr=120, required_2030_units_yr=600,
+                              required_2035_units_yr=1400, gap_2030=480, investment_needed_m=680.0, lead_time_years=3.0),
+        OWDASupplyChainRecord(component="INSTALLATION_VESSEL", current_aus_capacity_units_yr=1,
+                              required_2030_units_yr=8, required_2035_units_yr=18, gap_2030=7,
+                              investment_needed_m=2200.0, lead_time_years=6.0),
+        OWDASupplyChainRecord(component="PORT", current_aus_capacity_units_yr=2, required_2030_units_yr=6,
+                              required_2035_units_yr=10, gap_2030=4, investment_needed_m=950.0, lead_time_years=4.5),
+        OWDASupplyChainRecord(component="FLOATING_HULL", current_aus_capacity_units_yr=0,
+                              required_2030_units_yr=10, required_2035_units_yr=60, gap_2030=10,
+                              investment_needed_m=380.0, lead_time_years=5.5),
+        OWDASupplyChainRecord(component="SCOUR_PROTECTION", current_aus_capacity_units_yr=50,
+                              required_2030_units_yr=250, required_2035_units_yr=580, gap_2030=200,
+                              investment_needed_m=95.0, lead_time_years=2.0),
+    ]
+
+    base_lcoe  = {2025: 130.0, 2026: 124.0, 2027: 118.0, 2028: 112.0, 2029: 107.0, 2030: 102.0,
+                  2031: 98.0,  2032: 94.0,  2033: 90.0,  2034: 87.0,  2035: 84.0,  2036: 81.0}
+    fast_lcoe  = {y: round(v * 0.91, 1) for y, v in base_lcoe.items()}
+    slow_lcoe  = {y: round(v * 1.10, 1) for y, v in base_lcoe.items()}
+    base_capex = {2025: 4.8, 2026: 4.6, 2027: 4.4, 2028: 4.2, 2029: 4.0, 2030: 3.8,
+                  2031: 3.7, 2032: 3.5, 2033: 3.4, 2034: 3.3, 2035: 3.2, 2036: 3.1}
+    base_cf    = {2025: 42.0, 2026: 42.5, 2027: 43.0, 2028: 43.5, 2029: 44.0, 2030: 44.5,
+                  2031: 45.0, 2032: 45.5, 2033: 46.0, 2034: 46.5, 2035: 47.0, 2036: 47.5}
+    base_cum   = {2025: 0.05, 2026: 0.2,  2027: 0.6,  2028: 1.2,  2029: 2.0,  2030: 3.5,
+                  2031: 5.2,  2032: 7.4,  2033: 10.0, 2034: 13.0, 2035: 16.5, 2036: 20.0}
+
+    cost_curves: list = []
+    for _yr in range(2025, 2037):
+        cost_curves.append(OWDACostCurveRecord(
+            year=_yr, scenario="BASE",
+            lcoe_per_mwh=base_lcoe[_yr], capex_per_mw_m=base_capex[_yr],
+            capacity_factor_pct=base_cf[_yr], cumulative_capacity_gw=round(base_cum[_yr], 2)))
+        cost_curves.append(OWDACostCurveRecord(
+            year=_yr, scenario="FAST_DEPLOYMENT",
+            lcoe_per_mwh=fast_lcoe[_yr], capex_per_mw_m=round(base_capex[_yr] * 0.90, 2),
+            capacity_factor_pct=round(base_cf[_yr] + 1.0, 1), cumulative_capacity_gw=round(base_cum[_yr] * 1.30, 2)))
+        cost_curves.append(OWDACostCurveRecord(
+            year=_yr, scenario="SLOW_DEPLOYMENT",
+            lcoe_per_mwh=slow_lcoe[_yr], capex_per_mw_m=round(base_capex[_yr] * 1.08, 2),
+            capacity_factor_pct=round(base_cf[_yr] - 0.5, 1), cumulative_capacity_gw=round(base_cum[_yr] * 0.72, 2)))
+
+    _offshore_cap = {
+        ("VIC", 2030): 2.2, ("VIC", 2035): 5.5, ("VIC", 2040): 10.0, ("VIC", 2050): 18.0,
+        ("NSW", 2030): 1.0, ("NSW", 2035): 3.5, ("NSW", 2040): 7.5,  ("NSW", 2050): 13.0,
+        ("WA",  2030): 2.4, ("WA",  2035): 5.0, ("WA",  2040): 9.0,  ("WA",  2050): 15.0,
+        ("SA",  2030): 0.0, ("SA",  2035): 1.5, ("SA",  2040): 4.0,  ("SA",  2050): 7.0,
+        ("TAS", 2030): 0.0, ("TAS", 2035): 1.2, ("TAS", 2040): 3.5,  ("TAS", 2050): 8.0,
+    }
+    _curtailment = {
+        ("VIC", 2030): 4.0, ("VIC", 2035): 7.5, ("VIC", 2040): 12.0, ("VIC", 2050): 8.0,
+        ("NSW", 2030): 3.0, ("NSW", 2035): 6.0, ("NSW", 2040): 10.0, ("NSW", 2050): 6.5,
+        ("WA",  2030): 3.5, ("WA",  2035): 5.5, ("WA",  2040): 9.0,  ("WA",  2050): 5.0,
+        ("SA",  2030): 0.0, ("SA",  2035): 4.5, ("SA",  2040): 8.5,  ("SA",  2050): 5.5,
+        ("TAS", 2030): 0.0, ("TAS", 2035): 3.5, ("TAS", 2040): 6.0,  ("TAS", 2050): 4.0,
+    }
+    grid_impacts: list = []
+    for _region in ["VIC", "NSW", "WA", "SA", "TAS"]:
+        for _sy in [2030, 2035, 2040, 2050]:
+            _cap = _offshore_cap[(_region, _sy)]
+            _curt = _curtailment[(_region, _sy)]
+            grid_impacts.append(OWDAGridImpactRecord(
+                region=_region, scenario_year=_sy,
+                offshore_capacity_gw=_cap,
+                curtailment_pct=_curt,
+                congestion_cost_m=round(_cap * 28.0 + _curt * 12.0, 1),
+                transmission_upgrade_bn=round(_cap * 0.18 + 0.2, 2),
+                firming_capacity_gw=round(_cap * 0.35, 2),
+            ))
+
+    return OWDADashboard(
+        projects=projects,
+        zones=zones,
+        supply_chain=supply_chain,
+        cost_curves=cost_curves,
+        grid_impacts=grid_impacts,
+        summary={
+            "total_pipeline_gw": 28.5,
+            "operating_gw": 0.05,
+            "under_construction_gw": 0.6,
+            "declared_zones": 3,
+            "total_jobs_construction_peak": sum(p.jobs_construction for p in projects),
+            "avg_lcoe_2030": 102.0,
+            "avg_lcoe_2040": 76.0,
+            "projects_count": len(projects),
+            "zones_count": len(zones),
+            "fixed_bottom_count": sum(1 for p in projects if p.technology == "FIXED_BOTTOM"),
+            "floating_count": sum(1 for p in projects if p.technology == "FLOATING"),
+        }
+    )
