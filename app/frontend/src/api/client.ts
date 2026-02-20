@@ -14879,3 +14879,206 @@ export interface ASPDashboard {
 
 export const getAncillaryServicesProcurementDashboard = (): Promise<ASPDashboard> =>
   get<ASPDashboard>('/api/ancillary-services-procurement/dashboard');
+
+// ===== REZ Connection Queue Analytics (Sprint 93a) =====
+export interface RCQZoneRecord {
+  zone_id: string;
+  name: string;
+  state: string;
+  total_capacity_gw: number;
+  committed_capacity_gw: number;
+  queue_capacity_gw: number;
+  available_headroom_gw: number;
+  connection_charge_aud_per_mw: number;
+  access_arrangement: string;
+  status: string;
+}
+
+export interface RCQApplicationRecord {
+  app_id: string;
+  zone_id: string;
+  project_name: string;
+  technology: string;
+  capacity_mw: number;
+  proponent: string;
+  lodgement_date: string;
+  status: string;
+  priority_rank: number;
+  connection_offer_mw: number | null;
+  works_program_aud_m: number | null;
+}
+
+export interface RCQCapacityRecord {
+  zone_id: string;
+  year: number;
+  thermal_limit_mw: number;
+  committed_mw: number;
+  queue_mw: number;
+  forecast_congestion_pct: number;
+  augmentation_mw: number;
+  augmentation_cost_aud_m: number;
+}
+
+export interface RCQAccessChargeRecord {
+  zone_id: string;
+  category: string;
+  charge_aud_per_mw_year: number;
+  cost_allocation_method: string;
+  total_cost_aud_m: number;
+  participants: number;
+}
+
+export interface RCQBottleneckRecord {
+  constraint_id: string;
+  zone_id: string;
+  description: string;
+  capacity_impact_mw: number;
+  annual_curtailment_gwh: number;
+  resolution_cost_aud_m: number;
+  resolution_year: number | null;
+  critical: boolean;
+}
+
+export interface RCQDashboard {
+  zones: RCQZoneRecord[];
+  applications: RCQApplicationRecord[];
+  capacity_outlook: RCQCapacityRecord[];
+  access_charges: RCQAccessChargeRecord[];
+  bottlenecks: RCQBottleneckRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getREZConnectionQueueDashboard = (): Promise<RCQDashboard> =>
+  get<RCQDashboard>('/api/rez-connection-queue/dashboard');
+
+// ===== Australian Carbon Policy Analytics (Sprint 93b) =====
+export interface ACPSafeguardRecord {
+  facility_id: string;
+  facility_name: string;
+  sector: string;
+  state: string;
+  baseline_tco2e: number;
+  actual_emissions_tco2e: number;
+  surplus_deficit_tco2e: number;
+  accu_purchased: number;
+  accu_cost_aud_m: number;
+  compliance_status: string;
+}
+
+export interface ACPCarbonPriceRecord {
+  scenario: string;
+  year: number;
+  carbon_price_aud_per_tonne: number;
+  abatement_mt: number;
+  revenue_aud_bn: number;
+  gdp_impact_pct: number;
+  employment_impact_k: number;
+}
+
+export interface ACPACCUMarketRecord {
+  month: string;
+  spot_price_aud: number;
+  futures_2025_aud: number;
+  futures_2030_aud: number;
+  volume_kt: number;
+  registry_balance_mt: number;
+  issuances_kt: number;
+  surrenders_kt: number;
+}
+
+export interface ACPSectorPathwayRecord {
+  sector: string;
+  year: number;
+  scenario: string;
+  emissions_mt: number;
+  reduction_vs_2005_pct: number;
+  key_technologies: string[];
+  investment_required_aud_bn: number;
+}
+
+export interface ACPPolicyInstrumentRecord {
+  instrument: string;
+  type: string;
+  scope: string;
+  current_strength: string;
+  cost_effectiveness_aud_per_tco2e: number;
+  abatement_potential_mt_pa: number;
+  political_feasibility: number;
+}
+
+export interface ACPDashboard {
+  safeguard_facilities: ACPSafeguardRecord[];
+  carbon_prices: ACPCarbonPriceRecord[];
+  accu_market: ACPACCUMarketRecord[];
+  sector_pathways: ACPSectorPathwayRecord[];
+  policy_instruments: ACPPolicyInstrumentRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getAustralianCarbonPolicyDashboard = (): Promise<ACPDashboard> =>
+  get<ACPDashboard>('/api/australian-carbon-policy/dashboard');
+
+// ===== Market Design Simulation Analytics (Sprint 93c) =====
+export interface MDSScenarioRecord {
+  scenario_id: string;
+  name: string;
+  market_design: string;
+  description: string;
+  key_parameters: Record<string, unknown>;
+  simulation_runs: number;
+  confidence_level_pct: number;
+}
+
+export interface MDSEquilibriumRecord {
+  scenario_id: string;
+  year: number;
+  region: string;
+  equilibrium_price_aud_mwh: number;
+  price_std_aud_mwh: number;
+  capacity_investment_gw: number;
+  storage_investment_gw: number;
+  retailer_margin_pct: number;
+  consumer_bill_aud_yr: number;
+  renewable_share_pct: number;
+}
+
+export interface MDSMonteCarloRecord {
+  scenario_id: string;
+  region: string;
+  percentile: number;
+  year: number;
+  price_aud_mwh: number;
+  volatility_pct: number;
+  spike_frequency_per_year: number;
+  average_spike_magnitude_aud_mwh: number;
+}
+
+export interface MDSAgentBehaviourRecord {
+  agent_type: string;
+  strategy: string;
+  market_share_pct: number;
+  profit_margin_pct: number;
+  investment_trigger_price_aud_mwh: number;
+  exit_trigger_price_aud_mwh: number;
+  adaptive_response_score: number;
+}
+
+export interface MDSDesignOutcomeRecord {
+  design: string;
+  metric: string;
+  score: number;
+  comparison_to_current_pct: number;
+  confidence: string;
+}
+
+export interface MDSDashboard {
+  scenarios: MDSScenarioRecord[];
+  equilibria: MDSEquilibriumRecord[];
+  monte_carlo: MDSMonteCarloRecord[];
+  agent_behaviours: MDSAgentBehaviourRecord[];
+  design_outcomes: MDSDesignOutcomeRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getMarketDesignSimulationDashboard = (): Promise<MDSDashboard> =>
+  get<MDSDashboard>('/api/market-design-simulation/dashboard');

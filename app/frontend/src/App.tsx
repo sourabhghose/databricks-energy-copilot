@@ -75,6 +75,7 @@ import {
   Lock,
   Smartphone,
   Truck,
+  Grid,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -322,6 +323,9 @@ import GridEdgeTechnologyAnalytics from './pages/GridEdgeTechnologyAnalytics'
 import EnergyStorageDegradationAnalytics from './pages/EnergyStorageDegradationAnalytics'
 import CleanHydrogenProductionCostAnalytics from './pages/CleanHydrogenProductionCostAnalytics'
 import AncillaryServicesProcurementAnalytics from './pages/AncillaryServicesProcurementAnalytics'
+import REZConnectionQueueAnalytics from './pages/REZConnectionQueueAnalytics'
+import AustralianCarbonPolicyAnalytics from './pages/AustralianCarbonPolicyAnalytics'
+import MarketDesignSimulationAnalytics from './pages/MarketDesignSimulationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -570,6 +574,9 @@ const NAV_ITEMS = [
   { to: '/bess-degradation', label: 'Storage Degradation', Icon: Battery },
   { to: '/clean-hydrogen-production-cost', label: 'H2 Production Cost', Icon: Flame },
   { to: '/ancillary-services-procurement', label: 'AS Procurement', Icon: Radio },
+  { to: '/rez-connection-queue', label: 'REZ Connection Queue', Icon: Grid },
+  { to: '/australian-carbon-policy', label: 'Carbon Policy', Icon: Leaf },
+  { to: '/market-design-simulation', label: 'Market Design Simulation', Icon: BarChart2 },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -893,6 +900,9 @@ export default function App() {
               <Route path="/bess-degradation" element={<EnergyStorageDegradationAnalytics />} />
               <Route path="/clean-hydrogen-production-cost" element={<CleanHydrogenProductionCostAnalytics />} />
               <Route path="/ancillary-services-procurement" element={<AncillaryServicesProcurementAnalytics />} />
+              <Route path="/rez-connection-queue" element={<REZConnectionQueueAnalytics />} />
+              <Route path="/australian-carbon-policy" element={<AustralianCarbonPolicyAnalytics />} />
+              <Route path="/market-design-simulation" element={<MarketDesignSimulationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

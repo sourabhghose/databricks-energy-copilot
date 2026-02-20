@@ -64564,3 +64564,588 @@ def get_ancillary_services_procurement_dashboard():
     )
     _cache_set(_asp_cache, cache_key, result)
     return result
+
+
+# ===========================================================================
+# Sprint 93a — REZ Connection Queue Analytics (RCQ)
+# ===========================================================================
+
+class RCQZoneRecord(BaseModel):
+    zone_id: str
+    name: str
+    state: str
+    total_capacity_gw: float
+    committed_capacity_gw: float
+    queue_capacity_gw: float
+    available_headroom_gw: float
+    connection_charge_aud_per_mw: float
+    access_arrangement: str  # ORDERLY_TRANSITION, FIRST_COME_FIRST_SERVED, AUCTION
+    status: str  # OPEN, CONSTRAINED, CLOSED
+
+class RCQApplicationRecord(BaseModel):
+    app_id: str
+    zone_id: str
+    project_name: str
+    technology: str  # SOLAR, WIND, BESS, HYBRID
+    capacity_mw: float
+    proponent: str
+    lodgement_date: str
+    status: str  # REGISTERED, ASSESSMENT, APPROVED, WITHDRAWN, LAPSED
+    priority_rank: int
+    connection_offer_mw: Optional[float]
+    works_program_aud_m: Optional[float]
+
+class RCQCapacityRecord(BaseModel):
+    zone_id: str
+    year: int
+    thermal_limit_mw: float
+    committed_mw: float
+    queue_mw: float
+    forecast_congestion_pct: float
+    augmentation_mw: float
+    augmentation_cost_aud_m: float
+
+class RCQAccessChargeRecord(BaseModel):
+    zone_id: str
+    category: str  # SHARED_NETWORK, LOCAL_NETWORK, CONNECTION_ASSETS, AUGMENTATION
+    charge_aud_per_mw_year: float
+    cost_allocation_method: str  # BENEFICIARY_PAYS, POSTAGE_STAMP, LOCATIONAL
+    total_cost_aud_m: float
+    participants: int
+
+class RCQBottleneckRecord(BaseModel):
+    constraint_id: str
+    zone_id: str
+    description: str
+    capacity_impact_mw: float
+    annual_curtailment_gwh: float
+    resolution_cost_aud_m: float
+    resolution_year: Optional[int]
+    critical: bool
+
+class RCQDashboard(BaseModel):
+    zones: List[RCQZoneRecord]
+    applications: List[RCQApplicationRecord]
+    capacity_outlook: List[RCQCapacityRecord]
+    access_charges: List[RCQAccessChargeRecord]
+    bottlenecks: List[RCQBottleneckRecord]
+    summary: Dict[str, Any]
+
+
+_rcq_cache: Dict[str, Any] = {}
+
+@app.get("/api/rez-connection-queue/dashboard", response_model=RCQDashboard, dependencies=[Depends(verify_api_key)])
+def get_rez_connection_queue_dashboard():
+    import random
+    cache_key = "rcq_dashboard"
+    cached = _cache_get(_rcq_cache, cache_key)
+    if cached:
+        return cached
+
+    zones_data = [
+        ("REZ-NSW1", "Central West Orana REZ", "NSW", 3.0, 1.2, 4.5, 0.5, 45000.0, "ORDERLY_TRANSITION", "CONSTRAINED"),
+        ("REZ-NSW2", "New England REZ", "NSW", 8.0, 2.5, 12.0, 0.0, 52000.0, "ORDERLY_TRANSITION", "CLOSED"),
+        ("REZ-NSW3", "South West NSW REZ", "NSW", 3.0, 0.8, 5.5, 0.5, 40000.0, "FIRST_COME_FIRST_SERVED", "OPEN"),
+        ("REZ-QLD1", "North Queensland REZ", "QLD", 2.0, 0.5, 3.5, 0.8, 38000.0, "AUCTION", "OPEN"),
+        ("REZ-QLD2", "South Queensland REZ", "QLD", 4.5, 2.0, 6.0, 0.0, 48000.0, "ORDERLY_TRANSITION", "CONSTRAINED"),
+        ("REZ-VIC1", "Western Victoria REZ", "VIC", 2.0, 1.5, 3.0, 0.0, 55000.0, "ORDERLY_TRANSITION", "CONSTRAINED"),
+        ("REZ-VIC2", "Gippsland REZ", "VIC", 2.5, 0.8, 4.0, 0.5, 42000.0, "FIRST_COME_FIRST_SERVED", "OPEN"),
+        ("REZ-SA1", "Eyre Peninsula REZ", "SA", 1.5, 0.6, 2.8, 0.2, 35000.0, "AUCTION", "OPEN"),
+        ("REZ-SA2", "South East SA REZ", "SA", 2.0, 1.0, 3.5, 0.2, 38000.0, "FIRST_COME_FIRST_SERVED", "OPEN"),
+        ("REZ-WA1", "Pilbara REZ", "WA", 8.0, 1.0, 15.0, 5.0, 28000.0, "AUCTION", "OPEN"),
+        ("REZ-TAS1", "Tasmania Offshore Wind Zone", "TAS", 2.0, 0.2, 4.0, 1.2, 65000.0, "ORDERLY_TRANSITION", "OPEN"),
+        ("REZ-NT1", "Darwin-Katherine REZ", "NT", 3.0, 0.3, 6.0, 2.0, 22000.0, "AUCTION", "OPEN"),
+    ]
+
+    zones = []
+    for z in zones_data:
+        zones.append(RCQZoneRecord(
+            zone_id=z[0], name=z[1], state=z[2], total_capacity_gw=z[3],
+            committed_capacity_gw=z[4], queue_capacity_gw=z[5],
+            available_headroom_gw=z[6], connection_charge_aud_per_mw=z[7],
+            access_arrangement=z[8], status=z[9]
+        ))
+
+    technologies = ["SOLAR", "WIND", "BESS", "HYBRID"]
+    app_statuses = ["REGISTERED", "ASSESSMENT", "APPROVED", "WITHDRAWN", "LAPSED"]
+    proponents = ["AGL Energy", "Origin Energy", "Neoen", "Tilt Renewables", "Macquarie",
+                  "BlackRock", "Vestas", "EnergyAustralia", "Amp Energy", "Atmos Renewables"]
+
+    applications = []
+    for i in range(40):
+        zone = random.choice(zones)
+        status = random.choice(app_statuses)
+        approved = status == "APPROVED"
+        applications.append(RCQApplicationRecord(
+            app_id=f"APP-{i+1:04d}",
+            zone_id=zone.zone_id,
+            project_name=f"{random.choice(['Sunshine', 'Windfall', 'Clearsky', 'Ridgeline', 'Coastal'])} {random.choice(['Solar', 'Wind', 'Hybrid'])} Farm",
+            technology=random.choice(technologies),
+            capacity_mw=round(random.uniform(50.0, 500.0), 0),
+            proponent=random.choice(proponents),
+            lodgement_date=f"202{random.randint(2,4)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
+            status=status,
+            priority_rank=random.randint(1, 50),
+            connection_offer_mw=round(random.uniform(30.0, 400.0), 0) if approved else None,
+            works_program_aud_m=round(random.uniform(5.0, 200.0), 1) if approved else None
+        ))
+
+    capacity_outlook = []
+    for zone in zones[:6]:
+        for yr in range(2025, 2032):
+            prog = (yr - 2025) / 6.0
+            committed_growth = zone.committed_capacity_gw * 1000 * (1 + 0.15 * prog)
+            capacity_outlook.append(RCQCapacityRecord(
+                zone_id=zone.zone_id, year=yr,
+                thermal_limit_mw=round(zone.total_capacity_gw * 1000 * random.uniform(0.9, 1.1), 0),
+                committed_mw=round(committed_growth + random.uniform(-50, 50), 0),
+                queue_mw=round(zone.queue_capacity_gw * 1000 * random.uniform(0.8, 1.2), 0),
+                forecast_congestion_pct=round(random.uniform(10.0, 85.0), 1),
+                augmentation_mw=round(random.uniform(0.0, 500.0), 0),
+                augmentation_cost_aud_m=round(random.uniform(0.0, 800.0), 1)
+            ))
+
+    categories = ["SHARED_NETWORK", "LOCAL_NETWORK", "CONNECTION_ASSETS", "AUGMENTATION"]
+    methods = ["BENEFICIARY_PAYS", "POSTAGE_STAMP", "LOCATIONAL"]
+    access_charges = []
+    for zone in zones[:8]:
+        for cat in categories:
+            access_charges.append(RCQAccessChargeRecord(
+                zone_id=zone.zone_id, category=cat,
+                charge_aud_per_mw_year=round(random.uniform(1000.0, 25000.0), 0),
+                cost_allocation_method=random.choice(methods),
+                total_cost_aud_m=round(random.uniform(5.0, 150.0), 1),
+                participants=random.randint(3, 25)
+            ))
+
+    bottleneck_data = [
+        ("BN-001", "REZ-NSW2", "Armidale 330kV thermal limit", 800.0, 450.0, 350.0, 2027, True),
+        ("BN-002", "REZ-VIC1", "Moorabool 500kV capacity", 600.0, 320.0, 280.0, 2026, True),
+        ("BN-003", "REZ-NSW1", "Orange 132kV voltage limit", 300.0, 180.0, 95.0, 2027, False),
+        ("BN-004", "REZ-QLD2", "Tarong 275kV transfer limit", 500.0, 250.0, 180.0, 2028, True),
+        ("BN-005", "REZ-SA1", "Davenport 275kV thermal", 250.0, 120.0, 85.0, 2028, False),
+        ("BN-006", "REZ-VIC2", "LaTrobe Valley export limit", 400.0, 200.0, 150.0, None, True),
+        ("BN-007", "REZ-TAS1", "Basslink capacity", 350.0, 280.0, 450.0, 2030, True),
+        ("BN-008", "REZ-WA1", "Pilbara SWIS connection", 1000.0, 520.0, 680.0, 2032, False),
+    ]
+
+    bottlenecks = []
+    for b in bottleneck_data:
+        bottlenecks.append(RCQBottleneckRecord(
+            constraint_id=b[0], zone_id=b[1], description=b[2],
+            capacity_impact_mw=b[3], annual_curtailment_gwh=b[4],
+            resolution_cost_aud_m=b[5], resolution_year=b[6], critical=b[7]
+        ))
+
+    result = RCQDashboard(
+        zones=zones,
+        applications=applications,
+        capacity_outlook=capacity_outlook,
+        access_charges=access_charges,
+        bottlenecks=bottlenecks,
+        summary={
+            "total_zones": len(zones),
+            "total_queue_capacity_gw": round(sum(z.queue_capacity_gw for z in zones), 1),
+            "total_committed_gw": round(sum(z.committed_capacity_gw for z in zones), 1),
+            "total_applications": len(applications),
+            "approved_applications": len([a for a in applications if a.status == "APPROVED"]),
+            "critical_bottlenecks": len([b for b in bottlenecks if b.critical]),
+            "most_congested_zone": "REZ-NSW2",
+            "total_augmentation_needed_mw": 3200.0
+        }
+    )
+    _cache_set(_rcq_cache, cache_key, result)
+    return result
+
+
+# ===========================================================================
+# Sprint 93b — Australian Carbon Policy Analytics (ACP)
+# ===========================================================================
+
+class ACPSafeguardRecord(BaseModel):
+    facility_id: str
+    facility_name: str
+    sector: str  # POWER, LNG, MINING, MANUFACTURING, TRANSPORT
+    state: str
+    baseline_tco2e: float
+    actual_emissions_tco2e: float
+    surplus_deficit_tco2e: float
+    accu_purchased: int
+    accu_cost_aud_m: float
+    compliance_status: str  # COMPLIANT, NON_COMPLIANT, DEFERRED
+
+class ACPCarbonPriceRecord(BaseModel):
+    scenario: str  # BASELINE, CURRENT_POLICY, AMBITIOUS, NET_ZERO
+    year: int
+    carbon_price_aud_per_tonne: float
+    abatement_mt: float
+    revenue_aud_bn: float
+    gdp_impact_pct: float
+    employment_impact_k: float
+
+class ACPACCUMarketRecord(BaseModel):
+    month: str
+    spot_price_aud: float
+    futures_2025_aud: float
+    futures_2030_aud: float
+    volume_kt: float
+    registry_balance_mt: float
+    issuances_kt: float
+    surrenders_kt: float
+
+class ACPSectorPathwayRecord(BaseModel):
+    sector: str
+    year: int
+    scenario: str
+    emissions_mt: float
+    reduction_vs_2005_pct: float
+    key_technologies: List[str]
+    investment_required_aud_bn: float
+
+class ACPPolicyInstrumentRecord(BaseModel):
+    instrument: str
+    type: str  # CARBON_PRICE, STANDARD, SUBSIDY, REGULATION, TARGET
+    scope: str  # NATIONAL, STATE
+    current_strength: str  # WEAK, MODERATE, STRONG, VERY_STRONG
+    cost_effectiveness_aud_per_tco2e: float
+    abatement_potential_mt_pa: float
+    political_feasibility: float  # 1-10
+
+class ACPDashboard(BaseModel):
+    safeguard_facilities: List[ACPSafeguardRecord]
+    carbon_prices: List[ACPCarbonPriceRecord]
+    accu_market: List[ACPACCUMarketRecord]
+    sector_pathways: List[ACPSectorPathwayRecord]
+    policy_instruments: List[ACPPolicyInstrumentRecord]
+    summary: Dict[str, Any]
+
+
+_acp_cache: Dict[str, Any] = {}
+
+@app.get("/api/australian-carbon-policy/dashboard", response_model=ACPDashboard, dependencies=[Depends(verify_api_key)])
+def get_australian_carbon_policy_dashboard():
+    import random
+    cache_key = "acp_dashboard"
+    cached = _cache_get(_acp_cache, cache_key)
+    if cached:
+        return cached
+
+    facility_data = [
+        ("FAC-001", "NRG Loy Yang A", "POWER", "VIC", 15000000, 13500000),
+        ("FAC-002", "AGL Bayswater", "POWER", "NSW", 12000000, 10800000),
+        ("FAC-003", "CS Energy Callide C", "POWER", "QLD", 8000000, 7200000),
+        ("FAC-004", "Woodside Pluto LNG", "LNG", "WA", 5500000, 5800000),
+        ("FAC-005", "Santos GLNG", "LNG", "QLD", 6000000, 6200000),
+        ("FAC-006", "Rio Tinto Boyne Smelter", "MANUFACTURING", "QLD", 1200000, 1050000),
+        ("FAC-007", "BHP Olympic Dam", "MINING", "SA", 800000, 720000),
+        ("FAC-008", "Caltex Lytton Refinery", "MANUFACTURING", "QLD", 1800000, 1650000),
+        ("FAC-009", "AGL Torrens Island", "POWER", "SA", 3500000, 3150000),
+        ("FAC-010", "Chevron Gorgon LNG", "LNG", "WA", 9000000, 9500000),
+        ("FAC-011", "Incitec Pivot Gibson Island", "MANUFACTURING", "QLD", 700000, 630000),
+        ("FAC-012", "Pacific Aluminium Boyne", "MANUFACTURING", "QLD", 1500000, 1350000),
+        ("FAC-013", "Whyalla Steelworks", "MANUFACTURING", "SA", 2500000, 2200000),
+        ("FAC-014", "Viva Energy Geelong", "MANUFACTURING", "VIC", 1200000, 1080000),
+        ("FAC-015", "Energy Australia Mt Piper", "POWER", "NSW", 7500000, 6750000),
+    ]
+
+    safeguard_facilities = []
+    for f in facility_data:
+        baseline = f[4]
+        actual = f[5]
+        surplus_deficit = baseline - actual
+        accu_needed = max(0, -int(surplus_deficit / 1000))
+        safeguard_facilities.append(ACPSafeguardRecord(
+            facility_id=f[0], facility_name=f[1], sector=f[2], state=f[3],
+            baseline_tco2e=baseline, actual_emissions_tco2e=actual,
+            surplus_deficit_tco2e=surplus_deficit,
+            accu_purchased=accu_needed,
+            accu_cost_aud_m=round(accu_needed * 35.0 / 1000, 2),
+            compliance_status="NON_COMPLIANT" if actual > baseline * 1.02 else "COMPLIANT"
+        ))
+
+    scenarios = ["BASELINE", "CURRENT_POLICY", "AMBITIOUS", "NET_ZERO"]
+    carbon_prices = []
+    scenario_price_paths = {
+        "BASELINE": {2025: 0.0, 2030: 0.0, 2035: 0.0, 2040: 0.0, 2045: 0.0, 2050: 0.0},
+        "CURRENT_POLICY": {2025: 35.0, 2030: 55.0, 2035: 75.0, 2040: 100.0, 2045: 130.0, 2050: 160.0},
+        "AMBITIOUS": {2025: 50.0, 2030: 90.0, 2035: 140.0, 2040: 200.0, 2045: 260.0, 2050: 320.0},
+        "NET_ZERO": {2025: 75.0, 2030: 150.0, 2035: 230.0, 2040: 320.0, 2045: 420.0, 2050: 500.0},
+    }
+
+    for sc in scenarios:
+        for yr in [2025, 2030, 2035, 2040, 2045, 2050]:
+            price = scenario_price_paths[sc][yr]
+            carbon_prices.append(ACPCarbonPriceRecord(
+                scenario=sc, year=yr,
+                carbon_price_aud_per_tonne=price,
+                abatement_mt=round(price * 0.15 + random.uniform(-10, 10), 1),
+                revenue_aud_bn=round(price * 0.45 + random.uniform(-2, 2), 1),
+                gdp_impact_pct=round(-price * 0.001 + random.uniform(-0.1, 0.1), 3),
+                employment_impact_k=round(-price * 0.05 + random.uniform(-5, 5), 1)
+            ))
+
+    months_accu = ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024",
+                   "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024"]
+
+    accu_market = []
+    spot = 35.0
+    for month in months_accu:
+        spot += random.uniform(-3, 5)
+        spot = max(20.0, min(60.0, spot))
+        accu_market.append(ACPACCUMarketRecord(
+            month=month,
+            spot_price_aud=round(spot, 2),
+            futures_2025_aud=round(spot * random.uniform(1.05, 1.20), 2),
+            futures_2030_aud=round(spot * random.uniform(1.30, 1.70), 2),
+            volume_kt=round(random.uniform(200.0, 800.0), 1),
+            registry_balance_mt=round(random.uniform(180.0, 220.0), 1),
+            issuances_kt=round(random.uniform(500.0, 1200.0), 1),
+            surrenders_kt=round(random.uniform(400.0, 1000.0), 1)
+        ))
+
+    sectors = ["POWER", "TRANSPORT", "INDUSTRY", "AGRICULTURE", "BUILDINGS", "FUGITIVE"]
+    sector_techs = {
+        "POWER": ["Renewables", "Storage", "Gas CCS"],
+        "TRANSPORT": ["EVs", "Hydrogen trucks", "Rail electrification"],
+        "INDUSTRY": ["Green hydrogen", "Electrification", "CCS"],
+        "AGRICULTURE": ["Methane capture", "Soil carbon", "Land use change"],
+        "BUILDINGS": ["Heat pumps", "Electrification", "Efficiency"],
+        "FUGITIVE": ["Methane abatement", "CCS", "Gas substitution"]
+    }
+
+    sector_pathways = []
+    for sector in sectors:
+        for yr in [2025, 2030, 2035, 2040, 2050]:
+            for sc in ["CURRENT_POLICY", "NET_ZERO"]:
+                base_em = {"POWER": 180, "TRANSPORT": 100, "INDUSTRY": 120, "AGRICULTURE": 75, "BUILDINGS": 25, "FUGITIVE": 45}.get(sector, 80)
+                reduction = {"CURRENT_POLICY": 0.30, "NET_ZERO": 0.95}.get(sc, 0.30)
+                progress = (yr - 2025) / 25.0
+                em = round(base_em * (1 - reduction * progress), 1)
+                sector_pathways.append(ACPSectorPathwayRecord(
+                    sector=sector, year=yr, scenario=sc,
+                    emissions_mt=max(0.1, em),
+                    reduction_vs_2005_pct=round(reduction * progress * 100, 1),
+                    key_technologies=sector_techs.get(sector, ["Technology TBD"]),
+                    investment_required_aud_bn=round(random.uniform(2.0, 25.0), 1)
+                ))
+
+    instruments_data = [
+        ("Safeguard Mechanism", "CARBON_PRICE", "NATIONAL", "MODERATE", 45.0, 28.0, 6.5),
+        ("Emissions Reduction Fund", "SUBSIDY", "NATIONAL", "MODERATE", 18.0, 12.0, 7.0),
+        ("Renewable Energy Target", "TARGET", "NATIONAL", "STRONG", 25.0, 35.0, 8.0),
+        ("National EV Strategy", "STANDARD", "NATIONAL", "WEAK", 65.0, 8.0, 5.5),
+        ("SA Carbon Neutral 2050", "TARGET", "STATE", "MODERATE", 40.0, 5.0, 6.0),
+        ("NSW Net Zero Plan", "TARGET", "STATE", "STRONG", 38.0, 12.0, 7.0),
+        ("Queensland H2 Fund", "SUBSIDY", "STATE", "MODERATE", 120.0, 3.0, 5.0),
+        ("Carbon Farming Initiative", "REGULATION", "NATIONAL", "MODERATE", 22.0, 8.0, 6.5),
+    ]
+
+    policy_instruments = []
+    for inst in instruments_data:
+        policy_instruments.append(ACPPolicyInstrumentRecord(
+            instrument=inst[0], type=inst[1], scope=inst[2], current_strength=inst[3],
+            cost_effectiveness_aud_per_tco2e=inst[4], abatement_potential_mt_pa=inst[5],
+            political_feasibility=inst[6]
+        ))
+
+    result = ACPDashboard(
+        safeguard_facilities=safeguard_facilities,
+        carbon_prices=carbon_prices,
+        accu_market=accu_market,
+        sector_pathways=sector_pathways,
+        policy_instruments=policy_instruments,
+        summary={
+            "total_covered_facilities": len(safeguard_facilities),
+            "total_covered_emissions_mt": round(sum(f.actual_emissions_tco2e for f in safeguard_facilities) / 1e6, 1),
+            "non_compliant_facilities": len([f for f in safeguard_facilities if f.compliance_status == "NON_COMPLIANT"]),
+            "current_accu_price_aud": accu_market[-1].spot_price_aud,
+            "net_zero_year_target": 2050,
+            "current_policy_price_2030_aud": 55.0,
+            "total_abatement_instruments": len(policy_instruments),
+            "sectors_covered": len(sectors)
+        }
+    )
+    _cache_set(_acp_cache, cache_key, result)
+    return result
+
+
+# ===========================================================================
+# Sprint 93c — Market Design Simulation Analytics (MDS)
+# ===========================================================================
+
+class MDSScenarioRecord(BaseModel):
+    scenario_id: str
+    name: str
+    market_design: str  # CURRENT_NEM, TWO_SIDED, CAPACITY_MARKET, ENERGY_ONLY_V2, LMP
+    description: str
+    key_parameters: Dict[str, Any]
+    simulation_runs: int
+    confidence_level_pct: float
+
+class MDSEquilibriumRecord(BaseModel):
+    scenario_id: str
+    year: int
+    region: str
+    equilibrium_price_aud_mwh: float
+    price_std_aud_mwh: float
+    capacity_investment_gw: float
+    storage_investment_gw: float
+    retailer_margin_pct: float
+    consumer_bill_aud_yr: float
+    renewable_share_pct: float
+
+class MDSMonteCarloRecord(BaseModel):
+    scenario_id: str
+    region: str
+    percentile: int  # 5, 25, 50, 75, 95
+    year: int
+    price_aud_mwh: float
+    volatility_pct: float
+    spike_frequency_per_year: float
+    average_spike_magnitude_aud_mwh: float
+
+class MDSAgentBehaviourRecord(BaseModel):
+    agent_type: str  # GENERATOR, RETAILER, CONSUMER, STORAGE, AGGREGATOR
+    strategy: str    # COMPETITIVE, OLIGOPOLY, STRATEGIC_WITHHOLDING, PRICE_TAKER, ADAPTIVE
+    market_share_pct: float
+    profit_margin_pct: float
+    investment_trigger_price_aud_mwh: float
+    exit_trigger_price_aud_mwh: float
+    adaptive_response_score: float  # 1-10
+
+class MDSDesignOutcomeRecord(BaseModel):
+    design: str
+    metric: str  # EFFICIENCY, ADEQUACY, EQUITY, INVESTMENT, EMISSIONS
+    score: float  # 1-10
+    comparison_to_current_pct: float
+    confidence: str  # LOW, MEDIUM, HIGH
+
+class MDSDashboard(BaseModel):
+    scenarios: List[MDSScenarioRecord]
+    equilibria: List[MDSEquilibriumRecord]
+    monte_carlo: List[MDSMonteCarloRecord]
+    agent_behaviours: List[MDSAgentBehaviourRecord]
+    design_outcomes: List[MDSDesignOutcomeRecord]
+    summary: Dict[str, Any]
+
+
+_mds_cache: Dict[str, Any] = {}
+
+@app.get("/api/market-design-simulation/dashboard", response_model=MDSDashboard, dependencies=[Depends(verify_api_key)])
+def get_market_design_simulation_dashboard():
+    import random
+    cache_key = "mds_dashboard"
+    cached = _cache_get(_mds_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    designs = ["CURRENT_NEM", "TWO_SIDED", "CAPACITY_MARKET", "ENERGY_ONLY_V2", "LMP"]
+
+    scenario_data = [
+        ("SIM-001", "Current NEM Reference", "CURRENT_NEM", "Baseline market structure with 5-min settlement", {"settlement_period": "5min", "spot_cap": 15500, "mccc": -1000}, 500, 95.0),
+        ("SIM-002", "Two-Sided Market Reform", "TWO_SIDED", "Consumer bids and generator offers co-optimised", {"demand_response_threshold_mw": 100, "aggregation": True}, 500, 90.0),
+        ("SIM-003", "Capacity Market Mechanism", "CAPACITY_MARKET", "Reliability obligation with capacity payments", {"capacity_price_aud_per_kw": 35, "reliability_standard": 0.998}, 500, 88.0),
+        ("SIM-004", "Enhanced Energy-Only Market", "ENERGY_ONLY_V2", "Higher price cap with improved scarcity pricing", {"price_cap": 30000, "administered_price_cap": 300}, 500, 92.0),
+        ("SIM-005", "Locational Marginal Pricing", "LMP", "Nodal pricing with full congestion revenue allocation", {"nodes": 250, "cra_method": "proportional"}, 500, 85.0),
+    ]
+
+    scenarios = []
+    for s in scenario_data:
+        scenarios.append(MDSScenarioRecord(
+            scenario_id=s[0], name=s[1], market_design=s[2], description=s[3],
+            key_parameters=s[4], simulation_runs=s[5], confidence_level_pct=s[6]
+        ))
+
+    equilibria = []
+    for sc in scenarios:
+        for yr in [2025, 2028, 2030, 2035, 2040]:
+            for r in regions[:3]:
+                base_price = {"CURRENT_NEM": 85.0, "TWO_SIDED": 78.0, "CAPACITY_MARKET": 95.0,
+                              "ENERGY_ONLY_V2": 88.0, "LMP": 82.0}.get(sc.market_design, 85.0)
+                progress = (yr - 2025) / 15.0
+                equilibria.append(MDSEquilibriumRecord(
+                    scenario_id=sc.scenario_id, year=yr, region=r,
+                    equilibrium_price_aud_mwh=round(base_price * (1 - 0.12 * progress) + random.uniform(-5, 5), 2),
+                    price_std_aud_mwh=round(random.uniform(15.0, 60.0), 2),
+                    capacity_investment_gw=round(random.uniform(0.5, 5.0), 2),
+                    storage_investment_gw=round(random.uniform(0.2, 3.0), 2),
+                    retailer_margin_pct=round(random.uniform(5.0, 18.0), 2),
+                    consumer_bill_aud_yr=round(1800.0 * (1 - 0.08 * progress) + random.uniform(-100, 100), 0),
+                    renewable_share_pct=round(45.0 + 45.0 * progress + random.uniform(-5, 5), 1)
+                ))
+
+    percentiles = [5, 25, 50, 75, 95]
+    monte_carlo = []
+    for sc in scenarios:
+        for r in regions[:3]:
+            for yr in [2025, 2030, 2035]:
+                median = {"CURRENT_NEM": 85.0, "TWO_SIDED": 78.0, "CAPACITY_MARKET": 95.0,
+                          "ENERGY_ONLY_V2": 88.0, "LMP": 82.0}.get(sc.market_design, 85.0)
+                progress = (yr - 2025) / 10.0
+                for pct in percentiles:
+                    spread = (pct - 50) / 50.0 * random.uniform(30, 80)
+                    monte_carlo.append(MDSMonteCarloRecord(
+                        scenario_id=sc.scenario_id, region=r,
+                        percentile=pct, year=yr,
+                        price_aud_mwh=round(max(10.0, median * (1 - 0.10 * progress) + spread), 2),
+                        volatility_pct=round(random.uniform(20.0, 120.0), 1),
+                        spike_frequency_per_year=round(random.uniform(5.0, 80.0), 1),
+                        average_spike_magnitude_aud_mwh=round(random.uniform(500.0, 5000.0), 0)
+                    ))
+
+    agent_types = ["GENERATOR", "RETAILER", "CONSUMER", "STORAGE", "AGGREGATOR"]
+    strategies = ["COMPETITIVE", "OLIGOPOLY", "STRATEGIC_WITHHOLDING", "PRICE_TAKER", "ADAPTIVE"]
+
+    agent_behaviours = []
+    for at in agent_types:
+        for st in strategies[:3]:
+            agent_behaviours.append(MDSAgentBehaviourRecord(
+                agent_type=at, strategy=st,
+                market_share_pct=round(random.uniform(2.0, 35.0), 1),
+                profit_margin_pct=round(random.uniform(5.0, 25.0), 1),
+                investment_trigger_price_aud_mwh=round(random.uniform(60.0, 120.0), 0),
+                exit_trigger_price_aud_mwh=round(random.uniform(30.0, 70.0), 0),
+                adaptive_response_score=round(random.uniform(4.0, 9.5), 2)
+            ))
+
+    metrics = ["EFFICIENCY", "ADEQUACY", "EQUITY", "INVESTMENT", "EMISSIONS"]
+    design_outcomes = []
+    design_scores = {
+        "CURRENT_NEM": {"EFFICIENCY": 6.5, "ADEQUACY": 7.0, "EQUITY": 5.5, "INVESTMENT": 6.0, "EMISSIONS": 5.0},
+        "TWO_SIDED": {"EFFICIENCY": 8.5, "ADEQUACY": 7.5, "EQUITY": 7.5, "INVESTMENT": 7.5, "EMISSIONS": 7.0},
+        "CAPACITY_MARKET": {"EFFICIENCY": 6.0, "ADEQUACY": 9.0, "EQUITY": 5.0, "INVESTMENT": 8.0, "EMISSIONS": 5.5},
+        "ENERGY_ONLY_V2": {"EFFICIENCY": 7.5, "ADEQUACY": 6.5, "EQUITY": 6.0, "INVESTMENT": 7.0, "EMISSIONS": 6.5},
+        "LMP": {"EFFICIENCY": 9.0, "ADEQUACY": 8.0, "EQUITY": 6.5, "INVESTMENT": 8.5, "EMISSIONS": 8.0},
+    }
+
+    for design in designs:
+        for metric in metrics:
+            score = design_scores[design][metric]
+            current = design_scores["CURRENT_NEM"][metric]
+            design_outcomes.append(MDSDesignOutcomeRecord(
+                design=design, metric=metric,
+                score=score,
+                comparison_to_current_pct=round((score - current) / current * 100, 1),
+                confidence=random.choice(["MEDIUM", "HIGH", "HIGH", "LOW"])
+            ))
+
+    result = MDSDashboard(
+        scenarios=scenarios,
+        equilibria=equilibria,
+        monte_carlo=monte_carlo,
+        agent_behaviours=agent_behaviours,
+        design_outcomes=design_outcomes,
+        summary={
+            "total_scenarios": len(scenarios),
+            "simulation_runs_per_scenario": 500,
+            "best_efficiency_design": "LMP",
+            "best_adequacy_design": "CAPACITY_MARKET",
+            "best_overall_design": "TWO_SIDED",
+            "total_equilibria": len(equilibria),
+            "monte_carlo_records": len(monte_carlo),
+            "design_options": len(designs)
+        }
+    )
+    _cache_set(_mds_cache, cache_key, result)
+    return result

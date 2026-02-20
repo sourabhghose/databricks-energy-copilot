@@ -11955,3 +11955,144 @@ class TestAncillaryServicesProcurementEndpoint:
         r1 = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers)
         r2 = client.get("/api/ancillary-services-procurement/dashboard", headers=auth_headers)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 93a — REZ Connection Queue Analytics (RCQ)
+# ===========================================================================
+
+class TestREZConnectionQueueEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_zones_present(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        assert len(data["zones"]) >= 10
+
+    def test_applications_present(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        assert len(data["applications"]) >= 30
+
+    def test_capacity_outlook_present(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        assert len(data["capacity_outlook"]) >= 30
+
+    def test_access_charges_present(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        assert len(data["access_charges"]) >= 20
+
+    def test_bottlenecks_present(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        assert len(data["bottlenecks"]) >= 6
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        assert "total_queue_capacity_gw" in data["summary"]
+        assert "critical_bottlenecks" in data["summary"]
+
+    def test_zone_fields(self, client, auth_headers):
+        data = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers).json()
+        z = data["zones"][0]
+        assert "queue_capacity_gw" in z
+        assert "access_arrangement" in z
+        assert "status" in z
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers)
+        r2 = client.get("/api/rez-connection-queue/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 93b — Australian Carbon Policy Analytics (ACP)
+# ===========================================================================
+
+class TestAustralianCarbonPolicyEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_safeguard_facilities_present(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        assert len(data["safeguard_facilities"]) >= 12
+
+    def test_carbon_prices_present(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        assert len(data["carbon_prices"]) >= 20
+
+    def test_accu_market_present(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        assert len(data["accu_market"]) == 12
+
+    def test_sector_pathways_present(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        assert len(data["sector_pathways"]) >= 40
+
+    def test_policy_instruments_present(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        assert len(data["policy_instruments"]) >= 6
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        assert "non_compliant_facilities" in data["summary"]
+        assert "current_accu_price_aud" in data["summary"]
+
+    def test_safeguard_fields(self, client, auth_headers):
+        data = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers).json()
+        f = data["safeguard_facilities"][0]
+        assert "baseline_tco2e" in f
+        assert "compliance_status" in f
+        assert "surplus_deficit_tco2e" in f
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers)
+        r2 = client.get("/api/australian-carbon-policy/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 93c — Market Design Simulation Analytics (MDS)
+# ===========================================================================
+
+class TestMarketDesignSimulationEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/market-design-simulation/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_scenarios_present(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        assert len(data["scenarios"]) >= 4
+
+    def test_equilibria_present(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        assert len(data["equilibria"]) >= 50
+
+    def test_monte_carlo_present(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        assert len(data["monte_carlo"]) >= 100
+
+    def test_agent_behaviours_present(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        assert len(data["agent_behaviours"]) >= 10
+
+    def test_design_outcomes_present(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        assert len(data["design_outcomes"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        assert "best_efficiency_design" in data["summary"]
+        assert "best_overall_design" in data["summary"]
+
+    def test_scenario_fields(self, client, auth_headers):
+        data = client.get("/api/market-design-simulation/dashboard", headers=auth_headers).json()
+        s = data["scenarios"][0]
+        assert "market_design" in s
+        assert "simulation_runs" in s
+        assert "confidence_level_pct" in s
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/market-design-simulation/dashboard", headers=auth_headers)
+        r2 = client.get("/api/market-design-simulation/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
