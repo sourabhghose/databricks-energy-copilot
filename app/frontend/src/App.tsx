@@ -291,6 +291,7 @@ import SpotMarketStressAnalytics from './pages/SpotMarketStressAnalytics'
 import ElectricityWorkforceAnalytics from './pages/ElectricityWorkforceAnalytics'
 import REZTransmissionAnalytics from './pages/REZTransmissionAnalytics'
 import NetworkRegulatoryFrameworkAnalytics from './pages/NetworkRegulatoryFrameworkAnalytics'
+import NetworkInvestmentPipelineAnalytics from './pages/NetworkInvestmentPipelineAnalytics'
 import PriceModelComparisonAnalytics from './pages/PriceModelComparisonAnalytics'
 import GasElectricityNexusAnalytics from './pages/GasElectricityNexusAnalytics'
 import BiddingComplianceAnalytics from './pages/BiddingComplianceAnalytics'
@@ -309,6 +310,8 @@ import LDESAnalytics from './pages/LDESAnalytics'
 import ConsumerSwitchingRetailChurnAnalytics from './pages/ConsumerSwitchingRetailChurnAnalytics'
 import SolarThermalCSPAnalytics from './pages/SolarThermalCSPAnalytics'
 import NEMPostReformMarketDesignAnalytics from './pages/NEMPostReformMarketDesignAnalytics'
+import ElectricityPriceForecastingModelAnalytics from './pages/ElectricityPriceForecastingModelAnalytics'
+import LargeIndustrialDemandAnalytics from './pages/LargeIndustrialDemandAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -545,6 +548,9 @@ const NAV_ITEMS = [
   { to: '/consumer-switching-retail-churn', label: 'Consumer Switching & Churn', Icon: Users },
   { to: '/solar-thermal-csp', label: 'Solar Thermal CSP', Icon: Sun },
   { to: '/nem-post-reform-market-design', label: 'Post-Reform Market Design', Icon: Scale },
+  { to: '/electricity-price-forecasting-models', label: 'Price Forecasting Models', Icon: Activity },
+  { to: '/large-industrial-demand', label: 'Large Industrial Demand', Icon: Factory },
+  { to: '/network-investment-pipeline', label: 'Network Investment Pipeline', Icon: GitBranch },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -856,6 +862,9 @@ export default function App() {
               <Route path="/consumer-switching-retail-churn" element={<ConsumerSwitchingRetailChurnAnalytics />} />
               <Route path="/solar-thermal-csp" element={<SolarThermalCSPAnalytics />} />
               <Route path="/nem-post-reform-market-design" element={<NEMPostReformMarketDesignAnalytics />} />
+              <Route path="/electricity-price-forecasting-models" element={<ElectricityPriceForecastingModelAnalytics />} />
+              <Route path="/large-industrial-demand" element={<LargeIndustrialDemandAnalytics />} />
+              <Route path="/network-investment-pipeline" element={<NetworkInvestmentPipelineAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

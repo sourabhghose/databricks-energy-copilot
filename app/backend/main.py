@@ -62195,3 +62195,569 @@ def get_nem_post_reform_market_design_dashboard():
     )
     _cache_set(_prd_cache, cache_key, result)
     return result
+
+
+# ===== Electricity Price Forecasting Model Analytics (Sprint 89a) =====
+
+class EPFModelRecord(BaseModel):
+    model_id: str
+    model_name: str
+    model_type: str  # GRADIENT_BOOST, NEURAL_NET, LSTM, ARIMA, ENSEMBLE, LINEAR, RANDOM_FOREST
+    region: str
+    horizon: str  # 5MIN, 30MIN, 1H, 4H, 1D, 1W
+    mae_aud_mwh: float
+    rmse_aud_mwh: float
+    mape_pct: float
+    r2_score: float
+    training_samples: int
+    last_trained: str
+    active: bool
+
+class EPFEnsembleWeightRecord(BaseModel):
+    region: str
+    horizon: str
+    model_name: str
+    weight: float
+    contribution_pct: float
+    recent_mae: float
+
+class EPFForecastAccuracyRecord(BaseModel):
+    date: str
+    region: str
+    horizon: str
+    actual_aud_mwh: float
+    forecast_aud_mwh: float
+    error_aud_mwh: float
+    error_pct: float
+    within_10pct: bool
+
+class EPFFeatureImportanceRecord(BaseModel):
+    model_id: str
+    feature: str
+    importance_score: float
+    feature_category: str  # TEMPORAL, WEATHER, MARKET, FUEL, GRID
+    rank: int
+
+class EPFCalibrationRecord(BaseModel):
+    region: str
+    decile: int  # 1-10
+    predicted_probability: float
+    actual_frequency: float
+    calibration_error: float
+    sample_count: int
+
+class EPFDashboard(BaseModel):
+    models: List[EPFModelRecord]
+    ensemble_weights: List[EPFEnsembleWeightRecord]
+    forecast_accuracy: List[EPFForecastAccuracyRecord]
+    feature_importance: List[EPFFeatureImportanceRecord]
+    calibration: List[EPFCalibrationRecord]
+    summary: Dict[str, Any]
+
+
+_epf_cache: Dict[str, Any] = {}
+
+@app.get("/api/electricity-price-forecasting-models/dashboard", response_model=EPFDashboard, dependencies=[Depends(verify_api_key)])
+def get_electricity_price_forecasting_models_dashboard():
+    import random
+    cache_key = "epf_dashboard"
+    cached = _cache_get(_epf_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    horizons = ["5MIN", "30MIN", "1H", "4H", "1D", "1W"]
+    model_types = ["GRADIENT_BOOST", "NEURAL_NET", "LSTM", "ARIMA", "ENSEMBLE", "LINEAR", "RANDOM_FOREST"]
+    model_names = ["XGBoost-v3", "LightGBM-v2", "DeepAR", "LSTM-Attention", "TFT", "ARIMA-X", "Linear-Reg", "RandomForest-v2", "Ensemble-Opt", "Prophet-Energy"]
+
+    models = []
+    for i, mname in enumerate(model_names):
+        for r in regions[:3]:
+            h = random.choice(horizons)
+            models.append(EPFModelRecord(
+                model_id=f"EPF-{i+1:03d}-{r}",
+                model_name=mname,
+                model_type=model_types[i % len(model_types)],
+                region=r, horizon=h,
+                mae_aud_mwh=round(random.uniform(5.0, 35.0), 2),
+                rmse_aud_mwh=round(random.uniform(8.0, 55.0), 2),
+                mape_pct=round(random.uniform(3.0, 25.0), 2),
+                r2_score=round(random.uniform(0.65, 0.97), 4),
+                training_samples=random.randint(50000, 500000),
+                last_trained=f"2024-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
+                active=random.choice([True, True, True, False])
+            ))
+
+    ensemble_weights = []
+    for r in regions:
+        for h in horizons[:3]:
+            weights_raw = [random.uniform(0.05, 0.40) for _ in range(4)]
+            total = sum(weights_raw)
+            for i, mn in enumerate(["XGBoost-v3", "LSTM-Attention", "Ensemble-Opt", "LightGBM-v2"]):
+                w = round(weights_raw[i] / total, 4)
+                ensemble_weights.append(EPFEnsembleWeightRecord(
+                    region=r, horizon=h, model_name=mn,
+                    weight=w,
+                    contribution_pct=round(w * 100, 2),
+                    recent_mae=round(random.uniform(5.0, 20.0), 2)
+                ))
+
+    forecast_accuracy = []
+    dates = [f"2024-{m:02d}-{d:02d}" for m in range(1, 13) for d in [1, 8, 15, 22]]
+    for date in dates[:40]:
+        for r in regions[:3]:
+            actual = round(random.uniform(40.0, 200.0), 2)
+            forecast = round(actual * random.uniform(0.85, 1.15), 2)
+            err = round(forecast - actual, 2)
+            forecast_accuracy.append(EPFForecastAccuracyRecord(
+                date=date, region=r,
+                horizon=random.choice(["1H", "1D"]),
+                actual_aud_mwh=actual,
+                forecast_aud_mwh=forecast,
+                error_aud_mwh=err,
+                error_pct=round(abs(err) / actual * 100, 2),
+                within_10pct=abs(err) / actual < 0.10
+            ))
+
+    features = [
+        ("prev_price_5min", "MARKET"), ("prev_price_30min", "MARKET"), ("prev_price_1h", "MARKET"),
+        ("demand_forecast", "MARKET"), ("temperature", "WEATHER"), ("wind_speed", "WEATHER"),
+        ("solar_irradiance", "WEATHER"), ("hour_of_day", "TEMPORAL"), ("day_of_week", "TEMPORAL"),
+        ("month", "TEMPORAL"), ("is_holiday", "TEMPORAL"), ("gas_price", "FUEL"),
+        ("coal_price", "FUEL"), ("interconnector_flow", "GRID"), ("available_capacity", "GRID"),
+        ("renewable_share", "GRID"), ("rooftop_solar_gen", "GRID"), ("demand_response", "MARKET"),
+        ("forward_price", "MARKET"), ("volatility_index", "MARKET")
+    ]
+
+    feature_importance = []
+    for mid in ["EPF-001-NSW1", "EPF-009-NSW1"]:
+        sorted_features = sorted(features, key=lambda x: random.random())
+        for rank, (feat, cat) in enumerate(sorted_features, 1):
+            feature_importance.append(EPFFeatureImportanceRecord(
+                model_id=mid, feature=feat,
+                importance_score=round(random.uniform(0.01, 0.20), 4),
+                feature_category=cat, rank=rank
+            ))
+
+    calibration = []
+    for r in regions:
+        for decile in range(1, 11):
+            predicted_prob = decile / 10.0
+            actual_freq = round(predicted_prob + random.uniform(-0.08, 0.08), 3)
+            calibration.append(EPFCalibrationRecord(
+                region=r, decile=decile,
+                predicted_probability=predicted_prob,
+                actual_frequency=max(0.0, min(1.0, actual_freq)),
+                calibration_error=round(abs(predicted_prob - actual_freq), 4),
+                sample_count=random.randint(500, 5000)
+            ))
+
+    result = EPFDashboard(
+        models=models,
+        ensemble_weights=ensemble_weights,
+        forecast_accuracy=forecast_accuracy,
+        feature_importance=feature_importance,
+        calibration=calibration,
+        summary={
+            "total_models": len(models),
+            "active_models": len([m for m in models if m.active]),
+            "best_model": "Ensemble-Opt",
+            "best_mae_aud_mwh": 6.2,
+            "avg_mape_pct": round(sum(m.mape_pct for m in models) / len(models), 2),
+            "within_10pct_accuracy": round(sum(1 for f in forecast_accuracy if f.within_10pct) / len(forecast_accuracy) * 100, 1),
+            "regions": len(regions),
+            "horizons_supported": len(horizons)
+        }
+    )
+    _cache_set(_epf_cache, cache_key, result)
+    return result
+
+
+# =============================================================================
+# Large Industrial Demand Analytics (Sprint 89b)
+# =============================================================================
+
+class LIDConsumerRecord(BaseModel):
+    consumer_id: str
+    name: str
+    sector: str  # MINING, SMELTING, MANUFACTURING, DATA_CENTRES, DESALINATION, CHEMICALS, STEEL, CEMENT
+    region: str
+    annual_consumption_gwh: float
+    peak_demand_mw: float
+    load_factor_pct: float
+    contract_type: str  # SPOT, HEDGE, BILATERAL, MIXED
+    interruptible: bool
+    dr_capacity_mw: float
+
+class LIDLoadProfileRecord(BaseModel):
+    consumer_id: str
+    month: str
+    weekday_avg_mw: float
+    weekend_avg_mw: float
+    peak_mw: float
+    valley_mw: float
+    load_factor_pct: float
+    flexibility_mw: float
+
+class LIDEnergyIntensityRecord(BaseModel):
+    sector: str
+    product: str
+    energy_intensity_gwh_per_unit: float
+    unit: str
+    benchmark_intensity: float
+    improvement_pct: float
+    electrification_potential_pct: float
+
+class LIDRetirementRiskRecord(BaseModel):
+    consumer_id: str
+    sector: str
+    region: str
+    employment: int
+    current_tariff_aud_mwh: float
+    breakeven_tariff_aud_mwh: float
+    risk_score: float  # 1-10
+    risk_horizon_years: int
+    mitigation_options: List[str]
+
+class LIDDemandResponseRecord(BaseModel):
+    consumer_id: str
+    program: str
+    available_mw: float
+    activated_events: int
+    total_mwh_curtailed: float
+    avg_notice_minutes: float
+    payment_aud_per_mwh: float
+    reliability_pct: float
+
+class LIDDashboard(BaseModel):
+    consumers: List[LIDConsumerRecord]
+    load_profiles: List[LIDLoadProfileRecord]
+    energy_intensity: List[LIDEnergyIntensityRecord]
+    retirement_risks: List[LIDRetirementRiskRecord]
+    demand_response: List[LIDDemandResponseRecord]
+    summary: Dict[str, Any]
+
+
+_lid_cache: Dict[str, Any] = {}
+
+@app.get("/api/large-industrial-demand/dashboard", response_model=LIDDashboard, dependencies=[Depends(verify_api_key)])
+def get_large_industrial_demand_dashboard():
+    import random
+    cache_key = "lid_dashboard"
+    cached = _cache_get(_lid_cache, cache_key)
+    if cached:
+        return cached
+
+    sectors = ["MINING", "SMELTING", "MANUFACTURING", "DATA_CENTRES", "DESALINATION", "CHEMICALS", "STEEL", "CEMENT"]
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    contract_types = ["SPOT", "HEDGE", "BILATERAL", "MIXED"]
+
+    consumer_names = [
+        "Tomago Aluminium", "Portland Aluminium", "Boyne Smelters", "Century Zinc",
+        "BHP Olympic Dam", "Rio Tinto Weipa", "Snowy Hydro Pumping", "AGL Liddell Cooling",
+        "Sydney Data Centre Hub", "Melbourne Cloud Cluster", "Kalgoorlie Nickel Smelter",
+        "Whyalla Steelworks", "Boral Cement Berrima", "Orica Kooragang", "Air Products",
+        "BOC Industrial Gases", "Coogee Bay Desalination", "Victorian Desalination Plant",
+        "Osborne Power Station", "QAL Gladstone"
+    ]
+
+    consumers = []
+    for i, name in enumerate(consumer_names):
+        consumers.append(LIDConsumerRecord(
+            consumer_id=f"LID-{i+1:03d}",
+            name=name,
+            sector=sectors[i % len(sectors)],
+            region=random.choice(regions),
+            annual_consumption_gwh=round(random.uniform(100.0, 3000.0), 1),
+            peak_demand_mw=round(random.uniform(50.0, 600.0), 1),
+            load_factor_pct=round(random.uniform(55.0, 95.0), 1),
+            contract_type=random.choice(contract_types),
+            interruptible=random.choice([True, False]),
+            dr_capacity_mw=round(random.uniform(5.0, 80.0), 1)
+        ))
+
+    months = ["Jan 2024", "Feb 2024", "Mar 2024", "Apr 2024", "May 2024", "Jun 2024",
+              "Jul 2024", "Aug 2024", "Sep 2024", "Oct 2024", "Nov 2024", "Dec 2024"]
+
+    load_profiles = []
+    for c in consumers[:8]:
+        for month in months:
+            avg = round(random.uniform(30.0, 400.0), 1)
+            load_profiles.append(LIDLoadProfileRecord(
+                consumer_id=c.consumer_id, month=month,
+                weekday_avg_mw=avg,
+                weekend_avg_mw=round(avg * random.uniform(0.7, 0.95), 1),
+                peak_mw=round(avg * random.uniform(1.1, 1.4), 1),
+                valley_mw=round(avg * random.uniform(0.5, 0.85), 1),
+                load_factor_pct=round(random.uniform(60.0, 92.0), 1),
+                flexibility_mw=round(avg * random.uniform(0.05, 0.25), 1)
+            ))
+
+    intensity_data = [
+        ("SMELTING", "Aluminium", 14.5, "GWh/kt", 13.0, 5.2, 0.0),
+        ("SMELTING", "Zinc", 4.0, "GWh/kt", 3.5, 4.8, 15.0),
+        ("STEEL", "Hot-rolled coil", 0.85, "GWh/kt", 0.70, 8.0, 60.0),
+        ("CEMENT", "Portland cement", 0.12, "GWh/kt", 0.10, 12.5, 30.0),
+        ("MINING", "Iron ore", 0.035, "GWh/kt", 0.030, 5.0, 25.0),
+        ("CHEMICALS", "Ammonia", 9.5, "GWh/kt", 8.5, 6.0, 40.0),
+        ("DATA_CENTRES", "Compute", 0.8, "GWh/PUE", 0.7, 15.0, 100.0),
+        ("DESALINATION", "Water", 4.0, "GWh/GL", 3.5, 8.0, 95.0),
+        ("MANUFACTURING", "General goods", 0.25, "GWh/unit", 0.20, 10.0, 45.0),
+    ]
+
+    energy_intensity = []
+    for row in intensity_data:
+        energy_intensity.append(LIDEnergyIntensityRecord(
+            sector=row[0], product=row[1], energy_intensity_gwh_per_unit=row[2],
+            unit=row[3], benchmark_intensity=row[4],
+            improvement_pct=row[5], electrification_potential_pct=row[6]
+        ))
+
+    retirement_risks = []
+    for c in consumers:
+        tariff = round(random.uniform(80.0, 160.0), 1)
+        breakeven = round(tariff * random.uniform(1.0, 1.5), 1)
+        retirement_risks.append(LIDRetirementRiskRecord(
+            consumer_id=c.consumer_id, sector=c.sector, region=c.region,
+            employment=random.randint(100, 5000),
+            current_tariff_aud_mwh=tariff,
+            breakeven_tariff_aud_mwh=breakeven,
+            risk_score=round(random.uniform(2.0, 9.5), 2),
+            risk_horizon_years=random.randint(2, 15),
+            mitigation_options=random.sample(["Demand response", "Self-generation", "PPA", "Efficiency upgrades", "Relocation", "Government support"], k=random.randint(2, 4))
+        ))
+
+    programs = ["RERT", "Emergency DR", "AEMO DR Register", "Network DR", "Frequency Response"]
+    demand_response = []
+    for c in consumers[:12]:
+        demand_response.append(LIDDemandResponseRecord(
+            consumer_id=c.consumer_id,
+            program=random.choice(programs),
+            available_mw=c.dr_capacity_mw,
+            activated_events=random.randint(0, 20),
+            total_mwh_curtailed=round(c.dr_capacity_mw * random.uniform(1.0, 50.0), 1),
+            avg_notice_minutes=round(random.uniform(5.0, 120.0), 1),
+            payment_aud_per_mwh=round(random.uniform(200.0, 1500.0), 0),
+            reliability_pct=round(random.uniform(70.0, 99.0), 1)
+        ))
+
+    result = LIDDashboard(
+        consumers=consumers,
+        load_profiles=load_profiles,
+        energy_intensity=energy_intensity,
+        retirement_risks=retirement_risks,
+        demand_response=demand_response,
+        summary={
+            "total_consumers": len(consumers),
+            "total_annual_consumption_gwh": round(sum(c.annual_consumption_gwh for c in consumers), 0),
+            "total_peak_demand_mw": round(sum(c.peak_demand_mw for c in consumers), 0),
+            "total_dr_capacity_mw": round(sum(c.dr_capacity_mw for c in consumers), 0),
+            "interruptible_count": len([c for c in consumers if c.interruptible]),
+            "highest_risk_sector": "SMELTING",
+            "sectors": len(sectors),
+            "regions": len(regions)
+        }
+    )
+    _cache_set(_lid_cache, cache_key, result)
+    return result
+
+
+# ============================================================
+# Sprint 89c — Network Investment Pipeline Analytics (NIP)
+# ============================================================
+
+class NIPProjectRecord(BaseModel):
+    project_id: str
+    name: str
+    network_type: str  # TRANSMISSION, DISTRIBUTION, SUBSTATION, INTERCONNECTOR
+    proponent: str
+    region: str
+    capex_aud_m: float
+    status: str  # COMMITTED, UNDER_CONSTRUCTION, APPROVED, ASSESSMENT, PROPOSED
+    start_year: int
+    completion_year: int
+    purpose: str  # RELIABILITY, CAPACITY, CONNECTION, REPLACEMENT, RESILIENCE
+    approved_by: str  # AER, AEMO, STATE_GOVT, SELF_FUNDED
+
+class NIPSpendProfileRecord(BaseModel):
+    proponent: str
+    year: int
+    capex_aud_m: float
+    opex_aud_m: float
+    rab_growth_aud_m: float
+    regulatory_allowance_aud_m: float
+    actual_vs_allowance_pct: float
+
+class NIPDriverRecord(BaseModel):
+    driver: str
+    category: str  # LOAD_GROWTH, RELIABILITY, RENEWABLE_CONNECTION, REPLACEMENT, RESILIENCE, REGULATORY
+    projects_driven: int
+    total_capex_aud_m: float
+    priority_score: float
+
+class NIPConstraintRecord(BaseModel):
+    constraint_id: str
+    description: str
+    region: str
+    annual_congestion_cost_aud_m: float
+    address_project: Optional[str]
+    resolution_year: Optional[int]
+    severity: str  # LOW, MEDIUM, HIGH, CRITICAL
+
+class NIPBenefitRecord(BaseModel):
+    project_id: str
+    benefit_type: str  # RELIABILITY, CONGESTION_RELIEF, LOSS_REDUCTION, RENEWABLE_ENABLED
+    benefit_aud_m_npv: float
+    cost_aud_m: float
+    bcr: float  # benefit-cost ratio
+    beneficiaries: str
+
+class NIPDashboard(BaseModel):
+    projects: List[NIPProjectRecord]
+    spend_profiles: List[NIPSpendProfileRecord]
+    drivers: List[NIPDriverRecord]
+    constraints: List[NIPConstraintRecord]
+    benefits: List[NIPBenefitRecord]
+    summary: Dict[str, Any]
+
+
+_nip_cache: Dict[str, Any] = {}
+
+@app.get("/api/network-investment-pipeline/dashboard", response_model=NIPDashboard, dependencies=[Depends(verify_api_key)])
+def get_network_investment_pipeline_dashboard():
+    import random
+    cache_key = "nip_dashboard"
+    cached = _cache_get(_nip_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    network_types = ["TRANSMISSION", "DISTRIBUTION", "SUBSTATION", "INTERCONNECTOR"]
+    statuses = ["COMMITTED", "UNDER_CONSTRUCTION", "APPROVED", "ASSESSMENT", "PROPOSED"]
+    purposes = ["RELIABILITY", "CAPACITY", "CONNECTION", "REPLACEMENT", "RESILIENCE"]
+    approvers = ["AER", "AEMO", "STATE_GOVT", "SELF_FUNDED"]
+
+    proponents = {
+        "NSW1": ["TransGrid", "Ausgrid", "Endeavour Energy", "Essential Energy"],
+        "QLD1": ["Powerlink", "Energex", "Ergon Energy"],
+        "VIC1": ["AusNet Services", "CitiPower", "Powercor", "United Energy"],
+        "SA1": ["ElectraNet", "SA Power Networks"],
+        "TAS1": ["TasNetworks"]
+    }
+
+    project_names = [
+        "HumeLink Transmission Project", "EnergyConnect SA-NSW Interconnector", "Project Marinus",
+        "Snowy 2.0 Transmission Link", "VNI West", "Western Renewables Link",
+        "New England REZ Transmission", "Central West Orana REZ", "Waratah Super Battery Connection",
+        "TransGrid Sydney CBD Reinforcement", "Powerlink Northern QLD Upgrade", "AusNet East Ring",
+        "ElectraNet North SA Reinforcement", "TasNetworks George Town Upgrade",
+        "Endeavour Energy Blacktown Zone Sub", "Ausgrid Northern Beaches Cable",
+        "Ergon Energy North QLD Cyclone Resilience", "CitiPower Melbourne CBD Loop",
+        "SA Power Networks Port Augusta Upgrade", "Essential Energy Far West Grid"
+    ]
+
+    projects = []
+    for i, name in enumerate(project_names):
+        r = regions[i % len(regions)]
+        prop_list = proponents[r]
+        projects.append(NIPProjectRecord(
+            project_id=f"NIP-{i+1:03d}",
+            name=name,
+            network_type=random.choice(network_types),
+            proponent=random.choice(prop_list),
+            region=r,
+            capex_aud_m=round(random.uniform(50.0, 3000.0), 1),
+            status=random.choice(statuses),
+            start_year=random.randint(2022, 2027),
+            completion_year=random.randint(2025, 2032),
+            purpose=random.choice(purposes),
+            approved_by=random.choice(approvers)
+        ))
+
+    all_proponents = ["TransGrid", "Ausgrid", "Powerlink", "AusNet Services", "ElectraNet", "TasNetworks"]
+    spend_profiles = []
+    for prop in all_proponents:
+        for year in range(2023, 2031):
+            capex = round(random.uniform(100.0, 800.0), 1)
+            allowance = round(capex * random.uniform(0.90, 1.15), 1)
+            spend_profiles.append(NIPSpendProfileRecord(
+                proponent=prop, year=year,
+                capex_aud_m=capex,
+                opex_aud_m=round(random.uniform(50.0, 250.0), 1),
+                rab_growth_aud_m=round(capex * random.uniform(0.8, 1.0), 1),
+                regulatory_allowance_aud_m=allowance,
+                actual_vs_allowance_pct=round((capex / allowance - 1) * 100, 2)
+            ))
+
+    driver_data = [
+        ("Renewable energy connection", "RENEWABLE_CONNECTION", 8, 4800.0, 9.5),
+        ("Ageing asset replacement", "REPLACEMENT", 6, 1200.0, 8.0),
+        ("Population growth load", "LOAD_GROWTH", 5, 950.0, 7.5),
+        ("Reliability standard compliance", "RELIABILITY", 4, 680.0, 8.5),
+        ("Network resilience (bushfire/cyclone)", "RESILIENCE", 3, 520.0, 7.0),
+        ("REZ coordination", "RENEWABLE_CONNECTION", 3, 2200.0, 9.0),
+        ("Decarbonisation export capacity", "CAPACITY", 2, 1500.0, 8.5),
+        ("Distribution automation", "REGULATORY", 4, 400.0, 6.5),
+    ]
+
+    drivers = []
+    for d in driver_data:
+        drivers.append(NIPDriverRecord(
+            driver=d[0], category=d[1], projects_driven=d[2],
+            total_capex_aud_m=d[3], priority_score=d[4]
+        ))
+
+    constraint_descriptions = [
+        ("CON-001", "Terranora Interconnector limit", "NSW1", 45.0, "EnergyConnect", 2026, "HIGH"),
+        ("CON-002", "Heywood Interconnector binding", "VIC1", 62.0, "VNI West", 2028, "HIGH"),
+        ("CON-003", "SA inertia shortfall", "SA1", 28.0, "Hornsdale Battery", 2024, "MEDIUM"),
+        ("CON-004", "NSW Central West congestion", "NSW1", 85.0, "Central West Orana", 2027, "CRITICAL"),
+        ("CON-005", "QLD North-South interface", "QLD1", 120.0, "New QLD REZ Line", 2029, "CRITICAL"),
+        ("CON-006", "TAS Basslink limitation", "TAS1", 35.0, "Marinus Link", 2030, "HIGH"),
+        ("CON-007", "VIC Moorabool export limit", "VIC1", 55.0, "Western Renewables Link", 2027, "HIGH"),
+        ("CON-008", "SA North thermal limit", "SA1", 18.0, None, None, "MEDIUM"),
+        ("CON-009", "NSW Snowy export limit", "NSW1", 200.0, "HumeLink", 2026, "CRITICAL"),
+        ("CON-010", "Distribution LV voltage", "VIC1", 12.0, None, None, "LOW"),
+    ]
+
+    constraints = []
+    for c in constraint_descriptions:
+        constraints.append(NIPConstraintRecord(
+            constraint_id=c[0], description=c[1], region=c[2],
+            annual_congestion_cost_aud_m=c[3],
+            address_project=c[4], resolution_year=c[5], severity=c[6]
+        ))
+
+    benefit_types = ["RELIABILITY", "CONGESTION_RELIEF", "LOSS_REDUCTION", "RENEWABLE_ENABLED"]
+    benefits = []
+    for p in projects[:12]:
+        cost = p.capex_aud_m
+        benefit = round(cost * random.uniform(0.8, 3.5), 1)
+        benefits.append(NIPBenefitRecord(
+            project_id=p.project_id,
+            benefit_type=random.choice(benefit_types),
+            benefit_aud_m_npv=benefit,
+            cost_aud_m=cost,
+            bcr=round(benefit / cost, 3),
+            beneficiaries=random.choice(["All NEM consumers", "Regional generators", "Local area customers", "Interconnected regions"])
+        ))
+
+    result = NIPDashboard(
+        projects=projects,
+        spend_profiles=spend_profiles,
+        drivers=drivers,
+        constraints=constraints,
+        benefits=benefits,
+        summary={
+            "total_projects": len(projects),
+            "total_pipeline_capex_aud_m": round(sum(p.capex_aud_m for p in projects), 0),
+            "committed_projects": len([p for p in projects if p.status in ["COMMITTED", "UNDER_CONSTRUCTION"]]),
+            "critical_constraints": len([c for c in constraints if c.severity == "CRITICAL"]),
+            "avg_bcr": round(sum(b.bcr for b in benefits) / len(benefits), 3),
+            "largest_project": max(projects, key=lambda x: x.capex_aud_m).name,
+            "proponents": len(all_proponents),
+            "spend_years": 8
+        }
+    )
+    _cache_set(_nip_cache, cache_key, result)
+    return result

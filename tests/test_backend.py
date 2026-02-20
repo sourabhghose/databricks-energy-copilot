@@ -11439,3 +11439,132 @@ class TestNEMPostReformMarketDesignEndpoint:
         r1 = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers)
         r2 = client.get("/api/nem-post-reform-market-design/dashboard", headers=auth_headers)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityPriceForecastingModelsEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_models_present(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        assert len(data["models"]) >= 20
+
+    def test_ensemble_weights_present(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        assert len(data["ensemble_weights"]) >= 30
+
+    def test_forecast_accuracy_present(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        assert len(data["forecast_accuracy"]) >= 30
+
+    def test_feature_importance_present(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        assert len(data["feature_importance"]) >= 20
+
+    def test_calibration_present(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        assert len(data["calibration"]) == 50
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        assert "best_model" in data["summary"]
+        assert "within_10pct_accuracy" in data["summary"]
+
+    def test_model_fields(self, client, auth_headers):
+        data = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers).json()
+        m = data["models"][0]
+        assert "mae_aud_mwh" in m
+        assert "r2_score" in m
+        assert "active" in m
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers)
+        r2 = client.get("/api/electricity-price-forecasting-models/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestLargeIndustrialDemandEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_consumers_present(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        assert len(data["consumers"]) >= 15
+
+    def test_load_profiles_present(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        assert len(data["load_profiles"]) >= 50
+
+    def test_energy_intensity_present(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        assert len(data["energy_intensity"]) >= 8
+
+    def test_retirement_risks_present(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        assert len(data["retirement_risks"]) >= 15
+
+    def test_demand_response_present(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        assert len(data["demand_response"]) >= 10
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        assert "total_annual_consumption_gwh" in data["summary"]
+        assert "highest_risk_sector" in data["summary"]
+
+    def test_consumer_fields(self, client, auth_headers):
+        data = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers).json()
+        c = data["consumers"][0]
+        assert "sector" in c
+        assert "annual_consumption_gwh" in c
+        assert "interruptible" in c
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers)
+        r2 = client.get("/api/large-industrial-demand/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNetworkInvestmentPipelineEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_projects_present(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        assert len(data["projects"]) >= 15
+
+    def test_spend_profiles_present(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        assert len(data["spend_profiles"]) >= 40
+
+    def test_drivers_present(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        assert len(data["drivers"]) >= 6
+
+    def test_constraints_present(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        assert len(data["constraints"]) >= 8
+
+    def test_benefits_present(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        assert len(data["benefits"]) >= 10
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        assert "total_pipeline_capex_aud_m" in data["summary"]
+        assert "critical_constraints" in data["summary"]
+
+    def test_project_fields(self, client, auth_headers):
+        data = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers).json()
+        p = data["projects"][0]
+        assert "capex_aud_m" in p
+        assert "status" in p
+        assert "purpose" in p
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers)
+        r2 = client.get("/api/network-investment-pipeline/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]

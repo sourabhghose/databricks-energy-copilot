@@ -14041,3 +14041,202 @@ export interface PRDDashboard {
 
 export const getNEMPostReformMarketDesignDashboard = (): Promise<PRDDashboard> =>
   get<PRDDashboard>('/api/nem-post-reform-market-design/dashboard');
+
+// ===== Electricity Price Forecasting Model Analytics (Sprint 89a) =====
+export interface EPFModelRecord {
+  model_id: string;
+  model_name: string;
+  model_type: string;
+  region: string;
+  horizon: string;
+  mae_aud_mwh: number;
+  rmse_aud_mwh: number;
+  mape_pct: number;
+  r2_score: number;
+  training_samples: number;
+  last_trained: string;
+  active: boolean;
+}
+
+export interface EPFEnsembleWeightRecord {
+  region: string;
+  horizon: string;
+  model_name: string;
+  weight: number;
+  contribution_pct: number;
+  recent_mae: number;
+}
+
+export interface EPFForecastAccuracyRecord {
+  date: string;
+  region: string;
+  horizon: string;
+  actual_aud_mwh: number;
+  forecast_aud_mwh: number;
+  error_aud_mwh: number;
+  error_pct: number;
+  within_10pct: boolean;
+}
+
+export interface EPFFeatureImportanceRecord {
+  model_id: string;
+  feature: string;
+  importance_score: number;
+  feature_category: string;
+  rank: number;
+}
+
+export interface EPFCalibrationRecord {
+  region: string;
+  decile: number;
+  predicted_probability: number;
+  actual_frequency: number;
+  calibration_error: number;
+  sample_count: number;
+}
+
+export interface EPFDashboard {
+  models: EPFModelRecord[];
+  ensemble_weights: EPFEnsembleWeightRecord[];
+  forecast_accuracy: EPFForecastAccuracyRecord[];
+  feature_importance: EPFFeatureImportanceRecord[];
+  calibration: EPFCalibrationRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getElectricityPriceForecastingModelsDashboard = (): Promise<EPFDashboard> =>
+  get<EPFDashboard>('/api/electricity-price-forecasting-models/dashboard');
+
+// ===== Large Industrial Demand Analytics (Sprint 89b) =====
+export interface LIDConsumerRecord {
+  consumer_id: string;
+  name: string;
+  sector: string;
+  region: string;
+  annual_consumption_gwh: number;
+  peak_demand_mw: number;
+  load_factor_pct: number;
+  contract_type: string;
+  interruptible: boolean;
+  dr_capacity_mw: number;
+}
+
+export interface LIDLoadProfileRecord {
+  consumer_id: string;
+  month: string;
+  weekday_avg_mw: number;
+  weekend_avg_mw: number;
+  peak_mw: number;
+  valley_mw: number;
+  load_factor_pct: number;
+  flexibility_mw: number;
+}
+
+export interface LIDEnergyIntensityRecord {
+  sector: string;
+  product: string;
+  energy_intensity_gwh_per_unit: number;
+  unit: string;
+  benchmark_intensity: number;
+  improvement_pct: number;
+  electrification_potential_pct: number;
+}
+
+export interface LIDRetirementRiskRecord {
+  consumer_id: string;
+  sector: string;
+  region: string;
+  employment: number;
+  current_tariff_aud_mwh: number;
+  breakeven_tariff_aud_mwh: number;
+  risk_score: number;
+  risk_horizon_years: number;
+  mitigation_options: string[];
+}
+
+export interface LIDDemandResponseRecord {
+  consumer_id: string;
+  program: string;
+  available_mw: number;
+  activated_events: number;
+  total_mwh_curtailed: number;
+  avg_notice_minutes: number;
+  payment_aud_per_mwh: number;
+  reliability_pct: number;
+}
+
+export interface LIDDashboard {
+  consumers: LIDConsumerRecord[];
+  load_profiles: LIDLoadProfileRecord[];
+  energy_intensity: LIDEnergyIntensityRecord[];
+  retirement_risks: LIDRetirementRiskRecord[];
+  demand_response: LIDDemandResponseRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getLargeIndustrialDemandDashboard = (): Promise<LIDDashboard> =>
+  get<LIDDashboard>('/api/large-industrial-demand/dashboard');
+
+// ===== Network Investment Pipeline Analytics (Sprint 89c) =====
+export interface NIPProjectRecord {
+  project_id: string;
+  name: string;
+  network_type: string;
+  proponent: string;
+  region: string;
+  capex_aud_m: number;
+  status: string;
+  start_year: number;
+  completion_year: number;
+  purpose: string;
+  approved_by: string;
+}
+
+export interface NIPSpendProfileRecord {
+  proponent: string;
+  year: number;
+  capex_aud_m: number;
+  opex_aud_m: number;
+  rab_growth_aud_m: number;
+  regulatory_allowance_aud_m: number;
+  actual_vs_allowance_pct: number;
+}
+
+export interface NIPDriverRecord {
+  driver: string;
+  category: string;
+  projects_driven: number;
+  total_capex_aud_m: number;
+  priority_score: number;
+}
+
+export interface NIPConstraintRecord {
+  constraint_id: string;
+  description: string;
+  region: string;
+  annual_congestion_cost_aud_m: number;
+  address_project: string | null;
+  resolution_year: number | null;
+  severity: string;
+}
+
+export interface NIPBenefitRecord {
+  project_id: string;
+  benefit_type: string;
+  benefit_aud_m_npv: number;
+  cost_aud_m: number;
+  bcr: number;
+  beneficiaries: string;
+}
+
+export interface NIPDashboard {
+  projects: NIPProjectRecord[];
+  spend_profiles: NIPSpendProfileRecord[];
+  drivers: NIPDriverRecord[];
+  constraints: NIPConstraintRecord[];
+  benefits: NIPBenefitRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getNetworkInvestmentPipelineDashboard = (): Promise<NIPDashboard> =>
+  get<NIPDashboard>('/api/network-investment-pipeline/dashboard');
