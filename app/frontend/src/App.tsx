@@ -70,6 +70,7 @@ import {
   CreditCard,
   ShoppingCart,
   Sliders,
+  Power,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -238,6 +239,7 @@ import MlfAnalytics from './pages/MlfAnalytics'
 import CspAnalytics from './pages/CspAnalytics'
 import CarbonIntensityAnalytics from './pages/CarbonIntensityAnalytics'
 import NetworkTariffReformAnalytics from './pages/NetworkTariffReformAnalytics'
+import TariffCrossSubsidyAnalytics from './pages/TariffCrossSubsidyAnalytics'
 import AiDigitalTwinAnalytics from './pages/AiDigitalTwinAnalytics'
 import EsooAdequacyAnalytics from './pages/EsooAdequacyAnalytics'
 import SocialLicenceAnalytics from './pages/SocialLicenceAnalytics'
@@ -252,6 +254,8 @@ import CarbonPricePathwayAnalytics from './pages/CarbonPricePathwayAnalytics'
 import SpotPriceForecastAnalytics from './pages/SpotPriceForecastAnalytics'
 import AncillaryCostAllocationAnalytics from './pages/AncillaryCostAllocationAnalytics'
 import MarketLiquidityAnalytics from './pages/MarketLiquidityAnalytics'
+import GeneratorRetirementAnalytics from './pages/GeneratorRetirementAnalytics'
+import ConsumerHardshipAnalytics from './pages/ConsumerHardshipAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -421,6 +425,7 @@ const NAV_ITEMS = [
   { to: '/csp-analytics',                    label: 'CSP & Solar Thermal Analytics',         Icon: Sun            },
   { to: '/carbon-intensity-analytics',       label: 'Carbon Intensity Analytics',            Icon: Leaf           },
   { to: '/network-tariff-reform-analytics',  label: 'Tariff Reform & DER Incentives',         Icon: Sliders        },
+  { to: '/tariff-cross-subsidy',             label: 'Cross-Subsidy & Cost-Reflective Tariffs', Icon: BarChart2      },
   { to: '/ai-digital-twin-analytics',        label: 'AI & Digital Twin Analytics',             Icon: Cpu            },
   { to: '/esoo-adequacy-analytics',          label: 'ESOO Generation Adequacy',                Icon: Activity       },
   { to: '/social-licence-analytics',        label: 'Social Licence & Equity Analytics',        Icon: Users          },
@@ -435,6 +440,8 @@ const NAV_ITEMS = [
   { to: '/spot-price-forecast', label: 'Spot Price Forecast Analytics', Icon: Brain },
   { to: '/ancillary-cost-allocation', label: 'Ancillary Cost Allocation', Icon: DollarSign },
   { to: '/wholesale-liquidity', label: 'Wholesale Market Liquidity', Icon: BarChart3 },
+  { to: '/generator-retirement', label: 'Generator Retirement',   Icon: Power          },
+  { to: '/consumer-hardship',    label: 'Consumer Hardship',       Icon: Heart          },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -679,6 +686,7 @@ export default function App() {
               <Route path="/csp-analytics"               element={<CspAnalytics />}               />
               <Route path="/carbon-intensity-analytics"  element={<CarbonIntensityAnalytics />}   />
               <Route path="/network-tariff-reform-analytics" element={<NetworkTariffReformAnalytics />} />
+              <Route path="/tariff-cross-subsidy"            element={<TariffCrossSubsidyAnalytics />} />
               <Route path="/ai-digital-twin-analytics"   element={<AiDigitalTwinAnalytics />}     />
               <Route path="/esoo-adequacy-analytics"     element={<EsooAdequacyAnalytics />}      />
               <Route path="/social-licence-analytics"    element={<SocialLicenceAnalytics />}     />
@@ -693,6 +701,8 @@ export default function App() {
               <Route path="/spot-price-forecast" element={<SpotPriceForecastAnalytics />} />
               <Route path="/ancillary-cost-allocation" element={<AncillaryCostAllocationAnalytics />} />
               <Route path="/wholesale-liquidity" element={<MarketLiquidityAnalytics />} />
+              <Route path="/generator-retirement" element={<GeneratorRetirementAnalytics />} />
+              <Route path="/consumer-hardship"   element={<ConsumerHardshipAnalytics />}   />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

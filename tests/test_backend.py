@@ -10085,3 +10085,150 @@ class TestMarketLiquidityDashboard:
         d = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers).json()
         assert d["summary"]["highest_spread_region"] == "SA1"
         assert d["summary"]["avg_hedge_coverage_pct"] > 50
+
+
+class TestGeneratorRetirementDashboard:
+    """Sprint 71a: NEM Generator Retirement Analytics"""
+
+    def test_http_200(self, client, auth_headers):
+        r = client.get("/api/generator-retirement/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_generators_count_and_risk_levels(self, client, auth_headers):
+        d = client.get("/api/generator-retirement/dashboard", headers=auth_headers).json()
+        assert len(d["generators"]) == 10
+        risk_levels = {g["stranded_asset_risk"] for g in d["generators"]}
+        assert "CRITICAL" in risk_levels
+        assert "HIGH" in risk_levels
+        assert "MEDIUM" in risk_levels
+        assert "LOW" in risk_levels
+
+    def test_retirement_schedule_gap_statuses(self, client, auth_headers):
+        d = client.get("/api/generator-retirement/dashboard", headers=auth_headers).json()
+        gap_statuses = {r["gap_status"] for r in d["retirement_schedule"]}
+        assert "COVERED" in gap_statuses
+        assert "PARTIAL" in gap_statuses
+        assert "UNCOVERED" in gap_statuses
+        assert len(d["retirement_schedule"]) >= 5
+
+    def test_replacements_firmness_variety(self, client, auth_headers):
+        d = client.get("/api/generator-retirement/dashboard", headers=auth_headers).json()
+        firmness_vals = {r["firmness"] for r in d["replacements"]}
+        assert "COMMITTED" in firmness_vals
+        assert "SPECULATIVE" in firmness_vals
+        assert len(d["replacements"]) >= 4
+
+    def test_economics_stranded_costs(self, client, auth_headers):
+        d = client.get("/api/generator-retirement/dashboard", headers=auth_headers).json()
+        assert len(d["economics"]) >= 4
+        # All stranded costs must be positive
+        for e in d["economics"]:
+            assert e["stranded_cost_m"] > 0
+        # At least one station should have a stranded cost above 100M
+        assert any(e["stranded_cost_m"] > 100 for e in d["economics"])
+        # All net costs should be less than or equal to stranded cost
+        for e in d["economics"]:
+            assert e["net_cost_m"] <= e["stranded_cost_m"]
+
+    def test_summary_assertions(self, client, auth_headers):
+        d = client.get("/api/generator-retirement/dashboard", headers=auth_headers).json()
+        s = d["summary"]
+        assert s["critical_risk_count"] >= 2
+        assert s["retiring_by_2030_mw"] > 5000
+        assert s["total_generators_tracked"] == 10
+        assert s["avg_asset_age_years"] > 0
+        assert s["uncovered_gap_years"] >= 1
+        assert s["total_stranded_value_m"] > 0
+
+# ===========================================================================
+# TestTariffCrossSubsidyDashboard
+# ===========================================================================
+
+class TestTariffCrossSubsidyDashboard:
+    """Sprint 71b: Cross-Subsidy & Cost-Reflective Tariff Analytics"""
+
+    def test_http_200(self, client, auth_headers):
+        r = client.get("/api/tariff-cross-subsidy/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_tariff_structures_count_and_demand_type(self, client, auth_headers):
+        d = client.get("/api/tariff-cross-subsidy/dashboard", headers=auth_headers).json()
+        assert len(d["tariff_structures"]) >= 6
+        tariff_types = {t["tariff_type"] for t in d["tariff_structures"]}
+        assert "DEMAND" in tariff_types
+
+    def test_cross_subsidies_count_and_reform_status_variety(self, client, auth_headers):
+        d = client.get("/api/tariff-cross-subsidy/dashboard", headers=auth_headers).json()
+        assert len(d["cross_subsidies"]) >= 4
+        statuses = {c["reform_status"] for c in d["cross_subsidies"]}
+        assert "REFORMED" in statuses
+        assert "UNREFORMED" in statuses
+
+    def test_customer_costs_pays_and_receives_directions(self, client, auth_headers):
+        d = client.get("/api/tariff-cross-subsidy/dashboard", headers=auth_headers).json()
+        assert len(d["customer_costs"]) >= 4
+        directions = {c["subsidy_direction"] for c in d["customer_costs"]}
+        assert "PAYS" in directions
+        assert "RECEIVES" in directions
+
+    def test_der_impacts_count_and_risk_variety(self, client, auth_headers):
+        d = client.get("/api/tariff-cross-subsidy/dashboard", headers=auth_headers).json()
+        assert len(d["der_impacts"]) >= 20
+        risk_levels = {r["death_spiral_risk"] for r in d["der_impacts"]}
+        assert len(risk_levels) >= 2  # must have variety of risk levels
+
+    def test_summary_assertions(self, client, auth_headers):
+        d = client.get("/api/tariff-cross-subsidy/dashboard", headers=auth_headers).json()
+        s = d["summary"]
+        assert s["largest_cross_subsidy_m"] >= 400
+        assert s["reformed_flows"] >= 1
+        assert s["cross_subsidy_flows"] >= 4
+        assert s["dnsp_count"] >= 3
+
+
+# ── Sprint 71c: NEM Energy Consumer Hardship & Affordability Analytics ────────
+
+class TestConsumerHardshipDashboard:
+    BASE = "/api/consumer-hardship/dashboard"
+
+    def test_http_200_ok(self, client):
+        resp = client.get(self.BASE, headers={"x-api-key": "test-key"})
+        assert resp.status_code == 200
+
+    def test_stress_records_count_and_states(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        stress = d["stress_records"]
+        assert len(stress) >= 40
+        states_in_data = {r["state"] for r in stress}
+        assert "TAS" in states_in_data
+        assert "NSW" in states_in_data
+
+    def test_retailers_count_and_non_compliant(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        retailers = d["retailers"]
+        assert len(retailers) >= 6
+        non_compliant = [r for r in retailers if not r["aemc_compliant"]]
+        assert len(non_compliant) >= 1
+
+    def test_concessions_count_and_critical_present(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        concessions = d["concessions"]
+        assert len(concessions) >= 5
+        adequacy_ratings = {c["adequacy_rating"] for c in concessions}
+        assert "CRITICAL" in adequacy_ratings
+
+    def test_disconnections_count_and_years(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        disconnections = d["disconnections"]
+        assert len(disconnections) >= 30
+        years_in_data = {r["year"] for r in disconnections}
+        assert 2022 in years_in_data
+        assert 2024 in years_in_data
+
+    def test_summary_fields(self, client):
+        d = client.get(self.BASE, headers={"x-api-key": "test-key"}).json()
+        s = d["summary"]
+        assert s["highest_stress_state"] == "TAS"
+        assert s["non_compliant_retailers"] >= 2
+        assert s["states_tracked"] >= 5
+        assert s["total_concession_cost_m"] > 0

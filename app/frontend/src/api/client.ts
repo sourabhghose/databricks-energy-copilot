@@ -10196,3 +10196,196 @@ export interface WMLDashboard {
 
 export const getWholesaleLiquidityDashboard = (): Promise<WMLDashboard> =>
   get<WMLDashboard>('/api/wholesale-liquidity/dashboard');
+
+// ── Sprint 71a: NEM Generator Retirement Analytics ────────────────────────────
+
+export interface GRAGeneratorRecord {
+  duid: string;
+  station_name: string;
+  participant: string;
+  region: string;
+  technology: string;
+  registered_capacity_mw: number;
+  commissioning_year: number;
+  announced_retirement_year: number;
+  expected_retirement_year: number;
+  asset_age_years: number;
+  remaining_life_years: number;
+  stranded_asset_risk: string;
+  replacement_needed_mw: number;
+  early_retirement_trigger: string;
+  book_value_m: number;
+  stranded_value_m: number;
+}
+
+export interface GRARetirementScheduleRecord {
+  year: number;
+  region: string;
+  coal_retiring_mw: number;
+  gas_retiring_mw: number;
+  total_retiring_mw: number;
+  replacement_contracted_mw: number;
+  reliability_gap_mw: number;
+  gap_status: string;
+}
+
+export interface GRAReplacementRecord {
+  region: string;
+  retirement_year: number;
+  retiring_station: string;
+  retiring_mw: number;
+  replacement_technology: string;
+  replacement_developer: string;
+  replacement_mw: number;
+  replacement_commissioning_year: number;
+  coverage_pct: number;
+  firmness: string;
+}
+
+export interface GRAEconomicsRecord {
+  station_name: string;
+  technology: string;
+  early_retirement_year: number;
+  normal_retirement_year: number;
+  years_early: number;
+  stranded_cost_m: number;
+  early_retirement_payment_m: number;
+  net_cost_m: number;
+  carbon_abatement_mt: number;
+  cost_per_t_co2: number;
+}
+
+export interface GRADashboard {
+  generators: GRAGeneratorRecord[];
+  retirement_schedule: GRARetirementScheduleRecord[];
+  replacements: GRAReplacementRecord[];
+  economics: GRAEconomicsRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getGeneratorRetirementDashboard = (): Promise<GRADashboard> =>
+  get<GRADashboard>('/api/generator-retirement/dashboard');
+
+// ── Sprint 71b: Cross-Subsidy & Cost-Reflective Tariff Analytics ─────────────
+
+export interface CRTTariffStructureRecord {
+  dnsp: string;
+  tariff_name: string;
+  tariff_type: string; // FLAT | TOU | DEMAND | CAPACITY
+  customer_segment: string; // RESIDENTIAL | SME | LARGE_COMMERCIAL | INDUSTRIAL
+  fixed_charge_per_day: number;
+  energy_charge_peak: number;
+  energy_charge_offpeak: number;
+  demand_charge_per_kw: number;
+  network_charge_pct_of_bill: number;
+  cost_reflective_score: number;
+  penetration_pct: number;
+}
+
+export interface CRTCrossSubsidyRecord {
+  region: string;
+  dnsp: string;
+  subsidising_segment: string;
+  subsidised_segment: string;
+  annual_transfer_m: number;
+  per_customer_per_year: number;
+  main_driver: string;
+  reform_status: string; // UNREFORMED | IN_PROGRESS | REFORMED
+}
+
+export interface CRTCustomerCostRecord {
+  customer_type: string;
+  dnsp: string;
+  region: string;
+  actual_bill_per_yr: number;
+  cost_reflective_bill_per_yr: number;
+  subsidy_received_per_yr: number;
+  subsidy_direction: string; // PAYS | RECEIVES
+  solar_penetration_pct: number;
+  ev_adoption_pct: number;
+}
+
+export interface CRTDerImpactRecord {
+  year: number;
+  region: string;
+  rooftop_solar_gw: number;
+  ev_adoption_pct: number;
+  network_cost_m: number;
+  fixed_cost_recovery_gap_m: number;
+  death_spiral_risk: string; // LOW | MEDIUM | HIGH | CRITICAL
+  avg_bill_increase_pct: number;
+}
+
+export interface CRTDashboard {
+  tariff_structures: CRTTariffStructureRecord[];
+  cross_subsidies: CRTCrossSubsidyRecord[];
+  customer_costs: CRTCustomerCostRecord[];
+  der_impacts: CRTDerImpactRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getTariffCrossSubsidyDashboard = (): Promise<CRTDashboard> =>
+  get<CRTDashboard>('/api/tariff-cross-subsidy/dashboard');
+
+// ── Sprint 71c: NEM Energy Consumer Hardship & Affordability Analytics ────────
+
+export interface ECHStressRecord {
+  state: string;
+  quarter: string;
+  year: number;
+  households_in_stress_pct: number;
+  avg_bill_to_income_pct: number;
+  disconnections_quarterly: number;
+  payment_arrangements_active: number;
+  hardship_program_enrolled: number;
+  median_debt_at_disconnection: number;
+  concession_recipients: number;
+}
+
+export interface ECHRetailerRecord {
+  retailer_name: string;
+  state: string;
+  hardship_policy_score: number;
+  early_intervention_pct: number;
+  payment_plan_success_pct: number;
+  disconnection_rate_per_1000: number;
+  avg_days_to_disconnection: number;
+  reconnection_rate_pct: number;
+  hardship_staff_ratio: number;
+  aemc_compliant: boolean;
+}
+
+export interface ECHConcessionRecord {
+  state: string;
+  concession_name: string;
+  eligible_households: number;
+  enrolled_households: number;
+  uptake_pct: number;
+  annual_value_per_household: number;
+  total_cost_m: number;
+  funding_source: string;
+  adequacy_rating: string;
+}
+
+export interface ECHDisconnectionRecord {
+  year: number;
+  quarter: string;
+  state: string;
+  residential_disconnections: number;
+  small_business_disconnections: number;
+  disconnections_per_1000_customers: number;
+  primary_reason: string;
+  avg_debt_at_disconnection: number;
+  reconnection_within_30d_pct: number;
+}
+
+export interface ECHDashboard {
+  stress_records: ECHStressRecord[];
+  retailers: ECHRetailerRecord[];
+  concessions: ECHConcessionRecord[];
+  disconnections: ECHDisconnectionRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getConsumerHardshipDashboard = (): Promise<ECHDashboard> =>
+  get<ECHDashboard>('/api/consumer-hardship/dashboard');

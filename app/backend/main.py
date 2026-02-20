@@ -48796,3 +48796,364 @@ def get_wholesale_liquidity_dashboard():
             "open_interest_records": len(open_interest),
         }
     )
+
+# ── Sprint 71a: NEM Generator Retirement Analytics ────────────────────────────
+
+class GRAGeneratorRecord(BaseModel):
+    duid: str
+    station_name: str
+    participant: str
+    region: str
+    technology: str  # COAL / GAS_CCGT / GAS_OCGT / HYDRO / OIL
+    registered_capacity_mw: float
+    commissioning_year: int
+    announced_retirement_year: int
+    expected_retirement_year: int
+    asset_age_years: int
+    remaining_life_years: int
+    stranded_asset_risk: str  # LOW / MEDIUM / HIGH / CRITICAL
+    replacement_needed_mw: float
+    early_retirement_trigger: str
+    book_value_m: float
+    stranded_value_m: float
+
+class GRARetirementScheduleRecord(BaseModel):
+    year: int
+    region: str
+    coal_retiring_mw: float
+    gas_retiring_mw: float
+    total_retiring_mw: float
+    replacement_contracted_mw: float
+    reliability_gap_mw: float
+    gap_status: str  # COVERED / PARTIAL / UNCOVERED
+
+class GRAReplacementRecord(BaseModel):
+    region: str
+    retirement_year: int
+    retiring_station: str
+    retiring_mw: float
+    replacement_technology: str
+    replacement_developer: str
+    replacement_mw: float
+    replacement_commissioning_year: int
+    coverage_pct: float
+    firmness: str  # COMMITTED / CONTRACTED / PROPOSED / SPECULATIVE
+
+class GRAEconomicsRecord(BaseModel):
+    station_name: str
+    technology: str
+    early_retirement_year: int
+    normal_retirement_year: int
+    years_early: int
+    stranded_cost_m: float
+    early_retirement_payment_m: float
+    net_cost_m: float
+    carbon_abatement_mt: float
+    cost_per_t_co2: float
+
+class GRADashboard(BaseModel):
+    generators: list[GRAGeneratorRecord]
+    retirement_schedule: list[GRARetirementScheduleRecord]
+    replacements: list[GRAReplacementRecord]
+    economics: list[GRAEconomicsRecord]
+    summary: dict
+
+@app.get("/api/generator-retirement/dashboard", response_model=GRADashboard, dependencies=[Depends(verify_api_key)])
+def get_generator_retirement_dashboard():
+    generators = [
+        GRAGeneratorRecord(duid="ERARING", station_name="Eraring Power Station", participant="Origin Energy", region="NSW1", technology="COAL", registered_capacity_mw=2880, commissioning_year=1982, announced_retirement_year=2025, expected_retirement_year=2027, asset_age_years=43, remaining_life_years=2, stranded_asset_risk="HIGH", replacement_needed_mw=2880, early_retirement_trigger="Carbon policy + low spark spread", book_value_m=450, stranded_value_m=320),
+        GRAGeneratorRecord(duid="BAYSW", station_name="Bayswater Power Station", participant="AGL Energy", region="NSW1", technology="COAL", registered_capacity_mw=2640, commissioning_year=1985, announced_retirement_year=2033, expected_retirement_year=2033, asset_age_years=40, remaining_life_years=8, stranded_asset_risk="MEDIUM", replacement_needed_mw=2640, early_retirement_trigger="Eroding energy margins", book_value_m=380, stranded_value_m=180),
+        GRAGeneratorRecord(duid="LOYA", station_name="Loy Yang A", participant="AGL Energy", region="VIC1", technology="BROWN_COAL", registered_capacity_mw=2210, commissioning_year=1984, announced_retirement_year=2035, expected_retirement_year=2035, asset_age_years=41, remaining_life_years=10, stranded_asset_risk="MEDIUM", replacement_needed_mw=2210, early_retirement_trigger="Carbon exposure + renewable growth", book_value_m=520, stranded_value_m=250),
+        GRAGeneratorRecord(duid="LOYB", station_name="Loy Yang B", participant="EnergyAustralia", region="VIC1", technology="BROWN_COAL", registered_capacity_mw=1000, commissioning_year=1993, announced_retirement_year=2028, expected_retirement_year=2028, asset_age_years=32, remaining_life_years=3, stranded_asset_risk="HIGH", replacement_needed_mw=1000, early_retirement_trigger="Victorian Government retirement agreement", book_value_m=180, stranded_value_m=120),
+        GRAGeneratorRecord(duid="CALLIDE", station_name="Callide C Power Station", participant="CS Energy", region="QLD1", technology="COAL", registered_capacity_mw=1680, commissioning_year=2001, announced_retirement_year=2040, expected_retirement_year=2040, asset_age_years=24, remaining_life_years=15, stranded_asset_risk="LOW", replacement_needed_mw=1680, early_retirement_trigger="None identified", book_value_m=620, stranded_value_m=50),
+        GRAGeneratorRecord(duid="GLADSTONE", station_name="Gladstone Power Station", participant="NRG", region="QLD1", technology="COAL", registered_capacity_mw=1680, commissioning_year=1976, announced_retirement_year=2029, expected_retirement_year=2029, asset_age_years=49, remaining_life_years=4, stranded_asset_risk="CRITICAL", replacement_needed_mw=1680, early_retirement_trigger="End of technical life + industrial load loss", book_value_m=80, stranded_value_m=20),
+        GRAGeneratorRecord(duid="TORRENS", station_name="Torrens Island A/B", participant="AGL Energy", region="SA1", technology="GAS_OCGT", registered_capacity_mw=480, commissioning_year=1967, announced_retirement_year=2026, expected_retirement_year=2026, asset_age_years=58, remaining_life_years=1, stranded_asset_risk="CRITICAL", replacement_needed_mw=480, early_retirement_trigger="BESS replacement scheduled", book_value_m=20, stranded_value_m=5),
+        GRAGeneratorRecord(duid="ANGASTON", station_name="Angaston Gas Turbine", participant="Engie", region="SA1", technology="GAS_OCGT", registered_capacity_mw=50, commissioning_year=1971, announced_retirement_year=2026, expected_retirement_year=2026, asset_age_years=54, remaining_life_years=1, stranded_asset_risk="CRITICAL", replacement_needed_mw=50, early_retirement_trigger="Asset end of life", book_value_m=5, stranded_value_m=2),
+        GRAGeneratorRecord(duid="MOUNT_PIPER", station_name="Mt Piper Power Station", participant="EnergyAustralia", region="NSW1", technology="COAL", registered_capacity_mw=1400, commissioning_year=1993, announced_retirement_year=2040, expected_retirement_year=2040, asset_age_years=32, remaining_life_years=15, stranded_asset_risk="LOW", replacement_needed_mw=1400, early_retirement_trigger="None identified", book_value_m=580, stranded_value_m=40),
+        GRAGeneratorRecord(duid="KOGAN_CREEK", station_name="Kogan Creek Power Station", participant="CS Energy", region="QLD1", technology="COAL", registered_capacity_mw=750, commissioning_year=2007, announced_retirement_year=2042, expected_retirement_year=2042, asset_age_years=18, remaining_life_years=17, stranded_asset_risk="LOW", replacement_needed_mw=750, early_retirement_trigger="None identified", book_value_m=420, stranded_value_m=25),
+    ]
+    retirement_schedule = [
+        GRARetirementScheduleRecord(year=2025, region="NSW1", coal_retiring_mw=2880, gas_retiring_mw=0, total_retiring_mw=2880, replacement_contracted_mw=2200, reliability_gap_mw=680, gap_status="PARTIAL"),
+        GRARetirementScheduleRecord(year=2026, region="SA1", coal_retiring_mw=0, gas_retiring_mw=530, total_retiring_mw=530, replacement_contracted_mw=550, reliability_gap_mw=0, gap_status="COVERED"),
+        GRARetirementScheduleRecord(year=2027, region="NSW1", coal_retiring_mw=0, gas_retiring_mw=0, total_retiring_mw=0, replacement_contracted_mw=800, reliability_gap_mw=0, gap_status="COVERED"),
+        GRARetirementScheduleRecord(year=2028, region="VIC1", coal_retiring_mw=1000, gas_retiring_mw=0, total_retiring_mw=1000, replacement_contracted_mw=600, reliability_gap_mw=400, gap_status="PARTIAL"),
+        GRARetirementScheduleRecord(year=2029, region="QLD1", coal_retiring_mw=1680, gas_retiring_mw=0, total_retiring_mw=1680, replacement_contracted_mw=1200, reliability_gap_mw=480, gap_status="PARTIAL"),
+        GRARetirementScheduleRecord(year=2033, region="NSW1", coal_retiring_mw=2640, gas_retiring_mw=0, total_retiring_mw=2640, replacement_contracted_mw=1500, reliability_gap_mw=1140, gap_status="UNCOVERED"),
+        GRARetirementScheduleRecord(year=2035, region="VIC1", coal_retiring_mw=2210, gas_retiring_mw=0, total_retiring_mw=2210, replacement_contracted_mw=800, reliability_gap_mw=1410, gap_status="UNCOVERED"),
+    ]
+    replacements = [
+        GRAReplacementRecord(region="NSW1", retirement_year=2025, retiring_station="Eraring", retiring_mw=2880, replacement_technology="BESS+SOLAR+WIND", replacement_developer="Multiple", replacement_mw=2200, replacement_commissioning_year=2025, coverage_pct=76, firmness="COMMITTED"),
+        GRAReplacementRecord(region="SA1", retirement_year=2026, retiring_station="Torrens Island A/B", retiring_mw=480, replacement_technology="BESS", replacement_developer="AGL Energy", replacement_mw=550, replacement_commissioning_year=2026, coverage_pct=115, firmness="COMMITTED"),
+        GRAReplacementRecord(region="VIC1", retirement_year=2028, retiring_station="Loy Yang B", retiring_mw=1000, replacement_technology="WIND+BESS", replacement_developer="EnergyAustralia/Various", replacement_mw=600, replacement_commissioning_year=2028, coverage_pct=60, firmness="CONTRACTED"),
+        GRAReplacementRecord(region="QLD1", retirement_year=2029, retiring_station="Gladstone", retiring_mw=1680, replacement_technology="SOLAR+BESS+GAS", replacement_developer="Various", replacement_mw=1200, replacement_commissioning_year=2029, coverage_pct=71, firmness="PROPOSED"),
+        GRAReplacementRecord(region="NSW1", retirement_year=2033, retiring_station="Bayswater", retiring_mw=2640, replacement_technology="BESS+WIND+SOLAR", replacement_developer="Various", replacement_mw=1500, replacement_commissioning_year=2032, coverage_pct=57, firmness="SPECULATIVE"),
+        GRAReplacementRecord(region="VIC1", retirement_year=2035, retiring_station="Loy Yang A", retiring_mw=2210, replacement_technology="WIND+BESS+OFFSHORE", replacement_developer="TBD", replacement_mw=800, replacement_commissioning_year=2034, coverage_pct=36, firmness="SPECULATIVE"),
+    ]
+    economics = [
+        GRAEconomicsRecord(station_name="Eraring", technology="COAL", early_retirement_year=2025, normal_retirement_year=2032, years_early=7, stranded_cost_m=450, early_retirement_payment_m=225, net_cost_m=225, carbon_abatement_mt=120, cost_per_t_co2=1.9),
+        GRAEconomicsRecord(station_name="Loy Yang B", technology="BROWN_COAL", early_retirement_year=2028, normal_retirement_year=2033, years_early=5, stranded_cost_m=180, early_retirement_payment_m=90, net_cost_m=90, carbon_abatement_mt=80, cost_per_t_co2=1.1),
+        GRAEconomicsRecord(station_name="Bayswater", technology="COAL", early_retirement_year=2030, normal_retirement_year=2033, years_early=3, stranded_cost_m=380, early_retirement_payment_m=150, net_cost_m=150, carbon_abatement_mt=65, cost_per_t_co2=2.3),
+        GRAEconomicsRecord(station_name="Gladstone", technology="COAL", early_retirement_year=2027, normal_retirement_year=2029, years_early=2, stranded_cost_m=80, early_retirement_payment_m=40, net_cost_m=40, carbon_abatement_mt=45, cost_per_t_co2=0.9),
+        GRAEconomicsRecord(station_name="Loy Yang A", technology="BROWN_COAL", early_retirement_year=2032, normal_retirement_year=2035, years_early=3, stranded_cost_m=520, early_retirement_payment_m=200, net_cost_m=200, carbon_abatement_mt=180, cost_per_t_co2=1.1),
+    ]
+    total_retiring_mw = sum(g.registered_capacity_mw for g in generators if g.expected_retirement_year <= 2035)
+    return GRADashboard(
+        generators=generators, retirement_schedule=retirement_schedule,
+        replacements=replacements, economics=economics,
+        summary={
+            "total_generators_tracked": len(generators),
+            "critical_risk_count": sum(1 for g in generators if g.stranded_asset_risk == "CRITICAL"),
+            "retiring_by_2030_mw": round(sum(g.registered_capacity_mw for g in generators if g.expected_retirement_year <= 2030), 0),
+            "retiring_by_2035_mw": round(total_retiring_mw, 0),
+            "total_stranded_value_m": sum(g.stranded_value_m for g in generators),
+            "avg_asset_age_years": round(sum(g.asset_age_years for g in generators) / len(generators), 1),
+            "uncovered_gap_years": sum(1 for r in retirement_schedule if r.gap_status == "UNCOVERED"),
+        }
+    )
+
+# ── Sprint 71b: Cross-Subsidy & Cost-Reflective Tariff Analytics ─────────────
+
+class CRTTariffStructureRecord(BaseModel):
+    dnsp: str
+    tariff_name: str
+    tariff_type: str  # FLAT / TOU / DEMAND / CAPACITY
+    customer_segment: str  # RESIDENTIAL / SME / LARGE_COMMERCIAL / INDUSTRIAL
+    fixed_charge_per_day: float
+    energy_charge_peak: float
+    energy_charge_offpeak: float
+    demand_charge_per_kw: float
+    network_charge_pct_of_bill: float
+    cost_reflective_score: float  # 0-10
+    penetration_pct: float  # % of customers on this tariff
+
+class CRTCrossSubsidyRecord(BaseModel):
+    region: str
+    dnsp: str
+    subsidising_segment: str
+    subsidised_segment: str
+    annual_transfer_m: float
+    per_customer_per_year: float
+    main_driver: str
+    reform_status: str  # UNREFORMED / IN_PROGRESS / REFORMED
+
+class CRTCustomerCostRecord(BaseModel):
+    customer_type: str
+    dnsp: str
+    region: str
+    actual_bill_per_yr: float
+    cost_reflective_bill_per_yr: float
+    subsidy_received_per_yr: float
+    subsidy_direction: str  # PAYS / RECEIVES
+    solar_penetration_pct: float
+    ev_adoption_pct: float
+
+class CRTDerImpactRecord(BaseModel):
+    year: int
+    region: str
+    rooftop_solar_gw: float
+    ev_adoption_pct: float
+    network_cost_m: float
+    fixed_cost_recovery_gap_m: float
+    death_spiral_risk: str  # LOW / MEDIUM / HIGH / CRITICAL
+    avg_bill_increase_pct: float
+
+class CRTDashboard(BaseModel):
+    tariff_structures: list[CRTTariffStructureRecord]
+    cross_subsidies: list[CRTCrossSubsidyRecord]
+    customer_costs: list[CRTCustomerCostRecord]
+    der_impacts: list[CRTDerImpactRecord]
+    summary: dict
+
+@app.get("/api/tariff-cross-subsidy/dashboard", response_model=CRTDashboard, dependencies=[Depends(verify_api_key)])
+def get_tariff_cross_subsidy_dashboard():
+    tariff_structures = [
+        CRTTariffStructureRecord(dnsp="Ausgrid", tariff_name="EA010 Residential Flat", tariff_type="FLAT", customer_segment="RESIDENTIAL", fixed_charge_per_day=1.05, energy_charge_peak=0.18, energy_charge_offpeak=0.18, demand_charge_per_kw=0, network_charge_pct_of_bill=42, cost_reflective_score=3.5, penetration_pct=65),
+        CRTTariffStructureRecord(dnsp="Ausgrid", tariff_name="EA025 Residential TOU", tariff_type="TOU", customer_segment="RESIDENTIAL", fixed_charge_per_day=1.05, energy_charge_peak=0.32, energy_charge_offpeak=0.09, demand_charge_per_kw=0, network_charge_pct_of_bill=42, cost_reflective_score=6.5, penetration_pct=28),
+        CRTTariffStructureRecord(dnsp="Ausgrid", tariff_name="EA305 Demand Tariff", tariff_type="DEMAND", customer_segment="RESIDENTIAL", fixed_charge_per_day=1.05, energy_charge_peak=0.12, energy_charge_offpeak=0.08, demand_charge_per_kw=18.5, network_charge_pct_of_bill=42, cost_reflective_score=8.5, penetration_pct=7),
+        CRTTariffStructureRecord(dnsp="Citipower", tariff_name="CityPower Flat SME", tariff_type="FLAT", customer_segment="SME", fixed_charge_per_day=2.50, energy_charge_peak=0.15, energy_charge_offpeak=0.15, demand_charge_per_kw=0, network_charge_pct_of_bill=38, cost_reflective_score=4.0, penetration_pct=55),
+        CRTTariffStructureRecord(dnsp="Citipower", tariff_name="CityPower TOU SME", tariff_type="TOU", customer_segment="SME", fixed_charge_per_day=2.50, energy_charge_peak=0.28, energy_charge_offpeak=0.08, demand_charge_per_kw=0, network_charge_pct_of_bill=38, cost_reflective_score=7.0, penetration_pct=35),
+        CRTTariffStructureRecord(dnsp="SA Power Networks", tariff_name="SAPN Residential Flat", tariff_type="FLAT", customer_segment="RESIDENTIAL", fixed_charge_per_day=0.95, energy_charge_peak=0.22, energy_charge_offpeak=0.22, demand_charge_per_kw=0, network_charge_pct_of_bill=45, cost_reflective_score=3.0, penetration_pct=70),
+        CRTTariffStructureRecord(dnsp="SA Power Networks", tariff_name="SAPN Demand Tariff", tariff_type="DEMAND", customer_segment="RESIDENTIAL", fixed_charge_per_day=0.95, energy_charge_peak=0.12, energy_charge_offpeak=0.07, demand_charge_per_kw=22.0, network_charge_pct_of_bill=45, cost_reflective_score=9.0, penetration_pct=15),
+        CRTTariffStructureRecord(dnsp="Endeavour Energy", tariff_name="EE Industrial Capacity", tariff_type="CAPACITY", customer_segment="INDUSTRIAL", fixed_charge_per_day=12.50, energy_charge_peak=0.08, energy_charge_offpeak=0.05, demand_charge_per_kw=28.0, network_charge_pct_of_bill=32, cost_reflective_score=9.5, penetration_pct=90),
+    ]
+    cross_subsidies = [
+        CRTCrossSubsidyRecord(region="NSW1", dnsp="Ausgrid", subsidising_segment="Non-solar Residential", subsidised_segment="Rooftop Solar Residential", annual_transfer_m=185, per_customer_per_year=420, main_driver="Fixed cost recovery shortfall from solar export self-sufficiency", reform_status="IN_PROGRESS"),
+        CRTCrossSubsidyRecord(region="NSW1", dnsp="Ausgrid", subsidising_segment="Residential", subsidised_segment="Business (SME)", annual_transfer_m=95, per_customer_per_year=220, main_driver="Flat tariff under-recovery from low-peak business users", reform_status="UNREFORMED"),
+        CRTCrossSubsidyRecord(region="VIC1", dnsp="Citipower", subsidising_segment="Large Industrial", subsidised_segment="Residential", annual_transfer_m=120, per_customer_per_year=85, main_driver="Cross-class averaging of network infrastructure costs", reform_status="IN_PROGRESS"),
+        CRTCrossSubsidyRecord(region="SA1", dnsp="SA Power Networks", subsidising_segment="Non-solar High-use", subsidised_segment="Solar PV Owners", annual_transfer_m=220, per_customer_per_year=580, main_driver="Highest solar penetration in NEM; fixed cost recovery crisis", reform_status="REFORMED"),
+        CRTCrossSubsidyRecord(region="QLD1", dnsp="Energex", subsidising_segment="Urban Customers", subsidised_segment="Regional/Rural Customers", annual_transfer_m=450, per_customer_per_year=680, main_driver="Postage stamp pricing equalises urban/rural network costs", reform_status="UNREFORMED"),
+        CRTCrossSubsidyRecord(region="NSW1", dnsp="Endeavour Energy", subsidising_segment="Medium Commercial", subsidised_segment="Residential", annual_transfer_m=75, per_customer_per_year=55, main_driver="Demand tariff penetration gap", reform_status="IN_PROGRESS"),
+    ]
+    customer_costs = [
+        CRTCustomerCostRecord(customer_type="Non-solar Residential", dnsp="Ausgrid", region="NSW1", actual_bill_per_yr=1850, cost_reflective_bill_per_yr=1620, subsidy_received_per_yr=-230, subsidy_direction="PAYS", solar_penetration_pct=0, ev_adoption_pct=2),
+        CRTCustomerCostRecord(customer_type="Solar Residential (6kW)", dnsp="Ausgrid", region="NSW1", actual_bill_per_yr=850, cost_reflective_bill_per_yr=1280, subsidy_received_per_yr=430, subsidy_direction="RECEIVES", solar_penetration_pct=100, ev_adoption_pct=5),
+        CRTCustomerCostRecord(customer_type="Solar + Battery (10kWh)", dnsp="SA Power Networks", region="SA1", actual_bill_per_yr=420, cost_reflective_bill_per_yr=1100, subsidy_received_per_yr=680, subsidy_direction="RECEIVES", solar_penetration_pct=100, ev_adoption_pct=12),
+        CRTCustomerCostRecord(customer_type="Non-solar Residential", dnsp="SA Power Networks", region="SA1", actual_bill_per_yr=2200, cost_reflective_bill_per_yr=1600, subsidy_received_per_yr=-600, subsidy_direction="PAYS", solar_penetration_pct=0, ev_adoption_pct=1),
+        CRTCustomerCostRecord(customer_type="SME (50 MWh/yr)", dnsp="Citipower", region="VIC1", actual_bill_per_yr=9500, cost_reflective_bill_per_yr=8200, subsidy_received_per_yr=-1300, subsidy_direction="PAYS", solar_penetration_pct=15, ev_adoption_pct=3),
+        CRTCustomerCostRecord(customer_type="Large Industrial (10 GWh/yr)", dnsp="Endeavour Energy", region="NSW1", actual_bill_per_yr=750000, cost_reflective_bill_per_yr=820000, subsidy_received_per_yr=70000, subsidy_direction="RECEIVES", solar_penetration_pct=5, ev_adoption_pct=0),
+    ]
+    der_impacts = []
+    for year in range(2022, 2031):
+        for region in ["NSW1", "QLD1", "VIC1", "SA1"]:
+            base_solar = {"NSW1": 3.5, "QLD1": 4.2, "VIC1": 2.8, "SA1": 2.2}[region]
+            base_ev = {"NSW1": 2.0, "QLD1": 1.5, "VIC1": 2.5, "SA1": 3.0}[region]
+            t = year - 2022
+            solar = base_solar + t * {"NSW1": 0.6, "QLD1": 0.7, "VIC1": 0.5, "SA1": 0.4}[region]
+            ev = min(35, base_ev + t * {"NSW1": 2.5, "QLD1": 2.0, "VIC1": 3.0, "SA1": 3.5}[region])
+            net_cost = {"NSW1": 1800, "QLD1": 1500, "VIC1": 1400, "SA1": 850}[region] * (1 + t * 0.03)
+            gap = net_cost * (solar / 20) * 0.15  # 15% fixed cost not recovered per GW solar
+            risk = "CRITICAL" if gap/net_cost > 0.25 else ("HIGH" if gap/net_cost > 0.15 else ("MEDIUM" if gap/net_cost > 0.08 else "LOW"))
+            der_impacts.append(CRTDerImpactRecord(
+                year=year, region=region,
+                rooftop_solar_gw=round(solar, 2), ev_adoption_pct=round(ev, 1),
+                network_cost_m=round(net_cost, 1), fixed_cost_recovery_gap_m=round(gap, 1),
+                death_spiral_risk=risk,
+                avg_bill_increase_pct=round(gap/net_cost*100*0.8, 1)
+            ))
+    return CRTDashboard(
+        tariff_structures=tariff_structures,
+        cross_subsidies=cross_subsidies,
+        customer_costs=customer_costs,
+        der_impacts=der_impacts,
+        summary={
+            "dnsp_count": 4,
+            "tariff_structures": len(tariff_structures),
+            "cross_subsidy_flows": len(cross_subsidies),
+            "largest_cross_subsidy_m": 450,
+            "reformed_flows": sum(1 for c in cross_subsidies if c.reform_status == "REFORMED"),
+            "unreformed_flows": sum(1 for c in cross_subsidies if c.reform_status == "UNREFORMED"),
+            "highest_cost_reflective_score": 9.5,
+            "der_impact_records": len(der_impacts),
+        }
+    )
+
+# ── Sprint 71c: NEM Energy Consumer Hardship & Affordability Analytics ────────
+
+class ECHStressRecord(BaseModel):
+    state: str
+    quarter: str
+    year: int
+    households_in_stress_pct: float
+    avg_bill_to_income_pct: float
+    disconnections_quarterly: int
+    payment_arrangements_active: int
+    hardship_program_enrolled: int
+    median_debt_at_disconnection: float
+    concession_recipients: int
+
+class ECHRetailerRecord(BaseModel):
+    retailer_name: str
+    state: str
+    hardship_policy_score: float  # 0-10 AER assessment
+    early_intervention_pct: float
+    payment_plan_success_pct: float
+    disconnection_rate_per_1000: float
+    avg_days_to_disconnection: int
+    reconnection_rate_pct: float
+    hardship_staff_ratio: float  # per 1000 customers
+    aemc_compliant: bool
+
+class ECHConcessionRecord(BaseModel):
+    state: str
+    concession_name: str
+    eligible_households: int
+    enrolled_households: int
+    uptake_pct: float
+    annual_value_per_household: float
+    total_cost_m: float
+    funding_source: str  # STATE / FEDERAL / RETAILER
+    adequacy_rating: str  # ADEQUATE / INSUFFICIENT / CRITICAL
+
+class ECHDisconnectionRecord(BaseModel):
+    year: int
+    quarter: str
+    state: str
+    residential_disconnections: int
+    small_business_disconnections: int
+    disconnections_per_1000_customers: float
+    primary_reason: str
+    avg_debt_at_disconnection: float
+    reconnection_within_30d_pct: float
+
+class ECHDashboard(BaseModel):
+    stress_records: list[ECHStressRecord]
+    retailers: list[ECHRetailerRecord]
+    concessions: list[ECHConcessionRecord]
+    disconnections: list[ECHDisconnectionRecord]
+    summary: dict
+
+@app.get("/api/consumer-hardship/dashboard", response_model=ECHDashboard, dependencies=[Depends(verify_api_key)])
+def get_consumer_hardship_dashboard():
+    import random
+    random.seed(88)
+    quarters = ["Q1", "Q2", "Q3", "Q4"]
+    states = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    stress_records = []
+    base_stress = {"NSW": 14, "VIC": 13, "QLD": 15, "SA": 18, "TAS": 22}
+    base_disc = {"NSW": 12500, "VIC": 10200, "QLD": 9800, "SA": 3500, "TAS": 1200}
+    for year in [2022, 2023, 2024, 2025]:
+        for q in quarters:
+            for state in states:
+                year_adj = 1 + (year - 2022) * 0.05  # stress increasing
+                stress = base_stress[state] * year_adj * random.uniform(0.92, 1.08)
+                disc = int(base_disc[state] * year_adj * random.uniform(0.85, 1.15))
+                stress_records.append(ECHStressRecord(
+                    state=state, quarter=q, year=year,
+                    households_in_stress_pct=round(stress, 1),
+                    avg_bill_to_income_pct=round(stress * 0.18, 1),
+                    disconnections_quarterly=disc,
+                    payment_arrangements_active=disc * random.randint(8, 12),
+                    hardship_program_enrolled=disc * random.randint(5, 9),
+                    median_debt_at_disconnection=round(random.uniform(800, 2200), 0),
+                    concession_recipients=int({"NSW": 380000, "VIC": 290000, "QLD": 310000, "SA": 120000, "TAS": 45000}[state] * random.uniform(0.95, 1.05))
+                ))
+    retailers = [
+        ECHRetailerRecord(retailer_name="AGL Energy", state="NEM", hardship_policy_score=7.2, early_intervention_pct=62, payment_plan_success_pct=71, disconnection_rate_per_1000=8.5, avg_days_to_disconnection=42, reconnection_rate_pct=78, hardship_staff_ratio=1.8, aemc_compliant=True),
+        ECHRetailerRecord(retailer_name="Origin Energy", state="NEM", hardship_policy_score=7.8, early_intervention_pct=68, payment_plan_success_pct=74, disconnection_rate_per_1000=7.2, avg_days_to_disconnection=48, reconnection_rate_pct=82, hardship_staff_ratio=2.1, aemc_compliant=True),
+        ECHRetailerRecord(retailer_name="EnergyAustralia", state="NEM", hardship_policy_score=7.5, early_intervention_pct=65, payment_plan_success_pct=72, disconnection_rate_per_1000=7.8, avg_days_to_disconnection=45, reconnection_rate_pct=80, hardship_staff_ratio=2.0, aemc_compliant=True),
+        ECHRetailerRecord(retailer_name="Alinta Energy", state="NEM", hardship_policy_score=6.5, early_intervention_pct=52, payment_plan_success_pct=65, disconnection_rate_per_1000=10.2, avg_days_to_disconnection=35, reconnection_rate_pct=72, hardship_staff_ratio=1.2, aemc_compliant=True),
+        ECHRetailerRecord(retailer_name="Red Energy", state="NEM", hardship_policy_score=8.2, early_intervention_pct=72, payment_plan_success_pct=78, disconnection_rate_per_1000=5.8, avg_days_to_disconnection=55, reconnection_rate_pct=85, hardship_staff_ratio=2.5, aemc_compliant=True),
+        ECHRetailerRecord(retailer_name="Simply Energy", state="VIC", hardship_policy_score=6.0, early_intervention_pct=48, payment_plan_success_pct=62, disconnection_rate_per_1000=11.5, avg_days_to_disconnection=32, reconnection_rate_pct=68, hardship_staff_ratio=0.9, aemc_compliant=True),
+        ECHRetailerRecord(retailer_name="Momentum Energy", state="VIC", hardship_policy_score=5.5, early_intervention_pct=42, payment_plan_success_pct=58, disconnection_rate_per_1000=13.2, avg_days_to_disconnection=28, reconnection_rate_pct=65, hardship_staff_ratio=0.8, aemc_compliant=False),
+        ECHRetailerRecord(retailer_name="1st Energy", state="NSW", hardship_policy_score=4.8, early_intervention_pct=35, payment_plan_success_pct=52, disconnection_rate_per_1000=15.5, avg_days_to_disconnection=22, reconnection_rate_pct=60, hardship_staff_ratio=0.5, aemc_compliant=False),
+    ]
+    concessions = [
+        ECHConcessionRecord(state="NSW", concession_name="Low Income Household Rebate", eligible_households=420000, enrolled_households=385000, uptake_pct=91.7, annual_value_per_household=285, total_cost_m=110, funding_source="STATE", adequacy_rating="INSUFFICIENT"),
+        ECHConcessionRecord(state="VIC", concession_name="Utility Relief Grant Scheme", eligible_households=320000, enrolled_households=180000, uptake_pct=56.3, annual_value_per_household=650, total_cost_m=117, funding_source="STATE", adequacy_rating="ADEQUATE"),
+        ECHConcessionRecord(state="QLD", concession_name="QLD Electricity Rebate", eligible_households=380000, enrolled_households=355000, uptake_pct=93.4, annual_value_per_household=372, total_cost_m=132, funding_source="STATE", adequacy_rating="INSUFFICIENT"),
+        ECHConcessionRecord(state="SA", concession_name="SA Energy Concession", eligible_households=145000, enrolled_households=138000, uptake_pct=95.2, annual_value_per_household=220, total_cost_m=30, funding_source="STATE", adequacy_rating="CRITICAL"),
+        ECHConcessionRecord(state="TAS", concession_name="TAS Energy Bill Relief", eligible_households=55000, enrolled_households=52000, uptake_pct=94.5, annual_value_per_household=405, total_cost_m=21, funding_source="STATE", adequacy_rating="ADEQUATE"),
+        ECHConcessionRecord(state="NEM", concession_name="Federal Energy Relief Payment", eligible_households=1200000, enrolled_households=1100000, uptake_pct=91.7, annual_value_per_household=500, total_cost_m=550, funding_source="FEDERAL", adequacy_rating="INSUFFICIENT"),
+    ]
+    disconnections = []
+    for year in [2022, 2023, 2024]:
+        for q in quarters:
+            for state in states:
+                base = {"NSW": 5000, "VIC": 4200, "QLD": 4000, "SA": 1500, "TAS": 500}[state]
+                year_mult = 1 + (year - 2022) * 0.08
+                res_disc = int(base * year_mult * random.uniform(0.85, 1.15))
+                disconnections.append(ECHDisconnectionRecord(
+                    year=year, quarter=q, state=state,
+                    residential_disconnections=res_disc,
+                    small_business_disconnections=int(res_disc * 0.15),
+                    disconnections_per_1000_customers=round(res_disc / {"NSW": 350000, "VIC": 280000, "QLD": 260000, "SA": 100000, "TAS": 35000}[state] * 1000, 2),
+                    primary_reason="Non-payment",
+                    avg_debt_at_disconnection=round(random.uniform(900, 1800), 0),
+                    reconnection_within_30d_pct=round(random.uniform(58, 82), 1)
+                ))
+    return ECHDashboard(
+        stress_records=stress_records,
+        retailers=retailers,
+        concessions=concessions,
+        disconnections=disconnections,
+        summary={
+            "states_tracked": len(states),
+            "highest_stress_state": "TAS",
+            "highest_stress_pct": 22,
+            "retailers_assessed": len(retailers),
+            "non_compliant_retailers": sum(1 for r in retailers if not r.aemc_compliant),
+            "total_concession_cost_m": sum(c.total_cost_m for c in concessions),
+            "critical_concession_states": sum(1 for c in concessions if c.adequacy_rating == "CRITICAL"),
+            "total_disconnection_records": len(disconnections),
+        }
+    )
