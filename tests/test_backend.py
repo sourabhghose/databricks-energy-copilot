@@ -8743,3 +8743,430 @@ class TestInterconnectorUpgradeAnalytics:
                 assert proj_flows[-1]["avg_utilisation_pct"] >= proj_flows[0]["avg_utilisation_pct"], (
                     f"{pid}: utilisation should not decrease over time"
                 )
+
+
+class TestCspAnalytics:
+    """Sprint 65a — CSP & Solar Thermal Technology Analytics tests."""
+
+    def test_csp_analytics_dashboard(self, client, auth_headers):
+        response = client.get("/api/csp-analytics/dashboard", headers=auth_headers)
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "technologies", "projects", "resources", "dispatch_profiles"):
+            assert key in body, f"Missing key: {key}"
+
+        # ---- technologies: exactly 4 records ----
+        technologies = body["technologies"]
+        assert len(technologies) == 4, f"Expected 4 technology records, got {len(technologies)}"
+
+        valid_tech_names = {"PARABOLIC_TROUGH", "SOLAR_TOWER", "LINEAR_FRESNEL", "DISH_STIRLING"}
+        for t in technologies:
+            assert t["name"] in valid_tech_names, f"Invalid tech name: {t['name']}"
+            assert 0 < t["peak_efficiency_pct"] <= 100, f"peak_efficiency_pct out of range: {t['peak_efficiency_pct']}"
+            assert 0 < t["annual_capacity_factor_pct"] <= 100, f"annual_capacity_factor_pct out of range"
+            assert t["storage_hours"] >= 0, "storage_hours must be non-negative"
+            assert t["capex_m_aud_mw"] > 0, "capex_m_aud_mw must be positive"
+            assert t["lcoe_aud_mwh"] > 0, "lcoe_aud_mwh must be positive"
+            assert t["water_use_l_mwh"] >= 0, "water_use_l_mwh must be non-negative"
+            assert t["land_use_ha_mw"] > 0, "land_use_ha_mw must be positive"
+            assert 1 <= t["trl"] <= 9, f"TRL out of range: {t['trl']}"
+            assert 0 <= t["dispatchability_score"] <= 10, f"dispatchability_score out of range: {t['dispatchability_score']}"
+
+        # SOLAR_TOWER should have highest dispatchability
+        tower = next(t for t in technologies if t["name"] == "SOLAR_TOWER")
+        dish = next(t for t in technologies if t["name"] == "DISH_STIRLING")
+        assert tower["dispatchability_score"] > dish["dispatchability_score"], (
+            "SOLAR_TOWER dispatchability should exceed DISH_STIRLING"
+        )
+
+        # SOLAR_TOWER should have highest storage hours
+        assert tower["storage_hours"] >= dish["storage_hours"], (
+            "SOLAR_TOWER storage hours should be >= DISH_STIRLING"
+        )
+
+        # ---- projects: exactly 8 records ----
+        projects = body["projects"]
+        assert len(projects) == 8, f"Expected 8 project records, got {len(projects)}"
+
+        valid_statuses = {"OPERATING", "CONSTRUCTION", "APPROVED", "PROPOSED", "CANCELLED"}
+        valid_technologies = {"PARABOLIC_TROUGH", "SOLAR_TOWER", "LINEAR_FRESNEL", "DISH_STIRLING"}
+        for p in projects:
+            assert p["status"] in valid_statuses, f"Invalid status: {p['status']}"
+            assert p["technology"] in valid_technologies, f"Invalid technology: {p['technology']}"
+            assert p["capacity_mw"] > 0, "capacity_mw must be positive"
+            assert p["capex_m_aud"] > 0, "capex_m_aud must be positive"
+            assert p["storage_hours"] >= 0, "storage_hours must be non-negative"
+            assert p["expected_lcoe_aud_mwh"] > 0, "expected_lcoe_aud_mwh must be positive"
+            assert p["dni_kwh_m2_yr"] > 0, "dni_kwh_m2_yr must be positive"
+            assert 2000 <= p["cod_year"] <= 2040, f"cod_year out of range: {p['cod_year']}"
+
+        # Specific project checks
+        vast = next((p for p in projects if "Vast Solar Jemalong" in p["project_name"]), None)
+        assert vast is not None, "Vast Solar Jemalong Pilot not found"
+        assert vast["status"] == "OPERATING", "Vast Solar Jemalong should be OPERATING"
+        assert vast["technology"] == "SOLAR_TOWER", "Vast Solar Jemalong should use SOLAR_TOWER"
+
+        sundrop = next((p for p in projects if "Sundrop" in p["project_name"]), None)
+        assert sundrop is not None, "Sundrop Farms project not found"
+        assert sundrop["technology"] == "LINEAR_FRESNEL", "Sundrop Farms should use LINEAR_FRESNEL"
+
+        pilbara = next((p for p in projects if "Pilbara" in p["project_name"]), None)
+        assert pilbara is not None, "Pilbara Solar Thermal Hub not found"
+        assert pilbara["status"] == "APPROVED", "Pilbara should be APPROVED"
+        assert pilbara["storage_hours"] >= 10, "Pilbara should have >= 10 storage hours"
+
+        # World-class DNI projects should have lower LCOE
+        high_dni_projects = [p for p in projects if p["dni_kwh_m2_yr"] >= 2800]
+        assert len(high_dni_projects) > 0, "Should have projects in world-class DNI zones"
+
+        # ---- resources: exactly 10 records ----
+        resources = body["resources"]
+        assert len(resources) == 10, f"Expected 10 resource records, got {len(resources)}"
+
+        valid_dni_classes = {"WORLD_CLASS", "EXCELLENT", "GOOD", "MARGINAL"}
+        world_class_count = 0
+        for r in resources:
+            assert r["dni_class"] in valid_dni_classes, f"Invalid DNI class: {r['dni_class']}"
+            assert r["dni_kwh_m2_yr"] > 0, "dni_kwh_m2_yr must be positive"
+            assert r["area_km2"] > 0, "area_km2 must be positive"
+            assert r["grid_distance_km"] >= 0, "grid_distance_km must be non-negative"
+            assert isinstance(r["proximity_to_existing_project"], bool), "proximity_to_existing_project must be bool"
+            if r["dni_class"] == "WORLD_CLASS":
+                world_class_count += 1
+                assert r["dni_kwh_m2_yr"] >= 2700, (
+                    f"WORLD_CLASS site {r['location']} has low DNI: {r['dni_kwh_m2_yr']}"
+                )
+
+        assert world_class_count >= 4, f"Expected >= 4 WORLD_CLASS sites, got {world_class_count}"
+
+        # Newman WA should be world class
+        newman = next((r for r in resources if r["location"] == "Newman"), None)
+        assert newman is not None, "Newman WA resource record not found"
+        assert newman["dni_class"] == "WORLD_CLASS", "Newman should be WORLD_CLASS DNI"
+
+        # ---- dispatch_profiles: exactly 12 monthly records ----
+        dispatch = body["dispatch_profiles"]
+        assert len(dispatch) == 12, f"Expected 12 dispatch records, got {len(dispatch)}"
+
+        months_seen = set()
+        for d in dispatch:
+            assert d["solar_mw"] >= 0, "solar_mw must be non-negative"
+            assert d["storage_mw"] >= 0, "storage_mw must be non-negative"
+            assert d["total_output_mw"] >= 0, "total_output_mw must be non-negative"
+            assert 0 <= d["storage_utilisation_pct"] <= 100, (
+                f"storage_utilisation_pct out of range: {d['storage_utilisation_pct']}"
+            )
+            assert d["curtailment_mw"] >= 0, "curtailment_mw must be non-negative"
+            assert d["firming_hours_provided"] >= 0, "firming_hours_provided must be non-negative"
+            months_seen.add(d["month"])
+
+        expected_months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+        assert months_seen == expected_months, f"Missing months: {expected_months - months_seen}"
+
+        # Summer months (Jan, Dec) should have higher solar output than winter (Jun, Jul)
+        jan = next(d for d in dispatch if d["month"] == "Jan")
+        jun = next(d for d in dispatch if d["month"] == "Jun")
+        assert jan["solar_mw"] > jun["solar_mw"], (
+            f"January solar ({jan['solar_mw']}) should exceed June solar ({jun['solar_mw']})"
+        )
+
+
+class TestCarbonIntensityAnalytics:
+    """Sprint 65c — Carbon Intensity Real-Time & Historical Analytics"""
+
+    def test_carbon_intensity_dashboard(self, client, auth_headers):
+        response = client.get("/api/carbon-intensity/dashboard", headers=auth_headers)
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "grid_intensity", "marginal_emissions", "technology_emissions", "decarbonisation"):
+            assert key in body, f"Missing top-level key: {key}"
+
+        # --- grid_intensity: 30 records (5 regions × 6 months) ---
+        grid = body["grid_intensity"]
+        assert len(grid) == 30, f"Expected 30 grid intensity records, got {len(grid)}"
+
+        for rec in grid:
+            assert rec["region"] in ("NSW", "VIC", "QLD", "SA", "TAS"), f"Unexpected region: {rec['region']}"
+            assert rec["avg_intensity_kgco2_mwh"] > 0, "avg_intensity must be positive"
+            assert rec["min_intensity_kgco2_mwh"] <= rec["avg_intensity_kgco2_mwh"], "min must be <= avg"
+            assert rec["max_intensity_kgco2_mwh"] >= rec["avg_intensity_kgco2_mwh"], "max must be >= avg"
+            assert 0 <= rec["zero_carbon_hours_pct"] <= 100, f"zero_carbon_hours_pct out of range: {rec['zero_carbon_hours_pct']}"
+            assert rec["total_emissions_kt_co2"] > 0, "total_emissions must be positive"
+            assert 0 <= rec["vre_penetration_pct"] <= 100, "vre_penetration_pct out of range"
+
+        # SA should have lower average intensity than NSW in the same month
+        sa_recs = [r for r in grid if r["region"] == "SA"]
+        nsw_recs = [r for r in grid if r["region"] == "NSW"]
+        sa_avg = sum(r["avg_intensity_kgco2_mwh"] for r in sa_recs) / len(sa_recs)
+        nsw_avg = sum(r["avg_intensity_kgco2_mwh"] for r in nsw_recs) / len(nsw_recs)
+        assert sa_avg < nsw_avg, "SA should have lower avg intensity than NSW"
+
+        # TAS should have the lowest overall average intensity
+        tas_recs = [r for r in grid if r["region"] == "TAS"]
+        tas_avg = sum(r["avg_intensity_kgco2_mwh"] for r in tas_recs) / len(tas_recs)
+        assert tas_avg < sa_avg, "TAS should have lower avg intensity than SA"
+
+        # All 6 months present
+        months_found = set(r["month"] for r in grid)
+        assert len(months_found) == 6, f"Expected 6 distinct months, got {len(months_found)}: {months_found}"
+
+        # --- marginal_emissions: 24 records (4 regions × 6 hours) ---
+        mef = body["marginal_emissions"]
+        assert len(mef) == 24, f"Expected 24 marginal emission records, got {len(mef)}"
+
+        valid_mef_regions = {"NSW", "VIC", "QLD", "SA"}
+        valid_techs = {"Black Coal", "Gas CCGT", "Gas OCGT", "Solar PV"}
+        for rec in mef:
+            assert rec["region"] in valid_mef_regions, f"Unexpected MEF region: {rec['region']}"
+            assert 0 <= rec["hour"] <= 23, f"hour out of range: {rec['hour']}"
+            assert rec["marginal_emission_factor_kgco2_mwh"] >= 0, "MEF must be non-negative"
+            assert rec["typical_price_aud_mwh"] > 0, "price must be positive"
+            assert rec["flexibility_benefit_kg_co2_kwh"] >= 0, "flexibility_benefit must be non-negative"
+            assert rec["marginal_technology"] in valid_techs, f"Unexpected marginal_technology: {rec['marginal_technology']}"
+
+        # Daytime solar hours should have lower MEF than overnight coal hours for NSW
+        nsw_mef = [r for r in mef if r["region"] == "NSW"]
+        nsw_night = [r for r in nsw_mef if r["hour"] in (0, 4)]
+        nsw_day = [r for r in nsw_mef if r["hour"] in (8, 12)]
+        if nsw_night and nsw_day:
+            avg_night_mef = sum(r["marginal_emission_factor_kgco2_mwh"] for r in nsw_night) / len(nsw_night)
+            avg_day_mef = sum(r["marginal_emission_factor_kgco2_mwh"] for r in nsw_day) / len(nsw_day)
+            assert avg_day_mef < avg_night_mef, "Daytime MEF should be lower than overnight MEF for NSW"
+
+        # SA MEF should be lower than NSW MEF on average (more renewables)
+        sa_mef = [r for r in mef if r["region"] == "SA"]
+        nsw_mef_all = [r for r in mef if r["region"] == "NSW"]
+        sa_mef_avg = sum(r["marginal_emission_factor_kgco2_mwh"] for r in sa_mef) / len(sa_mef)
+        nsw_mef_avg = sum(r["marginal_emission_factor_kgco2_mwh"] for r in nsw_mef_all) / len(nsw_mef_all)
+        assert sa_mef_avg < nsw_mef_avg, "SA average MEF should be lower than NSW"
+
+        # --- technology_emissions: 12 records ---
+        tech = body["technology_emissions"]
+        assert len(tech) == 12, f"Expected 12 technology emission records, got {len(tech)}"
+
+        valid_categories = {"FOSSIL", "LOW_CARBON", "RENEWABLE", "STORAGE"}
+        for rec in tech:
+            assert rec["category"] in valid_categories, f"Unexpected category: {rec['category']}"
+            assert rec["lifecycle_kgco2_mwh"] >= 0, "lifecycle must be non-negative"
+            assert rec["operational_kgco2_mwh"] >= 0, "operational must be non-negative"
+            assert rec["construction_kgco2_mwh"] >= 0, "construction must be non-negative"
+            assert rec["fuel_kgco2_mwh"] >= 0, "fuel must be non-negative"
+
+        # FOSSIL technologies must have higher lifecycle than RENEWABLE
+        fossil_recs = [r for r in tech if r["category"] == "FOSSIL"]
+        renewable_recs = [r for r in tech if r["category"] == "RENEWABLE"]
+        assert len(fossil_recs) >= 1, "At least 1 FOSSIL technology required"
+        assert len(renewable_recs) >= 1, "At least 1 RENEWABLE technology required"
+        min_fossil = min(r["lifecycle_kgco2_mwh"] for r in fossil_recs)
+        max_renewable = max(r["lifecycle_kgco2_mwh"] for r in renewable_recs)
+        assert min_fossil > max_renewable, "All FOSSIL technologies should have higher lifecycle than all RENEWABLE"
+
+        # Black Coal should be the dirtiest
+        black_coal = next((r for r in tech if r["technology"] == "Black Coal"), None)
+        assert black_coal is not None, "Black Coal record required"
+        max_lifecycle = max(r["lifecycle_kgco2_mwh"] for r in tech)
+        assert black_coal["lifecycle_kgco2_mwh"] == max_lifecycle, "Black Coal should have highest lifecycle emissions"
+
+        # --- decarbonisation: 20 records (5 regions × 4 years) ---
+        decarb = body["decarbonisation"]
+        assert len(decarb) == 20, f"Expected 20 decarbonisation records, got {len(decarb)}"
+
+        for rec in decarb:
+            assert rec["region"] in ("NSW", "VIC", "QLD", "SA", "TAS"), f"Unexpected region: {rec['region']}"
+            assert rec["year"] in (2021, 2022, 2023, 2024), f"Year out of range: {rec['year']}"
+            assert rec["emissions_mt_co2"] > 0, "emissions must be positive"
+            assert rec["intensity_kgco2_mwh"] > 0, "intensity must be positive"
+            assert 0 <= rec["vre_pct"] <= 100, "vre_pct out of range"
+            assert 0 <= rec["coal_pct"] <= 100, "coal_pct out of range"
+            assert 0 <= rec["gas_pct"] <= 100, "gas_pct out of range"
+            assert rec["target_intensity_kgco2_mwh"] > 0, "target intensity must be positive"
+            assert rec["target_year"] > 2024, "target_year must be in the future"
+            assert isinstance(rec["on_track"], bool), "on_track must be a boolean"
+
+        # Each region should show declining intensity over 2021-2024
+        for region in ("NSW", "VIC", "QLD", "SA", "TAS"):
+            region_recs = sorted(
+                [r for r in decarb if r["region"] == region],
+                key=lambda x: x["year"],
+            )
+            assert len(region_recs) == 4, f"{region}: expected 4 year records"
+            assert region_recs[-1]["intensity_kgco2_mwh"] <= region_recs[0]["intensity_kgco2_mwh"], (
+                f"{region}: intensity should not increase from 2021 to 2024"
+            )
+
+        # TAS should have lower intensity than NSW in 2024
+        tas_2024 = next(r for r in decarb if r["region"] == "TAS" and r["year"] == 2024)
+        nsw_2024 = next(r for r in decarb if r["region"] == "NSW" and r["year"] == 2024)
+        assert tas_2024["intensity_kgco2_mwh"] < nsw_2024["intensity_kgco2_mwh"], (
+            "TAS 2024 intensity should be less than NSW 2024 intensity"
+        )
+
+        # At least one region on track in 2024
+        on_track_2024 = [r for r in decarb if r["year"] == 2024 and r["on_track"]]
+        assert len(on_track_2024) >= 1, "At least one region should be on track in 2024"
+
+
+class TestNetworkTariffReformAnalytics:
+    """Sprint 65b — Network Tariff Reform & DER Incentive Analytics"""
+
+    def test_network_tariff_reform_dashboard(self, client, auth_headers):
+        response = client.get("/api/tariff-reform/dashboard", headers=auth_headers)
+        assert response.status_code == 200, (
+            f"Expected 200, got {response.status_code}: {response.text}"
+        )
+
+        body = response.json()
+
+        # Top-level keys
+        for key in ("timestamp", "tariff_structures", "tariff_impacts", "der_incentives", "reform_outcomes"):
+            assert key in body, f"Missing top-level key: {key}"
+
+        # --- tariff_structures: 20 records (5 DNSPs x 4 tariff classes) ---
+        structs = body["tariff_structures"]
+        assert len(structs) == 20, f"Expected 20 tariff structure records, got {len(structs)}"
+
+        valid_classes = {"RESIDENTIAL", "SME", "LARGE_COMMERCIAL", "INDUSTRIAL"}
+        valid_types = {"FLAT", "TOU", "DEMAND", "DYNAMIC_NETWORK"}
+        expected_dnsps = {"Ausgrid", "Energex", "SA Power Networks", "CitiPower", "Western Power"}
+
+        dnsps_found = set()
+        for rec in structs:
+            assert rec["tariff_class"] in valid_classes, (
+                f"Unexpected tariff_class: {rec['tariff_class']}"
+            )
+            assert rec["tariff_type"] in valid_types, (
+                f"Unexpected tariff_type: {rec['tariff_type']}"
+            )
+            assert rec["daily_supply_aud"] > 0, "daily_supply_aud must be positive"
+            assert rec["customers_k"] > 0, "customers_k must be positive"
+            dnsps_found.add(rec["dnsp"])
+
+        assert dnsps_found == expected_dnsps, (
+            f"Expected DNSPs {expected_dnsps}, found {dnsps_found}"
+        )
+
+        # All 4 tariff types must appear in the data
+        types_found = {r["tariff_type"] for r in structs}
+        assert types_found == valid_types, f"Not all tariff types present: {types_found}"
+
+        # At least some records should have solar export rates
+        solar_records = [r for r in structs if r.get("solar_export_rate_aud_kwh") is not None]
+        assert len(solar_records) >= 3, (
+            f"Expected at least 3 records with solar export rates, got {len(solar_records)}"
+        )
+
+        # --- tariff_impacts: 20 records (4 tariff types x 5 customer types) ---
+        impacts = body["tariff_impacts"]
+        assert len(impacts) == 20, f"Expected 20 tariff impact records, got {len(impacts)}"
+
+        valid_customer_types = {"AVERAGE", "HIGH_SOLAR", "EV_OWNER", "BATTERY_OWNER", "HIGH_DEMAND"}
+        for rec in impacts:
+            assert rec["tariff_type"] in valid_types, (
+                f"Unexpected tariff_type in impact: {rec['tariff_type']}"
+            )
+            assert rec["customer_type"] in valid_customer_types, (
+                f"Unexpected customer_type: {rec['customer_type']}"
+            )
+            assert rec["annual_bill_before_aud"] > 0, "annual_bill_before must be positive"
+            assert rec["annual_bill_after_aud"] > 0, "annual_bill_after must be positive"
+            assert 0 <= rec["der_incentive_score"] <= 10, (
+                f"der_incentive_score out of range: {rec['der_incentive_score']}"
+            )
+            assert rec["peak_shift_mw_potential"] > 0, "peak_shift_mw_potential must be positive"
+
+        # FLAT tariff should have lower DER incentive score than DYNAMIC_NETWORK
+        flat_avg_score = sum(
+            r["der_incentive_score"] for r in impacts if r["tariff_type"] == "FLAT"
+        ) / 5
+        dynamic_avg_score = sum(
+            r["der_incentive_score"] for r in impacts if r["tariff_type"] == "DYNAMIC_NETWORK"
+        ) / 5
+        assert flat_avg_score < dynamic_avg_score, (
+            f"FLAT avg DER score ({flat_avg_score:.2f}) should be < DYNAMIC_NETWORK avg score ({dynamic_avg_score:.2f})"
+        )
+
+        # DYNAMIC_NETWORK should have larger peak shift potential than FLAT for all customer types
+        for ctype in valid_customer_types:
+            flat_rec = next(
+                r for r in impacts if r["tariff_type"] == "FLAT" and r["customer_type"] == ctype
+            )
+            dynamic_rec = next(
+                r for r in impacts if r["tariff_type"] == "DYNAMIC_NETWORK" and r["customer_type"] == ctype
+            )
+            assert dynamic_rec["peak_shift_mw_potential"] > flat_rec["peak_shift_mw_potential"], (
+                f"{ctype}: DYNAMIC_NETWORK peak shift should exceed FLAT"
+            )
+
+        # --- der_incentives: 15 records ---
+        incentives = body["der_incentives"]
+        assert len(incentives) == 15, f"Expected 15 DER incentive records, got {len(incentives)}"
+
+        valid_incentive_types = {
+            "SOLAR_FIT", "BATTERY_REBATE", "EV_SMART_CHARGING",
+            "VPP_PARTICIPATION", "DEMAND_RESPONSE", "SOLAR_SPONGE",
+        }
+        for rec in incentives:
+            assert rec["incentive_type"] in valid_incentive_types, (
+                f"Unexpected incentive_type: {rec['incentive_type']}"
+            )
+            assert rec["incentive_value_aud"] > 0, "incentive_value must be positive"
+            assert rec["eligible_customers_k"] > 0, "eligible_customers_k must be positive"
+            assert 0 < rec["uptake_rate_pct"] <= 100, (
+                f"uptake_rate_pct out of range: {rec['uptake_rate_pct']}"
+            )
+            assert rec["peak_reduction_mw"] > 0, "peak_reduction_mw must be positive"
+            assert rec["annual_network_benefit_m_aud"] > 0, "annual_network_benefit must be positive"
+
+        # Ausgrid should have incentives covering at least 3 different types
+        ausgrid_types = {r["incentive_type"] for r in incentives if r["dnsp"] == "Ausgrid"}
+        assert len(ausgrid_types) >= 3, (
+            f"Ausgrid should cover at least 3 incentive types, found: {ausgrid_types}"
+        )
+
+        # --- reform_outcomes: 8 records ---
+        outcomes = body["reform_outcomes"]
+        assert len(outcomes) == 8, f"Expected 8 reform outcome records, got {len(outcomes)}"
+
+        for rec in outcomes:
+            assert rec["implementation_year"] >= 2020, (
+                f"implementation_year too early: {rec['implementation_year']}"
+            )
+            assert rec["customers_affected_k"] > 0, "customers_affected_k must be positive"
+            assert rec["peak_demand_reduction_mw"] > 0, "peak_demand_reduction_mw must be positive"
+            assert isinstance(rec["revenue_neutral"], bool), "revenue_neutral must be bool"
+            assert isinstance(rec["aer_approved"], bool), "aer_approved must be bool"
+            assert rec["consumer_avg_saving_aud"] >= 0, "consumer_avg_saving_aud must be non-negative"
+
+        # SA Power Networks mandatory demand reform should be AER approved
+        sa_mandatory = next(
+            (r for r in outcomes if r["dnsp"] == "SA Power Networks" and "Mandatory" in r["reform_name"]),
+            None,
+        )
+        assert sa_mandatory is not None, "SA Power Networks mandatory demand reform record required"
+        assert sa_mandatory["aer_approved"] is True, "SA mandatory demand reform must be AER approved"
+        assert sa_mandatory["peak_demand_reduction_mw"] > 100, (
+            "SA mandatory reform should have peak reduction > 100 MW"
+        )
+
+        # At least 5 out of 8 reform outcomes should be AER approved
+        aer_approved_count = sum(1 for r in outcomes if r["aer_approved"])
+        assert aer_approved_count >= 5, (
+            f"Expected at least 5 AER approved reforms, got {aer_approved_count}"
+        )
+
+        # Ausgrid EV smart charging should show consumer savings > $300
+        ausgrid_ev = next(
+            (r for r in outcomes if r["dnsp"] == "Ausgrid" and "EV" in r["reform_name"]),
+            None,
+        )
+        assert ausgrid_ev is not None, "Ausgrid EV smart charging reform record required"
+        assert ausgrid_ev["consumer_avg_saving_aud"] > 300, (
+            f"Ausgrid EV reform consumer saving should exceed $300, got {ausgrid_ev['consumer_avg_saving_aud']}"
+        )

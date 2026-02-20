@@ -69,6 +69,7 @@ import {
   ShieldCheck,
   CreditCard,
   ShoppingCart,
+  Sliders,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -233,6 +234,9 @@ import FuturesPriceDiscovery from './pages/FuturesPriceDiscovery'
 import ElectricityPriceIndex from './pages/ElectricityPriceIndex'
 import InterconnectorUpgradeAnalytics from './pages/InterconnectorUpgradeAnalytics'
 import MlfAnalytics from './pages/MlfAnalytics'
+import CspAnalytics from './pages/CspAnalytics'
+import CarbonIntensityAnalytics from './pages/CarbonIntensityAnalytics'
+import NetworkTariffReformAnalytics from './pages/NetworkTariffReformAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -398,6 +402,9 @@ const NAV_ITEMS = [
   { to: '/electricity-price-index',     label: 'Electricity CPI & Retail',      Icon: ShoppingCart },
   { to: '/interconnector-upgrade-analytics', label: 'Interconnector Upgrade Business Case', Icon: ArrowLeftRight },
   { to: '/mlf-analytics',                   label: 'MLF Deep Dive Analytics',              Icon: TrendingDown   },
+  { to: '/csp-analytics',                    label: 'CSP & Solar Thermal Analytics',         Icon: Sun            },
+  { to: '/carbon-intensity-analytics',       label: 'Carbon Intensity Analytics',            Icon: Leaf           },
+  { to: '/network-tariff-reform-analytics',  label: 'Tariff Reform & DER Incentives',         Icon: Sliders        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -638,6 +645,9 @@ export default function App() {
               <Route path="/electricity-price-index"    element={<ElectricityPriceIndex />}      />
               <Route path="/interconnector-upgrade-analytics" element={<InterconnectorUpgradeAnalytics />} />
               <Route path="/mlf-analytics"               element={<MlfAnalytics />}               />
+              <Route path="/csp-analytics"               element={<CspAnalytics />}               />
+              <Route path="/carbon-intensity-analytics"  element={<CarbonIntensityAnalytics />}   />
+              <Route path="/network-tariff-reform-analytics" element={<NetworkTariffReformAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

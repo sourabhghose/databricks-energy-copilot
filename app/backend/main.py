@@ -45904,3 +45904,615 @@ def get_electricity_price_index_dashboard() -> ElectricityPriceIndexDashboard:
         tariff_components=[r.dict() for r in _EPI_TARIFF_COMPONENTS],
         retailers=[r.dict() for r in _EPI_RETAILERS],
     )
+
+# ============================================================
+# Sprint 65a — CSP & Solar Thermal Technology Analytics
+# ============================================================
+
+class CSPTechnologyRecord(BaseModel):
+    tech_id: str
+    name: str  # PARABOLIC_TROUGH | SOLAR_TOWER | LINEAR_FRESNEL | DISH_STIRLING
+    peak_efficiency_pct: float
+    annual_capacity_factor_pct: float
+    storage_hours: int
+    capex_m_aud_mw: float
+    lcoe_aud_mwh: float
+    water_use_l_mwh: float
+    land_use_ha_mw: float
+    trl: int  # 1-9
+    dispatchability_score: float  # 0-10
+
+
+class CSPProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    region: str
+    technology: str
+    capacity_mw: float
+    storage_hours: int
+    status: str  # OPERATING|CONSTRUCTION|APPROVED|PROPOSED|CANCELLED
+    capex_m_aud: float
+    cod_year: int
+    dni_kwh_m2_yr: float
+    expected_lcoe_aud_mwh: float
+
+
+class CSPResourceRecord(BaseModel):
+    location: str
+    state: str
+    dni_kwh_m2_yr: float
+    dni_class: str  # WORLD_CLASS|EXCELLENT|GOOD|MARGINAL
+    area_km2: float
+    grid_distance_km: float
+    proximity_to_existing_project: bool
+
+
+class CSPDispatchRecord(BaseModel):
+    project_name: str
+    month: str
+    solar_mw: float
+    storage_mw: float
+    total_output_mw: float
+    storage_utilisation_pct: float
+    curtailment_mw: float
+    firming_hours_provided: int
+
+
+class CspAnalyticsDashboard(BaseModel):
+    timestamp: str
+    technologies: List[CSPTechnologyRecord]
+    projects: List[CSPProjectRecord]
+    resources: List[CSPResourceRecord]
+    dispatch_profiles: List[CSPDispatchRecord]
+
+
+_CSP_TECHNOLOGIES: List[CSPTechnologyRecord] = [
+    CSPTechnologyRecord(
+        tech_id="TECH-001",
+        name="PARABOLIC_TROUGH",
+        peak_efficiency_pct=21.5,
+        annual_capacity_factor_pct=38.0,
+        storage_hours=8,
+        capex_m_aud_mw=5.8,
+        lcoe_aud_mwh=185.0,
+        water_use_l_mwh=3000.0,
+        land_use_ha_mw=4.0,
+        trl=9,
+        dispatchability_score=8.2,
+    ),
+    CSPTechnologyRecord(
+        tech_id="TECH-002",
+        name="SOLAR_TOWER",
+        peak_efficiency_pct=25.0,
+        annual_capacity_factor_pct=45.0,
+        storage_hours=12,
+        capex_m_aud_mw=6.5,
+        lcoe_aud_mwh=165.0,
+        water_use_l_mwh=2500.0,
+        land_use_ha_mw=4.5,
+        trl=8,
+        dispatchability_score=9.1,
+    ),
+    CSPTechnologyRecord(
+        tech_id="TECH-003",
+        name="LINEAR_FRESNEL",
+        peak_efficiency_pct=18.0,
+        annual_capacity_factor_pct=30.0,
+        storage_hours=4,
+        capex_m_aud_mw=4.2,
+        lcoe_aud_mwh=210.0,
+        water_use_l_mwh=2800.0,
+        land_use_ha_mw=3.2,
+        trl=7,
+        dispatchability_score=6.5,
+    ),
+    CSPTechnologyRecord(
+        tech_id="TECH-004",
+        name="DISH_STIRLING",
+        peak_efficiency_pct=29.5,
+        annual_capacity_factor_pct=25.0,
+        storage_hours=0,
+        capex_m_aud_mw=8.0,
+        lcoe_aud_mwh=280.0,
+        water_use_l_mwh=50.0,
+        land_use_ha_mw=2.0,
+        trl=6,
+        dispatchability_score=3.5,
+    ),
+]
+
+_CSP_PROJECTS: List[CSPProjectRecord] = [
+    CSPProjectRecord(
+        project_id="PROJ-001",
+        project_name="Port Augusta Renewable Energy Park",
+        developer="SolarReserve / EnergyAustralia",
+        region="Port Augusta, SA",
+        technology="SOLAR_TOWER",
+        capacity_mw=150.0,
+        storage_hours=8,
+        status="CANCELLED",
+        capex_m_aud=650.0,
+        cod_year=2023,
+        dni_kwh_m2_yr=2650.0,
+        expected_lcoe_aud_mwh=175.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-002",
+        project_name="Vast Solar Jemalong Pilot",
+        developer="Vast Solar",
+        region="Forbes, NSW",
+        technology="SOLAR_TOWER",
+        capacity_mw=30.0,
+        storage_hours=6,
+        status="OPERATING",
+        capex_m_aud=120.0,
+        cod_year=2021,
+        dni_kwh_m2_yr=2100.0,
+        expected_lcoe_aud_mwh=195.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-003",
+        project_name="Aurora Solar Energy Project",
+        developer="SolarReserve",
+        region="Port Augusta, SA",
+        technology="SOLAR_TOWER",
+        capacity_mw=150.0,
+        storage_hours=8,
+        status="CANCELLED",
+        capex_m_aud=580.0,
+        cod_year=2024,
+        dni_kwh_m2_yr=2650.0,
+        expected_lcoe_aud_mwh=178.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-004",
+        project_name="Sundrop Farms CSP Desalination",
+        developer="Sundrop Farms",
+        region="Port Augusta, SA",
+        technology="LINEAR_FRESNEL",
+        capacity_mw=1.5,
+        storage_hours=0,
+        status="OPERATING",
+        capex_m_aud=200.0,
+        cod_year=2016,
+        dni_kwh_m2_yr=2640.0,
+        expected_lcoe_aud_mwh=220.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-005",
+        project_name="Vast Solar Mt Isa Feasibility",
+        developer="Vast Solar",
+        region="Mt Isa, QLD",
+        technology="SOLAR_TOWER",
+        capacity_mw=100.0,
+        storage_hours=8,
+        status="PROPOSED",
+        capex_m_aud=520.0,
+        cod_year=2028,
+        dni_kwh_m2_yr=2850.0,
+        expected_lcoe_aud_mwh=155.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-006",
+        project_name="Glenrowan Parabolic Trough Plant",
+        developer="Archer Exploration",
+        region="Glenrowan, VIC",
+        technology="PARABOLIC_TROUGH",
+        capacity_mw=50.0,
+        storage_hours=6,
+        status="PROPOSED",
+        capex_m_aud=290.0,
+        cod_year=2027,
+        dni_kwh_m2_yr=1900.0,
+        expected_lcoe_aud_mwh=210.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-007",
+        project_name="Pilbara Solar Thermal Hub",
+        developer="Fortescue Future Industries",
+        region="Newman, WA",
+        technology="SOLAR_TOWER",
+        capacity_mw=200.0,
+        storage_hours=12,
+        status="APPROVED",
+        capex_m_aud=1100.0,
+        cod_year=2029,
+        dni_kwh_m2_yr=3050.0,
+        expected_lcoe_aud_mwh=140.0,
+    ),
+    CSPProjectRecord(
+        project_id="PROJ-008",
+        project_name="Mildura Solar Concentrator",
+        developer="Suntech Energy",
+        region="Mildura, VIC",
+        technology="PARABOLIC_TROUGH",
+        capacity_mw=80.0,
+        storage_hours=8,
+        status="CONSTRUCTION",
+        capex_m_aud=430.0,
+        cod_year=2026,
+        dni_kwh_m2_yr=2200.0,
+        expected_lcoe_aud_mwh=185.0,
+    ),
+]
+
+_CSP_RESOURCES: List[CSPResourceRecord] = [
+    CSPResourceRecord(location="Longreach", state="QLD", dni_kwh_m2_yr=2980.0, dni_class="WORLD_CLASS", area_km2=15000.0, grid_distance_km=180.0, proximity_to_existing_project=False),
+    CSPResourceRecord(location="Port Augusta", state="SA", dni_kwh_m2_yr=2650.0, dni_class="EXCELLENT", area_km2=8000.0, grid_distance_km=10.0, proximity_to_existing_project=True),
+    CSPResourceRecord(location="Newman", state="WA", dni_kwh_m2_yr=3050.0, dni_class="WORLD_CLASS", area_km2=25000.0, grid_distance_km=45.0, proximity_to_existing_project=True),
+    CSPResourceRecord(location="Alice Springs", state="NT", dni_kwh_m2_yr=2900.0, dni_class="WORLD_CLASS", area_km2=30000.0, grid_distance_km=200.0, proximity_to_existing_project=False),
+    CSPResourceRecord(location="Broken Hill", state="NSW", dni_kwh_m2_yr=2400.0, dni_class="EXCELLENT", area_km2=6000.0, grid_distance_km=25.0, proximity_to_existing_project=False),
+    CSPResourceRecord(location="Mount Isa", state="QLD", dni_kwh_m2_yr=2850.0, dni_class="WORLD_CLASS", area_km2=20000.0, grid_distance_km=95.0, proximity_to_existing_project=True),
+    CSPResourceRecord(location="Mildura", state="VIC", dni_kwh_m2_yr=2200.0, dni_class="EXCELLENT", area_km2=3500.0, grid_distance_km=5.0, proximity_to_existing_project=True),
+    CSPResourceRecord(location="Carnarvon", state="WA", dni_kwh_m2_yr=2900.0, dni_class="WORLD_CLASS", area_km2=18000.0, grid_distance_km=130.0, proximity_to_existing_project=False),
+    CSPResourceRecord(location="Coober Pedy", state="SA", dni_kwh_m2_yr=2750.0, dni_class="WORLD_CLASS", area_km2=12000.0, grid_distance_km=220.0, proximity_to_existing_project=False),
+    CSPResourceRecord(location="Geraldton", state="WA", dni_kwh_m2_yr=2600.0, dni_class="EXCELLENT", area_km2=5000.0, grid_distance_km=30.0, proximity_to_existing_project=False),
+]
+
+_CSP_DISPATCH: List[CSPDispatchRecord] = [
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Jan", solar_mw=28.0, storage_mw=15.0, total_output_mw=30.0, storage_utilisation_pct=82.0, curtailment_mw=2.0, firming_hours_provided=6),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Feb", solar_mw=27.0, storage_mw=14.5, total_output_mw=30.0, storage_utilisation_pct=78.0, curtailment_mw=1.5, firming_hours_provided=5),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Mar", solar_mw=24.0, storage_mw=14.0, total_output_mw=30.0, storage_utilisation_pct=72.0, curtailment_mw=0.5, firming_hours_provided=5),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Apr", solar_mw=20.0, storage_mw=13.0, total_output_mw=28.0, storage_utilisation_pct=65.0, curtailment_mw=0.0, firming_hours_provided=4),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="May", solar_mw=16.0, storage_mw=12.0, total_output_mw=25.0, storage_utilisation_pct=58.0, curtailment_mw=0.0, firming_hours_provided=4),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Jun", solar_mw=12.0, storage_mw=10.0, total_output_mw=20.0, storage_utilisation_pct=48.0, curtailment_mw=0.0, firming_hours_provided=3),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Jul", solar_mw=13.0, storage_mw=11.0, total_output_mw=22.0, storage_utilisation_pct=52.0, curtailment_mw=0.0, firming_hours_provided=3),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Aug", solar_mw=17.0, storage_mw=12.5, total_output_mw=26.0, storage_utilisation_pct=61.0, curtailment_mw=0.0, firming_hours_provided=4),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Sep", solar_mw=21.0, storage_mw=13.5, total_output_mw=29.0, storage_utilisation_pct=70.0, curtailment_mw=0.5, firming_hours_provided=5),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Oct", solar_mw=25.0, storage_mw=14.5, total_output_mw=30.0, storage_utilisation_pct=76.0, curtailment_mw=1.0, firming_hours_provided=5),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Nov", solar_mw=27.5, storage_mw=15.0, total_output_mw=30.0, storage_utilisation_pct=80.0, curtailment_mw=2.0, firming_hours_provided=6),
+    CSPDispatchRecord(project_name="Vast Solar Jemalong Pilot", month="Dec", solar_mw=29.0, storage_mw=15.0, total_output_mw=30.0, storage_utilisation_pct=85.0, curtailment_mw=2.5, firming_hours_provided=6),
+]
+
+
+@app.get("/api/csp-analytics/dashboard", dependencies=[Depends(verify_api_key)])
+def get_csp_analytics_dashboard() -> CspAnalyticsDashboard:
+    """Return CSP & Solar Thermal Technology Analytics dashboard data."""
+    return CspAnalyticsDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        technologies=_CSP_TECHNOLOGIES,
+        projects=_CSP_PROJECTS,
+        resources=_CSP_RESOURCES,
+        dispatch_profiles=_CSP_DISPATCH,
+    )
+
+
+
+# ---------------------------------------------------------------------------
+# Sprint 65b — Network Tariff Reform & DER Incentive Analytics
+# ---------------------------------------------------------------------------
+from typing import Optional as _Opt65b
+
+class NTRTariffStructureRecord(BaseModel):
+    dnsp: str
+    tariff_class: str          # RESIDENTIAL / SME / LARGE_COMMERCIAL / INDUSTRIAL
+    tariff_type: str           # FLAT / TOU / DEMAND / DYNAMIC_NETWORK
+    daily_supply_aud: float
+    flat_rate_aud_kwh: _Opt65b[float] = None
+    peak_rate_aud_kwh: _Opt65b[float] = None
+    offpeak_rate_aud_kwh: _Opt65b[float] = None
+    demand_rate_aud_kw_month: _Opt65b[float] = None
+    solar_export_rate_aud_kwh: _Opt65b[float] = None
+    customers_k: int
+
+class NTRTariffImpactRecord(BaseModel):
+    tariff_type: str
+    customer_type: str         # AVERAGE / HIGH_SOLAR / EV_OWNER / BATTERY_OWNER / HIGH_DEMAND
+    annual_bill_before_aud: float
+    annual_bill_after_aud: float
+    bill_change_pct: float
+    der_incentive_score: float  # 0-10
+    peak_shift_mw_potential: float
+
+class NTRDerIncentiveRecord(BaseModel):
+    incentive_type: str        # SOLAR_FIT / BATTERY_REBATE / EV_SMART_CHARGING / VPP_PARTICIPATION / DEMAND_RESPONSE / SOLAR_SPONGE
+    dnsp: str
+    incentive_value_aud: float
+    eligible_customers_k: int
+    uptake_rate_pct: float
+    peak_reduction_mw: float
+    annual_network_benefit_m_aud: float
+
+class NTRReformOutcomeRecord(BaseModel):
+    dnsp: str
+    reform_name: str
+    implementation_year: int
+    customers_affected_k: int
+    peak_demand_reduction_mw: float
+    revenue_neutral: bool
+    consumer_avg_saving_aud: float
+    aer_approved: bool
+
+class NTRDashboard(BaseModel):
+    timestamp: str
+    tariff_structures: list[NTRTariffStructureRecord]
+    tariff_impacts: list[NTRTariffImpactRecord]
+    der_incentives: list[NTRDerIncentiveRecord]
+    reform_outcomes: list[NTRReformOutcomeRecord]
+
+_NTR_TARIFF_STRUCTURES: list[NTRTariffStructureRecord] = [
+    # Ausgrid (NSW)
+    NTRTariffStructureRecord(dnsp="Ausgrid", tariff_class="RESIDENTIAL", tariff_type="TOU", daily_supply_aud=1.12, peak_rate_aud_kwh=0.2845, offpeak_rate_aud_kwh=0.1124, solar_export_rate_aud_kwh=0.065, customers_k=980),
+    NTRTariffStructureRecord(dnsp="Ausgrid", tariff_class="SME", tariff_type="DEMAND", daily_supply_aud=2.35, peak_rate_aud_kwh=0.1960, offpeak_rate_aud_kwh=0.0890, demand_rate_aud_kw_month=18.50, customers_k=89),
+    NTRTariffStructureRecord(dnsp="Ausgrid", tariff_class="LARGE_COMMERCIAL", tariff_type="DEMAND", daily_supply_aud=4.20, peak_rate_aud_kwh=0.1420, offpeak_rate_aud_kwh=0.0612, demand_rate_aud_kw_month=25.60, customers_k=8),
+    NTRTariffStructureRecord(dnsp="Ausgrid", tariff_class="INDUSTRIAL", tariff_type="DYNAMIC_NETWORK", daily_supply_aud=8.50, peak_rate_aud_kwh=0.0985, offpeak_rate_aud_kwh=0.0410, demand_rate_aud_kw_month=32.80, customers_k=2),
+    # Energex (QLD)
+    NTRTariffStructureRecord(dnsp="Energex", tariff_class="RESIDENTIAL", tariff_type="TOU", daily_supply_aud=1.00, peak_rate_aud_kwh=0.2638, offpeak_rate_aud_kwh=0.0985, solar_export_rate_aud_kwh=0.050, customers_k=870),
+    NTRTariffStructureRecord(dnsp="Energex", tariff_class="SME", tariff_type="DEMAND", daily_supply_aud=2.10, peak_rate_aud_kwh=0.1885, offpeak_rate_aud_kwh=0.0820, demand_rate_aud_kw_month=16.80, customers_k=62),
+    NTRTariffStructureRecord(dnsp="Energex", tariff_class="LARGE_COMMERCIAL", tariff_type="DEMAND", daily_supply_aud=3.90, peak_rate_aud_kwh=0.1330, offpeak_rate_aud_kwh=0.0580, demand_rate_aud_kw_month=22.40, customers_k=6),
+    NTRTariffStructureRecord(dnsp="Energex", tariff_class="INDUSTRIAL", tariff_type="DYNAMIC_NETWORK", daily_supply_aud=7.80, peak_rate_aud_kwh=0.0905, offpeak_rate_aud_kwh=0.0380, demand_rate_aud_kw_month=29.50, customers_k=1),
+    # SA Power Networks (SA)
+    NTRTariffStructureRecord(dnsp="SA Power Networks", tariff_class="RESIDENTIAL", tariff_type="DEMAND", daily_supply_aud=1.22, peak_rate_aud_kwh=0.2344, offpeak_rate_aud_kwh=0.0815, demand_rate_aud_kw_month=14.20, solar_export_rate_aud_kwh=0.058, customers_k=450),
+    NTRTariffStructureRecord(dnsp="SA Power Networks", tariff_class="SME", tariff_type="DEMAND", daily_supply_aud=2.40, peak_rate_aud_kwh=0.1752, offpeak_rate_aud_kwh=0.0720, demand_rate_aud_kw_month=19.80, customers_k=45),
+    NTRTariffStructureRecord(dnsp="SA Power Networks", tariff_class="LARGE_COMMERCIAL", tariff_type="DYNAMIC_NETWORK", daily_supply_aud=4.60, peak_rate_aud_kwh=0.1280, offpeak_rate_aud_kwh=0.0520, demand_rate_aud_kw_month=28.00, customers_k=4),
+    NTRTariffStructureRecord(dnsp="SA Power Networks", tariff_class="INDUSTRIAL", tariff_type="DYNAMIC_NETWORK", daily_supply_aud=9.20, peak_rate_aud_kwh=0.0875, offpeak_rate_aud_kwh=0.0350, demand_rate_aud_kw_month=36.40, customers_k=1),
+    # CitiPower (VIC)
+    NTRTariffStructureRecord(dnsp="CitiPower", tariff_class="RESIDENTIAL", tariff_type="TOU", daily_supply_aud=1.08, peak_rate_aud_kwh=0.2614, offpeak_rate_aud_kwh=0.0888, solar_export_rate_aud_kwh=0.084, customers_k=350),
+    NTRTariffStructureRecord(dnsp="CitiPower", tariff_class="SME", tariff_type="DEMAND", daily_supply_aud=2.25, peak_rate_aud_kwh=0.1980, offpeak_rate_aud_kwh=0.0850, demand_rate_aud_kw_month=20.50, customers_k=38),
+    NTRTariffStructureRecord(dnsp="CitiPower", tariff_class="LARGE_COMMERCIAL", tariff_type="DEMAND", daily_supply_aud=3.85, peak_rate_aud_kwh=0.1240, offpeak_rate_aud_kwh=0.0490, demand_rate_aud_kw_month=22.75, customers_k=12),
+    NTRTariffStructureRecord(dnsp="CitiPower", tariff_class="INDUSTRIAL", tariff_type="DYNAMIC_NETWORK", daily_supply_aud=7.50, peak_rate_aud_kwh=0.0860, offpeak_rate_aud_kwh=0.0330, demand_rate_aud_kw_month=30.20, customers_k=1),
+    # Western Power (WA)
+    NTRTariffStructureRecord(dnsp="Western Power", tariff_class="RESIDENTIAL", tariff_type="FLAT", daily_supply_aud=1.35, flat_rate_aud_kwh=0.3010, solar_export_rate_aud_kwh=0.030, customers_k=540),
+    NTRTariffStructureRecord(dnsp="Western Power", tariff_class="SME", tariff_type="FLAT", daily_supply_aud=2.60, flat_rate_aud_kwh=0.2480, customers_k=55),
+    NTRTariffStructureRecord(dnsp="Western Power", tariff_class="LARGE_COMMERCIAL", tariff_type="DEMAND", daily_supply_aud=4.80, peak_rate_aud_kwh=0.1550, offpeak_rate_aud_kwh=0.0620, demand_rate_aud_kw_month=24.00, customers_k=7),
+    NTRTariffStructureRecord(dnsp="Western Power", tariff_class="INDUSTRIAL", tariff_type="DEMAND", daily_supply_aud=8.90, peak_rate_aud_kwh=0.1010, offpeak_rate_aud_kwh=0.0420, demand_rate_aud_kw_month=34.60, customers_k=1),
+]
+
+_NTR_TARIFF_IMPACTS: list[NTRTariffImpactRecord] = [
+    # FLAT tariff impacts
+    NTRTariffImpactRecord(tariff_type="FLAT", customer_type="AVERAGE", annual_bill_before_aud=1820, annual_bill_after_aud=1820, bill_change_pct=0.0, der_incentive_score=2.0, peak_shift_mw_potential=5.2),
+    NTRTariffImpactRecord(tariff_type="FLAT", customer_type="HIGH_SOLAR", annual_bill_before_aud=1380, annual_bill_after_aud=1420, bill_change_pct=2.9, der_incentive_score=1.5, peak_shift_mw_potential=3.8),
+    NTRTariffImpactRecord(tariff_type="FLAT", customer_type="EV_OWNER", annual_bill_before_aud=2240, annual_bill_after_aud=2290, bill_change_pct=2.2, der_incentive_score=1.8, peak_shift_mw_potential=8.4),
+    NTRTariffImpactRecord(tariff_type="FLAT", customer_type="BATTERY_OWNER", annual_bill_before_aud=1560, annual_bill_after_aud=1620, bill_change_pct=3.8, der_incentive_score=1.2, peak_shift_mw_potential=6.1),
+    NTRTariffImpactRecord(tariff_type="FLAT", customer_type="HIGH_DEMAND", annual_bill_before_aud=2850, annual_bill_after_aud=2910, bill_change_pct=2.1, der_incentive_score=1.0, peak_shift_mw_potential=2.9),
+    # TOU tariff impacts
+    NTRTariffImpactRecord(tariff_type="TOU", customer_type="AVERAGE", annual_bill_before_aud=1820, annual_bill_after_aud=1745, bill_change_pct=-4.1, der_incentive_score=6.2, peak_shift_mw_potential=22.5),
+    NTRTariffImpactRecord(tariff_type="TOU", customer_type="HIGH_SOLAR", annual_bill_before_aud=1380, annual_bill_after_aud=1190, bill_change_pct=-13.8, der_incentive_score=7.8, peak_shift_mw_potential=38.4),
+    NTRTariffImpactRecord(tariff_type="TOU", customer_type="EV_OWNER", annual_bill_before_aud=2240, annual_bill_after_aud=1980, bill_change_pct=-11.6, der_incentive_score=8.4, peak_shift_mw_potential=52.1),
+    NTRTariffImpactRecord(tariff_type="TOU", customer_type="BATTERY_OWNER", annual_bill_before_aud=1560, annual_bill_after_aud=1280, bill_change_pct=-17.9, der_incentive_score=8.9, peak_shift_mw_potential=44.8),
+    NTRTariffImpactRecord(tariff_type="TOU", customer_type="HIGH_DEMAND", annual_bill_before_aud=2850, annual_bill_after_aud=2690, bill_change_pct=-5.6, der_incentive_score=5.5, peak_shift_mw_potential=18.2),
+    # DEMAND tariff impacts
+    NTRTariffImpactRecord(tariff_type="DEMAND", customer_type="AVERAGE", annual_bill_before_aud=1820, annual_bill_after_aud=1730, bill_change_pct=-4.9, der_incentive_score=7.1, peak_shift_mw_potential=31.4),
+    NTRTariffImpactRecord(tariff_type="DEMAND", customer_type="HIGH_SOLAR", annual_bill_before_aud=1380, annual_bill_after_aud=1210, bill_change_pct=-12.3, der_incentive_score=8.2, peak_shift_mw_potential=42.6),
+    NTRTariffImpactRecord(tariff_type="DEMAND", customer_type="EV_OWNER", annual_bill_before_aud=2240, annual_bill_after_aud=2010, bill_change_pct=-10.3, der_incentive_score=7.6, peak_shift_mw_potential=61.3),
+    NTRTariffImpactRecord(tariff_type="DEMAND", customer_type="BATTERY_OWNER", annual_bill_before_aud=1560, annual_bill_after_aud=1240, bill_change_pct=-20.5, der_incentive_score=9.2, peak_shift_mw_potential=58.7),
+    NTRTariffImpactRecord(tariff_type="DEMAND", customer_type="HIGH_DEMAND", annual_bill_before_aud=2850, annual_bill_after_aud=2450, bill_change_pct=-14.0, der_incentive_score=8.8, peak_shift_mw_potential=48.5),
+    # DYNAMIC_NETWORK tariff impacts
+    NTRTariffImpactRecord(tariff_type="DYNAMIC_NETWORK", customer_type="AVERAGE", annual_bill_before_aud=1820, annual_bill_after_aud=1680, bill_change_pct=-7.7, der_incentive_score=8.5, peak_shift_mw_potential=45.2),
+    NTRTariffImpactRecord(tariff_type="DYNAMIC_NETWORK", customer_type="HIGH_SOLAR", annual_bill_before_aud=1380, annual_bill_after_aud=1080, bill_change_pct=-21.7, der_incentive_score=9.5, peak_shift_mw_potential=68.3),
+    NTRTariffImpactRecord(tariff_type="DYNAMIC_NETWORK", customer_type="EV_OWNER", annual_bill_before_aud=2240, annual_bill_after_aud=1820, bill_change_pct=-18.8, der_incentive_score=9.1, peak_shift_mw_potential=88.6),
+    NTRTariffImpactRecord(tariff_type="DYNAMIC_NETWORK", customer_type="BATTERY_OWNER", annual_bill_before_aud=1560, annual_bill_after_aud=1110, bill_change_pct=-28.8, der_incentive_score=9.8, peak_shift_mw_potential=94.2),
+    NTRTariffImpactRecord(tariff_type="DYNAMIC_NETWORK", customer_type="HIGH_DEMAND", annual_bill_before_aud=2850, annual_bill_after_aud=2280, bill_change_pct=-20.0, der_incentive_score=9.3, peak_shift_mw_potential=72.4),
+]
+
+_NTR_DER_INCENTIVES: list[NTRDerIncentiveRecord] = [
+    NTRDerIncentiveRecord(incentive_type="SOLAR_FIT", dnsp="Ausgrid", incentive_value_aud=650, eligible_customers_k=210, uptake_rate_pct=68.5, peak_reduction_mw=42.3, annual_network_benefit_m_aud=18.4),
+    NTRDerIncentiveRecord(incentive_type="BATTERY_REBATE", dnsp="Ausgrid", incentive_value_aud=2500, eligible_customers_k=85, uptake_rate_pct=22.4, peak_reduction_mw=38.8, annual_network_benefit_m_aud=24.6),
+    NTRDerIncentiveRecord(incentive_type="EV_SMART_CHARGING", dnsp="Ausgrid", incentive_value_aud=320, eligible_customers_k=34, uptake_rate_pct=71.2, peak_reduction_mw=28.4, annual_network_benefit_m_aud=12.8),
+    NTRDerIncentiveRecord(incentive_type="SOLAR_FIT", dnsp="Energex", incentive_value_aud=500, eligible_customers_k=195, uptake_rate_pct=62.8, peak_reduction_mw=35.6, annual_network_benefit_m_aud=15.2),
+    NTRDerIncentiveRecord(incentive_type="BATTERY_REBATE", dnsp="Energex", incentive_value_aud=3000, eligible_customers_k=72, uptake_rate_pct=18.9, peak_reduction_mw=31.5, annual_network_benefit_m_aud=20.8),
+    NTRDerIncentiveRecord(incentive_type="VPP_PARTICIPATION", dnsp="Energex", incentive_value_aud=850, eligible_customers_k=28, uptake_rate_pct=35.6, peak_reduction_mw=52.4, annual_network_benefit_m_aud=32.5),
+    NTRDerIncentiveRecord(incentive_type="SOLAR_FIT", dnsp="SA Power Networks", incentive_value_aud=580, eligible_customers_k=195, uptake_rate_pct=74.2, peak_reduction_mw=48.2, annual_network_benefit_m_aud=22.1),
+    NTRDerIncentiveRecord(incentive_type="DEMAND_RESPONSE", dnsp="SA Power Networks", incentive_value_aud=420, eligible_customers_k=180, uptake_rate_pct=28.4, peak_reduction_mw=65.8, annual_network_benefit_m_aud=38.4),
+    NTRDerIncentiveRecord(incentive_type="SOLAR_SPONGE", dnsp="SA Power Networks", incentive_value_aud=180, eligible_customers_k=150, uptake_rate_pct=45.8, peak_reduction_mw=28.6, annual_network_benefit_m_aud=14.2),
+    NTRDerIncentiveRecord(incentive_type="SOLAR_FIT", dnsp="CitiPower", incentive_value_aud=840, eligible_customers_k=45, uptake_rate_pct=78.5, peak_reduction_mw=24.8, annual_network_benefit_m_aud=16.8),
+    NTRDerIncentiveRecord(incentive_type="VPP_PARTICIPATION", dnsp="CitiPower", incentive_value_aud=1200, eligible_customers_k=22, uptake_rate_pct=42.3, peak_reduction_mw=44.6, annual_network_benefit_m_aud=28.4),
+    NTRDerIncentiveRecord(incentive_type="EV_SMART_CHARGING", dnsp="CitiPower", incentive_value_aud=280, eligible_customers_k=18, uptake_rate_pct=65.8, peak_reduction_mw=18.9, annual_network_benefit_m_aud=10.2),
+    NTRDerIncentiveRecord(incentive_type="SOLAR_FIT", dnsp="Western Power", incentive_value_aud=300, eligible_customers_k=165, uptake_rate_pct=52.4, peak_reduction_mw=28.4, annual_network_benefit_m_aud=12.8),
+    NTRDerIncentiveRecord(incentive_type="BATTERY_REBATE", dnsp="Western Power", incentive_value_aud=4000, eligible_customers_k=48, uptake_rate_pct=12.8, peak_reduction_mw=22.6, annual_network_benefit_m_aud=15.4),
+    NTRDerIncentiveRecord(incentive_type="DEMAND_RESPONSE", dnsp="Western Power", incentive_value_aud=380, eligible_customers_k=120, uptake_rate_pct=24.6, peak_reduction_mw=42.8, annual_network_benefit_m_aud=26.2),
+]
+
+_NTR_REFORM_OUTCOMES: list[NTRReformOutcomeRecord] = [
+    NTRReformOutcomeRecord(dnsp="Ausgrid", reform_name="Cost-Reflective Residential TOU", implementation_year=2022, customers_affected_k=980, peak_demand_reduction_mw=185.0, revenue_neutral=True, consumer_avg_saving_aud=125, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="Ausgrid", reform_name="EV Smart Charging Tariff Program", implementation_year=2024, customers_affected_k=34, peak_demand_reduction_mw=28.0, revenue_neutral=True, consumer_avg_saving_aud=340, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="Energex", reform_name="Solar Export Incentive Scheme", implementation_year=2023, customers_affected_k=195, peak_demand_reduction_mw=95.4, revenue_neutral=False, consumer_avg_saving_aud=210, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="Energex", reform_name="Residential Demand Tariff Trial", implementation_year=2024, customers_affected_k=42, peak_demand_reduction_mw=38.6, revenue_neutral=True, consumer_avg_saving_aud=180, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="SA Power Networks", reform_name="Mandatory Demand Tariff Reform", implementation_year=2021, customers_affected_k=450, peak_demand_reduction_mw=142.8, revenue_neutral=True, consumer_avg_saving_aud=95, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="SA Power Networks", reform_name="Solar Sponge Off-Peak Incentive", implementation_year=2022, customers_affected_k=150, peak_demand_reduction_mw=68.5, revenue_neutral=False, consumer_avg_saving_aud=165, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="CitiPower", reform_name="DER Capacity Tariff Integration", implementation_year=2024, customers_affected_k=45, peak_demand_reduction_mw=38.5, revenue_neutral=True, consumer_avg_saving_aud=420, aer_approved=True),
+    NTRReformOutcomeRecord(dnsp="Western Power", reform_name="Residential TOU Pilot Program", implementation_year=2025, customers_affected_k=25, peak_demand_reduction_mw=18.2, revenue_neutral=True, consumer_avg_saving_aud=85, aer_approved=False),
+]
+
+def _make_ntr_dashboard() -> NTRDashboard:
+    from datetime import datetime, timezone
+    return NTRDashboard(
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        tariff_structures=_NTR_TARIFF_STRUCTURES,
+        tariff_impacts=_NTR_TARIFF_IMPACTS,
+        der_incentives=_NTR_DER_INCENTIVES,
+        reform_outcomes=_NTR_REFORM_OUTCOMES,
+    )
+
+@app.get(
+    "/api/tariff-reform/dashboard",
+    response_model=NTRDashboard,
+    tags=["Network Tariff Reform & DER Incentives"],
+    dependencies=[Depends(verify_api_key)],
+)
+def get_ntr_dashboard():
+    return _make_ntr_dashboard()
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models — Carbon Intensity Real-Time & Historical Analytics (Sprint 65c)
+# ---------------------------------------------------------------------------
+
+class CIRGridIntensityRecord(BaseModel):
+    region: str
+    year: int
+    month: str
+    avg_intensity_kgco2_mwh: float
+    min_intensity_kgco2_mwh: float
+    max_intensity_kgco2_mwh: float
+    zero_carbon_hours_pct: float
+    total_emissions_kt_co2: float
+    vre_penetration_pct: float
+
+
+class CIRMarginalEmissionRecord(BaseModel):
+    region: str
+    hour: int  # 0-23
+    marginal_emission_factor_kgco2_mwh: float
+    marginal_technology: str
+    typical_price_aud_mwh: float
+    flexibility_benefit_kg_co2_kwh: float
+
+
+class CIRTechnologyEmissionRecord(BaseModel):
+    technology: str
+    lifecycle_kgco2_mwh: float
+    operational_kgco2_mwh: float
+    construction_kgco2_mwh: float
+    fuel_kgco2_mwh: float
+    category: str  # FOSSIL / LOW_CARBON / RENEWABLE / STORAGE
+
+
+class CIRDecarbonisationRecord(BaseModel):
+    region: str
+    year: int
+    emissions_mt_co2: float
+    intensity_kgco2_mwh: float
+    vre_pct: float
+    coal_pct: float
+    gas_pct: float
+    target_intensity_kgco2_mwh: float
+    target_year: int
+    on_track: bool
+
+
+class CarbonIntensityDashboard(BaseModel):
+    timestamp: str
+    grid_intensity: List[CIRGridIntensityRecord]
+    marginal_emissions: List[CIRMarginalEmissionRecord]
+    technology_emissions: List[CIRTechnologyEmissionRecord]
+    decarbonisation: List[CIRDecarbonisationRecord]
+
+
+# ---------------------------------------------------------------------------
+# Mock data — Carbon Intensity Real-Time & Historical Analytics (Sprint 65c)
+# ---------------------------------------------------------------------------
+
+_CIR_MONTHS = ["Jul-24", "Aug-24", "Sep-24", "Oct-24", "Nov-24", "Dec-24"]
+_CIR_REGIONS = ["NSW", "VIC", "QLD", "SA", "TAS"]
+
+_CIR_GRID_INTENSITY: List[CIRGridIntensityRecord] = []
+_region_intensity_base = {"NSW": 580, "VIC": 720, "QLD": 650, "SA": 230, "TAS": 50}
+_region_vre_base = {"NSW": 28, "VIC": 35, "QLD": 32, "SA": 68, "TAS": 92}
+_region_coal_pct = {"NSW": 52, "VIC": 58, "QLD": 55, "SA": 5, "TAS": 0}
+_region_emissions_base = {"NSW": 3.2, "VIC": 2.8, "QLD": 3.5, "SA": 0.6, "TAS": 0.08}
+
+for _r in _CIR_REGIONS:
+    for _mi, _m in enumerate(_CIR_MONTHS):
+        _base = _region_intensity_base[_r]
+        _trend = -(_base * 0.005 * _mi)  # slight downward trend
+        _avg = round(_base + _trend, 1)
+        _vre = round(_region_vre_base[_r] + _mi * 0.5, 1)
+        _zc_hrs = round(min(95, _vre * 1.1), 1)
+        _CIR_GRID_INTENSITY.append(CIRGridIntensityRecord(
+            region=_r,
+            year=2024,
+            month=_m,
+            avg_intensity_kgco2_mwh=_avg,
+            min_intensity_kgco2_mwh=round(_avg * 0.4, 1),
+            max_intensity_kgco2_mwh=round(_avg * 1.5, 1),
+            zero_carbon_hours_pct=_zc_hrs,
+            total_emissions_kt_co2=round(_region_emissions_base[_r] * 1000 * (1 - _mi * 0.01), 1),
+            vre_penetration_pct=_vre,
+        ))
+
+_CIR_MEF_REGIONS = ["NSW", "VIC", "QLD", "SA"]
+_CIR_MARGINAL_EMISSIONS: List[CIRMarginalEmissionRecord] = []
+_hour_tech_map = {
+    0: ("Black Coal", 900.0), 1: ("Black Coal", 900.0), 2: ("Black Coal", 880.0),
+    3: ("Black Coal", 870.0), 4: ("Black Coal", 860.0), 5: ("Black Coal", 840.0),
+    6: ("Gas OCGT", 680.0), 7: ("Gas CCGT", 580.0), 8: ("Gas CCGT", 500.0),
+    9: ("Solar PV", 50.0), 10: ("Solar PV", 30.0), 11: ("Solar PV", 20.0),
+    12: ("Solar PV", 15.0), 13: ("Solar PV", 18.0), 14: ("Solar PV", 25.0),
+    15: ("Gas CCGT", 450.0), 16: ("Gas CCGT", 500.0), 17: ("Gas OCGT", 620.0),
+    18: ("Gas OCGT", 700.0), 19: ("Black Coal", 820.0), 20: ("Black Coal", 860.0),
+    21: ("Black Coal", 880.0), 22: ("Black Coal", 890.0), 23: ("Black Coal", 900.0),
+}
+_region_mef_scalar = {"NSW": 1.0, "VIC": 1.15, "QLD": 1.05, "SA": 0.6}
+_region_price_scalar = {"NSW": 1.0, "VIC": 0.95, "QLD": 1.1, "SA": 1.2}
+
+for _r in _CIR_MEF_REGIONS:
+    for _h in range(0, 24, 4):  # 6 hours per region = 24 records total
+        _tech, _base_mef = _hour_tech_map[_h]
+        _mef = round(_base_mef * _region_mef_scalar[_r], 1)
+        _price = round((50 + _h * 3 + (_base_mef * 0.05)) * _region_price_scalar[_r], 2)
+        _flex = round(_mef / 1000.0 * 0.8, 4)
+        _CIR_MARGINAL_EMISSIONS.append(CIRMarginalEmissionRecord(
+            region=_r,
+            hour=_h,
+            marginal_emission_factor_kgco2_mwh=_mef,
+            marginal_technology=_tech,
+            typical_price_aud_mwh=_price,
+            flexibility_benefit_kg_co2_kwh=_flex,
+        ))
+
+_CIR_TECHNOLOGY_EMISSIONS: List[CIRTechnologyEmissionRecord] = [
+    CIRTechnologyEmissionRecord(technology="Utility Solar PV",       lifecycle_kgco2_mwh=22.0,   operational_kgco2_mwh=0.0,   construction_kgco2_mwh=22.0,  fuel_kgco2_mwh=0.0,   category="RENEWABLE"),
+    CIRTechnologyEmissionRecord(technology="Onshore Wind",           lifecycle_kgco2_mwh=11.0,   operational_kgco2_mwh=0.0,   construction_kgco2_mwh=11.0,  fuel_kgco2_mwh=0.0,   category="RENEWABLE"),
+    CIRTechnologyEmissionRecord(technology="Offshore Wind",          lifecycle_kgco2_mwh=14.0,   operational_kgco2_mwh=0.0,   construction_kgco2_mwh=14.0,  fuel_kgco2_mwh=0.0,   category="RENEWABLE"),
+    CIRTechnologyEmissionRecord(technology="Run-of-River Hydro",     lifecycle_kgco2_mwh=4.0,    operational_kgco2_mwh=0.0,   construction_kgco2_mwh=4.0,   fuel_kgco2_mwh=0.0,   category="RENEWABLE"),
+    CIRTechnologyEmissionRecord(technology="Li-Ion Battery Storage", lifecycle_kgco2_mwh=35.0,   operational_kgco2_mwh=0.0,   construction_kgco2_mwh=35.0,  fuel_kgco2_mwh=0.0,   category="STORAGE"),
+    CIRTechnologyEmissionRecord(technology="Pumped Hydro",           lifecycle_kgco2_mwh=18.0,   operational_kgco2_mwh=0.0,   construction_kgco2_mwh=18.0,  fuel_kgco2_mwh=0.0,   category="STORAGE"),
+    CIRTechnologyEmissionRecord(technology="Nuclear (SMR)",          lifecycle_kgco2_mwh=12.0,   operational_kgco2_mwh=3.0,   construction_kgco2_mwh=9.0,   fuel_kgco2_mwh=0.0,   category="LOW_CARBON"),
+    CIRTechnologyEmissionRecord(technology="Gas CCS",                lifecycle_kgco2_mwh=78.0,   operational_kgco2_mwh=60.0,  construction_kgco2_mwh=8.0,   fuel_kgco2_mwh=10.0,  category="LOW_CARBON"),
+    CIRTechnologyEmissionRecord(technology="Gas CCGT",               lifecycle_kgco2_mwh=410.0,  operational_kgco2_mwh=370.0, construction_kgco2_mwh=5.0,   fuel_kgco2_mwh=35.0,  category="FOSSIL"),
+    CIRTechnologyEmissionRecord(technology="Gas OCGT",               lifecycle_kgco2_mwh=490.0,  operational_kgco2_mwh=440.0, construction_kgco2_mwh=5.0,   fuel_kgco2_mwh=45.0,  category="FOSSIL"),
+    CIRTechnologyEmissionRecord(technology="Brown Coal",             lifecycle_kgco2_mwh=820.0,  operational_kgco2_mwh=780.0, construction_kgco2_mwh=10.0,  fuel_kgco2_mwh=30.0,  category="FOSSIL"),
+    CIRTechnologyEmissionRecord(technology="Black Coal",             lifecycle_kgco2_mwh=870.0,  operational_kgco2_mwh=820.0, construction_kgco2_mwh=10.0,  fuel_kgco2_mwh=40.0,  category="FOSSIL"),
+]
+
+_CIR_DECARB_YEARS = [2021, 2022, 2023, 2024]
+_CIR_DECARBONISATION: List[CIRDecarbonisationRecord] = []
+_region_decarb_base = {
+    "NSW": {"emissions": 45.0, "intensity": 680.0, "vre": 20.0, "coal": 60.0, "gas": 20.0, "target": 200.0, "target_year": 2035},
+    "VIC": {"emissions": 40.0, "intensity": 850.0, "vre": 25.0, "coal": 65.0, "gas": 10.0, "target": 250.0, "target_year": 2033},
+    "QLD": {"emissions": 50.0, "intensity": 750.0, "vre": 18.0, "coal": 65.0, "gas": 17.0, "target": 220.0, "target_year": 2035},
+    "SA":  {"emissions": 8.0,  "intensity": 300.0, "vre": 55.0, "coal": 2.0,  "gas": 30.0, "target": 50.0,  "target_year": 2030},
+    "TAS": {"emissions": 0.8,  "intensity": 60.0,  "vre": 90.0, "coal": 0.0,  "gas": 2.0,  "target": 30.0,  "target_year": 2030},
+}
+
+for _r in _CIR_REGIONS:
+    _b = _region_decarb_base[_r]
+    for _yi, _y in enumerate(_CIR_DECARB_YEARS):
+        _decay = 1 - _yi * 0.05
+        _em = round(_b["emissions"] * _decay, 2)
+        _int = round(_b["intensity"] * _decay, 1)
+        _vre = round(min(98, _b["vre"] + _yi * 4), 1)
+        _coal = round(max(0, _b["coal"] - _yi * 3), 1)
+        _gas = round(_b["gas"] + _yi * 0.5, 1)
+        _target = _b["target"]
+        _target_year = _b["target_year"]
+        _on_track = _int <= (_b["intensity"] - (_b["intensity"] - _target) * (_yi / ((_target_year - 2021) / 1.0)))
+        _CIR_DECARBONISATION.append(CIRDecarbonisationRecord(
+            region=_r,
+            year=_y,
+            emissions_mt_co2=_em,
+            intensity_kgco2_mwh=_int,
+            vre_pct=_vre,
+            coal_pct=_coal,
+            gas_pct=_gas,
+            target_intensity_kgco2_mwh=_target,
+            target_year=_target_year,
+            on_track=_on_track,
+        ))
+
+
+# ---------------------------------------------------------------------------
+# Endpoint — Carbon Intensity Real-Time & Historical Analytics (Sprint 65c)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/carbon-intensity/dashboard", dependencies=[Depends(verify_api_key)])
+def get_carbon_intensity_dashboard() -> CarbonIntensityDashboard:
+    return CarbonIntensityDashboard(
+        timestamp=datetime.utcnow().isoformat() + "Z",
+        grid_intensity=_CIR_GRID_INTENSITY,
+        marginal_emissions=_CIR_MARGINAL_EMISSIONS,
+        technology_emissions=_CIR_TECHNOLOGY_EMISSIONS,
+        decarbonisation=_CIR_DECARBONISATION,
+    )

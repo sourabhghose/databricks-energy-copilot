@@ -9078,3 +9078,182 @@ export interface MlfAnalyticsDashboard {
 
 export const getMlfAnalyticsDashboard = (): Promise<MlfAnalyticsDashboard> =>
   get<MlfAnalyticsDashboard>('/api/mlf-analytics/dashboard')
+
+// ---- Sprint 65a: CSP & Solar Thermal Analytics ----
+
+export interface CSPTechnologyRecord {
+  tech_id: string
+  name: string
+  peak_efficiency_pct: number
+  annual_capacity_factor_pct: number
+  storage_hours: number
+  capex_m_aud_mw: number
+  lcoe_aud_mwh: number
+  water_use_l_mwh: number
+  land_use_ha_mw: number
+  trl: number
+  dispatchability_score: number
+}
+
+export interface CSPProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  region: string
+  technology: string
+  capacity_mw: number
+  storage_hours: number
+  status: string
+  capex_m_aud: number
+  cod_year: number
+  dni_kwh_m2_yr: number
+  expected_lcoe_aud_mwh: number
+}
+
+export interface CSPResourceRecord {
+  location: string
+  state: string
+  dni_kwh_m2_yr: number
+  dni_class: string
+  area_km2: number
+  grid_distance_km: number
+  proximity_to_existing_project: boolean
+}
+
+export interface CSPDispatchRecord {
+  project_name: string
+  month: string
+  solar_mw: number
+  storage_mw: number
+  total_output_mw: number
+  storage_utilisation_pct: number
+  curtailment_mw: number
+  firming_hours_provided: number
+}
+
+export interface CspAnalyticsDashboard {
+  timestamp: string
+  technologies: CSPTechnologyRecord[]
+  projects: CSPProjectRecord[]
+  resources: CSPResourceRecord[]
+  dispatch_profiles: CSPDispatchRecord[]
+}
+
+export const getCspAnalyticsDashboard = (): Promise<CspAnalyticsDashboard> =>
+  get<CspAnalyticsDashboard>('/api/csp-analytics/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 65b — Network Tariff Reform & DER Incentive Analytics
+// ---------------------------------------------------------------------------
+export interface NTRTariffStructureRecord {
+  dnsp: string
+  tariff_class: string
+  tariff_type: string
+  daily_supply_aud: number
+  flat_rate_aud_kwh: number | null
+  peak_rate_aud_kwh: number | null
+  offpeak_rate_aud_kwh: number | null
+  demand_rate_aud_kw_month: number | null
+  solar_export_rate_aud_kwh: number | null
+  customers_k: number
+}
+
+export interface NTRTariffImpactRecord {
+  tariff_type: string
+  customer_type: string
+  annual_bill_before_aud: number
+  annual_bill_after_aud: number
+  bill_change_pct: number
+  der_incentive_score: number
+  peak_shift_mw_potential: number
+}
+
+export interface NTRDerIncentiveRecord {
+  incentive_type: string
+  dnsp: string
+  incentive_value_aud: number
+  eligible_customers_k: number
+  uptake_rate_pct: number
+  peak_reduction_mw: number
+  annual_network_benefit_m_aud: number
+}
+
+export interface NTRReformOutcomeRecord {
+  dnsp: string
+  reform_name: string
+  implementation_year: number
+  customers_affected_k: number
+  peak_demand_reduction_mw: number
+  revenue_neutral: boolean
+  consumer_avg_saving_aud: number
+  aer_approved: boolean
+}
+
+export interface NTRDashboard {
+  timestamp: string
+  tariff_structures: NTRTariffStructureRecord[]
+  tariff_impacts: NTRTariffImpactRecord[]
+  der_incentives: NTRDerIncentiveRecord[]
+  reform_outcomes: NTRReformOutcomeRecord[]
+}
+
+export const getNTRDashboard = (): Promise<NTRDashboard> =>
+  get<NTRDashboard>('/api/tariff-reform/dashboard')
+
+// ---------------------------------------------------------------------------
+// Carbon Intensity Real-Time & Historical Analytics (Sprint 65c)
+// ---------------------------------------------------------------------------
+
+export interface CIRGridIntensityRecord {
+  region: string
+  year: number
+  month: string
+  avg_intensity_kgco2_mwh: number
+  min_intensity_kgco2_mwh: number
+  max_intensity_kgco2_mwh: number
+  zero_carbon_hours_pct: number
+  total_emissions_kt_co2: number
+  vre_penetration_pct: number
+}
+
+export interface CIRMarginalEmissionRecord {
+  region: string
+  hour: number
+  marginal_emission_factor_kgco2_mwh: number
+  marginal_technology: string
+  typical_price_aud_mwh: number
+  flexibility_benefit_kg_co2_kwh: number
+}
+
+export interface CIRTechnologyEmissionRecord {
+  technology: string
+  lifecycle_kgco2_mwh: number
+  operational_kgco2_mwh: number
+  construction_kgco2_mwh: number
+  fuel_kgco2_mwh: number
+  category: string
+}
+
+export interface CIRDecarbonisationRecord {
+  region: string
+  year: number
+  emissions_mt_co2: number
+  intensity_kgco2_mwh: number
+  vre_pct: number
+  coal_pct: number
+  gas_pct: number
+  target_intensity_kgco2_mwh: number
+  target_year: number
+  on_track: boolean
+}
+
+export interface CarbonIntensityDashboard {
+  timestamp: string
+  grid_intensity: CIRGridIntensityRecord[]
+  marginal_emissions: CIRMarginalEmissionRecord[]
+  technology_emissions: CIRTechnologyEmissionRecord[]
+  decarbonisation: CIRDecarbonisationRecord[]
+}
+
+export const getCarbonIntensityDashboard = (): Promise<CarbonIntensityDashboard> =>
+  get<CarbonIntensityDashboard>('/api/carbon-intensity/dashboard')
