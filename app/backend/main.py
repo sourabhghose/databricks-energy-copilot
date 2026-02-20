@@ -47650,3 +47650,370 @@ def get_grid_forming_inverter_dashboard():
             "gfl_ride_through_rate_pct": 60,
         }
     )
+
+# ── Sprint 68a: Capacity Mechanism Design Analytics ──────────────────────────
+
+class CMDCapacityRecord(BaseModel):
+    region: str
+    delivery_year: int
+    capacity_obligation_mw: float
+    capacity_contracted_mw: float
+    capacity_gap_mw: float
+    clearing_price_per_kw_yr: float
+    mechanism_type: str  # CIS / RERT / VOLUNTARY / RELIABILITY_OBLIGATION
+    technology_mix: str
+    status: str  # CLEARED / PENDING / DEFICIT
+
+class CMDAuctionRecord(BaseModel):
+    auction_id: str
+    auction_date: str
+    region: str
+    capacity_sought_mw: float
+    capacity_cleared_mw: float
+    clearing_price_per_kw_yr: float
+    num_bidders: int
+    num_winners: int
+    technology_types: str
+    oversubscription_pct: float
+    outcome: str
+
+class CMDParticipantRecord(BaseModel):
+    participant_id: str
+    name: str
+    region: str
+    technology: str
+    committed_capacity_mw: float
+    available_capacity_mw: float
+    delivery_year: int
+    payment_per_kw_yr: float
+    reliability_rating: float
+    compliance_status: str
+
+class CMDDesignComparisonRecord(BaseModel):
+    mechanism_name: str
+    jurisdiction: str
+    mechanism_type: str
+    in_use: bool
+    cost_per_mwh: float
+    reliability_improvement_pct: float
+    new_investment_triggered_mw: float
+    admin_complexity: str  # LOW / MEDIUM / HIGH
+    pros: str
+    cons: str
+
+class CMDDashboard(BaseModel):
+    capacity_records: list[CMDCapacityRecord]
+    auction_results: list[CMDAuctionRecord]
+    participants: list[CMDParticipantRecord]
+    mechanism_comparison: list[CMDDesignComparisonRecord]
+    summary: dict
+
+@app.get("/api/capacity-mechanism/dashboard", response_model=CMDDashboard, dependencies=[Depends(verify_api_key)])
+def get_capacity_mechanism_dashboard():
+    capacity_records = [
+        CMDCapacityRecord(region="VIC1", delivery_year=2025, capacity_obligation_mw=8500, capacity_contracted_mw=7800, capacity_gap_mw=700, clearing_price_per_kw_yr=45, mechanism_type="CIS", technology_mix="BESS/Wind/Solar", status="DEFICIT"),
+        CMDCapacityRecord(region="SA1", delivery_year=2025, capacity_obligation_mw=3200, capacity_contracted_mw=3050, capacity_gap_mw=150, clearing_price_per_kw_yr=62, mechanism_type="CIS", technology_mix="BESS/Gas/Wind", status="DEFICIT"),
+        CMDCapacityRecord(region="NSW1", delivery_year=2025, capacity_obligation_mw=12000, capacity_contracted_mw=12500, capacity_gap_mw=-500, clearing_price_per_kw_yr=38, mechanism_type="CIS", technology_mix="BESS/Solar/Wind", status="CLEARED"),
+        CMDCapacityRecord(region="QLD1", delivery_year=2025, capacity_obligation_mw=9800, capacity_contracted_mw=10200, capacity_gap_mw=-400, clearing_price_per_kw_yr=35, mechanism_type="CIS", technology_mix="Solar/BESS/Gas", status="CLEARED"),
+        CMDCapacityRecord(region="VIC1", delivery_year=2026, capacity_obligation_mw=9200, capacity_contracted_mw=8100, capacity_gap_mw=1100, clearing_price_per_kw_yr=55, mechanism_type="CIS", technology_mix="BESS/Wind", status="DEFICIT"),
+        CMDCapacityRecord(region="SA1", delivery_year=2026, capacity_obligation_mw=3400, capacity_contracted_mw=3200, capacity_gap_mw=200, clearing_price_per_kw_yr=70, mechanism_type="CIS", technology_mix="BESS/H2/Wind", status="DEFICIT"),
+        CMDCapacityRecord(region="NSW1", delivery_year=2026, capacity_obligation_mw=13000, capacity_contracted_mw=12800, capacity_gap_mw=200, clearing_price_per_kw_yr=42, mechanism_type="CIS", technology_mix="BESS/Solar", status="PENDING"),
+        CMDCapacityRecord(region="TAS1", delivery_year=2025, capacity_obligation_mw=1500, capacity_contracted_mw=1600, capacity_gap_mw=-100, clearing_price_per_kw_yr=28, mechanism_type="RERT", technology_mix="Hydro/Wind", status="CLEARED"),
+    ]
+    auction_results = [
+        CMDAuctionRecord(auction_id="CIS-2024-R1", auction_date="2024-03", region="NSW1", capacity_sought_mw=2000, capacity_cleared_mw=2150, clearing_price_per_kw_yr=38, num_bidders=22, num_winners=14, technology_types="BESS/Solar/Wind", oversubscription_pct=35, outcome="OVERSUBSCRIBED"),
+        CMDAuctionRecord(auction_id="CIS-2024-R2", auction_date="2024-06", region="VIC1", capacity_sought_mw=1500, capacity_cleared_mw=1200, clearing_price_per_kw_yr=52, num_bidders=18, num_winners=11, technology_types="BESS/Wind/Solar", oversubscription_pct=-20, outcome="UNDERSUBSCRIBED"),
+        CMDAuctionRecord(auction_id="CIS-2024-R3", auction_date="2024-09", region="QLD1", capacity_sought_mw=1800, capacity_cleared_mw=1950, clearing_price_per_kw_yr=34, num_bidders=25, num_winners=16, technology_types="Solar/BESS/Wind", oversubscription_pct=28, outcome="OVERSUBSCRIBED"),
+        CMDAuctionRecord(auction_id="CIS-2024-R4", auction_date="2024-12", region="SA1", capacity_sought_mw=800, capacity_cleared_mw=720, clearing_price_per_kw_yr=68, num_bidders=12, num_winners=8, technology_types="BESS/H2", oversubscription_pct=-10, outcome="UNDERSUBSCRIBED"),
+        CMDAuctionRecord(auction_id="CIS-2025-R1", auction_date="2025-03", region="NSW1", capacity_sought_mw=2500, capacity_cleared_mw=2500, clearing_price_per_kw_yr=40, num_bidders=28, num_winners=18, technology_types="BESS/Solar/Wind/Pumped Hydro", oversubscription_pct=12, outcome="CLEARED"),
+        CMDAuctionRecord(auction_id="CIS-2025-R2", auction_date="2025-06", region="VIC1", capacity_sought_mw=2000, capacity_cleared_mw=1750, clearing_price_per_kw_yr=58, num_bidders=15, num_winners=10, technology_types="BESS/Wind", oversubscription_pct=-13, outcome="UNDERSUBSCRIBED"),
+    ]
+    participants = [
+        CMDParticipantRecord(participant_id="P001", name="AGL Energy BESS Portfolio", region="NSW1", technology="BESS", committed_capacity_mw=400, available_capacity_mw=380, delivery_year=2025, payment_per_kw_yr=38, reliability_rating=0.95, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P002", name="Neoen Hornsdale Reserve", region="SA1", technology="BESS", committed_capacity_mw=150, available_capacity_mw=148, delivery_year=2025, payment_per_kw_yr=62, reliability_rating=0.98, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P003", name="Origin Eraring Coal Exit BESS", region="NSW1", technology="BESS", committed_capacity_mw=700, available_capacity_mw=650, delivery_year=2025, payment_per_kw_yr=40, reliability_rating=0.93, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P004", name="EnergyAustralia VIC Wind", region="VIC1", technology="WIND", committed_capacity_mw=500, available_capacity_mw=420, delivery_year=2025, payment_per_kw_yr=45, reliability_rating=0.84, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P005", name="Shell Callide OCGT", region="QLD1", technology="GAS_OCGT", committed_capacity_mw=450, available_capacity_mw=445, delivery_year=2025, payment_per_kw_yr=35, reliability_rating=0.99, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P006", name="Amp Energy NSW Solar+BESS", region="NSW1", technology="SOLAR_BESS", committed_capacity_mw=300, available_capacity_mw=280, delivery_year=2026, payment_per_kw_yr=42, reliability_rating=0.93, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P007", name="Vestas QLD Wind Farm", region="QLD1", technology="WIND", committed_capacity_mw=350, available_capacity_mw=310, delivery_year=2025, payment_per_kw_yr=34, reliability_rating=0.89, compliance_status="WATCH"),
+        CMDParticipantRecord(participant_id="P008", name="Glencore Liddell Replacement", region="NSW1", technology="GAS_CCGT", committed_capacity_mw=600, available_capacity_mw=420, delivery_year=2026, payment_per_kw_yr=48, reliability_rating=0.70, compliance_status="BREACH"),
+        CMDParticipantRecord(participant_id="P009", name="Hydro Tasmania Wind+Hydro", region="TAS1", technology="HYDRO", committed_capacity_mw=400, available_capacity_mw=400, delivery_year=2025, payment_per_kw_yr=28, reliability_rating=1.0, compliance_status="COMPLIANT"),
+        CMDParticipantRecord(participant_id="P010", name="Star of the South Offshore", region="VIC1", technology="OFFSHORE_WIND", committed_capacity_mw=200, available_capacity_mw=0, delivery_year=2029, payment_per_kw_yr=65, reliability_rating=0.0, compliance_status="DEVELOPMENT"),
+    ]
+    mechanism_comparison = [
+        CMDDesignComparisonRecord(mechanism_name="CIS (Capacity Investment Scheme)", jurisdiction="Australia NEM", mechanism_type="COMPETITIVE_TENDER", in_use=True, cost_per_mwh=4.2, reliability_improvement_pct=12, new_investment_triggered_mw=6000, admin_complexity="MEDIUM", pros="Technology-neutral, competitive, triggers new investment", cons="Complex administration, long-term price risk to government"),
+        CMDDesignComparisonRecord(mechanism_name="GB Capacity Market (T-4)", jurisdiction="UK", mechanism_type="CAPACITY_AUCTION", in_use=True, cost_per_mwh=3.8, reliability_improvement_pct=18, new_investment_triggered_mw=0, admin_complexity="HIGH", pros="Proven track record, maintains existing capacity", cons="Accused of windfall profits to existing generators"),
+        CMDDesignComparisonRecord(mechanism_name="PJM Capacity Performance", jurisdiction="USA PJM", mechanism_type="CAPACITY_PERFORMANCE", in_use=True, cost_per_mwh=5.1, reliability_improvement_pct=22, new_investment_triggered_mw=2000, admin_complexity="HIGH", pros="Strong performance incentives, penalties for non-performance", cons="High compliance costs, complex penalty structure"),
+        CMDDesignComparisonRecord(mechanism_name="RERT (NEM)", jurisdiction="Australia NEM", mechanism_type="EMERGENCY_RESERVE", in_use=True, cost_per_mwh=1.8, reliability_improvement_pct=5, new_investment_triggered_mw=200, admin_complexity="LOW", pros="Cost-effective emergency backstop, quick to procure", cons="Not designed for sustained reliability, limited capacity"),
+        CMDDesignComparisonRecord(mechanism_name="Strategic Reserve (Sweden)", jurisdiction="Sweden", mechanism_type="STRATEGIC_RESERVE", in_use=True, cost_per_mwh=2.2, reliability_improvement_pct=8, new_investment_triggered_mw=0, admin_complexity="LOW", pros="Simple, targeted at extreme scarcity events", cons="Small capacity, does not support new investment"),
+        CMDDesignComparisonRecord(mechanism_name="Reliability Obligation (Proposed)", jurisdiction="Australia NEM", mechanism_type="RELIABILITY_OBLIGATION", in_use=False, cost_per_mwh=3.5, reliability_improvement_pct=15, new_investment_triggered_mw=3000, admin_complexity="MEDIUM", pros="Retailer accountability, technology-neutral", cons="Retail market disruption, hedging complexity for small retailers"),
+    ]
+    return CMDDashboard(
+        capacity_records=capacity_records,
+        auction_results=auction_results,
+        participants=participants,
+        mechanism_comparison=mechanism_comparison,
+        summary={
+            "total_regions_tracked": 5,
+            "deficit_regions": 3,
+            "total_capacity_contracted_gw": round(sum(r.capacity_contracted_mw for r in capacity_records) / 1000, 1),
+            "total_auctions_run": len(auction_results),
+            "total_participants": len(participants),
+            "breach_participants": sum(1 for p in participants if p.compliance_status == "BREACH"),
+            "cis_avg_clearing_price_per_kw_yr": 44.5,
+            "mechanisms_compared": len(mechanism_comparison),
+        }
+    )
+
+# ── Sprint 68b: NEM Demand Forecasting Accuracy Analytics ────────────────────
+
+class DFAErrorRecord(BaseModel):
+    date: str
+    region: str
+    period: str  # TRADING_PERIOD
+    horizon_min: int  # 5, 30, 60, 120, 240 minutes ahead
+    forecast_mw: float
+    actual_mw: float
+    error_mw: float
+    error_pct: float
+    direction: str  # OVER / UNDER
+
+class DFAHorizonSummaryRecord(BaseModel):
+    region: str
+    horizon_min: int
+    mae_mw: float
+    rmse_mw: float
+    mape_pct: float
+    bias_mw: float
+    p90_error_mw: float
+    skill_score: float
+
+class DFASeasonalBiasRecord(BaseModel):
+    region: str
+    season: str  # SUMMER / AUTUMN / WINTER / SPRING
+    time_of_day: str  # MORNING_PEAK / MIDDAY / EVENING_PEAK / OVERNIGHT
+    avg_error_mw: float
+    avg_error_pct: float
+    sample_count: int
+    primary_driver: str
+
+class DFAModelBenchmarkRecord(BaseModel):
+    model_name: str
+    model_type: str
+    region: str
+    mae_mw: float
+    rmse_mw: float
+    mape_pct: float
+    training_data_years: int
+    features_used: str
+    deployment_status: str  # PRODUCTION / TESTING / DEPRECATED
+    last_retrained: str
+
+class DFADashboard(BaseModel):
+    error_records: list[DFAErrorRecord]
+    horizon_summary: list[DFAHorizonSummaryRecord]
+    seasonal_bias: list[DFASeasonalBiasRecord]
+    model_benchmarks: list[DFAModelBenchmarkRecord]
+    summary: dict
+
+@app.get("/api/demand-forecast-accuracy/dashboard", response_model=DFADashboard, dependencies=[Depends(verify_api_key)])
+def get_demand_forecast_accuracy_dashboard():
+    import random
+    random.seed(99)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    dates = ["2025-01-06", "2025-01-07", "2025-01-13", "2025-01-20", "2025-02-03", "2025-02-10"]
+    error_records = []
+    for date in dates:
+        for region in regions:
+            base_load = {"NSW1": 8500, "QLD1": 7200, "VIC1": 6500, "SA1": 1800, "TAS1": 1200}[region]
+            for horizon in [5, 30, 60, 120, 240]:
+                error_scale = horizon / 5 * 0.8  # larger errors at longer horizons
+                actual = base_load + random.uniform(-1000, 1000)
+                error = random.uniform(-error_scale * 50, error_scale * 60)
+                forecast = actual + error
+                direction = "OVER" if error > 0 else "UNDER"
+                error_records.append(DFAErrorRecord(
+                    date=date, region=region,
+                    period=f"HH{random.randint(1,48):02d}",
+                    horizon_min=horizon,
+                    forecast_mw=round(forecast, 0), actual_mw=round(actual, 0),
+                    error_mw=round(error, 0), error_pct=round(error / actual * 100, 2),
+                    direction=direction
+                ))
+    horizon_summary = []
+    for region in regions:
+        for horizon in [5, 30, 60, 120, 240]:
+            base_mae = {"NSW1": 120, "QLD1": 100, "VIC1": 90, "SA1": 35, "TAS1": 22}[region]
+            scale = horizon / 5
+            mae = base_mae * scale * random.uniform(0.8, 1.2)
+            horizon_summary.append(DFAHorizonSummaryRecord(
+                region=region, horizon_min=horizon,
+                mae_mw=round(mae, 1),
+                rmse_mw=round(mae * 1.35, 1),
+                mape_pct=round(mae / {"NSW1": 8500, "QLD1": 7200, "VIC1": 6500, "SA1": 1800, "TAS1": 1200}[region] * 100, 2),
+                bias_mw=round(random.uniform(-mae * 0.1, mae * 0.1), 1),
+                p90_error_mw=round(mae * 2.2, 1),
+                skill_score=round(max(0.3, 0.95 - scale * 0.06), 3)
+            ))
+    seasonal_bias = []
+    seasons = ["SUMMER", "AUTUMN", "WINTER", "SPRING"]
+    time_of_days = ["MORNING_PEAK", "MIDDAY", "EVENING_PEAK", "OVERNIGHT"]
+    drivers = ["Temperature forecast error", "Rooftop solar generation uncertainty", "Industrial load variability", "Holiday schedule uncertainty", "EV charging profile uncertainty"]
+    for region in regions:
+        for season in seasons:
+            for tod in time_of_days:
+                bias = random.uniform(-80, 80)
+                bias_adj = bias * (2.0 if season == "SUMMER" and tod == "EVENING_PEAK" and region in ["SA1", "VIC1"] else 1.0)
+                seasonal_bias.append(DFASeasonalBiasRecord(
+                    region=region, season=season, time_of_day=tod,
+                    avg_error_mw=round(bias_adj, 1),
+                    avg_error_pct=round(bias_adj / {"NSW1": 8500, "QLD1": 7200, "VIC1": 6500, "SA1": 1800, "TAS1": 1200}[region] * 100, 2),
+                    sample_count=random.randint(80, 200),
+                    primary_driver=random.choice(drivers)
+                ))
+    model_benchmarks = [
+        DFAModelBenchmarkRecord(model_name="AEMO STF v4.2", model_type="ENSEMBLE", region="NEM", mae_mw=142, rmse_mw=195, mape_pct=1.68, training_data_years=10, features_used="Temperature, Calendar, Historical Load, Weather", deployment_status="PRODUCTION", last_retrained="2024-06"),
+        DFAModelBenchmarkRecord(model_name="XGBoost Demand NSW", model_type="GRADIENT_BOOST", region="NSW1", mae_mw=108, rmse_mw=145, mape_pct=1.27, training_data_years=8, features_used="Temperature, Calendar, Holidays, Solar, Wind", deployment_status="PRODUCTION", last_retrained="2024-09"),
+        DFAModelBenchmarkRecord(model_name="LSTM Deep Demand QLD", model_type="DEEP_LEARNING", region="QLD1", mae_mw=95, rmse_mw=128, mape_pct=1.32, training_data_years=6, features_used="Multi-step temperature, Humidity, Load lag, Calendar", deployment_status="TESTING", last_retrained="2025-01"),
+        DFAModelBenchmarkRecord(model_name="Prophet VIC Seasonal", model_type="TIME_SERIES", region="VIC1", mae_mw=118, rmse_mw=158, mape_pct=1.81, training_data_years=5, features_used="Temperature, Calendar, Public Holidays", deployment_status="PRODUCTION", last_retrained="2024-03"),
+        DFAModelBenchmarkRecord(model_name="SARIMA SA Baseline", model_type="STATISTICAL", region="SA1", mae_mw=38, rmse_mw=52, mape_pct=2.11, training_data_years=12, features_used="Historical load, Calendar", deployment_status="DEPRECATED", last_retrained="2022-12"),
+        DFAModelBenchmarkRecord(model_name="Ensemble NEM Realtime", model_type="STACKING_ENSEMBLE", region="NEM", mae_mw=98, rmse_mw=132, mape_pct=1.15, training_data_years=8, features_used="All features + derived solar irradiance + EV proxy", deployment_status="TESTING", last_retrained="2025-01"),
+    ]
+    return DFADashboard(
+        error_records=error_records,
+        horizon_summary=horizon_summary,
+        seasonal_bias=seasonal_bias,
+        model_benchmarks=model_benchmarks,
+        summary={
+            "total_error_records": len(error_records),
+            "horizon_accuracy_records": len(horizon_summary),
+            "seasonal_bias_records": len(seasonal_bias),
+            "model_benchmarks": len(model_benchmarks),
+            "best_model_mape_pct": 1.15,
+            "best_horizon_min": 5,
+            "highest_bias_condition": "SA1 SUMMER EVENING_PEAK",
+            "production_models": sum(1 for m in model_benchmarks if m.deployment_status == "PRODUCTION"),
+        }
+    )
+
+# ── Sprint 68c: Transmission Network Investment Analytics ────────────────────
+
+class TNIProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    tnsp: str
+    region: str
+    capex_approved_m: float
+    capex_spent_m: float
+    capex_remaining_m: float
+    commissioning_year: int
+    project_type: str  # AUGMENTATION / REPLACEMENT / INTERCONNECTOR / REZ
+    stage: str  # PLANNING / APPROVED / CONSTRUCTION / COMMISSIONED
+    bcr: float  # Benefit-Cost Ratio
+    mw_enabled: float
+    aer_approved: bool
+
+class TNIRabRecord(BaseModel):
+    tnsp: str
+    regulatory_period: str
+    rab_opening_m: float
+    rab_closing_m: float
+    capex_allowance_m: float
+    capex_actual_m: float
+    capex_variance_m: float
+    wacc_pct: float
+    revenue_cap_m: float
+    revenue_actual_m: float
+    efficiency_score: float
+
+class TNICapexRecord(BaseModel):
+    tnsp: str
+    year: int
+    category: str  # GROWTH / REPLACEMENT / OPERATING / REGULATORY
+    capex_m: float
+    opex_m: float
+    total_expenditure_m: float
+    assets_commissioned_m: float
+    network_length_km: float
+
+class TNIAerDeterminationRecord(BaseModel):
+    determination_id: str
+    tnsp: str
+    period_start: int
+    period_end: int
+    allowed_revenue_m: float
+    proposed_revenue_m: float
+    revenue_reduction_m: float
+    wacc_approved_pct: float
+    capex_allowance_m: float
+    opex_allowance_m: float
+    rab_approved_m: float
+    key_decision: str
+
+class TNIDashboard(BaseModel):
+    projects: list[TNIProjectRecord]
+    rab_records: list[TNIRabRecord]
+    capex_records: list[TNICapexRecord]
+    aer_determinations: list[TNIAerDeterminationRecord]
+    summary: dict
+
+@app.get("/api/transmission-investment/dashboard", response_model=TNIDashboard, dependencies=[Depends(verify_api_key)])
+def get_transmission_investment_dashboard():
+    projects = [
+        TNIProjectRecord(project_id="TI001", project_name="HumeLink 500kV", tnsp="TransGrid", region="NSW1", capex_approved_m=3300, capex_spent_m=850, capex_remaining_m=2450, commissioning_year=2027, project_type="AUGMENTATION", stage="CONSTRUCTION", bcr=2.4, mw_enabled=1800, aer_approved=True),
+        TNIProjectRecord(project_id="TI002", project_name="EnergyConnect NSW-SA", tnsp="TransGrid", region="NSW1", capex_approved_m=2800, capex_spent_m=1200, capex_remaining_m=1600, commissioning_year=2026, project_type="INTERCONNECTOR", stage="CONSTRUCTION", bcr=3.1, mw_enabled=800, aer_approved=True),
+        TNIProjectRecord(project_id="TI003", project_name="VNI West", tnsp="AusNet", region="VIC1", capex_approved_m=3500, capex_spent_m=200, capex_remaining_m=3300, commissioning_year=2029, project_type="INTERCONNECTOR", stage="APPROVED", bcr=2.8, mw_enabled=1500, aer_approved=True),
+        TNIProjectRecord(project_id="TI004", project_name="New England REZ Transmission", tnsp="TransGrid", region="NSW1", capex_approved_m=2200, capex_spent_m=50, capex_remaining_m=2150, commissioning_year=2028, project_type="REZ", stage="PLANNING", bcr=1.9, mw_enabled=2400, aer_approved=False),
+        TNIProjectRecord(project_id="TI005", project_name="QNI Minor Augmentation", tnsp="Powerlink", region="QLD1", capex_approved_m=450, capex_spent_m=380, capex_remaining_m=70, commissioning_year=2025, project_type="AUGMENTATION", stage="CONSTRUCTION", bcr=4.2, mw_enabled=350, aer_approved=True),
+        TNIProjectRecord(project_id="TI006", project_name="SA North REZ Grid Connection", tnsp="ElectraNet", region="SA1", capex_approved_m=680, capex_spent_m=100, capex_remaining_m=580, commissioning_year=2027, project_type="REZ", stage="APPROVED", bcr=2.2, mw_enabled=600, aer_approved=True),
+        TNIProjectRecord(project_id="TI007", project_name="Snowy 2.0 Grid Integration", tnsp="TransGrid", region="NSW1", capex_approved_m=1600, capex_spent_m=600, capex_remaining_m=1000, commissioning_year=2028, project_type="AUGMENTATION", stage="CONSTRUCTION", bcr=1.7, mw_enabled=2000, aer_approved=True),
+        TNIProjectRecord(project_id="TI008", project_name="Marinus Link (Stage 1)", tnsp="TasNetworks", region="TAS1", capex_approved_m=4200, capex_spent_m=120, capex_remaining_m=4080, commissioning_year=2030, project_type="INTERCONNECTOR", stage="APPROVED", bcr=1.5, mw_enabled=750, aer_approved=False),
+        TNIProjectRecord(project_id="TI009", project_name="Central-West Orana REZ", tnsp="TransGrid", region="NSW1", capex_approved_m=1100, capex_spent_m=280, capex_remaining_m=820, commissioning_year=2026, project_type="REZ", stage="CONSTRUCTION", bcr=2.6, mw_enabled=3000, aer_approved=True),
+        TNIProjectRecord(project_id="TI010", project_name="Bulgana-Horsham 220kV", tnsp="AusNet", region="VIC1", capex_approved_m=320, capex_spent_m=320, capex_remaining_m=0, commissioning_year=2024, project_type="REPLACEMENT", stage="COMMISSIONED", bcr=5.1, mw_enabled=400, aer_approved=True),
+    ]
+    rab_records = [
+        TNIRabRecord(tnsp="TransGrid", regulatory_period="2023-2028", rab_opening_m=5200, rab_closing_m=7800, capex_allowance_m=2800, capex_actual_m=2650, capex_variance_m=-150, wacc_pct=4.8, revenue_cap_m=890, revenue_actual_m=875, efficiency_score=0.94),
+        TNIRabRecord(tnsp="ElectraNet", regulatory_period="2023-2028", rab_opening_m=1850, rab_closing_m=2600, capex_allowance_m=820, capex_actual_m=780, capex_variance_m=-40, wacc_pct=4.6, revenue_cap_m=320, revenue_actual_m=315, efficiency_score=0.96),
+        TNIRabRecord(tnsp="Powerlink", regulatory_period="2022-2027", rab_opening_m=4600, rab_closing_m=6200, capex_allowance_m=1700, capex_actual_m=1820, capex_variance_m=120, wacc_pct=4.9, revenue_cap_m=720, revenue_actual_m=745, efficiency_score=0.91),
+        TNIRabRecord(tnsp="AusNet", regulatory_period="2022-2027", rab_opening_m=3800, rab_closing_m=5900, capex_allowance_m=2200, capex_actual_m=2050, capex_variance_m=-150, wacc_pct=4.7, revenue_cap_m=620, revenue_actual_m=610, efficiency_score=0.95),
+        TNIRabRecord(tnsp="TasNetworks", regulatory_period="2024-2029", rab_opening_m=1200, rab_closing_m=1800, capex_allowance_m=650, capex_actual_m=580, capex_variance_m=-70, wacc_pct=4.5, revenue_cap_m=240, revenue_actual_m=235, efficiency_score=0.97),
+    ]
+    capex_records = []
+    tnsps = ["TransGrid", "ElectraNet", "Powerlink", "AusNet", "TasNetworks"]
+    base_capex = {"TransGrid": 480, "ElectraNet": 140, "Powerlink": 320, "AusNet": 400, "TasNetworks": 110}
+    for tnsp in tnsps:
+        for year in range(2022, 2029):
+            growth_factor = 1 + (year - 2022) * 0.12
+            bc = base_capex[tnsp]
+            capex_records.append(TNICapexRecord(
+                tnsp=tnsp, year=year, category="GROWTH",
+                capex_m=round(bc * growth_factor * 0.6, 1),
+                opex_m=round(bc * 0.25, 1),
+                total_expenditure_m=round(bc * growth_factor * 0.85, 1),
+                assets_commissioned_m=round(bc * growth_factor * 0.5, 1),
+                network_length_km={"TransGrid": 13000, "ElectraNet": 5500, "Powerlink": 15500, "AusNet": 6500, "TasNetworks": 3500}[tnsp]
+            ))
+    aer_determinations = [
+        TNIAerDeterminationRecord(determination_id="AER-TG-2023", tnsp="TransGrid", period_start=2023, period_end=2028, allowed_revenue_m=4450, proposed_revenue_m=5200, revenue_reduction_m=750, wacc_approved_pct=4.8, capex_allowance_m=2800, opex_allowance_m=680, rab_approved_m=5200, key_decision="Capex pruned by 15%; WACC below TNSP proposal"),
+        TNIAerDeterminationRecord(determination_id="AER-EN-2023", tnsp="ElectraNet", period_start=2023, period_end=2028, allowed_revenue_m=1600, proposed_revenue_m=1850, revenue_reduction_m=250, wacc_approved_pct=4.6, capex_allowance_m=820, opex_allowance_m=210, rab_approved_m=1850, key_decision="REZ capex conditionally approved subject to connection milestones"),
+        TNIAerDeterminationRecord(determination_id="AER-PL-2022", tnsp="Powerlink", period_start=2022, period_end=2027, allowed_revenue_m=3600, proposed_revenue_m=4100, revenue_reduction_m=500, wacc_approved_pct=4.9, capex_allowance_m=1700, opex_allowance_m=480, rab_approved_m=4600, key_decision="QNI augmentation approved; offshore wind capex deferred"),
+        TNIAerDeterminationRecord(determination_id="AER-AN-2022", tnsp="AusNet", period_start=2022, period_end=2027, allowed_revenue_m=3100, proposed_revenue_m=3500, revenue_reduction_m=400, wacc_approved_pct=4.7, capex_allowance_m=2200, opex_allowance_m=380, rab_approved_m=3800, key_decision="VNI West early works approved; efficiency incentive applied"),
+        TNIAerDeterminationRecord(determination_id="AER-TN-2024", tnsp="TasNetworks", period_start=2024, period_end=2029, allowed_revenue_m=1200, proposed_revenue_m=1350, revenue_reduction_m=150, wacc_approved_pct=4.5, capex_allowance_m=650, opex_allowance_m=165, rab_approved_m=1200, key_decision="Marinus Link capex excluded pending final investment decision"),
+    ]
+    total_capex = sum(p.capex_approved_m for p in projects)
+    return TNIDashboard(
+        projects=projects,
+        rab_records=rab_records,
+        capex_records=capex_records,
+        aer_determinations=aer_determinations,
+        summary={
+            "total_projects": len(projects),
+            "total_capex_approved_bn": round(total_capex / 1000, 1),
+            "projects_under_construction": sum(1 for p in projects if p.stage == "CONSTRUCTION"),
+            "total_mw_enabled": sum(p.mw_enabled for p in projects),
+            "tnsp_count": len(rab_records),
+            "avg_bcr": round(sum(p.bcr for p in projects) / len(projects), 2),
+            "interconnector_projects": sum(1 for p in projects if p.project_type == "INTERCONNECTOR"),
+            "rez_projects": sum(1 for p in projects if p.project_type == "REZ"),
+        }
+    )

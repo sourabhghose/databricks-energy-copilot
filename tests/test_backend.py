@@ -9790,3 +9790,102 @@ class TestGridFormingInverterDashboard:
         d = client.get("/api/grid-forming-inverter/dashboard", headers=auth_headers).json()
         assert d["summary"]["gfm_ride_through_rate_pct"] == 100
         assert d["summary"]["grid_forming_count"] >= 4
+
+class TestCapacityMechanismDashboard:
+    def test_capacity_mechanism_ok(self, client, auth_headers):
+        r = client.get("/api/capacity-mechanism/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_capacity_mechanism_records(self, client, auth_headers):
+        d = client.get("/api/capacity-mechanism/dashboard", headers=auth_headers).json()
+        assert len(d["capacity_records"]) >= 6
+        statuses = {r["status"] for r in d["capacity_records"]}
+        assert "DEFICIT" in statuses and "CLEARED" in statuses
+
+    def test_capacity_mechanism_auctions(self, client, auth_headers):
+        d = client.get("/api/capacity-mechanism/dashboard", headers=auth_headers).json()
+        assert len(d["auction_results"]) >= 4
+        assert all("clearing_price_per_kw_yr" in a for a in d["auction_results"])
+
+    def test_capacity_mechanism_participants(self, client, auth_headers):
+        d = client.get("/api/capacity-mechanism/dashboard", headers=auth_headers).json()
+        assert len(d["participants"]) >= 8
+        statuses = {p["compliance_status"] for p in d["participants"]}
+        assert "COMPLIANT" in statuses and "BREACH" in statuses
+
+    def test_capacity_mechanism_comparison(self, client, auth_headers):
+        d = client.get("/api/capacity-mechanism/dashboard", headers=auth_headers).json()
+        assert len(d["mechanism_comparison"]) >= 4
+        names = [m["mechanism_name"] for m in d["mechanism_comparison"]]
+        assert any("CIS" in n for n in names)
+
+    def test_capacity_mechanism_summary(self, client, auth_headers):
+        d = client.get("/api/capacity-mechanism/dashboard", headers=auth_headers).json()
+        assert d["summary"]["deficit_regions"] >= 2
+        assert d["summary"]["breach_participants"] >= 1
+
+class TestDemandForecastAccuracyDashboard:
+    def test_demand_forecast_accuracy_ok(self, client, auth_headers):
+        r = client.get("/api/demand-forecast-accuracy/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_demand_forecast_error_records(self, client, auth_headers):
+        d = client.get("/api/demand-forecast-accuracy/dashboard", headers=auth_headers).json()
+        assert len(d["error_records"]) >= 50
+        horizons = {e["horizon_min"] for e in d["error_records"]}
+        assert 5 in horizons and 240 in horizons
+
+    def test_demand_forecast_horizon_summary(self, client, auth_headers):
+        d = client.get("/api/demand-forecast-accuracy/dashboard", headers=auth_headers).json()
+        assert len(d["horizon_summary"]) >= 20
+        assert all("skill_score" in h for h in d["horizon_summary"])
+        assert all(0 <= h["skill_score"] <= 1 for h in d["horizon_summary"])
+
+    def test_demand_forecast_seasonal_bias(self, client, auth_headers):
+        d = client.get("/api/demand-forecast-accuracy/dashboard", headers=auth_headers).json()
+        assert len(d["seasonal_bias"]) >= 40
+        seasons = {b["season"] for b in d["seasonal_bias"]}
+        assert "SUMMER" in seasons and "WINTER" in seasons
+
+    def test_demand_forecast_model_benchmarks(self, client, auth_headers):
+        d = client.get("/api/demand-forecast-accuracy/dashboard", headers=auth_headers).json()
+        assert len(d["model_benchmarks"]) >= 4
+        statuses = {m["deployment_status"] for m in d["model_benchmarks"]}
+        assert "PRODUCTION" in statuses
+
+    def test_demand_forecast_summary(self, client, auth_headers):
+        d = client.get("/api/demand-forecast-accuracy/dashboard", headers=auth_headers).json()
+        assert d["summary"]["best_model_mape_pct"] < 2.0
+        assert d["summary"]["production_models"] >= 2
+
+class TestTransmissionInvestmentDashboard:
+    def test_transmission_investment_ok(self, client, auth_headers):
+        r = client.get("/api/transmission-investment/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_transmission_investment_projects(self, client, auth_headers):
+        d = client.get("/api/transmission-investment/dashboard", headers=auth_headers).json()
+        assert len(d["projects"]) >= 8
+        types = {p["project_type"] for p in d["projects"]}
+        assert "REZ" in types and "INTERCONNECTOR" in types
+
+    def test_transmission_investment_rab(self, client, auth_headers):
+        d = client.get("/api/transmission-investment/dashboard", headers=auth_headers).json()
+        assert len(d["rab_records"]) >= 4
+        assert all(r["rab_closing_m"] > r["rab_opening_m"] for r in d["rab_records"])
+
+    def test_transmission_investment_capex(self, client, auth_headers):
+        d = client.get("/api/transmission-investment/dashboard", headers=auth_headers).json()
+        assert len(d["capex_records"]) >= 20
+        years = {c["year"] for c in d["capex_records"]}
+        assert 2025 in years
+
+    def test_transmission_investment_aer(self, client, auth_headers):
+        d = client.get("/api/transmission-investment/dashboard", headers=auth_headers).json()
+        assert len(d["aer_determinations"]) >= 4
+        assert all(a["revenue_reduction_m"] > 0 for a in d["aer_determinations"])
+
+    def test_transmission_investment_summary(self, client, auth_headers):
+        d = client.get("/api/transmission-investment/dashboard", headers=auth_headers).json()
+        assert d["summary"]["total_capex_approved_bn"] >= 15
+        assert d["summary"]["interconnector_projects"] >= 3

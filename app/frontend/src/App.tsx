@@ -243,6 +243,9 @@ import EsooAdequacyAnalytics from './pages/EsooAdequacyAnalytics'
 import SocialLicenceAnalytics from './pages/SocialLicenceAnalytics'
 import ElectricityOptionsAnalytics from './pages/ElectricityOptionsAnalytics'
 import GridFormingInverterAnalytics from './pages/GridFormingInverterAnalytics'
+import CapacityMechanismAnalytics from './pages/CapacityMechanismAnalytics'
+import DemandForecastAccuracyAnalytics from './pages/DemandForecastAccuracyAnalytics'
+import TransmissionInvestmentAnalytics from './pages/TransmissionInvestmentAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -417,6 +420,9 @@ const NAV_ITEMS = [
   { to: '/social-licence-analytics',        label: 'Social Licence & Equity Analytics',        Icon: Users          },
   { to: '/electricity-options',             label: 'Options Analytics',                         Icon: TrendingUp     },
   { to: '/grid-forming-inverter',           label: 'Grid-Forming Inverter & System Strength',    Icon: Zap            },
+  { to: '/capacity-mechanism',              label: 'Capacity Mechanism',                          Icon: Shield         },
+  { to: '/demand-forecast-accuracy', label: 'Forecast Accuracy', Icon: BarChart2 },
+  { to: '/transmission-investment', label: 'Transmission Investment', Icon: Network },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -666,6 +672,9 @@ export default function App() {
               <Route path="/social-licence-analytics"    element={<SocialLicenceAnalytics />}     />
               <Route path="/electricity-options"          element={<ElectricityOptionsAnalytics />} />
               <Route path="/grid-forming-inverter"       element={<GridFormingInverterAnalytics />} />
+              <Route path="/capacity-mechanism"          element={<CapacityMechanismAnalytics />}  />
+              <Route path="/demand-forecast-accuracy" element={<DemandForecastAccuracyAnalytics />} />
+              <Route path="/transmission-investment" element={<TransmissionInvestmentAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

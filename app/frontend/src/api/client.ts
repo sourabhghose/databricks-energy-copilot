@@ -9628,3 +9628,196 @@ export interface NEADashboard {
 
 export const getNuclearEnergyDashboard = (): Promise<NEADashboard> =>
   get<NEADashboard>('/api/nuclear-energy/dashboard');
+
+// ── Sprint 68a: Capacity Mechanism Design Analytics ───────────────────────────
+
+export interface CMDCapacityRecord {
+  region: string;
+  delivery_year: number;
+  capacity_obligation_mw: number;
+  capacity_contracted_mw: number;
+  capacity_gap_mw: number;
+  clearing_price_per_kw_yr: number;
+  mechanism_type: string;
+  technology_mix: string;
+  status: string;
+}
+
+export interface CMDAuctionRecord {
+  auction_id: string;
+  auction_date: string;
+  region: string;
+  capacity_sought_mw: number;
+  capacity_cleared_mw: number;
+  clearing_price_per_kw_yr: number;
+  num_bidders: number;
+  num_winners: number;
+  technology_types: string;
+  oversubscription_pct: number;
+  outcome: string;
+}
+
+export interface CMDParticipantRecord {
+  participant_id: string;
+  name: string;
+  region: string;
+  technology: string;
+  committed_capacity_mw: number;
+  available_capacity_mw: number;
+  delivery_year: number;
+  payment_per_kw_yr: number;
+  reliability_rating: number;
+  compliance_status: string;
+}
+
+export interface CMDDesignComparisonRecord {
+  mechanism_name: string;
+  jurisdiction: string;
+  mechanism_type: string;
+  in_use: boolean;
+  cost_per_mwh: number;
+  reliability_improvement_pct: number;
+  new_investment_triggered_mw: number;
+  admin_complexity: string;
+  pros: string;
+  cons: string;
+}
+
+export interface CMDDashboard {
+  capacity_records: CMDCapacityRecord[];
+  auction_results: CMDAuctionRecord[];
+  participants: CMDParticipantRecord[];
+  mechanism_comparison: CMDDesignComparisonRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getCapacityMechanismDashboard = (): Promise<CMDDashboard> =>
+  get<CMDDashboard>('/api/capacity-mechanism/dashboard');
+
+// ── Sprint 68b: NEM Demand Forecasting Accuracy Analytics ─────────────────────
+
+export interface DFAErrorRecord {
+  date: string;
+  region: string;
+  period: string;
+  horizon_min: number;
+  forecast_mw: number;
+  actual_mw: number;
+  error_mw: number;
+  error_pct: number;
+  direction: string;
+}
+
+export interface DFAHorizonSummaryRecord {
+  region: string;
+  horizon_min: number;
+  mae_mw: number;
+  rmse_mw: number;
+  mape_pct: number;
+  bias_mw: number;
+  p90_error_mw: number;
+  skill_score: number;
+}
+
+export interface DFASeasonalBiasRecord {
+  region: string;
+  season: string;
+  time_of_day: string;
+  avg_error_mw: number;
+  avg_error_pct: number;
+  sample_count: number;
+  primary_driver: string;
+}
+
+export interface DFAModelBenchmarkRecord {
+  model_name: string;
+  model_type: string;
+  region: string;
+  mae_mw: number;
+  rmse_mw: number;
+  mape_pct: number;
+  training_data_years: number;
+  features_used: string;
+  deployment_status: string;
+  last_retrained: string;
+}
+
+export interface DFADashboard {
+  error_records: DFAErrorRecord[];
+  horizon_summary: DFAHorizonSummaryRecord[];
+  seasonal_bias: DFASeasonalBiasRecord[];
+  model_benchmarks: DFAModelBenchmarkRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getDemandForecastAccuracyDashboard = (): Promise<DFADashboard> =>
+  get<DFADashboard>('/api/demand-forecast-accuracy/dashboard');
+
+// ── Sprint 68c: Transmission Network Investment Analytics ─────────────────────
+
+export interface TNIProjectRecord {
+  project_id: string;
+  project_name: string;
+  tnsp: string;
+  region: string;
+  capex_approved_m: number;
+  capex_spent_m: number;
+  capex_remaining_m: number;
+  commissioning_year: number;
+  project_type: string;
+  stage: string;
+  bcr: number;
+  mw_enabled: number;
+  aer_approved: boolean;
+}
+
+export interface TNIRabRecord {
+  tnsp: string;
+  regulatory_period: string;
+  rab_opening_m: number;
+  rab_closing_m: number;
+  capex_allowance_m: number;
+  capex_actual_m: number;
+  capex_variance_m: number;
+  wacc_pct: number;
+  revenue_cap_m: number;
+  revenue_actual_m: number;
+  efficiency_score: number;
+}
+
+export interface TNICapexRecord {
+  tnsp: string;
+  year: number;
+  category: string;
+  capex_m: number;
+  opex_m: number;
+  total_expenditure_m: number;
+  assets_commissioned_m: number;
+  network_length_km: number;
+}
+
+export interface TNIAerDeterminationRecord {
+  determination_id: string;
+  tnsp: string;
+  period_start: number;
+  period_end: number;
+  allowed_revenue_m: number;
+  proposed_revenue_m: number;
+  revenue_reduction_m: number;
+  wacc_approved_pct: number;
+  capex_allowance_m: number;
+  opex_allowance_m: number;
+  rab_approved_m: number;
+  key_decision: string;
+}
+
+export interface TNIDashboard {
+  projects: TNIProjectRecord[];
+  rab_records: TNIRabRecord[];
+  capex_records: TNICapexRecord[];
+  aer_determinations: TNIAerDeterminationRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getTransmissionInvestmentDashboard = (): Promise<TNIDashboard> =>
+  get<TNIDashboard>('/api/transmission-investment/dashboard');
