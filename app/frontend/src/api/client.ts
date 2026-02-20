@@ -10014,3 +10014,185 @@ export interface CPPDashboard {
 
 export const getCarbonPricePathwayDashboard = (): Promise<CPPDashboard> =>
   get<CPPDashboard>('/api/carbon-price-pathway/dashboard');
+
+// ── Sprint 70a: NEM Spot Price Forecasting Model Analytics ────────────────────
+
+export interface SPFModelRecord {
+  model_id: string;
+  model_name: string;
+  model_type: string;
+  region: string;
+  horizon_min: number;
+  mae_per_mwh: number;
+  rmse_per_mwh: number;
+  mape_pct: number;
+  r2_score: number;
+  spike_detection_recall_pct: number;
+  negative_price_recall_pct: number;
+  training_period: string;
+  deployment_status: string;
+}
+
+export interface SPFForecastRecord {
+  date: string;
+  region: string;
+  trading_interval: string;
+  actual_price: number;
+  forecast_price: number;
+  forecast_low: number;
+  forecast_high: number;
+  error_per_mwh: number;
+  model_used: string;
+  price_regime: string;
+}
+
+export interface SPFFeatureRecord {
+  feature_name: string;
+  model_type: string;
+  region: string;
+  importance_score: number;
+  rank: number;
+  category: string;
+}
+
+export interface SPFDriftRecord {
+  model_id: string;
+  date: string;
+  mae_rolling_7d: number;
+  mae_baseline: number;
+  drift_score: number;
+  drift_alert: boolean;
+  regime_shift: string;
+}
+
+export interface SPFDashboard {
+  models: SPFModelRecord[];
+  forecasts: SPFForecastRecord[];
+  features: SPFFeatureRecord[];
+  drift: SPFDriftRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getSpotPriceForecastDashboard = (): Promise<SPFDashboard> =>
+  get<SPFDashboard>('/api/spot-price-forecast/dashboard');
+
+// ── Sprint 70b: NEM Ancillary Services Cost Allocation Analytics ──────────────
+
+export interface ASACostRecord {
+  period: string;
+  service: string;
+  total_cost_m: number;
+  cost_per_mwh_load: number;
+  generator_contribution_pct: number;
+  load_contribution_pct: number;
+  aemo_recovery_pct: number;
+  avg_clearing_price: number;
+}
+
+export interface ASAParticipantRecord {
+  participant_id: string;
+  participant_name: string;
+  participant_type: string;
+  region: string;
+  total_liability_m: number;
+  raise_liability_m: number;
+  lower_liability_m: number;
+  regulation_liability_m: number;
+  causer_pays_factor: number;
+  compliance_status: string;
+}
+
+export interface ASACauserPaysRecord {
+  participant_id: string;
+  service: string;
+  measurement_period: string;
+  frequency_deviation_contribution: number;
+  cpf_score: number;
+  liability_fraction: number;
+  total_liability_m: number;
+  direction: string;
+}
+
+export interface ASATrendRecord {
+  year: number;
+  quarter: string;
+  total_fcas_cost_m: number;
+  raise_cost_m: number;
+  lower_cost_m: number;
+  regulation_cost_m: number;
+  contingency_cost_m: number;
+  cost_per_mwh_nem: number;
+  ibr_penetration_pct: number;
+}
+
+export interface ASADashboard {
+  cost_records: ASACostRecord[];
+  participants: ASAParticipantRecord[];
+  causer_pays: ASACauserPaysRecord[];
+  trends: ASATrendRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getAncillaryCostAllocationDashboard = (): Promise<ASADashboard> =>
+  get<ASADashboard>('/api/ancillary-cost-allocation/dashboard');
+
+// ── Sprint 70c: Wholesale Market Liquidity Analytics ──────────────────────────
+
+export interface WMLLiquidityRecord {
+  region: string;
+  contract_type: string;
+  tenor: string;
+  bid_price: number;
+  ask_price: number;
+  bid_ask_spread: number;
+  mid_price: number;
+  open_interest_mwh: number;
+  daily_volume_mwh: number;
+  liquidity_score: number;
+  market_depth_rating: string;
+}
+
+export interface WMLHedgeCoverageRecord {
+  participant_name: string;
+  participant_type: string;
+  region: string;
+  load_exposure_twh: number;
+  hedge_coverage_twh: number;
+  hedge_coverage_pct: number;
+  base_swap_pct: number;
+  cap_pct: number;
+  ppa_pct: number;
+  spot_exposure_pct: number;
+  hedge_cost_per_mwh: number;
+}
+
+export interface WMLOpenInterestRecord {
+  date: string;
+  region: string;
+  contract_type: string;
+  open_interest_mwh: number;
+  change_mwh: number;
+  change_pct: number;
+  num_positions: number;
+}
+
+export interface WMLBidAskRecord {
+  date: string;
+  region: string;
+  tenor: string;
+  bid_ask_spread: number;
+  mid_price: number;
+  spread_pct: number;
+  liquidity_event: string;
+}
+
+export interface WMLDashboard {
+  liquidity_records: WMLLiquidityRecord[];
+  hedge_coverage: WMLHedgeCoverageRecord[];
+  open_interest: WMLOpenInterestRecord[];
+  bid_ask_history: WMLBidAskRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getWholesaleLiquidityDashboard = (): Promise<WMLDashboard> =>
+  get<WMLDashboard>('/api/wholesale-liquidity/dashboard');

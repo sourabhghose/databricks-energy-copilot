@@ -48385,3 +48385,414 @@ def get_carbon_price_pathway_dashboard():
             "abatement_options": len(abatement_options),
         }
     )
+
+# ── Sprint 70a: NEM Spot Price Forecasting Model Analytics ────────────────────
+
+class SPFModelRecord(BaseModel):
+    model_id: str
+    model_name: str
+    model_type: str  # XGBOOST / LSTM / PROPHET / ENSEMBLE / LINEAR
+    region: str
+    horizon_min: int  # 5, 30, 60, 288 (day-ahead)
+    mae_per_mwh: float
+    rmse_per_mwh: float
+    mape_pct: float
+    r2_score: float
+    spike_detection_recall_pct: float
+    negative_price_recall_pct: float
+    training_period: str
+    deployment_status: str  # PRODUCTION / SHADOW / DEPRECATED
+
+class SPFForecastRecord(BaseModel):
+    date: str
+    region: str
+    trading_interval: str
+    actual_price: float
+    forecast_price: float
+    forecast_low: float
+    forecast_high: float
+    error_per_mwh: float
+    model_used: str
+    price_regime: str  # NORMAL / SPIKE / NEGATIVE / EXTREME
+
+class SPFFeatureRecord(BaseModel):
+    feature_name: str
+    model_type: str
+    region: str
+    importance_score: float
+    rank: int
+    category: str  # DEMAND / SUPPLY / WEATHER / MARKET / TIME
+
+class SPFDriftRecord(BaseModel):
+    model_id: str
+    date: str
+    mae_rolling_7d: float
+    mae_baseline: float
+    drift_score: float  # 0-1, >0.7 = alert
+    drift_alert: bool
+    regime_shift: str  # NONE / MINOR / MAJOR
+
+class SPFDashboard(BaseModel):
+    models: list[SPFModelRecord]
+    forecasts: list[SPFForecastRecord]
+    features: list[SPFFeatureRecord]
+    drift: list[SPFDriftRecord]
+    summary: dict
+
+@app.get("/api/spot-price-forecast/dashboard", response_model=SPFDashboard, dependencies=[Depends(verify_api_key)])
+def get_spot_price_forecast_dashboard():
+    import random, math
+    random.seed(77)
+    models = [
+        SPFModelRecord(model_id="M001", model_name="XGBoost NSW Spot", model_type="XGBOOST", region="NSW1", horizon_min=30, mae_per_mwh=8.2, rmse_per_mwh=18.5, mape_pct=9.8, r2_score=0.87, spike_detection_recall_pct=72, negative_price_recall_pct=58, training_period="2020-2024", deployment_status="PRODUCTION"),
+        SPFModelRecord(model_id="M002", model_name="LSTM QLD Spot", model_type="LSTM", region="QLD1", horizon_min=30, mae_per_mwh=9.5, rmse_per_mwh=21.0, mape_pct=11.2, r2_score=0.84, spike_detection_recall_pct=68, negative_price_recall_pct=62, training_period="2020-2024", deployment_status="PRODUCTION"),
+        SPFModelRecord(model_id="M003", model_name="Ensemble VIC Spot", model_type="ENSEMBLE", region="VIC1", horizon_min=30, mae_per_mwh=7.8, rmse_per_mwh=17.2, mape_pct=9.2, r2_score=0.89, spike_detection_recall_pct=76, negative_price_recall_pct=65, training_period="2021-2024", deployment_status="PRODUCTION"),
+        SPFModelRecord(model_id="M004", model_name="XGBoost SA Spot", model_type="XGBOOST", region="SA1", horizon_min=30, mae_per_mwh=14.5, rmse_per_mwh=38.2, mape_pct=16.8, r2_score=0.78, spike_detection_recall_pct=65, negative_price_recall_pct=72, training_period="2020-2024", deployment_status="PRODUCTION"),
+        SPFModelRecord(model_id="M005", model_name="Day-Ahead NEM Ensemble", model_type="ENSEMBLE", region="NEM", horizon_min=288, mae_per_mwh=12.5, rmse_per_mwh=28.0, mape_pct=14.5, r2_score=0.81, spike_detection_recall_pct=55, negative_price_recall_pct=48, training_period="2019-2024", deployment_status="PRODUCTION"),
+        SPFModelRecord(model_id="M006", model_name="LSTM SA Spike Model", model_type="LSTM", region="SA1", horizon_min=5, mae_per_mwh=22.0, rmse_per_mwh=55.0, mape_pct=24.0, r2_score=0.72, spike_detection_recall_pct=88, negative_price_recall_pct=80, training_period="2021-2024", deployment_status="SHADOW"),
+        SPFModelRecord(model_id="M007", model_name="Prophet NSW Seasonal", model_type="PROPHET", region="NSW1", horizon_min=288, mae_per_mwh=15.2, rmse_per_mwh=32.0, mape_pct=18.0, r2_score=0.75, spike_detection_recall_pct=42, negative_price_recall_pct=35, training_period="2018-2024", deployment_status="DEPRECATED"),
+    ]
+    # Generate forecast records
+    forecasts = []
+    dates = ["2025-01-13", "2025-01-14", "2025-01-20", "2025-01-21", "2025-02-03"]
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    for date in dates:
+        for region in regions:
+            base = {"NSW1": 88, "QLD1": 82, "VIC1": 79, "SA1": 145}[region]
+            for hi in range(1, 9):  # 8 trading intervals
+                actual = base + random.uniform(-30, 80)
+                err = random.uniform(-20, 25)
+                forecast = actual + err
+                regime = "SPIKE" if actual > 300 else ("NEGATIVE" if actual < 0 else ("EXTREME" if actual > 1000 else "NORMAL"))
+                forecasts.append(SPFForecastRecord(
+                    date=date, region=region,
+                    trading_interval=f"HI{hi:02d}",
+                    actual_price=round(actual, 2),
+                    forecast_price=round(forecast, 2),
+                    forecast_low=round(forecast - abs(err) * 1.5, 2),
+                    forecast_high=round(forecast + abs(err) * 1.5, 2),
+                    error_per_mwh=round(err, 2),
+                    model_used="XGBoost NSW Spot" if region == "NSW1" else ("LSTM QLD Spot" if region == "QLD1" else "Ensemble VIC Spot"),
+                    price_regime=regime
+                ))
+    features = []
+    feature_data = {
+        "XGBOOST": [
+            ("Demand (MW)", "DEMAND", 0.18), ("Temperature (°C)", "WEATHER", 0.15), ("Price lag 30min", "MARKET", 0.14),
+            ("Solar generation (MW)", "SUPPLY", 0.12), ("Wind generation (MW)", "SUPPLY", 0.10), ("Gas generation (MW)", "SUPPLY", 0.09),
+            ("Hour of day", "TIME", 0.08), ("Day of week", "TIME", 0.06), ("Demand forecast error", "DEMAND", 0.05), ("Interconnector flow", "SUPPLY", 0.03),
+        ],
+        "LSTM": [
+            ("Price lag 5min", "MARKET", 0.20), ("Price lag 30min", "MARKET", 0.16), ("Demand (MW)", "DEMAND", 0.14),
+            ("Temperature", "WEATHER", 0.12), ("Wind generation", "SUPPLY", 0.10), ("Solar generation", "SUPPLY", 0.09),
+            ("Price lag 24hr", "MARKET", 0.08), ("Hour of day", "TIME", 0.06), ("FCAS price", "MARKET", 0.03), ("Grid frequency", "SUPPLY", 0.02),
+        ],
+    }
+    for mtype, feats in feature_data.items():
+        for rank, (fname, cat, imp) in enumerate(feats, start=1):
+            features.append(SPFFeatureRecord(feature_name=fname, model_type=mtype, region="NSW1", importance_score=imp, rank=rank, category=cat))
+    drift = []
+    dates_drift = ["2024-10", "2024-11", "2024-12", "2025-01", "2025-02"]
+    for mid in ["M001", "M003", "M004"]:
+        base_mae = {"M001": 8.2, "M003": 7.8, "M004": 14.5}[mid]
+        for date in dates_drift:
+            rolling = base_mae * random.uniform(0.9, 1.4)
+            drift_score = min(1.0, (rolling - base_mae) / base_mae * 2)
+            drift.append(SPFDriftRecord(
+                model_id=mid, date=date,
+                mae_rolling_7d=round(rolling, 2),
+                mae_baseline=base_mae,
+                drift_score=round(max(0, drift_score), 3),
+                drift_alert=drift_score > 0.7,
+                regime_shift="MAJOR" if drift_score > 0.9 else ("MINOR" if drift_score > 0.5 else "NONE")
+            ))
+    return SPFDashboard(
+        models=models, forecasts=forecasts, features=features, drift=drift,
+        summary={
+            "production_models": sum(1 for m in models if m.deployment_status == "PRODUCTION"),
+            "best_mae_model": "Ensemble VIC Spot",
+            "best_spike_recall_pct": 88,
+            "total_forecasts": len(forecasts),
+            "drift_alerts_active": sum(1 for d in drift if d.drift_alert),
+            "avg_mape_pct": round(sum(m.mape_pct for m in models if m.deployment_status == "PRODUCTION") / sum(1 for m in models if m.deployment_status == "PRODUCTION"), 1),
+        }
+    )
+
+# ── Sprint 70b: NEM Ancillary Services Cost Allocation Analytics ─────────────
+
+class ASACostRecord(BaseModel):
+    period: str  # YYYY-MM
+    service: str  # RAISE6SEC / LOWER6SEC / RAISE60SEC / LOWER60SEC / RAISE5MIN / LOWER5MIN / RAISEREG / LOWERREG
+    total_cost_m: float
+    cost_per_mwh_load: float
+    generator_contribution_pct: float
+    load_contribution_pct: float
+    aemo_recovery_pct: float
+    avg_clearing_price: float
+
+class ASAParticipantRecord(BaseModel):
+    participant_id: str
+    participant_name: str
+    participant_type: str  # GENERATOR / LOAD / INTERCONNECTOR
+    region: str
+    total_liability_m: float
+    raise_liability_m: float
+    lower_liability_m: float
+    regulation_liability_m: float
+    causer_pays_factor: float
+    compliance_status: str  # COMPLIANT / WATCH / BREACH
+
+class ASACauserPaysRecord(BaseModel):
+    participant_id: str
+    service: str
+    measurement_period: str
+    frequency_deviation_contribution: float
+    cpf_score: float  # Causer Pays Factor
+    liability_fraction: float
+    total_liability_m: float
+    direction: str  # RAISE / LOWER
+
+class ASATrendRecord(BaseModel):
+    year: int
+    quarter: str
+    total_fcas_cost_m: float
+    raise_cost_m: float
+    lower_cost_m: float
+    regulation_cost_m: float
+    contingency_cost_m: float
+    cost_per_mwh_nem: float
+    ibr_penetration_pct: float
+
+class ASADashboard(BaseModel):
+    cost_records: list[ASACostRecord]
+    participants: list[ASAParticipantRecord]
+    causer_pays: list[ASACauserPaysRecord]
+    trends: list[ASATrendRecord]
+    summary: dict
+
+@app.get("/api/ancillary-cost-allocation/dashboard", response_model=ASADashboard, dependencies=[Depends(verify_api_key)])
+def get_ancillary_cost_allocation_dashboard():
+    services = ["RAISE6SEC", "LOWER6SEC", "RAISE60SEC", "LOWER60SEC", "RAISE5MIN", "LOWER5MIN", "RAISEREG", "LOWERREG"]
+    periods = ["2024-10", "2024-11", "2024-12", "2025-01", "2025-02"]
+    service_costs = {
+        "RAISE6SEC": (8.5, 0.42, 40, 60),
+        "LOWER6SEC": (4.2, 0.21, 35, 65),
+        "RAISE60SEC": (5.8, 0.29, 45, 55),
+        "LOWER60SEC": (3.1, 0.15, 38, 62),
+        "RAISE5MIN": (6.5, 0.32, 42, 58),
+        "LOWER5MIN": (3.8, 0.19, 36, 64),
+        "RAISEREG": (22.0, 1.10, 50, 50),
+        "LOWERREG": (18.5, 0.92, 48, 52),
+    }
+    import random
+    random.seed(55)
+    cost_records = []
+    for period in periods:
+        for svc, (base_cost, cost_per_mwh, gen_pct, load_pct) in service_costs.items():
+            cost_records.append(ASACostRecord(
+                period=period, service=svc,
+                total_cost_m=round(base_cost * random.uniform(0.85, 1.20), 2),
+                cost_per_mwh_load=round(cost_per_mwh * random.uniform(0.9, 1.1), 3),
+                generator_contribution_pct=gen_pct,
+                load_contribution_pct=load_pct,
+                aemo_recovery_pct=8,
+                avg_clearing_price=round(random.uniform(2, 45), 2)
+            ))
+    participants = [
+        ASAParticipantRecord(participant_id="G001", participant_name="Eraring Power Station", participant_type="GENERATOR", region="NSW1", total_liability_m=12.5, raise_liability_m=4.2, lower_liability_m=3.8, regulation_liability_m=4.5, causer_pays_factor=0.045, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="G002", participant_name="Loy Yang A", participant_type="GENERATOR", region="VIC1", total_liability_m=18.2, raise_liability_m=6.5, lower_liability_m=5.8, regulation_liability_m=5.9, causer_pays_factor=0.068, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="G003", participant_name="Callide C", participant_type="GENERATOR", region="QLD1", total_liability_m=9.8, raise_liability_m=3.5, lower_liability_m=2.8, regulation_liability_m=3.5, causer_pays_factor=0.038, compliance_status="WATCH"),
+        ASAParticipantRecord(participant_id="G004", participant_name="Pelican Point CCGT", participant_type="GENERATOR", region="SA1", total_liability_m=5.2, raise_liability_m=1.8, lower_liability_m=1.5, regulation_liability_m=1.9, causer_pays_factor=0.022, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="L001", participant_name="BHP Nickel West", participant_type="LOAD", region="NSW1", total_liability_m=8.5, raise_liability_m=2.8, lower_liability_m=3.2, regulation_liability_m=2.5, causer_pays_factor=0.035, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="L002", participant_name="Tomago Aluminium", participant_type="LOAD", region="NSW1", total_liability_m=15.2, raise_liability_m=5.0, lower_liability_m=5.5, regulation_liability_m=4.7, causer_pays_factor=0.058, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="L003", participant_name="QAL Gladstone", participant_type="LOAD", region="QLD1", total_liability_m=11.8, raise_liability_m=3.9, lower_liability_m=4.2, regulation_liability_m=3.7, causer_pays_factor=0.045, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="I001", participant_name="Murraylink (HVDC)", participant_type="INTERCONNECTOR", region="SA1", total_liability_m=6.5, raise_liability_m=2.5, lower_liability_m=2.0, regulation_liability_m=2.0, causer_pays_factor=0.025, compliance_status="BREACH"),
+        ASAParticipantRecord(participant_id="G005", participant_name="Bayswater Power Station", participant_type="GENERATOR", region="NSW1", total_liability_m=14.8, raise_liability_m=5.2, lower_liability_m=4.8, regulation_liability_m=4.8, causer_pays_factor=0.055, compliance_status="COMPLIANT"),
+        ASAParticipantRecord(participant_id="G006", participant_name="Darlington Point Solar", participant_type="GENERATOR", region="NSW1", total_liability_m=1.2, raise_liability_m=0.4, lower_liability_m=0.5, regulation_liability_m=0.3, causer_pays_factor=0.005, compliance_status="COMPLIANT"),
+    ]
+    causer_pays = []
+    for p in participants[:6]:
+        for svc in ["RAISEREG", "LOWERREG"]:
+            direction = "RAISE" if "RAISE" in svc else "LOWER"
+            cpf = p.causer_pays_factor * random.uniform(0.8, 1.2)
+            causer_pays.append(ASACauserPaysRecord(
+                participant_id=p.participant_id, service=svc,
+                measurement_period="2025-Q1",
+                frequency_deviation_contribution=round(random.uniform(0.02, 0.15), 4),
+                cpf_score=round(cpf, 4),
+                liability_fraction=round(cpf * 2.5, 4),
+                total_liability_m=round(p.regulation_liability_m * 0.5, 2),
+                direction=direction
+            ))
+    trends = []
+    for year in range(2020, 2026):
+        for q in ["Q1", "Q2", "Q3", "Q4"]:
+            ibr = 25 + (year - 2020) * 5 + random.uniform(0, 3)
+            base = 55 + (year - 2020) * 8
+            total = base * random.uniform(0.9, 1.15)
+            trends.append(ASATrendRecord(
+                year=year, quarter=q,
+                total_fcas_cost_m=round(total, 1),
+                raise_cost_m=round(total * 0.35, 1),
+                lower_cost_m=round(total * 0.22, 1),
+                regulation_cost_m=round(total * 0.38, 1),
+                contingency_cost_m=round(total * 0.05, 1),
+                cost_per_mwh_nem=round(total / 220, 3),
+                ibr_penetration_pct=round(ibr, 1)
+            ))
+    total_annual_cost = sum(t.total_fcas_cost_m for t in trends if t.year == 2024)
+    return ASADashboard(
+        cost_records=cost_records,
+        participants=participants,
+        causer_pays=causer_pays,
+        trends=trends,
+        summary={
+            "total_services": len(services),
+            "total_participants": len(participants),
+            "breach_participants": sum(1 for p in participants if p.compliance_status == "BREACH"),
+            "avg_annual_fcas_cost_m": round(total_annual_cost, 1),
+            "highest_cost_service": "RAISEREG",
+            "causer_pays_records": len(causer_pays),
+            "ibr_cost_correlation": "POSITIVE",
+        }
+    )
+
+# ── Sprint 70c: Wholesale Market Liquidity Analytics ─────────────────────────
+
+class WMLLiquidityRecord(BaseModel):
+    region: str
+    contract_type: str  # BASE / PEAK / CAP / QUARTERLY
+    tenor: str  # CAL25 / CAL26 / CAL27 / Q1-25 / Q2-25 etc.
+    bid_price: float
+    ask_price: float
+    bid_ask_spread: float
+    mid_price: float
+    open_interest_mwh: float
+    daily_volume_mwh: float
+    liquidity_score: float  # 0-10
+    market_depth_rating: str  # DEEP / MODERATE / THIN / ILLIQUID
+
+class WMLHedgeCoverageRecord(BaseModel):
+    participant_name: str
+    participant_type: str  # RETAILER / GENTAILER / GENERATOR
+    region: str
+    load_exposure_twh: float
+    hedge_coverage_twh: float
+    hedge_coverage_pct: float
+    base_swap_pct: float
+    cap_pct: float
+    ppa_pct: float
+    spot_exposure_pct: float
+    hedge_cost_per_mwh: float
+
+class WMLOpenInterestRecord(BaseModel):
+    date: str
+    region: str
+    contract_type: str
+    open_interest_mwh: float
+    change_mwh: float
+    change_pct: float
+    num_positions: int
+
+class WMLBidAskRecord(BaseModel):
+    date: str
+    region: str
+    tenor: str
+    bid_ask_spread: float
+    mid_price: float
+    spread_pct: float
+    liquidity_event: str  # NORMAL / WIDE / CRISIS
+
+class WMLDashboard(BaseModel):
+    liquidity_records: list[WMLLiquidityRecord]
+    hedge_coverage: list[WMLHedgeCoverageRecord]
+    open_interest: list[WMLOpenInterestRecord]
+    bid_ask_history: list[WMLBidAskRecord]
+    summary: dict
+
+@app.get("/api/wholesale-liquidity/dashboard", response_model=WMLDashboard, dependencies=[Depends(verify_api_key)])
+def get_wholesale_liquidity_dashboard():
+    import random
+    random.seed(33)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    tenors = ["CAL25", "CAL26", "CAL27", "Q2-25", "Q3-25", "Q4-25", "Q1-26"]
+    contract_types = ["BASE", "PEAK", "CAP"]
+    liquidity_records = []
+    base_prices = {"NSW1": 88, "QLD1": 82, "VIC1": 79, "SA1": 145}
+    for region in regions:
+        for tenor in tenors:
+            for ctype in ["BASE", "PEAK"]:
+                bp = base_prices[region]
+                premium = 12 if ctype == "PEAK" else 0
+                mid = bp + premium + random.uniform(-5, 5)
+                # SA illiquid, longer tenors thinner
+                illiquidity = (1.5 if region == "SA1" else 1.0) * (1 + tenors.index(tenor) * 0.15)
+                spread = round(max(0.5, random.uniform(0.5, 2.5) * illiquidity), 2)
+                vol = round(random.uniform(5000, 80000) / illiquidity, 0)
+                oi = vol * random.uniform(3, 8)
+                liq_score = round(min(10, max(1, 8 - illiquidity * 2 + random.uniform(-1, 1))), 1)
+                depth = "DEEP" if liq_score >= 7 else ("MODERATE" if liq_score >= 5 else ("THIN" if liq_score >= 3 else "ILLIQUID"))
+                liquidity_records.append(WMLLiquidityRecord(
+                    region=region, contract_type=ctype, tenor=tenor,
+                    bid_price=round(mid - spread/2, 2), ask_price=round(mid + spread/2, 2),
+                    bid_ask_spread=spread, mid_price=round(mid, 2),
+                    open_interest_mwh=round(oi, 0), daily_volume_mwh=round(vol, 0),
+                    liquidity_score=liq_score, market_depth_rating=depth
+                ))
+    hedge_coverage = [
+        WMLHedgeCoverageRecord(participant_name="AGL Energy", participant_type="GENTAILER", region="NSW1", load_exposure_twh=18.5, hedge_coverage_twh=15.2, hedge_coverage_pct=82, base_swap_pct=55, cap_pct=15, ppa_pct=12, spot_exposure_pct=18, hedge_cost_per_mwh=78),
+        WMLHedgeCoverageRecord(participant_name="Origin Energy", participant_type="GENTAILER", region="QLD1", load_exposure_twh=15.2, hedge_coverage_twh=11.8, hedge_coverage_pct=78, base_swap_pct=50, cap_pct=12, ppa_pct=16, spot_exposure_pct=22, hedge_cost_per_mwh=72),
+        WMLHedgeCoverageRecord(participant_name="EnergyAustralia", participant_type="GENTAILER", region="VIC1", load_exposure_twh=12.8, hedge_coverage_twh=10.8, hedge_coverage_pct=84, base_swap_pct=58, cap_pct=14, ppa_pct=12, spot_exposure_pct=16, hedge_cost_per_mwh=75),
+        WMLHedgeCoverageRecord(participant_name="Alinta Energy", participant_type="RETAILER", region="NSW1", load_exposure_twh=6.5, hedge_coverage_twh=4.2, hedge_coverage_pct=65, base_swap_pct=45, cap_pct=10, ppa_pct=10, spot_exposure_pct=35, hedge_cost_per_mwh=82),
+        WMLHedgeCoverageRecord(participant_name="Simply Energy", participant_type="RETAILER", region="VIC1", load_exposure_twh=4.2, hedge_coverage_twh=2.5, hedge_coverage_pct=60, base_swap_pct=40, cap_pct=8, ppa_pct=12, spot_exposure_pct=40, hedge_cost_per_mwh=85),
+        WMLHedgeCoverageRecord(participant_name="Neoen", participant_type="GENERATOR", region="SA1", load_exposure_twh=0, hedge_coverage_twh=1.8, hedge_coverage_pct=72, base_swap_pct=40, cap_pct=0, ppa_pct=32, spot_exposure_pct=28, hedge_cost_per_mwh=55),
+        WMLHedgeCoverageRecord(participant_name="Shell Energy", participant_type="RETAILER", region="QLD1", load_exposure_twh=5.8, hedge_coverage_twh=3.8, hedge_coverage_pct=66, base_swap_pct=42, cap_pct=10, ppa_pct=14, spot_exposure_pct=34, hedge_cost_per_mwh=80),
+    ]
+    open_interest = []
+    oi_dates = ["2024-09", "2024-10", "2024-11", "2024-12", "2025-01", "2025-02"]
+    for region in regions:
+        for ctype in ["BASE", "CAP"]:
+            base_oi = {"NSW1": 850000, "QLD1": 720000, "VIC1": 680000, "SA1": 180000}[region]
+            prev = base_oi
+            for date in oi_dates:
+                change = random.uniform(-50000, 80000)
+                curr = max(50000, prev + change)
+                open_interest.append(WMLOpenInterestRecord(
+                    date=date, region=region, contract_type=ctype,
+                    open_interest_mwh=round(curr, 0),
+                    change_mwh=round(change, 0),
+                    change_pct=round(change/prev*100, 1),
+                    num_positions=int(curr / 2000)
+                ))
+                prev = curr
+    bid_ask_history = []
+    ba_dates = ["2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12", "2025-01", "2025-02"]
+    for region in regions:
+        for date in ba_dates:
+            # Simulate wider spreads during high volatility periods
+            base_spread = {"NSW1": 1.2, "QLD1": 1.4, "VIC1": 1.1, "SA1": 3.5}[region]
+            spread = base_spread * random.uniform(0.8, 2.0)
+            mid = base_prices[region] + random.uniform(-10, 15)
+            event = "CRISIS" if spread > base_spread * 1.8 else ("WIDE" if spread > base_spread * 1.3 else "NORMAL")
+            bid_ask_history.append(WMLBidAskRecord(
+                date=date, region=region, tenor="CAL25",
+                bid_ask_spread=round(spread, 2),
+                mid_price=round(mid, 2),
+                spread_pct=round(spread/mid*100, 3),
+                liquidity_event=event
+            ))
+    return WMLDashboard(
+        liquidity_records=liquidity_records,
+        hedge_coverage=hedge_coverage,
+        open_interest=open_interest,
+        bid_ask_history=bid_ask_history,
+        summary={
+            "total_contracts": len(liquidity_records),
+            "illiquid_contracts": sum(1 for r in liquidity_records if r.market_depth_rating == "ILLIQUID"),
+            "total_participants": len(hedge_coverage),
+            "avg_hedge_coverage_pct": round(sum(h.hedge_coverage_pct for h in hedge_coverage) / len(hedge_coverage), 1),
+            "lowest_hedge_coverage": "Simply Energy (60%)",
+            "highest_spread_region": "SA1",
+            "open_interest_records": len(open_interest),
+        }
+    )

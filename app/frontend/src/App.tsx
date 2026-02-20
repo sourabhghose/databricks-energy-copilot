@@ -249,6 +249,9 @@ import TransmissionInvestmentAnalytics from './pages/TransmissionInvestmentAnaly
 import RezProgressAnalytics from './pages/RezProgressAnalytics'
 import StorageRevenueAnalytics from './pages/StorageRevenueAnalytics'
 import CarbonPricePathwayAnalytics from './pages/CarbonPricePathwayAnalytics'
+import SpotPriceForecastAnalytics from './pages/SpotPriceForecastAnalytics'
+import AncillaryCostAllocationAnalytics from './pages/AncillaryCostAllocationAnalytics'
+import MarketLiquidityAnalytics from './pages/MarketLiquidityAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -429,6 +432,9 @@ const NAV_ITEMS = [
   { to: '/rez-progress',      label: 'REZ Progress',       Icon: MapPin         },
   { to: '/storage-revenue',   label: 'Storage Revenue Analytics', Icon: BatteryCharging },
   { to: '/carbon-price-pathway', label: 'Carbon Price Pathway',    Icon: Leaf           },
+  { to: '/spot-price-forecast', label: 'Spot Price Forecast Analytics', Icon: Brain },
+  { to: '/ancillary-cost-allocation', label: 'Ancillary Cost Allocation', Icon: DollarSign },
+  { to: '/wholesale-liquidity', label: 'Wholesale Market Liquidity', Icon: BarChart3 },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -684,6 +690,9 @@ export default function App() {
               <Route path="/rez-progress"      element={<RezProgressAnalytics />} />
               <Route path="/storage-revenue"   element={<StorageRevenueAnalytics />} />
               <Route path="/carbon-price-pathway" element={<CarbonPricePathwayAnalytics />} />
+              <Route path="/spot-price-forecast" element={<SpotPriceForecastAnalytics />} />
+              <Route path="/ancillary-cost-allocation" element={<AncillaryCostAllocationAnalytics />} />
+              <Route path="/wholesale-liquidity" element={<MarketLiquidityAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

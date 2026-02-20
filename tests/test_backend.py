@@ -9987,3 +9987,101 @@ class TestCarbonPricePathwayDashboard:
         d = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers).json()
         assert d["summary"]["carbon_price_2024_per_t"] == 28
         assert d["summary"]["facilities_in_deficit"] >= 2
+
+class TestSpotPriceForecastDashboard:
+    def test_spot_price_forecast_ok(self, client, auth_headers):
+        r = client.get("/api/spot-price-forecast/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_spot_price_models(self, client, auth_headers):
+        d = client.get("/api/spot-price-forecast/dashboard", headers=auth_headers).json()
+        assert len(d["models"]) >= 5
+        statuses = {m["deployment_status"] for m in d["models"]}
+        assert "PRODUCTION" in statuses
+
+    def test_spot_price_forecasts(self, client, auth_headers):
+        d = client.get("/api/spot-price-forecast/dashboard", headers=auth_headers).json()
+        assert len(d["forecasts"]) >= 50
+        assert all("forecast_low" in f and "forecast_high" in f for f in d["forecasts"])
+
+    def test_spot_price_features(self, client, auth_headers):
+        d = client.get("/api/spot-price-forecast/dashboard", headers=auth_headers).json()
+        assert len(d["features"]) >= 15
+        cats = {f["category"] for f in d["features"]}
+        assert "DEMAND" in cats and "SUPPLY" in cats
+
+    def test_spot_price_drift(self, client, auth_headers):
+        d = client.get("/api/spot-price-forecast/dashboard", headers=auth_headers).json()
+        assert len(d["drift"]) >= 10
+        assert all(0 <= dr["drift_score"] <= 1 for dr in d["drift"])
+
+    def test_spot_price_summary(self, client, auth_headers):
+        d = client.get("/api/spot-price-forecast/dashboard", headers=auth_headers).json()
+        assert d["summary"]["production_models"] >= 4
+        assert d["summary"]["best_spike_recall_pct"] >= 80
+
+class TestAncillaryCostAllocationDashboard:
+    def test_ancillary_cost_ok(self, client, auth_headers):
+        r = client.get("/api/ancillary-cost-allocation/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_ancillary_cost_records(self, client, auth_headers):
+        d = client.get("/api/ancillary-cost-allocation/dashboard", headers=auth_headers).json()
+        assert len(d["cost_records"]) >= 20
+        services = {c["service"] for c in d["cost_records"]}
+        assert "RAISEREG" in services and "LOWER6SEC" in services
+
+    def test_ancillary_participants(self, client, auth_headers):
+        d = client.get("/api/ancillary-cost-allocation/dashboard", headers=auth_headers).json()
+        assert len(d["participants"]) >= 8
+        types = {p["participant_type"] for p in d["participants"]}
+        assert "GENERATOR" in types and "LOAD" in types
+
+    def test_ancillary_causer_pays(self, client, auth_headers):
+        d = client.get("/api/ancillary-cost-allocation/dashboard", headers=auth_headers).json()
+        assert len(d["causer_pays"]) >= 8
+        assert all("cpf_score" in c for c in d["causer_pays"])
+
+    def test_ancillary_trends(self, client, auth_headers):
+        d = client.get("/api/ancillary-cost-allocation/dashboard", headers=auth_headers).json()
+        assert len(d["trends"]) >= 20
+        years = {t["year"] for t in d["trends"]}
+        assert 2020 in years and 2024 in years
+
+    def test_ancillary_summary(self, client, auth_headers):
+        d = client.get("/api/ancillary-cost-allocation/dashboard", headers=auth_headers).json()
+        assert d["summary"]["highest_cost_service"] == "RAISEREG"
+        assert d["summary"]["breach_participants"] >= 1
+
+class TestMarketLiquidityDashboard:
+    def test_market_liquidity_ok(self, client, auth_headers):
+        r = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_market_liquidity_records(self, client, auth_headers):
+        d = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers).json()
+        assert len(d["liquidity_records"]) >= 30
+        ratings = {r["market_depth_rating"] for r in d["liquidity_records"]}
+        assert "DEEP" in ratings or "MODERATE" in ratings
+
+    def test_market_hedge_coverage(self, client, auth_headers):
+        d = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers).json()
+        assert len(d["hedge_coverage"]) >= 5
+        assert all(0 < h["hedge_coverage_pct"] <= 100 for h in d["hedge_coverage"])
+
+    def test_market_open_interest(self, client, auth_headers):
+        d = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers).json()
+        assert len(d["open_interest"]) >= 20
+        regions = {o["region"] for o in d["open_interest"]}
+        assert "NSW1" in regions and "SA1" in regions
+
+    def test_market_bid_ask_history(self, client, auth_headers):
+        d = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers).json()
+        assert len(d["bid_ask_history"]) >= 20
+        events = {b["liquidity_event"] for b in d["bid_ask_history"]}
+        assert "NORMAL" in events
+
+    def test_market_liquidity_summary(self, client, auth_headers):
+        d = client.get("/api/wholesale-liquidity/dashboard", headers=auth_headers).json()
+        assert d["summary"]["highest_spread_region"] == "SA1"
+        assert d["summary"]["avg_hedge_coverage_pct"] > 50
