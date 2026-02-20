@@ -246,6 +246,9 @@ import GridFormingInverterAnalytics from './pages/GridFormingInverterAnalytics'
 import CapacityMechanismAnalytics from './pages/CapacityMechanismAnalytics'
 import DemandForecastAccuracyAnalytics from './pages/DemandForecastAccuracyAnalytics'
 import TransmissionInvestmentAnalytics from './pages/TransmissionInvestmentAnalytics'
+import RezProgressAnalytics from './pages/RezProgressAnalytics'
+import StorageRevenueAnalytics from './pages/StorageRevenueAnalytics'
+import CarbonPricePathwayAnalytics from './pages/CarbonPricePathwayAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -423,6 +426,9 @@ const NAV_ITEMS = [
   { to: '/capacity-mechanism',              label: 'Capacity Mechanism',                          Icon: Shield         },
   { to: '/demand-forecast-accuracy', label: 'Forecast Accuracy', Icon: BarChart2 },
   { to: '/transmission-investment', label: 'Transmission Investment', Icon: Network },
+  { to: '/rez-progress',      label: 'REZ Progress',       Icon: MapPin         },
+  { to: '/storage-revenue',   label: 'Storage Revenue Analytics', Icon: BatteryCharging },
+  { to: '/carbon-price-pathway', label: 'Carbon Price Pathway',    Icon: Leaf           },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -675,6 +681,9 @@ export default function App() {
               <Route path="/capacity-mechanism"          element={<CapacityMechanismAnalytics />}  />
               <Route path="/demand-forecast-accuracy" element={<DemandForecastAccuracyAnalytics />} />
               <Route path="/transmission-investment" element={<TransmissionInvestmentAnalytics />} />
+              <Route path="/rez-progress"      element={<RezProgressAnalytics />} />
+              <Route path="/storage-revenue"   element={<StorageRevenueAnalytics />} />
+              <Route path="/carbon-price-pathway" element={<CarbonPricePathwayAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

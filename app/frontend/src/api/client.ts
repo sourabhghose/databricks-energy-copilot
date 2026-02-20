@@ -9821,3 +9821,196 @@ export interface TNIDashboard {
 
 export const getTransmissionInvestmentDashboard = (): Promise<TNIDashboard> =>
   get<TNIDashboard>('/api/transmission-investment/dashboard');
+
+// ── Sprint 69a: Renewable Energy Zone Progress Analytics ──────────────────────
+
+export interface RZPZoneRecord {
+  rez_id: string;
+  rez_name: string;
+  region: string;
+  state: string;
+  capacity_limit_mw: number;
+  capacity_committed_mw: number;
+  capacity_queue_mw: number;
+  capacity_operational_mw: number;
+  transmission_capacity_mw: number;
+  dominant_technology: string;
+  zone_status: string;
+  lcoe_range: string;
+  num_projects: number;
+}
+
+export interface RZPProjectRecord {
+  project_id: string;
+  project_name: string;
+  rez_id: string;
+  developer: string;
+  technology: string;
+  capacity_mw: number;
+  stage: string;
+  target_cod: string;
+  connection_application: string;
+  estimated_annual_gwh: number;
+  lgi_agreement: boolean;
+}
+
+export interface RZPConstraintRecord {
+  rez_id: string;
+  constraint_id: string;
+  constraint_type: string;
+  binding_frequency_pct: number;
+  avg_curtailment_pct: number;
+  shadow_price_per_mwh: number;
+  resolution_project: string;
+  resolution_year: number;
+}
+
+export interface RZPQueueRecord {
+  rez_id: string;
+  queue_position: number;
+  technology: string;
+  capacity_mw: number;
+  developer: string;
+  application_date: string;
+  expected_connection_year: number;
+  status: string;
+}
+
+export interface RZPDashboard {
+  zones: RZPZoneRecord[];
+  projects: RZPProjectRecord[];
+  constraints: RZPConstraintRecord[];
+  queue: RZPQueueRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getRezProgressDashboard = (): Promise<RZPDashboard> =>
+  get<RZPDashboard>('/api/rez-progress/dashboard');
+
+// ── Sprint 69b: Energy Storage Revenue Stack Analytics ────────────────────────
+
+export interface ESRRevenueStreamRecord {
+  project_name: string;
+  region: string;
+  capacity_mw: number;
+  duration_hr: number;
+  year: number;
+  energy_arbitrage_per_kw: number;
+  fcas_raise_per_kw: number;
+  fcas_lower_per_kw: number;
+  capacity_payment_per_kw: number;
+  firm_power_contract_per_kw: number;
+  ancillary_other_per_kw: number;
+  total_revenue_per_kw: number;
+  merchant_pct: number;
+  contracted_pct: number;
+}
+
+export interface ESRProjectRecord {
+  project_id: string;
+  project_name: string;
+  region: string;
+  capacity_mw: number;
+  energy_mwh: number;
+  duration_hr: number;
+  technology: string;
+  developer: string;
+  commissioning_year: number;
+  capex_per_kw: number;
+  opex_per_kw_yr: number;
+  cycles_per_year: number;
+  degradation_pct_per_yr: number;
+  warranty_years: number;
+  project_life_years: number;
+  irr_pct: number;
+  npv_m: number;
+}
+
+export interface ESRDegradationRecord {
+  technology: string;
+  year: number;
+  capacity_retention_pct: number;
+  round_trip_efficiency_pct: number;
+  cycle_count_cumulative: number;
+  replacement_cost_per_kwh: number;
+}
+
+export interface ESRSensitivityRecord {
+  project_id: string;
+  variable: string;
+  delta_pct: number;
+  irr_base_pct: number;
+  irr_scenario_pct: number;
+  irr_delta_pct: number;
+  npv_delta_m: number;
+}
+
+export interface ESRDashboard {
+  revenue_streams: ESRRevenueStreamRecord[];
+  projects: ESRProjectRecord[];
+  degradation: ESRDegradationRecord[];
+  sensitivity: ESRSensitivityRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getStorageRevenueDashboard = (): Promise<ESRDashboard> =>
+  get<ESRDashboard>('/api/storage-revenue/dashboard');
+
+// ── Sprint 69c: NEM Carbon Price Pathway Analytics ────────────────────────────
+
+export interface CPPScenarioRecord {
+  scenario_name: string;
+  year: number;
+  carbon_price_per_t: number;
+  electricity_price_impact_per_mwh: number;
+  total_abatement_mt: number;
+  renewable_share_pct: number;
+  coal_generation_twh: number;
+  gas_generation_twh: number;
+  policy_basis: string;
+}
+
+export interface CPPSafeguardRecord {
+  facility_name: string;
+  sector: string;
+  state: string;
+  baseline_kt_co2e: number;
+  actual_emissions_kt_co2e: number;
+  surplus_deficit_kt: number;
+  accu_purchased: number;
+  accu_cost_m: number;
+  abatement_pathway: string;
+  compliance_year: number;
+}
+
+export interface CPPPassthroughRecord {
+  generator_name: string;
+  technology: string;
+  region: string;
+  carbon_intensity_t_per_mwh: number;
+  carbon_cost_per_mwh: number;
+  spot_price_impact_pct: number;
+  passthrough_rate_pct: number;
+  year: number;
+}
+
+export interface CPPAbatementRecord {
+  abatement_option: string;
+  sector: string;
+  cost_per_t_co2: number;
+  potential_mt_pa: number;
+  maturity: string;
+  timeline_years: number;
+  nem_relevant: boolean;
+}
+
+export interface CPPDashboard {
+  scenarios: CPPScenarioRecord[];
+  safeguard_facilities: CPPSafeguardRecord[];
+  passthrough_records: CPPPassthroughRecord[];
+  abatement_options: CPPAbatementRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getCarbonPricePathwayDashboard = (): Promise<CPPDashboard> =>
+  get<CPPDashboard>('/api/carbon-price-pathway/dashboard');

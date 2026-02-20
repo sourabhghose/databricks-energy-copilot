@@ -9889,3 +9889,101 @@ class TestTransmissionInvestmentDashboard:
         d = client.get("/api/transmission-investment/dashboard", headers=auth_headers).json()
         assert d["summary"]["total_capex_approved_bn"] >= 15
         assert d["summary"]["interconnector_projects"] >= 3
+
+class TestRezProgressDashboard:
+    def test_rez_progress_ok(self, client, auth_headers):
+        r = client.get("/api/rez-progress/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_rez_progress_zones(self, client, auth_headers):
+        d = client.get("/api/rez-progress/dashboard", headers=auth_headers).json()
+        assert len(d["zones"]) >= 6
+        statuses = {z["zone_status"] for z in d["zones"]}
+        assert "CONSTRAINED" in statuses and "OPEN" in statuses
+
+    def test_rez_progress_projects(self, client, auth_headers):
+        d = client.get("/api/rez-progress/dashboard", headers=auth_headers).json()
+        assert len(d["projects"]) >= 8
+        stages = {p["stage"] for p in d["projects"]}
+        assert "OPERATIONAL" in stages
+
+    def test_rez_progress_constraints(self, client, auth_headers):
+        d = client.get("/api/rez-progress/dashboard", headers=auth_headers).json()
+        assert len(d["constraints"]) >= 4
+        assert all(c["avg_curtailment_pct"] > 0 for c in d["constraints"])
+
+    def test_rez_progress_queue(self, client, auth_headers):
+        d = client.get("/api/rez-progress/dashboard", headers=auth_headers).json()
+        assert len(d["queue"]) >= 6
+
+    def test_rez_progress_summary(self, client, auth_headers):
+        d = client.get("/api/rez-progress/dashboard", headers=auth_headers).json()
+        assert d["summary"]["total_zones"] >= 6
+        assert d["summary"]["constrained_zones"] >= 1
+
+class TestStorageRevenueDashboard:
+    def test_storage_revenue_ok(self, client, auth_headers):
+        r = client.get("/api/storage-revenue/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_storage_revenue_streams(self, client, auth_headers):
+        d = client.get("/api/storage-revenue/dashboard", headers=auth_headers).json()
+        assert len(d["revenue_streams"]) >= 5
+        assert all("fcas_raise_per_kw" in r for r in d["revenue_streams"])
+
+    def test_storage_revenue_projects(self, client, auth_headers):
+        d = client.get("/api/storage-revenue/dashboard", headers=auth_headers).json()
+        assert len(d["projects"]) >= 5
+        assert all(p["irr_pct"] > 0 for p in d["projects"])
+        techs = {p["technology"] for p in d["projects"]}
+        assert "LFP" in techs
+
+    def test_storage_revenue_degradation(self, client, auth_headers):
+        d = client.get("/api/storage-revenue/dashboard", headers=auth_headers).json()
+        assert len(d["degradation"]) >= 40
+        assert all(r["capacity_retention_pct"] > 50 for r in d["degradation"])
+
+    def test_storage_revenue_sensitivity(self, client, auth_headers):
+        d = client.get("/api/storage-revenue/dashboard", headers=auth_headers).json()
+        assert len(d["sensitivity"]) >= 8
+        variables = {s["variable"] for s in d["sensitivity"]}
+        assert any("Capex" in v for v in variables)
+
+    def test_storage_revenue_summary(self, client, auth_headers):
+        d = client.get("/api/storage-revenue/dashboard", headers=auth_headers).json()
+        assert d["summary"]["avg_irr_pct"] > 10
+        assert d["summary"]["highest_revenue_region"] == "SA1"
+
+class TestCarbonPricePathwayDashboard:
+    def test_carbon_price_pathway_ok(self, client, auth_headers):
+        r = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_carbon_price_scenarios(self, client, auth_headers):
+        d = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers).json()
+        assert len(d["scenarios"]) >= 20
+        scenario_names = {s["scenario_name"] for s in d["scenarios"]}
+        assert len(scenario_names) >= 3
+
+    def test_carbon_price_safeguard(self, client, auth_headers):
+        d = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers).json()
+        assert len(d["safeguard_facilities"]) >= 6
+        sectors = {f["sector"] for f in d["safeguard_facilities"]}
+        assert "ELECTRICITY" in sectors
+
+    def test_carbon_price_passthrough(self, client, auth_headers):
+        d = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers).json()
+        assert len(d["passthrough_records"]) >= 5
+        techs = {r["technology"] for r in d["passthrough_records"]}
+        assert "COAL" in techs and "SOLAR" in techs
+
+    def test_carbon_price_abatement(self, client, auth_headers):
+        d = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers).json()
+        assert len(d["abatement_options"]) >= 8
+        costs = [a["cost_per_t_co2"] for a in d["abatement_options"]]
+        assert any(c < 0 for c in costs)  # some negative cost options
+
+    def test_carbon_price_summary(self, client, auth_headers):
+        d = client.get("/api/carbon-price-pathway/dashboard", headers=auth_headers).json()
+        assert d["summary"]["carbon_price_2024_per_t"] == 28
+        assert d["summary"]["facilities_in_deficit"] >= 2

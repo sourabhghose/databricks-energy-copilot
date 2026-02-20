@@ -48017,3 +48017,371 @@ def get_transmission_investment_dashboard():
             "rez_projects": sum(1 for p in projects if p.project_type == "REZ"),
         }
     )
+
+# ── Sprint 69a: Renewable Energy Zone Progress Analytics ─────────────────────
+
+class RZPZoneRecord(BaseModel):
+    rez_id: str
+    rez_name: str
+    region: str
+    state: str
+    capacity_limit_mw: float
+    capacity_committed_mw: float
+    capacity_queue_mw: float
+    capacity_operational_mw: float
+    transmission_capacity_mw: float
+    dominant_technology: str
+    zone_status: str  # OPEN / CONSTRAINED / CLOSED / DEVELOPING
+    lcoe_range: str
+    num_projects: int
+
+class RZPProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    rez_id: str
+    developer: str
+    technology: str
+    capacity_mw: float
+    stage: str  # PROPOSED / APPROVED / UNDER_CONSTRUCTION / OPERATIONAL
+    target_cod: str
+    connection_application: str  # SUBMITTED / APPROVED / WITHDRAWN / PENDING
+    estimated_annual_gwh: float
+    lgi_agreement: bool
+
+class RZPConstraintRecord(BaseModel):
+    rez_id: str
+    constraint_id: str
+    constraint_type: str  # THERMAL / VOLTAGE / STABILITY / INTERCONNECTOR
+    binding_frequency_pct: float
+    avg_curtailment_pct: float
+    shadow_price_per_mwh: float
+    resolution_project: str
+    resolution_year: int
+
+class RZPQueueRecord(BaseModel):
+    rez_id: str
+    queue_position: int
+    technology: str
+    capacity_mw: float
+    developer: str
+    application_date: str
+    expected_connection_year: int
+    status: str
+
+class RZPDashboard(BaseModel):
+    zones: list[RZPZoneRecord]
+    projects: list[RZPProjectRecord]
+    constraints: list[RZPConstraintRecord]
+    queue: list[RZPQueueRecord]
+    summary: dict
+
+@app.get("/api/rez-progress/dashboard", response_model=RZPDashboard, dependencies=[Depends(verify_api_key)])
+def get_rez_progress_dashboard():
+    zones = [
+        RZPZoneRecord(rez_id="NSW-CWO", rez_name="Central-West Orana", region="NSW1", state="NSW", capacity_limit_mw=3000, capacity_committed_mw=2100, capacity_queue_mw=1800, capacity_operational_mw=450, transmission_capacity_mw=2400, dominant_technology="WIND", zone_status="OPEN", lcoe_range="$40-55/MWh", num_projects=12),
+        RZPZoneRecord(rez_id="NSW-NE", rez_name="New England", region="NSW1", state="NSW", capacity_limit_mw=2400, capacity_committed_mw=800, capacity_queue_mw=3200, capacity_operational_mw=0, transmission_capacity_mw=1800, dominant_technology="WIND", zone_status="DEVELOPING", lcoe_range="$42-58/MWh", num_projects=8),
+        RZPZoneRecord(rez_id="NSW-SW", rez_name="South West", region="NSW1", state="NSW", capacity_limit_mw=3000, capacity_committed_mw=1200, capacity_queue_mw=2100, capacity_operational_mw=200, transmission_capacity_mw=2200, dominant_technology="SOLAR", zone_status="OPEN", lcoe_range="$38-50/MWh", num_projects=15),
+        RZPZoneRecord(rez_id="VIC-MW", rez_name="Murray-Wimmera", region="VIC1", state="VIC", capacity_limit_mw=2200, capacity_committed_mw=1400, capacity_queue_mw=900, capacity_operational_mw=600, transmission_capacity_mw=1600, dominant_technology="WIND", zone_status="CONSTRAINED", lcoe_range="$44-60/MWh", num_projects=9),
+        RZPZoneRecord(rez_id="VIC-GR", rez_name="Gippsland Renewable Hub", region="VIC1", state="VIC", capacity_limit_mw=1800, capacity_committed_mw=400, capacity_queue_mw=2200, capacity_operational_mw=0, transmission_capacity_mw=800, dominant_technology="OFFSHORE_WIND", zone_status="DEVELOPING", lcoe_range="$95-130/MWh", num_projects=5),
+        RZPZoneRecord(rez_id="QLD-NQ", rez_name="North Queensland", region="QLD1", state="QLD", capacity_limit_mw=4000, capacity_committed_mw=1800, capacity_queue_mw=2500, capacity_operational_mw=800, transmission_capacity_mw=2800, dominant_technology="SOLAR", zone_status="OPEN", lcoe_range="$35-48/MWh", num_projects=18),
+        RZPZoneRecord(rez_id="QLD-SQ", rez_name="Southern Queensland", region="QLD1", state="QLD", capacity_limit_mw=2500, capacity_committed_mw=2200, capacity_queue_mw=400, capacity_operational_mw=1200, transmission_capacity_mw=2000, dominant_technology="SOLAR", zone_status="CONSTRAINED", lcoe_range="$36-50/MWh", num_projects=14),
+        RZPZoneRecord(rez_id="SA-NR", rez_name="SA North (Bungama)", region="SA1", state="SA", capacity_limit_mw=1200, capacity_committed_mw=700, capacity_queue_mw=800, capacity_operational_mw=350, transmission_capacity_mw=900, dominant_technology="WIND", zone_status="OPEN", lcoe_range="$48-65/MWh", num_projects=6),
+    ]
+    projects = [
+        RZPProjectRecord(project_id="CWO001", project_name="Uungula Wind Farm", rez_id="NSW-CWO", developer="Goldwind", technology="WIND", capacity_mw=720, stage="OPERATIONAL", target_cod="2023-12", connection_application="APPROVED", estimated_annual_gwh=2200, lgi_agreement=True),
+        RZPProjectRecord(project_id="CWO002", project_name="Coppabella Solar Farm", rez_id="NSW-CWO", developer="Amp Energy", technology="SOLAR", capacity_mw=400, stage="UNDER_CONSTRUCTION", target_cod="2025-06", connection_application="APPROVED", estimated_annual_gwh=900, lgi_agreement=True),
+        RZPProjectRecord(project_id="CWO003", project_name="Burraway Wind Farm", rez_id="NSW-CWO", developer="Vestas/Windlab", technology="WIND", capacity_mw=560, stage="APPROVED", target_cod="2026-03", connection_application="APPROVED", estimated_annual_gwh=1700, lgi_agreement=True),
+        RZPProjectRecord(project_id="NE001", project_name="New England Solar Hub", rez_id="NSW-NE", developer="RATCH Australia", technology="SOLAR", capacity_mw=400, stage="APPROVED", target_cod="2026-12", connection_application="APPROVED", estimated_annual_gwh=850, lgi_agreement=False),
+        RZPProjectRecord(project_id="NE002", project_name="Sapphire Wind Farm", rez_id="NSW-NE", developer="CWP Renewables", technology="WIND", capacity_mw=270, stage="OPERATIONAL", target_cod="2019-12", connection_application="APPROVED", estimated_annual_gwh=820, lgi_agreement=True),
+        RZPProjectRecord(project_id="NQ001", project_name="CopperString-linked Solar Portfolio", rez_id="QLD-NQ", developer="CleanCo Queensland", technology="SOLAR", capacity_mw=1000, stage="UNDER_CONSTRUCTION", target_cod="2026-06", connection_application="APPROVED", estimated_annual_gwh=2200, lgi_agreement=True),
+        RZPProjectRecord(project_id="NQ002", project_name="Kidston Pumped Hydro", rez_id="QLD-NQ", developer="Genex Power", technology="PUMPED_HYDRO", capacity_mw=250, stage="UNDER_CONSTRUCTION", target_cod="2026-12", connection_application="APPROVED", estimated_annual_gwh=0, lgi_agreement=True),
+        RZPProjectRecord(project_id="SA001", project_name="Port Augusta RE Hub Wind", rez_id="SA-NR", developer="ENGIE", technology="WIND", capacity_mw=210, stage="OPERATIONAL", target_cod="2023-06", connection_application="APPROVED", estimated_annual_gwh=700, lgi_agreement=True),
+        RZPProjectRecord(project_id="VIC001", project_name="Bulgana Green Power Hub", rez_id="VIC-MW", developer="ESCO Pacific", technology="WIND", capacity_mw=204, stage="OPERATIONAL", target_cod="2020-12", connection_application="APPROVED", estimated_annual_gwh=620, lgi_agreement=True),
+        RZPProjectRecord(project_id="VIC002", project_name="Murray-Wimmera Solar Farm", rez_id="VIC-MW", developer="Glencore", technology="SOLAR", capacity_mw=350, stage="PROPOSED", target_cod="2027-06", connection_application="PENDING", estimated_annual_gwh=700, lgi_agreement=False),
+    ]
+    constraints = [
+        RZPConstraintRecord(rez_id="VIC-MW", constraint_id="V-CAN-1", constraint_type="THERMAL", binding_frequency_pct=28, avg_curtailment_pct=12, shadow_price_per_mwh=18.5, resolution_project="VNI West Stage 1", resolution_year=2029),
+        RZPConstraintRecord(rez_id="QLD-SQ", constraint_id="Q-SQ-1", constraint_type="VOLTAGE", binding_frequency_pct=35, avg_curtailment_pct=18, shadow_price_per_mwh=22.0, resolution_project="Qld REZ Transmission Program Stage 2", resolution_year=2027),
+        RZPConstraintRecord(rez_id="NSW-CWO", constraint_id="N-CWO-1", constraint_type="STABILITY", binding_frequency_pct=15, avg_curtailment_pct=8, shadow_price_per_mwh=12.5, resolution_project="HumeLink 500kV", resolution_year=2027),
+        RZPConstraintRecord(rez_id="SA-NR", constraint_id="S-NR-1", constraint_type="INTERCONNECTOR", binding_frequency_pct=42, avg_curtailment_pct=22, shadow_price_per_mwh=35.0, resolution_project="EnergyConnect (SA section)", resolution_year=2026),
+        RZPConstraintRecord(rez_id="NSW-NE", constraint_id="N-NE-1", constraint_type="THERMAL", binding_frequency_pct=20, avg_curtailment_pct=10, shadow_price_per_mwh=15.0, resolution_project="New England REZ Transmission", resolution_year=2028),
+    ]
+    queue = []
+    queue_data = [
+        ("NSW-CWO", "WIND", 400, "Tilt Renewables", "2024-03", 2027), ("NSW-CWO", "SOLAR", 250, "Amp Energy", "2024-06", 2027),
+        ("NSW-NE", "WIND", 600, "CWP", "2024-01", 2028), ("NSW-NE", "SOLAR", 350, "RATCH", "2024-04", 2028),
+        ("QLD-NQ", "SOLAR", 500, "CleanCo", "2023-12", 2026), ("QLD-NQ", "BESS", 200, "Neoen", "2024-02", 2027),
+        ("VIC-MW", "WIND", 300, "EnergyAustralia", "2024-05", 2029), ("SA-NR", "WIND", 150, "AGL", "2024-03", 2027),
+    ]
+    for i, (rez, tech, cap, dev, date, yr) in enumerate(queue_data):
+        queue.append(RZPQueueRecord(rez_id=rez, queue_position=i+1, technology=tech, capacity_mw=cap, developer=dev, application_date=date, expected_connection_year=yr, status="ACTIVE"))
+    total_op = sum(z.capacity_operational_mw for z in zones)
+    total_committed = sum(z.capacity_committed_mw for z in zones)
+    return RZPDashboard(
+        zones=zones, projects=projects, constraints=constraints, queue=queue,
+        summary={
+            "total_zones": len(zones),
+            "total_operational_gw": round(total_op / 1000, 1),
+            "total_committed_gw": round(total_committed / 1000, 1),
+            "constrained_zones": sum(1 for z in zones if z.zone_status == "CONSTRAINED"),
+            "total_projects": len(projects),
+            "queue_length": len(queue),
+            "total_queue_gw": round(sum(q.capacity_mw for q in queue) / 1000, 1),
+        }
+    )
+
+# ── Sprint 69b: Energy Storage Revenue Stack Analytics ───────────────────────
+
+class ESRRevenueStreamRecord(BaseModel):
+    project_name: str
+    region: str
+    capacity_mw: float
+    duration_hr: float
+    year: int
+    energy_arbitrage_per_kw: float
+    fcas_raise_per_kw: float
+    fcas_lower_per_kw: float
+    capacity_payment_per_kw: float
+    firm_power_contract_per_kw: float
+    ancillary_other_per_kw: float
+    total_revenue_per_kw: float
+    merchant_pct: float
+    contracted_pct: float
+
+class ESRProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    region: str
+    capacity_mw: float
+    energy_mwh: float
+    duration_hr: float
+    technology: str  # LFP / NMC / VRFB / ZINC_AIR
+    developer: str
+    commissioning_year: int
+    capex_per_kw: float
+    opex_per_kw_yr: float
+    cycles_per_year: int
+    degradation_pct_per_yr: float
+    warranty_years: int
+    project_life_years: int
+    irr_pct: float
+    npv_m: float
+
+class ESRDegradationRecord(BaseModel):
+    technology: str
+    year: int
+    capacity_retention_pct: float
+    round_trip_efficiency_pct: float
+    cycle_count_cumulative: int
+    replacement_cost_per_kwh: float
+
+class ESRSensitivityRecord(BaseModel):
+    project_id: str
+    variable: str
+    delta_pct: float  # +/- % change in variable
+    irr_base_pct: float
+    irr_scenario_pct: float
+    irr_delta_pct: float
+    npv_delta_m: float
+
+class ESRDashboard(BaseModel):
+    revenue_streams: list[ESRRevenueStreamRecord]
+    projects: list[ESRProjectRecord]
+    degradation: list[ESRDegradationRecord]
+    sensitivity: list[ESRSensitivityRecord]
+    summary: dict
+
+@app.get("/api/storage-revenue/dashboard", response_model=ESRDashboard, dependencies=[Depends(verify_api_key)])
+def get_storage_revenue_dashboard():
+    revenue_streams = [
+        ESRRevenueStreamRecord(project_name="Hornsdale Power Reserve", region="SA1", capacity_mw=150, duration_hr=1.0, year=2024, energy_arbitrage_per_kw=28, fcas_raise_per_kw=55, fcas_lower_per_kw=32, capacity_payment_per_kw=62, firm_power_contract_per_kw=0, ancillary_other_per_kw=8, total_revenue_per_kw=185, merchant_pct=52, contracted_pct=48),
+        ESRRevenueStreamRecord(project_name="Victorian Big Battery", region="VIC1", capacity_mw=300, duration_hr=2.0, year=2024, energy_arbitrage_per_kw=38, fcas_raise_per_kw=42, fcas_lower_per_kw=28, capacity_payment_per_kw=45, firm_power_contract_per_kw=18, ancillary_other_per_kw=5, total_revenue_per_kw=176, merchant_pct=61, contracted_pct=39),
+        ESRRevenueStreamRecord(project_name="AGL Torrens BESS", region="SA1", capacity_mw=250, duration_hr=2.0, year=2024, energy_arbitrage_per_kw=32, fcas_raise_per_kw=48, fcas_lower_per_kw=30, capacity_payment_per_kw=70, firm_power_contract_per_kw=20, ancillary_other_per_kw=6, total_revenue_per_kw=206, merchant_pct=45, contracted_pct=55),
+        ESRRevenueStreamRecord(project_name="Origin BESS NSW Portfolio", region="NSW1", capacity_mw=400, duration_hr=2.0, year=2024, energy_arbitrage_per_kw=25, fcas_raise_per_kw=38, fcas_lower_per_kw=24, capacity_payment_per_kw=38, firm_power_contract_per_kw=30, ancillary_other_per_kw=4, total_revenue_per_kw=159, merchant_pct=55, contracted_pct=45),
+        ESRRevenueStreamRecord(project_name="Neoen Collie BESS", region="QLD1", capacity_mw=200, duration_hr=2.0, year=2024, energy_arbitrage_per_kw=22, fcas_raise_per_kw=35, fcas_lower_per_kw=20, capacity_payment_per_kw=35, firm_power_contract_per_kw=15, ancillary_other_per_kw=3, total_revenue_per_kw=130, merchant_pct=44, contracted_pct=56),
+        # 2025 projections
+        ESRRevenueStreamRecord(project_name="Hornsdale Power Reserve", region="SA1", capacity_mw=150, duration_hr=1.0, year=2025, energy_arbitrage_per_kw=35, fcas_raise_per_kw=45, fcas_lower_per_kw=28, capacity_payment_per_kw=62, firm_power_contract_per_kw=0, ancillary_other_per_kw=10, total_revenue_per_kw=180, merchant_pct=54, contracted_pct=46),
+        ESRRevenueStreamRecord(project_name="Victorian Big Battery", region="VIC1", capacity_mw=300, duration_hr=2.0, year=2025, energy_arbitrage_per_kw=42, fcas_raise_per_kw=35, fcas_lower_per_kw=22, capacity_payment_per_kw=45, firm_power_contract_per_kw=18, ancillary_other_per_kw=6, total_revenue_per_kw=168, merchant_pct=59, contracted_pct=41),
+    ]
+    projects = [
+        ESRProjectRecord(project_id="BESS001", project_name="Hornsdale Power Reserve", region="SA1", capacity_mw=150, energy_mwh=194, duration_hr=1.3, technology="LFP", developer="Neoen", commissioning_year=2017, capex_per_kw=1200, opex_per_kw_yr=18, cycles_per_year=365, degradation_pct_per_yr=2.5, warranty_years=10, project_life_years=15, irr_pct=18.5, npv_m=42),
+        ESRProjectRecord(project_id="BESS002", project_name="Victorian Big Battery", region="VIC1", capacity_mw=300, energy_mwh=450, duration_hr=1.5, technology="LFP", developer="Neoen/AusNet", commissioning_year=2021, capex_per_kw=950, opex_per_kw_yr=16, cycles_per_year=420, degradation_pct_per_yr=2.0, warranty_years=10, project_life_years=15, irr_pct=14.8, npv_m=88),
+        ESRProjectRecord(project_id="BESS003", project_name="AGL Torrens BESS", region="SA1", capacity_mw=250, energy_mwh=500, duration_hr=2.0, technology="LFP", developer="AGL Energy", commissioning_year=2023, capex_per_kw=880, opex_per_kw_yr=15, cycles_per_year=400, degradation_pct_per_yr=1.8, warranty_years=12, project_life_years=15, irr_pct=16.2, npv_m=95),
+        ESRProjectRecord(project_id="BESS004", project_name="Origin BESS NSW", region="NSW1", capacity_mw=400, energy_mwh=800, duration_hr=2.0, technology="LFP", developer="Origin Energy", commissioning_year=2025, capex_per_kw=820, opex_per_kw_yr=14, cycles_per_year=380, degradation_pct_per_yr=1.8, warranty_years=12, project_life_years=15, irr_pct=12.5, npv_m=105),
+        ESRProjectRecord(project_id="BESS005", project_name="Neoen Collie BESS", region="QLD1", capacity_mw=200, energy_mwh=400, duration_hr=2.0, technology="NMC", developer="Neoen", commissioning_year=2024, capex_per_kw=900, opex_per_kw_yr=17, cycles_per_year=350, degradation_pct_per_yr=2.5, warranty_years=10, project_life_years=15, irr_pct=11.8, npv_m=38),
+        ESRProjectRecord(project_id="BESS006", project_name="Dalrymple BESS SA", region="SA1", capacity_mw=30, energy_mwh=8, duration_hr=0.25, technology="LFP", developer="ElectraNet", commissioning_year=2018, capex_per_kw=800, opex_per_kw_yr=12, cycles_per_year=600, degradation_pct_per_yr=3.0, warranty_years=10, project_life_years=15, irr_pct=22.0, npv_m=8),
+        ESRProjectRecord(project_id="BESS007", project_name="Waratah Super Battery NSW", region="NSW1", capacity_mw=850, energy_mwh=1700, duration_hr=2.0, technology="LFP", developer="Akaysha Energy", commissioning_year=2025, capex_per_kw=780, opex_per_kw_yr=13, cycles_per_year=400, degradation_pct_per_yr=1.5, warranty_years=15, project_life_years=20, irr_pct=13.8, npv_m=280),
+    ]
+    degradation = []
+    techs = {
+        "LFP": (100, 91, 2.0, 95.0, 120),
+        "NMC": (100, 88, 2.8, 94.0, 150),
+        "VRFB": (100, 96, 0.5, 76.0, 80),
+        "ZINC_AIR": (100, 90, 2.2, 72.0, 60),
+    }
+    for tech, (cap_start, cap_10, deg_rate, rte, replace_cost) in techs.items():
+        for year in range(1, 16):
+            cap_ret = max(60, cap_start - (year - 1) * deg_rate * (1.1 if year > 8 else 1.0))
+            rte_adj = max(65, rte - year * 0.3)
+            degradation.append(ESRDegradationRecord(
+                technology=tech, year=year,
+                capacity_retention_pct=round(cap_ret, 1),
+                round_trip_efficiency_pct=round(rte_adj, 1),
+                cycle_count_cumulative=year * ({"LFP": 400, "NMC": 350, "VRFB": 300, "ZINC_AIR": 250}[tech]),
+                replacement_cost_per_kwh=replace_cost
+            ))
+    sensitivity = []
+    variables = [
+        ("Capex ($/kW)", -20, 3.2), ("Capex ($/kW)", 20, -3.1),
+        ("FCAS Revenue", 20, 2.8), ("FCAS Revenue", -20, -2.9),
+        ("Energy Arbitrage", 20, 1.5), ("Energy Arbitrage", -20, -1.6),
+        ("Degradation Rate", -30, 1.8), ("Degradation Rate", 30, -2.0),
+        ("WACC", -1, 1.2), ("WACC", 1, -1.3),
+        ("Cycles per Year", 20, 1.1), ("Cycles per Year", -20, -1.2),
+    ]
+    for var, delta, irr_delta in variables:
+        sensitivity.append(ESRSensitivityRecord(
+            project_id="BESS004", variable=var, delta_pct=delta,
+            irr_base_pct=12.5, irr_scenario_pct=round(12.5 + irr_delta, 1),
+            irr_delta_pct=irr_delta, npv_delta_m=round(irr_delta * 8, 1)
+        ))
+    return ESRDashboard(
+        revenue_streams=revenue_streams, projects=projects,
+        degradation=degradation, sensitivity=sensitivity,
+        summary={
+            "total_projects": len(projects),
+            "total_capacity_gw": round(sum(p.capacity_mw for p in projects) / 1000, 1),
+            "total_energy_gwh": round(sum(p.energy_mwh for p in projects) / 1000, 1),
+            "avg_irr_pct": round(sum(p.irr_pct for p in projects) / len(projects), 1),
+            "best_irr_project": "Dalrymple BESS SA",
+            "highest_revenue_per_kw": 206,
+            "highest_revenue_region": "SA1",
+            "technologies_tracked": 4,
+        }
+    )
+
+# ── Sprint 69c: NEM Carbon Price Pathway Analytics ───────────────────────────
+
+class CPPScenarioRecord(BaseModel):
+    scenario_name: str
+    year: int
+    carbon_price_per_t: float
+    electricity_price_impact_per_mwh: float
+    total_abatement_mt: float
+    renewable_share_pct: float
+    coal_generation_twh: float
+    gas_generation_twh: float
+    policy_basis: str
+
+class CPPSafeguardRecord(BaseModel):
+    facility_name: str
+    sector: str
+    state: str
+    baseline_kt_co2e: float
+    actual_emissions_kt_co2e: float
+    surplus_deficit_kt: float
+    accu_purchased: int
+    accu_cost_m: float
+    abatement_pathway: str
+    compliance_year: int
+
+class CPPPassthroughRecord(BaseModel):
+    generator_name: str
+    technology: str
+    region: str
+    carbon_intensity_t_per_mwh: float
+    carbon_cost_per_mwh: float
+    spot_price_impact_pct: float
+    passthrough_rate_pct: float
+    year: int
+
+class CPPAbatementRecord(BaseModel):
+    abatement_option: str
+    sector: str
+    cost_per_t_co2: float
+    potential_mt_pa: float
+    maturity: str  # COMMERCIAL / EMERGING / EARLY_STAGE
+    timeline_years: int
+    nem_relevant: bool
+
+class CPPDashboard(BaseModel):
+    scenarios: list[CPPScenarioRecord]
+    safeguard_facilities: list[CPPSafeguardRecord]
+    passthrough_records: list[CPPPassthroughRecord]
+    abatement_options: list[CPPAbatementRecord]
+    summary: dict
+
+@app.get("/api/carbon-price-pathway/dashboard", response_model=CPPDashboard, dependencies=[Depends(verify_api_key)])
+def get_carbon_price_pathway_dashboard():
+    scenarios = []
+    scenario_defs = {
+        "Net Zero 2050 (Paris-aligned)": {"base_price": 30, "growth": 8, "ren_start": 42, "ren_growth": 2.5, "coal_start": 120, "coal_decline": 8, "gas_start": 80, "gas_decline": 3},
+        "Accelerated Transition": {"base_price": 50, "growth": 12, "ren_start": 50, "ren_growth": 3.0, "coal_start": 100, "coal_decline": 12, "gas_start": 75, "gas_decline": 4},
+        "Current Policy (Safeguard)": {"base_price": 28, "growth": 5, "ren_start": 38, "ren_growth": 2.0, "coal_start": 135, "coal_decline": 6, "gas_start": 85, "gas_decline": 2},
+        "High Carbon Price": {"base_price": 75, "growth": 10, "ren_start": 55, "ren_growth": 3.5, "coal_start": 90, "coal_decline": 15, "gas_start": 70, "gas_decline": 5},
+    }
+    for scenario, params in scenario_defs.items():
+        for year in range(2024, 2051, 2):
+            t = year - 2024
+            price = params["base_price"] + params["growth"] * t / 2
+            el_impact = price * 0.65 * 0.8  # avg NEM carbon intensity ~0.65 t/MWh, 80% passthrough
+            ren = min(100, params["ren_start"] + params["ren_growth"] * t)
+            coal = max(0, params["coal_start"] - params["coal_decline"] * t)
+            gas = max(0, params["gas_start"] - params["gas_decline"] * t)
+            scenarios.append(CPPScenarioRecord(
+                scenario_name=scenario, year=year,
+                carbon_price_per_t=round(price, 1),
+                electricity_price_impact_per_mwh=round(el_impact, 1),
+                total_abatement_mt=round(180 * ren / 100, 1),
+                renewable_share_pct=round(ren, 1),
+                coal_generation_twh=round(coal, 1),
+                gas_generation_twh=round(gas, 1),
+                policy_basis="Safeguard Mechanism + ACCU" if "Safeguard" in scenario else "Explicit carbon price"
+            ))
+    safeguard_facilities = [
+        CPPSafeguardRecord(facility_name="Bayswater Power Station", sector="ELECTRICITY", state="NSW", baseline_kt_co2e=9800, actual_emissions_kt_co2e=8200, surplus_deficit_kt=1600, accu_purchased=0, accu_cost_m=0, abatement_pathway="Coal-to-gas co-firing, then closure 2035", compliance_year=2024),
+        CPPSafeguardRecord(facility_name="Eraring Power Station", sector="ELECTRICITY", state="NSW", baseline_kt_co2e=11500, actual_emissions_kt_co2e=9800, surplus_deficit_kt=1700, accu_purchased=0, accu_cost_m=0, abatement_pathway="Accelerated closure 2025, BESS replacement", compliance_year=2024),
+        CPPSafeguardRecord(facility_name="Loy Yang A", sector="ELECTRICITY", state="VIC", baseline_kt_co2e=15000, actual_emissions_kt_co2e=13200, surplus_deficit_kt=1800, accu_purchased=0, accu_cost_m=0, abatement_pathway="Transition to wind+BESS by 2035", compliance_year=2024),
+        CPPSafeguardRecord(facility_name="Callide C Power Station", sector="ELECTRICITY", state="QLD", baseline_kt_co2e=7500, actual_emissions_kt_co2e=7800, surplus_deficit_kt=-300, accu_purchased=300, accu_cost_m=8.7, abatement_pathway="CCS feasibility study underway", compliance_year=2024),
+        CPPSafeguardRecord(facility_name="Tomago Aluminium", sector="ALUMINIUM", state="NSW", baseline_kt_co2e=2200, actual_emissions_kt_co2e=2180, surplus_deficit_kt=20, accu_purchased=0, accu_cost_m=0, abatement_pathway="Electrolysis efficiency improvements", compliance_year=2024),
+        CPPSafeguardRecord(facility_name="QAL Alumina Gladstone", sector="ALUMINA", state="QLD", baseline_kt_co2e=5800, actual_emissions_kt_co2e=6100, surplus_deficit_kt=-300, accu_purchased=300, accu_cost_m=8.7, abatement_pathway="Fuel switching to green hydrogen", compliance_year=2024),
+        CPPSafeguardRecord(facility_name="Yallourn Power Station", sector="ELECTRICITY", state="VIC", baseline_kt_co2e=6000, actual_emissions_kt_co2e=4200, surplus_deficit_kt=1800, accu_purchased=0, accu_cost_m=0, abatement_pathway="Closed August 2022", compliance_year=2022),
+        CPPSafeguardRecord(facility_name="Incitec Pivot (Gibson Island)", sector="CHEMICALS", state="QLD", baseline_kt_co2e=950, actual_emissions_kt_co2e=980, surplus_deficit_kt=-30, accu_purchased=30, accu_cost_m=0.9, abatement_pathway="Green ammonia transition by 2027", compliance_year=2024),
+    ]
+    passthrough_records = [
+        CPPPassthroughRecord(generator_name="Bayswater", technology="COAL", region="NSW1", carbon_intensity_t_per_mwh=0.92, carbon_cost_per_mwh=25.8, spot_price_impact_pct=28, passthrough_rate_pct=85, year=2024),
+        CPPPassthroughRecord(generator_name="Loy Yang A", technology="BROWN_COAL", region="VIC1", carbon_intensity_t_per_mwh=1.28, carbon_cost_per_mwh=35.8, spot_price_impact_pct=38, passthrough_rate_pct=78, year=2024),
+        CPPPassthroughRecord(generator_name="Callide C", technology="COAL", region="QLD1", carbon_intensity_t_per_mwh=0.88, carbon_cost_per_mwh=24.6, spot_price_impact_pct=26, passthrough_rate_pct=88, year=2024),
+        CPPPassthroughRecord(generator_name="Pelican Point", technology="GAS_CCGT", region="SA1", carbon_intensity_t_per_mwh=0.42, carbon_cost_per_mwh=11.8, spot_price_impact_pct=12, passthrough_rate_pct=92, year=2024),
+        CPPPassthroughRecord(generator_name="Oakey 1 Gas", technology="GAS_OCGT", region="QLD1", carbon_intensity_t_per_mwh=0.62, carbon_cost_per_mwh=17.4, spot_price_impact_pct=18, passthrough_rate_pct=75, year=2024),
+        CPPPassthroughRecord(generator_name="Hornsdale Wind", technology="WIND", region="SA1", carbon_intensity_t_per_mwh=0.008, carbon_cost_per_mwh=0.2, spot_price_impact_pct=0.2, passthrough_rate_pct=100, year=2024),
+        CPPPassthroughRecord(generator_name="Darlington Point Solar", technology="SOLAR", region="NSW1", carbon_intensity_t_per_mwh=0.012, carbon_cost_per_mwh=0.3, spot_price_impact_pct=0.3, passthrough_rate_pct=100, year=2024),
+    ]
+    abatement_options = [
+        CPPAbatementRecord(abatement_option="Wind Energy Expansion", sector="ELECTRICITY", cost_per_t_co2=-5, potential_mt_pa=45, maturity="COMMERCIAL", timeline_years=3, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Utility Solar Expansion", sector="ELECTRICITY", cost_per_t_co2=-8, potential_mt_pa=40, maturity="COMMERCIAL", timeline_years=2, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Grid-Scale BESS", sector="ELECTRICITY", cost_per_t_co2=10, potential_mt_pa=15, maturity="COMMERCIAL", timeline_years=2, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Rooftop Solar + VPP", sector="ELECTRICITY", cost_per_t_co2=-12, potential_mt_pa=20, maturity="COMMERCIAL", timeline_years=1, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Coal Plant CCS Retrofit", sector="ELECTRICITY", cost_per_t_co2=85, potential_mt_pa=30, maturity="EMERGING", timeline_years=10, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Green Hydrogen for Industry", sector="INDUSTRY", cost_per_t_co2=120, potential_mt_pa=25, maturity="EMERGING", timeline_years=8, nem_relevant=False),
+        CPPAbatementRecord(abatement_option="Electrification of Heat (Industry)", sector="INDUSTRY", cost_per_t_co2=45, potential_mt_pa=18, maturity="COMMERCIAL", timeline_years=5, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Demand Response & EE", sector="ELECTRICITY", cost_per_t_co2=-20, potential_mt_pa=8, maturity="COMMERCIAL", timeline_years=2, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Offshore Wind (Bass Strait)", sector="ELECTRICITY", cost_per_t_co2=15, potential_mt_pa=35, maturity="EMERGING", timeline_years=8, nem_relevant=True),
+        CPPAbatementRecord(abatement_option="Nuclear SMR", sector="ELECTRICITY", cost_per_t_co2=60, potential_mt_pa=20, maturity="EARLY_STAGE", timeline_years=15, nem_relevant=True),
+    ]
+    return CPPDashboard(
+        scenarios=scenarios,
+        safeguard_facilities=safeguard_facilities,
+        passthrough_records=passthrough_records,
+        abatement_options=abatement_options,
+        summary={
+            "scenarios": len(scenario_defs),
+            "scenario_records": len(scenarios),
+            "safeguard_facilities": len(safeguard_facilities),
+            "facilities_in_deficit": sum(1 for f in safeguard_facilities if f.surplus_deficit_kt < 0),
+            "total_accu_purchased": sum(f.accu_purchased for f in safeguard_facilities),
+            "carbon_price_2024_per_t": 28,
+            "carbon_price_2030_per_t_central": 53,
+            "abatement_options": len(abatement_options),
+        }
+    )
