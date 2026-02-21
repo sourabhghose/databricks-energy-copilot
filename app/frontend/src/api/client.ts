@@ -15307,3 +15307,255 @@ export interface CEFDashboard {
 }
 export const getCleanEnergyFinanceDashboard = (): Promise<CEFDashboard> =>
   get<CEFDashboard>('/api/clean-energy-finance/dashboard');
+
+// Nuclear Energy Economics Policy Analytics
+export interface NEEPReactorTechRecord {
+  reactor_id: string;
+  technology: string;
+  developer: string;
+  capacity_mw: number;
+  construction_cost_m_per_kw: number;
+  lcoe_dolpermwh: number;
+  construction_years: number;
+  lifetime_years: number;
+  capacity_factor_pct: number;
+  country_of_origin: string;
+  regulatory_status: string;
+}
+export interface NEEPSiteAssessmentRecord {
+  site_id: string;
+  site_name: string;
+  state: string;
+  proximity_to_load_km: number;
+  water_availability: string;
+  seismic_risk: string;
+  community_acceptance_pct: number;
+  grid_connection_cost_m: number;
+  land_area_ha: number;
+  estimated_capacity_mw: number;
+  suitability_score: number;
+}
+export interface NEEPCostBenchmarkRecord {
+  record_id: string;
+  country: string;
+  reactor_type: string;
+  year_commissioned: number;
+  overnight_cost_m_per_kw: number;
+  financing_cost_pct: number;
+  fuel_cost_dolpermwh: number;
+  om_cost_dolpermwh: number;
+  decommissioning_cost_dolpermwh: number;
+  total_lcoe_dolpermwh: number;
+}
+export interface NEEPPolicyTimelineRecord {
+  milestone_id: string;
+  milestone_name: string;
+  milestone_type: string;
+  target_date: string;
+  status: string;
+  responsible_body: string;
+  description: string;
+}
+export interface NEEPStakeholderSentimentRecord {
+  stakeholder_id: string;
+  stakeholder_group: string;
+  support_pct: number;
+  oppose_pct: number;
+  neutral_pct: number;
+  key_concern: string;
+  survey_date: string;
+  region: string;
+}
+export interface NEEPScenarioRecord {
+  scenario_id: string;
+  scenario_name: string;
+  num_reactors: number;
+  total_capacity_gw: number;
+  first_power_year: number;
+  total_cost_bn: number;
+  lcoe_dolpermwh: number;
+  co2_abatement_mt_per_year: number;
+  jobs_created: number;
+  grid_share_pct: number;
+}
+export interface NEEPDashboard {
+  reactor_technologies: NEEPReactorTechRecord[];
+  site_assessments: NEEPSiteAssessmentRecord[];
+  cost_benchmarks: NEEPCostBenchmarkRecord[];
+  policy_timeline: NEEPPolicyTimelineRecord[];
+  stakeholder_sentiment: NEEPStakeholderSentimentRecord[];
+  scenarios: NEEPScenarioRecord[];
+  summary: Record<string, number>;
+}
+export const getNuclearEnergyEconomicsDashboard = (): Promise<NEEPDashboard> =>
+  get<NEEPDashboard>('/api/nuclear-energy-economics/dashboard');
+
+// ---------------------------------------------------------------------------
+// Behind-the-Meter Commercial Energy Analytics (Sprint 95b)
+// ---------------------------------------------------------------------------
+export interface BTMCSiteRecord {
+  site_id: string;
+  site_name: string;
+  industry_sector: string;
+  state: string;
+  floor_area_m2: number;
+  annual_consumption_mwh: number;
+  peak_demand_kw: number;
+  solar_capacity_kw: number;
+  battery_capacity_kwh: number;
+  ev_chargers: number;
+  energy_intensity_kwh_per_m2: number;
+  smart_meter: boolean;
+}
+export interface BTMCLoadProfileRecord {
+  profile_id: string;
+  site_id: string;
+  hour: number;
+  day_type: string;
+  month: number;
+  avg_demand_kw: number;
+  solar_generation_kw: number;
+  battery_charge_kw: number;
+  grid_import_kw: number;
+  grid_export_kw: number;
+}
+export interface BTMCCostSavingRecord {
+  saving_id: string;
+  site_id: string;
+  measure: string;
+  annual_saving_aud: number;
+  capex_aud: number;
+  payback_years: number;
+  irr_pct: number;
+  co2_saving_tpa: number;
+  implementation_status: string;
+}
+export interface BTMCDemandTariffRecord {
+  tariff_id: string;
+  network_name: string;
+  tariff_structure: string;
+  peak_rate_dollar_per_kwh: number;
+  offpeak_rate_dollar_per_kwh: number;
+  demand_charge_dollar_per_kw: number;
+  fixed_charge_dollar_per_day: number;
+  annual_bill_aud: number;
+  bill_saving_vs_flat_pct: number;
+}
+export interface BTMCBEMSRecord {
+  bems_id: string;
+  site_id: string;
+  vendor: string;
+  modules_active: string;
+  data_points_count: number;
+  fault_detections_ytd: number;
+  energy_saving_pct: number;
+  payback_years: number;
+  integration_protocol: string;
+}
+export interface BTMCBenchmarkRecord {
+  benchmark_id: string;
+  industry_sector: string;
+  metric_name: string;
+  best_practice: number;
+  median: number;
+  poor_performer: number;
+  unit: string;
+  national_average: number;
+}
+export interface BTMCDashboard {
+  sites: BTMCSiteRecord[];
+  load_profiles: BTMCLoadProfileRecord[];
+  cost_savings: BTMCCostSavingRecord[];
+  demand_tariffs: BTMCDemandTariffRecord[];
+  bems_deployments: BTMCBEMSRecord[];
+  benchmarks: BTMCBenchmarkRecord[];
+  summary: Record<string, number>;
+}
+export const getBehindMeterCommercialDashboard = (): Promise<BTMCDashboard> =>
+  get<BTMCDashboard>('/api/behind-meter-commercial/dashboard');
+
+// ---------------------------------------------------------------------------
+// Capacity Investment Scheme (CIS) Analytics — Sprint 95c
+// ---------------------------------------------------------------------------
+export interface CISCAwardRecord {
+  award_id: string;
+  project_name: string;
+  technology: string;
+  state: string;
+  capacity_mw: number;
+  contract_term_years: number;
+  strike_price_dolpermwh: number;
+  reference_price_dolpermwh: number;
+  floor_price_dolpermwh: number;
+  contract_type: string;
+  developer: string;
+  financial_close_year: number;
+}
+export interface CISCRoundRecord {
+  round_id: string;
+  round_name: string;
+  auction_date: string;
+  technology_target: string;
+  total_capacity_mw_target: number;
+  awarded_capacity_mw: number;
+  num_bids: number;
+  num_awards: number;
+  clearing_price_dolpermwh: number;
+  total_contract_value_m: number;
+  oversubscription_ratio: number;
+}
+export interface CISCCFDPaymentRecord {
+  payment_id: string;
+  project_id: string;
+  settlement_period: string;
+  spot_price_dolpermwh: number;
+  strike_price_dolpermwh: number;
+  cfd_payment_m: number;
+  direction: string;
+  cumulative_payment_m: number;
+}
+export interface CISCPipelineRecord {
+  pipeline_id: string;
+  project_name: string;
+  technology: string;
+  state: string;
+  capacity_mw: number;
+  stage: string;
+  estimated_award_year: number;
+  estimated_cod_year: number;
+  capex_m: number;
+}
+export interface CISCPortfolioMetricRecord {
+  metric_id: string;
+  region: string;
+  year: number;
+  total_awarded_capacity_mw: number;
+  operating_capacity_mw: number;
+  pipeline_capacity_mw: number;
+  avg_strike_price_dolpermwh: number;
+  total_contract_value_bn: number;
+  renewable_share_pct: number;
+  firming_share_pct: number;
+}
+export interface CISCMarketImpactRecord {
+  impact_id: string;
+  scenario: string;
+  year: number;
+  wholesale_price_impact_pctchange: number;
+  renewable_penetration_pct: number;
+  reliability_standard_met: boolean;
+  consumer_bill_impact_dollar_pa: number;
+  co2_reduction_mt_pa: number;
+  investment_crowding_in_ratio: number;
+}
+export interface CISCDashboard {
+  awards: CISCAwardRecord[];
+  rounds: CISCRoundRecord[];
+  cfd_payments: CISCCFDPaymentRecord[];
+  pipeline: CISCPipelineRecord[];
+  portfolio_metrics: CISCPortfolioMetricRecord[];
+  market_impacts: CISCMarketImpactRecord[];
+  summary: Record<string, number>;
+}
+export const getCapacityInvestmentSchemeDashboard = (): Promise<CISCDashboard> =>
+  get<CISCDashboard>('/api/capacity-investment-scheme/dashboard');

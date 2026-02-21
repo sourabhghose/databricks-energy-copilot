@@ -65854,3 +65854,991 @@ def get_clean_energy_finance_dashboard():
         }
     )
     return _cef_cache
+
+
+# ---------------------------------------------------------------------------
+# Nuclear Energy Economics Policy Analytics (NEEP) — Sprint 95a
+# ---------------------------------------------------------------------------
+
+class NEEPReactorTechRecord(BaseModel):
+    reactor_id: str
+    technology: str
+    developer: str
+    capacity_mw: float
+    construction_cost_m_per_kw: float
+    lcoe_dolpermwh: float
+    construction_years: int
+    lifetime_years: int
+    capacity_factor_pct: float
+    country_of_origin: str
+    regulatory_status: str
+
+class NEEPSiteAssessmentRecord(BaseModel):
+    site_id: str
+    site_name: str
+    state: str
+    proximity_to_load_km: float
+    water_availability: str
+    seismic_risk: str
+    community_acceptance_pct: float
+    grid_connection_cost_m: float
+    land_area_ha: float
+    estimated_capacity_mw: float
+    suitability_score: float
+
+class NEEPCostBenchmarkRecord(BaseModel):
+    record_id: str
+    country: str
+    reactor_type: str
+    year_commissioned: int
+    overnight_cost_m_per_kw: float
+    financing_cost_pct: float
+    fuel_cost_dolpermwh: float
+    om_cost_dolpermwh: float
+    decommissioning_cost_dolpermwh: float
+    total_lcoe_dolpermwh: float
+
+class NEEPPolicyTimelineRecord(BaseModel):
+    milestone_id: str
+    milestone_name: str
+    milestone_type: str
+    target_date: str
+    status: str
+    responsible_body: str
+    description: str
+
+class NEEPStakeholderSentimentRecord(BaseModel):
+    stakeholder_id: str
+    stakeholder_group: str
+    support_pct: float
+    oppose_pct: float
+    neutral_pct: float
+    key_concern: str
+    survey_date: str
+    region: str
+
+class NEEPScenarioRecord(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    num_reactors: int
+    total_capacity_gw: float
+    first_power_year: int
+    total_cost_bn: float
+    lcoe_dolpermwh: float
+    co2_abatement_mt_per_year: float
+    jobs_created: int
+    grid_share_pct: float
+
+class NEEPDashboard(BaseModel):
+    reactor_technologies: List[NEEPReactorTechRecord]
+    site_assessments: List[NEEPSiteAssessmentRecord]
+    cost_benchmarks: List[NEEPCostBenchmarkRecord]
+    policy_timeline: List[NEEPPolicyTimelineRecord]
+    stakeholder_sentiment: List[NEEPStakeholderSentimentRecord]
+    scenarios: List[NEEPScenarioRecord]
+    summary: dict
+
+_neep_cache: Optional[NEEPDashboard] = None
+
+@app.get("/api/nuclear-energy-economics/dashboard")
+def get_neep_dashboard():
+    import random
+    global _neep_cache
+    if _neep_cache is not None:
+        return _neep_cache
+
+    # --- Reactor Technologies (8 records: 3 SMR, 2 Gen III+, 2 Gen IV, 1 Fusion) ---
+    reactor_technologies = [
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-001", technology="SMR", developer="NuScale Power",
+            capacity_mw=77.0, construction_cost_m_per_kw=6.5, lcoe_dolpermwh=110.0,
+            construction_years=4, lifetime_years=60, capacity_factor_pct=92.0,
+            country_of_origin="USA", regulatory_status="NRC Approved"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-002", technology="SMR", developer="Rolls-Royce SMR",
+            capacity_mw=470.0, construction_cost_m_per_kw=4.2, lcoe_dolpermwh=95.0,
+            construction_years=5, lifetime_years=60, capacity_factor_pct=90.0,
+            country_of_origin="UK", regulatory_status="Generic Design Assessment"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-003", technology="SMR", developer="GE-Hitachi BWRX-300",
+            capacity_mw=300.0, construction_cost_m_per_kw=4.8, lcoe_dolpermwh=100.0,
+            construction_years=4, lifetime_years=60, capacity_factor_pct=91.0,
+            country_of_origin="USA/Japan", regulatory_status="Pre-licensing Review"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-004", technology="Gen III+", developer="Westinghouse AP1000",
+            capacity_mw=1117.0, construction_cost_m_per_kw=5.5, lcoe_dolpermwh=105.0,
+            construction_years=7, lifetime_years=60, capacity_factor_pct=93.0,
+            country_of_origin="USA", regulatory_status="Licensed"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-005", technology="Gen III+", developer="EDF EPR2",
+            capacity_mw=1650.0, construction_cost_m_per_kw=6.0, lcoe_dolpermwh=115.0,
+            construction_years=8, lifetime_years=60, capacity_factor_pct=92.0,
+            country_of_origin="France", regulatory_status="Design Review"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-006", technology="Gen IV", developer="TerraPower Natrium",
+            capacity_mw=345.0, construction_cost_m_per_kw=7.2, lcoe_dolpermwh=130.0,
+            construction_years=6, lifetime_years=60, capacity_factor_pct=95.0,
+            country_of_origin="USA", regulatory_status="Under Construction"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-007", technology="Gen IV", developer="Kairos Power KP-FHR",
+            capacity_mw=140.0, construction_cost_m_per_kw=8.0, lcoe_dolpermwh=145.0,
+            construction_years=5, lifetime_years=60, capacity_factor_pct=90.0,
+            country_of_origin="USA", regulatory_status="Permit Issued"
+        ),
+        NEEPReactorTechRecord(
+            reactor_id="NEEP-RT-008", technology="Fusion", developer="Commonwealth Fusion SPARC",
+            capacity_mw=400.0, construction_cost_m_per_kw=12.0, lcoe_dolpermwh=200.0,
+            construction_years=10, lifetime_years=40, capacity_factor_pct=85.0,
+            country_of_origin="USA", regulatory_status="R&D Phase"
+        ),
+    ]
+
+    # --- Site Assessments (12 sites across NSW/QLD/VIC/SA/WA) ---
+    site_data = [
+        ("NEEP-SA-001","Liddell Repowering Site","NSW",85.0,"High","Low",62.0,45.0,350.0,1000.0),
+        ("NEEP-SA-002","Hunter Valley Nuclear Hub","NSW",120.0,"Moderate","Low",55.0,60.0,500.0,1200.0),
+        ("NEEP-SA-003","Bayswater Adjacent","NSW",95.0,"High","Low",58.0,38.0,280.0,800.0),
+        ("NEEP-SA-004","Callide Repowering","QLD",200.0,"Moderate","Low",48.0,75.0,420.0,1000.0),
+        ("NEEP-SA-005","Tarong Nuclear Precinct","QLD",180.0,"Moderate","Low",52.0,68.0,380.0,900.0),
+        ("NEEP-SA-006","Gladstone Industrial Zone","QLD",250.0,"High","Low",44.0,90.0,600.0,1400.0),
+        ("NEEP-SA-007","Latrobe Valley","VIC",140.0,"High","Low",65.0,52.0,460.0,1100.0),
+        ("NEEP-SA-008","Portland Coastal","VIC",320.0,"High","Moderate",40.0,110.0,250.0,600.0),
+        ("NEEP-SA-009","Port Augusta","SA",280.0,"Low","Low",35.0,95.0,300.0,700.0),
+        ("NEEP-SA-010","Leigh Creek","SA",380.0,"Low","Low",30.0,130.0,200.0,500.0),
+        ("NEEP-SA-011","Collie Repowering","WA",450.0,"Moderate","Low",42.0,120.0,350.0,800.0),
+        ("NEEP-SA-012","Geraldton Coastal","WA",600.0,"Moderate","Low",38.0,140.0,280.0,650.0),
+    ]
+    site_assessments = []
+    for s in site_data:
+        sid, name, state, prox, water, seismic, accept, grid_cost, land, cap = s
+        score = round(
+            (accept / 100) * 40 +
+            (1 - prox / 700) * 20 +
+            (20 if water == "High" else 10 if water == "Moderate" else 5) +
+            (20 if seismic == "Low" else 10 if seismic == "Moderate" else 0),
+            1
+        )
+        site_assessments.append(NEEPSiteAssessmentRecord(
+            site_id=sid, site_name=name, state=state, proximity_to_load_km=prox,
+            water_availability=water, seismic_risk=seismic, community_acceptance_pct=accept,
+            grid_connection_cost_m=grid_cost, land_area_ha=land, estimated_capacity_mw=cap,
+            suitability_score=min(score, 100.0)
+        ))
+
+    # --- Cost Benchmarks (20 records: 4 countries × 5 reactor types) ---
+    countries = ["USA", "France", "South Korea", "China"]
+    reactor_types_bench = ["PWR Gen III+", "BWR Gen III+", "SMR-300", "PHWR", "Fast Reactor"]
+    year_base = [2016, 2018, 2020, 2022, 2025]
+    cost_benchmarks = []
+    idx = 1
+    for c in countries:
+        for rt, yr in zip(reactor_types_bench, year_base):
+            overnight = round(random.uniform(3.0, 9.0), 2)
+            fin = round(random.uniform(4.0, 8.0), 2)
+            fuel = round(random.uniform(4.0, 8.0), 2)
+            om = round(random.uniform(10.0, 25.0), 2)
+            decomm = round(random.uniform(3.0, 8.0), 2)
+            lcoe = round(overnight * 10 + fin * 5 + fuel + om + decomm + random.uniform(-5, 20), 1)
+            lcoe = max(80.0, min(250.0, lcoe))
+            cost_benchmarks.append(NEEPCostBenchmarkRecord(
+                record_id=f"NEEP-CB-{idx:04d}", country=c, reactor_type=rt,
+                year_commissioned=yr + (list(countries).index(c) * 2),
+                overnight_cost_m_per_kw=overnight, financing_cost_pct=fin,
+                fuel_cost_dolpermwh=fuel, om_cost_dolpermwh=om,
+                decommissioning_cost_dolpermwh=decomm, total_lcoe_dolpermwh=lcoe
+            ))
+            idx += 1
+
+    # --- Policy Timeline (15 milestones 2024-2035) ---
+    milestones_data = [
+        ("NEEP-PT-001","Nuclear Policy Review Initiation","Study","2024-03-01","Completed","DCCEEW","Government commissions independent review of nuclear feasibility."),
+        ("NEEP-PT-002","AEMC Nuclear Integration Study","Study","2024-06-30","Completed","AEMC","Market design assessment for nuclear integration into NEM."),
+        ("NEEP-PT-003","Site Identification Report","Study","2024-09-30","Completed","ANSTO","Identification of 20 potential nuclear sites across Australia."),
+        ("NEEP-PT-004","Community Consultation Round 1","Regulation","2024-12-31","Completed","States","First round of community consultations in identified regions."),
+        ("NEEP-PT-005","Nuclear Prohibition Repeal Legislation","Legislation","2025-06-30","In Progress","Parliament","Repeal of EPBC Act nuclear prohibition provisions."),
+        ("NEEP-PT-006","ARPANSA Regulatory Framework Update","Regulation","2025-09-30","In Progress","ARPANSA","Updated regulatory framework for modern SMR technologies."),
+        ("NEEP-PT-007","Preliminary Site Licensing","Regulation","2026-03-31","Pending","ARPANSA","Preliminary site licence applications for top 4 sites."),
+        ("NEEP-PT-008","Nuclear Workforce Strategy","Decision","2026-06-30","Pending","DISER","National nuclear workforce and skills development strategy."),
+        ("NEEP-PT-009","SMR Technology Selection","Decision","2026-12-31","Pending","DCCEEW","Government selects preferred SMR technology partner."),
+        ("NEEP-PT-010","Site Licence Approvals","Regulation","2027-06-30","Pending","ARPANSA","Full site licence approvals for first two sites."),
+        ("NEEP-PT-011","Construction Licence Applications","Regulation","2028-03-31","Pending","ARPANSA","Construction licence applications submitted for pilot plants."),
+        ("NEEP-PT-012","First Construction Commencement","Decision","2029-01-01","Pending","Government","Ground-breaking ceremony for first Australian SMR plant."),
+        ("NEEP-PT-013","Grid Integration Planning","Regulation","2030-06-30","Pending","AEMO","AEMO completes transmission investment plan for nuclear zones."),
+        ("NEEP-PT-014","First Nuclear Power Generation","Decision","2033-06-30","Pending","Operator","First electrons from Australian nuclear plant to grid."),
+        ("NEEP-PT-015","Scale-up Decision Point","Decision","2035-12-31","Pending","Government","Government decision on large-scale nuclear fleet expansion."),
+    ]
+    policy_timeline = [
+        NEEPPolicyTimelineRecord(
+            milestone_id=m[0], milestone_name=m[1], milestone_type=m[2],
+            target_date=m[3], status=m[4], responsible_body=m[5], description=m[6]
+        ) for m in milestones_data
+    ]
+
+    # --- Stakeholder Sentiment (30 records: 6 groups × 5 regions) ---
+    groups = ["Industry", "Environmental NGOs", "Local Communities", "Academic Institutions", "Trade Unions", "General Public"]
+    regions = ["NSW", "QLD", "VIC", "SA", "WA"]
+    concerns = {
+        "Industry": "Cost certainty and investment horizon",
+        "Environmental NGOs": "Radioactive waste management and land use",
+        "Local Communities": "Safety and property values",
+        "Academic Institutions": "Research access and technology transfer",
+        "Trade Unions": "Job creation and skills transition",
+        "General Public": "Safety, cost to consumers and energy security",
+    }
+    base_support = {"Industry": 65, "Environmental NGOs": 18, "Local Communities": 42,
+                    "Academic Institutions": 58, "Trade Unions": 55, "General Public": 45}
+    survey_dates = ["2024-03-15", "2024-06-20", "2024-09-10", "2024-12-01", "2025-02-14"]
+    stakeholder_sentiment = []
+    sk_idx = 1
+    for g in groups:
+        for reg, sdate in zip(regions, survey_dates):
+            sup = round(base_support[g] + random.uniform(-8, 8), 1)
+            sup = max(5.0, min(90.0, sup))
+            opp = round(random.uniform(10, 45), 1)
+            opp = min(opp, 95 - sup)
+            neu = round(100.0 - sup - opp, 1)
+            neu = max(0.0, neu)
+            stakeholder_sentiment.append(NEEPStakeholderSentimentRecord(
+                stakeholder_id=f"NEEP-SS-{sk_idx:04d}",
+                stakeholder_group=g, support_pct=sup, oppose_pct=opp, neutral_pct=neu,
+                key_concern=concerns[g], survey_date=sdate, region=reg
+            ))
+            sk_idx += 1
+
+    # --- Scenarios (6: 0 to 20 GW) ---
+    scenarios = [
+        NEEPScenarioRecord(
+            scenario_id="NEEP-SC-001", scenario_name="No Nuclear Baseline",
+            num_reactors=0, total_capacity_gw=0.0, first_power_year=0,
+            total_cost_bn=0.0, lcoe_dolpermwh=0.0, co2_abatement_mt_per_year=0.0,
+            jobs_created=0, grid_share_pct=0.0
+        ),
+        NEEPScenarioRecord(
+            scenario_id="NEEP-SC-002", scenario_name="Pilot SMR (2 reactors)",
+            num_reactors=2, total_capacity_gw=0.6, first_power_year=2033,
+            total_cost_bn=8.0, lcoe_dolpermwh=145.0, co2_abatement_mt_per_year=4.2,
+            jobs_created=5000, grid_share_pct=2.5
+        ),
+        NEEPScenarioRecord(
+            scenario_id="NEEP-SC-003", scenario_name="Moderate Nuclear (5 GW)",
+            num_reactors=8, total_capacity_gw=5.0, first_power_year=2035,
+            total_cost_bn=45.0, lcoe_dolpermwh=120.0, co2_abatement_mt_per_year=35.0,
+            jobs_created=25000, grid_share_pct=14.0
+        ),
+        NEEPScenarioRecord(
+            scenario_id="NEEP-SC-004", scenario_name="Significant Nuclear (10 GW)",
+            num_reactors=15, total_capacity_gw=10.0, first_power_year=2035,
+            total_cost_bn=90.0, lcoe_dolpermwh=105.0, co2_abatement_mt_per_year=70.0,
+            jobs_created=50000, grid_share_pct=28.0
+        ),
+        NEEPScenarioRecord(
+            scenario_id="NEEP-SC-005", scenario_name="High Nuclear (15 GW)",
+            num_reactors=22, total_capacity_gw=15.0, first_power_year=2034,
+            total_cost_bn=135.0, lcoe_dolpermwh=95.0, co2_abatement_mt_per_year=105.0,
+            jobs_created=75000, grid_share_pct=42.0
+        ),
+        NEEPScenarioRecord(
+            scenario_id="NEEP-SC-006", scenario_name="Maximum Nuclear (20 GW)",
+            num_reactors=30, total_capacity_gw=20.0, first_power_year=2033,
+            total_cost_bn=180.0, lcoe_dolpermwh=88.0, co2_abatement_mt_per_year=140.0,
+            jobs_created=100000, grid_share_pct=56.0
+        ),
+    ]
+
+    # --- Summary ---
+    viable_sites = sum(1 for s in site_assessments if s.suitability_score >= 50)
+    all_lcoe = [r.total_lcoe_dolpermwh for r in cost_benchmarks]
+    all_lcoe.sort()
+    median_lcoe = round(all_lcoe[len(all_lcoe) // 2], 1)
+    total_potential_cap = round(sum(s.estimated_capacity_mw for s in site_assessments) / 1000.0, 2)
+    active_scenarios = [sc for sc in scenarios if sc.first_power_year > 0]
+    earliest_year = min(sc.first_power_year for sc in active_scenarios) if active_scenarios else 0
+
+    _neep_cache = NEEPDashboard(
+        reactor_technologies=reactor_technologies,
+        site_assessments=site_assessments,
+        cost_benchmarks=cost_benchmarks,
+        policy_timeline=policy_timeline,
+        stakeholder_sentiment=stakeholder_sentiment,
+        scenarios=scenarios,
+        summary={
+            "earliest_possible_power_year": earliest_year,
+            "num_viable_sites": viable_sites,
+            "median_lcoe_dolpermwh": median_lcoe,
+            "total_potential_capacity_gw": total_potential_cap,
+            "num_policy_milestones": len(policy_timeline),
+        }
+    )
+    return _neep_cache
+
+# ---------------------------------------------------------------------------
+# Behind-the-Meter Commercial Energy Analytics (Sprint 95b)
+# ---------------------------------------------------------------------------
+
+class BTMCSiteRecord(BaseModel):
+    site_id: str
+    site_name: str
+    industry_sector: str
+    state: str
+    floor_area_m2: float
+    annual_consumption_mwh: float
+    peak_demand_kw: float
+    solar_capacity_kw: float
+    battery_capacity_kwh: float
+    ev_chargers: int
+    energy_intensity_kwh_per_m2: float
+    smart_meter: bool
+
+class BTMCLoadProfileRecord(BaseModel):
+    profile_id: str
+    site_id: str
+    hour: int
+    day_type: str
+    month: int
+    avg_demand_kw: float
+    solar_generation_kw: float
+    battery_charge_kw: float
+    grid_import_kw: float
+    grid_export_kw: float
+
+class BTMCCostSavingRecord(BaseModel):
+    saving_id: str
+    site_id: str
+    measure: str
+    annual_saving_aud: float
+    capex_aud: float
+    payback_years: float
+    irr_pct: float
+    co2_saving_tpa: float
+    implementation_status: str
+
+class BTMCDemandTariffRecord(BaseModel):
+    tariff_id: str
+    network_name: str
+    tariff_structure: str
+    peak_rate_dollar_per_kwh: float
+    offpeak_rate_dollar_per_kwh: float
+    demand_charge_dollar_per_kw: float
+    fixed_charge_dollar_per_day: float
+    annual_bill_aud: float
+    bill_saving_vs_flat_pct: float
+
+class BTMCBEMSRecord(BaseModel):
+    bems_id: str
+    site_id: str
+    vendor: str
+    modules_active: str
+    data_points_count: int
+    fault_detections_ytd: int
+    energy_saving_pct: float
+    payback_years: float
+    integration_protocol: str
+
+class BTMCBenchmarkRecord(BaseModel):
+    benchmark_id: str
+    industry_sector: str
+    metric_name: str
+    best_practice: float
+    median: float
+    poor_performer: float
+    unit: str
+    national_average: float
+
+class BTMCDashboard(BaseModel):
+    sites: List[BTMCSiteRecord]
+    load_profiles: List[BTMCLoadProfileRecord]
+    cost_savings: List[BTMCCostSavingRecord]
+    demand_tariffs: List[BTMCDemandTariffRecord]
+    bems_deployments: List[BTMCBEMSRecord]
+    benchmarks: List[BTMCBenchmarkRecord]
+    summary: dict
+
+_btmc_cache: Optional[BTMCDashboard] = None
+
+@app.get("/api/behind-meter-commercial/dashboard", response_model=BTMCDashboard)
+def get_behind_meter_commercial_dashboard():
+    global _btmc_cache
+    if _btmc_cache is not None:
+        return _btmc_cache
+
+    import random
+
+    sectors = ["Retail", "Office", "Industrial", "Healthcare", "Education", "Hotel", "Data Centre"]
+    states = ["NSW", "VIC", "QLD", "SA", "WA", "TAS"]
+    statuses = ["Completed", "In Progress", "Planned", "Under Review"]
+
+    # ---- Sites (20) ----
+    site_data = [
+        ("BTMC-S-001", "Westfield Parramatta",   "Retail",      "NSW", 120000, 8500, 3200, 450, 900, 8,  70.8, True),
+        ("BTMC-S-002", "Collins Square Tower",    "Office",      "VIC", 55000,  4200, 1800, 300, 600, 4,  76.4, True),
+        ("BTMC-S-003", "BlueScope Steel Works",   "Industrial",  "NSW", 85000, 22000, 8500, 200, 400, 2, 258.8, True),
+        ("BTMC-S-004", "Royal Brisbane Hospital", "Healthcare",  "QLD", 72000,  9800, 3600, 350, 700, 6, 136.1, True),
+        ("BTMC-S-005", "UNSW Campus Hub",          "Education",  "NSW", 48000,  3200, 1200, 250, 500, 10, 66.7, True),
+        ("BTMC-S-006", "Hilton Adelaide",          "Hotel",      "SA",  22000,  2800, 1050, 120, 240, 3, 127.3, True),
+        ("BTMC-S-007", "Equinix SY4 Data Centre", "Data Centre", "NSW", 9500,  15000, 6800, 500, 1000, 0,1578.9,True),
+        ("BTMC-S-008", "Chadstone Shopping Centre","Retail",     "VIC", 200000,14000, 5200, 480, 960, 12, 70.0, True),
+        ("BTMC-S-009", "Brookfield Place Perth",   "Office",     "WA",  68000,  5100, 2100, 320, 640, 5,  75.0, True),
+        ("BTMC-S-010", "Toyota Manufacturing",     "Industrial", "VIC", 110000,18000, 7200, 180, 360, 4, 163.6, False),
+        ("BTMC-S-011", "Epworth Private Hospital", "Healthcare", "VIC", 38000,  5200, 2100, 200, 400, 4, 136.8, True),
+        ("BTMC-S-012", "Monash University Clayton","Education",  "VIC", 92000,  7800, 3000, 400, 800, 20, 84.8, True),
+        ("BTMC-S-013", "Crown Casino Melbourne",   "Hotel",      "VIC", 510000,42000,16000, 490, 980, 0,  82.4, True),
+        ("BTMC-S-014", "NextDC M2 Data Centre",    "Data Centre","VIC", 7200,  12000, 5500, 450, 900, 0, 1666.7,True),
+        ("BTMC-S-015", "Myer Bourke Street",        "Retail",    "VIC", 35000,  2800, 1050, 100, 200, 2,  80.0, False),
+        ("BTMC-S-016", "Stockland Merrylands",      "Retail",    "NSW", 98000,  7200, 2800, 380, 760, 6,  73.5, True),
+        ("BTMC-S-017", "Santos Place Brisbane",     "Office",    "QLD", 44000,  3600, 1500, 260, 520, 3,  81.8, True),
+        ("BTMC-S-018", "Boral Cement Berrima",      "Industrial","NSW", 62000, 16500, 6400, 0,   0,   0, 266.1, False),
+        ("BTMC-S-019", "Flinders Medical Centre",   "Healthcare","SA",  54000,  7400, 2900, 280, 560, 5, 137.0, True),
+        ("BTMC-S-020", "Bond University",            "Education", "QLD", 31000,  2400, 950, 180, 360, 8,  77.4, True),
+    ]
+
+    sites: List[BTMCSiteRecord] = []
+    for row in site_data:
+        sites.append(BTMCSiteRecord(
+            site_id=row[0], site_name=row[1], industry_sector=row[2], state=row[3],
+            floor_area_m2=float(row[4]), annual_consumption_mwh=float(row[5]),
+            peak_demand_kw=float(row[6]), solar_capacity_kw=float(row[7]),
+            battery_capacity_kwh=float(row[8]), ev_chargers=row[9],
+            energy_intensity_kwh_per_m2=float(row[10]), smart_meter=row[11]
+        ))
+
+    # ---- Load Profiles (96 records: 2 site types × 24 hours × 2 day types) ----
+    # Office-like profile and Retail-like profile
+    office_weekday = [
+        80,75,72,70,70,72,120,280,520,680,720,740,700,680,700,720,640,480,300,200,160,140,120,100
+    ]
+    office_weekend = [
+        60,55,52,50,50,52,70,100,180,260,300,320,310,290,280,260,240,200,160,130,110,90,75,65
+    ]
+    retail_weekday = [
+        50,48,46,45,45,50,100,320,580,720,780,800,760,740,760,780,720,580,400,300,200,150,100,70
+    ]
+    retail_weekend = [
+        50,48,46,45,45,50,80,280,520,680,760,800,780,760,740,700,620,480,360,260,180,120,80,60
+    ]
+
+    load_profiles: List[BTMCLoadProfileRecord] = []
+    pid = 1
+    for site_type, wd_profile, we_profile in [
+        ("BTMC-S-002", office_weekday, office_weekend),
+        ("BTMC-S-001", retail_weekday, retail_weekend),
+    ]:
+        for day_type, profile in [("Weekday", wd_profile), ("Weekend", we_profile)]:
+            for hour in range(24):
+                base = float(profile[hour])
+                solar = max(0.0, round(base * 0.25 * max(0, 1 - abs(hour - 12) / 6.0), 1)) if 6 <= hour <= 18 else 0.0
+                batt = round(-solar * 0.3 if solar > 0 else base * 0.05, 1)
+                grid_import = round(max(0.0, base - solar + max(0, batt)), 1)
+                grid_export = round(max(0.0, solar - base * 0.8), 1)
+                load_profiles.append(BTMCLoadProfileRecord(
+                    profile_id=f"BTMC-LP-{pid:04d}",
+                    site_id=site_type,
+                    hour=hour,
+                    day_type=day_type,
+                    month=7,
+                    avg_demand_kw=base,
+                    solar_generation_kw=solar,
+                    battery_charge_kw=batt,
+                    grid_import_kw=grid_import,
+                    grid_export_kw=grid_export,
+                ))
+                pid += 1
+
+    # ---- Cost Savings (30 = 5 sites × 6 measures) ----
+    measures_data = [
+        ("Solar PV",              18000, 120000, 6.7, 14.2, 65.0),
+        ("Battery BESS",          12000, 180000, 15.0, 8.5, 12.0),
+        ("LED Lighting",           9500,  45000,  4.7, 20.8, 28.5),
+        ("HVAC Upgrade",          22000, 160000,  7.3, 13.0, 55.0),
+        ("EV Smart Charging",      6500,  85000, 13.1, 9.8,   8.0),
+        ("Demand Management",     14000,  30000,  2.1, 47.5, 18.5),
+    ]
+    target_sites = ["BTMC-S-001", "BTMC-S-002", "BTMC-S-003", "BTMC-S-004", "BTMC-S-005"]
+    cost_savings: List[BTMCCostSavingRecord] = []
+    sid_counter = 1
+    for site_id in target_sites:
+        for i, (measure, base_sav, base_cap, base_pb, base_irr, base_co2) in enumerate(measures_data):
+            multiplier = round(random.uniform(0.7, 1.4), 2)
+            cost_savings.append(BTMCCostSavingRecord(
+                saving_id=f"BTMC-CS-{sid_counter:03d}",
+                site_id=site_id,
+                measure=measure,
+                annual_saving_aud=round(base_sav * multiplier, 0),
+                capex_aud=round(base_cap * multiplier, 0),
+                payback_years=round(base_pb * random.uniform(0.8, 1.2), 1),
+                irr_pct=round(base_irr * random.uniform(0.85, 1.15), 1),
+                co2_saving_tpa=round(base_co2 * multiplier, 1),
+                implementation_status=random.choice(statuses),
+            ))
+            sid_counter += 1
+
+    # ---- Demand Tariffs (15 = 5 networks × 3 structures) ----
+    networks = [
+        ("Ausgrid", "NSW"),
+        ("Endeavour Energy", "NSW"),
+        ("CitiPower", "VIC"),
+        ("Energex", "QLD"),
+        ("SA Power Networks", "SA"),
+    ]
+    structures = [
+        ("TOU",    0.38, 0.14, 0.0,  1.20, -8.5),
+        ("Demand", 0.28, 0.10, 18.5, 1.50, -12.0),
+        ("Flat",   0.32, 0.32, 0.0,  1.10,  0.0),
+    ]
+    demand_tariffs: List[BTMCDemandTariffRecord] = []
+    tid = 1
+    for net_name, net_state in networks:
+        for struct, peak, offpeak, dem_chg, fixed, saving in structures:
+            bill = round(random.uniform(85000, 280000), 0)
+            demand_tariffs.append(BTMCDemandTariffRecord(
+                tariff_id=f"BTMC-DT-{tid:03d}",
+                network_name=net_name,
+                tariff_structure=struct,
+                peak_rate_dollar_per_kwh=peak,
+                offpeak_rate_dollar_per_kwh=offpeak,
+                demand_charge_dollar_per_kw=dem_chg,
+                fixed_charge_dollar_per_day=fixed,
+                annual_bill_aud=bill,
+                bill_saving_vs_flat_pct=round(saving + random.uniform(-2, 2), 1),
+            ))
+            tid += 1
+
+    # ---- BEMS Deployments (12) ----
+    bems_vendors = [
+        ("Siemens Desigo CC",         "Energy,HVAC,Lighting,Security",        "BACnet"),
+        ("Schneider EcoStruxure",     "Energy,HVAC,Power Quality",            "Modbus/BACnet"),
+        ("Johnson Controls Metasys",  "HVAC,Lighting,Energy,Fire",            "BACnet"),
+        ("Honeywell Enterprise Bldg", "Energy,HVAC,Security,Access",          "LonWorks"),
+        ("ABB Ability Smart Sensor",  "Energy Monitoring,Motor Health",       "OPC-UA"),
+        ("Daikin Intelligent Eye",    "HVAC,Occupancy,Energy",                "BACnet"),
+        ("Legrand Building Control",  "Lighting,Energy,Occupancy",            "KNX"),
+        ("IBM Maximo + IoT",          "Asset Mgmt,Energy,Fault Detection",    "REST API"),
+        ("Delta Controls ORCAview",   "HVAC,Energy,Lighting",                 "BACnet"),
+        ("Automated Logic WebCTRL",   "HVAC,Energy Monitoring",               "BACnet"),
+        ("Aveva InTouch SCADA",       "Process,Energy,Safety",                "OPC-UA/Modbus"),
+        ("Tridium Niagara Framework", "Multi-system Integration,Energy",      "MQTT/BACnet"),
+    ]
+    bems_site_ids = [f"BTMC-S-{i:03d}" for i in range(1, 13)]
+    bems_deployments: List[BTMCBEMSRecord] = []
+    for i, (vendor, modules, protocol) in enumerate(bems_vendors):
+        bems_deployments.append(BTMCBEMSRecord(
+            bems_id=f"BTMC-BEMS-{i+1:03d}",
+            site_id=bems_site_ids[i],
+            vendor=vendor,
+            modules_active=modules,
+            data_points_count=random.randint(800, 8500),
+            fault_detections_ytd=random.randint(12, 180),
+            energy_saving_pct=round(random.uniform(8.0, 22.0), 1),
+            payback_years=round(random.uniform(2.5, 7.5), 1),
+            integration_protocol=protocol,
+        ))
+
+    # ---- Benchmarks (24 = 6 sectors × 4 metrics) ----
+    benchmark_data = [
+        ("Retail",      "Energy Intensity (EUI)",  85.0,  120.0, 200.0, "kWh/m²/yr",  130.0),
+        ("Retail",      "Peak Demand Ratio",         3.2,    4.5,   6.8, "W/m²",          4.8),
+        ("Retail",      "Solar Penetration",        35.0,   18.0,   5.0, "%",            20.0),
+        ("Retail",      "HVAC Share of Load",       38.0,   48.0,  62.0, "%",            45.0),
+        ("Office",      "Energy Intensity (EUI)",   70.0,  110.0, 180.0, "kWh/m²/yr",  115.0),
+        ("Office",      "Peak Demand Ratio",          2.5,    3.8,   5.5, "W/m²",          3.9),
+        ("Office",      "Solar Penetration",         40.0,   22.0,   8.0, "%",            24.0),
+        ("Office",      "HVAC Share of Load",        35.0,   45.0,  58.0, "%",            42.0),
+        ("Industrial",  "Energy Intensity (EUI)",  120.0,  260.0, 480.0, "kWh/m²/yr",  270.0),
+        ("Industrial",  "Peak Demand Ratio",          5.0,    8.5,  14.0, "W/m²",          8.8),
+        ("Industrial",  "Solar Penetration",         28.0,   12.0,   2.0, "%",            14.0),
+        ("Industrial",  "HVAC Share of Load",        15.0,   22.0,  32.0, "%",            20.0),
+        ("Healthcare",  "Energy Intensity (EUI)",  110.0,  185.0, 280.0, "kWh/m²/yr",  190.0),
+        ("Healthcare",  "Peak Demand Ratio",          4.2,    6.0,   9.5, "W/m²",          6.2),
+        ("Healthcare",  "Solar Penetration",         20.0,   10.0,   2.0, "%",            12.0),
+        ("Healthcare",  "HVAC Share of Load",        45.0,   55.0,  68.0, "%",            52.0),
+        ("Education",   "Energy Intensity (EUI)",   55.0,   90.0, 145.0, "kWh/m²/yr",   95.0),
+        ("Education",   "Peak Demand Ratio",          2.0,    3.2,   5.0, "W/m²",          3.3),
+        ("Education",   "Solar Penetration",         45.0,   28.0,  10.0, "%",            30.0),
+        ("Education",   "HVAC Share of Load",        30.0,   40.0,  55.0, "%",            38.0),
+        ("Hotel",       "Energy Intensity (EUI)",   90.0,  160.0, 250.0, "kWh/m²/yr",  165.0),
+        ("Hotel",       "Peak Demand Ratio",          3.8,    5.5,   8.0, "W/m²",          5.6),
+        ("Hotel",       "Solar Penetration",         22.0,   12.0,   3.0, "%",            14.0),
+        ("Hotel",       "HVAC Share of Load",        42.0,   52.0,  65.0, "%",            50.0),
+    ]
+    benchmarks: List[BTMCBenchmarkRecord] = []
+    for i, row in enumerate(benchmark_data):
+        benchmarks.append(BTMCBenchmarkRecord(
+            benchmark_id=f"BTMC-BM-{i+1:03d}",
+            industry_sector=row[0],
+            metric_name=row[1],
+            best_practice=row[2],
+            median=row[3],
+            poor_performer=row[4],
+            unit=row[5],
+            national_average=row[6],
+        ))
+
+    # ---- Summary ----
+    total_annual_savings = sum(cs.annual_saving_aud for cs in cost_savings)
+    total_solar_kw = sum(s.solar_capacity_kw for s in sites)
+    total_consumption_mwh = sum(s.annual_consumption_mwh for s in sites)
+    avg_solar_penetration = round(
+        (total_solar_kw * 8760 / 1000) / total_consumption_mwh * 100, 1
+    ) if total_consumption_mwh > 0 else 0.0
+    total_co2_savings = round(sum(cs.co2_saving_tpa for cs in cost_savings), 1)
+    avg_payback = round(sum(cs.payback_years for cs in cost_savings) / len(cost_savings), 1)
+
+    _btmc_cache = BTMCDashboard(
+        sites=sites,
+        load_profiles=load_profiles,
+        cost_savings=cost_savings,
+        demand_tariffs=demand_tariffs,
+        bems_deployments=bems_deployments,
+        benchmarks=benchmarks,
+        summary={
+            "total_sites": len(sites),
+            "total_annual_savings_aud": round(total_annual_savings, 0),
+            "avg_solar_penetration_pct": avg_solar_penetration,
+            "total_co2_savings_tpa": total_co2_savings,
+            "avg_payback_years": avg_payback,
+        }
+    )
+    return _btmc_cache
+
+
+# ---------------------------------------------------------------------------
+# Capacity Investment Scheme (CIS) Analytics — Sprint 95c
+# ---------------------------------------------------------------------------
+
+class CISCAwardRecord(BaseModel):
+    award_id: str
+    project_name: str
+    technology: str
+    state: str
+    capacity_mw: float
+    contract_term_years: int
+    strike_price_dolpermwh: float
+    reference_price_dolpermwh: float
+    floor_price_dolpermwh: float
+    contract_type: str
+    developer: str
+    financial_close_year: int
+
+
+class CISCRoundRecord(BaseModel):
+    round_id: str
+    round_name: str
+    auction_date: str
+    technology_target: str
+    total_capacity_mw_target: float
+    awarded_capacity_mw: float
+    num_bids: int
+    num_awards: int
+    clearing_price_dolpermwh: float
+    total_contract_value_m: float
+    oversubscription_ratio: float
+
+
+class CISCCFDPaymentRecord(BaseModel):
+    payment_id: str
+    project_id: str
+    settlement_period: str
+    spot_price_dolpermwh: float
+    strike_price_dolpermwh: float
+    cfd_payment_m: float
+    direction: str
+    cumulative_payment_m: float
+
+
+class CISCPipelineRecord(BaseModel):
+    pipeline_id: str
+    project_name: str
+    technology: str
+    state: str
+    capacity_mw: float
+    stage: str
+    estimated_award_year: int
+    estimated_cod_year: int
+    capex_m: float
+
+
+class CISCPortfolioMetricRecord(BaseModel):
+    metric_id: str
+    region: str
+    year: int
+    total_awarded_capacity_mw: float
+    operating_capacity_mw: float
+    pipeline_capacity_mw: float
+    avg_strike_price_dolpermwh: float
+    total_contract_value_bn: float
+    renewable_share_pct: float
+    firming_share_pct: float
+
+
+class CISCMarketImpactRecord(BaseModel):
+    impact_id: str
+    scenario: str
+    year: int
+    wholesale_price_impact_pctchange: float
+    renewable_penetration_pct: float
+    reliability_standard_met: bool
+    consumer_bill_impact_dollar_pa: float
+    co2_reduction_mt_pa: float
+    investment_crowding_in_ratio: float
+
+
+class CISCDashboard(BaseModel):
+    awards: List[CISCAwardRecord]
+    rounds: List[CISCRoundRecord]
+    cfd_payments: List[CISCCFDPaymentRecord]
+    pipeline: List[CISCPipelineRecord]
+    portfolio_metrics: List[CISCPortfolioMetricRecord]
+    market_impacts: List[CISCMarketImpactRecord]
+    summary: dict
+
+
+_cisc_cache: Optional[CISCDashboard] = None
+
+
+@app.get("/api/capacity-investment-scheme/dashboard")
+def get_cisc_dashboard():
+    import random
+    global _cisc_cache
+    if _cisc_cache is not None:
+        return _cisc_cache
+
+    rng = random.Random(42)
+
+    technologies = [
+        "Solar PV", "Wind Onshore", "Wind Offshore",
+        "Battery Storage", "Pumped Hydro", "Firming Gas"
+    ]
+    states = ["NSW", "VIC", "QLD", "SA", "WA", "TAS"]
+    developers = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Neoen",
+        "Acciona Energy", "Tilt Renewables", "Squadron Energy", "Snowy Hydro",
+        "Transgrid", "Amp Energy", "Windlab", "Lightsource BP"
+    ]
+
+    # ---- 30 Award Records ----
+    award_data = [
+        ("CISC-A-001", "Sunraysia Solar Farm Stage 2",   "Solar PV",       "NSW", 400, 15, 82.0,  65.0, 0.0,   "two-sided CFD", "Acciona Energy",    2023),
+        ("CISC-A-002", "MacIntyre Wind Farm",             "Wind Onshore",   "QLD", 923, 20, 75.0,  62.0, 10.0,  "two-sided CFD", "Acciona Energy",    2023),
+        ("CISC-A-003", "Orana Wind Farm",                 "Wind Onshore",   "NSW", 1400,20, 78.0,  63.0, 12.0,  "two-sided CFD", "Tilt Renewables",   2023),
+        ("CISC-A-004", "Barker Inlet Battery",            "Battery Storage","SA",  250, 10, 165.0, 130.0, 0.0,  "one-sided",     "EnergyAustralia",   2022),
+        ("CISC-A-005", "Snowy 2.0",                       "Pumped Hydro",   "NSW", 2000,25, 180.0, 145.0, 60.0, "two-sided CFD", "Snowy Hydro",       2022),
+        ("CISC-A-006", "Glenrowan Solar Farm",            "Solar PV",       "VIC", 320, 15, 79.0,  64.0, 0.0,   "two-sided CFD", "Neoen",             2024),
+        ("CISC-A-007", "Liverpool Range Wind Farm",       "Wind Onshore",   "NSW", 1800,20, 76.0,  61.0, 11.0,  "two-sided CFD", "Windlab",           2024),
+        ("CISC-A-008", "Star of the South Offshore",      "Wind Offshore",  "VIC", 2200,25, 145.0, 120.0, 40.0, "two-sided CFD", "Amp Energy",        2025),
+        ("CISC-A-009", "Waratah Super Battery",           "Battery Storage","NSW", 850, 10, 155.0, 122.0, 0.0,  "one-sided",     "AGL Energy",        2023),
+        ("CISC-A-010", "Stubbo Solar Farm",               "Solar PV",       "NSW", 500, 15, 80.0,  64.0, 0.0,   "two-sided CFD", "Lightsource BP",    2024),
+        ("CISC-A-011", "Lotus Creek Wind",                "Wind Onshore",   "QLD", 400, 20, 74.0,  60.0, 10.0,  "two-sided CFD", "Squadron Energy",   2023),
+        ("CISC-A-012", "Emerald Solar Park",              "Solar PV",       "QLD", 600, 15, 81.0,  65.0, 0.0,   "two-sided CFD", "Origin Energy",     2024),
+        ("CISC-A-013", "Onslow Solar + Storage",          "Solar PV",       "WA",  150, 15, 88.0,  70.0, 5.0,   "two-sided CFD", "Neoen",             2025),
+        ("CISC-A-014", "Goyder South Wind",               "Wind Onshore",   "SA",  412, 20, 73.0,  59.0, 10.0,  "two-sided CFD", "Neoen",             2024),
+        ("CISC-A-015", "Coppabella Wind Farm",            "Wind Onshore",   "NSW", 800, 20, 77.0,  62.0, 11.0,  "two-sided CFD", "Origin Energy",     2025),
+        ("CISC-A-016", "Glenbrook Battery Storage",       "Battery Storage","VIC", 300, 10, 158.0, 125.0, 0.0,  "one-sided",     "EnergyAustralia",   2024),
+        ("CISC-A-017", "Murra Warra Wind Farm III",       "Wind Onshore",   "VIC", 330, 20, 75.0,  61.0, 10.0,  "two-sided CFD", "Tilt Renewables",   2023),
+        ("CISC-A-018", "Western Downs Solar",             "Solar PV",       "QLD", 460, 15, 79.0,  63.0, 0.0,   "two-sided CFD", "Lightsource BP",    2023),
+        ("CISC-A-019", "Canning Basin Gas Firming",       "Firming Gas",    "WA",  200, 15, 170.0, 140.0, 80.0, "one-sided",     "Transgrid",         2025),
+        ("CISC-A-020", "Genex Kidston Hydro",             "Pumped Hydro",   "QLD", 250, 25, 175.0, 142.0, 55.0, "two-sided CFD", "Snowy Hydro",       2024),
+        ("CISC-A-021", "Bungala Solar Farm 2",            "Solar PV",       "SA",  220, 15, 83.0,  66.0, 0.0,   "two-sided CFD", "AGL Energy",        2024),
+        ("CISC-A-022", "Blue Gum Wind",                   "Wind Onshore",   "NSW", 540, 20, 76.0,  61.0, 11.0,  "two-sided CFD", "Windlab",           2025),
+        ("CISC-A-023", "Hunter Valley Battery",           "Battery Storage","NSW", 400, 10, 160.0, 126.0, 0.0,  "one-sided",     "AGL Energy",        2025),
+        ("CISC-A-024", "Portland Offshore Pilot",         "Wind Offshore",  "VIC", 500, 25, 148.0, 122.0, 45.0, "two-sided CFD", "Amp Energy",        2026),
+        ("CISC-A-025", "Narromine Solar",                 "Solar PV",       "NSW", 350, 15, 78.0,  62.0, 0.0,   "two-sided CFD", "Origin Energy",     2025),
+        ("CISC-A-026", "Dulacca Wind Farm",               "Wind Onshore",   "QLD", 180, 20, 74.0,  59.0, 10.0,  "two-sided CFD", "Squadron Energy",   2025),
+        ("CISC-A-027", "Torrens Island Gas CCGT",         "Firming Gas",    "SA",  480, 15, 172.0, 141.0, 82.0, "one-sided",     "EnergyAustralia",   2026),
+        ("CISC-A-028", "Darlington Point Solar 2",        "Solar PV",       "NSW", 380, 15, 80.0,  64.0, 0.0,   "two-sided CFD", "Neoen",             2026),
+        ("CISC-A-029", "Wentworth Solar Farm",            "Solar PV",       "NSW", 290, 15, 77.0,  61.0, 0.0,   "two-sided CFD", "Acciona Energy",    2026),
+        ("CISC-A-030", "Kununurra Hydro Expansion",       "Pumped Hydro",   "WA",  320, 25, 178.0, 144.0, 58.0, "two-sided CFD", "Snowy Hydro",       2027),
+    ]
+    awards = [
+        CISCAwardRecord(
+            award_id=r[0], project_name=r[1], technology=r[2], state=r[3],
+            capacity_mw=r[4], contract_term_years=r[5],
+            strike_price_dolpermwh=r[6], reference_price_dolpermwh=r[7],
+            floor_price_dolpermwh=r[8], contract_type=r[9],
+            developer=r[10], financial_close_year=r[11]
+        ) for r in award_data
+    ]
+
+    # ---- 8 Auction Round Records ----
+    round_data = [
+        ("CISC-R-001", "CIS Round 1 (Firming)",        "2022-09", "Firming & Storage",   1500,  1100,  42, 12, 155.0,  890.0,  2.8),
+        ("CISC-R-002", "CIS Round 2 (Variable RE)",    "2023-03", "Solar & Wind",        2000,  1820,  78, 22, 79.0,  1450.0,  3.9),
+        ("CISC-R-003", "CIS Round 3 (Storage)",        "2023-09", "Battery Storage",     1000,  850,   35, 9,  158.0,  690.0,  2.5),
+        ("CISC-R-004", "CIS Round 4 (Offshore Wind)",  "2024-03", "Offshore Wind",       3000,  2700,  18, 4,  146.0, 2160.0,  2.1),
+        ("CISC-R-005", "CIS Round 5 (Mixed)",          "2024-09", "All Technologies",    2500,  2200,  90, 25, 94.0,  1760.0,  3.6),
+        ("CISC-R-006", "CIS Round 6 (Firming II)",     "2025-03", "Firming & Storage",   1800,  1600,  55, 14, 162.0, 1400.0,  3.2),
+        ("CISC-R-007", "CIS Round 7 (Variable RE II)", "2025-09", "Solar & Wind",        2800,  2500,  95, 28, 77.0,  1975.0,  3.8),
+        ("CISC-R-008", "CIS Round 8 (All Tech)",       "2026-03", "All Technologies",    3000,  2800, 110, 32, 89.0,  2340.0,  3.5),
+    ]
+    rounds = [
+        CISCRoundRecord(
+            round_id=r[0], round_name=r[1], auction_date=r[2],
+            technology_target=r[3], total_capacity_mw_target=r[4],
+            awarded_capacity_mw=r[5], num_bids=r[6], num_awards=r[7],
+            clearing_price_dolpermwh=r[8], total_contract_value_m=r[9],
+            oversubscription_ratio=r[10]
+        ) for r in round_data
+    ]
+
+    # ---- 60 CFD Payment Records (10 projects × 6 settlement periods) ----
+    cfd_projects = [
+        ("CISC-A-001", 82.0), ("CISC-A-002", 75.0), ("CISC-A-003", 78.0),
+        ("CISC-A-004", 165.0), ("CISC-A-005", 180.0), ("CISC-A-006", 79.0),
+        ("CISC-A-007", 76.0), ("CISC-A-008", 145.0), ("CISC-A-009", 155.0),
+        ("CISC-A-010", 80.0),
+    ]
+    spot_prices_by_period = [58.0, 112.0, 45.0, 135.0, 70.0, 88.0]
+    periods = ["Q1-2024", "Q2-2024", "Q3-2024", "Q4-2024", "Q1-2025", "Q2-2025"]
+
+    cfd_payments = []
+    pid = 1
+    for proj_id, strike in cfd_projects:
+        cumulative = 0.0
+        for pi, period in enumerate(periods):
+            spot = spot_prices_by_period[pi]
+            diff = strike - spot  # positive = generator receives
+            scale = rng.uniform(0.8, 1.2)
+            payment = round(diff * scale * 0.5, 2)  # scaled to $M
+            cumulative = round(cumulative + payment, 2)
+            direction = "Receive" if payment > 0 else "Pay"
+            cfd_payments.append(CISCCFDPaymentRecord(
+                payment_id=f"CISC-CFD-{pid:04d}",
+                project_id=proj_id,
+                settlement_period=period,
+                spot_price_dolpermwh=spot,
+                strike_price_dolpermwh=strike,
+                cfd_payment_m=payment,
+                direction=direction,
+                cumulative_payment_m=cumulative,
+            ))
+            pid += 1
+
+    # ---- 25 Pipeline Records ----
+    stages = ["Pre-bid", "Short-listed", "Awarded", "Financial Close", "Construction", "Operating"]
+    pipeline_data = [
+        ("Solar PV", "NSW", 600, "Pre-bid",        2026, 2029, 480.0),
+        ("Wind Onshore", "VIC", 1000, "Pre-bid",   2026, 2030, 1800.0),
+        ("Solar PV", "QLD", 450, "Short-listed",   2026, 2028, 360.0),
+        ("Battery Storage", "SA", 500, "Short-listed", 2025, 2028, 750.0),
+        ("Wind Offshore", "VIC", 800, "Short-listed", 2026, 2031, 3200.0),
+        ("Solar PV", "NSW", 380, "Awarded",        2024, 2027, 304.0),
+        ("Wind Onshore", "QLD", 750, "Awarded",    2024, 2028, 1350.0),
+        ("Battery Storage", "NSW", 350, "Awarded", 2024, 2027, 525.0),
+        ("Solar PV", "SA", 280, "Financial Close", 2023, 2026, 224.0),
+        ("Wind Onshore", "NSW", 600, "Financial Close", 2023, 2027, 1080.0),
+        ("Battery Storage", "VIC", 200, "Financial Close", 2023, 2026, 300.0),
+        ("Solar PV", "VIC", 420, "Construction",   2023, 2026, 336.0),
+        ("Wind Onshore", "SA", 312, "Construction", 2023, 2026, 561.6),
+        ("Battery Storage", "QLD", 150, "Construction", 2022, 2025, 225.0),
+        ("Pumped Hydro", "NSW", 2000, "Construction", 2022, 2029, 12000.0),
+        ("Solar PV", "WA", 180, "Construction",    2023, 2026, 144.0),
+        ("Solar PV", "QLD", 923, "Operating",      2022, 2024, 738.0),
+        ("Wind Onshore", "QLD", 923, "Operating",  2022, 2024, 1661.4),
+        ("Solar PV", "NSW", 400, "Operating",      2022, 2024, 320.0),
+        ("Battery Storage", "SA", 250, "Operating", 2021, 2023, 375.0),
+        ("Firming Gas", "WA", 200, "Awarded",      2025, 2028, 400.0),
+        ("Wind Offshore", "VIC", 2200, "Awarded",  2025, 2032, 8800.0),
+        ("Pumped Hydro", "QLD", 250, "Financial Close", 2024, 2029, 1250.0),
+        ("Solar PV", "NSW", 350, "Short-listed",   2026, 2029, 280.0),
+        ("Wind Onshore", "NSW", 540, "Construction", 2024, 2027, 972.0),
+    ]
+    pipeline = []
+    for i, (tech, state, cap, stage, award_yr, cod_yr, capex) in enumerate(pipeline_data):
+        pipeline.append(CISCPipelineRecord(
+            pipeline_id=f"CISC-P-{i+1:03d}",
+            project_name=f"{state} {tech} Project {i+1}",
+            technology=tech, state=state, capacity_mw=cap, stage=stage,
+            estimated_award_year=award_yr, estimated_cod_year=cod_yr, capex_m=capex,
+        ))
+
+    # ---- 20 Portfolio Metric Records (4 regions × 5 years 2025-2029) ----
+    regions = ["NSW/ACT", "VIC/TAS", "QLD", "SA/WA"]
+    portfolio_metrics = []
+    mid = 1
+    base_awarded = {"NSW/ACT": 3500, "VIC/TAS": 2800, "QLD": 2200, "SA/WA": 1200}
+    base_operating = {"NSW/ACT": 1200, "VIC/TAS": 900, "QLD": 800, "SA/WA": 400}
+    for year in range(2025, 2030):
+        for region in regions:
+            yr_offset = year - 2025
+            awarded = round(base_awarded[region] * (1 + 0.12 * yr_offset), 0)
+            operating = round(base_operating[region] * (1 + 0.22 * yr_offset), 0)
+            pipeline_cap = round(awarded - operating + rng.uniform(200, 800), 0)
+            portfolio_metrics.append(CISCPortfolioMetricRecord(
+                metric_id=f"CISC-PM-{mid:03d}",
+                region=region, year=year,
+                total_awarded_capacity_mw=awarded,
+                operating_capacity_mw=operating,
+                pipeline_capacity_mw=pipeline_cap,
+                avg_strike_price_dolpermwh=round(rng.uniform(78.0, 115.0), 1),
+                total_contract_value_bn=round(awarded * rng.uniform(0.0012, 0.0018), 2),
+                renewable_share_pct=round(rng.uniform(62.0, 88.0), 1),
+                firming_share_pct=round(rng.uniform(8.0, 22.0), 1),
+            ))
+            mid += 1
+
+    # ---- 12 Market Impact Records (3 scenarios × 4 years) ----
+    scenarios = ["Base Case", "Accelerated CIS", "Limited CIS"]
+    market_impacts = []
+    iid = 1
+    for scenario in scenarios:
+        for year in [2026, 2027, 2028, 2030]:
+            yr_idx = [2026, 2027, 2028, 2030].index(year)
+            if scenario == "Base Case":
+                price_impact = round(-5.0 - yr_idx * 2.5, 1)
+                re_pct = round(62.0 + yr_idx * 5.5, 1)
+                reliable = True
+                bill_impact = round(-80 - yr_idx * 30, 0)
+                co2 = round(18.0 + yr_idx * 4.5, 1)
+                crowd_in = round(2.2 + yr_idx * 0.3, 2)
+            elif scenario == "Accelerated CIS":
+                price_impact = round(-8.0 - yr_idx * 4.0, 1)
+                re_pct = round(70.0 + yr_idx * 7.0, 1)
+                reliable = True
+                bill_impact = round(-120 - yr_idx * 50, 0)
+                co2 = round(24.0 + yr_idx * 6.5, 1)
+                crowd_in = round(2.8 + yr_idx * 0.5, 2)
+            else:  # Limited CIS
+                price_impact = round(-2.0 - yr_idx * 1.0, 1)
+                re_pct = round(52.0 + yr_idx * 3.0, 1)
+                reliable = year <= 2027
+                bill_impact = round(-30 - yr_idx * 10, 0)
+                co2 = round(10.0 + yr_idx * 2.0, 1)
+                crowd_in = round(1.5 + yr_idx * 0.1, 2)
+            market_impacts.append(CISCMarketImpactRecord(
+                impact_id=f"CISC-MI-{iid:03d}",
+                scenario=scenario, year=year,
+                wholesale_price_impact_pctchange=price_impact,
+                renewable_penetration_pct=re_pct,
+                reliability_standard_met=reliable,
+                consumer_bill_impact_dollar_pa=bill_impact,
+                co2_reduction_mt_pa=co2,
+                investment_crowding_in_ratio=crowd_in,
+            ))
+            iid += 1
+
+    # ---- Summary ----
+    total_awarded_mw = sum(a.capacity_mw for a in awards)
+    total_pipeline_mw = sum(p.capacity_mw for p in pipeline)
+    avg_clearing = round(sum(r.clearing_price_dolpermwh for r in rounds) / len(rounds), 1)
+    total_contract_value_bn = round(sum(r.total_contract_value_m for r in rounds) / 1000, 2)
+
+    _cisc_cache = CISCDashboard(
+        awards=awards,
+        rounds=rounds,
+        cfd_payments=cfd_payments,
+        pipeline=pipeline,
+        portfolio_metrics=portfolio_metrics,
+        market_impacts=market_impacts,
+        summary={
+            "total_awarded_gw": round(total_awarded_mw / 1000, 2),
+            "total_pipeline_gw": round(total_pipeline_mw / 1000, 2),
+            "num_auction_rounds": len(rounds),
+            "avg_clearing_price_dolpermwh": avg_clearing,
+            "total_contract_value_bn": total_contract_value_bn,
+        }
+    )
+    return _cisc_cache

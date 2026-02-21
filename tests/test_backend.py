@@ -12230,3 +12230,120 @@ class TestCleanEnergyFinanceDashboard:
         r1 = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
         r2 = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNuclearEnergyEconomicsDashboard:
+    def test_status_200(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+
+    def test_reactor_technologies_count(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["reactor_technologies"]) >= 6
+
+    def test_site_assessments_count(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["site_assessments"]) >= 10
+
+    def test_cost_benchmarks_count(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["cost_benchmarks"]) >= 15
+
+    def test_policy_timeline_count(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["policy_timeline"]) >= 12
+
+    def test_stakeholder_sentiment_count(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["stakeholder_sentiment"]) >= 24
+
+    def test_scenarios_count(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["scenarios"]) >= 5
+
+    def test_summary_keys(self, client):
+        r = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert "earliest_possible_power_year" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        r2 = client.get("/api/nuclear-energy-economics/dashboard", headers={"X-API-Key": "test-key"})
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestBehindMeterCommercialDashboard:
+    def test_status_200(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+
+    def test_sites_count(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["sites"]) >= 15
+
+    def test_load_profiles_count(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["load_profiles"]) >= 80
+
+    def test_cost_savings_count(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["cost_savings"]) >= 24
+
+    def test_demand_tariffs_count(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["demand_tariffs"]) >= 12
+
+    def test_bems_count(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["bems_deployments"]) >= 10
+
+    def test_benchmarks_count(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["benchmarks"]) >= 18
+
+    def test_summary_keys(self, client):
+        r = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert "total_annual_savings_aud" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        r2 = client.get("/api/behind-meter-commercial/dashboard", headers={"X-API-Key": "test-key"})
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCapacityInvestmentSchemeDashboard:
+    def test_status_200(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+
+    def test_awards_count(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["awards"]) >= 25
+
+    def test_rounds_count(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["rounds"]) >= 6
+
+    def test_cfd_payments_count(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["cfd_payments"]) >= 48
+
+    def test_pipeline_count(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["pipeline"]) >= 20
+
+    def test_portfolio_metrics_count(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["portfolio_metrics"]) >= 15
+
+    def test_market_impacts_count(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["market_impacts"]) >= 10
+
+    def test_summary_keys(self, client):
+        r = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert "total_awarded_gw" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        r2 = client.get("/api/capacity-investment-scheme/dashboard", headers={"X-API-Key": "test-key"})
+        assert r1.json()["summary"] == r2.json()["summary"]

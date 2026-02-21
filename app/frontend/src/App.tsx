@@ -329,6 +329,9 @@ import MarketDesignSimulationAnalytics from './pages/MarketDesignSimulationAnaly
 import PowerSystemStabilityAnalytics from './pages/PowerSystemStabilityAnalytics'
 import EnergyRetailCompetitionAnalytics from './pages/EnergyRetailCompetitionAnalytics'
 import CleanEnergyFinanceAnalytics from './pages/CleanEnergyFinanceAnalytics'
+import NuclearEnergyEconomicsAnalytics from './pages/NuclearEnergyEconomicsAnalytics'
+import BehindMeterCommercialAnalytics from './pages/BehindMeterCommercialAnalytics'
+import CapacityInvestmentSchemeAnalytics from './pages/CapacityInvestmentSchemeAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -433,6 +436,7 @@ const NAV_ITEMS = [
   { to: '/decarbonization', label: 'Net Zero Pathway', Icon: Leaf           },
   { to: '/nuclear-ldes',      label: 'Nuclear & LDES',     Icon: Atom           },
   { to: '/nuclear-energy',    label: 'Nuclear Energy',     Icon: Atom           },
+  { to: '/nuclear-energy-economics', label: 'Nuclear Economics', Icon: Atom },
   { to: '/bidding-behaviour', label: 'Bidding Behaviour',  Icon: BarChart2      },
   { to: '/energy-poverty',    label: 'Energy Poverty',     Icon: Heart          },
   { to: '/spot-forecast',     label: 'Spot Forecast',      Icon: Zap            },
@@ -583,6 +587,8 @@ const NAV_ITEMS = [
   { to: '/power-system-stability', label: 'Power System Stability', Icon: Zap },
   { to: '/energy-retail-competition', label: 'Retail Competition', Icon: ShoppingCart },
   { to: '/clean-energy-finance', label: 'Clean Energy Finance', Icon: DollarSign },
+  { to: '/behind-meter-commercial', label: 'BTM Commercial Analytics', Icon: Building2 },
+  { to: '/capacity-investment-scheme', label: 'CIS Analytics', Icon: Award },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -912,6 +918,9 @@ export default function App() {
               <Route path="/power-system-stability" element={<PowerSystemStabilityAnalytics />} />
               <Route path="/energy-retail-competition" element={<EnergyRetailCompetitionAnalytics />} />
               <Route path="/clean-energy-finance" element={<CleanEnergyFinanceAnalytics />} />
+              <Route path="/nuclear-energy-economics" element={<NuclearEnergyEconomicsAnalytics />} />
+              <Route path="/behind-meter-commercial" element={<BehindMeterCommercialAnalytics />} />
+              <Route path="/capacity-investment-scheme" element={<CapacityInvestmentSchemeAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
