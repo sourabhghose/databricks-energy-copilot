@@ -65149,3 +65149,708 @@ def get_market_design_simulation_dashboard():
     )
     _cache_set(_mds_cache, cache_key, result)
     return result
+
+
+# ===========================================================================
+# Sprint 94a — Power System Stability Analytics (PSST)
+# ===========================================================================
+
+class PSSTVoltageRecord(BaseModel):
+    node_id: str
+    node_name: str
+    region: str
+    voltage_pu: float  # per unit voltage
+    voltage_kv: float
+    voltage_deviation_pct: float
+    reactive_power_mvar: float
+    voltage_stability_margin_pct: float
+    contingency_voltage_pu: float
+    status: str  # NORMAL, WARNING, VIOLATION
+
+class PSSTFrequencyRecord(BaseModel):
+    region: str
+    timestamp: str
+    frequency_hz: float
+    rocof_hz_per_sec: float  # rate of change of frequency
+    nadir_hz: float
+    recovery_time_sec: float
+    inertia_mws: float
+    synchronous_gen_mw: float
+    inverter_gen_mw: float
+
+class PSSTContingencyRecord(BaseModel):
+    contingency_id: str
+    description: str
+    region: str
+    severity: str  # N-1, N-2, N-3
+    pre_contingency_flow_mw: float
+    post_contingency_flow_mw: float
+    thermal_limit_mw: float
+    frequency_deviation_hz: float
+    voltage_recovery_sec: float
+    remedial_action: Optional[str]
+
+class PSSTInertiaRecord(BaseModel):
+    region: str
+    date: str
+    hour: int
+    total_inertia_mws: float
+    synchronous_inertia_mws: float
+    synthetic_inertia_mws: float
+    minimum_inertia_req_mws: float
+    inertia_shortfall_mws: float
+    system_strength_scr: float  # short circuit ratio
+
+class PSSTStabilityMetricRecord(BaseModel):
+    region: str
+    year: int
+    scenario: str
+    voltage_stability_index: float  # 0-1 (1=unstable)
+    frequency_stability_index: float
+    transient_stability_margin_pct: float
+    small_signal_damping_pct: float
+    system_strength_mva: float
+    renewable_penetration_pct: float
+
+class PSSTDashboard(BaseModel):
+    voltage_profiles: List[PSSTVoltageRecord]
+    frequency_events: List[PSSTFrequencyRecord]
+    contingencies: List[PSSTContingencyRecord]
+    inertia_profiles: List[PSSTInertiaRecord]
+    stability_metrics: List[PSSTStabilityMetricRecord]
+    summary: Dict[str, Any]
+
+
+_psst_cache: Dict[str, Any] = {}
+
+@app.get("/api/power-system-stability/dashboard", response_model=PSSTDashboard, dependencies=[Depends(verify_api_key)])
+def get_power_system_stability_dashboard():
+    import random
+    cache_key = "psst_dashboard"
+    cached = _cache_get(_psst_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+
+    node_data = [
+        ("NSW-N001", "Sydney CBD 132kV", "NSW1", 1.02, 132.0),
+        ("NSW-N002", "Wolseley Park 500kV", "NSW1", 0.98, 500.0),
+        ("NSW-N003", "Armidale 330kV", "NSW1", 0.97, 330.0),
+        ("QLD-N001", "Belmont 275kV", "QLD1", 1.01, 275.0),
+        ("QLD-N002", "Calvale 275kV", "QLD1", 0.99, 275.0),
+        ("VIC-N001", "Moorabool 500kV", "VIC1", 1.00, 500.0),
+        ("VIC-N002", "South Morang 500kV", "VIC1", 0.98, 500.0),
+        ("SA-N001", "Davenport 275kV", "SA1", 0.96, 275.0),
+        ("SA-N002", "Para 275kV", "SA1", 0.97, 275.0),
+        ("TAS-N001", "George Town 220kV", "TAS1", 1.01, 220.0),
+        ("NSW-N004", "Newcastle 132kV", "NSW1", 0.995, 132.0),
+        ("QLD-N003", "Townsville 132kV", "QLD1", 0.985, 132.0),
+    ]
+
+    voltage_profiles = []
+    for n in node_data:
+        voltage_pu = n[3]
+        dev = round((voltage_pu - 1.0) * 100, 2)
+        status = "VIOLATION" if abs(dev) > 5 else ("WARNING" if abs(dev) > 3 else "NORMAL")
+        voltage_profiles.append(PSSTVoltageRecord(
+            node_id=n[0], node_name=n[1], region=n[2],
+            voltage_pu=voltage_pu, voltage_kv=n[4],
+            voltage_deviation_pct=dev,
+            reactive_power_mvar=round(random.uniform(-200.0, 200.0), 1),
+            voltage_stability_margin_pct=round(random.uniform(15.0, 45.0), 1),
+            contingency_voltage_pu=round(voltage_pu - random.uniform(0.02, 0.08), 4),
+            status=status
+        ))
+
+    frequency_events = []
+    for i in range(30):
+        r = random.choice(regions)
+        freq = round(random.gauss(50.0, 0.05), 4)
+        frequency_events.append(PSSTFrequencyRecord(
+            region=r,
+            timestamp=f"2024-{random.randint(1,12):02d}-{random.randint(1,28):02d} {random.randint(0,23):02d}:00:00",
+            frequency_hz=freq,
+            rocof_hz_per_sec=round(random.uniform(-2.0, 2.0), 4),
+            nadir_hz=round(min(freq, freq - random.uniform(0.0, 0.5)), 4),
+            recovery_time_sec=round(random.uniform(0.5, 30.0), 2),
+            inertia_mws=round(random.uniform(5000.0, 25000.0), 0),
+            synchronous_gen_mw=round(random.uniform(2000.0, 15000.0), 0),
+            inverter_gen_mw=round(random.uniform(1000.0, 12000.0), 0)
+        ))
+
+    contingency_data = [
+        ("CON-001", "Loss of Heywood 500kV line", "SA1", "N-1", 1050.0, 1450.0, 1200.0, -0.4, 8.5),
+        ("CON-002", "Basslink tripping", "TAS1", "N-1", 478.0, 0.0, 500.0, -0.8, 12.0),
+        ("CON-003", "Loss of Bayswater Unit 4", "NSW1", "N-1", 660.0, 0.0, 0.0, -0.5, 5.0),
+        ("CON-004", "Liddell-Wolseley 500kV fault", "NSW1", "N-2", 800.0, 1100.0, 950.0, -0.6, 15.0),
+        ("CON-005", "QNI parallel trip", "QLD1", "N-2", 1200.0, 0.0, 1300.0, -0.7, 20.0),
+        ("CON-006", "SA network split", "SA1", "N-3", 1000.0, 0.0, 0.0, -1.2, 30.0),
+        ("CON-007", "Loss of Tarong-Calvale 275kV", "QLD1", "N-1", 650.0, 900.0, 800.0, -0.3, 7.0),
+        ("CON-008", "Moorabool double circuit", "VIC1", "N-2", 900.0, 1400.0, 1200.0, -0.5, 18.0),
+        ("CON-009", "Para 275kV bus fault", "SA1", "N-1", 400.0, 0.0, 400.0, -0.6, 10.0),
+        ("CON-010", "George Town-Palmerston", "TAS1", "N-1", 280.0, 0.0, 300.0, -0.4, 6.0),
+    ]
+
+    contingencies = []
+    for c in contingency_data:
+        contingencies.append(PSSTContingencyRecord(
+            contingency_id=c[0], description=c[1], region=c[2], severity=c[3],
+            pre_contingency_flow_mw=c[4], post_contingency_flow_mw=c[5],
+            thermal_limit_mw=c[6], frequency_deviation_hz=c[7],
+            voltage_recovery_sec=c[8],
+            remedial_action=random.choice(["RERT activation", "Automatic UFLS", "Manual redispatch", None])
+        ))
+
+    hours = [0, 4, 8, 12, 16, 20]
+    inertia_profiles = []
+    for r in regions:
+        for day_offset in range(7):
+            for hour in hours:
+                total_inertia = round(random.uniform(4000.0, 20000.0), 0)
+                synch = round(total_inertia * random.uniform(0.6, 0.9), 0)
+                synthetic = round(total_inertia - synch, 0)
+                min_req = round(random.uniform(3500.0, 6000.0), 0)
+                inertia_profiles.append(PSSTInertiaRecord(
+                    region=r,
+                    date=f"2024-11-{(day_offset+1):02d}",
+                    hour=hour,
+                    total_inertia_mws=total_inertia,
+                    synchronous_inertia_mws=synch,
+                    synthetic_inertia_mws=synthetic,
+                    minimum_inertia_req_mws=min_req,
+                    inertia_shortfall_mws=max(0.0, min_req - total_inertia),
+                    system_strength_scr=round(random.uniform(2.0, 12.0), 2)
+                ))
+
+    stability_metrics = []
+    for r in regions:
+        for yr in [2025, 2028, 2030, 2035, 2040]:
+            for sc in ["CURRENT", "HIGH_RENEWABLES"]:
+                re_pct = {"CURRENT": 45.0, "HIGH_RENEWABLES": 85.0}.get(sc, 45.0)
+                re_pct += (yr - 2025) * 2.5 + random.uniform(-3, 3)
+                stability_metrics.append(PSSTStabilityMetricRecord(
+                    region=r, year=yr, scenario=sc,
+                    voltage_stability_index=round(min(0.95, re_pct / 100 * 0.8), 4),
+                    frequency_stability_index=round(min(0.90, re_pct / 100 * 0.7), 4),
+                    transient_stability_margin_pct=round(max(5.0, 35.0 - re_pct * 0.2), 1),
+                    small_signal_damping_pct=round(max(3.0, 15.0 - re_pct * 0.08), 2),
+                    system_strength_mva=round(random.uniform(500.0, 5000.0), 0),
+                    renewable_penetration_pct=round(min(98.0, re_pct), 1)
+                ))
+
+    result = PSSTDashboard(
+        voltage_profiles=voltage_profiles,
+        frequency_events=frequency_events,
+        contingencies=contingencies,
+        inertia_profiles=inertia_profiles,
+        stability_metrics=stability_metrics,
+        summary={
+            "voltage_violations": len([v for v in voltage_profiles if v.status == "VIOLATION"]),
+            "voltage_warnings": len([v for v in voltage_profiles if v.status == "WARNING"]),
+            "total_contingencies": len(contingencies),
+            "critical_contingencies": len([c for c in contingencies if c.severity in ["N-2", "N-3"]]),
+            "regions_with_inertia_shortfall": 2,
+            "avg_system_strength_scr": 6.5,
+            "best_stability_region": "NSW1",
+            "scenarios_analysed": 2
+        }
+    )
+    _cache_set(_psst_cache, cache_key, result)
+    return result
+
+
+# ===========================================================================
+# Sprint 94b — Energy Retail Competition Analytics (ERCO)
+# ===========================================================================
+
+class ERCOOfferRecord(BaseModel):
+    offer_id: str
+    retailer: str
+    plan_name: str
+    region: str
+    customer_type: str  # RESIDENTIAL, SMALL_BUSINESS
+    tariff_type: str    # FLAT, TIME_OF_USE, DEMAND, FLEXIBLE
+    usage_rate_aud_per_kwh: float
+    supply_charge_aud_per_day: float
+    annual_bill_aud: float  # based on typical household
+    discount_pct: float
+    green_power_pct: float
+    contract_length_months: int
+    exit_fee_aud: float
+
+class ERCORetailerMetricRecord(BaseModel):
+    retailer: str
+    region: str
+    market_share_pct: float
+    customer_count: int
+    avg_bill_aud_yr: float
+    complaints_per_1000: float
+    nps_score: float
+    digital_score: float  # 1-10
+    payment_plan_flexibility: float  # 1-10
+    revenue_aud_m: float
+
+class ERCOPriceComparisonRecord(BaseModel):
+    region: str
+    year: int
+    quarter: str
+    cheapest_offer_aud_yr: float
+    median_offer_aud_yr: float
+    expensive_offer_aud_yr: float
+    reference_price_aud_yr: float  # DMO/VDO
+    below_reference_pct: float  # % of offers below reference price
+    offer_count: int
+
+class ERCOSwitchingIncentiveRecord(BaseModel):
+    retailer: str
+    incentive_type: str  # SIGN_ON_CREDIT, DISCOUNT, GIFT_CARD, GREEN_POWER, SMART_HOME
+    value_aud: float
+    conditions: str
+    expiry_months: int
+    uptake_pct: float
+
+class ERCOComplaintCategoryRecord(BaseModel):
+    category: str  # BILLING, DISCONNECTION, CREDIT, MARKETING, TRANSFER, PRICING
+    retailer: str
+    region: str
+    count_per_1000: float
+    yoy_change_pct: float
+    resolution_rate_pct: float
+    avg_resolution_days: float
+
+class ERCODashboard(BaseModel):
+    offers: List[ERCOOfferRecord]
+    retailer_metrics: List[ERCORetailerMetricRecord]
+    price_comparisons: List[ERCOPriceComparisonRecord]
+    switching_incentives: List[ERCOSwitchingIncentiveRecord]
+    complaint_categories: List[ERCOComplaintCategoryRecord]
+    summary: Dict[str, Any]
+
+
+_erco_cache: Dict[str, Any] = {}
+
+@app.get("/api/energy-retail-competition/dashboard", response_model=ERCODashboard, dependencies=[Depends(verify_api_key)])
+def get_energy_retail_competition_dashboard():
+    import random
+    cache_key = "erco_dashboard"
+    cached = _cache_get(_erco_cache, cache_key)
+    if cached:
+        return cached
+
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    retailers = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Red Energy", "Alinta Energy",
+                 "Powershop", "Simply Energy", "Dodo Power & Gas", "OVO Energy", "GloBird Energy",
+                 "Commander", "1st Energy", "ReAmped Energy"]
+    tariff_types = ["FLAT", "TIME_OF_USE", "DEMAND", "FLEXIBLE"]
+
+    offers = []
+    for i in range(35):
+        r = random.choice(regions)
+        retailer = random.choice(retailers)
+        tariff = random.choice(tariff_types)
+        usage_rate = round(random.uniform(0.22, 0.38), 4)
+        supply_charge = round(random.uniform(0.85, 1.25), 4)
+        offers.append(ERCOOfferRecord(
+            offer_id=f"ERCO-{i+1:04d}",
+            retailer=retailer,
+            plan_name=f"{retailer} {tariff.replace('_', ' ').title()} {random.choice(['Basic', 'Plus', 'Saver', 'Flex'])}",
+            region=r,
+            customer_type=random.choice(["RESIDENTIAL", "SMALL_BUSINESS"]),
+            tariff_type=tariff,
+            usage_rate_aud_per_kwh=usage_rate,
+            supply_charge_aud_per_day=supply_charge,
+            annual_bill_aud=round(usage_rate * 4500 + supply_charge * 365, 0),
+            discount_pct=round(random.uniform(0.0, 30.0), 1),
+            green_power_pct=round(random.uniform(0.0, 100.0), 0),
+            contract_length_months=random.choice([0, 12, 24]),
+            exit_fee_aud=round(random.uniform(0.0, 150.0), 0)
+        ))
+
+    retailer_metrics = []
+    for ret in retailers[:10]:
+        for r in regions[:3]:
+            retailer_metrics.append(ERCORetailerMetricRecord(
+                retailer=ret, region=r,
+                market_share_pct=round(random.uniform(1.0, 35.0), 1),
+                customer_count=random.randint(5000, 500000),
+                avg_bill_aud_yr=round(random.uniform(1400.0, 2200.0), 0),
+                complaints_per_1000=round(random.uniform(1.5, 25.0), 1),
+                nps_score=round(random.uniform(10.0, 65.0), 1),
+                digital_score=round(random.uniform(4.0, 9.5), 1),
+                payment_plan_flexibility=round(random.uniform(4.0, 9.0), 1),
+                revenue_aud_m=round(random.uniform(50.0, 2000.0), 1)
+            ))
+
+    price_comparisons = []
+    quarters = ["Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023", "Q1 2024", "Q2 2024", "Q3 2024", "Q4 2024"]
+    for r in regions:
+        for q in quarters:
+            ref = round(random.uniform(1600.0, 2400.0), 0)
+            cheapest = round(ref * random.uniform(0.70, 0.90), 0)
+            median = round(ref * random.uniform(0.88, 1.05), 0)
+            expensive = round(ref * random.uniform(1.10, 1.35), 0)
+            price_comparisons.append(ERCOPriceComparisonRecord(
+                region=r, year=2023 if "2023" in q else 2024, quarter=q,
+                cheapest_offer_aud_yr=cheapest,
+                median_offer_aud_yr=median,
+                expensive_offer_aud_yr=expensive,
+                reference_price_aud_yr=ref,
+                below_reference_pct=round(random.uniform(35.0, 75.0), 1),
+                offer_count=random.randint(20, 120)
+            ))
+
+    incentive_types = ["SIGN_ON_CREDIT", "DISCOUNT", "GIFT_CARD", "GREEN_POWER", "SMART_HOME"]
+    switching_incentives = []
+    for ret in retailers[:8]:
+        incentive_type = random.choice(incentive_types)
+        switching_incentives.append(ERCOSwitchingIncentiveRecord(
+            retailer=ret,
+            incentive_type=incentive_type,
+            value_aud=round(random.uniform(50.0, 300.0), 0),
+            conditions=random.choice(["New customers only", "Min 12-month contract", "Direct debit required", "No conditions"]),
+            expiry_months=random.choice([3, 6, 12, 0]),
+            uptake_pct=round(random.uniform(5.0, 45.0), 1)
+        ))
+
+    categories = ["BILLING", "DISCONNECTION", "CREDIT", "MARKETING", "TRANSFER", "PRICING"]
+    complaint_categories = []
+    for cat in categories:
+        for ret in retailers[:6]:
+            complaint_categories.append(ERCOComplaintCategoryRecord(
+                category=cat, retailer=ret,
+                region=random.choice(regions),
+                count_per_1000=round(random.uniform(0.5, 15.0), 2),
+                yoy_change_pct=round(random.uniform(-30.0, 30.0), 1),
+                resolution_rate_pct=round(random.uniform(75.0, 99.0), 1),
+                avg_resolution_days=round(random.uniform(1.0, 20.0), 1)
+            ))
+
+    result = ERCODashboard(
+        offers=offers,
+        retailer_metrics=retailer_metrics,
+        price_comparisons=price_comparisons,
+        switching_incentives=switching_incentives,
+        complaint_categories=complaint_categories,
+        summary={
+            "total_offers": len(offers),
+            "total_retailers": len(retailers),
+            "avg_savings_vs_reference_pct": 12.5,
+            "most_complained_retailer": "AGL Energy",
+            "cheapest_region": "VIC1",
+            "offers_below_reference_pct": 55.0,
+            "avg_nps_score": 38.5,
+            "regions": len(regions)
+        }
+    )
+    _cache_set(_erco_cache, cache_key, result)
+    return result
+
+
+# ── Clean Energy Finance Analytics ──────────────────────────────────────
+class CEFInvestmentRecord(BaseModel):
+    investment_id: str
+    project_name: str
+    technology: str        # "Solar PV", "Wind", "Battery Storage", "Green Hydrogen", "Transmission"
+    state: str
+    total_investment_m: float   # AUD millions
+    cefc_debt_m: float
+    cefc_equity_m: float
+    arena_grant_m: float
+    private_cofinancing_m: float
+    financial_close_date: str
+    project_status: str   # "Operating", "Construction", "Financial Close", "Pipeline"
+    capacity_mw: float
+    lcoe_dolpermwh: float
+
+class CEFGreenBondRecord(BaseModel):
+    bond_id: str
+    issuer: str
+    bond_type: str   # "Green Bond", "Climate Bond", "Sustainability Bond", "Social Bond"
+    issue_date: str
+    maturity_date: str
+    face_value_m: float
+    coupon_rate_pct: float
+    use_of_proceeds: str
+    certification: str   # "CBI Certified", "ICMA GBP", "None"
+    oversubscription_ratio: float
+    secondary_yield_pct: float
+
+class CEFFinancingCostRecord(BaseModel):
+    record_id: str
+    technology: str
+    year: int
+    debt_cost_pct: float      # cost of debt
+    equity_cost_pct: float    # cost of equity
+    wacc_pct: float
+    risk_premium_pct: float
+    construction_risk_pct: float
+    offtake_risk_pct: float
+    policy_risk_pct: float
+
+class CEFPortfolioPerformanceRecord(BaseModel):
+    portfolio_id: str
+    fund_name: str
+    vintage_year: int
+    irr_pct: float
+    moic: float           # multiple on invested capital
+    invested_capital_m: float
+    current_value_m: float
+    realised_value_m: float
+    num_investments: int
+    technology_mix: str   # comma-separated top techs
+
+class CEFBlendedFinanceRecord(BaseModel):
+    structure_id: str
+    project_name: str
+    structure_type: str  # "First-Loss Tranche", "Guarantee", "Subordinated Debt", "Co-investment"
+    total_size_m: float
+    concessional_pct: float
+    commercial_pct: float
+    leverage_ratio: float
+    mobilised_private_m: float
+    development_impact: str
+    irr_unblended_pct: float
+    irr_blended_pct: float
+
+class CEFDashboard(BaseModel):
+    investments: List[CEFInvestmentRecord]
+    green_bonds: List[CEFGreenBondRecord]
+    financing_costs: List[CEFFinancingCostRecord]
+    portfolio_performance: List[CEFPortfolioPerformanceRecord]
+    blended_finance: List[CEFBlendedFinanceRecord]
+    summary: dict
+
+
+_cef_cache: dict = {}
+
+
+@app.get("/api/clean-energy-finance/dashboard", response_model=CEFDashboard, dependencies=[Depends(verify_api_key)])
+def get_clean_energy_finance_dashboard():
+    global _cef_cache
+    if _cef_cache:
+        return _cef_cache
+    import random
+    random.seed(42)
+
+    technologies = ["Solar PV", "Wind", "Battery Storage", "Green Hydrogen", "Transmission"]
+    states = ["NSW", "QLD", "VIC", "SA", "WA"]
+    statuses = ["Operating", "Construction", "Financial Close", "Pipeline"]
+    status_weights = [0.35, 0.30, 0.15, 0.20]
+
+    project_names = [
+        "Darlington Point Solar Farm", "Bungala Solar Plant", "Sunraysia Solar Farm",
+        "Macarthur Wind Farm", "Coopers Gap Wind Farm", "Hornsdale Wind Farm",
+        "Hornsdale Power Reserve", "Victorian Big Battery", "Waratah Super Battery",
+        "HyEnergy Green Hydrogen Project", "Western Green Energy Hub", "Tiwi H2 Hub",
+        "Project EnergyConnect", "HumeLink Transmission", "VNI West Interconnector",
+        "Snowy 2.0 Transmission", "Queensland Energy and Jobs Plan Solar",
+        "Sun Cable Solar Farm", "Clara Solar Farm", "Gannawarra Solar Farm",
+        "Emerald Solar Park", "Sapphire Wind Farm", "Stockyard Hill Wind Farm",
+        "South Australian Battery Storage", "Kaban Green Power Hub"
+    ]
+
+    investments = []
+    for i, name in enumerate(project_names):
+        tech = technologies[i % len(technologies)]
+        state = random.choice(states)
+        capacity = round(random.uniform(10, 500), 1)
+        total_inv = round(random.uniform(50, 2000), 1)
+        cefc_debt = round(total_inv * random.uniform(0.15, 0.35), 1)
+        cefc_eq = round(total_inv * random.uniform(0.05, 0.15), 1)
+        arena = round(total_inv * random.uniform(0.02, 0.10), 1)
+        private = round(total_inv - cefc_debt - cefc_eq - arena, 1)
+        year = random.randint(2018, 2024)
+        month = random.randint(1, 12)
+        status = random.choices(statuses, weights=status_weights)[0]
+        lcoe = round(random.uniform(35, 120), 1)
+        investments.append(CEFInvestmentRecord(
+            investment_id=f"CEF-INV-{i+1:04d}",
+            project_name=name,
+            technology=tech,
+            state=state,
+            total_investment_m=total_inv,
+            cefc_debt_m=cefc_debt,
+            cefc_equity_m=cefc_eq,
+            arena_grant_m=arena,
+            private_cofinancing_m=max(0.0, private),
+            financial_close_date=f"{year}-{month:02d}-01",
+            project_status=status,
+            capacity_mw=capacity,
+            lcoe_dolpermwh=lcoe
+        ))
+
+    bond_issuers = [
+        "CEFC", "Clean Energy Finance Corp", "Macquarie Green Bond", "CBA Climate Bond",
+        "ANZ Sustainability Bond", "NAB Green Bond", "Westpac Climate Bond",
+        "QIC Green Bond", "APA Group Green Bond", "Transurban Green Bond",
+        "Victorian Government Green Bond", "NSW Government Green Bond",
+        "Queensland Treasury Corp", "WA Treasury Corp", "AGL Green Bond",
+        "Origin Sustainability Bond", "Infrastructure NSW Bond", "ARENA Bond",
+        "Clean Energy Regulator Bond", "Snowy Hydro Green Bond"
+    ]
+    bond_types = ["Green Bond", "Climate Bond", "Sustainability Bond", "Social Bond"]
+    certifications = ["CBI Certified", "ICMA GBP", "None"]
+    use_of_proceeds_list = [
+        "Renewable Energy", "Energy Efficiency", "Clean Transport",
+        "Green Buildings", "Sustainable Water", "Climate Adaptation"
+    ]
+
+    green_bonds = []
+    for i, issuer in enumerate(bond_issuers):
+        issue_year = random.randint(2019, 2024)
+        issue_month = random.randint(1, 12)
+        maturity_year = issue_year + random.randint(5, 15)
+        face_val = round(random.uniform(100, 1000), 0)
+        coupon = round(random.uniform(2.5, 5.5), 2)
+        secondary_yield = round(coupon + random.uniform(-0.5, 0.5), 2)
+        oversubscription = round(random.uniform(1.5, 6.0), 1)
+        green_bonds.append(CEFGreenBondRecord(
+            bond_id=f"CEF-GB-{i+1:04d}",
+            issuer=issuer,
+            bond_type=random.choice(bond_types),
+            issue_date=f"{issue_year}-{issue_month:02d}-01",
+            maturity_date=f"{maturity_year}-{issue_month:02d}-01",
+            face_value_m=face_val,
+            coupon_rate_pct=coupon,
+            use_of_proceeds=random.choice(use_of_proceeds_list),
+            certification=random.choice(certifications),
+            oversubscription_ratio=oversubscription,
+            secondary_yield_pct=secondary_yield
+        ))
+
+    fin_technologies = [
+        "Solar PV", "Wind", "Battery Storage", "Green Hydrogen",
+        "Transmission", "Pumped Hydro", "Geothermal", "Offshore Wind"
+    ]
+    financing_costs = []
+    for tech in fin_technologies:
+        for year in range(2020, 2025):
+            debt_cost = round(random.uniform(3.0, 7.0), 2)
+            equity_cost = round(random.uniform(8.0, 15.0), 2)
+            equity_weight = random.uniform(0.3, 0.5)
+            debt_weight = 1.0 - equity_weight
+            wacc = round(debt_cost * debt_weight + equity_cost * equity_weight, 2)
+            risk_prem = round(random.uniform(0.5, 3.0), 2)
+            constr_risk = round(random.uniform(0.3, 2.0), 2)
+            offtake_risk = round(random.uniform(0.2, 1.5), 2)
+            policy_risk = round(random.uniform(0.1, 1.0), 2)
+            record_id = f"CEF-FC-{tech[:3].upper()}-{year}"
+            financing_costs.append(CEFFinancingCostRecord(
+                record_id=record_id,
+                technology=tech,
+                year=year,
+                debt_cost_pct=debt_cost,
+                equity_cost_pct=equity_cost,
+                wacc_pct=wacc,
+                risk_premium_pct=risk_prem,
+                construction_risk_pct=constr_risk,
+                offtake_risk_pct=offtake_risk,
+                policy_risk_pct=policy_risk
+            ))
+
+    fund_names = [
+        "CEFC Clean Energy Fund", "ARENA Innovation Fund", "Macquarie Green Investment",
+        "BlackRock Climate Infrastructure", "IFM Renewable Energy Fund",
+        "AMP Capital Renewables", "Infradebt Green Fund", "QIC Sustainable Infrastructure",
+        "HESTA Clean Energy Portfolio", "Australian Retirement Trust Renewables",
+        "UniSuper Sustainable Investment", "AustralianSuper Green Portfolio",
+        "Cbus Infrastructure Fund", "Aware Super Energy Transition", "REST Clean Energy"
+    ]
+    tech_mixes_list = [
+        "Solar PV, Wind", "Wind, Battery Storage", "Solar PV, Battery Storage",
+        "Solar PV, Wind, Battery Storage", "Green Hydrogen, Wind",
+        "Transmission, Solar PV", "Pumped Hydro, Wind", "Solar PV, Offshore Wind"
+    ]
+
+    portfolio_performance = []
+    for i, fund in enumerate(fund_names):
+        vintage = random.randint(2015, 2023)
+        irr = round(random.uniform(8.0, 18.0), 1)
+        moic = round(random.uniform(1.2, 2.5), 2)
+        invested = round(random.uniform(100, 1500), 1)
+        current_val = round(invested * moic * random.uniform(0.6, 0.9), 1)
+        realised = round(invested * moic * random.uniform(0.1, 0.4), 1)
+        num_inv = random.randint(5, 30)
+        portfolio_performance.append(CEFPortfolioPerformanceRecord(
+            portfolio_id=f"CEF-PORT-{i+1:04d}",
+            fund_name=fund,
+            vintage_year=vintage,
+            irr_pct=irr,
+            moic=moic,
+            invested_capital_m=invested,
+            current_value_m=current_val,
+            realised_value_m=realised,
+            num_investments=num_inv,
+            technology_mix=random.choice(tech_mixes_list)
+        ))
+
+    structure_types = ["First-Loss Tranche", "Guarantee", "Subordinated Debt", "Co-investment"]
+    dev_impacts_list = [
+        "500MW renewable capacity enabled", "200 MW solar deployment catalysed",
+        "1GWh storage deployed", "100kt CO2 avoided per annum",
+        "5000 jobs created in regional areas", "Grid stability improved in remote area",
+        "Green hydrogen export pathway established", "Community energy access for 10,000 homes"
+    ]
+    blended_projects = [
+        "NT Remote Solar + Storage", "Pacific Island Renewables", "PNG Hydro Modernisation",
+        "Indonesia Green Grid", "Vietnam Offshore Wind Catalyst", "Philippines Solar Initiative",
+        "Bangladesh Climate Resilience", "Fiji Renewable Transition",
+        "Solomon Islands Energy Access", "Timor-Leste Grid Electrification",
+        "SA Desert Solar Precinct", "WA Goldfields Renewable Hub",
+        "QLD North Renewable Zone", "NSW Central-West Solar Blended",
+        "VIC Gippsland Transition Fund", "TAS Offshore Wind Catalyst",
+        "NT Darwin Battery Storage", "WA Pilbara Green Hydrogen",
+        "QLD Townsville Energy Hub", "NSW Hunter Valley Transition",
+        "SA Whyalla Green Steel Power", "VIC LaTrobe Valley Transition",
+        "WA Southwest Interconnect", "NT Alice Springs Micro-grid",
+        "QLD Cape York Remote Power", "NSW Snowy Regions Storage",
+        "VIC Western District Wind Blended", "SA Eyre Peninsula Storage",
+        "WA Mid-West Offshore Wind", "TAS Tasman Peninsula Tidal"
+    ]
+
+    blended_finance = []
+    for i, proj in enumerate(blended_projects):
+        struct_type = random.choice(structure_types)
+        total_size = round(random.uniform(50, 800), 1)
+        concessional_pct = round(random.uniform(10, 40), 1)
+        commercial_pct = round(100.0 - concessional_pct, 1)
+        leverage = round(random.uniform(3.0, 10.0), 1)
+        mobilised = round(total_size * leverage * random.uniform(0.5, 0.9), 1)
+        irr_unblended = round(random.uniform(4.0, 9.0), 1)
+        irr_blended = round(irr_unblended + random.uniform(2.0, 5.0), 1)
+        blended_finance.append(CEFBlendedFinanceRecord(
+            structure_id=f"CEF-BF-{i+1:04d}",
+            project_name=proj,
+            structure_type=struct_type,
+            total_size_m=total_size,
+            concessional_pct=concessional_pct,
+            commercial_pct=commercial_pct,
+            leverage_ratio=leverage,
+            mobilised_private_m=mobilised,
+            development_impact=random.choice(dev_impacts_list),
+            irr_unblended_pct=irr_unblended,
+            irr_blended_pct=irr_blended
+        ))
+
+    total_cefc = sum(r.cefc_debt_m + r.cefc_equity_m for r in investments)
+    total_gb = sum(b.face_value_m for b in green_bonds)
+    avg_wacc = round(sum(f.wacc_pct for f in financing_costs) / len(financing_costs), 2)
+    total_mobilised = sum(b.mobilised_private_m for b in blended_finance)
+    active_count = sum(1 for r in investments if r.project_status in ("Operating", "Construction"))
+
+    _cef_cache = CEFDashboard(
+        investments=investments,
+        green_bonds=green_bonds,
+        financing_costs=financing_costs,
+        portfolio_performance=portfolio_performance,
+        blended_finance=blended_finance,
+        summary={
+            "total_cefc_portfolio_m": round(total_cefc, 1),
+            "total_green_bonds_issued_m": round(total_gb, 0),
+            "avg_wacc_pct": avg_wacc,
+            "total_mobilised_private_m": round(total_mobilised, 1),
+            "num_active_investments": active_count
+        }
+    )
+    return _cef_cache

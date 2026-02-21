@@ -326,6 +326,9 @@ import AncillaryServicesProcurementAnalytics from './pages/AncillaryServicesProc
 import REZConnectionQueueAnalytics from './pages/REZConnectionQueueAnalytics'
 import AustralianCarbonPolicyAnalytics from './pages/AustralianCarbonPolicyAnalytics'
 import MarketDesignSimulationAnalytics from './pages/MarketDesignSimulationAnalytics'
+import PowerSystemStabilityAnalytics from './pages/PowerSystemStabilityAnalytics'
+import EnergyRetailCompetitionAnalytics from './pages/EnergyRetailCompetitionAnalytics'
+import CleanEnergyFinanceAnalytics from './pages/CleanEnergyFinanceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -577,6 +580,9 @@ const NAV_ITEMS = [
   { to: '/rez-connection-queue', label: 'REZ Connection Queue', Icon: Grid },
   { to: '/australian-carbon-policy', label: 'Carbon Policy', Icon: Leaf },
   { to: '/market-design-simulation', label: 'Market Design Simulation', Icon: BarChart2 },
+  { to: '/power-system-stability', label: 'Power System Stability', Icon: Zap },
+  { to: '/energy-retail-competition', label: 'Retail Competition', Icon: ShoppingCart },
+  { to: '/clean-energy-finance', label: 'Clean Energy Finance', Icon: DollarSign },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -903,6 +909,9 @@ export default function App() {
               <Route path="/rez-connection-queue" element={<REZConnectionQueueAnalytics />} />
               <Route path="/australian-carbon-policy" element={<AustralianCarbonPolicyAnalytics />} />
               <Route path="/market-design-simulation" element={<MarketDesignSimulationAnalytics />} />
+              <Route path="/power-system-stability" element={<PowerSystemStabilityAnalytics />} />
+              <Route path="/energy-retail-competition" element={<EnergyRetailCompetitionAnalytics />} />
+              <Route path="/clean-energy-finance" element={<CleanEnergyFinanceAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

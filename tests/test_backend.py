@@ -12096,3 +12096,137 @@ class TestMarketDesignSimulationEndpoint:
         r1 = client.get("/api/market-design-simulation/dashboard", headers=auth_headers)
         r2 = client.get("/api/market-design-simulation/dashboard", headers=auth_headers)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 94a — Power System Stability Analytics (PSST)
+# ===========================================================================
+
+class TestPowerSystemStabilityEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/power-system-stability/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_voltage_profiles_present(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        assert len(data["voltage_profiles"]) >= 10
+
+    def test_frequency_events_present(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        assert len(data["frequency_events"]) >= 20
+
+    def test_contingencies_present(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        assert len(data["contingencies"]) >= 8
+
+    def test_inertia_profiles_present(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        assert len(data["inertia_profiles"]) >= 100
+
+    def test_stability_metrics_present(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        assert len(data["stability_metrics"]) >= 30
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        assert "voltage_violations" in data["summary"]
+        assert "critical_contingencies" in data["summary"]
+
+    def test_voltage_profile_fields(self, client, auth_headers):
+        data = client.get("/api/power-system-stability/dashboard", headers=auth_headers).json()
+        v = data["voltage_profiles"][0]
+        assert "voltage_pu" in v
+        assert "voltage_stability_margin_pct" in v
+        assert "status" in v
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/power-system-stability/dashboard", headers=auth_headers)
+        r2 = client.get("/api/power-system-stability/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 94b — Energy Retail Competition Analytics (ERCO)
+# ===========================================================================
+
+class TestEnergyRetailCompetitionEndpoint:
+    def test_dashboard_returns_200(self, client, auth_headers):
+        r = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers)
+        assert r.status_code == 200
+
+    def test_offers_present(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        assert len(data["offers"]) >= 25
+
+    def test_retailer_metrics_present(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        assert len(data["retailer_metrics"]) >= 20
+
+    def test_price_comparisons_present(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        assert len(data["price_comparisons"]) >= 30
+
+    def test_switching_incentives_present(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        assert len(data["switching_incentives"]) >= 6
+
+    def test_complaint_categories_present(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        assert len(data["complaint_categories"]) >= 20
+
+    def test_summary_keys(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        assert "avg_savings_vs_reference_pct" in data["summary"]
+        assert "cheapest_region" in data["summary"]
+
+    def test_offer_fields(self, client, auth_headers):
+        data = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers).json()
+        o = data["offers"][0]
+        assert "usage_rate_aud_per_kwh" in o
+        assert "annual_bill_aud" in o
+        assert "tariff_type" in o
+
+    def test_caching(self, client, auth_headers):
+        r1 = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers)
+        r2 = client.get("/api/energy-retail-competition/dashboard", headers=auth_headers)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCleanEnergyFinanceDashboard:
+    def test_status_200(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+
+    def test_investments_count(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["investments"]) >= 20
+
+    def test_green_bonds_count(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["green_bonds"]) >= 15
+
+    def test_financing_costs_count(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["financing_costs"]) >= 30
+
+    def test_portfolio_performance_count(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["portfolio_performance"]) >= 10
+
+    def test_blended_finance_count(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["blended_finance"]) >= 20
+
+    def test_summary_keys(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        s = r.json()["summary"]
+        assert "total_cefc_portfolio_m" in s
+
+    def test_summary_mobilised_key(self, client):
+        r = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert "total_mobilised_private_m" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        r2 = client.get("/api/clean-energy-finance/dashboard", headers={"X-API-Key": "test-key"})
+        assert r1.json()["summary"] == r2.json()["summary"]

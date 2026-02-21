@@ -15082,3 +15082,228 @@ export interface MDSDashboard {
 
 export const getMarketDesignSimulationDashboard = (): Promise<MDSDashboard> =>
   get<MDSDashboard>('/api/market-design-simulation/dashboard');
+
+// ===== Power System Stability Analytics (Sprint 94a) =====
+export interface PSSTVoltageRecord {
+  node_id: string;
+  node_name: string;
+  region: string;
+  voltage_pu: number;
+  voltage_kv: number;
+  voltage_deviation_pct: number;
+  reactive_power_mvar: number;
+  voltage_stability_margin_pct: number;
+  contingency_voltage_pu: number;
+  status: string;
+}
+
+export interface PSSTFrequencyRecord {
+  region: string;
+  timestamp: string;
+  frequency_hz: number;
+  rocof_hz_per_sec: number;
+  nadir_hz: number;
+  recovery_time_sec: number;
+  inertia_mws: number;
+  synchronous_gen_mw: number;
+  inverter_gen_mw: number;
+}
+
+export interface PSSTContingencyRecord {
+  contingency_id: string;
+  description: string;
+  region: string;
+  severity: string;
+  pre_contingency_flow_mw: number;
+  post_contingency_flow_mw: number;
+  thermal_limit_mw: number;
+  frequency_deviation_hz: number;
+  voltage_recovery_sec: number;
+  remedial_action: string | null;
+}
+
+export interface PSSTInertiaRecord {
+  region: string;
+  date: string;
+  hour: number;
+  total_inertia_mws: number;
+  synchronous_inertia_mws: number;
+  synthetic_inertia_mws: number;
+  minimum_inertia_req_mws: number;
+  inertia_shortfall_mws: number;
+  system_strength_scr: number;
+}
+
+export interface PSSTStabilityMetricRecord {
+  region: string;
+  year: number;
+  scenario: string;
+  voltage_stability_index: number;
+  frequency_stability_index: number;
+  transient_stability_margin_pct: number;
+  small_signal_damping_pct: number;
+  system_strength_mva: number;
+  renewable_penetration_pct: number;
+}
+
+export interface PSSTDashboard {
+  voltage_profiles: PSSTVoltageRecord[];
+  frequency_events: PSSTFrequencyRecord[];
+  contingencies: PSSTContingencyRecord[];
+  inertia_profiles: PSSTInertiaRecord[];
+  stability_metrics: PSSTStabilityMetricRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getPowerSystemStabilityDashboard = (): Promise<PSSTDashboard> =>
+  get<PSSTDashboard>('/api/power-system-stability/dashboard');
+
+// ===== Energy Retail Competition Analytics (Sprint 94b) =====
+export interface ERCOOfferRecord {
+  offer_id: string;
+  retailer: string;
+  plan_name: string;
+  region: string;
+  customer_type: string;
+  tariff_type: string;
+  usage_rate_aud_per_kwh: number;
+  supply_charge_aud_per_day: number;
+  annual_bill_aud: number;
+  discount_pct: number;
+  green_power_pct: number;
+  contract_length_months: number;
+  exit_fee_aud: number;
+}
+
+export interface ERCORetailerMetricRecord {
+  retailer: string;
+  region: string;
+  market_share_pct: number;
+  customer_count: number;
+  avg_bill_aud_yr: number;
+  complaints_per_1000: number;
+  nps_score: number;
+  digital_score: number;
+  payment_plan_flexibility: number;
+  revenue_aud_m: number;
+}
+
+export interface ERCOPriceComparisonRecord {
+  region: string;
+  year: number;
+  quarter: string;
+  cheapest_offer_aud_yr: number;
+  median_offer_aud_yr: number;
+  expensive_offer_aud_yr: number;
+  reference_price_aud_yr: number;
+  below_reference_pct: number;
+  offer_count: number;
+}
+
+export interface ERCOSwitchingIncentiveRecord {
+  retailer: string;
+  incentive_type: string;
+  value_aud: number;
+  conditions: string;
+  expiry_months: number;
+  uptake_pct: number;
+}
+
+export interface ERCOComplaintCategoryRecord {
+  category: string;
+  retailer: string;
+  region: string;
+  count_per_1000: number;
+  yoy_change_pct: number;
+  resolution_rate_pct: number;
+  avg_resolution_days: number;
+}
+
+export interface ERCODashboard {
+  offers: ERCOOfferRecord[];
+  retailer_metrics: ERCORetailerMetricRecord[];
+  price_comparisons: ERCOPriceComparisonRecord[];
+  switching_incentives: ERCOSwitchingIncentiveRecord[];
+  complaint_categories: ERCOComplaintCategoryRecord[];
+  summary: Record<string, unknown>;
+}
+
+export const getEnergyRetailCompetitionDashboard = (): Promise<ERCODashboard> =>
+  get<ERCODashboard>('/api/energy-retail-competition/dashboard');
+
+// Clean Energy Finance Analytics
+export interface CEFInvestmentRecord {
+  investment_id: string;
+  project_name: string;
+  technology: string;
+  state: string;
+  total_investment_m: number;
+  cefc_debt_m: number;
+  cefc_equity_m: number;
+  arena_grant_m: number;
+  private_cofinancing_m: number;
+  financial_close_date: string;
+  project_status: string;
+  capacity_mw: number;
+  lcoe_dolpermwh: number;
+}
+export interface CEFGreenBondRecord {
+  bond_id: string;
+  issuer: string;
+  bond_type: string;
+  issue_date: string;
+  maturity_date: string;
+  face_value_m: number;
+  coupon_rate_pct: number;
+  use_of_proceeds: string;
+  certification: string;
+  oversubscription_ratio: number;
+  secondary_yield_pct: number;
+}
+export interface CEFFinancingCostRecord {
+  record_id: string;
+  technology: string;
+  year: number;
+  debt_cost_pct: number;
+  equity_cost_pct: number;
+  wacc_pct: number;
+  risk_premium_pct: number;
+  construction_risk_pct: number;
+  offtake_risk_pct: number;
+  policy_risk_pct: number;
+}
+export interface CEFPortfolioPerformanceRecord {
+  portfolio_id: string;
+  fund_name: string;
+  vintage_year: number;
+  irr_pct: number;
+  moic: number;
+  invested_capital_m: number;
+  current_value_m: number;
+  realised_value_m: number;
+  num_investments: number;
+  technology_mix: string;
+}
+export interface CEFBlendedFinanceRecord {
+  structure_id: string;
+  project_name: string;
+  structure_type: string;
+  total_size_m: number;
+  concessional_pct: number;
+  commercial_pct: number;
+  leverage_ratio: number;
+  mobilised_private_m: number;
+  development_impact: string;
+  irr_unblended_pct: number;
+  irr_blended_pct: number;
+}
+export interface CEFDashboard {
+  investments: CEFInvestmentRecord[];
+  green_bonds: CEFGreenBondRecord[];
+  financing_costs: CEFFinancingCostRecord[];
+  portfolio_performance: CEFPortfolioPerformanceRecord[];
+  blended_finance: CEFBlendedFinanceRecord[];
+  summary: Record<string, number>;
+}
+export const getCleanEnergyFinanceDashboard = (): Promise<CEFDashboard> =>
+  get<CEFDashboard>('/api/clean-energy-finance/dashboard');
