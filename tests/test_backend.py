@@ -13482,3 +13482,137 @@ class TestRetailMarketDesignDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 105a — Tests: Electricity Spot Market Depth & Price Discovery
+# ===========================================================================
+
+class TestSpotMarketDepthDashboard:
+    URL = "/api/spot-market-depth-x/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_order_books_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["order_books"]) >= 20
+
+    def test_price_discovery_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["price_discovery"]) >= 15
+
+    def test_trading_activity_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["trading_activity"]) >= 24
+
+    def test_market_impacts_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["market_impacts"]) >= 8
+
+    def test_seasonal_patterns_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["seasonal_patterns"]) >= 24
+
+    def test_anomalies_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["anomalies"]) >= 12
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "avg_liquidity_score" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestSolarFarmOperationsDashboard:
+    URL = "/api/solar-farm-operations/dashboard"
+    HEADERS = {"X-API-Key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_farms_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["farms"]) >= 8
+
+    def test_inverters_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["inverters"]) >= 24
+
+    def test_strings_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["strings"]) >= 30
+
+    def test_maintenance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["maintenance"]) >= 15
+
+    def test_fault_events_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["fault_events"]) >= 20
+
+    def test_performance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["performance"]) >= 30
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "avg_performance_ratio_pct" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ---------------------------------------------------------------------------
+# Sprint 105c — Distribution Network Planning Analytics (DNPA)
+# ---------------------------------------------------------------------------
+
+class TestDistributionNetworkPlanningDashboard:
+    URL = "/api/distribution-network-planning/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_feeders_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["feeders"]) >= 15
+
+    def test_hosting_capacity_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["hosting_capacity"]) >= 24
+
+    def test_upgrades_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["upgrades"]) >= 12
+
+    def test_load_forecasts_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["load_forecasts"]) >= 30
+
+    def test_constraints_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["constraints"]) >= 15
+
+    def test_der_integrations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["der_integrations"]) >= 20
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_upgrade_investment_m" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

@@ -362,6 +362,9 @@ import DigitalEnergyTwinAnalytics from './pages/DigitalEnergyTwinAnalytics'
 import NetworkProtectionSystemAnalytics from './pages/NetworkProtectionSystemAnalytics'
 import PumpedHydroDispatchAnalytics from './pages/PumpedHydroDispatchAnalytics'
 import RetailMarketDesignAnalytics from './pages/RetailMarketDesignAnalytics'
+import SpotMarketDepthXAnalytics from './pages/SpotMarketDepthXAnalytics'
+import SolarFarmOperationsAnalytics from './pages/SolarFarmOperationsAnalytics'
+import DistributionNetworkPlanningAnalytics from './pages/DistributionNetworkPlanningAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -645,6 +648,9 @@ const NAV_ITEMS = [
   { to: '/network-protection-system', label: 'Network Protection System', Icon: ShieldCheck },
   { to: '/pumped-hydro-dispatch', label: 'Pumped Hydro Dispatch', Icon: Droplets },
   { to: '/retail-market-design', label: 'Retail Market Design', Icon: ShoppingBag },
+  { to: '/spot-market-depth-x', label: 'Spot Market Depth X', Icon: TrendingUp },
+  { to: '/solar-farm-operations', label: 'Solar Farm O&M Analytics', Icon: Sun },
+  { to: '/distribution-network-planning', label: 'Distribution Network Planning', Icon: Network },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1003,6 +1009,9 @@ export default function App() {
               <Route path="/network-protection-system" element={<NetworkProtectionSystemAnalytics />} />
               <Route path="/pumped-hydro-dispatch" element={<PumpedHydroDispatchAnalytics />} />
               <Route path="/retail-market-design" element={<RetailMarketDesignAnalytics />} />
+              <Route path="/spot-market-depth-x" element={<SpotMarketDepthXAnalytics />} />
+              <Route path="/solar-farm-operations" element={<SolarFarmOperationsAnalytics />} />
+              <Route path="/distribution-network-planning" element={<DistributionNetworkPlanningAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

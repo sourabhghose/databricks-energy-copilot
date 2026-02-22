@@ -76633,3 +76633,1278 @@ def get_retail_market_design_dashboard():
         },
     ).model_dump())
     return _ermd_cache
+
+
+# ===========================================================================
+# Sprint 105a — Electricity Spot Market Depth & Price Discovery Analytics
+# Prefix: ESMDX  |  Endpoint: /api/spot-market-depth-x/dashboard
+# ===========================================================================
+
+class ESMDXOrderBookRecord(BaseModel):
+    book_id: str
+    region: str
+    snapshot_date: str
+    hour: int
+    bid_volume_mw_10pct: float
+    bid_volume_mw_total: float
+    offer_volume_mw_10pct: float
+    offer_volume_mw_total: float
+    bid_ask_spread_dolpermwh: float
+    market_depth_mw_within_5pct: float
+    mid_price_dolpermwh: float
+    bid_price_95pct: float
+    offer_price_5pct: float
+    volume_weighted_mid_price: float
+    liquidity_score: float  # 0-100
+
+
+class ESMDXPriceDiscoveryRecord(BaseModel):
+    discovery_id: str
+    region: str
+    date: str
+    hour: int
+    pre_dispatch_price: float
+    dispatch_price: float
+    price_revision_pct: float
+    discovery_efficiency_pct: float
+    informed_trading_pct: float
+    noise_trading_pct: float
+    price_impact_per_mw: float
+    market_depth_mw: float
+    contribution_of_rebids_pct: float
+    information_asymmetry_index: float
+
+
+class ESMDXTradingActivityRecord(BaseModel):
+    activity_id: str
+    region: str
+    date: str
+    hour: int
+    total_traded_volume_mwh: float
+    num_dispatch_intervals: int
+    avg_interval_price: float
+    max_interval_price: float
+    min_interval_price: float
+    price_std_dev: float
+    high_price_intervals: int
+    zero_price_intervals: int
+    negative_price_intervals: int
+    largest_single_bid_mw: float
+    market_concentration_index: float
+
+
+class ESMDXMarketImpactRecord(BaseModel):
+    impact_id: str
+    participant_name: str
+    region: str
+    period: str
+    avg_bid_volume_mw: float
+    market_share_dispatched_pct: float
+    price_impact_dolpermwh_per_100mw: float
+    strategic_trading_indicator: float
+    rebid_frequency_per_interval: float
+    price_setter_hours_pct: float
+    market_impact_cost_m_pa: float
+    regulatoryaction_flag: bool
+
+
+class ESMDXSeasonalPatternRecord(BaseModel):
+    pattern_id: str
+    region: str
+    month: int
+    hour_of_day: int
+    avg_price_dolpermwh: float
+    avg_volume_mwh: float
+    price_volatility_pct: float
+    liquidity_score: float
+    high_price_probability_pct: float
+    negative_price_probability_pct: float
+    renewable_share_pct: float
+    peak_demand_flag: bool
+
+
+class ESMDXAnomalyRecord(BaseModel):
+    anomaly_id: str
+    region: str
+    detected_date: str
+    hour: int
+    anomaly_type: str  # Price Spike, Price Collapse, Volume Surge, Bid Withdrawal, Coordinated Bidding, Abnormal Spread
+    detected_price_dolpermwh: float
+    expected_price_dolpermwh: float
+    deviation_pct: float
+    volume_deviation_pct: float
+    suspected_cause: str
+    market_impact_m: float
+    referred_to_aer: bool
+
+
+class ESMDXDashboard(BaseModel):
+    order_books: list[ESMDXOrderBookRecord]
+    price_discovery: list[ESMDXPriceDiscoveryRecord]
+    trading_activity: list[ESMDXTradingActivityRecord]
+    market_impacts: list[ESMDXMarketImpactRecord]
+    seasonal_patterns: list[ESMDXSeasonalPatternRecord]
+    anomalies: list[ESMDXAnomalyRecord]
+    summary: dict
+
+
+_esmdx_cache: dict = {}
+
+
+@app.get("/api/spot-market-depth-x/dashboard")
+def get_esmdx_dashboard():
+    import random
+    if _esmdx_cache:
+        return _esmdx_cache
+
+    rng = random.Random(20240501)
+
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    snapshot_dates = ["2024-01-15", "2024-04-10", "2024-07-22", "2024-10-08", "2024-12-01"]
+    peak_hours = [7, 8, 9, 17, 18, 19]
+
+    # ------------------------------------------------------------------
+    # 1. Order Book Records — 25 records (5 regions × 5 snapshots)
+    # ------------------------------------------------------------------
+    order_books = []
+    ob_idx = 1
+    for region in regions:
+        for snap_date in snapshot_dates:
+            hour = rng.choice(peak_hours)
+            mid_price = round(rng.uniform(60.0, 180.0), 2)
+            spread = round(rng.uniform(1.5, 18.0), 2)
+            bid_price_95 = round(mid_price - spread * 0.4, 2)
+            offer_price_5 = round(mid_price + spread * 0.6, 2)
+            bid_total = round(rng.uniform(2000.0, 8000.0), 1)
+            offer_total = round(rng.uniform(2000.0, 8000.0), 1)
+            bid_10pct = round(bid_total * rng.uniform(0.08, 0.15), 1)
+            offer_10pct = round(offer_total * rng.uniform(0.08, 0.15), 1)
+            depth_5pct = round(rng.uniform(300.0, 2000.0), 1)
+            vw_mid = round(mid_price + rng.uniform(-2.0, 2.0), 2)
+            liq = round(rng.uniform(35.0, 92.0), 1)
+            order_books.append(ESMDXOrderBookRecord(
+                book_id=f"OB-{ob_idx:03d}",
+                region=region,
+                snapshot_date=snap_date,
+                hour=hour,
+                bid_volume_mw_10pct=bid_10pct,
+                bid_volume_mw_total=bid_total,
+                offer_volume_mw_10pct=offer_10pct,
+                offer_volume_mw_total=offer_total,
+                bid_ask_spread_dolpermwh=spread,
+                market_depth_mw_within_5pct=depth_5pct,
+                mid_price_dolpermwh=mid_price,
+                bid_price_95pct=bid_price_95,
+                offer_price_5pct=offer_price_5,
+                volume_weighted_mid_price=vw_mid,
+                liquidity_score=liq,
+            ))
+            ob_idx += 1
+
+    # ------------------------------------------------------------------
+    # 2. Price Discovery Records — 20 records (4 regions × 5 time periods)
+    # ------------------------------------------------------------------
+    disc_regions = ["NSW1", "VIC1", "QLD1", "SA1"]
+    disc_dates = ["2024-02-05", "2024-05-12", "2024-08-19", "2024-09-03", "2024-11-27"]
+    price_discovery = []
+    pd_idx = 1
+    for region in disc_regions:
+        for date in disc_dates:
+            hour = rng.randint(6, 22)
+            pre_disp = round(rng.uniform(55.0, 200.0), 2)
+            revision = round(rng.uniform(-25.0, 40.0), 2)
+            dispatch = round(pre_disp * (1 + revision / 100.0), 2)
+            eff = round(rng.uniform(62.0, 97.0), 1)
+            informed = round(rng.uniform(30.0, 70.0), 1)
+            noise = round(100.0 - informed, 1)
+            price_impact = round(rng.uniform(0.05, 1.20), 3)
+            depth = round(rng.uniform(500.0, 4000.0), 1)
+            rebid_contrib = round(rng.uniform(5.0, 35.0), 1)
+            asymmetry = round(rng.uniform(0.1, 0.9), 3)
+            price_discovery.append(ESMDXPriceDiscoveryRecord(
+                discovery_id=f"PD-{pd_idx:03d}",
+                region=region,
+                date=date,
+                hour=hour,
+                pre_dispatch_price=pre_disp,
+                dispatch_price=dispatch,
+                price_revision_pct=revision,
+                discovery_efficiency_pct=eff,
+                informed_trading_pct=informed,
+                noise_trading_pct=noise,
+                price_impact_per_mw=price_impact,
+                market_depth_mw=depth,
+                contribution_of_rebids_pct=rebid_contrib,
+                information_asymmetry_index=asymmetry,
+            ))
+            pd_idx += 1
+
+    # ------------------------------------------------------------------
+    # 3. Trading Activity Records — 30 records (5 regions × 6 hours)
+    # ------------------------------------------------------------------
+    trading_hours = [7, 9, 12, 15, 17, 20]
+    trading_activity = []
+    ta_idx = 1
+    ta_date = "2024-08-14"
+    for region in regions:
+        for hour in trading_hours:
+            vol = round(rng.uniform(500.0, 4500.0), 1)
+            n_intervals = 12
+            avg_price = round(rng.uniform(50.0, 250.0), 2)
+            max_price = round(avg_price + rng.uniform(10.0, 800.0), 2)
+            min_price = round(max(avg_price - rng.uniform(10.0, 100.0), -50.0), 2)
+            std_dev = round(rng.uniform(5.0, 120.0), 2)
+            high_pi = rng.randint(0, 3)
+            zero_pi = rng.randint(0, 2)
+            neg_pi = rng.randint(0, 2)
+            largest_bid = round(rng.uniform(200.0, 1200.0), 1)
+            conc_idx = round(rng.uniform(0.05, 0.65), 3)
+            trading_activity.append(ESMDXTradingActivityRecord(
+                activity_id=f"TA-{ta_idx:03d}",
+                region=region,
+                date=ta_date,
+                hour=hour,
+                total_traded_volume_mwh=vol,
+                num_dispatch_intervals=n_intervals,
+                avg_interval_price=avg_price,
+                max_interval_price=max_price,
+                min_interval_price=min_price,
+                price_std_dev=std_dev,
+                high_price_intervals=high_pi,
+                zero_price_intervals=zero_pi,
+                negative_price_intervals=neg_pi,
+                largest_single_bid_mw=largest_bid,
+                market_concentration_index=conc_idx,
+            ))
+            ta_idx += 1
+
+    # ------------------------------------------------------------------
+    # 4. Market Impact Records — 10 key participants
+    # ------------------------------------------------------------------
+    participants = [
+        ("AGL Energy", "NSW1"),
+        ("Origin Energy", "VIC1"),
+        ("EnergyAustralia", "NSW1"),
+        ("Snowy Hydro", "NSW1"),
+        ("Alinta Energy", "SA1"),
+        ("CS Energy", "QLD1"),
+        ("Stanwell", "QLD1"),
+        ("Hydro Tasmania", "TAS1"),
+        ("Tilt Renewables", "VIC1"),
+        ("Shell Energy", "QLD1"),
+    ]
+    market_impacts = []
+    mi_idx = 1
+    for pname, preg in participants:
+        avg_bid = round(rng.uniform(300.0, 2500.0), 1)
+        mkt_share = round(rng.uniform(2.0, 28.0), 1)
+        price_imp = round(rng.uniform(0.5, 8.5), 2)
+        strat = round(rng.uniform(0.1, 9.5), 2)
+        rebid_freq = round(rng.uniform(0.5, 6.5), 2)
+        ps_hours = round(rng.uniform(5.0, 45.0), 1)
+        impact_cost = round(rng.uniform(1.0, 120.0), 2)
+        reg_flag = strat > 7.5
+        market_impacts.append(ESMDXMarketImpactRecord(
+            impact_id=f"MI-{mi_idx:03d}",
+            participant_name=pname,
+            region=preg,
+            period="FY2024",
+            avg_bid_volume_mw=avg_bid,
+            market_share_dispatched_pct=mkt_share,
+            price_impact_dolpermwh_per_100mw=price_imp,
+            strategic_trading_indicator=strat,
+            rebid_frequency_per_interval=rebid_freq,
+            price_setter_hours_pct=ps_hours,
+            market_impact_cost_m_pa=impact_cost,
+            regulatoryaction_flag=reg_flag,
+        ))
+        mi_idx += 1
+
+    # ------------------------------------------------------------------
+    # 5. Seasonal Pattern Records — 30 records (5 regions × 6 time slots)
+    # ------------------------------------------------------------------
+    pattern_months = [1, 2, 6, 7, 11, 12]
+    seasonal_patterns = []
+    sp_idx = 1
+    for region in regions:
+        for month in pattern_months:
+            hour_of_day = rng.choice([8, 12, 17, 18, 20, 22])
+            is_summer = month in [1, 2, 12]
+            is_winter = month in [6, 7]
+            base_price = 120.0 if is_summer else (100.0 if is_winter else 75.0)
+            avg_price = round(base_price + rng.uniform(-20.0, 60.0), 2)
+            avg_vol = round(rng.uniform(1000.0, 6000.0), 1)
+            volatility = round(rng.uniform(8.0, 55.0), 1)
+            liq = round(rng.uniform(30.0, 88.0), 1)
+            high_prob = round(rng.uniform(2.0, 25.0), 1)
+            neg_prob = round(rng.uniform(0.5, 12.0), 1)
+            ren_share = round(rng.uniform(15.0, 75.0), 1)
+            peak_flag = hour_of_day in [17, 18, 20] and avg_vol > 3000
+            seasonal_patterns.append(ESMDXSeasonalPatternRecord(
+                pattern_id=f"SP-{sp_idx:03d}",
+                region=region,
+                month=month,
+                hour_of_day=hour_of_day,
+                avg_price_dolpermwh=avg_price,
+                avg_volume_mwh=avg_vol,
+                price_volatility_pct=volatility,
+                liquidity_score=liq,
+                high_price_probability_pct=high_prob,
+                negative_price_probability_pct=neg_prob,
+                renewable_share_pct=ren_share,
+                peak_demand_flag=peak_flag,
+            ))
+            sp_idx += 1
+
+    # ------------------------------------------------------------------
+    # 6. Anomaly Records — 15 records (2022-2024, various types)
+    # ------------------------------------------------------------------
+    anomaly_types = [
+        "Price Spike", "Price Collapse", "Volume Surge",
+        "Bid Withdrawal", "Coordinated Bidding", "Abnormal Spread",
+    ]
+    anomaly_dates = [
+        "2022-03-12", "2022-06-15", "2022-09-01", "2022-12-20",
+        "2023-01-28", "2023-04-07", "2023-07-14", "2023-10-31",
+        "2023-12-05", "2024-01-18", "2024-02-29", "2024-05-22",
+        "2024-07-09", "2024-09-16", "2024-11-03",
+    ]
+    anomaly_causes = [
+        "Heatwave demand surge",
+        "Unexpected generator trip",
+        "Coordinated rebid activity detected",
+        "Renewable output collapse — sudden cloud cover",
+        "Interconnector constraint binding",
+        "Large participant capacity withdrawal",
+        "Speculation ahead of regulatory announcement",
+        "Demand response activation lag",
+        "Market power exercise suspected",
+        "Algorithm trading malfunction",
+        "Weather forecast revision",
+        "Gas supply curtailment",
+        "Pump load scheduling conflict",
+        "Evening peak demand shortfall",
+        "Overnight oversupply from wind",
+    ]
+    anomaly_regions = regions * 3  # 15 total
+    anomalies = []
+    an_idx = 1
+    for i, (adate, acause) in enumerate(zip(anomaly_dates, anomaly_causes)):
+        atype = anomaly_types[i % len(anomaly_types)]
+        areg = anomaly_regions[i]
+        hour = rng.randint(0, 23)
+        expected = round(rng.uniform(60.0, 150.0), 2)
+        if atype == "Price Spike":
+            detected = round(expected + rng.uniform(200.0, 14000.0), 2)
+        elif atype == "Price Collapse":
+            detected = round(max(expected - rng.uniform(50.0, 150.0), -100.0), 2)
+        else:
+            detected = round(expected + rng.uniform(-40.0, 200.0), 2)
+        deviation = round((detected - expected) / max(abs(expected), 1.0) * 100.0, 1)
+        vol_dev = round(rng.uniform(-60.0, 150.0), 1)
+        impact = round(rng.uniform(0.1, 45.0), 2)
+        referred = atype in ["Coordinated Bidding", "Price Spike"] and impact > 15.0
+        anomalies.append(ESMDXAnomalyRecord(
+            anomaly_id=f"AN-{an_idx:03d}",
+            region=areg,
+            detected_date=adate,
+            hour=hour,
+            anomaly_type=atype,
+            detected_price_dolpermwh=detected,
+            expected_price_dolpermwh=expected,
+            deviation_pct=deviation,
+            volume_deviation_pct=vol_dev,
+            suspected_cause=acause,
+            market_impact_m=impact,
+            referred_to_aer=referred,
+        ))
+        an_idx += 1
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    all_spreads = [r.bid_ask_spread_dolpermwh for r in order_books]
+    avg_spread = round(sum(all_spreads) / len(all_spreads), 2) if all_spreads else 0.0
+    all_liq = [r.liquidity_score for r in order_books]
+    avg_liq = round(sum(all_liq) / len(all_liq), 1) if all_liq else 0.0
+    anomalies_ytd = sum(1 for a in anomalies if a.detected_date.startswith("2024"))
+    all_eff = [r.discovery_efficiency_pct for r in price_discovery]
+    avg_eff = round(sum(all_eff) / len(all_eff), 1) if all_eff else 0.0
+    total_vol_twh = round(sum(r.total_traded_volume_mwh for r in trading_activity) / 1_000_000.0, 4)
+
+    _esmdx_cache.update(ESMDXDashboard(
+        order_books=order_books,
+        price_discovery=price_discovery,
+        trading_activity=trading_activity,
+        market_impacts=market_impacts,
+        seasonal_patterns=seasonal_patterns,
+        anomalies=anomalies,
+        summary={
+            "avg_bid_ask_spread_dolpermwh": avg_spread,
+            "avg_liquidity_score": avg_liq,
+            "anomalies_detected_ytd": anomalies_ytd,
+            "avg_price_discovery_efficiency_pct": avg_eff,
+            "total_traded_volume_twh": total_vol_twh,
+        },
+    ).model_dump())
+    return _esmdx_cache
+
+
+# ==============================================================================
+# Sprint 105b — Solar Farm Operations & Maintenance Analytics
+# Prefix: SFOA  |  Path: /api/solar-farm-operations/dashboard
+# ==============================================================================
+
+from typing import Optional
+
+class SFOAFarmRecord(BaseModel):
+    farm_id: str
+    farm_name: str
+    state: str
+    technology: str
+    capacity_mwp: float
+    num_panels: int
+    num_inverters: int
+    num_strings: int
+    commissioning_year: int
+    owner: str
+    o_and_m_provider: str
+    annual_generation_gwh: float
+    performance_ratio_pct: float
+    availability_pct: float
+    specific_yield_kwh_per_kwp: float
+    annual_om_cost_m: float
+    asset_condition: str
+
+class SFOAInverterRecord(BaseModel):
+    inverter_id: str
+    farm_id: str
+    inverter_name: str
+    inverter_type: str
+    manufacturer: str
+    capacity_kva: float
+    num_strings_connected: int
+    current_output_kw: float
+    efficiency_pct: float
+    temperature_c: float
+    alarm_active: bool
+    fault_code: Optional[str]
+    last_fault_date: Optional[str]
+    total_energy_kwh: float
+    uptime_pct: float
+    replacement_year: Optional[int]
+
+class SFOAStringRecord(BaseModel):
+    string_id: str
+    farm_id: str
+    inverter_id: str
+    string_number: int
+    num_panels: int
+    string_current_a: float
+    string_voltage_v: float
+    string_power_kw: float
+    expected_power_kw: float
+    performance_ratio_pct: float
+    shading_loss_pct: float
+    degradation_loss_pct: float
+    fault_active: bool
+    fault_type: str
+    last_inspected_date: str
+
+class SFOAMaintenanceRecord(BaseModel):
+    maint_id: str
+    farm_id: str
+    maintenance_type: str
+    scheduled_date: str
+    completed_date: Optional[str]
+    cost_aud: float
+    contractor: str
+    energy_lost_mwh: float
+    defects_found: int
+    defects_resolved: int
+    next_scheduled_date: str
+    priority: str
+
+class SFOAFaultEventRecord(BaseModel):
+    fault_id: str
+    farm_id: str
+    fault_date: str
+    fault_category: str
+    severity: str
+    capacity_affected_kw: float
+    energy_lost_mwh: float
+    detection_method: str
+    response_time_hours: float
+    resolution_time_hours: float
+    root_cause: str
+    repeat_fault: bool
+    revenue_impact_aud: float
+
+class SFOAPerformanceRecord(BaseModel):
+    perf_id: str
+    farm_id: str
+    year: int
+    month: int
+    gross_irradiation_kwh_m2: float
+    poa_irradiation_kwh_m2: float
+    generation_actual_mwh: float
+    generation_p50_mwh: float
+    generation_p90_mwh: float
+    performance_ratio_pct: float
+    availability_pct: float
+    capacity_factor_pct: float
+    curtailment_mwh: float
+    grid_outage_mwh: float
+    soiling_loss_mwh: float
+    inverter_loss_mwh: float
+    pr_deviation_from_p50_pct: float
+
+class SFOADashboard(BaseModel):
+    farms: list[SFOAFarmRecord]
+    inverters: list[SFOAInverterRecord]
+    strings: list[SFOAStringRecord]
+    maintenance: list[SFOAMaintenanceRecord]
+    fault_events: list[SFOAFaultEventRecord]
+    performance: list[SFOAPerformanceRecord]
+    summary: dict
+
+_sfoa_cache: dict = {}
+
+@app.get("/api/solar-farm-operations/dashboard")
+def get_sfoa_dashboard():
+    import random
+
+    if _sfoa_cache:
+        return _sfoa_cache
+
+    rng = random.Random(8521)
+
+    # ------------------------------------------------------------------
+    # Farm records — 10 farms across QLD/NSW/VIC/SA/WA
+    # ------------------------------------------------------------------
+    farm_data = [
+        ("FARM-001", "Darling Downs Solar Farm",      "QLD", "1-axis Tracking",    400.0, "Origin Energy",    "Beon Energy Solutions"),
+        ("FARM-002", "Wagga Wagga Solar Park",         "NSW", "Fixed Tilt Mono",    150.0, "AGL Energy",       "AGL O&M Services"),
+        ("FARM-003", "Sunraysia Solar Farm",           "VIC", "1-axis Tracking",    255.0, "Trina Solar",      "Raycatch Australia"),
+        ("FARM-004", "Tailem Bend Solar Project",      "SA",  "Fixed Tilt Poly",    212.0, "Lyon Infrastructure", "SunPower Services"),
+        ("FARM-005", "Merredin Solar Farm",            "WA",  "Bifacial",           130.0, "Synergy WA",       "Ventia Solar"),
+        ("FARM-006", "Western Downs Green Power Hub",  "QLD", "1-axis Tracking",    460.0, "InterContinental", "Beon Energy Solutions"),
+        ("FARM-007", "Griffith Solar Farm",            "NSW", "Fixed Tilt Mono",     52.0, "Energy Australia", "Programmed"),
+        ("FARM-008", "Limondale Solar Farm",           "NSW", "2-axis Tracking",    249.0, "Edify Energy",     "Edify O&M"),
+        ("FARM-009", "Lincoln Gap Wind & Solar",       "SA",  "Bifacial",            76.0, "Pacific Hydro",    "Pacific Hydro O&M"),
+        ("FARM-010", "Yandin Solar Project",           "WA",  "Fixed Tilt Mono",     98.0, "Neoen",            "ISS Facility Services"),
+    ]
+
+    technologies_capacity = {
+        "1-axis Tracking": (1830, 4, 240),
+        "Fixed Tilt Mono": (1580, 3, 180),
+        "Fixed Tilt Poly": (1500, 3, 170),
+        "2-axis Tracking": (1920, 5, 260),
+        "Bifacial":        (1750, 4, 210),
+    }
+    conditions = ["Excellent", "Good", "Fair", "Poor"]
+    condition_weights = [0.25, 0.45, 0.20, 0.10]
+
+    farms = []
+    for fid, fname, state, tech, cap, owner, omp in farm_data:
+        base_syield, n_inv_per_mw, n_str_per_inv = technologies_capacity[tech]
+        n_panels = int(cap * 1000 / 400)
+        n_inv = max(3, int(cap / 50))
+        n_str = n_inv * rng.randint(8, 20)
+        pr = round(rng.uniform(73.0, 84.0), 1)
+        avail = round(rng.uniform(95.0, 99.2), 1)
+        sy = round(base_syield * pr / 79.0 * rng.uniform(0.95, 1.05), 0)
+        annual_gen = round(cap * sy / 1_000.0, 2)
+        om_cost = round(cap * rng.uniform(0.010, 0.018), 3)
+        year = rng.randint(2017, 2022)
+        cond = rng.choices(conditions, weights=condition_weights)[0]
+        farms.append(SFOAFarmRecord(
+            farm_id=fid,
+            farm_name=fname,
+            state=state,
+            technology=tech,
+            capacity_mwp=cap,
+            num_panels=n_panels,
+            num_inverters=n_inv,
+            num_strings=n_str,
+            commissioning_year=year,
+            owner=owner,
+            o_and_m_provider=omp,
+            annual_generation_gwh=annual_gen,
+            performance_ratio_pct=pr,
+            availability_pct=avail,
+            specific_yield_kwh_per_kwp=sy,
+            annual_om_cost_m=om_cost,
+            asset_condition=cond,
+        ))
+
+    # ------------------------------------------------------------------
+    # Inverter records — 3 per farm = 30 inverters
+    # ------------------------------------------------------------------
+    inverter_types = ["String", "Central", "Micro", "Hybrid"]
+    manufacturers = ["SMA", "Fronius", "ABB", "Sungrow", "Huawei", "Goodwe", "FIMER"]
+    fault_codes_list = ["F001-OverTemp", "F002-GridFault", "F003-IslandDetect", "F004-DCOvervolt", "F005-ACOvercurr"]
+    fault_dates = ["2024-01-15", "2024-02-20", "2024-03-10", "2023-11-05", "2023-12-18", "2024-04-02"]
+
+    inverters = []
+    inv_idx = 1
+    for farm in farms:
+        for i in range(3):
+            itype = rng.choice(inverter_types)
+            mfr = rng.choice(manufacturers)
+            cap_kva = round(farm.capacity_mwp / 3 * 1000 / farm.num_inverters * 3 + rng.uniform(-50, 50), 0)
+            cap_kva = max(100.0, cap_kva)
+            n_str_conn = rng.randint(8, 24)
+            cur_out = round(cap_kva * rng.uniform(0.60, 0.95), 1)
+            eff = round(rng.uniform(96.0, 99.2), 1)
+            temp = round(rng.uniform(32.0, 68.0), 1)
+            alarm = rng.random() < 0.15
+            fcode = rng.choice(fault_codes_list) if alarm else None
+            fdate = rng.choice(fault_dates) if alarm else None
+            total_e = round(rng.uniform(500_000, 8_000_000), 0)
+            uptime = round(rng.uniform(93.0, 99.5), 1)
+            rep_year = rng.randint(2027, 2035) if rng.random() < 0.3 else None
+            inverters.append(SFOAInverterRecord(
+                inverter_id=f"INV-{inv_idx:03d}",
+                farm_id=farm.farm_id,
+                inverter_name=f"{farm.farm_id}-INV-{i+1:02d}",
+                inverter_type=itype,
+                manufacturer=mfr,
+                capacity_kva=cap_kva,
+                num_strings_connected=n_str_conn,
+                current_output_kw=cur_out,
+                efficiency_pct=eff,
+                temperature_c=temp,
+                alarm_active=alarm,
+                fault_code=fcode,
+                last_fault_date=fdate,
+                total_energy_kwh=total_e,
+                uptime_pct=uptime,
+                replacement_year=rep_year,
+            ))
+            inv_idx += 1
+
+    # ------------------------------------------------------------------
+    # String records — 10 strings × 4 farms = 40 strings
+    # ------------------------------------------------------------------
+    fault_types_list = ["Open Circuit", "Short Circuit", "Soiling", "Partial Shading", "Panel Degradation", "None"]
+    inspect_dates = ["2024-01-20", "2024-02-14", "2024-03-05", "2023-12-01", "2024-04-10"]
+
+    strings = []
+    str_idx = 1
+    sample_farms = farms[:4]
+    for farm in sample_farms:
+        farm_invs = [inv for inv in inverters if inv.farm_id == farm.farm_id]
+        for j in range(10):
+            inv = farm_invs[j % len(farm_invs)]
+            n_panels_str = rng.randint(20, 32)
+            s_curr = round(rng.uniform(7.5, 10.5), 2)
+            s_volt = round(rng.uniform(520.0, 780.0), 1)
+            s_pow = round(s_curr * s_volt / 1000.0, 2)
+            exp_pow = round(s_pow * rng.uniform(1.0, 1.15), 2)
+            pr_str = round(s_pow / exp_pow * 100.0, 1)
+            shading = round(rng.uniform(0.0, 6.0), 1)
+            degrad = round(rng.uniform(0.5, 3.5), 1)
+            fault_active = rng.random() < 0.12
+            ftype = rng.choice(fault_types_list[:-1]) if fault_active else "None"
+            idate = rng.choice(inspect_dates)
+            strings.append(SFOAStringRecord(
+                string_id=f"STR-{str_idx:03d}",
+                farm_id=farm.farm_id,
+                inverter_id=inv.inverter_id,
+                string_number=j + 1,
+                num_panels=n_panels_str,
+                string_current_a=s_curr,
+                string_voltage_v=s_volt,
+                string_power_kw=s_pow,
+                expected_power_kw=exp_pow,
+                performance_ratio_pct=pr_str,
+                shading_loss_pct=shading,
+                degradation_loss_pct=degrad,
+                fault_active=fault_active,
+                fault_type=ftype,
+                last_inspected_date=idate,
+            ))
+            str_idx += 1
+
+    # ------------------------------------------------------------------
+    # Maintenance records — 20 records
+    # ------------------------------------------------------------------
+    maint_types = [
+        "Inverter Service", "Panel Cleaning", "Vegetation Control",
+        "Thermographic Inspection", "IV Curve Testing", "Cable Inspection",
+        "SCADA Update", "Insurance Inspection",
+    ]
+    contractors = ["Beon Energy Solutions", "Ventia Solar", "Downer EDI", "ISS Facility", "Programmed", "SunPower Services"]
+    priorities = ["Routine", "Urgent", "Emergency"]
+    priority_weights = [0.65, 0.25, 0.10]
+
+    maintenance = []
+    for m in range(20):
+        fid = farms[m % len(farms)].farm_id
+        mtype = rng.choice(maint_types)
+        sched_y = rng.randint(2023, 2024)
+        sched_m = rng.randint(1, 12)
+        sched_d = rng.randint(1, 28)
+        sched_date = f"{sched_y}-{sched_m:02d}-{sched_d:02d}"
+        completed = None
+        if rng.random() < 0.75:
+            comp_d = sched_d + rng.randint(0, 7)
+            if comp_d > 28:
+                comp_d = 28
+            completed = f"{sched_y}-{sched_m:02d}-{comp_d:02d}"
+        cost = round(rng.uniform(8_000, 180_000), 0)
+        contractor = rng.choice(contractors)
+        e_lost = round(rng.uniform(0.0, 45.0), 1)
+        defects_f = rng.randint(0, 12)
+        defects_r = rng.randint(0, defects_f)
+        next_y = sched_y + 1
+        next_date = f"{next_y}-{sched_m:02d}-{sched_d:02d}"
+        priority = rng.choices(priorities, weights=priority_weights)[0]
+        maintenance.append(SFOAMaintenanceRecord(
+            maint_id=f"MAINT-{m+1:03d}",
+            farm_id=fid,
+            maintenance_type=mtype,
+            scheduled_date=sched_date,
+            completed_date=completed,
+            cost_aud=cost,
+            contractor=contractor,
+            energy_lost_mwh=e_lost,
+            defects_found=defects_f,
+            defects_resolved=defects_r,
+            next_scheduled_date=next_date,
+            priority=priority,
+        ))
+
+    # ------------------------------------------------------------------
+    # Fault event records — 25 events (2022-2024)
+    # ------------------------------------------------------------------
+    fault_categories = [
+        "Inverter", "String", "Panel", "Tracker", "SCADA",
+        "Grid Connection", "Weather", "Vegetation", "Bird Strike",
+    ]
+    severities = ["Minor", "Moderate", "Major", "Critical"]
+    severity_weights = [0.40, 0.35, 0.18, 0.07]
+    detection_methods = ["SCADA Alert", "Manual", "Remote Monitoring", "Drone"]
+    root_causes_list = [
+        "Overheating due to soiling", "Wiring insulation failure", "Lightning strike",
+        "Vegetation ingress", "IGBT failure", "Grid undervoltage event",
+        "Bird nesting on tracker", "Panel micro-crack propagation", "Sensor calibration drift",
+        "DC arc fault", "Connector corrosion", "Firmware bug in SCADA",
+    ]
+
+    fault_events = []
+    for f in range(25):
+        fid = farms[f % len(farms)].farm_id
+        year = rng.choice([2022, 2022, 2023, 2023, 2024])
+        month = rng.randint(1, 12)
+        day = rng.randint(1, 28)
+        fdate = f"{year}-{month:02d}-{day:02d}"
+        fcat = rng.choice(fault_categories)
+        sev = rng.choices(severities, weights=severity_weights)[0]
+        cap_aff = round(rng.uniform(50.0, 5000.0), 1)
+        e_lost = round(cap_aff * rng.uniform(0.5, 24.0) / 1000.0, 2)
+        det_method = rng.choice(detection_methods)
+        resp_hrs = round(rng.uniform(0.25, 12.0), 2)
+        res_hrs = round(resp_hrs + rng.uniform(1.0, 96.0), 2)
+        root = rng.choice(root_causes_list)
+        repeat = rng.random() < 0.20
+        rev_impact = round(e_lost * rng.uniform(60.0, 120.0), 0)
+        fault_events.append(SFOAFaultEventRecord(
+            fault_id=f"FLT-{f+1:03d}",
+            farm_id=fid,
+            fault_date=fdate,
+            fault_category=fcat,
+            severity=sev,
+            capacity_affected_kw=cap_aff,
+            energy_lost_mwh=e_lost,
+            detection_method=det_method,
+            response_time_hours=resp_hrs,
+            resolution_time_hours=res_hrs,
+            root_cause=root,
+            repeat_fault=repeat,
+            revenue_impact_aud=rev_impact,
+        ))
+
+    # ------------------------------------------------------------------
+    # Performance records — 5 farms × 8 months = 40 records
+    # ------------------------------------------------------------------
+    perf_months = [
+        (2024, 1), (2024, 2), (2024, 3), (2024, 4),
+        (2024, 5), (2024, 6), (2024, 7), (2024, 8),
+    ]
+    # Seasonal irradiation multipliers (Southern Hemisphere)
+    month_irr_mult = {1: 1.25, 2: 1.20, 3: 1.05, 4: 0.88, 5: 0.72, 6: 0.65, 7: 0.68, 8: 0.80}
+
+    performance = []
+    perf_idx = 1
+    for farm in farms[:5]:
+        for year, month in perf_months:
+            mult = month_irr_mult[month]
+            gross_irr = round(rng.uniform(150.0, 220.0) * mult, 1)
+            poa_irr = round(gross_irr * rng.uniform(0.90, 0.96), 1)
+            gen_p50 = round(farm.capacity_mwp * poa_irr / 1000.0 * farm.performance_ratio_pct / 100.0, 1)
+            gen_p90 = round(gen_p50 * rng.uniform(0.88, 0.95), 1)
+            gen_actual = round(gen_p50 * rng.uniform(0.92, 1.08), 1)
+            pr = round(gen_actual / (farm.capacity_mwp * poa_irr / 1000.0) * 100.0, 1) if poa_irr > 0 else farm.performance_ratio_pct
+            avail = round(rng.uniform(94.5, 99.5), 1)
+            days_in_month = 30 if month in [4, 6, 9, 11] else (28 if month == 2 else 31)
+            cf = round(gen_actual / (farm.capacity_mwp * 24.0 * days_in_month / 1000.0) * 100.0, 1)
+            curtail = round(rng.uniform(0.0, gen_actual * 0.05), 1)
+            grid_out = round(rng.uniform(0.0, gen_actual * 0.02), 1)
+            soil_loss = round(gen_actual * rng.uniform(0.005, 0.030), 1)
+            inv_loss = round(gen_actual * rng.uniform(0.003, 0.015), 1)
+            pr_dev = round((gen_actual - gen_p50) / max(gen_p50, 1.0) * 100.0, 1)
+            performance.append(SFOAPerformanceRecord(
+                perf_id=f"PERF-{perf_idx:03d}",
+                farm_id=farm.farm_id,
+                year=year,
+                month=month,
+                gross_irradiation_kwh_m2=gross_irr,
+                poa_irradiation_kwh_m2=poa_irr,
+                generation_actual_mwh=gen_actual,
+                generation_p50_mwh=gen_p50,
+                generation_p90_mwh=gen_p90,
+                performance_ratio_pct=pr,
+                availability_pct=avail,
+                capacity_factor_pct=cf,
+                curtailment_mwh=curtail,
+                grid_outage_mwh=grid_out,
+                soiling_loss_mwh=soil_loss,
+                inverter_loss_mwh=inv_loss,
+                pr_deviation_from_p50_pct=pr_dev,
+            ))
+            perf_idx += 1
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    total_cap = round(sum(f.capacity_mwp for f in farms), 1)
+    avg_pr = round(sum(f.performance_ratio_pct for f in farms) / len(farms), 1)
+    avg_avail = round(sum(f.availability_pct for f in farms) / len(farms), 1)
+    active_faults = sum(1 for inv in inverters if inv.alarm_active)
+    annual_gen_gwh = round(sum(f.annual_generation_gwh for f in farms), 2)
+
+    _sfoa_cache.update(SFOADashboard(
+        farms=farms,
+        inverters=inverters,
+        strings=strings,
+        maintenance=maintenance,
+        fault_events=fault_events,
+        performance=performance,
+        summary={
+            "total_capacity_mwp": total_cap,
+            "avg_performance_ratio_pct": avg_pr,
+            "avg_availability_pct": avg_avail,
+            "active_inverter_faults": active_faults,
+            "annual_generation_gwh": annual_gen_gwh,
+        },
+    ).model_dump())
+
+
+# ---------------------------------------------------------------------------
+# Sprint 105c — Distribution Network Planning Analytics (DNPA)
+# ---------------------------------------------------------------------------
+
+class DNPAFeederRecord(BaseModel):
+    feeder_id: str
+    feeder_name: str
+    dnsp: str
+    state: str
+    voltage_kv: float
+    peak_load_mw: float
+    thermal_capacity_mw: float
+    utilisation_pct: float
+    der_connected_mw: float
+    hosting_capacity_mw: float
+    hosting_capacity_used_pct: float
+    rooftop_solar_kw: float
+    battery_kw: float
+    ev_chargers: int
+    length_km: float
+    customers_connected: int
+    load_growth_pct_pa: float
+    upgrade_required: bool
+    upgrade_year: Optional[int]
+
+
+class DNPAHostingCapacityRecord(BaseModel):
+    hc_id: str
+    feeder_id: str
+    der_type: str
+    static_hc_kw: float
+    dynamic_hc_kw: float
+    hc_constraint: str
+    voltage_headroom_pu: float
+    thermal_headroom_mw: float
+    protection_limitation_mw: float
+    network_area: str
+    last_assessment_date: str
+    assessment_method: str
+
+
+class DNPAUpgradeRecord(BaseModel):
+    upgrade_id: str
+    feeder_id: str
+    upgrade_name: str
+    upgrade_type: str
+    capex_m: float
+    opex_annual_m: float
+    der_capacity_unlocked_mw: float
+    benefit_cost_ratio: float
+    approval_status: str
+    target_completion_year: int
+    regulatory_approval_required: bool
+
+
+class DNPALoadForecastRecord(BaseModel):
+    forecast_id: str
+    feeder_id: str
+    year: int
+    scenario: str
+    peak_load_forecast_mw: float
+    ev_load_mw: float
+    heat_pump_load_mw: float
+    traditional_load_mw: float
+    net_load_mw: float
+    flexibility_available_mw: float
+    network_augmentation_required: bool
+    investment_required_m: float
+
+
+class DNPAConstraintRecord(BaseModel):
+    constraint_id: str
+    feeder_id: str
+    constraint_type: str
+    severity: str
+    time_of_occurrence: str
+    frequency_per_year: int
+    duration_hours: float
+    affected_customers: int
+    der_curtailment_required_mw: float
+    remediation_cost_m: float
+    remediation_type: str
+
+
+class DNPADERIntegrationRecord(BaseModel):
+    der_id: str
+    feeder_id: str
+    der_category: str
+    capacity_kw: float
+    connection_year: int
+    export_limited: bool
+    export_limit_kw: float
+    smart_inverter: bool
+    dynamic_export_enabled: bool
+    network_service_eligible: bool
+    annual_network_benefit_aud: float
+    connection_cost_aud: float
+    approval_time_weeks: int
+
+
+class DNPADashboard(BaseModel):
+    feeders: List[DNPAFeederRecord]
+    hosting_capacity: List[DNPAHostingCapacityRecord]
+    upgrades: List[DNPAUpgradeRecord]
+    load_forecasts: List[DNPALoadForecastRecord]
+    constraints: List[DNPAConstraintRecord]
+    der_integrations: List[DNPADERIntegrationRecord]
+    summary: dict
+
+
+_dnpa_cache: dict = {}
+
+
+@app.get("/api/distribution-network-planning/dashboard")
+def get_dnpa_dashboard():
+    import random
+    if _dnpa_cache:
+        return _dnpa_cache
+
+    rng = random.Random(20240522)
+
+    dnsp_list = [
+        ("Ausgrid", "NSW"),
+        ("Endeavour Energy", "NSW"),
+        ("Essential Energy", "NSW"),
+        ("CitiPower", "VIC"),
+        ("Powercor", "VIC"),
+        ("United Energy", "VIC"),
+        ("SAPN", "SA"),
+        ("Western Power", "WA"),
+        ("Ergon Energy", "QLD"),
+        ("Energex", "QLD"),
+    ]
+    voltage_options = [11.0, 22.0, 33.0, 66.0]
+    feeder_names = [
+        "Bondi", "Manly", "Parramatta", "Blacktown", "Penrith",
+        "Doncaster", "Ringwood", "Frankston", "Sunshine", "Geelong",
+        "Norwood", "Glenelg", "Modbury", "Elizabeth", "Morphett Vale",
+        "Joondalup", "Fremantle", "Midland", "Rockingham", "Armadale",
+    ]
+
+    feeders: List[DNPAFeederRecord] = []
+    for i in range(20):
+        dnsp, state = dnsp_list[i % len(dnsp_list)]
+        thermal_cap = round(rng.uniform(5.0, 45.0), 1)
+        peak_load = round(thermal_cap * rng.uniform(0.45, 0.95), 1)
+        util_pct = round(peak_load / thermal_cap * 100.0, 1)
+        der_mw = round(rng.uniform(0.5, thermal_cap * 0.6), 1)
+        hc_mw = round(max(0.1, thermal_cap - der_mw - peak_load * 0.3) * rng.uniform(0.7, 1.2), 2)
+        hc_used_pct = round(min(99.9, der_mw / max(hc_mw, 0.1) * 100.0 * rng.uniform(0.5, 1.1)), 1)
+        upgrade_req = util_pct > 80.0 or hc_used_pct > 85.0
+        feeders.append(DNPAFeederRecord(
+            feeder_id=f"FDR-{i+1:03d}",
+            feeder_name=f"{feeder_names[i]} {voltage_options[i % 4]:.0f}kV",
+            dnsp=dnsp,
+            state=state,
+            voltage_kv=voltage_options[i % 4],
+            peak_load_mw=peak_load,
+            thermal_capacity_mw=thermal_cap,
+            utilisation_pct=util_pct,
+            der_connected_mw=der_mw,
+            hosting_capacity_mw=hc_mw,
+            hosting_capacity_used_pct=hc_used_pct,
+            rooftop_solar_kw=round(rng.uniform(200.0, 8000.0), 0),
+            battery_kw=round(rng.uniform(0.0, 3000.0), 0),
+            ev_chargers=rng.randint(2, 180),
+            length_km=round(rng.uniform(2.0, 65.0), 1),
+            customers_connected=rng.randint(400, 18000),
+            load_growth_pct_pa=round(rng.uniform(-0.5, 4.5), 2),
+            upgrade_required=upgrade_req,
+            upgrade_year=rng.randint(2025, 2030) if upgrade_req else None,
+        ))
+
+    der_types = ["Solar PV", "Battery", "EV Charger", "Wind Small", "Fuel Cell"]
+    hc_constraints = ["Thermal", "Voltage", "Protection", "Fault Level"]
+    assessment_methods = ["Static", "Quasi-Static", "Dynamic", "Probabilistic"]
+    areas = ["Urban", "Suburban", "Rural", "Peri-Urban", "Industrial", "CBD"]
+
+    hosting_capacity: List[DNPAHostingCapacityRecord] = []
+    hc_idx = 1
+    for feeder in feeders[:20]:
+        n_hc = rng.randint(1, 3)
+        chosen_der = rng.sample(der_types, n_hc)
+        for dt in chosen_der:
+            static_hc = round(rng.uniform(50.0, feeder.hosting_capacity_mw * 1000.0 * 0.9), 1)
+            hosting_capacity.append(DNPAHostingCapacityRecord(
+                hc_id=f"HC-{hc_idx:03d}",
+                feeder_id=feeder.feeder_id,
+                der_type=dt,
+                static_hc_kw=static_hc,
+                dynamic_hc_kw=round(static_hc * rng.uniform(1.05, 1.55), 1),
+                hc_constraint=rng.choice(hc_constraints),
+                voltage_headroom_pu=round(rng.uniform(0.01, 0.06), 4),
+                thermal_headroom_mw=round(rng.uniform(0.1, feeder.thermal_capacity_mw * 0.4), 2),
+                protection_limitation_mw=round(rng.uniform(0.5, feeder.thermal_capacity_mw * 0.5), 2),
+                network_area=rng.choice(areas),
+                last_assessment_date=f"202{rng.randint(2,5)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+                assessment_method=rng.choice(assessment_methods),
+            ))
+            hc_idx += 1
+
+    # ensure >= 30 records
+    while len(hosting_capacity) < 30:
+        feeder = rng.choice(feeders)
+        dt = rng.choice(der_types)
+        static_hc = round(rng.uniform(50.0, 2500.0), 1)
+        hosting_capacity.append(DNPAHostingCapacityRecord(
+            hc_id=f"HC-{hc_idx:03d}",
+            feeder_id=feeder.feeder_id,
+            der_type=dt,
+            static_hc_kw=static_hc,
+            dynamic_hc_kw=round(static_hc * rng.uniform(1.05, 1.55), 1),
+            hc_constraint=rng.choice(hc_constraints),
+            voltage_headroom_pu=round(rng.uniform(0.01, 0.06), 4),
+            thermal_headroom_mw=round(rng.uniform(0.1, 5.0), 2),
+            protection_limitation_mw=round(rng.uniform(0.5, 8.0), 2),
+            network_area=rng.choice(areas),
+            last_assessment_date=f"202{rng.randint(2,5)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            assessment_method=rng.choice(assessment_methods),
+        ))
+        hc_idx += 1
+
+    upgrade_types = [
+        "Conductor Replacement", "Transformer Upgrade", "New Substation",
+        "Protection Upgrade", "STATCOM", "Automated Switching",
+        "Smart Inverter Program", "Dynamic Export",
+    ]
+    approval_statuses = ["Proposed", "Approved", "In Progress", "Completed"]
+    upgrade_names = [
+        "Zone Sub Augmentation", "HV Conductor Upgrade", "DER Integration Package",
+        "Smart Inverter Rollout", "New Zone Substation", "STATCOM Installation",
+        "Dynamic Export Trial", "Protection Upgrade Stage 1", "Automated SCADA Switching",
+        "Transformer Replacement", "LV Reinforcement Package", "Feeder Splitting Project",
+        "Voltage Regulator Install", "EV Charging Network Upgrade", "Battery Hosting Expansion",
+    ]
+
+    upgrades: List[DNPAUpgradeRecord] = []
+    for i in range(15):
+        feeder = feeders[i % len(feeders)]
+        capex = round(rng.uniform(0.5, 35.0), 2)
+        unlocked = round(rng.uniform(0.5, 15.0), 2)
+        upgrades.append(DNPAUpgradeRecord(
+            upgrade_id=f"UPG-{i+1:03d}",
+            feeder_id=feeder.feeder_id,
+            upgrade_name=upgrade_names[i],
+            upgrade_type=rng.choice(upgrade_types),
+            capex_m=capex,
+            opex_annual_m=round(capex * rng.uniform(0.01, 0.04), 3),
+            der_capacity_unlocked_mw=unlocked,
+            benefit_cost_ratio=round(rng.uniform(0.8, 4.5), 2),
+            approval_status=rng.choice(approval_statuses),
+            target_completion_year=rng.randint(2025, 2030),
+            regulatory_approval_required=rng.random() > 0.45,
+        ))
+
+    scenarios = ["Base", "High EV", "High Solar", "High DER", "Business as Usual",
+                 "High EV + Solar", "Policy Accelerated", "Conservative"]
+    forecast_feeder_ids = [f.feeder_id for f in feeders[:5]]
+
+    load_forecasts: List[DNPALoadForecastRecord] = []
+    fc_idx = 1
+    for fid in forecast_feeder_ids:
+        feeder_obj = next(f for f in feeders if f.feeder_id == fid)
+        for yr_offset, scenario in enumerate(scenarios):
+            year = 2024 + (yr_offset % 7)
+            trad_load = round(feeder_obj.peak_load_mw * rng.uniform(0.85, 1.15), 2)
+            ev_load = round(rng.uniform(0.0, feeder_obj.peak_load_mw * 0.35), 2)
+            hp_load = round(rng.uniform(0.0, feeder_obj.peak_load_mw * 0.15), 2)
+            solar_offset = round(rng.uniform(0.0, feeder_obj.der_connected_mw * 0.5), 2)
+            peak_forecast = round(trad_load + ev_load + hp_load, 2)
+            net_load = round(peak_forecast - solar_offset, 2)
+            flex_avail = round(rng.uniform(0.0, ev_load + hp_load), 2)
+            aug_req = net_load > feeder_obj.thermal_capacity_mw * 0.88
+            load_forecasts.append(DNPALoadForecastRecord(
+                forecast_id=f"FC-{fc_idx:03d}",
+                feeder_id=fid,
+                year=year,
+                scenario=scenario,
+                peak_load_forecast_mw=peak_forecast,
+                ev_load_mw=ev_load,
+                heat_pump_load_mw=hp_load,
+                traditional_load_mw=trad_load,
+                net_load_mw=net_load,
+                flexibility_available_mw=flex_avail,
+                network_augmentation_required=aug_req,
+                investment_required_m=round(rng.uniform(0.0, 8.0) if aug_req else 0.0, 2),
+            ))
+            fc_idx += 1
+
+    # ensure >= 40 records
+    while len(load_forecasts) < 40:
+        feeder_obj = rng.choice(feeders)
+        yr = rng.randint(2024, 2030)
+        scenario = rng.choice(scenarios)
+        trad_load = round(feeder_obj.peak_load_mw * rng.uniform(0.85, 1.15), 2)
+        ev_load = round(rng.uniform(0.0, feeder_obj.peak_load_mw * 0.35), 2)
+        hp_load = round(rng.uniform(0.0, feeder_obj.peak_load_mw * 0.15), 2)
+        solar_offset = round(rng.uniform(0.0, feeder_obj.der_connected_mw * 0.5), 2)
+        peak_forecast = round(trad_load + ev_load + hp_load, 2)
+        net_load = round(peak_forecast - solar_offset, 2)
+        flex_avail = round(rng.uniform(0.0, ev_load + hp_load), 2)
+        aug_req = net_load > feeder_obj.thermal_capacity_mw * 0.88
+        load_forecasts.append(DNPALoadForecastRecord(
+            forecast_id=f"FC-{fc_idx:03d}",
+            feeder_id=feeder_obj.feeder_id,
+            year=yr,
+            scenario=scenario,
+            peak_load_forecast_mw=peak_forecast,
+            ev_load_mw=ev_load,
+            heat_pump_load_mw=hp_load,
+            traditional_load_mw=trad_load,
+            net_load_mw=net_load,
+            flexibility_available_mw=flex_avail,
+            network_augmentation_required=aug_req,
+            investment_required_m=round(rng.uniform(0.0, 8.0) if aug_req else 0.0, 2),
+        ))
+        fc_idx += 1
+
+    constraint_types = [
+        "Voltage Rise", "Voltage Drop", "Thermal Overload",
+        "Protection Sensitivity", "Power Quality", "Fault Level",
+    ]
+    severities = ["Low", "Medium", "High", "Critical"]
+    times_of_occurrence = ["Peak Load", "Solar Noon", "Evening Ramp", "Random"]
+    remediation_types = [
+        "Conductor Upgrade", "Transformer Tap Change", "Voltage Regulator",
+        "Smart Inverter Control", "STATCOM", "Protection Relay Upgrade",
+        "Feeder Reconfiguration", "New Substation Feeder",
+    ]
+
+    constraints: List[DNPAConstraintRecord] = []
+    for i in range(20):
+        feeder = feeders[i % len(feeders)]
+        rem_cost = round(rng.uniform(0.05, 5.0), 3)
+        constraints.append(DNPAConstraintRecord(
+            constraint_id=f"CON-{i+1:03d}",
+            feeder_id=feeder.feeder_id,
+            constraint_type=rng.choice(constraint_types),
+            severity=rng.choice(severities),
+            time_of_occurrence=rng.choice(times_of_occurrence),
+            frequency_per_year=rng.randint(1, 180),
+            duration_hours=round(rng.uniform(0.1, 8.0), 2),
+            affected_customers=rng.randint(20, 5000),
+            der_curtailment_required_mw=round(rng.uniform(0.0, 3.5), 2),
+            remediation_cost_m=rem_cost,
+            remediation_type=rng.choice(remediation_types),
+        ))
+
+    der_categories = [
+        "Rooftop Solar", "Community Battery", "EV Fleet",
+        "Large Solar", "BESS Commercial", "Fuel Cell", "Micro-CHP",
+    ]
+
+    der_integrations: List[DNPADERIntegrationRecord] = []
+    for i in range(25):
+        feeder = feeders[i % len(feeders)]
+        cap_kw = round(rng.uniform(5.0, 2500.0), 1)
+        export_lim = rng.random() > 0.45
+        export_limit_kw = round(cap_kw * rng.uniform(0.3, 0.85), 1) if export_lim else cap_kw
+        smart_inv = rng.random() > 0.35
+        dyn_export = smart_inv and rng.random() > 0.5
+        ns_eligible = smart_inv and rng.random() > 0.4
+        der_integrations.append(DNPADERIntegrationRecord(
+            der_id=f"DER-{i+1:03d}",
+            feeder_id=feeder.feeder_id,
+            der_category=rng.choice(der_categories),
+            capacity_kw=cap_kw,
+            connection_year=rng.randint(2019, 2025),
+            export_limited=export_lim,
+            export_limit_kw=export_limit_kw,
+            smart_inverter=smart_inv,
+            dynamic_export_enabled=dyn_export,
+            network_service_eligible=ns_eligible,
+            annual_network_benefit_aud=round(rng.uniform(0.0, 85000.0), 2),
+            connection_cost_aud=round(rng.uniform(1500.0, 75000.0), 2),
+            approval_time_weeks=rng.randint(2, 52),
+        ))
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    total_feeders = len(feeders)
+    avg_hc_used = round(sum(f.hosting_capacity_used_pct for f in feeders) / total_feeders, 1)
+    total_upgrade_inv = round(sum(u.capex_m for u in upgrades), 2)
+    constrained_count = sum(1 for f in feeders if f.upgrade_required)
+    total_der_connected = round(sum(f.der_connected_mw for f in feeders), 2)
+
+    _dnpa_cache.update(DNPADashboard(
+        feeders=feeders,
+        hosting_capacity=hosting_capacity,
+        upgrades=upgrades,
+        load_forecasts=load_forecasts,
+        constraints=constraints,
+        der_integrations=der_integrations,
+        summary={
+            "total_feeders": total_feeders,
+            "avg_hosting_capacity_used_pct": avg_hc_used,
+            "total_upgrade_investment_m": total_upgrade_inv,
+            "constrained_feeders_count": constrained_count,
+            "total_der_connected_mw": total_der_connected,
+        },
+    ).model_dump())
+
+    return _dnpa_cache
+
+    return _sfoa_cache

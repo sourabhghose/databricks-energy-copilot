@@ -18438,3 +18438,358 @@ export interface ERMDDashboard {
 
 export const getRetailMarketDesignDashboard = (): Promise<ERMDDashboard> =>
   get<ERMDDashboard>('/api/retail-market-design/dashboard')
+
+// ============================================================
+// Sprint 105a — Electricity Spot Market Depth & Price Discovery
+// Prefix: ESMDX  |  Endpoint: /api/spot-market-depth-x/dashboard
+// ============================================================
+
+export interface ESMDXOrderBookRecord {
+  book_id: string
+  region: string
+  snapshot_date: string
+  hour: number
+  bid_volume_mw_10pct: number
+  bid_volume_mw_total: number
+  offer_volume_mw_10pct: number
+  offer_volume_mw_total: number
+  bid_ask_spread_dolpermwh: number
+  market_depth_mw_within_5pct: number
+  mid_price_dolpermwh: number
+  bid_price_95pct: number
+  offer_price_5pct: number
+  volume_weighted_mid_price: number
+  liquidity_score: number
+}
+
+export interface ESMDXPriceDiscoveryRecord {
+  discovery_id: string
+  region: string
+  date: string
+  hour: number
+  pre_dispatch_price: number
+  dispatch_price: number
+  price_revision_pct: number
+  discovery_efficiency_pct: number
+  informed_trading_pct: number
+  noise_trading_pct: number
+  price_impact_per_mw: number
+  market_depth_mw: number
+  contribution_of_rebids_pct: number
+  information_asymmetry_index: number
+}
+
+export interface ESMDXTradingActivityRecord {
+  activity_id: string
+  region: string
+  date: string
+  hour: number
+  total_traded_volume_mwh: number
+  num_dispatch_intervals: number
+  avg_interval_price: number
+  max_interval_price: number
+  min_interval_price: number
+  price_std_dev: number
+  high_price_intervals: number
+  zero_price_intervals: number
+  negative_price_intervals: number
+  largest_single_bid_mw: number
+  market_concentration_index: number
+}
+
+export interface ESMDXMarketImpactRecord {
+  impact_id: string
+  participant_name: string
+  region: string
+  period: string
+  avg_bid_volume_mw: number
+  market_share_dispatched_pct: number
+  price_impact_dolpermwh_per_100mw: number
+  strategic_trading_indicator: number
+  rebid_frequency_per_interval: number
+  price_setter_hours_pct: number
+  market_impact_cost_m_pa: number
+  regulatoryaction_flag: boolean
+}
+
+export interface ESMDXSeasonalPatternRecord {
+  pattern_id: string
+  region: string
+  month: number
+  hour_of_day: number
+  avg_price_dolpermwh: number
+  avg_volume_mwh: number
+  price_volatility_pct: number
+  liquidity_score: number
+  high_price_probability_pct: number
+  negative_price_probability_pct: number
+  renewable_share_pct: number
+  peak_demand_flag: boolean
+}
+
+export interface ESMDXAnomalyRecord {
+  anomaly_id: string
+  region: string
+  detected_date: string
+  hour: number
+  anomaly_type: string
+  detected_price_dolpermwh: number
+  expected_price_dolpermwh: number
+  deviation_pct: number
+  volume_deviation_pct: number
+  suspected_cause: string
+  market_impact_m: number
+  referred_to_aer: boolean
+}
+
+export interface ESMDXDashboard {
+  order_books: ESMDXOrderBookRecord[]
+  price_discovery: ESMDXPriceDiscoveryRecord[]
+  trading_activity: ESMDXTradingActivityRecord[]
+  market_impacts: ESMDXMarketImpactRecord[]
+  seasonal_patterns: ESMDXSeasonalPatternRecord[]
+  anomalies: ESMDXAnomalyRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getSpotMarketDepthXDashboard = (): Promise<ESMDXDashboard> =>
+  get<ESMDXDashboard>('/api/spot-market-depth-x/dashboard')
+
+// ============================================================
+// Sprint 105b — Solar Farm Operations & Maintenance Analytics
+// Prefix: SFOA  |  Path: /solar-farm-operations
+// ============================================================
+
+export interface SFOAFarmRecord {
+  farm_id: string
+  farm_name: string
+  state: string
+  technology: string
+  capacity_mwp: number
+  num_panels: number
+  num_inverters: number
+  num_strings: number
+  commissioning_year: number
+  owner: string
+  o_and_m_provider: string
+  annual_generation_gwh: number
+  performance_ratio_pct: number
+  availability_pct: number
+  specific_yield_kwh_per_kwp: number
+  annual_om_cost_m: number
+  asset_condition: string
+}
+
+export interface SFOAInverterRecord {
+  inverter_id: string
+  farm_id: string
+  inverter_name: string
+  inverter_type: string
+  manufacturer: string
+  capacity_kva: number
+  num_strings_connected: number
+  current_output_kw: number
+  efficiency_pct: number
+  temperature_c: number
+  alarm_active: boolean
+  fault_code: string | null
+  last_fault_date: string | null
+  total_energy_kwh: number
+  uptime_pct: number
+  replacement_year: number | null
+}
+
+export interface SFOAStringRecord {
+  string_id: string
+  farm_id: string
+  inverter_id: string
+  string_number: number
+  num_panels: number
+  string_current_a: number
+  string_voltage_v: number
+  string_power_kw: number
+  expected_power_kw: number
+  performance_ratio_pct: number
+  shading_loss_pct: number
+  degradation_loss_pct: number
+  fault_active: boolean
+  fault_type: string
+  last_inspected_date: string
+}
+
+export interface SFOAMaintenanceRecord {
+  maint_id: string
+  farm_id: string
+  maintenance_type: string
+  scheduled_date: string
+  completed_date: string | null
+  cost_aud: number
+  contractor: string
+  energy_lost_mwh: number
+  defects_found: number
+  defects_resolved: number
+  next_scheduled_date: string
+  priority: string
+}
+
+export interface SFOAFaultEventRecord {
+  fault_id: string
+  farm_id: string
+  fault_date: string
+  fault_category: string
+  severity: string
+  capacity_affected_kw: number
+  energy_lost_mwh: number
+  detection_method: string
+  response_time_hours: number
+  resolution_time_hours: number
+  root_cause: string
+  repeat_fault: boolean
+  revenue_impact_aud: number
+}
+
+export interface SFOAPerformanceRecord {
+  perf_id: string
+  farm_id: string
+  year: number
+  month: number
+  gross_irradiation_kwh_m2: number
+  poa_irradiation_kwh_m2: number
+  generation_actual_mwh: number
+  generation_p50_mwh: number
+  generation_p90_mwh: number
+  performance_ratio_pct: number
+  availability_pct: number
+  capacity_factor_pct: number
+  curtailment_mwh: number
+  grid_outage_mwh: number
+  soiling_loss_mwh: number
+  inverter_loss_mwh: number
+  pr_deviation_from_p50_pct: number
+}
+
+export interface SFOADashboard {
+  farms: SFOAFarmRecord[]
+  inverters: SFOAInverterRecord[]
+  strings: SFOAStringRecord[]
+  maintenance: SFOAMaintenanceRecord[]
+  fault_events: SFOAFaultEventRecord[]
+  performance: SFOAPerformanceRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getSolarFarmOperationsDashboard = (): Promise<SFOADashboard> =>
+  get<SFOADashboard>('/api/solar-farm-operations/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 105c — Distribution Network Planning Analytics (DNPA)
+// ---------------------------------------------------------------------------
+
+export interface DNPAFeederRecord {
+  feeder_id: string
+  feeder_name: string
+  dnsp: string
+  state: string
+  voltage_kv: number
+  peak_load_mw: number
+  thermal_capacity_mw: number
+  utilisation_pct: number
+  der_connected_mw: number
+  hosting_capacity_mw: number
+  hosting_capacity_used_pct: number
+  rooftop_solar_kw: number
+  battery_kw: number
+  ev_chargers: number
+  length_km: number
+  customers_connected: number
+  load_growth_pct_pa: number
+  upgrade_required: boolean
+  upgrade_year: number | null
+}
+
+export interface DNPAHostingCapacityRecord {
+  hc_id: string
+  feeder_id: string
+  der_type: string
+  static_hc_kw: number
+  dynamic_hc_kw: number
+  hc_constraint: string
+  voltage_headroom_pu: number
+  thermal_headroom_mw: number
+  protection_limitation_mw: number
+  network_area: string
+  last_assessment_date: string
+  assessment_method: string
+}
+
+export interface DNPAUpgradeRecord {
+  upgrade_id: string
+  feeder_id: string
+  upgrade_name: string
+  upgrade_type: string
+  capex_m: number
+  opex_annual_m: number
+  der_capacity_unlocked_mw: number
+  benefit_cost_ratio: number
+  approval_status: string
+  target_completion_year: number
+  regulatory_approval_required: boolean
+}
+
+export interface DNPALoadForecastRecord {
+  forecast_id: string
+  feeder_id: string
+  year: number
+  scenario: string
+  peak_load_forecast_mw: number
+  ev_load_mw: number
+  heat_pump_load_mw: number
+  traditional_load_mw: number
+  net_load_mw: number
+  flexibility_available_mw: number
+  network_augmentation_required: boolean
+  investment_required_m: number
+}
+
+export interface DNPAConstraintRecord {
+  constraint_id: string
+  feeder_id: string
+  constraint_type: string
+  severity: string
+  time_of_occurrence: string
+  frequency_per_year: number
+  duration_hours: number
+  affected_customers: number
+  der_curtailment_required_mw: number
+  remediation_cost_m: number
+  remediation_type: string
+}
+
+export interface DNPADERIntegrationRecord {
+  der_id: string
+  feeder_id: string
+  der_category: string
+  capacity_kw: number
+  connection_year: number
+  export_limited: boolean
+  export_limit_kw: number
+  smart_inverter: boolean
+  dynamic_export_enabled: boolean
+  network_service_eligible: boolean
+  annual_network_benefit_aud: number
+  connection_cost_aud: number
+  approval_time_weeks: number
+}
+
+export interface DNPADashboard {
+  feeders: DNPAFeederRecord[]
+  hosting_capacity: DNPAHostingCapacityRecord[]
+  upgrades: DNPAUpgradeRecord[]
+  load_forecasts: DNPALoadForecastRecord[]
+  constraints: DNPAConstraintRecord[]
+  der_integrations: DNPADERIntegrationRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getDistributionNetworkPlanningDashboard = (): Promise<DNPADashboard> =>
+  get<DNPADashboard>('/api/distribution-network-planning/dashboard')
