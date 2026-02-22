@@ -72952,3 +72952,1147 @@ def get_biomass_bioenergy_dashboard() -> BIOEDashboard:
         },
     ).model_dump())
     return _bioe_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 102a — Electricity Frequency Performance Analytics (EFPA)
+# ---------------------------------------------------------------------------
+
+class EFPAFrequencyRecord(BaseModel):
+    freq_id: str
+    region: str
+    measurement_date: str
+    hour: int
+    avg_frequency_hz: float
+    min_frequency_hz: float
+    max_frequency_hz: float
+    std_deviation_hz: float
+    time_in_normal_band_pct: float      # 49.85-50.15 Hz
+    time_in_operational_band_pct: float  # 49.5-50.5 Hz
+    time_outside_operational_pct: float
+    rocof_max_hz_per_s: float
+    nb_exceedances_below_49_5: int
+    nb_exceedances_above_50_5: int
+
+
+class EFPAEventRecord(BaseModel):
+    event_id: str
+    event_date: str
+    event_type: str   # Under-frequency, Over-frequency, ROCOF Exceedance, Separation Event, Near-miss, LOR3 Frequency
+    region: str
+    trigger_frequency_hz: float
+    nadir_hz: float
+    initial_rocof_hz_per_s: float
+    recovery_time_seconds: float
+    inertia_at_time_mws: float
+    ibr_penetration_pct: float
+    causal_plant: str
+    causal_event: str
+    ufls_triggered: bool
+    market_impact_m: float
+
+
+class EFPAStandardRecord(BaseModel):
+    standard_id: str
+    standard_name: str
+    standard_category: str  # Normal Operating, Credible Contingency, Non-Credible, Separation
+    parameter: str
+    target_value: float
+    unit: str
+    current_performance: float
+    compliance: bool
+    performance_trend: str   # Improving, Stable, Deteriorating
+    last_breach_date: str
+    breach_count_ytd: int
+
+
+class EFPAInertiaRecord(BaseModel):
+    inertia_id: str
+    region: str
+    date: str
+    hour: int
+    synchronous_inertia_mws: float
+    ibr_virtual_inertia_mws: float
+    total_inertia_mws: float
+    ms_threshold_mws: float   # minimum system inertia
+    synchronous_units_online: int
+    min_inertia_threshold_met: bool
+    projected_inertia_trend: str
+    shortfall_mws: float
+
+
+class EFPAFCASPerformanceRecord(BaseModel):
+    fcas_id: str
+    region: str
+    date: str
+    service_type: str  # Reg Raise, Reg Lower, 1s Raise, 1s Lower, 6s Raise, 6s Lower, 60s Raise, 60s Lower
+    enabled_mw: float
+    activated_mw: float
+    response_time_ms: float
+    performance_factor: float
+    cost_m: float
+    volume_weighted_price: float
+    contribution_to_frequency_recovery_pct: float
+
+
+class EFPAComplianceRecord(BaseModel):
+    compliance_id: str
+    entity_name: str
+    entity_type: str          # Generator, Network, Load
+    compliance_category: str  # Frequency Response, Inertia Provision, FCAS Enablement, Connection Standard
+    period: str
+    compliant: bool
+    deviation_hz: float
+    corrective_action: str
+    regulatory_action_taken: bool
+    financial_penalty_m: float
+
+
+class EFPADashboard(BaseModel):
+    frequency_records: List[EFPAFrequencyRecord]
+    events: List[EFPAEventRecord]
+    standards: List[EFPAStandardRecord]
+    inertia_records: List[EFPAInertiaRecord]
+    fcas_performance: List[EFPAFCASPerformanceRecord]
+    compliance: List[EFPAComplianceRecord]
+    summary: dict
+
+
+_efpa_cache: dict = {}
+
+
+@app.get("/api/electricity-frequency-performance/dashboard")
+def get_efpa_dashboard():
+    import random
+    if _efpa_cache:
+        return _efpa_cache
+
+    rng = random.Random(20240101)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+
+    # ------------------------------------------------------------------
+    # 40 Frequency Records (5 regions × 8 time periods)
+    # ------------------------------------------------------------------
+    time_periods = [
+        ("2024-01-15", 6), ("2024-01-15", 12), ("2024-04-10", 8), ("2024-04-10", 18),
+        ("2024-07-22", 10), ("2024-07-22", 20), ("2024-10-05", 7), ("2024-10-05", 15),
+    ]
+    frequency_records: List[EFPAFrequencyRecord] = []
+    for idx, region in enumerate(regions):
+        for tp_idx, (date, hour) in enumerate(time_periods):
+            rec_id = f"EFPA-FR-{idx+1:02d}{tp_idx+1:02d}"
+            avg_hz = rng.uniform(49.91, 50.09)
+            min_hz = avg_hz - rng.uniform(0.05, 0.45)
+            max_hz = avg_hz + rng.uniform(0.05, 0.45)
+            std_dev = rng.uniform(0.01, 0.08)
+            normal_band = rng.uniform(85.0, 99.5)
+            operational_band = min(normal_band + rng.uniform(0.3, 10.0), 99.99)
+            outside_pct = max(0.0, round(100.0 - operational_band, 4))
+            rocof = rng.uniform(0.01, 0.95)
+            excl_below = rng.randint(0, 8) if min_hz < 49.5 else 0
+            excl_above = rng.randint(0, 5) if max_hz > 50.5 else 0
+            frequency_records.append(EFPAFrequencyRecord(
+                freq_id=rec_id,
+                region=region,
+                measurement_date=date,
+                hour=hour,
+                avg_frequency_hz=round(avg_hz, 4),
+                min_frequency_hz=round(min_hz, 4),
+                max_frequency_hz=round(max_hz, 4),
+                std_deviation_hz=round(std_dev, 4),
+                time_in_normal_band_pct=round(normal_band, 2),
+                time_in_operational_band_pct=round(operational_band, 2),
+                time_outside_operational_pct=outside_pct,
+                rocof_max_hz_per_s=round(rocof, 4),
+                nb_exceedances_below_49_5=excl_below,
+                nb_exceedances_above_50_5=excl_above,
+            ))
+
+    # ------------------------------------------------------------------
+    # 20 Event Records (2022-2024, varied severity)
+    # ------------------------------------------------------------------
+    event_types = ["Under-frequency", "Over-frequency", "ROCOF Exceedance",
+                   "Separation Event", "Near-miss", "LOR3 Frequency"]
+    causal_plants = ["Liddell PS", "Hazelwood PS", "Eraring PS", "Callide C",
+                     "Yallourn W", "Torrens Island A", "Basslink HVDC",
+                     "Bayswater PS", "Gladstone PS", "Pelican Pt PS"]
+    causal_events_list = [
+        "Unit trip", "Network fault", "Lightning strike", "HVDC block",
+        "Protection relay operation", "Load rejection", "Generator runback",
+        "Transformer fault", "Bushfire induced fault", "Islanding event",
+    ]
+    event_dates = [
+        "2022-02-14", "2022-05-03", "2022-08-21", "2022-11-09",
+        "2023-01-17", "2023-03-28", "2023-06-12", "2023-09-05",
+        "2023-11-24", "2023-12-30",
+        "2024-01-08", "2024-02-20", "2024-04-14", "2024-05-31",
+        "2024-07-03", "2024-08-17", "2024-09-11", "2024-10-26",
+        "2024-11-08", "2024-12-15",
+    ]
+    events: List[EFPAEventRecord] = []
+    for i, ev_date in enumerate(event_dates):
+        ev_type = rng.choice(event_types)
+        region = rng.choice(regions)
+        trigger = round(rng.uniform(48.5, 51.5), 3)
+        nadir = trigger - rng.uniform(0.0, 0.8) if "Under" in ev_type else trigger
+        rocof_ev = round(rng.uniform(0.05, 2.5), 3)
+        recovery = round(rng.uniform(5.0, 180.0), 1)
+        inertia = round(rng.uniform(5000, 22000), 0)
+        ibr_pct = round(rng.uniform(20, 75), 1)
+        ufls = rng.random() < 0.25
+        mkt_impact = round(rng.uniform(0.5, 85.0), 2)
+        events.append(EFPAEventRecord(
+            event_id=f"EFPA-EV-{i+1:03d}",
+            event_date=ev_date,
+            event_type=ev_type,
+            region=region,
+            trigger_frequency_hz=trigger,
+            nadir_hz=round(nadir, 3),
+            initial_rocof_hz_per_s=rocof_ev,
+            recovery_time_seconds=recovery,
+            inertia_at_time_mws=inertia,
+            ibr_penetration_pct=ibr_pct,
+            causal_plant=rng.choice(causal_plants),
+            causal_event=rng.choice(causal_events_list),
+            ufls_triggered=ufls,
+            market_impact_m=mkt_impact,
+        ))
+
+    # ------------------------------------------------------------------
+    # 10 Standard Records (key NEM frequency standards)
+    # ------------------------------------------------------------------
+    standards_raw = [
+        ("EFPA-STD-001", "NEM Normal Operating Frequency Band", "Normal Operating",
+         "Frequency deviation from 50 Hz", 99.0, "% time in 49.85-50.15 Hz", 97.4, False, "Deteriorating", "2024-07-03", 3),
+        ("EFPA-STD-002", "NEM Operational Frequency Tolerance", "Normal Operating",
+         "Time outside 49.5-50.5 Hz", 0.0, "% exceedance per year", 0.12, False, "Stable", "2024-09-11", 2),
+        ("EFPA-STD-003", "Credible Contingency Frequency Nadir", "Credible Contingency",
+         "Minimum frequency nadir post-contingency", 49.0, "Hz", 49.12, True, "Stable", "2023-03-28", 1),
+        ("EFPA-STD-004", "ROCOF Credible Contingency", "Credible Contingency",
+         "Maximum rate-of-change-of-frequency", 3.0, "Hz/s", 2.1, True, "Improving", "2022-08-21", 1),
+        ("EFPA-STD-005", "Separation Event Recovery", "Non-Credible",
+         "Frequency recovery within 5 minutes of separation", 49.5, "Hz", 49.35, False, "Deteriorating", "2024-04-14", 2),
+        ("EFPA-STD-006", "Inertia Minimum Threshold (SA)", "Normal Operating",
+         "Synchronous inertia in SA island", 3000.0, "MWs", 2750.0, False, "Deteriorating", "2024-11-08", 4),
+        ("EFPA-STD-007", "UFLS Activation Threshold", "Credible Contingency",
+         "Under-frequency load shedding trigger", 49.0, "Hz", 49.05, True, "Stable", "2023-06-12", 1),
+        ("EFPA-STD-008", "FCAS Regulation Band Compliance", "Normal Operating",
+         "Time frequency within regulation band", 95.0, "% availability", 96.8, True, "Improving", "2022-02-14", 0),
+        ("EFPA-STD-009", "Non-Credible Contingency ROCOF Limit", "Non-Credible",
+         "Maximum ROCOF for non-credible event", 6.0, "Hz/s", 4.8, True, "Stable", "2023-09-05", 1),
+        ("EFPA-STD-010", "NEM Separation Event Frequency Floor", "Separation",
+         "Minimum frequency during island separation", 48.0, "Hz", 48.5, True, "Improving", "2022-11-09", 1),
+    ]
+    standards: List[EFPAStandardRecord] = []
+    for row in standards_raw:
+        standards.append(EFPAStandardRecord(
+            standard_id=row[0], standard_name=row[1], standard_category=row[2],
+            parameter=row[3], target_value=row[4], unit=row[5],
+            current_performance=row[6], compliance=row[7],
+            performance_trend=row[8], last_breach_date=row[9], breach_count_ytd=row[10],
+        ))
+
+    # ------------------------------------------------------------------
+    # 30 Inertia Records (5 regions × 6 time periods)
+    # ------------------------------------------------------------------
+    inertia_dates = [
+        ("2024-01-15", 6), ("2024-04-10", 12), ("2024-07-22", 8),
+        ("2024-08-18", 14), ("2024-10-05", 18), ("2024-12-01", 22),
+    ]
+    ms_thresholds = {"NSW1": 8000, "QLD1": 7500, "VIC1": 6500, "SA1": 3000, "TAS1": 4000}
+    trends = ["Decreasing", "Stable", "Increasing"]
+    inertia_records: List[EFPAInertiaRecord] = []
+    for idx, region in enumerate(regions):
+        threshold = ms_thresholds[region]
+        for tp_idx, (date, hour) in enumerate(inertia_dates):
+            sync_inertia = round(rng.uniform(threshold * 0.7, threshold * 1.5), 0)
+            virt_inertia = round(rng.uniform(200, 2500), 0)
+            total_inertia = sync_inertia + virt_inertia
+            threshold_met = total_inertia >= threshold
+            shortfall = max(0.0, round(threshold - total_inertia, 1))
+            sync_units = rng.randint(3, 18)
+            trend = rng.choice(trends)
+            inertia_records.append(EFPAInertiaRecord(
+                inertia_id=f"EFPA-IN-{idx+1:02d}{tp_idx+1:02d}",
+                region=region,
+                date=date,
+                hour=hour,
+                synchronous_inertia_mws=sync_inertia,
+                ibr_virtual_inertia_mws=virt_inertia,
+                total_inertia_mws=round(total_inertia, 0),
+                ms_threshold_mws=float(threshold),
+                synchronous_units_online=sync_units,
+                min_inertia_threshold_met=threshold_met,
+                projected_inertia_trend=trend,
+                shortfall_mws=shortfall,
+            ))
+
+    # ------------------------------------------------------------------
+    # 40 FCAS Performance Records (5 regions × 8 service types)
+    # ------------------------------------------------------------------
+    service_types = ["Reg Raise", "Reg Lower", "1s Raise", "1s Lower",
+                     "6s Raise", "6s Lower", "60s Raise", "60s Lower"]
+    fcas_performance: List[EFPAFCASPerformanceRecord] = []
+    for idx, region in enumerate(regions):
+        for svc_idx, svc_type in enumerate(service_types):
+            enabled = round(rng.uniform(80, 900), 1)
+            activated = round(enabled * rng.uniform(0.3, 0.95), 1)
+            response_ms = round(rng.uniform(100, 5800), 0)
+            perf_factor = round(rng.uniform(0.75, 1.0), 3)
+            cost = round(rng.uniform(0.05, 4.5), 3)
+            vwp = round(rng.uniform(0.5, 120.0), 2)
+            contrib = round(rng.uniform(5.0, 35.0), 1)
+            fcas_performance.append(EFPAFCASPerformanceRecord(
+                fcas_id=f"EFPA-FC-{idx+1:02d}{svc_idx+1:02d}",
+                region=region,
+                date=rng.choice([d for d, _ in time_periods]),
+                service_type=svc_type,
+                enabled_mw=enabled,
+                activated_mw=activated,
+                response_time_ms=response_ms,
+                performance_factor=perf_factor,
+                cost_m=cost,
+                volume_weighted_price=vwp,
+                contribution_to_frequency_recovery_pct=contrib,
+            ))
+
+    # ------------------------------------------------------------------
+    # 12 Compliance Records
+    # ------------------------------------------------------------------
+    compliance_raw = [
+        ("EFPA-CO-001", "AGL Energy", "Generator", "Frequency Response", "2024-Q1", True, 0.0, "None required", False, 0.0),
+        ("EFPA-CO-002", "Origin Energy", "Generator", "Inertia Provision", "2024-Q1", False, 0.05, "Increase synchronous generation", False, 0.12),
+        ("EFPA-CO-003", "EnergyAustralia", "Generator", "FCAS Enablement", "2024-Q2", True, 0.0, "None required", False, 0.0),
+        ("EFPA-CO-004", "ElectraNet", "Network", "Connection Standard", "2024-Q1", True, 0.0, "None required", False, 0.0),
+        ("EFPA-CO-005", "AusNet Services", "Network", "Frequency Response", "2024-Q2", False, 0.12, "Upgrade governor settings", True, 0.45),
+        ("EFPA-CO-006", "Snowy Hydro", "Generator", "Inertia Provision", "2024-Q2", True, 0.0, "None required", False, 0.0),
+        ("EFPA-CO-007", "Pacific Blue", "Generator", "FCAS Enablement", "2024-Q3", False, 0.03, "Recalibrate AGC response", False, 0.05),
+        ("EFPA-CO-008", "Transgrid", "Network", "Connection Standard", "2024-Q3", True, 0.0, "None required", False, 0.0),
+        ("EFPA-CO-009", "SA Power Networks", "Network", "Frequency Response", "2024-Q3", False, 0.08, "Install fast frequency response", False, 0.18),
+        ("EFPA-CO-010", "CleanCo", "Generator", "Frequency Response", "2024-Q4", True, 0.0, "None required", False, 0.0),
+        ("EFPA-CO-011", "Alinta Energy", "Generator", "Inertia Provision", "2024-Q4", False, 0.15, "Commission synchronous condenser", True, 0.90),
+        ("EFPA-CO-012", "Industrial Load A", "Load", "Connection Standard", "2024-Q4", True, 0.0, "None required", False, 0.0),
+    ]
+    compliance: List[EFPAComplianceRecord] = []
+    for row in compliance_raw:
+        compliance.append(EFPAComplianceRecord(
+            compliance_id=row[0], entity_name=row[1], entity_type=row[2],
+            compliance_category=row[3], period=row[4], compliant=row[5],
+            deviation_hz=row[6], corrective_action=row[7],
+            regulatory_action_taken=row[8], financial_penalty_m=row[9],
+        ))
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    regions_below_inertia = sum(
+        1 for r in inertia_records
+        if not r.min_inertia_threshold_met
+    )
+    frequency_exceedances_ytd = sum(
+        r.nb_exceedances_below_49_5 + r.nb_exceedances_above_50_5
+        for r in frequency_records
+    )
+    avg_normal_band_pct = round(
+        sum(r.time_in_normal_band_pct for r in frequency_records) / len(frequency_records), 2
+    )
+    fcas_cost_ytd_m = round(sum(r.cost_m for r in fcas_performance), 3)
+    inertia_shortfall_total = round(sum(r.shortfall_mws for r in inertia_records), 1)
+
+    _efpa_cache.update(EFPADashboard(
+        frequency_records=frequency_records,
+        events=events,
+        standards=standards,
+        inertia_records=inertia_records,
+        fcas_performance=fcas_performance,
+        compliance=compliance,
+        summary={
+            "regions_below_inertia_threshold": regions_below_inertia,
+            "frequency_exceedances_ytd": frequency_exceedances_ytd,
+            "avg_normal_band_pct": avg_normal_band_pct,
+            "fcas_cost_ytd_m": fcas_cost_ytd_m,
+            "inertia_shortfall_total_mws": inertia_shortfall_total,
+        },
+    ).model_dump())
+    return _efpa_cache
+
+
+# ============================================================
+# LGC Market Analytics (Sprint 102b)
+# ============================================================
+
+class LGCAPriceRecord(BaseModel):
+    price_id: str
+    date: str
+    lgc_spot_price_aud: float
+    lgc_forward_2026_aud: float
+    lgc_forward_2027_aud: float
+    lgc_forward_2028_aud: float
+    lgc_forward_2029_aud: float
+    lgc_forward_2030_aud: float
+    compliance_year: int
+    penalty_rate_aud: float
+    price_discount_to_penalty_pct: float
+    market_volume_k_certificates: float
+    spot_volume_k: float
+    forward_volume_k: float
+
+
+class LGCACreationRecord(BaseModel):
+    creation_id: str
+    year: int
+    accredited_capacity_gw: float
+    certificates_created_k: float
+    technology_solar_pct: float
+    technology_wind_pct: float
+    technology_hydro_pct: float
+    technology_other_pct: float
+    annual_growth_pct: float
+    new_accreditations: int
+    cancelled_accreditations: int
+    avg_certificate_age_months: float
+
+
+class LGCAObligationRecord(BaseModel):
+    obligation_id: str
+    liable_entity_type: str
+    entity_name: str
+    acquisition_year: int
+    required_certificates_k: float
+    acquired_certificates_k: float
+    surrendered_certificates_k: float
+    banked_certificates_k: float
+    shortfall_certificates_k: float
+    shortfall_charge_m: float
+    compliance_pct: float
+
+
+class LGCARegistrantRecord(BaseModel):
+    registrant_id: str
+    registrant_name: str
+    technology: str
+    state: str
+    accredited_capacity_mw: float
+    certificates_pa_k: float
+    vintage_year: int
+    station_name: str
+    status: str
+    owner: str
+    ppa_contracted: bool
+    average_lgc_revenue_dolpermwh: float
+
+
+class LGCABankingRecord(BaseModel):
+    banking_id: str
+    year: int
+    total_banked_certificates_m: float
+    new_banking_k: float
+    surrenders_for_compliance_k: float
+    voluntary_surrenders_k: float
+    cancellations_k: float
+    banked_above_target_k: float
+    years_supply_at_current_rate: float
+    clearing_house_price_aud: float
+    clearing_house_volume_k: float
+
+
+class LGCAScenarioRecord(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    year: int
+    lgc_price_aud: float
+    supply_k: float
+    demand_k: float
+    surplus_deficit_k: float
+    compliance_risk: str
+    investor_return_irr_pct: float
+    new_investment_signal: bool
+
+
+class LGCADashboard(BaseModel):
+    prices: List[LGCAPriceRecord]
+    creation_records: List[LGCACreationRecord]
+    obligations: List[LGCAObligationRecord]
+    registrants: List[LGCARegistrantRecord]
+    banking: List[LGCABankingRecord]
+    scenarios: List[LGCAScenarioRecord]
+    summary: dict
+
+
+_lgca_cache: dict = {}
+
+
+@app.get("/api/lgc-market/dashboard")
+def get_lgca_dashboard() -> dict:
+    import random
+    if _lgca_cache:
+        return _lgca_cache
+
+    rng = random.Random(20240101)
+
+    # ------------------------------------------------------------------
+    # Price records: 24 monthly records (Jan 2023 – Dec 2024)
+    # ------------------------------------------------------------------
+    months = []
+    for y in [2023, 2024]:
+        for m in range(1, 13):
+            months.append(f"{y}-{m:02d}-01")
+
+    penalty_rate = 93.0  # CER penalty rate AUD/certificate
+    prices: List[LGCAPriceRecord] = []
+    for i, date in enumerate(months):
+        spot = round(rng.uniform(30.0, 80.0), 2)
+        fwd_2026 = round(spot + rng.uniform(-5, 10), 2)
+        fwd_2027 = round(fwd_2026 + rng.uniform(-3, 8), 2)
+        fwd_2028 = round(fwd_2027 + rng.uniform(-2, 6), 2)
+        fwd_2029 = round(fwd_2028 + rng.uniform(-2, 5), 2)
+        fwd_2030 = round(fwd_2029 + rng.uniform(-2, 5), 2)
+        vol = round(rng.uniform(800, 3500), 1)
+        spot_vol = round(vol * rng.uniform(0.35, 0.65), 1)
+        prices.append(LGCAPriceRecord(
+            price_id=f"LGCA-PR-{i+1:03d}",
+            date=date,
+            lgc_spot_price_aud=spot,
+            lgc_forward_2026_aud=fwd_2026,
+            lgc_forward_2027_aud=fwd_2027,
+            lgc_forward_2028_aud=fwd_2028,
+            lgc_forward_2029_aud=fwd_2029,
+            lgc_forward_2030_aud=fwd_2030,
+            compliance_year=int(date[:4]),
+            penalty_rate_aud=penalty_rate,
+            price_discount_to_penalty_pct=round((1 - spot / penalty_rate) * 100, 2),
+            market_volume_k_certificates=vol,
+            spot_volume_k=spot_vol,
+            forward_volume_k=round(vol - spot_vol, 1),
+        ))
+
+    # ------------------------------------------------------------------
+    # Creation records: 10 annual records 2015-2024
+    # ------------------------------------------------------------------
+    creation_records: List[LGCACreationRecord] = []
+    base_certs = 8000.0
+    base_cap = 4.0
+    for idx, yr in enumerate(range(2015, 2025)):
+        growth = round(rng.uniform(3.0, 18.0), 2)
+        base_certs = round(base_certs * (1 + growth / 100), 1)
+        base_cap = round(base_cap + rng.uniform(0.3, 1.2), 2)
+        solar_pct = round(rng.uniform(10, 35), 1)
+        wind_pct = round(rng.uniform(45, 65), 1)
+        hydro_pct = round(rng.uniform(5, 15), 1)
+        other_pct = round(100 - solar_pct - wind_pct - hydro_pct, 1)
+        creation_records.append(LGCACreationRecord(
+            creation_id=f"LGCA-CR-{idx+1:03d}",
+            year=yr,
+            accredited_capacity_gw=base_cap,
+            certificates_created_k=base_certs,
+            technology_solar_pct=solar_pct,
+            technology_wind_pct=wind_pct,
+            technology_hydro_pct=hydro_pct,
+            technology_other_pct=other_pct,
+            annual_growth_pct=growth,
+            new_accreditations=rng.randint(15, 120),
+            cancelled_accreditations=rng.randint(1, 10),
+            avg_certificate_age_months=round(rng.uniform(6.0, 24.0), 1),
+        ))
+
+    # ------------------------------------------------------------------
+    # Obligation records: 4 entity types × 5 years 2020-2024 = 20 records
+    # ------------------------------------------------------------------
+    entity_types = [
+        ("Retailer", "Origin Energy"),
+        ("Retailer", "AGL Energy"),
+        ("Large User", "BHP Billiton"),
+        ("Government", "ACT Government"),
+    ]
+    obligations: List[LGCAObligationRecord] = []
+    oid = 0
+    for yr in range(2020, 2025):
+        for etype, ename in entity_types:
+            oid += 1
+            req = round(rng.uniform(500, 4000), 1)
+            acq = round(req * rng.uniform(0.85, 1.05), 1)
+            surr = round(acq * rng.uniform(0.88, 0.98), 1)
+            banked = round(acq - surr, 1)
+            shortfall = max(0.0, round(req - surr, 1))
+            obligations.append(LGCAObligationRecord(
+                obligation_id=f"LGCA-OB-{oid:03d}",
+                liable_entity_type=etype,
+                entity_name=ename,
+                acquisition_year=yr,
+                required_certificates_k=req,
+                acquired_certificates_k=acq,
+                surrendered_certificates_k=surr,
+                banked_certificates_k=banked,
+                shortfall_certificates_k=shortfall,
+                shortfall_charge_m=round(shortfall * penalty_rate / 1000, 3),
+                compliance_pct=round(min(surr / req * 100, 100.0), 2),
+            ))
+
+    # ------------------------------------------------------------------
+    # Registrant records: 25 key wind/solar stations
+    # ------------------------------------------------------------------
+    stations_raw = [
+        ("LGCA-RG-001", "Snowy 2.0 Wind", "Wind", "NSW", 735.0, "Snowy Hydro", "Snowy Hydro"),
+        ("LGCA-RG-002", "Stockyard Hill Wind Farm", "Wind", "VIC", 532.0, "Stockyard Hill WF", "Origin Energy"),
+        ("LGCA-RG-003", "MacIntyre Wind Farm", "Wind", "QLD", 1026.0, "MacIntyre WF", "Acciona Energy"),
+        ("LGCA-RG-004", "Coopers Gap Wind Farm", "Wind", "QLD", 453.0, "Coopers Gap WF", "AGL Energy"),
+        ("LGCA-RG-005", "Dulacca Wind Farm", "Wind", "QLD", 180.0, "Dulacca WF", "InterContinental Energy"),
+        ("LGCA-RG-006", "Liverpool Range Wind Farm", "Wind", "NSW", 2200.0, "Liverpool Range WF", "Epuron"),
+        ("LGCA-RG-007", "New England Solar Farm", "Solar", "NSW", 720.0, "New England Solar", "Goldwind"),
+        ("LGCA-RG-008", "Darlington Point Solar Farm", "Solar", "NSW", 275.0, "Darlington Point SF", "ENGIE"),
+        ("LGCA-RG-009", "Limondale Solar Farm", "Solar", "NSW", 249.0, "Limondale SF", "Maoneng"),
+        ("LGCA-RG-010", "Sunraysia Solar Farm", "Solar", "VIC", 255.0, "Sunraysia SF", "ENGIE"),
+        ("LGCA-RG-011", "Neoen Hornsdale Wind", "Wind", "SA", 315.0, "Hornsdale WF", "Neoen"),
+        ("LGCA-RG-012", "Clare Solar Farm", "Solar", "QLD", 150.0, "Clare SF", "Lightsource BP"),
+        ("LGCA-RG-013", "Emerald Solar Park", "Solar", "QLD", 180.0, "Emerald SP", "Amp Energy"),
+        ("LGCA-RG-014", "Columboola Solar Farm", "Solar", "QLD", 235.0, "Columboola SF", "Edify Energy"),
+        ("LGCA-RG-015", "Murra Warra Wind Farm", "Wind", "VIC", 429.0, "Murra Warra WF", "Macquarie Group"),
+        ("LGCA-RG-016", "Dundonnell Wind Farm", "Wind", "VIC", 336.0, "Dundonnell WF", "CWP Renewables"),
+        ("LGCA-RG-017", "Rugby Run Solar Farm", "Solar", "NSW", 110.0, "Rugby Run SF", "Windlab"),
+        ("LGCA-RG-018", "Yatpool Solar Farm", "Solar", "VIC", 200.0, "Yatpool SF", "Risen Energy"),
+        ("LGCA-RG-019", "Bannerton Solar Park", "Solar", "VIC", 110.0, "Bannerton SP", "Trina Solar"),
+        ("LGCA-RG-020", "Warwick Solar Farm", "Solar", "QLD", 150.0, "Warwick SF", "Glencore"),
+        ("LGCA-RG-021", "Bungala Solar One", "Solar", "SA", 137.5, "Bungala SF", "FRV"),
+        ("LGCA-RG-022", "Snowtown Wind Farm", "Wind", "SA", 369.0, "Snowtown WF", "Pacific Hydro"),
+        ("LGCA-RG-023", "Lal Lal Wind Farms", "Wind", "VIC", 228.0, "Lal Lal WF", "Goldwind"),
+        ("LGCA-RG-024", "White Rock Wind Farm", "Wind", "NSW", 175.0, "White Rock WF", "CWP Energy"),
+        ("LGCA-RG-025", "Tailem Bend Solar Project", "Solar", "SA", 212.0, "Tailem Bend SP", "Cbus Property"),
+    ]
+    statuses = ["Active", "Active", "Active", "Active", "Suspended", "Cancelled"]
+    registrants: List[LGCARegistrantRecord] = []
+    for row in stations_raw:
+        rid, rname, tech, state, cap_mw, station, owner = row
+        vintage = rng.randint(2017, 2023)
+        status = rng.choice(statuses)
+        certs_pa_k = round(cap_mw * rng.uniform(0.28, 0.42), 1)
+        avg_rev = round(rng.uniform(25.0, 75.0), 2)
+        registrants.append(LGCARegistrantRecord(
+            registrant_id=rid,
+            registrant_name=rname,
+            technology=tech,
+            state=state,
+            accredited_capacity_mw=cap_mw,
+            certificates_pa_k=certs_pa_k,
+            vintage_year=vintage,
+            station_name=station,
+            status=status,
+            owner=owner,
+            ppa_contracted=rng.choice([True, False]),
+            average_lgc_revenue_dolpermwh=avg_rev,
+        ))
+
+    # ------------------------------------------------------------------
+    # Banking records: 10 annual records 2015-2024
+    # ------------------------------------------------------------------
+    banking: List[LGCABankingRecord] = []
+    total_banked = 12.5  # million
+    for bidx, yr in enumerate(range(2015, 2025)):
+        new_bank_k = round(rng.uniform(500, 3000), 1)
+        surr_comp_k = round(rng.uniform(8000, 20000), 1)
+        vol_surr_k = round(rng.uniform(100, 800), 1)
+        cancel_k = round(rng.uniform(10, 100), 1)
+        above_target_k = round(rng.uniform(100, 2000), 1)
+        total_banked = round(total_banked + new_bank_k / 1000 - surr_comp_k / 1000, 3)
+        total_banked = max(total_banked, 0.5)
+        ch_price = round(rng.uniform(25.0, 85.0), 2)
+        ch_vol_k = round(rng.uniform(50, 500), 1)
+        years_supply = round(total_banked * 1000 / max(surr_comp_k, 1) * 1000, 2)
+        banking.append(LGCABankingRecord(
+            banking_id=f"LGCA-BK-{bidx+1:03d}",
+            year=yr,
+            total_banked_certificates_m=total_banked,
+            new_banking_k=new_bank_k,
+            surrenders_for_compliance_k=surr_comp_k,
+            voluntary_surrenders_k=vol_surr_k,
+            cancellations_k=cancel_k,
+            banked_above_target_k=above_target_k,
+            years_supply_at_current_rate=years_supply,
+            clearing_house_price_aud=ch_price,
+            clearing_house_volume_k=ch_vol_k,
+        ))
+
+    # ------------------------------------------------------------------
+    # Scenario records: 4 scenarios × 5 years 2026-2030 = 20 records
+    # ------------------------------------------------------------------
+    scenario_defs = [
+        ("Current Policy",  45.0,  0.03),
+        ("RET Increase",    65.0,  0.05),
+        ("Supply Glut",     25.0, -0.02),
+        ("Supply Shortage", 78.0,  0.08),
+    ]
+    risk_map = {
+        "Current Policy": ["Low", "Low", "Medium", "Medium", "Medium"],
+        "RET Increase":   ["Low", "Low", "Low", "Low", "Low"],
+        "Supply Glut":    ["Low", "Low", "Low", "Low", "Low"],
+        "Supply Shortage":["High", "High", "High", "Medium", "Medium"],
+    }
+    scenarios: List[LGCAScenarioRecord] = []
+    sid = 0
+    for sname, base_price, price_drift in scenario_defs:
+        price = base_price
+        supply = rng.uniform(35000, 50000)
+        demand = rng.uniform(32000, 48000)
+        for yi, yr in enumerate(range(2026, 2031)):
+            sid += 1
+            price = round(price * (1 + price_drift + rng.uniform(-0.01, 0.01)), 2)
+            supply = round(supply * (1 + rng.uniform(0.02, 0.06)), 1)
+            demand = round(demand * (1 + rng.uniform(0.01, 0.04)), 1)
+            surplus = round(supply - demand, 1)
+            irr = round(rng.uniform(6.0, 18.0), 2)
+            risk = risk_map[sname][yi]
+            scenarios.append(LGCAScenarioRecord(
+                scenario_id=f"LGCA-SC-{sid:03d}",
+                scenario_name=sname,
+                year=yr,
+                lgc_price_aud=price,
+                supply_k=supply,
+                demand_k=demand,
+                surplus_deficit_k=surplus,
+                compliance_risk=risk,
+                investor_return_irr_pct=irr,
+                new_investment_signal=price >= 50.0,
+            ))
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    current_spot = prices[-1].lgc_spot_price_aud
+    total_cap_gw = round(sum(r.accredited_capacity_mw for r in registrants) / 1000, 3)
+    annual_creation_k = creation_records[-1].certificates_created_k
+    compliance_shortfall_k = round(sum(r.shortfall_certificates_k for r in obligations if r.acquisition_year == 2024), 1)
+    proj_2030 = round(
+        sum(s.lgc_price_aud for s in scenarios if s.year == 2030 and s.scenario_name == "Current Policy") or [current_spot],
+        2,
+    )
+
+    _lgca_cache.update(LGCADashboard(
+        prices=prices,
+        creation_records=creation_records,
+        obligations=obligations,
+        registrants=registrants,
+        banking=banking,
+        scenarios=scenarios,
+        summary={
+            "current_spot_price_aud": current_spot,
+            "total_registered_capacity_gw": total_cap_gw,
+            "annual_creation_k": annual_creation_k,
+            "compliance_year_shortfall_k": compliance_shortfall_k,
+            "projected_2030_price_aud": proj_2030,
+        },
+    ).model_dump())
+
+
+# ============================================================
+# Sprint 102c – Wave & Tidal Ocean Energy Analytics
+# ============================================================
+
+from typing import Literal as _Lit
+
+class WTOEProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    technology: _Lit["Wave Energy Converter", "Tidal Stream", "Tidal Barrage", "OTEC", "Salinity Gradient", "Hybrid"]
+    developer: str
+    state: str
+    site_location: str
+    installed_capacity_kw: float
+    annual_generation_mwh: float
+    capacity_factor_pct: float
+    water_depth_m: float
+    distance_to_shore_km: float
+    stage: _Lit["Research", "Pilot", "Demonstration", "Commercial Scale", "Planned"]
+    commissioning_year: int
+    capex_m: float
+    lcoe_dolpermwh: float
+    grid_connected: bool
+
+
+class WTOEResourceRecord(BaseModel):
+    resource_id: str
+    site_name: str
+    state: str
+    resource_type: _Lit["Wave", "Tidal", "Mixed"]
+    significant_wave_height_m: float
+    wave_period_s: float
+    tidal_range_m: float
+    tidal_velocity_m_s: float
+    annual_energy_density_kwh_m2: float
+    seasonal_variability_pct: float
+    extreme_event_frequency_pa: float
+    grid_proximity_km: float
+    environmental_sensitivity: _Lit["Low", "Medium", "High"]
+    theoretical_capacity_gw: float
+
+
+class WTOETechnologyRecord(BaseModel):
+    tech_id: str
+    technology_name: str
+    developer_examples: str
+    trl_level: int
+    wave_or_tidal: str
+    capacity_range_kw: str
+    efficiency_pct: float
+    survivability_rating: int
+    mooring_type: str
+    maintenance_frequency_per_year: float
+    lcoe_2024_dolpermwh: float
+    lcoe_2030_dolpermwh: float
+    lcoe_2040_dolpermwh: float
+    key_challenge: str
+
+
+class WTOEEnvironmentalRecord(BaseModel):
+    env_id: str
+    project_id: str
+    impact_category: _Lit["Marine Ecology", "Navigation", "Noise", "EMF", "Seabed Disturbance", "Visual Amenity"]
+    impact_level: _Lit["Low", "Medium", "High", "Critical"]
+    monitoring_required: bool
+    mitigation_measure: str
+    cumulative_impact: bool
+    regulatory_approval_status: _Lit["Approved", "Conditional", "Pending", "Rejected"]
+    permit_authority: str
+
+
+class WTOEEconomicsRecord(BaseModel):
+    econ_id: str
+    project_id: str
+    scenario_name: _Lit["Current", "Optimistic", "Pessimistic", "CIS Support", "Co-location Wind"]
+    capex_m: float
+    opex_m_pa: float
+    lcoe_dolpermwh: float
+    capacity_factor_pct: float
+    project_life_years: int
+    irr_pct: float
+    npv_m: float
+    breakeven_year: int
+    government_support_pct: float
+    learning_rate_pct: float
+
+
+class WTOEMarketRecord(BaseModel):
+    market_id: str
+    country: str
+    installed_capacity_mw: float
+    pipeline_capacity_mw: float
+    target_2030_mw: float
+    target_2040_mw: float
+    key_policy: str
+    main_technology: str
+    leading_developers: str
+    avg_lcoe_dolpermwh: float
+    australia_competitiveness_score: int
+    collaboration_agreement: bool
+
+
+class WTOEDashboard(BaseModel):
+    projects: list[WTOEProjectRecord]
+    resources: list[WTOEResourceRecord]
+    technologies: list[WTOETechnologyRecord]
+    environmental_impacts: list[WTOEEnvironmentalRecord]
+    economics: list[WTOEEconomicsRecord]
+    global_market: list[WTOEMarketRecord]
+    summary: dict
+
+
+_wtoe_cache: dict = {}
+
+
+@app.get("/api/wave-tidal-ocean/dashboard")
+def get_wave_tidal_ocean_dashboard():
+    import random
+    if _wtoe_cache:
+        return _wtoe_cache
+
+    rng = random.Random(20240301)
+
+    # ------------------------------------------------------------------
+    # Projects – 12 records (mix of WA, NSW, VIC, TAS, SA)
+    # ------------------------------------------------------------------
+    project_defs = [
+        ("WTOE-P-001", "CETO 6 Wave Energy Project", "Wave Energy Converter", "Carnegie Clean Energy", "WA",
+         "Garden Island, Cockburn Sound", 1000.0, 2628.0, 30.0, 12.0, 4.5, "Demonstration", 2015, 22.0, 380.0, True),
+        ("WTOE-P-002", "BioWAVE Pilot Plant", "Wave Energy Converter", "BioPower Systems", "VIC",
+         "Portland, Southern Ocean", 250.0, 438.0, 20.0, 25.0, 1.5, "Pilot", 2019, 6.5, 420.0, False),
+        ("WTOE-P-003", "King Island Tidal Stream", "Tidal Stream", "Ocean Power Technologies AU", "TAS",
+         "Banks Strait, King Island", 500.0, 1314.0, 30.0, 45.0, 2.8, "Pilot", 2021, 12.0, 360.0, False),
+        ("WTOE-P-004", "Clarence Strait Tidal", "Tidal Stream", "Tidal Bridge AS", "SA",
+         "Clarence Strait, NT", 2000.0, 6132.0, 35.0, 15.0, 3.5, "Demonstration", 2023, 55.0, 290.0, True),
+        ("WTOE-P-005", "Hunter WEC Array", "Wave Energy Converter", "Wave Swell Energy", "NSW",
+         "Newcastle, Tasman Sea", 5000.0, 10512.0, 24.0, 18.0, 6.0, "Planned", 2027, 130.0, 320.0, False),
+        ("WTOE-P-006", "Rottnest Island OTEC", "OTEC", "Bluerise BV AU", "WA",
+         "Rottnest Island, Indian Ocean", 100.0, 876.0, 10.0, 400.0, 25.0, "Research", 2028, 8.0, 550.0, False),
+        ("WTOE-P-007", "Port Fairy Oscillating Surge", "Wave Energy Converter", "Bombora Wave Power", "VIC",
+         "Port Fairy, Bass Strait", 1500.0, 3504.0, 26.7, 20.0, 3.0, "Demonstration", 2022, 40.0, 350.0, True),
+        ("WTOE-P-008", "Macquarie Harbour Tidal", "Tidal Stream", "Carnegie Clean Energy", "TAS",
+         "Macquarie Harbour, TAS", 800.0, 2190.0, 31.3, 8.0, 1.2, "Pilot", 2020, 18.0, 410.0, False),
+        ("WTOE-P-009", "Albany Wave Farm Stage 1", "Wave Energy Converter", "Wave Swell Energy", "WA",
+         "Albany, Southern Ocean", 3000.0, 7884.0, 30.0, 30.0, 8.0, "Planned", 2026, 85.0, 295.0, False),
+        ("WTOE-P-010", "Spencer Gulf Tidal Barrage Study", "Tidal Barrage", "Tidal Bridge AS", "SA",
+         "Spencer Gulf, SA", 50000.0, 109500.0, 25.0, 5.0, 0.5, "Research", 2035, 2500.0, 220.0, False),
+        ("WTOE-P-011", "South Australian Wave Hub", "Hybrid", "BioPower Systems", "SA",
+         "Great Australian Bight", 2000.0, 5256.0, 30.0, 60.0, 10.0, "Planned", 2029, 60.0, 310.0, False),
+        ("WTOE-P-012", "Jervis Bay Tidal Array", "Tidal Stream", "Ocean Power Technologies AU", "NSW",
+         "Jervis Bay, NSW", 1200.0, 3504.0, 33.3, 22.0, 5.0, "Pilot", 2024, 30.0, 340.0, True),
+    ]
+    projects = []
+    for p in project_defs:
+        projects.append(WTOEProjectRecord(
+            project_id=p[0], project_name=p[1], technology=p[2], developer=p[3],
+            state=p[4], site_location=p[5], installed_capacity_kw=p[6],
+            annual_generation_mwh=p[7], capacity_factor_pct=p[8],
+            water_depth_m=p[9], distance_to_shore_km=p[10], stage=p[11],
+            commissioning_year=p[12], capex_m=p[13], lcoe_dolpermwh=p[14],
+            grid_connected=p[15],
+        ))
+
+    # ------------------------------------------------------------------
+    # Resources – 15 assessment records around Australia
+    # ------------------------------------------------------------------
+    resource_defs = [
+        ("WTOE-R-001", "South West WA Coast", "WA", "Wave", 2.8, 10.5, 0.4, 0.2, 38.0, 18.0, 0.8, 35.0, "Low", 22.0),
+        ("WTOE-R-002", "Albany Bight", "WA", "Wave", 3.2, 11.0, 0.6, 0.3, 44.0, 20.0, 1.0, 28.0, "Medium", 18.0),
+        ("WTOE-R-003", "Cockburn Sound", "WA", "Wave", 1.8, 9.0, 0.5, 0.2, 22.0, 15.0, 0.5, 5.0, "High", 3.5),
+        ("WTOE-R-004", "Bass Strait West", "VIC", "Wave", 3.5, 12.0, 0.8, 0.4, 50.0, 22.0, 1.2, 45.0, "Low", 30.0),
+        ("WTOE-R-005", "Portland Shelf", "VIC", "Wave", 3.0, 11.5, 0.7, 0.3, 42.0, 19.0, 1.0, 20.0, "Medium", 25.0),
+        ("WTOE-R-006", "Banks Strait", "TAS", "Tidal", 1.2, 7.0, 3.5, 2.8, 65.0, 25.0, 0.3, 12.0, "Medium", 8.0),
+        ("WTOE-R-007", "Macquarie Harbour Entrance", "TAS", "Tidal", 0.8, 6.0, 2.8, 2.2, 48.0, 20.0, 0.2, 3.0, "High", 2.5),
+        ("WTOE-R-008", "Spencer Gulf Head", "SA", "Tidal", 0.5, 5.5, 4.8, 1.5, 35.0, 10.0, 0.1, 8.0, "Medium", 12.0),
+        ("WTOE-R-009", "Gulf St Vincent", "SA", "Tidal", 0.6, 5.0, 3.2, 1.2, 28.0, 12.0, 0.1, 15.0, "High", 5.0),
+        ("WTOE-R-010", "Hunter Coast NSW", "NSW", "Wave", 2.5, 9.5, 0.9, 0.4, 32.0, 17.0, 0.9, 30.0, "Medium", 14.0),
+        ("WTOE-R-011", "Jervis Bay", "NSW", "Mixed", 2.2, 9.0, 1.8, 1.5, 40.0, 18.0, 0.6, 10.0, "High", 4.0),
+        ("WTOE-R-012", "Great Australian Bight", "SA", "Wave", 3.8, 13.0, 0.3, 0.1, 55.0, 25.0, 1.5, 120.0, "Low", 45.0),
+        ("WTOE-R-013", "Broome Tide Flats", "WA", "Tidal", 0.2, 4.0, 10.5, 1.8, 42.0, 8.0, 0.05, 5.0, "High", 6.0),
+        ("WTOE-R-014", "Clarence Strait NT", "SA", "Tidal", 0.3, 4.5, 5.2, 2.5, 58.0, 12.0, 0.1, 18.0, "Medium", 15.0),
+        ("WTOE-R-015", "South Cape TAS", "TAS", "Wave", 4.0, 13.5, 0.5, 0.2, 60.0, 28.0, 2.0, 80.0, "Low", 35.0),
+    ]
+    resources = []
+    for r in resource_defs:
+        resources.append(WTOEResourceRecord(
+            resource_id=r[0], site_name=r[1], state=r[2], resource_type=r[3],
+            significant_wave_height_m=r[4], wave_period_s=r[5], tidal_range_m=r[6],
+            tidal_velocity_m_s=r[7], annual_energy_density_kwh_m2=r[8],
+            seasonal_variability_pct=r[9], extreme_event_frequency_pa=r[10],
+            grid_proximity_km=r[11], environmental_sensitivity=r[12],
+            theoretical_capacity_gw=r[13],
+        ))
+
+    # ------------------------------------------------------------------
+    # Technologies – 8 records (TRL 3-9)
+    # ------------------------------------------------------------------
+    tech_defs = [
+        ("WTOE-T-001", "Submerged Pressure Differential (CETO)", "Carnegie Clean Energy, AW Energy",
+         7, "Wave", "100-1000", 25.0, 4, "Taut mooring", 2.0, 380.0, 270.0, 180.0,
+         "Survivability in extreme wave events"),
+        ("WTOE-T-002", "Oscillating Surge Wave Energy Converter", "Bombora Wave Power, Eco Wave Power",
+         6, "Wave", "100-2000", 22.0, 3, "Fixed seabed", 3.0, 420.0, 300.0, 200.0,
+         "Near-shore installation complexity"),
+        ("WTOE-T-003", "Oscillating Water Column (OWC)", "Wave Swell Energy, Voith",
+         7, "Wave", "100-500", 28.0, 4, "Breakwater integrated", 1.5, 350.0, 250.0, 170.0,
+         "Turbine air seal maintenance"),
+        ("WTOE-T-004", "Point Absorber Buoy", "Ocean Power Technologies, CorPower",
+         8, "Wave", "10-250", 18.0, 3, "Slack mooring", 4.0, 450.0, 310.0, 210.0,
+         "Array optimisation and spacing"),
+        ("WTOE-T-005", "Horizontal Axis Tidal Turbine", "Tidal Bridge, Sabella, ANDRITZ",
+         8, "Tidal", "200-2000", 40.0, 5, "Monopile/seabed gravity", 1.0, 290.0, 220.0, 160.0,
+         "Biofouling and blade erosion"),
+        ("WTOE-T-006", "Vertical Axis Tidal Turbine", "Tocardo, BioPower Systems",
+         6, "Tidal", "50-500", 35.0, 4, "Floating platform", 2.0, 340.0, 255.0, 175.0,
+         "Structural fatigue in turbulent flow"),
+        ("WTOE-T-007", "Tidal Kite", "Minesto",
+         5, "Tidal", "100-1200", 38.0, 3, "Single point mooring", 3.0, 380.0, 270.0, 185.0,
+         "Operational depth range limitation"),
+        ("WTOE-T-008", "OTEC Closed-Cycle Plant", "Bluerise, DCNS/Naval Energies",
+         4, "Wave", "100-10000", 3.0, 5, "Moored floating", 1.0, 550.0, 400.0, 280.0,
+         "Deep water thermal gradient requirements"),
+    ]
+    technologies = []
+    for t in tech_defs:
+        technologies.append(WTOETechnologyRecord(
+            tech_id=t[0], technology_name=t[1], developer_examples=t[2],
+            trl_level=t[3], wave_or_tidal=t[4], capacity_range_kw=t[5],
+            efficiency_pct=t[6], survivability_rating=t[7], mooring_type=t[8],
+            maintenance_frequency_per_year=t[9], lcoe_2024_dolpermwh=t[10],
+            lcoe_2030_dolpermwh=t[11], lcoe_2040_dolpermwh=t[12], key_challenge=t[13],
+        ))
+
+    # ------------------------------------------------------------------
+    # Environmental impacts – 20 records (5 projects × 4 categories)
+    # ------------------------------------------------------------------
+    env_defs = [
+        # WTOE-P-001 Carnegie CETO
+        ("WTOE-E-001", "WTOE-P-001", "Marine Ecology", "Medium", True,
+         "Artificial reef monitoring programme", False, "Conditional", "DWER WA"),
+        ("WTOE-E-002", "WTOE-P-001", "Navigation", "Low", False,
+         "Navigation buoys and AIS broadcasting", False, "Approved", "AMSA"),
+        ("WTOE-E-003", "WTOE-P-001", "EMF", "Low", True,
+         "Cable shielding and periodic EMF surveys", True, "Approved", "DWER WA"),
+        ("WTOE-E-004", "WTOE-P-001", "Seabed Disturbance", "Medium", True,
+         "Pre/post installation benthic surveys", False, "Conditional", "DWER WA"),
+        # WTOE-P-003 King Island Tidal
+        ("WTOE-E-005", "WTOE-P-003", "Marine Ecology", "High", True,
+         "Marine mammal exclusion protocols during installation", True, "Conditional", "DPIPWE TAS"),
+        ("WTOE-E-006", "WTOE-P-003", "Noise", "Medium", True,
+         "Underwater noise monitoring during operation", False, "Conditional", "DPIPWE TAS"),
+        ("WTOE-E-007", "WTOE-P-003", "Navigation", "Medium", True,
+         "Shipping lane clearance and maritime notices", False, "Approved", "AMSA"),
+        ("WTOE-E-008", "WTOE-P-003", "Seabed Disturbance", "High", True,
+         "Minimise foundation footprint, post-construction survey", True, "Pending", "DPIPWE TAS"),
+        # WTOE-P-004 Clarence Strait Tidal
+        ("WTOE-E-009", "WTOE-P-004", "Marine Ecology", "Medium", True,
+         "Seasonal exclusion periods for spawning species", True, "Conditional", "NT EPA"),
+        ("WTOE-E-010", "WTOE-P-004", "EMF", "Low", False,
+         "Standard subsea cable EMF shielding", False, "Approved", "NT EPA"),
+        ("WTOE-E-011", "WTOE-P-004", "Noise", "Low", True,
+         "Operational noise monitoring and reporting", False, "Approved", "NT EPA"),
+        ("WTOE-E-012", "WTOE-P-004", "Navigation", "Medium", True,
+         "Exclusion zone markers and VHF radio broadcasts", False, "Approved", "AMSA"),
+        # WTOE-P-007 Port Fairy
+        ("WTOE-E-013", "WTOE-P-007", "Marine Ecology", "Medium", True,
+         "Whale migration route seasonal shutdown", True, "Conditional", "DELWP VIC"),
+        ("WTOE-E-014", "WTOE-P-007", "Visual Amenity", "Low", False,
+         "Submerged device design minimises visual impact", False, "Approved", "DELWP VIC"),
+        ("WTOE-E-015", "WTOE-P-007", "Seabed Disturbance", "Medium", True,
+         "Gravity base to minimise seabed anchoring", False, "Conditional", "DELWP VIC"),
+        ("WTOE-E-016", "WTOE-P-007", "Noise", "Low", True,
+         "Quarterly acoustic monitoring", False, "Approved", "DELWP VIC"),
+        # WTOE-P-012 Jervis Bay
+        ("WTOE-E-017", "WTOE-P-012", "Marine Ecology", "High", True,
+         "Marine park buffer zone compliance programme", True, "Pending", "NSW DPE"),
+        ("WTOE-E-018", "WTOE-P-012", "Visual Amenity", "Medium", True,
+         "Colour and profile design to minimise visual footprint", False, "Pending", "NSW DPE"),
+        ("WTOE-E-019", "WTOE-P-012", "Navigation", "Medium", True,
+         "Dedicated navigation lane clearance and lighting", False, "Pending", "AMSA"),
+        ("WTOE-E-020", "WTOE-P-012", "EMF", "Low", False,
+         "Standard cable shielding per IEC 60287", False, "Pending", "NSW DPE"),
+    ]
+    environmental_impacts = []
+    for e in env_defs:
+        environmental_impacts.append(WTOEEnvironmentalRecord(
+            env_id=e[0], project_id=e[1], impact_category=e[2], impact_level=e[3],
+            monitoring_required=e[4], mitigation_measure=e[5], cumulative_impact=e[6],
+            regulatory_approval_status=e[7], permit_authority=e[8],
+        ))
+
+    # ------------------------------------------------------------------
+    # Economics – 20 records (5 projects × 4 scenarios)
+    # ------------------------------------------------------------------
+    econ_defs = [
+        # WTOE-P-001
+        ("WTOE-EC-001", "WTOE-P-001", "Current",         22.0, 1.8, 380.0, 30.0, 20, 4.2,  -8.5,  2042, 15.0, 12.0),
+        ("WTOE-EC-002", "WTOE-P-001", "Optimistic",      20.0, 1.5, 320.0, 35.0, 25, 8.5,   5.2,  2035, 15.0, 15.0),
+        ("WTOE-EC-003", "WTOE-P-001", "CIS Support",     22.0, 1.8, 295.0, 32.0, 25, 10.2,  9.8,  2033, 30.0, 14.0),
+        ("WTOE-EC-004", "WTOE-P-001", "Co-location Wind",21.0, 1.6, 340.0, 33.0, 25,  7.1,  2.5,  2037, 10.0, 13.0),
+        # WTOE-P-003
+        ("WTOE-EC-005", "WTOE-P-003", "Current",         12.0, 1.2, 360.0, 30.0, 25,  5.5, -3.2,  2038, 20.0, 10.0),
+        ("WTOE-EC-006", "WTOE-P-003", "Optimistic",      10.5, 1.0, 290.0, 35.0, 30, 11.2,  8.5,  2032, 20.0, 14.0),
+        ("WTOE-EC-007", "WTOE-P-003", "CIS Support",     12.0, 1.2, 270.0, 33.0, 30, 13.5, 12.0,  2030, 35.0, 13.0),
+        ("WTOE-EC-008", "WTOE-P-003", "Pessimistic",     14.0, 1.5, 430.0, 25.0, 20,  1.2,-15.0,  2049,  5.0,  8.0),
+        # WTOE-P-004
+        ("WTOE-EC-009", "WTOE-P-004", "Current",         55.0, 4.5, 290.0, 35.0, 25,  8.2,  4.5,  2034, 10.0, 12.0),
+        ("WTOE-EC-010", "WTOE-P-004", "Optimistic",      50.0, 4.0, 240.0, 40.0, 30, 13.5, 18.0,  2029, 10.0, 15.0),
+        ("WTOE-EC-011", "WTOE-P-004", "CIS Support",     55.0, 4.5, 225.0, 38.0, 30, 15.2, 22.0,  2028, 25.0, 14.0),
+        ("WTOE-EC-012", "WTOE-P-004", "Pessimistic",     65.0, 5.5, 360.0, 28.0, 20,  2.1,-12.0,  2045,  5.0,  9.0),
+        # WTOE-P-007
+        ("WTOE-EC-013", "WTOE-P-007", "Current",         40.0, 3.2, 350.0, 26.7, 25,  5.8, -2.0,  2040, 12.0, 11.0),
+        ("WTOE-EC-014", "WTOE-P-007", "Optimistic",      36.0, 2.8, 285.0, 32.0, 30, 10.8, 10.5,  2033, 12.0, 14.0),
+        ("WTOE-EC-015", "WTOE-P-007", "CIS Support",     40.0, 3.2, 265.0, 30.0, 30, 13.0, 14.0,  2031, 28.0, 13.5),
+        ("WTOE-EC-016", "WTOE-P-007", "Co-location Wind",38.0, 3.0, 305.0, 30.0, 30,  9.2,  6.8,  2036,  8.0, 12.0),
+        # WTOE-P-012
+        ("WTOE-EC-017", "WTOE-P-012", "Current",         30.0, 2.8, 340.0, 33.3, 25,  6.5, -1.2,  2039, 15.0, 11.5),
+        ("WTOE-EC-018", "WTOE-P-012", "Optimistic",      27.0, 2.4, 275.0, 38.0, 30, 12.0, 12.5,  2032, 15.0, 14.5),
+        ("WTOE-EC-019", "WTOE-P-012", "CIS Support",     30.0, 2.8, 255.0, 36.0, 30, 14.5, 16.0,  2030, 32.0, 14.0),
+        ("WTOE-EC-020", "WTOE-P-012", "Pessimistic",     36.0, 3.5, 410.0, 26.0, 20,  1.8,-14.0,  2047,  5.0,  8.5),
+    ]
+    economics = []
+    for ec in econ_defs:
+        economics.append(WTOEEconomicsRecord(
+            econ_id=ec[0], project_id=ec[1], scenario_name=ec[2],
+            capex_m=ec[3], opex_m_pa=ec[4], lcoe_dolpermwh=ec[5],
+            capacity_factor_pct=ec[6], project_life_years=ec[7],
+            irr_pct=ec[8], npv_m=ec[9], breakeven_year=ec[10],
+            government_support_pct=ec[11], learning_rate_pct=ec[12],
+        ))
+
+    # ------------------------------------------------------------------
+    # Global market – 10 records
+    # ------------------------------------------------------------------
+    market_defs = [
+        ("WTOE-M-001", "United Kingdom", 42.5, 850.0, 1000.0, 11400.0,
+         "Contracts for Difference, Marine Energy Programme",
+         "Tidal Stream", "Orbital Marine Power, Sabella, Simec Atlantis",
+         280.0, 8, True),
+        ("WTOE-M-002", "France", 9.2, 320.0, 500.0, 3000.0,
+         "Appel d'Offres Energies Marines, ADEME support",
+         "Tidal Stream", "Sabella, HydroQuest, OpenHydro",
+         310.0, 7, True),
+        ("WTOE-M-003", "Canada", 4.8, 120.0, 300.0, 1500.0,
+         "NS Tidal Energy Feed-in Tariff, Fundy Ocean Research",
+         "Tidal Stream", "FORCE, OpenHydro, Minas Tidal",
+         340.0, 6, False),
+        ("WTOE-M-004", "Portugal", 3.2, 250.0, 400.0, 2000.0,
+         "Wave Energy Pilot Zone (WEPZ), FCT research grants",
+         "Wave Energy Converter", "AWS Ocean Energy, CorPower, Carnegie",
+         360.0, 9, True),
+        ("WTOE-M-005", "South Korea", 2.5, 180.0, 600.0, 5000.0,
+         "Marine New Renewable Energy Act, K-Marine programme",
+         "Tidal Barrage", "KEPCO, Korea Midland Power",
+         320.0, 6, False),
+        ("WTOE-M-006", "Chile", 0.8, 450.0, 200.0, 2200.0,
+         "Corfo ocean energy grants, ENAMI co-investment",
+         "Wave Energy Converter", "Cresol, OPT Chile",
+         390.0, 7, True),
+        ("WTOE-M-007", "United States", 6.4, 380.0, 500.0, 3000.0,
+         "DOE Water Power Technologies Office, ITC for marine energy",
+         "Wave Energy Converter", "Ocean Power Technologies, NREL",
+         370.0, 7, False),
+        ("WTOE-M-008", "India", 0.5, 90.0, 200.0, 1200.0,
+         "National Ocean Energy Policy, MNRE tidal programme",
+         "Tidal Stream", "NTPC, BHEL Marine",
+         430.0, 5, False),
+        ("WTOE-M-009", "China", 3.5, 420.0, 800.0, 6000.0,
+         "14th 5-Year Plan ocean energy targets",
+         "Tidal Stream", "CECEP, Guodian, CSSC",
+         300.0, 5, False),
+        ("WTOE-M-010", "Australia", 0.9, 220.0, 100.0, 1000.0,
+         "ARENA marine energy grants, CIS eligibility review",
+         "Wave Energy Converter", "Carnegie Clean Energy, BioPower Systems, Wave Swell Energy",
+         355.0, 10, True),
+    ]
+    global_market = []
+    for m in market_defs:
+        global_market.append(WTOEMarketRecord(
+            market_id=m[0], country=m[1], installed_capacity_mw=m[2],
+            pipeline_capacity_mw=m[3], target_2030_mw=m[4], target_2040_mw=m[5],
+            key_policy=m[6], main_technology=m[7], leading_developers=m[8],
+            avg_lcoe_dolpermwh=m[9], australia_competitiveness_score=m[10],
+            collaboration_agreement=m[11],
+        ))
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    demo_capacity = sum(
+        p.installed_capacity_kw for p in projects
+        if p.stage in ("Demonstration", "Pilot", "Commercial Scale")
+    )
+    best_lcoe = min(ec.lcoe_dolpermwh for ec in economics if ec.scenario_name == "CIS Support")
+    total_resource_gw = round(sum(r.theoretical_capacity_gw for r in resources), 1)
+    grid_connected_count = sum(1 for p in projects if p.grid_connected)
+    global_installed_mw = round(sum(m.installed_capacity_mw for m in global_market), 1)
+
+    _wtoe_cache.update(WTOEDashboard(
+        projects=projects,
+        resources=resources,
+        technologies=technologies,
+        environmental_impacts=environmental_impacts,
+        economics=economics,
+        global_market=global_market,
+        summary={
+            "total_demonstration_capacity_kw": demo_capacity,
+            "best_lcoe_current_dolpermwh": min(p.lcoe_dolpermwh for p in projects),
+            "total_australian_resource_gw": total_resource_gw,
+            "projects_grid_connected": grid_connected_count,
+            "global_installed_mw": global_installed_mw,
+        },
+    ).model_dump())
+    return _lgca_cache

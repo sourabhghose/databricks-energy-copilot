@@ -17428,3 +17428,328 @@ export interface BIOEDashboard {
 
 export const getBiomassBioenergyDashboard = (): Promise<BIOEDashboard> =>
   get<BIOEDashboard>('/api/biomass-bioenergy/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 102a — Electricity Frequency Performance Analytics (EFPA)
+// ---------------------------------------------------------------------------
+
+export interface EFPAFrequencyRecord {
+  freq_id: string
+  region: string
+  measurement_date: string
+  hour: number
+  avg_frequency_hz: number
+  min_frequency_hz: number
+  max_frequency_hz: number
+  std_deviation_hz: number
+  time_in_normal_band_pct: number
+  time_in_operational_band_pct: number
+  time_outside_operational_pct: number
+  rocof_max_hz_per_s: number
+  nb_exceedances_below_49_5: number
+  nb_exceedances_above_50_5: number
+}
+
+export interface EFPAEventRecord {
+  event_id: string
+  event_date: string
+  event_type: string
+  region: string
+  trigger_frequency_hz: number
+  nadir_hz: number
+  initial_rocof_hz_per_s: number
+  recovery_time_seconds: number
+  inertia_at_time_mws: number
+  ibr_penetration_pct: number
+  causal_plant: string
+  causal_event: string
+  ufls_triggered: boolean
+  market_impact_m: number
+}
+
+export interface EFPAStandardRecord {
+  standard_id: string
+  standard_name: string
+  standard_category: string
+  parameter: string
+  target_value: number
+  unit: string
+  current_performance: number
+  compliance: boolean
+  performance_trend: string
+  last_breach_date: string
+  breach_count_ytd: number
+}
+
+export interface EFPAInertiaRecord {
+  inertia_id: string
+  region: string
+  date: string
+  hour: number
+  synchronous_inertia_mws: number
+  ibr_virtual_inertia_mws: number
+  total_inertia_mws: number
+  ms_threshold_mws: number
+  synchronous_units_online: number
+  min_inertia_threshold_met: boolean
+  projected_inertia_trend: string
+  shortfall_mws: number
+}
+
+export interface EFPAFCASPerformanceRecord {
+  fcas_id: string
+  region: string
+  date: string
+  service_type: string
+  enabled_mw: number
+  activated_mw: number
+  response_time_ms: number
+  performance_factor: number
+  cost_m: number
+  volume_weighted_price: number
+  contribution_to_frequency_recovery_pct: number
+}
+
+export interface EFPAComplianceRecord {
+  compliance_id: string
+  entity_name: string
+  entity_type: string
+  compliance_category: string
+  period: string
+  compliant: boolean
+  deviation_hz: number
+  corrective_action: string
+  regulatory_action_taken: boolean
+  financial_penalty_m: number
+}
+
+export interface EFPADashboard {
+  frequency_records: EFPAFrequencyRecord[]
+  events: EFPAEventRecord[]
+  standards: EFPAStandardRecord[]
+  inertia_records: EFPAInertiaRecord[]
+  fcas_performance: EFPAFCASPerformanceRecord[]
+  compliance: EFPAComplianceRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getElectricityFrequencyPerformanceDashboard = (): Promise<EFPADashboard> =>
+  get<EFPADashboard>('/api/electricity-frequency-performance/dashboard')
+
+// ============================================================
+// LGC Market Analytics (Sprint 102b)
+// ============================================================
+
+export interface LGCAPriceRecord {
+  price_id: string
+  date: string
+  lgc_spot_price_aud: number
+  lgc_forward_2026_aud: number
+  lgc_forward_2027_aud: number
+  lgc_forward_2028_aud: number
+  lgc_forward_2029_aud: number
+  lgc_forward_2030_aud: number
+  compliance_year: number
+  penalty_rate_aud: number
+  price_discount_to_penalty_pct: number
+  market_volume_k_certificates: number
+  spot_volume_k: number
+  forward_volume_k: number
+}
+
+export interface LGCACreationRecord {
+  creation_id: string
+  year: number
+  accredited_capacity_gw: number
+  certificates_created_k: number
+  technology_solar_pct: number
+  technology_wind_pct: number
+  technology_hydro_pct: number
+  technology_other_pct: number
+  annual_growth_pct: number
+  new_accreditations: number
+  cancelled_accreditations: number
+  avg_certificate_age_months: number
+}
+
+export interface LGCAObligationRecord {
+  obligation_id: string
+  liable_entity_type: string
+  entity_name: string
+  acquisition_year: number
+  required_certificates_k: number
+  acquired_certificates_k: number
+  surrendered_certificates_k: number
+  banked_certificates_k: number
+  shortfall_certificates_k: number
+  shortfall_charge_m: number
+  compliance_pct: number
+}
+
+export interface LGCARegistrantRecord {
+  registrant_id: string
+  registrant_name: string
+  technology: string
+  state: string
+  accredited_capacity_mw: number
+  certificates_pa_k: number
+  vintage_year: number
+  station_name: string
+  status: string
+  owner: string
+  ppa_contracted: boolean
+  average_lgc_revenue_dolpermwh: number
+}
+
+export interface LGCABankingRecord {
+  banking_id: string
+  year: number
+  total_banked_certificates_m: number
+  new_banking_k: number
+  surrenders_for_compliance_k: number
+  voluntary_surrenders_k: number
+  cancellations_k: number
+  banked_above_target_k: number
+  years_supply_at_current_rate: number
+  clearing_house_price_aud: number
+  clearing_house_volume_k: number
+}
+
+export interface LGCAScenarioRecord {
+  scenario_id: string
+  scenario_name: string
+  year: number
+  lgc_price_aud: number
+  supply_k: number
+  demand_k: number
+  surplus_deficit_k: number
+  compliance_risk: string
+  investor_return_irr_pct: number
+  new_investment_signal: boolean
+}
+
+export interface LGCADashboard {
+  prices: LGCAPriceRecord[]
+  creation_records: LGCACreationRecord[]
+  obligations: LGCAObligationRecord[]
+  registrants: LGCARegistrantRecord[]
+  banking: LGCABankingRecord[]
+  scenarios: LGCAScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getLGCMarketDashboard = (): Promise<LGCADashboard> =>
+  get<LGCADashboard>('/api/lgc-market/dashboard')
+
+// ============================================================
+// Sprint 102c – Wave & Tidal Ocean Energy Analytics
+// ============================================================
+
+export interface WTOEProjectRecord {
+  project_id: string
+  project_name: string
+  technology: 'Wave Energy Converter' | 'Tidal Stream' | 'Tidal Barrage' | 'OTEC' | 'Salinity Gradient' | 'Hybrid'
+  developer: string
+  state: string
+  site_location: string
+  installed_capacity_kw: number
+  annual_generation_mwh: number
+  capacity_factor_pct: number
+  water_depth_m: number
+  distance_to_shore_km: number
+  stage: 'Research' | 'Pilot' | 'Demonstration' | 'Commercial Scale' | 'Planned'
+  commissioning_year: number
+  capex_m: number
+  lcoe_dolpermwh: number
+  grid_connected: boolean
+}
+
+export interface WTOEResourceRecord {
+  resource_id: string
+  site_name: string
+  state: string
+  resource_type: 'Wave' | 'Tidal' | 'Mixed'
+  significant_wave_height_m: number
+  wave_period_s: number
+  tidal_range_m: number
+  tidal_velocity_m_s: number
+  annual_energy_density_kwh_m2: number
+  seasonal_variability_pct: number
+  extreme_event_frequency_pa: number
+  grid_proximity_km: number
+  environmental_sensitivity: 'Low' | 'Medium' | 'High'
+  theoretical_capacity_gw: number
+}
+
+export interface WTOETechnologyRecord {
+  tech_id: string
+  technology_name: string
+  developer_examples: string
+  trl_level: number
+  wave_or_tidal: string
+  capacity_range_kw: string
+  efficiency_pct: number
+  survivability_rating: number
+  mooring_type: string
+  maintenance_frequency_per_year: number
+  lcoe_2024_dolpermwh: number
+  lcoe_2030_dolpermwh: number
+  lcoe_2040_dolpermwh: number
+  key_challenge: string
+}
+
+export interface WTOEEnvironmentalRecord {
+  env_id: string
+  project_id: string
+  impact_category: 'Marine Ecology' | 'Navigation' | 'Noise' | 'EMF' | 'Seabed Disturbance' | 'Visual Amenity'
+  impact_level: 'Low' | 'Medium' | 'High' | 'Critical'
+  monitoring_required: boolean
+  mitigation_measure: string
+  cumulative_impact: boolean
+  regulatory_approval_status: 'Approved' | 'Conditional' | 'Pending' | 'Rejected'
+  permit_authority: string
+}
+
+export interface WTOEEconomicsRecord {
+  econ_id: string
+  project_id: string
+  scenario_name: 'Current' | 'Optimistic' | 'Pessimistic' | 'CIS Support' | 'Co-location Wind'
+  capex_m: number
+  opex_m_pa: number
+  lcoe_dolpermwh: number
+  capacity_factor_pct: number
+  project_life_years: number
+  irr_pct: number
+  npv_m: number
+  breakeven_year: number
+  government_support_pct: number
+  learning_rate_pct: number
+}
+
+export interface WTOEMarketRecord {
+  market_id: string
+  country: string
+  installed_capacity_mw: number
+  pipeline_capacity_mw: number
+  target_2030_mw: number
+  target_2040_mw: number
+  key_policy: string
+  main_technology: string
+  leading_developers: string
+  avg_lcoe_dolpermwh: number
+  australia_competitiveness_score: number
+  collaboration_agreement: boolean
+}
+
+export interface WTOEDashboard {
+  projects: WTOEProjectRecord[]
+  resources: WTOEResourceRecord[]
+  technologies: WTOETechnologyRecord[]
+  environmental_impacts: WTOEEnvironmentalRecord[]
+  economics: WTOEEconomicsRecord[]
+  global_market: WTOEMarketRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getWaveTidalOceanDashboard = (): Promise<WTOEDashboard> =>
+  get<WTOEDashboard>('/api/wave-tidal-ocean/dashboard')

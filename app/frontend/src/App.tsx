@@ -351,6 +351,9 @@ import OTICSCyberSecurityAnalytics from './pages/OTICSCyberSecurityAnalytics'
 import STPASAAdequacyAnalytics from './pages/STPASAAdequacyAnalytics'
 import GeneratorPerformanceStandardsAnalytics from './pages/GeneratorPerformanceStandardsAnalytics'
 import BiomassBioenergyAnalytics from './pages/BiomassBioenergyAnalytics'
+import ElectricityFrequencyPerformanceAnalytics from './pages/ElectricityFrequencyPerformanceAnalytics'
+import LGCMarketAnalytics from './pages/LGCMarketAnalytics'
+import WaveTidalOceanAnalytics from './pages/WaveTidalOceanAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -625,6 +628,9 @@ const NAV_ITEMS = [
   { to: '/ot-ics-cyber-security', label: 'OT/ICS Energy Cyber Security', Icon: Lock },
   { to: '/stpasa-adequacy', label: 'STPASA Adequacy', Icon: AlertTriangle },
   { to: '/generator-performance-standards', label: 'Generator GPS Compliance', Icon: CheckCircle },
+  { to: '/electricity-frequency-performance', label: 'Electricity Frequency Performance', Icon: Activity },
+  { to: '/lgc-market',                        label: 'LGC Market Analytics',               Icon: Award    },
+  { to: '/wave-tidal-ocean', label: 'Wave & Tidal Ocean Energy', Icon: Waves },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -974,6 +980,9 @@ export default function App() {
               <Route path="/stpasa-adequacy" element={<STPASAAdequacyAnalytics />} />
               <Route path="/generator-performance-standards" element={<GeneratorPerformanceStandardsAnalytics />} />
               <Route path="/biomass-bioenergy" element={<BiomassBioenergyAnalytics />} />
+              <Route path="/electricity-frequency-performance" element={<ElectricityFrequencyPerformanceAnalytics />} />
+              <Route path="/lgc-market"                      element={<LGCMarketAnalytics />}                       />
+              <Route path="/wave-tidal-ocean" element={<WaveTidalOceanAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
