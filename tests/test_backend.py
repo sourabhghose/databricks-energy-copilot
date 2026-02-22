@@ -12466,3 +12466,123 @@ class TestGreenAmmoniaExportDashboard:
         r1 = client.get("/api/green-ammonia-export/dashboard", headers={"X-API-Key": "test-key"})
         r2 = client.get("/api/green-ammonia-export/dashboard", headers={"X-API-Key": "test-key"})
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityExportCableDashboard:
+    def test_status_200(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+
+    def test_projects_count(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["projects"]) >= 6
+
+    def test_economics_count(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["economics"]) >= 18
+
+    def test_technologies_count(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["technologies"]) >= 5
+
+    def test_markets_count(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["markets"]) >= 6
+
+    def test_grid_impacts_count(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["grid_impacts"]) >= 12
+
+    def test_competitors_count(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["competitors"]) >= 4
+
+    def test_summary_keys(self, client):
+        r = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert "total_pipeline_capacity_gw" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        r2 = client.get("/api/electricity-export-cable/dashboard", headers={"X-API-Key": "test-key"})
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestIndustrialDecarbonisationDashboard:
+    def test_status_200(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert r.status_code == 200
+
+    def test_sectors_count(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["sectors"]) >= 6
+
+    def test_facilities_count(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["facilities"]) >= 15
+
+    def test_abatement_count(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["abatement_records"]) >= 30
+
+    def test_value_chains_count(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["value_chains"]) >= 6
+
+    def test_policies_count(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["policies"]) >= 12
+
+    def test_investments_count(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert len(r.json()["investments"]) >= 15
+
+    def test_summary_keys(self, client):
+        r = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert "total_industrial_emissions_mt" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        r2 = client.get("/api/industrial-decarbonisation/dashboard", headers={"X-API-Key": "test-key"})
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCommunityEnergyStorageDashboard:
+    URL = "/api/community-energy-storage/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_batteries_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["batteries"]) >= 20
+
+    def test_households_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["households"]) >= 40
+
+    def test_dispatch_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["dispatch_records"]) >= 100
+
+    def test_network_benefits_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["network_benefits"]) >= 12
+
+    def test_revenue_stacks_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["revenue_stacks"]) >= 24
+
+    def test_expansion_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["expansion_programs"]) >= 8
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_community_batteries" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

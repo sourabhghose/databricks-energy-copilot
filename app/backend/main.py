@@ -67810,3 +67810,858 @@ def get_gaex_dashboard():
         }
     ).model_dump())
     return _gaex_cache
+
+# ===========================================================================
+# Sprint 97a — Electricity Export Cable Infrastructure Analytics (ECAI)
+# Australia-Asia HVDC Export Cables
+# ===========================================================================
+
+from typing import Literal as _Literal
+
+class ECAIProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    cable_type: str  # HVDC Subsea | HVDC Overhead | Hybrid
+    capacity_gw: float
+    length_km: float
+    origin_location: str
+    destination_country: str
+    origin_state: str
+    capex_bn: float
+    opex_m_pa: float
+    project_status: str  # Concept | Pre-FEED | FEED | Approved | Construction | Operating
+    target_cod_year: int
+    power_purchase_agreement: bool
+    estimated_export_twh_pa: float
+
+class ECAIEconomicsRecord(BaseModel):
+    economics_id: str
+    project_id: str
+    scenario: str  # Base | High Price | Low Price | Delayed
+    year: int
+    revenue_m: float
+    transmission_tariff_dolpermwh: float
+    wholesale_price_destination_dolpermwh: float
+    spot_price_arbitrage_dolpermwh: float
+    npv_bn: float
+    irr_pct: float
+    payback_years: float
+    government_support_m: float
+
+class ECAITechnologyRecord(BaseModel):
+    tech_id: str
+    technology_name: str
+    voltage_kv: int
+    current_type: str  # AC | DC
+    max_capacity_gw: float
+    losses_pct_per_1000km: float
+    typical_cable_cost_m_per_km: float
+    converter_station_cost_m: float
+    reliability_pct: float
+    commercial_availability_year: int
+    vendors: str
+
+class ECAIMarketRecord(BaseModel):
+    market_id: str
+    destination_country: str
+    current_electricity_price_dolpermwh: float
+    peak_demand_gw: float
+    renewable_deficit_gw: float
+    import_capacity_target_gw: float
+    policy_support_level: str  # None | Low | Medium | High
+    trade_agreement_status: str
+    key_off_taker: str
+
+class ECAIGridImpactRecord(BaseModel):
+    impact_id: str
+    region: str
+    impact_type: str  # Price Suppression | Renewable Integration | Reliability | Carbon Reduction | Revenue
+    magnitude_pct_change: float
+    affected_capacity_gw: float
+    consumer_benefit_m_pa: float
+    grid_code_requirement: str
+    implementation_cost_m: float
+
+class ECAICompetitorRecord(BaseModel):
+    competitor_id: str
+    competitor_country: str
+    project_name: str
+    capacity_gw: float
+    cost_dolpermwh_export: float
+    maturity_level: str  # Early | Advanced | Operating
+    australia_advantage_pct: float
+    key_differentiator: str
+
+class ECAIDashboard(BaseModel):
+    projects: List[ECAIProjectRecord]
+    economics: List[ECAIEconomicsRecord]
+    technologies: List[ECAITechnologyRecord]
+    markets: List[ECAIMarketRecord]
+    grid_impacts: List[ECAIGridImpactRecord]
+    competitors: List[ECAICompetitorRecord]
+    summary: dict
+
+_ecai_cache: dict = {}
+
+@app.get("/api/electricity-export-cable/dashboard")
+def get_electricity_export_cable_dashboard():
+    import random
+    if _ecai_cache:
+        return _ecai_cache
+
+    # ---- Project Records (8 projects) ----
+    project_data = [
+        ("ECAI-PRJ-001", "Sun Cable — NT to Singapore", "Sun Cable Pty Ltd", "HVDC Subsea", 10.0, 4200.0, "Darwin, NT", "Singapore", "NT", 22.0, 480.0, "FEED", 2030, True, 35.0),
+        ("ECAI-PRJ-002", "WA Green Link — Pilbara to Indonesia", "Fortescue Future Industries", "HVDC Subsea", 6.0, 2800.0, "Port Hedland, WA", "Indonesia", "WA", 13.5, 280.0, "Pre-FEED", 2032, False, 21.0),
+        ("ECAI-PRJ-003", "QLD-Philippines Coral Sea Cable", "Origin Energy International", "HVDC Subsea", 3.0, 3500.0, "Cairns, QLD", "Philippines", "QLD", 9.0, 190.0, "Concept", 2034, False, 10.5),
+        ("ECAI-PRJ-004", "SA-South Korea Clean Power Link", "AGL International", "Hybrid", 4.0, 8500.0, "Port Augusta, SA", "South Korea", "SA", 18.5, 350.0, "Concept", 2035, False, 14.0),
+        ("ECAI-PRJ-005", "NT-Japan HVDC Northern Corridor", "Marubeni Australia", "HVDC Subsea", 8.0, 6200.0, "Darwin, NT", "Japan", "NT", 19.0, 420.0, "Pre-FEED", 2033, True, 28.0),
+        ("ECAI-PRJ-006", "WA-India Western Grid Bridge", "Adani Green Australia", "HVDC Subsea", 5.0, 4800.0, "Exmouth, WA", "India", "WA", 15.0, 310.0, "Concept", 2036, False, 17.5),
+        ("ECAI-PRJ-007", "NT-Malaysia SunBridge Cable", "Star Energy Group", "HVDC Subsea", 2.5, 3100.0, "Darwin, NT", "Malaysia", "NT", 7.0, 140.0, "Concept", 2035, False, 8.75),
+        ("ECAI-PRJ-008", "NSW-Taiwan Green Electron Highway", "Transgrid International", "HVDC Overhead", 1.5, 7200.0, "Newcastle, NSW", "Taiwan", "NSW", 5.5, 110.0, "Concept", 2037, False, 5.25),
+    ]
+    projects = [ECAIProjectRecord(
+        project_id=p[0], project_name=p[1], developer=p[2], cable_type=p[3],
+        capacity_gw=p[4], length_km=p[5], origin_location=p[6], destination_country=p[7],
+        origin_state=p[8], capex_bn=p[9], opex_m_pa=p[10], project_status=p[11],
+        target_cod_year=p[12], power_purchase_agreement=p[13], estimated_export_twh_pa=p[14]
+    ) for p in project_data]
+
+    # ---- Economics Records (24 records: 6 projects × 4 scenarios) ----
+    ec_id = 1
+    economics = []
+    scenario_params = {
+        "Base":        {"tariff": 65.0,  "wp": 120.0, "arb": 45.0, "npv_mult": 1.0,  "irr": 12.5, "pb": 18.0, "gov": 500.0},
+        "High Price":  {"tariff": 85.0,  "wp": 180.0, "arb": 75.0, "npv_mult": 1.6,  "irr": 18.2, "pb": 13.0, "gov": 300.0},
+        "Low Price":   {"tariff": 45.0,  "wp": 80.0,  "arb": 20.0, "npv_mult": 0.55, "irr": 7.8,  "pb": 26.0, "gov": 800.0},
+        "Delayed":     {"tariff": 60.0,  "wp": 110.0, "arb": 38.0, "npv_mult": 0.75, "irr": 9.4,  "pb": 22.0, "gov": 650.0},
+    }
+    for proj in projects[:6]:
+        for scenario, sp in scenario_params.items():
+            base_rev = proj.capacity_gw * proj.estimated_export_twh_pa * sp["tariff"] * 0.28
+            economics.append(ECAIEconomicsRecord(
+                economics_id=f"ECAI-ECO-{ec_id:03d}",
+                project_id=proj.project_id,
+                scenario=scenario,
+                year=proj.target_cod_year,
+                revenue_m=round(base_rev, 1),
+                transmission_tariff_dolpermwh=sp["tariff"],
+                wholesale_price_destination_dolpermwh=sp["wp"],
+                spot_price_arbitrage_dolpermwh=sp["arb"],
+                npv_bn=round(proj.capex_bn * (sp["npv_mult"] - 0.85), 2),
+                irr_pct=sp["irr"],
+                payback_years=sp["pb"],
+                government_support_m=sp["gov"],
+            ))
+            ec_id += 1
+
+    # ---- Technology Records (6 technologies) ----
+    tech_data = [
+        ("ECAI-TECH-001", "500kV HVDC Bipole (VSC)", 500, "DC", 3.0, 2.8, 3.2, 450.0, 99.1, 2015, "ABB/Hitachi, Siemens Energy"),
+        ("ECAI-TECH-002", "800kV HVDC Bipole (LCC)", 800, "DC", 12.0, 1.9, 2.8, 650.0, 99.3, 2010, "NR Electric, Siemens, GE"),
+        ("ECAI-TECH-003", "320kV HVDC VSC Extruded", 320, "DC", 1.4, 3.5, 2.5, 380.0, 98.7, 2018, "Prysmian, Nexans, ABB"),
+        ("ECAI-TECH-004", "525kV HVDC VSC Extruded", 525, "DC", 2.0, 2.6, 3.6, 520.0, 99.0, 2021, "Prysmian, NKT, ABB/Hitachi"),
+        ("ECAI-TECH-005", "1100kV UHVDC (LCC)", 1100, "DC", 15.0, 1.5, 3.5, 950.0, 99.5, 2019, "NR Electric, TBEA"),
+        ("ECAI-TECH-006", "400kV AC Submarine", 400, "AC", 0.8, 8.5, 1.8, 120.0, 97.5, 2005, "Prysmian, Nexans, Sumitomo"),
+    ]
+    technologies = [ECAITechnologyRecord(
+        tech_id=t[0], technology_name=t[1], voltage_kv=t[2], current_type=t[3],
+        max_capacity_gw=t[4], losses_pct_per_1000km=t[5], typical_cable_cost_m_per_km=t[6],
+        converter_station_cost_m=t[7], reliability_pct=t[8], commercial_availability_year=t[9],
+        vendors=t[10]
+    ) for t in tech_data]
+
+    # ---- Market Records (8 markets) ----
+    market_data = [
+        ("ECAI-MKT-001", "Singapore", 135.0, 9.8, 3.5, 2.0, "High", "FTA Active", "SP Group / Sembcorp"),
+        ("ECAI-MKT-002", "Indonesia", 75.0, 85.0, 25.0, 8.0, "Medium", "RCEP Member", "PLN / ENGIE"),
+        ("ECAI-MKT-003", "Japan", 180.0, 165.0, 45.0, 10.0, "High", "JAEPA Active", "TEPCO / SoftBank"),
+        ("ECAI-MKT-004", "South Korea", 155.0, 96.0, 30.0, 7.0, "High", "KAFTA Active", "KEPCO / SK E&S"),
+        ("ECAI-MKT-005", "India", 90.0, 280.0, 65.0, 15.0, "Low", "ECTA Pending", "NTPC / Adani Power"),
+        ("ECAI-MKT-006", "Philippines", 110.0, 25.0, 8.0, 3.0, "Medium", "ASEAN Grid Active", "NGCP / Aboitiz"),
+        ("ECAI-MKT-007", "Germany", 210.0, 95.0, 55.0, 12.0, "High", "Bilateral MOU", "TenneT / RWE"),
+        ("ECAI-MKT-008", "United Kingdom", 195.0, 75.0, 40.0, 8.0, "Medium", "Australia-UK FTA Active", "National Grid / Octopus"),
+    ]
+    markets = [ECAIMarketRecord(
+        market_id=m[0], destination_country=m[1], current_electricity_price_dolpermwh=m[2],
+        peak_demand_gw=m[3], renewable_deficit_gw=m[4], import_capacity_target_gw=m[5],
+        policy_support_level=m[6], trade_agreement_status=m[7], key_off_taker=m[8]
+    ) for m in market_data]
+
+    # ---- Grid Impact Records (15 records: 5 regions × 3 impact types) ----
+    impact_id = 1
+    grid_impacts = []
+    regions_impacts = [
+        ("NT", [
+            ("Price Suppression", -12.5, 3.5, 280.0, "NT Grid Code v3.2", 45.0),
+            ("Renewable Integration", 18.5, 8.0, 420.0, "AEMO Connection Standard", 120.0),
+            ("Carbon Reduction", -35.0, 10.0, 650.0, "Safeguard Mechanism", 15.0),
+        ]),
+        ("WA", [
+            ("Price Suppression", -8.5, 5.0, 185.0, "WEM Technical Rules", 38.0),
+            ("Renewable Integration", 22.0, 11.0, 530.0, "SWIS Connection Code", 145.0),
+            ("Revenue", 15.5, 6.0, 750.0, "WA Market Rules", 25.0),
+        ]),
+        ("QLD", [
+            ("Price Suppression", -6.0, 4.5, 145.0, "NEM Connection Standard", 30.0),
+            ("Reliability", 4.5, 3.0, 190.0, "TNSP Connection Agreement", 55.0),
+            ("Carbon Reduction", -28.0, 7.5, 480.0, "QCER Safeguard", 12.0),
+        ]),
+        ("SA", [
+            ("Price Suppression", -14.0, 2.5, 310.0, "SA Technical Regulator Standard", 42.0),
+            ("Renewable Integration", 30.0, 5.5, 680.0, "AEMO SA Connection Rules", 160.0),
+            ("Revenue", 20.0, 4.0, 890.0, "SA Electricity Act Compliance", 20.0),
+        ]),
+        ("NSW", [
+            ("Price Suppression", -5.5, 6.0, 130.0, "NSW Electricity Rules", 28.0),
+            ("Reliability", 3.5, 4.5, 165.0, "AEMO NSW Connection Code", 48.0),
+            ("Carbon Reduction", -22.0, 9.0, 390.0, "NSW BESS Roadmap", 18.0),
+        ]),
+    ]
+    for region, impacts in regions_impacts:
+        for imp_type, mag, cap, benefit, req, impl_cost in impacts:
+            grid_impacts.append(ECAIGridImpactRecord(
+                impact_id=f"ECAI-IMP-{impact_id:03d}",
+                region=region,
+                impact_type=imp_type,
+                magnitude_pct_change=mag,
+                affected_capacity_gw=cap,
+                consumer_benefit_m_pa=benefit,
+                grid_code_requirement=req,
+                implementation_cost_m=impl_cost,
+            ))
+            impact_id += 1
+
+    # ---- Competitor Records (6 competitors) ----
+    competitor_data = [
+        ("ECAI-COMP-001", "Middle East (Saudi Arabia)", "NEOM-Europe Green Power Link", 6.0, 72.0, "Advanced", 18.5, "Australia closer to Asia markets; lower cable cost"),
+        ("ECAI-COMP-002", "Morocco", "Xlinks Morocco-UK Power Project", 3.6, 85.0, "Advanced", 12.0, "Australia has superior solar irradiance; HVDC technology parity"),
+        ("ECAI-COMP-003", "Chile", "Chile-Japan Pacific Cable Concept", 2.0, 95.0, "Early", 28.0, "Australia 40% shorter cable route to Japan; lower CAPEX per GW"),
+        ("ECAI-COMP-004", "Canada", "BC-Japan North Pacific Power Link", 1.5, 105.0, "Early", 32.0, "Australia solar resource 3x better; lower LCOE at point of export"),
+        ("ECAI-COMP-005", "Oman", "Oman-India HVDC Green Link", 2.5, 68.0, "Pre-FEED", 8.0, "Australia better trade agreements; larger renewable pipeline"),
+        ("ECAI-COMP-006", "Namibia", "Namibia-EU Hyphen Hydrogen Power", 5.0, 78.0, "Pre-FEED", 15.0, "Australia-Asia proximity advantage; established grid infrastructure"),
+    ]
+    competitors = [ECAICompetitorRecord(
+        competitor_id=c[0], competitor_country=c[1], project_name=c[2], capacity_gw=c[3],
+        cost_dolpermwh_export=c[4], maturity_level=c[5], australia_advantage_pct=c[6],
+        key_differentiator=c[7]
+    ) for c in competitor_data]
+
+    # ---- Summary ----
+    total_pipeline_gw = round(sum(p.capacity_gw for p in projects), 1)
+    projects_in_dev = sum(1 for p in projects if p.project_status != "Operating")
+    total_capex = round(sum(p.capex_bn for p in projects), 1)
+    potential_twh = round(sum(p.estimated_export_twh_pa for p in projects), 1)
+    base_irrs = [e.irr_pct for e in economics if e.scenario == "Base"]
+    avg_irr = round(sum(base_irrs) / len(base_irrs), 1) if base_irrs else 0.0
+
+    _ecai_cache.update(ECAIDashboard(
+        projects=projects,
+        economics=economics,
+        technologies=technologies,
+        markets=markets,
+        grid_impacts=grid_impacts,
+        competitors=competitors,
+        summary={
+            "total_pipeline_capacity_gw": total_pipeline_gw,
+            "projects_in_development": projects_in_dev,
+            "total_capex_bn": total_capex,
+            "potential_export_twh_pa": potential_twh,
+            "avg_irr_base_case_pct": avg_irr,
+        }
+    ).model_dump())
+    return _ecai_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 97b — Industrial Decarbonisation Roadmap Analytics (IDRA)
+# ---------------------------------------------------------------------------
+from typing import List as _List
+
+class IDRASectorRecord(BaseModel):
+    sector_id: str
+    sector_name: str
+    emissions_mt_co2e_pa: float
+    energy_intensity_gj_per_tonne: float
+    annual_production_mt: float
+    num_facilities: int
+    abatement_potential_pct: float
+    key_technology: str
+    avg_abatement_cost_dolpertonne: float
+    target_year_net_zero: int
+
+class IDRAFacilityRecord(BaseModel):
+    facility_id: str
+    facility_name: str
+    sector: str
+    state: str
+    owner: str
+    annual_emissions_mt_co2e: float
+    energy_consumption_pj: float
+    primary_fuel: str
+    capacity_mt_pa: float
+    abatement_pathway: str
+    capex_required_m: float
+    abatement_cost_dolpertonne: float
+    planned_transition_year: int
+
+class IDRAAbatementRecord(BaseModel):
+    abatement_id: str
+    sector: str
+    technology: str
+    year: int
+    deployment_pct: float
+    abatement_mt_co2e: float
+    capex_m: float
+    opex_change_m_pa: float
+    green_energy_demand_pj: float
+    jobs_created: int
+    jobs_at_risk: int
+    learning_rate_pct: float
+
+class IDRAValueChainRecord(BaseModel):
+    chain_id: str
+    sector: str
+    upstream_emissions_pct: float
+    scope1_pct: float
+    scope2_pct: float
+    scope3_pct: float
+    supply_chain_risk: str
+    green_premium_dolpertonne: float
+    export_market_impact: str
+    customer_pressure_level: str
+    regulatory_coverage: str
+
+class IDRAPolicyRecord(BaseModel):
+    policy_id: str
+    policy_name: str
+    mechanism: str
+    sector_targeted: str
+    support_value_m: float
+    coverage_pct_of_sector: float
+    effectiveness_rating: int
+    implementation_year: int
+    review_year: int
+
+class IDRAInvestmentRecord(BaseModel):
+    investment_id: str
+    facility_name: str
+    sector: str
+    state: str
+    investment_type: str
+    announced_year: int
+    completion_year: int
+    total_capex_m: float
+    government_support_m: float
+    technology: str
+    capacity_change_mt: float
+    emissions_reduction_mt_co2e_pa: float
+    status: str
+
+class IDRADashboard(BaseModel):
+    sectors: _List[IDRASectorRecord]
+    facilities: _List[IDRAFacilityRecord]
+    abatement_records: _List[IDRAAbatementRecord]
+    value_chains: _List[IDRAValueChainRecord]
+    policies: _List[IDRAPolicyRecord]
+    investments: _List[IDRAInvestmentRecord]
+    summary: dict
+
+_idra_cache: dict = {}
+
+@app.get("/api/industrial-decarbonisation/dashboard")
+def get_idra_dashboard():
+    if _idra_cache:
+        return _idra_cache
+
+    import random
+
+    # ---- Sector Records (8 sectors) ----
+    sector_data = [
+        ("IDRA-SEC-001", "Steel", 55.0, 18.5, 5.0, 12, 72.0, "Green Hydrogen DRI", 185.0, 2045),
+        ("IDRA-SEC-002", "Cement", 28.0, 3.8, 12.0, 18, 55.0, "CCS", 120.0, 2050),
+        ("IDRA-SEC-003", "Aluminium", 22.0, 54.0, 1.7, 6, 80.0, "Electric Arc Furnace", 95.0, 2040),
+        ("IDRA-SEC-004", "Chemicals", 18.0, 22.0, 8.5, 35, 60.0, "Electrification", 145.0, 2050),
+        ("IDRA-SEC-005", "Mining", 14.0, 8.5, 220.0, 85, 45.0, "Fuel Switch", 75.0, 2050),
+        ("IDRA-SEC-006", "LNG", 32.0, 12.0, 85.0, 9, 40.0, "Electrification", 160.0, 2050),
+        ("IDRA-SEC-007", "Pulp & Paper", 6.5, 11.0, 4.5, 22, 58.0, "Electrification", 110.0, 2045),
+        ("IDRA-SEC-008", "Glass", 3.5, 9.5, 1.8, 14, 50.0, "Electrification", 130.0, 2050),
+    ]
+    sectors = [IDRASectorRecord(
+        sector_id=s[0], sector_name=s[1], emissions_mt_co2e_pa=s[2],
+        energy_intensity_gj_per_tonne=s[3], annual_production_mt=s[4],
+        num_facilities=s[5], abatement_potential_pct=s[6], key_technology=s[7],
+        avg_abatement_cost_dolpertonne=s[8], target_year_net_zero=s[9]
+    ) for s in sector_data]
+
+    # ---- Facility Records (20 facilities) ----
+    facility_data = [
+        ("IDRA-FAC-001", "BlueScope Port Kembla Steelworks", "Steel", "NSW", "BlueScope Steel", 8.2, 65.0, "Coking Coal", 3.0, "H2-DRI", 2800.0, 195.0, 2035),
+        ("IDRA-FAC-002", "Whyalla Steelworks", "Steel", "SA", "GFG Alliance", 10.5, 80.0, "Coking Coal", 4.0, "EAF", 3200.0, 180.0, 2030),
+        ("IDRA-FAC-003", "Alcoa Pinjarra Alumina Refinery", "Aluminium", "WA", "Alcoa", 4.8, 125.0, "Natural Gas", 4.4, "Electrification", 1500.0, 100.0, 2038),
+        ("IDRA-FAC-004", "Rio Tinto Bell Bay Smelter", "Aluminium", "TAS", "Rio Tinto", 0.9, 38.0, "Electricity", 0.18, "Efficiency", 250.0, 85.0, 2040),
+        ("IDRA-FAC-005", "Cement Australia Railton", "Cement", "TAS", "Cement Australia", 1.2, 6.5, "Coal", 1.0, "CCS", 450.0, 125.0, 2040),
+        ("IDRA-FAC-006", "Adelaide Brighton Birkenhead", "Cement", "SA", "Adelaide Brighton", 1.8, 9.2, "Coal", 1.5, "Fuel Switch", 380.0, 115.0, 2042),
+        ("IDRA-FAC-007", "CSBP Kwinana Ammonia Plant", "Chemicals", "WA", "Wesfarmers", 1.5, 28.0, "Natural Gas", 0.45, "Electrification", 620.0, 150.0, 2035),
+        ("IDRA-FAC-008", "Orica Kooragang Island", "Chemicals", "NSW", "Orica", 1.1, 18.0, "Natural Gas", 0.35, "Fuel Switch", 480.0, 135.0, 2038),
+        ("IDRA-FAC-009", "BHP Olympic Dam", "Mining", "SA", "BHP", 2.8, 32.0, "Electricity", 10.0, "Electrification", 850.0, 80.0, 2045),
+        ("IDRA-FAC-010", "Fortescue Iron Bridge Mine", "Mining", "WA", "Fortescue", 1.2, 12.0, "LPG", 22.0, "Fuel Switch", 320.0, 70.0, 2030),
+        ("IDRA-FAC-011", "Woodside Pluto LNG", "LNG", "WA", "Woodside Energy", 4.5, 45.0, "Natural Gas", 4.9, "Electrification", 1800.0, 165.0, 2040),
+        ("IDRA-FAC-012", "Santos GLNG Curtis Island", "LNG", "QLD", "Santos", 5.2, 52.0, "Natural Gas", 7.8, "CCS", 2200.0, 170.0, 2040),
+        ("IDRA-FAC-013", "Chevron Gorgon LNG", "LNG", "WA", "Chevron", 6.8, 68.0, "Natural Gas", 15.6, "CCS", 3500.0, 158.0, 2038),
+        ("IDRA-FAC-014", "Norske Skog Boyer Mill", "Pulp & Paper", "TAS", "Norske Skog", 0.5, 8.0, "Coal", 0.4, "Electrification", 180.0, 110.0, 2035),
+        ("IDRA-FAC-015", "Visy Tumut Pulp Mill", "Pulp & Paper", "NSW", "Visy", 0.4, 6.5, "Natural Gas", 0.35, "Fuel Switch", 150.0, 105.0, 2038),
+        ("IDRA-FAC-016", "ACI Operations Gawler", "Glass", "SA", "O-I Glass", 0.35, 4.2, "Natural Gas", 0.12, "Electrification", 120.0, 130.0, 2040),
+        ("IDRA-FAC-017", "Owens-Illinois Dandenong", "Glass", "VIC", "O-I Glass", 0.28, 3.6, "Natural Gas", 0.10, "Fuel Switch", 95.0, 125.0, 2042),
+        ("IDRA-FAC-018", "Incitec Pivot Gibson Island", "Chemicals", "QLD", "Incitec Pivot", 0.95, 15.0, "Natural Gas", 0.30, "Electrification", 410.0, 140.0, 2036),
+        ("IDRA-FAC-019", "Roy Hill Iron Ore Mine", "Mining", "WA", "Hancock Prospecting", 1.5, 16.0, "LPG", 55.0, "Fuel Switch", 280.0, 72.0, 2032),
+        ("IDRA-FAC-020", "Viridian Glass Melbourne", "Glass", "VIC", "Asahi Glass", 0.22, 2.8, "Natural Gas", 0.08, "Electrification", 75.0, 128.0, 2043),
+    ]
+    facilities = [IDRAFacilityRecord(
+        facility_id=f[0], facility_name=f[1], sector=f[2], state=f[3], owner=f[4],
+        annual_emissions_mt_co2e=f[5], energy_consumption_pj=f[6], primary_fuel=f[7],
+        capacity_mt_pa=f[8], abatement_pathway=f[9], capex_required_m=f[10],
+        abatement_cost_dolpertonne=f[11], planned_transition_year=f[12]
+    ) for f in facility_data]
+
+    # ---- Abatement Records (40 records: 5 sectors x 4 technologies x 2 years) ----
+    abatement_specs = [
+        # (sector, technology, base_deploy_2025, base_deploy_2030, base_abate_2025, base_abate_2030,
+        #  capex_2025, capex_2030, opex_2025, opex_2030, green_pj_2025, green_pj_2030,
+        #  jobs_c_2025, jobs_c_2030, jobs_r_2025, jobs_r_2030, lr)
+        ("Steel", "Green Hydrogen DRI", 2.0, 25.0, 1.1, 13.75, 900.0, 4500.0, -5.0, -60.0, 8.0, 95.0, 120, 1500, 800, 600, 18.0),
+        ("Steel", "Electric Arc Furnace", 5.0, 30.0, 2.75, 16.5, 400.0, 2400.0, -20.0, -120.0, 3.0, 18.0, 80, 500, 400, 300, 12.0),
+        ("Steel", "CCS", 1.0, 10.0, 0.55, 5.5, 600.0, 6000.0, 15.0, 150.0, 0.5, 5.0, 40, 400, 50, 30, 8.0),
+        ("Steel", "Electrification", 3.0, 18.0, 1.65, 9.9, 300.0, 1800.0, -10.0, -60.0, 4.0, 25.0, 60, 360, 200, 150, 10.0),
+        ("Cement", "CCS", 2.0, 20.0, 0.56, 5.6, 500.0, 5000.0, 12.0, 120.0, 1.0, 10.0, 30, 300, 40, 25, 7.0),
+        ("Cement", "Fuel Switch", 3.0, 22.0, 0.84, 6.16, 180.0, 1320.0, -8.0, -60.0, 2.0, 15.0, 25, 180, 150, 120, 9.0),
+        ("Cement", "Electrification", 1.0, 12.0, 0.28, 3.36, 250.0, 3000.0, -5.0, -55.0, 1.5, 18.0, 20, 240, 100, 80, 11.0),
+        ("Cement", "Efficiency", 5.0, 25.0, 1.40, 7.0, 80.0, 400.0, -3.0, -15.0, 0.3, 1.5, 10, 50, 20, 10, 5.0),
+        ("Aluminium", "Electrification", 8.0, 40.0, 1.76, 8.8, 800.0, 4000.0, -30.0, -150.0, 12.0, 60.0, 90, 450, 300, 200, 14.0),
+        ("Aluminium", "Electric Arc Furnace", 4.0, 28.0, 0.88, 6.16, 350.0, 2450.0, -15.0, -105.0, 5.0, 35.0, 60, 420, 200, 150, 12.0),
+        ("Aluminium", "Fuel Switch", 2.0, 15.0, 0.44, 3.3, 200.0, 1500.0, -8.0, -60.0, 1.0, 8.0, 30, 225, 120, 90, 9.0),
+        ("Aluminium", "Efficiency", 6.0, 30.0, 1.32, 6.6, 100.0, 500.0, -5.0, -25.0, 0.5, 2.5, 15, 75, 40, 25, 6.0),
+        ("Chemicals", "Electrification", 3.0, 22.0, 0.54, 3.96, 600.0, 4400.0, -20.0, -146.0, 6.0, 44.0, 70, 513, 250, 200, 13.0),
+        ("Chemicals", "Green Hydrogen DRI", 1.0, 12.0, 0.18, 2.16, 400.0, 4800.0, -5.0, -60.0, 4.0, 48.0, 50, 600, 100, 80, 16.0),
+        ("Chemicals", "CCS", 2.0, 15.0, 0.36, 2.7, 450.0, 3375.0, 10.0, 75.0, 0.5, 3.8, 25, 188, 30, 20, 7.0),
+        ("Chemicals", "Fuel Switch", 4.0, 25.0, 0.72, 4.5, 180.0, 1125.0, -8.0, -50.0, 2.0, 12.5, 40, 250, 200, 160, 8.0),
+        ("Mining", "Electrification", 5.0, 28.0, 0.70, 3.92, 700.0, 3920.0, -15.0, -84.0, 3.0, 17.0, 80, 448, 350, 280, 12.0),
+        ("Mining", "Fuel Switch", 8.0, 35.0, 1.12, 4.9, 300.0, 1312.0, -12.0, -52.5, 2.0, 8.75, 60, 263, 400, 320, 9.0),
+        ("Mining", "Green Hydrogen DRI", 1.0, 8.0, 0.14, 1.12, 350.0, 2800.0, -3.0, -24.0, 2.0, 16.0, 30, 240, 80, 60, 15.0),
+        ("Mining", "Efficiency", 10.0, 40.0, 1.40, 5.6, 120.0, 480.0, -5.0, -20.0, 0.5, 2.0, 20, 80, 50, 30, 5.0),
+    ]
+
+    abatement_records = []
+    ab_id = 1
+    for spec in abatement_specs:
+        for yr, idx in [(2025, 0), (2030, 1)]:
+            dep = spec[2 + idx]
+            abate = spec[4 + idx]
+            capex = spec[6 + idx]
+            opex = spec[8 + idx]
+            green_pj = spec[10 + idx]
+            jobs_c = spec[12 + idx]
+            jobs_r = spec[14 + idx]
+            lr = spec[16]
+            abatement_records.append(IDRAAbatementRecord(
+                abatement_id=f"IDRA-AB-{ab_id:03d}",
+                sector=spec[0], technology=spec[1], year=yr,
+                deployment_pct=dep, abatement_mt_co2e=abate,
+                capex_m=capex, opex_change_m_pa=opex,
+                green_energy_demand_pj=green_pj,
+                jobs_created=jobs_c, jobs_at_risk=jobs_r,
+                learning_rate_pct=lr,
+            ))
+            ab_id += 1
+
+    # ---- Value Chain Records (8 records) ----
+    vc_data = [
+        ("IDRA-VC-001", "Steel", 15.0, 60.0, 18.0, 22.0, "High", 45.0, "Significant - Asia Pacific steel exports ~$4bn pa at risk without green premium", "High", "Safeguard Mechanism covers 100% of facilities"),
+        ("IDRA-VC-002", "Cement", 8.0, 55.0, 20.0, 25.0, "Medium", 25.0, "Domestic focus; CBAM risk for export grade product modest", "Medium", "Safeguard Mechanism partial coverage"),
+        ("IDRA-VC-003", "Aluminium", 12.0, 30.0, 45.0, 25.0, "High", 80.0, "Export-oriented; EU CBAM exposure grows to $200m pa by 2026", "High", "Safeguard Mechanism + CEFC finance"),
+        ("IDRA-VC-004", "Chemicals", 20.0, 50.0, 22.0, 28.0, "Medium", 35.0, "Mixed domestic/export; fertiliser exports modest EU CBAM exposure", "Medium", "Safeguard Mechanism partial"),
+        ("IDRA-VC-005", "Mining", 5.0, 40.0, 25.0, 35.0, "Low", 15.0, "Primarily scope 1&2 onsite; customer ESG pressure growing", "Low", "Safeguard Mechanism operational level"),
+        ("IDRA-VC-006", "LNG", 10.0, 35.0, 40.0, 25.0, "High", 20.0, "Asia LNG demand volatile; green LNG premium emerging in Japan/Korea", "High", "Safeguard Mechanism + EPBC"),
+        ("IDRA-VC-007", "Pulp & Paper", 18.0, 48.0, 18.0, 34.0, "Low", 18.0, "Domestic focus; limited export exposure to CBAM", "Low", "Partial Safeguard coverage"),
+        ("IDRA-VC-008", "Glass", 6.0, 52.0, 22.0, 26.0, "Low", 22.0, "Domestic construction market; EU CBAM limited exposure", "Low", "Minimal regulatory coverage"),
+    ]
+    value_chains = [IDRAValueChainRecord(
+        chain_id=v[0], sector=v[1], upstream_emissions_pct=v[2],
+        scope1_pct=v[3], scope2_pct=v[4], scope3_pct=v[5],
+        supply_chain_risk=v[6], green_premium_dolpertonne=v[7],
+        export_market_impact=v[8], customer_pressure_level=v[9],
+        regulatory_coverage=v[10]
+    ) for v in vc_data]
+
+    # ---- Policy Records (15 policies) ----
+    policy_data = [
+        ("IDRA-POL-001", "Safeguard Mechanism Reforms", "Safeguard Mechanism", "All Industry", 0.0, 95.0, 4, 2023, 2026),
+        ("IDRA-POL-002", "CEFC Industrial Decarbonisation Fund", "CEFC Loan", "Steel/Aluminium/Chemicals", 500.0, 40.0, 4, 2024, 2028),
+        ("IDRA-POL-003", "ARENA Industrial Transformation Program", "ARENA Grant", "Steel/Cement/Chemicals", 300.0, 35.0, 4, 2023, 2026),
+        ("IDRA-POL-004", "National Reconstruction Fund - Industrial", "Industrial Strategy", "Manufacturing", 1000.0, 50.0, 3, 2023, 2027),
+        ("IDRA-POL-005", "Green Steel Industry Plan", "Industrial Strategy", "Steel", 150.0, 90.0, 5, 2023, 2026),
+        ("IDRA-POL-006", "Carbon Border Adjustment Mechanism (EU)", "Carbon Border", "Steel/Aluminium/Cement", 0.0, 60.0, 3, 2026, 2030),
+        ("IDRA-POL-007", "NSW Net Zero Industry Policy", "State Fund", "All Industry", 250.0, 45.0, 3, 2023, 2027),
+        ("IDRA-POL-008", "WA Industrial Decarbonisation Strategy", "State Fund", "Mining/LNG/Aluminium", 180.0, 55.0, 3, 2024, 2028),
+        ("IDRA-POL-009", "QLD Resources Industry Transition Fund", "State Fund", "Mining/LNG/Chemicals", 120.0, 40.0, 3, 2023, 2027),
+        ("IDRA-POL-010", "Hydrogen Headstart Program (Industrial)", "ARENA Grant", "Steel/Chemicals", 200.0, 30.0, 4, 2024, 2028),
+        ("IDRA-POL-011", "Capacity Investment Scheme - Industrial Firming", "CEFC Loan", "All Industry", 400.0, 35.0, 3, 2024, 2030),
+        ("IDRA-POL-012", "Export Finance Australia - Green Industry", "CEFC Loan", "Steel/Aluminium/LNG", 350.0, 25.0, 3, 2023, 2027),
+        ("IDRA-POL-013", "ERF Industrial Methods", "Safeguard Mechanism", "All Industry", 0.0, 70.0, 3, 2021, 2026),
+        ("IDRA-POL-014", "Green Power Agreements - Industrial", "Industrial Strategy", "Aluminium/Chemicals/Mining", 0.0, 45.0, 4, 2024, 2028),
+        ("IDRA-POL-015", "SA Hydrogen and Industrial Decarbonisation", "State Fund", "Steel/Chemicals", 100.0, 60.0, 4, 2023, 2027),
+    ]
+    policies = [IDRAPolicyRecord(
+        policy_id=p[0], policy_name=p[1], mechanism=p[2], sector_targeted=p[3],
+        support_value_m=p[4], coverage_pct_of_sector=p[5],
+        effectiveness_rating=p[6], implementation_year=p[7], review_year=p[8]
+    ) for p in policy_data]
+
+    # ---- Investment Records (18 investments) ----
+    inv_data = [
+        ("IDRA-INV-001", "Green Steel Whyalla Plant 1", "Steel", "SA", "Greenfield", 2023, 2028, 4200.0, 1200.0, "Green Hydrogen DRI", 1.5, 7.5, "FID"),
+        ("IDRA-INV-002", "BlueScope Port Kembla H2-DRI Retrofit", "Steel", "NSW", "Retrofit", 2024, 2030, 2800.0, 700.0, "H2-DRI", 1.0, 5.0, "Announced"),
+        ("IDRA-INV-003", "Alcoa Pinjarra Green Aluminium", "Aluminium", "WA", "Brownfield", 2023, 2027, 1600.0, 400.0, "Electrification", 0.5, 3.2, "Construction"),
+        ("IDRA-INV-004", "Rio Tinto Gladstone EAF Smelter", "Aluminium", "QLD", "Greenfield", 2025, 2031, 3500.0, 875.0, "Electric Arc Furnace", 0.6, 4.5, "Announced"),
+        ("IDRA-INV-005", "Cement Australia Railton CCS Project", "Cement", "TAS", "Retrofit", 2024, 2029, 520.0, 150.0, "CCS", 0.0, 1.0, "FID"),
+        ("IDRA-INV-006", "Adelaide Brighton Fuel Switch Program", "Cement", "SA", "Brownfield", 2023, 2026, 90.0, 25.0, "Fuel Switch", 0.0, 0.4, "Operating"),
+        ("IDRA-INV-007", "CSBP Green Ammonia Kwinana", "Chemicals", "WA", "Greenfield", 2024, 2029, 850.0, 250.0, "Green Hydrogen DRI", 0.15, 1.2, "Announced"),
+        ("IDRA-INV-008", "Orica Ammonium Nitrate Green Transition", "Chemicals", "NSW", "Retrofit", 2023, 2027, 480.0, 120.0, "Electrification", 0.0, 0.8, "Construction"),
+        ("IDRA-INV-009", "BHP Olympic Dam Electrification Stage 1", "Mining", "SA", "Brownfield", 2023, 2026, 450.0, 100.0, "Electrification", 0.0, 1.5, "Operating"),
+        ("IDRA-INV-010", "Fortescue Green Iron Pilbara", "Mining", "WA", "Greenfield", 2024, 2030, 6000.0, 1500.0, "Green Hydrogen DRI", 2.0, 6.0, "FID"),
+        ("IDRA-INV-011", "Woodside Pluto Electrification Project", "LNG", "WA", "Retrofit", 2024, 2028, 1200.0, 0.0, "Electrification", 0.0, 2.0, "Announced"),
+        ("IDRA-INV-012", "Santos Moomba CCS Project", "LNG", "SA", "Brownfield", 2022, 2025, 220.0, 100.0, "CCS", 0.0, 1.7, "Operating"),
+        ("IDRA-INV-013", "Chevron Gorgon CCS Expansion", "LNG", "WA", "Brownfield", 2023, 2028, 800.0, 200.0, "CCS", 0.0, 3.5, "Construction"),
+        ("IDRA-INV-014", "Norske Skog Boyer Electrification", "Pulp & Paper", "TAS", "Retrofit", 2024, 2027, 185.0, 55.0, "Electrification", 0.0, 0.5, "Announced"),
+        ("IDRA-INV-015", "Visy Tumut Gas-to-Biomass Switch", "Pulp & Paper", "NSW", "Retrofit", 2023, 2026, 60.0, 15.0, "Fuel Switch", 0.0, 0.3, "Operating"),
+        ("IDRA-INV-016", "ACI Gawler Electric Furnace Upgrade", "Glass", "SA", "Brownfield", 2024, 2027, 130.0, 35.0, "Electrification", 0.0, 0.3, "Announced"),
+        ("IDRA-INV-017", "Incitec Pivot Gibson Island Green Urea", "Chemicals", "QLD", "Greenfield", 2025, 2031, 1100.0, 300.0, "Electrification", 0.12, 0.9, "Announced"),
+        ("IDRA-INV-018", "Roy Hill Solar & Hydrogen Haul Trucks", "Mining", "WA", "Brownfield", 2023, 2026, 320.0, 80.0, "Fuel Switch", 0.0, 0.8, "Construction"),
+    ]
+    investments = [IDRAInvestmentRecord(
+        investment_id=i[0], facility_name=i[1], sector=i[2], state=i[3],
+        investment_type=i[4], announced_year=i[5], completion_year=i[6],
+        total_capex_m=i[7], government_support_m=i[8], technology=i[9],
+        capacity_change_mt=i[10], emissions_reduction_mt_co2e_pa=i[11],
+        status=i[12]
+    ) for i in inv_data]
+
+    # ---- Summary ----
+    total_emissions = round(sum(s.emissions_mt_co2e_pa for s in sectors), 1)
+    total_abatement_potential = round(sum(s.emissions_mt_co2e_pa * s.abatement_potential_pct / 100 for s in sectors), 1)
+    total_capex_bn = round(sum(i.total_capex_m for i in investments) / 1000, 2)
+    jobs_created_total = sum(a.jobs_created for a in abatement_records if a.year == 2030)
+    jobs_at_risk_total = sum(a.jobs_at_risk for a in abatement_records if a.year == 2030)
+    net_jobs = jobs_created_total - jobs_at_risk_total
+    avg_cost = round(sum(s.avg_abatement_cost_dolpertonne for s in sectors) / len(sectors), 1)
+
+    _idra_cache.update(IDRADashboard(
+        sectors=sectors,
+        facilities=facilities,
+        abatement_records=abatement_records,
+        value_chains=value_chains,
+        policies=policies,
+        investments=investments,
+        summary={
+            "total_industrial_emissions_mt": total_emissions,
+            "total_abatement_potential_mt": total_abatement_potential,
+            "total_investment_required_bn": total_capex_bn,
+            "jobs_transition_net": net_jobs,
+            "avg_abatement_cost_dolpertonne": avg_cost,
+        }
+    ).model_dump())
+    return _idra_cache
+
+
+# ===========================================================================
+# COMMUNITY ENERGY STORAGE ANALYTICS — Sprint 97c
+# ===========================================================================
+
+class CESTBatteryRecord(BaseModel):
+    battery_id: str
+    battery_name: str
+    dnsp: str
+    suburb: str
+    state: str
+    capacity_kwh: float
+    power_kw: float
+    technology: str
+    commissioning_date: str
+    num_households_served: int
+    subscription_model: str
+    monthly_fee_dollar: float
+    available_services: str
+    status: str
+
+class CESTHouseholdRecord(BaseModel):
+    household_id: str
+    battery_id: str
+    suburb: str
+    solar_capacity_kw: float
+    annual_solar_kwh: float
+    annual_import_kwh: float
+    annual_export_kwh: float
+    battery_allocated_kwh: float
+    bill_saving_pa_dollar: float
+    export_income_pa_dollar: float
+    net_benefit_pa_dollar: float
+    satisfaction_score: float
+    solar_self_sufficiency_pct: float
+
+class CESTDispatchRecord(BaseModel):
+    dispatch_id: str
+    battery_id: str
+    date: str
+    hour: int
+    service_type: str
+    energy_dispatched_kwh: float
+    revenue_dollar: float
+    spot_price_dolpermwh: float
+    household_benefit_kwh: float
+
+class CESTNetworkBenefitRecord(BaseModel):
+    benefit_id: str
+    dnsp: str
+    network_zone: str
+    benefit_type: str
+    baseline_peak_kw: float
+    reduced_peak_kw: float
+    reduction_pct: float
+    network_deferral_value_m: float
+    annual_benefit_m: float
+
+class CESTRevenueStackRecord(BaseModel):
+    stack_id: str
+    battery_id: str
+    revenue_stream: str
+    annual_revenue_k: float
+    pct_of_total: float
+    forecast_growth_pct: float
+
+class CESTExpansionRecord(BaseModel):
+    expansion_id: str
+    program_name: str
+    dnsp: str
+    state: str
+    batteries_deployed: int
+    batteries_planned: int
+    total_capacity_mwh: float
+    total_households_target: int
+    capex_m: float
+    funding_source: str
+    status: str
+
+class CESTDashboard(BaseModel):
+    batteries: list[CESTBatteryRecord]
+    households: list[CESTHouseholdRecord]
+    dispatch_records: list[CESTDispatchRecord]
+    network_benefits: list[CESTNetworkBenefitRecord]
+    revenue_stacks: list[CESTRevenueStackRecord]
+    expansion_programs: list[CESTExpansionRecord]
+    summary: dict
+
+_cest_cache: dict = {}
+
+@app.get("/api/community-energy-storage/dashboard")
+def get_community_energy_storage_dashboard():
+    import random
+    if _cest_cache:
+        return _cest_cache
+
+    rng = random.Random(4242)
+
+    # ---- Battery Records (25 batteries) ----
+    battery_data = [
+        ("CEST-BAT-001", "Ausgrid Bondi Community Battery", "Ausgrid", "Bondi", "NSW", 500.0, 250.0, "Li-ion NMC", "2022-03-15", 120, "Tiered", 18.5, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-002", "Ausgrid Parramatta West Battery", "Ausgrid", "Parramatta", "NSW", 750.0, 375.0, "LFP", "2021-11-01", 180, "Premium", 28.0, "Export Management,FCAS,VPP,Network Support", "Active"),
+        ("CEST-BAT-003", "Ausgrid Chatswood Hub Battery", "Ausgrid", "Chatswood", "NSW", 400.0, 200.0, "LFP", "2023-06-20", 100, "Free", 0.0, "Import Reduction,Network Support", "Active"),
+        ("CEST-BAT-004", "Ausgrid Penrith Solar Battery", "Ausgrid", "Penrith", "NSW", 1000.0, 500.0, "Li-ion NMC", "2022-09-10", 240, "Tiered", 22.0, "Export Management,Import Reduction,FCAS,VPP", "Active"),
+        ("CEST-BAT-005", "Ausgrid Blacktown Community Store", "Ausgrid", "Blacktown", "NSW", 600.0, 300.0, "LFP", "2024-01-15", 145, "Tiered", 19.5, "Export Management,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-006", "Endeavour Wollongong Battery Hub", "Endeavour", "Wollongong", "NSW", 800.0, 400.0, "LFP", "2022-07-01", 190, "Premium", 32.0, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-007", "Endeavour Campbelltown Community Battery", "Endeavour", "Campbelltown", "NSW", 500.0, 250.0, "Li-ion NMC", "2023-02-14", 120, "Tiered", 20.0, "Import Reduction,FCAS,Network Support", "Active"),
+        ("CEST-BAT-008", "Endeavour Nowra Solar Store", "Endeavour", "Nowra", "NSW", 300.0, 150.0, "LFP", "2023-10-05", 75, "Free", 0.0, "Import Reduction,Network Support", "Pilot"),
+        ("CEST-BAT-009", "Endeavour Gosford Battery", "Endeavour", "Gosford", "NSW", 650.0, 325.0, "Li-ion NMC", "2022-12-20", 155, "Tiered", 21.0, "Export Management,Import Reduction,FCAS,VPP", "Active"),
+        ("CEST-BAT-010", "Endeavour Blue Mountains Battery", "Endeavour", "Katoomba", "NSW", 350.0, 175.0, "LFP", "2024-03-01", 85, "Tiered", 17.0, "Import Reduction,Network Support,FCAS", "Active"),
+        ("CEST-BAT-011", "SAPN Norwood Community Battery", "SAPN", "Norwood", "SA", 400.0, 200.0, "LFP", "2021-08-15", 100, "Free", 0.0, "Export Management,Import Reduction,Network Support", "Active"),
+        ("CEST-BAT-012", "SAPN Glenelg Coastal Battery", "SAPN", "Glenelg", "SA", 500.0, 250.0, "Li-ion NMC", "2022-04-10", 120, "Tiered", 16.5, "Export Management,FCAS,VPP", "Active"),
+        ("CEST-BAT-013", "SAPN Mount Barker Community Store", "SAPN", "Mount Barker", "SA", 750.0, 375.0, "LFP", "2023-01-20", 180, "Premium", 25.0, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-014", "SAPN Whyalla Hybrid Battery", "SAPN", "Whyalla", "SA", 1200.0, 600.0, "Flow Battery", "2022-06-30", 290, "Tiered", 24.0, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-015", "SAPN Victor Harbor Battery", "SAPN", "Victor Harbor", "SA", 300.0, 150.0, "LFP", "2024-02-28", 72, "Free", 0.0, "Import Reduction,Network Support", "Pilot"),
+        ("CEST-BAT-016", "Jemena Essendon North Battery", "Jemena", "Essendon", "VIC", 500.0, 250.0, "Li-ion NMC", "2022-10-15", 120, "Tiered", 19.0, "Export Management,Import Reduction,FCAS,VPP", "Active"),
+        ("CEST-BAT-017", "Jemena Brunswick Solar Store", "Jemena", "Brunswick", "VIC", 400.0, 200.0, "LFP", "2023-05-01", 100, "Premium", 27.0, "Export Management,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-018", "Jemena Sunshine Community Battery", "Jemena", "Sunshine", "VIC", 600.0, 300.0, "LFP", "2022-08-20", 145, "Tiered", 21.5, "Export Management,Import Reduction,FCAS,Network Support", "Active"),
+        ("CEST-BAT-019", "United Energy Frankston Battery", "United Energy", "Frankston", "VIC", 700.0, 350.0, "Li-ion NMC", "2022-11-10", 170, "Tiered", 23.0, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-020", "United Energy Mornington Hub", "United Energy", "Mornington", "VIC", 500.0, 250.0, "LFP", "2023-03-15", 120, "Premium", 29.0, "Export Management,FCAS,VPP,Network Support", "Active"),
+        ("CEST-BAT-021", "United Energy Dandenong Battery", "United Energy", "Dandenong", "VIC", 800.0, 400.0, "LFP", "2023-07-01", 190, "Tiered", 20.0, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+        ("CEST-BAT-022", "ActewAGL Canberra North Battery", "ActewAGL", "Belconnen", "ACT", 400.0, 200.0, "LFP", "2022-09-05", 100, "Free", 0.0, "Import Reduction,Network Support,FCAS", "Active"),
+        ("CEST-BAT-023", "ActewAGL Woden Community Store", "ActewAGL", "Woden", "ACT", 500.0, 250.0, "Li-ion NMC", "2023-04-20", 120, "Tiered", 18.0, "Export Management,Import Reduction,FCAS,VPP", "Active"),
+        ("CEST-BAT-024", "ActewAGL Gungahlin Solar Battery", "ActewAGL", "Gungahlin", "ACT", 600.0, 300.0, "LFP", "2024-01-10", 145, "Premium", 26.0, "Export Management,FCAS,Network Support,VPP", "Pilot"),
+        ("CEST-BAT-025", "Ausgrid Newcastle Battery", "Ausgrid", "Newcastle", "NSW", 900.0, 450.0, "Li-ion NMC", "2023-11-15", 215, "Tiered", 22.5, "Export Management,Import Reduction,FCAS,Network Support,VPP", "Active"),
+    ]
+    batteries = [CESTBatteryRecord(
+        battery_id=b[0], battery_name=b[1], dnsp=b[2], suburb=b[3], state=b[4],
+        capacity_kwh=b[5], power_kw=b[6], technology=b[7], commissioning_date=b[8],
+        num_households_served=b[9], subscription_model=b[10], monthly_fee_dollar=b[11],
+        available_services=b[12], status=b[13]
+    ) for b in battery_data]
+
+    # ---- Household Records (50 households, 2 per battery) ----
+    suburb_map = {b[0]: b[3] for b in battery_data}
+    households = []
+    for idx, batt in enumerate(battery_data[:25]):
+        bid = batt[0]
+        suburb = batt[3]
+        for j in range(1, 3):
+            hid = f"CEST-HH-{idx*2+j:03d}"
+            solar_kw = round(rng.uniform(3.0, 13.0), 1)
+            annual_solar = round(solar_kw * rng.uniform(1200, 1600), 0)
+            annual_export = round(annual_solar * rng.uniform(0.3, 0.6), 0)
+            annual_import = round(rng.uniform(3000, 7000), 0)
+            battery_alloc = round(rng.uniform(100, 600), 0)
+            bill_saving = round(rng.uniform(200, 800), 2)
+            export_income = round(rng.uniform(80, 400), 2)
+            net_benefit = round(bill_saving + export_income - batt[11] * 12, 2)
+            satisfaction = round(rng.uniform(3.0, 5.0), 1)
+            self_suff = round(annual_solar / (annual_solar + annual_import) * 100, 1)
+            households.append(CESTHouseholdRecord(
+                household_id=hid, battery_id=bid, suburb=suburb,
+                solar_capacity_kw=solar_kw, annual_solar_kwh=annual_solar,
+                annual_import_kwh=annual_import, annual_export_kwh=annual_export,
+                battery_allocated_kwh=battery_alloc,
+                bill_saving_pa_dollar=bill_saving, export_income_pa_dollar=export_income,
+                net_benefit_pa_dollar=net_benefit, satisfaction_score=satisfaction,
+                solar_self_sufficiency_pct=self_suff
+            ))
+
+    # ---- Dispatch Records (120 records: 5 batteries × 24 events) ----
+    dispatch_batteries = ["CEST-BAT-001", "CEST-BAT-006", "CEST-BAT-013", "CEST-BAT-014", "CEST-BAT-019"]
+    service_types = ["Household Import Reduction", "Export Management", "FCAS Raise", "FCAS Lower", "Network Peak", "VPP Dispatch"]
+    dispatch_records = []
+    base_dates = ["2024-06-01", "2024-06-02", "2024-06-03", "2024-06-04", "2024-06-05",
+                  "2024-06-06", "2024-06-07", "2024-06-08", "2024-06-09", "2024-06-10",
+                  "2024-06-11", "2024-06-12"]
+    rec_idx = 1
+    for did, dbat in enumerate(dispatch_batteries):
+        for ev in range(24):
+            date_str = base_dates[ev % len(base_dates)]
+            hour = rng.randint(6, 22)
+            svc = service_types[ev % len(service_types)]
+            energy = round(rng.uniform(20, 200), 1)
+            spot_price = round(rng.uniform(50, 400), 2)
+            revenue = round(energy * spot_price / 1000, 2)
+            hh_benefit = round(energy * rng.uniform(0.3, 0.7), 1)
+            dispatch_records.append(CESTDispatchRecord(
+                dispatch_id=f"CEST-DISP-{rec_idx:04d}",
+                battery_id=dbat,
+                date=date_str,
+                hour=hour,
+                service_type=svc,
+                energy_dispatched_kwh=energy,
+                revenue_dollar=revenue,
+                spot_price_dolpermwh=spot_price,
+                household_benefit_kwh=hh_benefit
+            ))
+            rec_idx += 1
+
+    # ---- Network Benefit Records (15 records: 5 DNSPs × 3 benefit types) ----
+    benefit_types = ["Peak Demand Reduction", "Voltage Support", "Thermal Relief", "Hosting Capacity Increase"]
+    dnsp_zones = {
+        "Ausgrid": [("Zone Substation A", 4800.0, 4200.0, 12.0, 3.2), ("Zone Substation B", 3600.0, 3100.0, 13.9, 2.1), ("Feeder Group C", 2900.0, 2550.0, 12.1, 1.4)],
+        "Endeavour": [("Illawarra Zone", 3200.0, 2750.0, 14.1, 2.5), ("Southern Highlands", 2100.0, 1850.0, 11.9, 1.2), ("Hunter Valley Zone", 4100.0, 3600.0, 12.2, 2.8)],
+        "SAPN": [("Adelaide Hills Zone", 2800.0, 2350.0, 16.1, 3.5), ("Northern Suburbs Zone", 3500.0, 2950.0, 15.7, 2.9), ("Barossa Valley Feeder", 1800.0, 1550.0, 13.9, 1.1)],
+        "Jemena": [("North Melbourne Zone", 3100.0, 2700.0, 12.9, 2.2), ("Western Suburbs Feeder", 2600.0, 2250.0, 13.5, 1.8), ("Outer West Zone", 1900.0, 1650.0, 13.2, 0.9)],
+        "United Energy": [("Peninsula Zone", 4200.0, 3600.0, 14.3, 3.1), ("Bayside Zone", 3000.0, 2600.0, 13.3, 2.0), ("Outer East Feeder", 2200.0, 1900.0, 13.6, 1.3)],
+    }
+    network_benefits = []
+    ben_idx = 1
+    for dnsp_name, zones in dnsp_zones.items():
+        for zi, (zone, base_peak, red_peak, red_pct, deferral) in enumerate(zones):
+            btype = benefit_types[zi % len(benefit_types)]
+            annual_ben = round(deferral * rng.uniform(0.08, 0.15), 3)
+            network_benefits.append(CESTNetworkBenefitRecord(
+                benefit_id=f"CEST-NET-{ben_idx:03d}",
+                dnsp=dnsp_name,
+                network_zone=zone,
+                benefit_type=btype,
+                baseline_peak_kw=base_peak,
+                reduced_peak_kw=red_peak,
+                reduction_pct=red_pct,
+                network_deferral_value_m=deferral,
+                annual_benefit_m=annual_ben
+            ))
+            ben_idx += 1
+
+    # ---- Revenue Stack Records (30 records: 6 batteries × 5 revenue streams) ----
+    rev_batteries = ["CEST-BAT-001", "CEST-BAT-002", "CEST-BAT-006", "CEST-BAT-013", "CEST-BAT-014", "CEST-BAT-019"]
+    revenue_streams = [
+        ("Household Subscriptions", 80.0, 160.0, 2.5, 8.0, 25.0, 35.0),
+        ("FCAS Markets", 60.0, 120.0, 15.0, 25.0, 5.0, 12.0),
+        ("VPP Aggregation", 40.0, 90.0, 10.0, 20.0, 8.0, 18.0),
+        ("Network Support", 30.0, 70.0, 8.0, 16.0, 3.0, 10.0),
+        ("Export Optimisation", 20.0, 50.0, 5.0, 12.0, 4.0, 15.0),
+    ]
+    revenue_stacks = []
+    rev_idx = 1
+    for rbat in rev_batteries:
+        total_rev = 0.0
+        rev_rows = []
+        for (stream, rev_lo, rev_hi, pct_lo, pct_hi, grow_lo, grow_hi) in revenue_streams:
+            annual_rev = round(rng.uniform(rev_lo, rev_hi), 1)
+            total_rev += annual_rev
+            rev_rows.append((stream, annual_rev))
+        for (stream, annual_rev) in rev_rows:
+            pct = round(annual_rev / total_rev * 100, 1)
+            grow = round(rng.uniform(3.0, 18.0), 1)
+            revenue_stacks.append(CESTRevenueStackRecord(
+                stack_id=f"CEST-REV-{rev_idx:03d}",
+                battery_id=rbat,
+                revenue_stream=stream,
+                annual_revenue_k=annual_rev,
+                pct_of_total=pct,
+                forecast_growth_pct=grow
+            ))
+            rev_idx += 1
+
+    # ---- Expansion Records (10 programs) ----
+    expansion_data = [
+        ("CEST-EXP-001", "Ausgrid Suburban Solar Communities Phase 1", "Ausgrid", "NSW", 5, 15, 7.5, 2400, 28.5, "ARENA", "Active"),
+        ("CEST-EXP-002", "Ausgrid Western Sydney Battery Network", "Ausgrid", "NSW", 3, 12, 9.0, 2880, 34.2, "CEFC", "Approved"),
+        ("CEST-EXP-003", "Endeavour Illawarra Community Storage", "Endeavour", "NSW", 4, 10, 6.5, 1950, 22.8, "State Grant", "Active"),
+        ("CEST-EXP-004", "SAPN Home Battery Scheme Phase 3", "SAPN", "SA", 8, 20, 14.5, 4350, 52.0, "State Grant", "Active"),
+        ("CEST-EXP-005", "SAPN Renewables Hub Expansion", "SAPN", "SA", 2, 8, 5.0, 1600, 19.5, "ARENA", "Approved"),
+        ("CEST-EXP-006", "Jemena Electrify Melbourne North", "Jemena", "VIC", 3, 9, 6.0, 1800, 24.0, "CEFC", "Active"),
+        ("CEST-EXP-007", "United Energy Peninsula Smart Grid", "United Energy", "VIC", 4, 11, 8.5, 2550, 31.5, "DNSP Capex", "Active"),
+        ("CEST-EXP-008", "ActewAGL Capital Territory Batteries", "ActewAGL", "ACT", 3, 7, 4.5, 1350, 17.2, "State Grant", "Approved"),
+        ("CEST-EXP-009", "ARENA National Shared Battery Pilot", "Ausgrid", "NSW", 0, 6, 3.0, 900, 12.8, "ARENA", "Proposed"),
+        ("CEST-EXP-010", "CEFC Commercial VPP Battery Rollout", "Endeavour", "NSW", 1, 15, 10.0, 3000, 42.0, "Commercial", "Proposed"),
+    ]
+    expansion_programs = [CESTExpansionRecord(
+        expansion_id=e[0], program_name=e[1], dnsp=e[2], state=e[3],
+        batteries_deployed=e[4], batteries_planned=e[5], total_capacity_mwh=e[6],
+        total_households_target=e[7], capex_m=e[8], funding_source=e[9], status=e[10]
+    ) for e in expansion_data]
+
+    # ---- Summary ----
+    total_batteries = len(batteries)
+    total_capacity_mwh = round(sum(b.capacity_kwh for b in batteries) / 1000, 2)
+    total_households = sum(b.num_households_served for b in batteries)
+    avg_saving = round(sum(h.bill_saving_pa_dollar for h in households) / len(households), 2)
+    total_network_benefit = round(sum(n.annual_benefit_m for n in network_benefits), 3)
+
+    _cest_cache.update(CESTDashboard(
+        batteries=batteries,
+        households=households,
+        dispatch_records=dispatch_records,
+        network_benefits=network_benefits,
+        revenue_stacks=revenue_stacks,
+        expansion_programs=expansion_programs,
+        summary={
+            "total_community_batteries": total_batteries,
+            "total_capacity_mwh": total_capacity_mwh,
+            "total_households_served": total_households,
+            "avg_household_saving_pa": avg_saving,
+            "total_network_benefit_m": total_network_benefit,
+        }
+    ).model_dump())
+    return _cest_cache

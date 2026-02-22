@@ -336,6 +336,9 @@ import CapacityInvestmentSchemeAnalytics from './pages/CapacityInvestmentSchemeA
 import DemandFlexibilityMarketAnalytics from './pages/DemandFlexibilityMarketAnalytics'
 import EnergyAssetLifeExtensionAnalytics from './pages/EnergyAssetLifeExtensionAnalytics'
 import GreenAmmoniaExportAnalytics from './pages/GreenAmmoniaExportAnalytics'
+import ElectricityExportCableAnalytics from './pages/ElectricityExportCableAnalytics'
+import IndustrialDecarbonisationAnalytics from './pages/IndustrialDecarbonisationAnalytics'
+import CommunityEnergyStorageAnalytics from './pages/CommunityEnergyStorageAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -596,6 +599,9 @@ const NAV_ITEMS = [
   { to: '/demand-flexibility-market', label: 'Demand Flexibility Market', Icon: Sliders },
   { to: '/energy-asset-life-extension', label: 'Asset Life Extension', Icon: Wrench },
   { to: '/green-ammonia-export', label: 'Green Ammonia Export', Icon: Ship },
+  { to: '/electricity-export-cable', label: 'Electricity Export Cable', Icon: Radio },
+  { to: '/industrial-decarbonisation', label: 'Industrial Decarbonisation', Icon: Factory },
+  { to: '/community-energy-storage', label: 'Community Energy Storage', Icon: Users },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -931,6 +937,9 @@ export default function App() {
               <Route path="/demand-flexibility-market" element={<DemandFlexibilityMarketAnalytics />} />
               <Route path="/energy-asset-life-extension" element={<EnergyAssetLifeExtensionAnalytics />} />
               <Route path="/green-ammonia-export" element={<GreenAmmoniaExportAnalytics />} />
+              <Route path="/electricity-export-cable" element={<ElectricityExportCableAnalytics />} />
+              <Route path="/industrial-decarbonisation" element={<IndustrialDecarbonisationAnalytics />} />
+              <Route path="/community-energy-storage" element={<CommunityEnergyStorageAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

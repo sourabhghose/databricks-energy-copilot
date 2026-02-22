@@ -15832,3 +15832,298 @@ export interface GAEXDashboard {
 
 export const getGreenAmmoniaExportDashboard = (): Promise<GAEXDashboard> =>
   get<GAEXDashboard>('/api/green-ammonia-export/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 97a — Electricity Export Cable Infrastructure Analytics (ECAI)
+// ---------------------------------------------------------------------------
+
+export interface ECAIProjectRecord {
+  project_id: string;
+  project_name: string;
+  developer: string;
+  cable_type: string;
+  capacity_gw: number;
+  length_km: number;
+  origin_location: string;
+  destination_country: string;
+  origin_state: string;
+  capex_bn: number;
+  opex_m_pa: number;
+  project_status: string;
+  target_cod_year: number;
+  power_purchase_agreement: boolean;
+  estimated_export_twh_pa: number;
+}
+
+export interface ECAIEconomicsRecord {
+  economics_id: string;
+  project_id: string;
+  scenario: string;
+  year: number;
+  revenue_m: number;
+  transmission_tariff_dolpermwh: number;
+  wholesale_price_destination_dolpermwh: number;
+  spot_price_arbitrage_dolpermwh: number;
+  npv_bn: number;
+  irr_pct: number;
+  payback_years: number;
+  government_support_m: number;
+}
+
+export interface ECAITechnologyRecord {
+  tech_id: string;
+  technology_name: string;
+  voltage_kv: number;
+  current_type: string;
+  max_capacity_gw: number;
+  losses_pct_per_1000km: number;
+  typical_cable_cost_m_per_km: number;
+  converter_station_cost_m: number;
+  reliability_pct: number;
+  commercial_availability_year: number;
+  vendors: string;
+}
+
+export interface ECAIMarketRecord {
+  market_id: string;
+  destination_country: string;
+  current_electricity_price_dolpermwh: number;
+  peak_demand_gw: number;
+  renewable_deficit_gw: number;
+  import_capacity_target_gw: number;
+  policy_support_level: string;
+  trade_agreement_status: string;
+  key_off_taker: string;
+}
+
+export interface ECAIGridImpactRecord {
+  impact_id: string;
+  region: string;
+  impact_type: string;
+  magnitude_pct_change: number;
+  affected_capacity_gw: number;
+  consumer_benefit_m_pa: number;
+  grid_code_requirement: string;
+  implementation_cost_m: number;
+}
+
+export interface ECAICompetitorRecord {
+  competitor_id: string;
+  competitor_country: string;
+  project_name: string;
+  capacity_gw: number;
+  cost_dolpermwh_export: number;
+  maturity_level: string;
+  australia_advantage_pct: number;
+  key_differentiator: string;
+}
+
+export interface ECAIDashboard {
+  projects: ECAIProjectRecord[];
+  economics: ECAIEconomicsRecord[];
+  technologies: ECAITechnologyRecord[];
+  markets: ECAIMarketRecord[];
+  grid_impacts: ECAIGridImpactRecord[];
+  competitors: ECAICompetitorRecord[];
+  summary: Record<string, number>;
+}
+
+export const getElectricityExportCableDashboard = (): Promise<ECAIDashboard> =>
+  get<ECAIDashboard>('/api/electricity-export-cable/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 97b — Industrial Decarbonisation Roadmap Analytics (IDRA)
+// ---------------------------------------------------------------------------
+
+export interface IDRASectorRecord {
+  sector_id: string;
+  sector_name: string;
+  emissions_mt_co2e_pa: number;
+  energy_intensity_gj_per_tonne: number;
+  annual_production_mt: number;
+  num_facilities: number;
+  abatement_potential_pct: number;
+  key_technology: string;
+  avg_abatement_cost_dolpertonne: number;
+  target_year_net_zero: number;
+}
+
+export interface IDRAFacilityRecord {
+  facility_id: string;
+  facility_name: string;
+  sector: string;
+  state: string;
+  owner: string;
+  annual_emissions_mt_co2e: number;
+  energy_consumption_pj: number;
+  primary_fuel: string;
+  capacity_mt_pa: number;
+  abatement_pathway: string;
+  capex_required_m: number;
+  abatement_cost_dolpertonne: number;
+  planned_transition_year: number;
+}
+
+export interface IDRAAbatementRecord {
+  abatement_id: string;
+  sector: string;
+  technology: string;
+  year: number;
+  deployment_pct: number;
+  abatement_mt_co2e: number;
+  capex_m: number;
+  opex_change_m_pa: number;
+  green_energy_demand_pj: number;
+  jobs_created: number;
+  jobs_at_risk: number;
+  learning_rate_pct: number;
+}
+
+export interface IDRAValueChainRecord {
+  chain_id: string;
+  sector: string;
+  upstream_emissions_pct: number;
+  scope1_pct: number;
+  scope2_pct: number;
+  scope3_pct: number;
+  supply_chain_risk: string;
+  green_premium_dolpertonne: number;
+  export_market_impact: string;
+  customer_pressure_level: string;
+  regulatory_coverage: string;
+}
+
+export interface IDRAPolicyRecord {
+  policy_id: string;
+  policy_name: string;
+  mechanism: string;
+  sector_targeted: string;
+  support_value_m: number;
+  coverage_pct_of_sector: number;
+  effectiveness_rating: number;
+  implementation_year: number;
+  review_year: number;
+}
+
+export interface IDRAInvestmentRecord {
+  investment_id: string;
+  facility_name: string;
+  sector: string;
+  state: string;
+  investment_type: string;
+  announced_year: number;
+  completion_year: number;
+  total_capex_m: number;
+  government_support_m: number;
+  technology: string;
+  capacity_change_mt: number;
+  emissions_reduction_mt_co2e_pa: number;
+  status: string;
+}
+
+export interface IDRADashboard {
+  sectors: IDRASectorRecord[];
+  facilities: IDRAFacilityRecord[];
+  abatement_records: IDRAAbatementRecord[];
+  value_chains: IDRAValueChainRecord[];
+  policies: IDRAPolicyRecord[];
+  investments: IDRAInvestmentRecord[];
+  summary: Record<string, number>;
+}
+
+export const getIndustrialDecarbonisationDashboard = (): Promise<IDRADashboard> =>
+  get<IDRADashboard>('/api/industrial-decarbonisation/dashboard');
+
+// ---- Community Energy Storage Analytics ----
+export interface CESTBatteryRecord {
+  battery_id: string;
+  battery_name: string;
+  dnsp: string;
+  suburb: string;
+  state: string;
+  capacity_kwh: number;
+  power_kw: number;
+  technology: string;
+  commissioning_date: string;
+  num_households_served: number;
+  subscription_model: string;
+  monthly_fee_dollar: number;
+  available_services: string;
+  status: string;
+}
+
+export interface CESTHouseholdRecord {
+  household_id: string;
+  battery_id: string;
+  suburb: string;
+  solar_capacity_kw: number;
+  annual_solar_kwh: number;
+  annual_import_kwh: number;
+  annual_export_kwh: number;
+  battery_allocated_kwh: number;
+  bill_saving_pa_dollar: number;
+  export_income_pa_dollar: number;
+  net_benefit_pa_dollar: number;
+  satisfaction_score: number;
+  solar_self_sufficiency_pct: number;
+}
+
+export interface CESTDispatchRecord {
+  dispatch_id: string;
+  battery_id: string;
+  date: string;
+  hour: number;
+  service_type: string;
+  energy_dispatched_kwh: number;
+  revenue_dollar: number;
+  spot_price_dolpermwh: number;
+  household_benefit_kwh: number;
+}
+
+export interface CESTNetworkBenefitRecord {
+  benefit_id: string;
+  dnsp: string;
+  network_zone: string;
+  benefit_type: string;
+  baseline_peak_kw: number;
+  reduced_peak_kw: number;
+  reduction_pct: number;
+  network_deferral_value_m: number;
+  annual_benefit_m: number;
+}
+
+export interface CESTRevenueStackRecord {
+  stack_id: string;
+  battery_id: string;
+  revenue_stream: string;
+  annual_revenue_k: number;
+  pct_of_total: number;
+  forecast_growth_pct: number;
+}
+
+export interface CESTExpansionRecord {
+  expansion_id: string;
+  program_name: string;
+  dnsp: string;
+  state: string;
+  batteries_deployed: number;
+  batteries_planned: number;
+  total_capacity_mwh: number;
+  total_households_target: number;
+  capex_m: number;
+  funding_source: string;
+  status: string;
+}
+
+export interface CESTDashboard {
+  batteries: CESTBatteryRecord[];
+  households: CESTHouseholdRecord[];
+  dispatch_records: CESTDispatchRecord[];
+  network_benefits: CESTNetworkBenefitRecord[];
+  revenue_stacks: CESTRevenueStackRecord[];
+  expansion_programs: CESTExpansionRecord[];
+  summary: Record<string, number>;
+}
+
+export const getCommunityEnergyStorageDashboard = (): Promise<CESTDashboard> =>
+  get<CESTDashboard>('/api/community-energy-storage/dashboard');
