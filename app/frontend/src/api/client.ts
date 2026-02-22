@@ -19126,3 +19126,403 @@ export interface OWPFDashboard {
 
 export const getOffshoreWindFinanceDashboard = (): Promise<OWPFDashboard> =>
   get<OWPFDashboard>('/api/offshore-wind-finance/dashboard')
+
+// ---------------------------------------------------------------------------
+// Carbon Offset Project Analytics (COPA) — Sprint 107a
+// ---------------------------------------------------------------------------
+
+export interface COPAProjectRecord {
+  project_id: string
+  project_name: string
+  proponent: string
+  methodology: string
+  state: string
+  area_ha: number
+  project_life_years: number
+  accreditation_date: string
+  status: string
+  accu_issued: number
+  accu_contracted: number
+  accu_remaining: number
+  co2e_per_ha_pa: number
+  additionality_risk: string
+  permanence_risk: string
+  registry_project_id: string
+}
+
+export interface COPAMethodologyRecord {
+  method_id: string
+  methodology_name: string
+  category: string
+  responsible_body: string
+  avg_abatement_factor_tco2e_per_ha: number
+  additionality_requirement: string
+  measurement_type: string
+  review_cycle_years: number
+  approved_since: number
+  projects_registered: number
+  total_accu_issued_m: number
+  market_confidence: string
+  price_premium_pct: number
+}
+
+export interface COPAMarketRecord {
+  market_id: string
+  date: string
+  accu_spot_price_aud: number
+  accu_forward_2026: number
+  accu_forward_2027: number
+  accu_forward_2028: number
+  total_issuances_k: number
+  total_surrenders_k: number
+  net_issuances_k: number
+  safeguard_demand_k: number
+  voluntary_demand_k: number
+  government_purchases_k: number
+  registry_balance_m: number
+  active_projects_count: number
+  avg_project_size_kaccu: number
+}
+
+export interface COPAQualityRecord {
+  quality_id: string
+  project_id: string
+  quality_dimension: string
+  score: number
+  assessment_date: string
+  assessor: string
+  strengths: string
+  weaknesses: string
+  red_flags_count: number
+  verification_body: string
+  last_audit_date: string
+  verified_accu_k: number
+}
+
+export interface COPACoBenefitRecord {
+  cobenefit_id: string
+  project_id: string
+  cobenefit_type: string
+  impact_level: string
+  certified: boolean
+  standard_name: string
+  verification_date: string
+  annual_benefit_aud: number
+  beneficiaries_count: number
+}
+
+export interface COPAPricingRecord {
+  pricing_id: string
+  methodology: string
+  vintage_year: number
+  quality_tier: string
+  spot_price_aud: number
+  premium_vs_generic_pct: number
+  buyer_segment: string
+  liquidity: string
+  price_driver: string
+  trend_12m_pct: number
+}
+
+export interface COPADashboard {
+  projects: COPAProjectRecord[]
+  methodologies: COPAMethodologyRecord[]
+  market_records: COPAMarketRecord[]
+  quality_records: COPAQualityRecord[]
+  co_benefits: COPACoBenefitRecord[]
+  pricing: COPAPricingRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getCarbonOffsetProjectDashboard = (): Promise<COPADashboard> =>
+  get<COPADashboard>('/api/carbon-offset-project/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 107a — Carbon Offset Project Analytics (COPAX)
+// ---------------------------------------------------------------------------
+
+export interface COPAXProjectRecord {
+  project_id: string
+  project_name: string
+  proponent: string
+  methodology: string
+  state: string
+  area_ha: number
+  project_life_years: number
+  accreditation_date: string
+  status: string
+  accu_issued: number
+  accu_contracted: number
+  accu_remaining: number
+  co2e_per_ha_pa: number
+  additionality_risk: string
+  permanence_risk: string
+}
+
+export interface COPAXMethodologyRecord {
+  method_id: string
+  methodology_name: string
+  category: string
+  avg_abatement_tco2e_per_ha: number
+  additionality_requirement: string
+  measurement_type: string
+  projects_registered: number
+  total_accu_issued_m: number
+  market_confidence: string
+  price_premium_pct: number
+}
+
+export interface COPAXMarketRecord {
+  market_id: string
+  date: string
+  accu_spot_price_aud: number
+  accu_forward_2026: number
+  accu_forward_2027: number
+  accu_forward_2028: number
+  total_issuances_k: number
+  total_surrenders_k: number
+  safeguard_demand_k: number
+  voluntary_demand_k: number
+  registry_balance_m: number
+  active_projects_count: number
+}
+
+export interface COPAXQualityRecord {
+  quality_id: string
+  project_id: string
+  quality_dimension: string
+  score: number
+  assessment_date: string
+  assessor: string
+  verified_accu_k: number
+  red_flags_count: number
+}
+
+export interface COPAXCoBenefitRecord {
+  cobenefit_id: string
+  project_id: string
+  cobenefit_type: string
+  impact_level: string
+  certified: boolean
+  annual_benefit_aud: number
+  beneficiaries_count: number
+}
+
+export interface COPAXPricingRecord {
+  pricing_id: string
+  methodology: string
+  vintage_year: number
+  quality_tier: string
+  spot_price_aud: number
+  premium_vs_generic_pct: number
+  buyer_segment: string
+  liquidity: string
+  price_trend_pct: number
+}
+
+export interface COPAXDashboard {
+  projects: COPAXProjectRecord[]
+  methodologies: COPAXMethodologyRecord[]
+  market_records: COPAXMarketRecord[]
+  quality_records: COPAXQualityRecord[]
+  co_benefits: COPAXCoBenefitRecord[]
+  pricing: COPAXPricingRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getCarbonOffsetProjectXDashboard = (): Promise<COPAXDashboard> =>
+  get<COPAXDashboard>('/api/carbon-offset-project-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Power Grid Climate Resilience Analytics (Sprint 107b)
+// ---------------------------------------------------------------------------
+
+export interface PGCRAssetRiskRecord {
+  risk_id: string
+  asset_name: string
+  asset_type: string
+  region: string
+  state: string
+  climate_hazard: string
+  hazard_exposure: string
+  vulnerability_rating: number
+  consequence_severity: string
+  current_risk_score: number
+  risk_2030: number
+  risk_2050: number
+  adaptation_cost_m: number
+  adaptation_measure: string
+}
+
+export interface PGCREventRecord {
+  event_id: string
+  event_name: string
+  event_type: string
+  state: string
+  event_date: string
+  duration_days: number
+  area_affected_km2: number
+  assets_affected_count: number
+  capacity_impacted_mw: number
+  energy_unserved_mwh: number
+  outage_customers: number
+  restoration_time_days: number
+  economic_damage_m: number
+  climate_attribution_pct: number
+  return_period_years: number
+}
+
+export interface PGCRHazardProjectionRecord {
+  proj_id: string
+  region: string
+  climate_scenario: string
+  hazard_type: string
+  year_2030_intensity: number
+  year_2040_intensity: number
+  year_2050_intensity: number
+  year_2030_frequency_pa: number
+  year_2050_frequency_pa: number
+  confidence_level: string
+  key_driver: string
+  source_model: string
+}
+
+export interface PGCRAdaptationRecord {
+  adapt_id: string
+  asset_type: string
+  adaptation_measure: string
+  implementation_cost_m_per_km_or_unit: number
+  risk_reduction_pct: number
+  co_benefit: string
+  implementation_timeline_years: number
+  regulatory_requirement: boolean
+  cost_benefit_ratio: number
+  current_adoption_pct: number
+}
+
+export interface PGCRFinancialRiskRecord {
+  fin_id: string
+  entity_name: string
+  entity_type: string
+  physical_risk_aud: number
+  transition_risk_aud: number
+  total_climate_var_aud: number
+  stressed_losses_aud: number
+  insurance_coverage_pct: number
+  uninsured_exposure_aud: number
+  tcfd_disclosure: boolean
+  net_zero_commitment: boolean
+  climate_risk_maturity: number
+}
+
+export interface PGCRPolicyRecord {
+  policy_id: string
+  policy_name: string
+  jurisdiction: string
+  policy_type: string
+  implementation_status: string
+  target_metric: string
+  progress_pct: number
+  investment_m: number
+  review_date: string
+  effectiveness_rating: number
+}
+
+export interface PGCRDashboard {
+  asset_risks: PGCRAssetRiskRecord[]
+  events: PGCREventRecord[]
+  hazard_projections: PGCRHazardProjectionRecord[]
+  adaptations: PGCRAdaptationRecord[]
+  financial_risks: PGCRFinancialRiskRecord[]
+  policies: PGCRPolicyRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getPowerGridClimateResilienceDashboard = (): Promise<PGCRDashboard> =>
+  get<PGCRDashboard>('/api/power-grid-climate-resilience/dashboard')
+
+// ── Sprint 107c: Energy Storage Technology Comparison Analytics (ESTC) ──────
+
+export interface ESTCTechnologyRecord {
+  technology: string
+  vendor: string
+  maturity_level: string
+  round_trip_efficiency_pct: number
+  self_discharge_pct_day: number
+  cycle_life: number
+  calendar_life_years: number
+  energy_density_wh_kg: number
+  power_density_w_kg: number
+  response_time_ms: number
+  dod_pct: number
+}
+
+export interface ESTCCostRecord {
+  year: number
+  technology: string
+  capex_kwh: number
+  capex_kw: number
+  opex_kwh_year: number
+  levelised_cost_storage_mwh: number
+  installation_cost_pct: number
+  financing_cost_pct: number
+}
+
+export interface ESTCApplicationRecord {
+  application: string
+  technology: string
+  suitability_score: number
+  min_duration_h: number
+  max_duration_h: number
+  required_response_ms: number
+  market_value_aud_mwh: number
+  deployment_count_aus: number
+}
+
+export interface ESTCMarketRecord {
+  date_month: string
+  cumulative_aus_mwh: number
+  new_deployments: number
+  dominant_technology: string
+  market_value_m: number
+  avg_contract_duration_years: number
+}
+
+export interface ESTCPerformanceRecord {
+  project_id: string
+  technology: string
+  location: string
+  installed_mwh: number
+  installed_mw: number
+  actual_rte_pct: number
+  availability_pct: number
+  degradation_rate_pct_year: number
+  cycles_completed: number
+  revenue_aud_per_mwh: number
+  primary_use_case: string
+}
+
+export interface ESTCProjectionRecord {
+  year: number
+  scenario: string
+  projected_aus_gwh: number
+  solar_paired_pct: number
+  wind_paired_pct: number
+  standalone_pct: number
+  dominant_tech: string
+  avg_lcoes_mwh: number
+  grid_contribution_pct: number
+}
+
+export interface ESTCDashboard {
+  technologies: ESTCTechnologyRecord[]
+  cost_trajectories: ESTCCostRecord[]
+  applications: ESTCApplicationRecord[]
+  market_evolution: ESTCMarketRecord[]
+  performance: ESTCPerformanceRecord[]
+  projections: ESTCProjectionRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getEnergyStorageTechComparisonDashboard = (): Promise<ESTCDashboard> =>
+  get<ESTCDashboard>('/api/energy-storage-technology-comparison/dashboard')

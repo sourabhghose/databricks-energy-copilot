@@ -13742,3 +13742,132 @@ class TestOffshoreWindFinanceDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCarbonOffsetProjectDashboard:
+    URL = "/api/carbon-offset-project-x/dashboard"
+    HEADERS = {"X-API-Key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_projects_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["projects"]) >= 15
+
+    def test_methodologies_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["methodologies"]) >= 8
+
+    def test_market_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["market_records"]) >= 20
+
+    def test_quality_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["quality_records"]) >= 20
+
+    def test_co_benefits_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["co_benefits"]) >= 15
+
+    def test_pricing_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["pricing"]) >= 18
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_accu_issued_m" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestPowerGridClimateResilienceDashboard:
+    URL = "/api/power-grid-climate-resilience/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_asset_risks_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["asset_risks"]) >= 20
+
+    def test_events_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["events"]) >= 12
+
+    def test_hazard_projections_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["hazard_projections"]) >= 15
+
+    def test_adaptations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["adaptations"]) >= 10
+
+    def test_financial_risks_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["financial_risks"]) >= 8
+
+    def test_policies_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["policies"]) >= 10
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_at_risk_assets" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ============================================================
+# Sprint 107c – Energy Storage Technology Comparison Analytics
+# ============================================================
+
+class TestESTCDashboard:
+    URL = "/api/energy-storage-technology-comparison/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_technologies_key(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "technologies" in r.json()
+
+    def test_technologies_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["technologies"]) == 20
+
+    def test_has_cost_trajectories_key(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "cost_trajectories" in r.json()
+
+    def test_cost_trajectories_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["cost_trajectories"]) == 40
+
+    def test_has_applications_key(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "applications" in r.json()
+
+    def test_has_performance_key(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "performance" in r.json()
+
+    def test_has_projections_key(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "projections" in r.json()
+
+    def test_has_summary_key(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "summary" in r.json()

@@ -368,6 +368,9 @@ import DistributionNetworkPlanningAnalytics from './pages/DistributionNetworkPla
 import GridFlexibilityServicesAnalytics from './pages/GridFlexibilityServicesAnalytics'
 import HydrogenRefuellingStationAnalytics from './pages/HydrogenRefuellingStationAnalytics'
 import OffshoreWindFinanceAnalytics from './pages/OffshoreWindFinanceAnalytics'
+import CarbonOffsetProjectAnalytics from './pages/CarbonOffsetProjectAnalytics'
+import PowerGridClimateResilienceAnalytics from './pages/PowerGridClimateResilienceAnalytics'
+import EnergyStorageTechComparisonAnalytics from './pages/EnergyStorageTechComparisonAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -568,6 +571,7 @@ const NAV_ITEMS = [
   { to: '/industrial-electrification', label: 'Industrial Electrification',   Icon: Zap        },
   { to: '/offshore-wind-dev-analytics', label: 'Offshore Wind Dev Pipeline',  Icon: Wind       },
   { to: '/offshore-wind-finance',       label: 'Offshore Wind Finance',        Icon: Wind       },
+  { to: '/carbon-offset-project',      label: 'Carbon Offset Projects',       Icon: Leaf       },
   { to: '/pumped-hydro-resource-assessment', label: 'Pumped Hydro Resource Assessment', Icon: Droplets },
   { to: '/frequency-control-performance', label: 'NEM Frequency Control Performance', Icon: Radio  },
   { to: '/cost-reflective-tariff-reform', label: 'Cost-Reflective Tariff Reform', Icon: BarChart2 },
@@ -657,6 +661,8 @@ const NAV_ITEMS = [
   { to: '/distribution-network-planning', label: 'Distribution Network Planning', Icon: Network },
   { to: '/grid-flexibility-services', label: 'Grid Flexibility Services Analytics', Icon: Moon },
   { to: '/hydrogen-refuelling-station', label: 'Hydrogen Refuelling Station Analytics', Icon: Fuel },
+  { to: '/power-grid-climate-resilience', label: 'Power Grid Climate Resilience', Icon: CloudLightning },
+  { to: '/energy-storage-tech-comparison', label: 'Storage Tech Comparison', Icon: Battery },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1021,6 +1027,9 @@ export default function App() {
               <Route path="/grid-flexibility-services" element={<GridFlexibilityServicesAnalytics />} />
               <Route path="/hydrogen-refuelling-station" element={<HydrogenRefuellingStationAnalytics />} />
               <Route path="/offshore-wind-finance"       element={<OffshoreWindFinanceAnalytics />}       />
+              <Route path="/carbon-offset-project"     element={<CarbonOffsetProjectAnalytics />}      />
+              <Route path="/power-grid-climate-resilience" element={<PowerGridClimateResilienceAnalytics />} />
+              <Route path="/energy-storage-tech-comparison" element={<EnergyStorageTechComparisonAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

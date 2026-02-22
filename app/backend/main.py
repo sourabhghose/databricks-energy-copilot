@@ -79114,3 +79114,1534 @@ def get_owpf_dashboard() -> OWPFDashboard:
     ).model_dump())
 
     return OWPFDashboard(**_owpf_cache)
+
+# =============================================================================
+# CARBON OFFSET PROJECT ANALYTICS (COPA) — Sprint 107a
+# =============================================================================
+
+class COPAProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    proponent: str
+    methodology: str
+    state: str
+    area_ha: float
+    project_life_years: int
+    accreditation_date: str
+    status: str
+    accu_issued: float
+    accu_contracted: float
+    accu_remaining: float
+    co2e_per_ha_pa: float
+    additionality_risk: str
+    permanence_risk: str
+    registry_project_id: str
+
+
+class COPAMethodologyRecord(BaseModel):
+    method_id: str
+    methodology_name: str
+    category: str
+    responsible_body: str
+    avg_abatement_factor_tco2e_per_ha: float
+    additionality_requirement: str
+    measurement_type: str
+    review_cycle_years: int
+    approved_since: int
+    projects_registered: int
+    total_accu_issued_m: float
+    market_confidence: str
+    price_premium_pct: float
+
+
+class COPAMarketRecord(BaseModel):
+    market_id: str
+    date: str
+    accu_spot_price_aud: float
+    accu_forward_2026: float
+    accu_forward_2027: float
+    accu_forward_2028: float
+    total_issuances_k: float
+    total_surrenders_k: float
+    net_issuances_k: float
+    safeguard_demand_k: float
+    voluntary_demand_k: float
+    government_purchases_k: float
+    registry_balance_m: float
+    active_projects_count: int
+    avg_project_size_kaccu: float
+
+
+class COPAQualityRecord(BaseModel):
+    quality_id: str
+    project_id: str
+    quality_dimension: str
+    score: int
+    assessment_date: str
+    assessor: str
+    strengths: str
+    weaknesses: str
+    red_flags_count: int
+    verification_body: str
+    last_audit_date: str
+    verified_accu_k: float
+
+
+class COPACoBenefitRecord(BaseModel):
+    cobenefit_id: str
+    project_id: str
+    cobenefit_type: str
+    impact_level: str
+    certified: bool
+    standard_name: str
+    verification_date: str
+    annual_benefit_aud: float
+    beneficiaries_count: int
+
+
+class COPAPricingRecord(BaseModel):
+    pricing_id: str
+    methodology: str
+    vintage_year: int
+    quality_tier: str
+    spot_price_aud: float
+    premium_vs_generic_pct: float
+    buyer_segment: str
+    liquidity: str
+    price_driver: str
+    trend_12m_pct: float
+
+
+class COPADashboard(BaseModel):
+    projects: List[COPAProjectRecord]
+    methodologies: List[COPAMethodologyRecord]
+    market_records: List[COPAMarketRecord]
+    quality_records: List[COPAQualityRecord]
+    co_benefits: List[COPACoBenefitRecord]
+    pricing: List[COPAPricingRecord]
+    summary: dict
+
+
+_copa_cache: dict = {}
+
+
+@app.get("/api/carbon-offset-project/dashboard")
+def get_carbon_offset_project_dashboard():
+    import random
+    if _copa_cache:
+        return _copa_cache
+
+    rng = random.Random(20240101)
+
+    # -----------------------------------------------------------------------
+    # Projects
+    # -----------------------------------------------------------------------
+    methodologies_list = [
+        "Vegetation - Human Induced Regeneration",
+        "Avoided Deforestation",
+        "Savanna Burning",
+        "Soil Carbon",
+        "Landfill Gas",
+        "Reforestation",
+        "Industrial Fugitive",
+        "ERF - Commercial Buildings",
+        "Piggery",
+    ]
+    states_list = ["NSW", "QLD", "VIC", "WA", "SA", "NT", "TAS"]
+    statuses = ["Active", "Active", "Active", "Active", "Completed", "Revoked", "Suspended"]
+    proponents = [
+        "GreenFleet Carbon Pty Ltd", "AusCarbon Holdings", "Indigenous Carbon Foundation",
+        "NatCarbon Pty Ltd", "SoilCare Australia", "Carbon Farmers of Australia",
+        "ReForest Co", "Clean Gas Australia", "AgriFarm Carbon", "Timbara Environmental",
+        "Pacific Carbon Solutions", "EcoFlux Pty Ltd", "Carbon Future Ltd",
+        "Southern Rangelands Carbon", "Northern Territory Carbon Alliance",
+    ]
+    project_data = [
+        ("ACCU-NSW-001", "Hunter Valley Regeneration Project", "Vegetation - Human Induced Regeneration", "NSW", 42500, 25),
+        ("ACCU-QLD-002", "Cape York Avoided Deforestation", "Avoided Deforestation", "QLD", 125000, 30),
+        ("ACCU-NT-003", "Arnhem Land Savanna Burning", "Savanna Burning", "NT", 580000, 20),
+        ("ACCU-SA-004", "Eyre Peninsula Soil Carbon", "Soil Carbon", "SA", 18000, 10),
+        ("ACCU-VIC-005", "Latrobe Valley Landfill Gas", "Landfill Gas", "VIC", 85, 15),
+        ("ACCU-QLD-006", "Atherton Tablelands Reforestation", "Reforestation", "QLD", 8200, 30),
+        ("ACCU-WA-007", "Wheatbelt Vegetation Regeneration", "Vegetation - Human Induced Regeneration", "WA", 67000, 25),
+        ("ACCU-NSW-008", "Sydney Basin Landfill Gas", "Landfill Gas", "NSW", 42, 15),
+        ("ACCU-SA-009", "Yorke Peninsula Soil Carbon", "Soil Carbon", "SA", 22000, 10),
+        ("ACCU-NT-010", "Kakadu Savanna Burning", "Savanna Burning", "NT", 890000, 20),
+        ("ACCU-QLD-011", "Central Queensland Avoided Deforestation", "Avoided Deforestation", "QLD", 95000, 25),
+        ("ACCU-VIC-012", "Gippsland Industrial Fugitive", "Industrial Fugitive", "VIC", 10, 15),
+        ("ACCU-NSW-013", "Blue Mountains Reforestation", "Reforestation", "NSW", 4500, 25),
+        ("ACCU-WA-014", "Kimberley Savanna Burning", "Savanna Burning", "WA", 420000, 20),
+        ("ACCU-SA-015", "Murray Mallee Vegetation Regeneration", "Vegetation - Human Induced Regeneration", "SA", 38000, 25),
+        ("ACCU-QLD-016", "Bowen Basin Commercial Buildings", "ERF - Commercial Buildings", "QLD", 5, 10),
+        ("ACCU-WA-017", "Ord Valley Soil Carbon", "Soil Carbon", "WA", 31000, 10),
+        ("ACCU-NSW-018", "Camden Piggery Methane", "Piggery", "NSW", 55, 15),
+        ("ACCU-TAS-019", "Tasmanian Rainforest Reforestation", "Reforestation", "TAS", 6800, 30),
+        ("ACCU-VIC-020", "Western District Soil Carbon", "Soil Carbon", "VIC", 14500, 10),
+    ]
+
+    projects = []
+    accreditation_years = [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023]
+    add_risk_options = ["Low", "Medium", "High"]
+    perm_risk_options = ["Low", "Medium", "High"]
+
+    for i, (pid, pname, meth, state, area, life) in enumerate(project_data):
+        acc_yr = rng.choice(accreditation_years)
+        base_accu = area * rng.uniform(0.8, 3.5) if area > 1000 else area * rng.uniform(50, 200)
+        issued = round(base_accu * rng.uniform(0.3, 0.9), 0)
+        contracted = round(issued * rng.uniform(0.4, 0.95), 0)
+        remaining = round(base_accu - issued, 0)
+        co2e_ha = round(rng.uniform(1.2, 8.5) if area > 1000 else rng.uniform(10, 45), 2)
+        st = rng.choice(statuses)
+        proponent = proponents[i % len(proponents)]
+        add_risk = rng.choice(add_risk_options)
+        perm_risk = rng.choice(perm_risk_options)
+        projects.append(COPAProjectRecord(
+            project_id=pid,
+            project_name=pname,
+            proponent=proponent,
+            methodology=meth,
+            state=state,
+            area_ha=float(area),
+            project_life_years=life,
+            accreditation_date=f"{acc_yr}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            status=st,
+            accu_issued=issued,
+            accu_contracted=contracted,
+            accu_remaining=max(0.0, remaining),
+            co2e_per_ha_pa=co2e_ha,
+            additionality_risk=add_risk,
+            permanence_risk=perm_risk,
+            registry_project_id=f"ERF-{rng.randint(10000,99999)}",
+        ))
+
+    # -----------------------------------------------------------------------
+    # Methodologies
+    # -----------------------------------------------------------------------
+    methodology_details = [
+        ("METH-001", "Vegetation - Human Induced Regeneration", "Land-based", "Clean Energy Regulator", 3.8, "Medium", "Modelled", 5, 2014, 312, 28.4, "High", 12.5),
+        ("METH-002", "Avoided Deforestation", "Land-based", "Clean Energy Regulator", 5.2, "High", "Modelled", 5, 2015, 187, 18.7, "Medium", 8.3),
+        ("METH-003", "Savanna Burning", "Land-based", "Clean Energy Regulator", 2.1, "Medium", "Measured", 3, 2012, 95, 32.1, "High", 18.2),
+        ("METH-004", "Soil Carbon", "Land-based", "Clean Energy Regulator", 1.4, "High", "Measured", 5, 2018, 228, 8.9, "Medium", -2.1),
+        ("METH-005", "Landfill Gas", "Waste", "Clean Energy Regulator", 42.0, "Low", "Measured", 3, 2011, 148, 22.3, "High", 5.4),
+        ("METH-006", "Reforestation", "Land-based", "Clean Energy Regulator", 6.5, "Medium", "Modelled", 5, 2013, 203, 15.6, "High", 9.7),
+        ("METH-007", "Industrial Fugitive", "Industrial", "Clean Energy Regulator", 85.0, "Low", "Measured", 3, 2011, 62, 19.2, "High", 3.2),
+        ("METH-008", "ERF - Commercial Buildings", "Energy", "Clean Energy Regulator", 18.0, "Medium", "Measured", 3, 2015, 441, 11.4, "Medium", -1.8),
+        ("METH-009", "Piggery", "Waste", "Clean Energy Regulator", 65.0, "Low", "Measured", 3, 2012, 87, 6.8, "High", 7.1),
+        ("METH-010", "Blue Carbon (Coastal Wetland)", "Land-based", "Clean Energy Regulator", 8.2, "High", "Modelled", 5, 2022, 18, 0.4, "Low", 22.5),
+    ]
+
+    methodologies = []
+    for md in methodology_details:
+        methodologies.append(COPAMethodologyRecord(
+            method_id=md[0], methodology_name=md[1], category=md[2],
+            responsible_body=md[3], avg_abatement_factor_tco2e_per_ha=md[4],
+            additionality_requirement=md[5], measurement_type=md[6],
+            review_cycle_years=md[7], approved_since=md[8],
+            projects_registered=md[9], total_accu_issued_m=md[10],
+            market_confidence=md[11], price_premium_pct=md[12],
+        ))
+
+    # -----------------------------------------------------------------------
+    # Market Records (24 months Jan 2023 - Dec 2024)
+    # -----------------------------------------------------------------------
+    market_records = []
+    base_spot = 32.5
+    registry_balance = 68.2
+    active_count = 1750
+    for mo_idx in range(24):
+        yr = 2023 + mo_idx // 12
+        mo = (mo_idx % 12) + 1
+        spot = round(base_spot + rng.uniform(-3.5, 4.5) + mo_idx * 0.18, 2)
+        spot = max(25.0, min(45.0, spot))
+        fwd26 = round(spot + rng.uniform(1.5, 5.5), 2)
+        fwd27 = round(fwd26 + rng.uniform(1.0, 4.0), 2)
+        fwd28 = round(fwd27 + rng.uniform(0.5, 3.5), 2)
+        iss = round(rng.uniform(280, 520), 1)
+        surr = round(rng.uniform(240, 480), 1)
+        net = round(iss - surr, 1)
+        safeguard = round(surr * rng.uniform(0.42, 0.58), 1)
+        voluntary = round(surr * rng.uniform(0.15, 0.28), 1)
+        govt_purch = round(surr - safeguard - voluntary, 1)
+        registry_balance = round(registry_balance + net / 1000, 2)
+        active_count += rng.randint(-8, 22)
+        market_records.append(COPAMarketRecord(
+            market_id=f"COPA-MKT-{mo_idx+1:03d}",
+            date=f"{yr}-{mo:02d}-01",
+            accu_spot_price_aud=spot,
+            accu_forward_2026=fwd26,
+            accu_forward_2027=fwd27,
+            accu_forward_2028=fwd28,
+            total_issuances_k=iss,
+            total_surrenders_k=surr,
+            net_issuances_k=net,
+            safeguard_demand_k=safeguard,
+            voluntary_demand_k=voluntary,
+            government_purchases_k=max(0.0, govt_purch),
+            registry_balance_m=registry_balance,
+            active_projects_count=active_count,
+            avg_project_size_kaccu=round(rng.uniform(18.5, 42.5), 1),
+        ))
+
+    # -----------------------------------------------------------------------
+    # Quality Records (5 projects × 5 dimensions)
+    # -----------------------------------------------------------------------
+    quality_dimensions = ["Additionality", "Permanence", "Measurability", "Co-benefits", "Leakage"]
+    top_project_ids = [p.project_id for p in projects[:5]]
+    assessors = [
+        "Bureau Veritas", "DNV GL", "Carbon Trust", "EY Climate Change",
+        "KPMG Sustainability", "Deloitte Climate"
+    ]
+    verification_bodies = ["Pangolin Associates", "GHD Pty Ltd", "WSP Australia", "AECOM", "Arcadis"]
+    quality_records = []
+    qid = 1
+    for proj_id in top_project_ids:
+        for dim in quality_dimensions:
+            score = rng.randint(2, 5)
+            strengths_map = {
+                "Additionality": "Strong counterfactual baseline; independent third-party validation",
+                "Permanence": "25-year permanence covenant registered on title",
+                "Measurability": "Ground-truthed remote sensing data with annual verification",
+                "Co-benefits": "Documented biodiversity uplift and Indigenous employment outcomes",
+                "Leakage": "Buffer area established; leakage risk quantified below 5%",
+            }
+            weaknesses_map = {
+                "Additionality": "Reliance on modelled rather than measured baseline",
+                "Permanence": "Climate change risk may accelerate reversal",
+                "Measurability": "Limited ground-truth sampling density in remote areas",
+                "Co-benefits": "Co-benefit claims not independently certified",
+                "Leakage": "Boundary effects not fully quantified for displaced land use",
+            }
+            quality_records.append(COPAQualityRecord(
+                quality_id=f"COPA-QA-{qid:03d}",
+                project_id=proj_id,
+                quality_dimension=dim,
+                score=score,
+                assessment_date=f"202{rng.randint(2,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+                assessor=rng.choice(assessors),
+                strengths=strengths_map[dim],
+                weaknesses=weaknesses_map[dim],
+                red_flags_count=max(0, 4 - score),
+                verification_body=rng.choice(verification_bodies),
+                last_audit_date=f"2024-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+                verified_accu_k=round(rng.uniform(5.0, 85.0), 1),
+            ))
+            qid += 1
+
+    # -----------------------------------------------------------------------
+    # Co-Benefits (20 records)
+    # -----------------------------------------------------------------------
+    cobenefit_types = ["Biodiversity", "Water Security", "Indigenous Community", "Employment",
+                       "Soil Health", "Coastal Protection", "Mental Health", "Fire Risk"]
+    impact_levels = ["Low", "Medium", "High", "Transformative"]
+    standards = ["CCBS Gold", "Plan Vivo", "Social Carbon", "None", "BCorp Certified", "ISO 14001"]
+    co_benefits = []
+    for cb_idx in range(20):
+        proj = projects[cb_idx % len(projects)]
+        cb_type = cobenefit_types[cb_idx % len(cobenefit_types)]
+        impact = rng.choice(impact_levels)
+        is_certified = rng.random() > 0.4
+        standard = rng.choice(standards[:5]) if is_certified else "None"
+        co_benefits.append(COPACoBenefitRecord(
+            cobenefit_id=f"COPA-CB-{cb_idx+1:03d}",
+            project_id=proj.project_id,
+            cobenefit_type=cb_type,
+            impact_level=impact,
+            certified=is_certified,
+            standard_name=standard,
+            verification_date=f"2023-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            annual_benefit_aud=round(rng.uniform(25000, 850000), 0),
+            beneficiaries_count=rng.randint(50, 12000),
+        ))
+
+    # -----------------------------------------------------------------------
+    # Pricing (24 records: 6 methodologies × 4 quality/vintage combos)
+    # -----------------------------------------------------------------------
+    pricing_methodologies = [
+        "Vegetation - Human Induced Regeneration",
+        "Savanna Burning",
+        "Soil Carbon",
+        "Landfill Gas",
+        "Reforestation",
+        "Industrial Fugitive",
+    ]
+    quality_tiers = ["Gold", "Gold", "Standard", "Basic"]
+    vintage_years_p = [2022, 2023, 2024, 2024]
+    buyer_segments = [
+        "Corporate Net Zero", "Government Compliance", "Safeguard",
+        "Voluntary Retail", "Institutional"
+    ]
+    price_drivers_map = {
+        "Vegetation - Human Induced Regeneration": "Native vegetation co-benefits premium",
+        "Savanna Burning": "Indigenous engagement and fire management premium",
+        "Soil Carbon": "Permanence uncertainty discount",
+        "Landfill Gas": "Measurability and vintage liquidity",
+        "Reforestation": "Biodiversity certification premium",
+        "Industrial Fugitive": "Compliance grade, high measurability",
+    }
+    pricing = []
+    pid_p = 1
+    for meth_p in pricing_methodologies:
+        for ti, (tier, vy) in enumerate(zip(quality_tiers, vintage_years_p)):
+            base_p = 34.5 if tier == "Gold" else (30.5 if tier == "Standard" else 26.0)
+            spot_p = round(base_p + rng.uniform(-2.5, 3.5), 2)
+            premium = round((spot_p / 28.5 - 1) * 100, 1)
+            liquidity = rng.choice(["High", "High", "Medium", "Low"])
+            pricing.append(COPAPricingRecord(
+                pricing_id=f"COPA-PRC-{pid_p:03d}",
+                methodology=meth_p,
+                vintage_year=vy,
+                quality_tier=tier,
+                spot_price_aud=spot_p,
+                premium_vs_generic_pct=premium,
+                buyer_segment=rng.choice(buyer_segments),
+                liquidity=liquidity,
+                price_driver=price_drivers_map[meth_p],
+                trend_12m_pct=round(rng.uniform(-8.5, 18.5), 1),
+            ))
+            pid_p += 1
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    active_projects = sum(1 for p in projects if p.status == "Active")
+    total_accu_issued_m = round(sum(p.accu_issued for p in projects) / 1_000_000, 3)
+    avg_spot = round(sum(m.accu_spot_price_aud for m in market_records) / len(market_records), 2)
+    latest_market = market_records[-1]
+    total_demand = latest_market.safeguard_demand_k + latest_market.voluntary_demand_k + latest_market.government_purchases_k
+    safeguard_frac = round(latest_market.safeguard_demand_k / total_demand * 100, 1) if total_demand > 0 else 0.0
+    meth_volumes: dict = {}
+    for p in projects:
+        meth_volumes[p.methodology] = meth_volumes.get(p.methodology, 0) + p.accu_issued
+    top_meth = max(meth_volumes, key=lambda k: meth_volumes[k])
+
+    _copa_cache.update(COPADashboard(
+        projects=projects,
+        methodologies=methodologies,
+        market_records=market_records,
+        quality_records=quality_records,
+        co_benefits=co_benefits,
+        pricing=pricing,
+        summary={
+            "total_active_projects": active_projects,
+            "total_accu_issued_m": total_accu_issued_m,
+            "avg_spot_price_aud": avg_spot,
+            "safeguard_demand_fraction_pct": safeguard_frac,
+            "top_methodology_by_volume": top_meth,
+        },
+    ).model_dump())
+
+
+# ===========================================================================
+# Sprint 107a — Carbon Offset Project Analytics (COPAX prefix)
+# ===========================================================================
+
+class COPAXProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    proponent: str
+    methodology: str
+    state: str
+    area_ha: float
+    project_life_years: int
+    accreditation_date: str
+    status: str
+    accu_issued: float
+    accu_contracted: float
+    accu_remaining: float
+    co2e_per_ha_pa: float
+    additionality_risk: str
+    permanence_risk: str
+
+
+class COPAXMethodologyRecord(BaseModel):
+    method_id: str
+    methodology_name: str
+    category: str
+    avg_abatement_tco2e_per_ha: float
+    additionality_requirement: str
+    measurement_type: str
+    projects_registered: int
+    total_accu_issued_m: float
+    market_confidence: str
+    price_premium_pct: float
+
+
+class COPAXMarketRecord(BaseModel):
+    market_id: str
+    date: str
+    accu_spot_price_aud: float
+    accu_forward_2026: float
+    accu_forward_2027: float
+    accu_forward_2028: float
+    total_issuances_k: float
+    total_surrenders_k: float
+    safeguard_demand_k: float
+    voluntary_demand_k: float
+    registry_balance_m: float
+    active_projects_count: int
+
+
+class COPAXQualityRecord(BaseModel):
+    quality_id: str
+    project_id: str
+    quality_dimension: str
+    score: float
+    assessment_date: str
+    assessor: str
+    verified_accu_k: float
+    red_flags_count: int
+
+
+class COPAXCoBenefitRecord(BaseModel):
+    cobenefit_id: str
+    project_id: str
+    cobenefit_type: str
+    impact_level: str
+    certified: bool
+    annual_benefit_aud: float
+    beneficiaries_count: int
+
+
+class COPAXPricingRecord(BaseModel):
+    pricing_id: str
+    methodology: str
+    vintage_year: int
+    quality_tier: str
+    spot_price_aud: float
+    premium_vs_generic_pct: float
+    buyer_segment: str
+    liquidity: str
+    price_trend_pct: float
+
+
+class COPAXDashboard(BaseModel):
+    projects: list[COPAXProjectRecord]
+    methodologies: list[COPAXMethodologyRecord]
+    market_records: list[COPAXMarketRecord]
+    quality_records: list[COPAXQualityRecord]
+    co_benefits: list[COPAXCoBenefitRecord]
+    pricing: list[COPAXPricingRecord]
+    summary: dict
+
+
+_copax_cache: dict = {}
+
+
+@app.get("/api/carbon-offset-project-x/dashboard")
+def get_copax_dashboard():
+    import random
+    if _copax_cache:
+        return _copax_cache
+
+    rng = random.Random(20240722)
+
+    methodologies_list = [
+        "HIR", "Avoided Deforestation", "Savanna Burning",
+        "Soil Carbon", "Landfill Gas", "Reforestation", "Industrial Fugitive",
+    ]
+    states_list = ["QLD", "NSW", "WA", "NT", "SA", "VIC", "TAS"]
+    risk_levels = ["Low", "Medium", "High"]
+    statuses = ["Active", "Active", "Active", "Active", "Completed", "Revoked", "Suspended"]
+
+    proponents = [
+        "GreenCollar", "Carbon Neutral", "South Pole", "Native Carbon",
+        "RegenCo", "Ozcarbons", "TerraCarbon", "EcoOffset Pty Ltd",
+        "CarbonLink", "Verra Australia", "Clean Futures", "Landcare Credits",
+        "Bushfire Carbon", "AgriCarbon Co", "ClimateActive Ltd",
+    ]
+
+    project_names_tmpl = [
+        "Mulga Scrub Avoided Clearing", "Kimberley Savanna Fire Mgmt",
+        "Hunter Valley Soil Carbon", "Cape York Reforestation",
+        "Darwin Landfill Gas Recovery", "Murray Darling Soil Health",
+        "Pilbara Vegetation Mgmt", "Snowy Highlands Reforestation",
+        "Gulf Country Savanna Burning", "Brigalow Belt Carbon Project",
+        "South East QLD Forest Carbon", "Eyre Peninsula Soil Carbon",
+        "Arnhem Land Savanna Burning", "Gippsland Soil Carbon",
+        "Kalgoorlie Landfill Gas", "Mitchell Grass Carbon Project",
+        "Riverina Soil Health Program", "Top End Savanna Management",
+        "Southwest WA Reforestation", "Central Desert Carbon",
+    ]
+
+    projects = []
+    for i, name in enumerate(project_names_tmpl):
+        meth = rng.choice(methodologies_list)
+        status = rng.choice(statuses)
+        area = round(rng.uniform(5_000, 250_000), 0)
+        accu_issued = round(rng.uniform(50_000, 2_500_000), 0)
+        accu_contracted = round(accu_issued * rng.uniform(0.3, 0.85), 0)
+        projects.append(COPAXProjectRecord(
+            project_id=f"COPAX-PRJ-{i+1:03d}",
+            project_name=name,
+            proponent=rng.choice(proponents),
+            methodology=meth,
+            state=rng.choice(states_list),
+            area_ha=area,
+            project_life_years=rng.choice([25, 25, 50, 100]),
+            accreditation_date=f"{rng.randint(2010, 2023)}-{rng.randint(1,12):02d}-01",
+            status=status,
+            accu_issued=accu_issued,
+            accu_contracted=accu_contracted,
+            accu_remaining=round(accu_issued - accu_contracted, 0),
+            co2e_per_ha_pa=round(rng.uniform(0.5, 12.0), 2),
+            additionality_risk=rng.choice(risk_levels),
+            permanence_risk=rng.choice(risk_levels),
+        ))
+
+    # 10 methodology records
+    method_meta = [
+        ("HIR", "Land-based", 3.5, "Medium", "Modelled", 312, 18.4, "High", 5.2),
+        ("Avoided Deforestation", "Land-based", 8.2, "High", "Modelled", 78, 4.1, "Medium", 12.5),
+        ("Savanna Burning", "Land-based", 2.1, "Low", "Estimated", 185, 22.6, "High", 2.8),
+        ("Soil Carbon", "Land-based", 1.8, "High", "Measured", 94, 3.2, "Medium", 8.1),
+        ("Landfill Gas", "Waste", 12.5, "Low", "Measured", 42, 7.8, "High", -1.2),
+        ("Reforestation", "Land-based", 5.6, "Medium", "Modelled", 67, 5.5, "Medium", 15.3),
+        ("Industrial Fugitive", "Industrial", 18.0, "Low", "Measured", 28, 3.9, "High", 3.5),
+        ("Energy Efficiency", "Energy", 6.3, "Medium", "Measured", 55, 2.1, "Medium", 4.7),
+        ("Blue Carbon", "Land-based", 4.2, "High", "Modelled", 19, 0.8, "Low", 22.1),
+        ("Direct Air Capture", "Industrial", 30.0, "Low", "Measured", 5, 0.2, "Medium", 35.0),
+    ]
+    methodologies = []
+    for mi, (mname, cat, avg_ab, add_req, meas, n_proj, tot_accu, mkt_conf, prem) in enumerate(method_meta):
+        methodologies.append(COPAXMethodologyRecord(
+            method_id=f"COPAX-MTH-{mi+1:03d}",
+            methodology_name=mname,
+            category=cat,
+            avg_abatement_tco2e_per_ha=avg_ab,
+            additionality_requirement=add_req,
+            measurement_type=meas,
+            projects_registered=n_proj,
+            total_accu_issued_m=tot_accu,
+            market_confidence=mkt_conf,
+            price_premium_pct=prem,
+        ))
+
+    # 24 monthly market records Jan 2023 - Dec 2024
+    market_records = []
+    base_spot = 32.0
+    base_balance = 85.0
+    for mi in range(24):
+        yr = 2023 + mi // 12
+        mo = (mi % 12) + 1
+        date_str = f"{yr}-{mo:02d}-01"
+        trend = mi * 0.25
+        spot = round(base_spot + trend + rng.uniform(-2.5, 2.5), 2)
+        spot = max(25.0, min(45.0, spot))
+        issuances_k = round(rng.uniform(800, 2200), 1)
+        surrenders_k = round(rng.uniform(500, 1800), 1)
+        safeguard_k = round(surrenders_k * rng.uniform(0.45, 0.65), 1)
+        voluntary_k = round(surrenders_k - safeguard_k, 1)
+        balance_m = round(base_balance - mi * 0.3 + rng.uniform(-2, 2), 2)
+        market_records.append(COPAXMarketRecord(
+            market_id=f"COPAX-MKT-{mi+1:03d}",
+            date=date_str,
+            accu_spot_price_aud=spot,
+            accu_forward_2026=round(spot + rng.uniform(1.5, 4.0), 2),
+            accu_forward_2027=round(spot + rng.uniform(3.0, 7.0), 2),
+            accu_forward_2028=round(spot + rng.uniform(5.0, 11.0), 2),
+            total_issuances_k=issuances_k,
+            total_surrenders_k=surrenders_k,
+            safeguard_demand_k=safeguard_k,
+            voluntary_demand_k=voluntary_k,
+            registry_balance_m=balance_m,
+            active_projects_count=rng.randint(380, 520),
+        ))
+
+    # 25 quality records — 5 projects x 5 dimensions
+    quality_dimensions = ["Additionality", "Permanence", "Measurability", "Co-benefits", "Leakage"]
+    assessors = ["CER Auditor", "Deloitte Climate", "EY Sustainability", "PWC Carbon", "KPMG Assurance"]
+    quality_records = []
+    qid = 1
+    for pi in range(5):
+        pid = projects[pi].project_id
+        for dim in quality_dimensions:
+            quality_records.append(COPAXQualityRecord(
+                quality_id=f"COPAX-QUA-{qid:03d}",
+                project_id=pid,
+                quality_dimension=dim,
+                score=round(rng.uniform(2.0, 5.0), 1),
+                assessment_date=f"{rng.randint(2022, 2024)}-{rng.randint(1,12):02d}-01",
+                assessor=rng.choice(assessors),
+                verified_accu_k=round(rng.uniform(5.0, 200.0), 1),
+                red_flags_count=rng.randint(0, 3),
+            ))
+            qid += 1
+
+    # 20 co-benefit records
+    cobenefit_types = ["Biodiversity", "Water Security", "Indigenous Community", "Employment", "Soil Health"]
+    impact_levels = ["Low", "Medium", "High", "Transformative"]
+    co_benefits = []
+    for ci in range(20):
+        co_benefits.append(COPAXCoBenefitRecord(
+            cobenefit_id=f"COPAX-COB-{ci+1:03d}",
+            project_id=projects[ci % len(projects)].project_id,
+            cobenefit_type=cobenefit_types[ci % len(cobenefit_types)],
+            impact_level=rng.choice(impact_levels),
+            certified=rng.random() > 0.4,
+            annual_benefit_aud=round(rng.uniform(5_000, 250_000), 0),
+            beneficiaries_count=rng.randint(10, 5000),
+        ))
+
+    # 24 pricing records — 6 methodologies x 4 combos
+    pricing_methodologies = ["HIR", "Savanna Burning", "Soil Carbon", "Landfill Gas", "Reforestation", "Industrial Fugitive"]
+    quality_tiers = ["Gold", "Standard", "Standard", "Basic"]
+    vintage_years_p = [2022, 2023, 2024, 2024]
+    buyer_segments = ["Corporate Net Zero", "Government Compliance", "Safeguard", "Voluntary"]
+    pricing = []
+    pid_p = 1
+    for meth_p in pricing_methodologies:
+        for ti in range(4):
+            tier = quality_tiers[ti]
+            vy = vintage_years_p[ti]
+            base_p = 38.5 if tier == "Gold" else (32.0 if tier == "Standard" else 26.5)
+            spot_p = round(base_p + rng.uniform(-2.5, 3.5), 2)
+            premium = round((spot_p / 28.5 - 1) * 100, 1)
+            liquidity = rng.choice(["High", "High", "Medium", "Low"])
+            pricing.append(COPAXPricingRecord(
+                pricing_id=f"COPAX-PRC-{pid_p:03d}",
+                methodology=meth_p,
+                vintage_year=vy,
+                quality_tier=tier,
+                spot_price_aud=spot_p,
+                premium_vs_generic_pct=premium,
+                buyer_segment=rng.choice(buyer_segments),
+                liquidity=liquidity,
+                price_trend_pct=round(rng.uniform(-8.5, 18.5), 1),
+            ))
+            pid_p += 1
+
+    # Summary
+    active_projects = sum(1 for p in projects if p.status == "Active")
+    total_accu_issued_m = round(sum(p.accu_issued for p in projects) / 1_000_000, 3)
+    avg_spot = round(sum(m.accu_spot_price_aud for m in market_records) / len(market_records), 2)
+    latest_market = market_records[-1]
+    total_demand = latest_market.safeguard_demand_k + latest_market.voluntary_demand_k
+    safeguard_frac = round(latest_market.safeguard_demand_k / total_demand * 100, 1) if total_demand > 0 else 0.0
+    meth_volumes: dict = {}
+    for p in projects:
+        meth_volumes[p.methodology] = meth_volumes.get(p.methodology, 0) + p.accu_issued
+    top_meth = max(meth_volumes, key=lambda k: meth_volumes[k])
+
+    _copax_cache.update(COPAXDashboard(
+        projects=projects,
+        methodologies=methodologies,
+        market_records=market_records,
+        quality_records=quality_records,
+        co_benefits=co_benefits,
+        pricing=pricing,
+        summary={
+            "total_active_projects": active_projects,
+            "total_accu_issued_m": total_accu_issued_m,
+            "avg_spot_price_aud": avg_spot,
+            "safeguard_demand_fraction_pct": safeguard_frac,
+            "top_methodology": top_meth,
+        },
+    ).model_dump())
+    return _copax_cache
+
+
+# ---------------------------------------------------------------------------
+# Power Grid Climate Resilience Analytics  (Sprint 107b)
+# ---------------------------------------------------------------------------
+
+class PGCRAssetRiskRecord(BaseModel):
+    risk_id: str
+    asset_name: str
+    asset_type: str
+    region: str
+    state: str
+    climate_hazard: str
+    hazard_exposure: str
+    vulnerability_rating: int
+    consequence_severity: str
+    current_risk_score: int
+    risk_2030: int
+    risk_2050: int
+    adaptation_cost_m: float
+    adaptation_measure: str
+
+
+class PGCREventRecord(BaseModel):
+    event_id: str
+    event_name: str
+    event_type: str
+    state: str
+    event_date: str
+    duration_days: int
+    area_affected_km2: float
+    assets_affected_count: int
+    capacity_impacted_mw: float
+    energy_unserved_mwh: float
+    outage_customers: int
+    restoration_time_days: float
+    economic_damage_m: float
+    climate_attribution_pct: float
+    return_period_years: float
+
+
+class PGCRHazardProjectionRecord(BaseModel):
+    proj_id: str
+    region: str
+    climate_scenario: str
+    hazard_type: str
+    year_2030_intensity: float
+    year_2040_intensity: float
+    year_2050_intensity: float
+    year_2030_frequency_pa: float
+    year_2050_frequency_pa: float
+    confidence_level: str
+    key_driver: str
+    source_model: str
+
+
+class PGCRAdaptationRecord(BaseModel):
+    adapt_id: str
+    asset_type: str
+    adaptation_measure: str
+    implementation_cost_m_per_km_or_unit: float
+    risk_reduction_pct: float
+    co_benefit: str
+    implementation_timeline_years: int
+    regulatory_requirement: bool
+    cost_benefit_ratio: float
+    current_adoption_pct: float
+
+
+class PGCRFinancialRiskRecord(BaseModel):
+    fin_id: str
+    entity_name: str
+    entity_type: str
+    physical_risk_aud: float
+    transition_risk_aud: float
+    total_climate_var_aud: float
+    stressed_losses_aud: float
+    insurance_coverage_pct: float
+    uninsured_exposure_aud: float
+    tcfd_disclosure: bool
+    net_zero_commitment: bool
+    climate_risk_maturity: int
+
+
+class PGCRPolicyRecord(BaseModel):
+    policy_id: str
+    policy_name: str
+    jurisdiction: str
+    policy_type: str
+    implementation_status: str
+    target_metric: str
+    progress_pct: float
+    investment_m: float
+    review_date: str
+    effectiveness_rating: float
+
+
+class PGCRDashboard(BaseModel):
+    asset_risks: list[PGCRAssetRiskRecord]
+    events: list[PGCREventRecord]
+    hazard_projections: list[PGCRHazardProjectionRecord]
+    adaptations: list[PGCRAdaptationRecord]
+    financial_risks: list[PGCRFinancialRiskRecord]
+    policies: list[PGCRPolicyRecord]
+    summary: dict
+
+
+_pgcr_cache: dict = {}
+
+
+@app.get("/api/power-grid-climate-resilience/dashboard")
+def get_pgcr_dashboard() -> dict:
+    import random
+    if _pgcr_cache:
+        return _pgcr_cache
+
+    rng = random.Random(20240722)
+
+    # ------------------------------------------------------------------
+    # 25 Asset Risk Records
+    # ------------------------------------------------------------------
+    asset_types = ["Transmission Line", "Substation", "Wind Farm", "Solar Farm",
+                   "Gas Plant", "Coal Plant", "Hydro Dam", "Distribution Network"]
+    regions = ["Queensland", "New South Wales", "Victoria", "South Australia", "Western Australia"]
+    states = ["QLD", "NSW", "VIC", "SA", "WA"]
+    hazards = ["Bushfire", "Flood", "Extreme Heat", "Cyclone", "Storm",
+               "Sea Level Rise", "Drought", "Heatwave"]
+    exposures = ["Low", "Medium", "High", "Very High"]
+    severities = ["Low", "Medium", "High", "Critical"]
+    measures = [
+        "Underground Cables", "Asset Relocation", "Flood Barriers",
+        "Fire-resistant Hardware", "Cooling Systems", "Remote Monitoring",
+        "Redundancy", "Grid Hardening", "Smart Grid",
+    ]
+    asset_templates = [
+        ("Darling Downs 275kV Line", "Transmission Line", "Queensland", "QLD", "Bushfire", "High", 4, "High"),
+        ("Hunter Valley Substation", "Substation", "New South Wales", "NSW", "Flood", "Very High", 5, "Critical"),
+        ("Snowtown Wind Farm", "Wind Farm", "South Australia", "SA", "Extreme Heat", "Medium", 3, "Medium"),
+        ("Darlington Point Solar", "Solar Farm", "New South Wales", "NSW", "Heatwave", "High", 3, "Medium"),
+        ("Torrens Island Gas Plant", "Gas Plant", "South Australia", "SA", "Drought", "Medium", 3, "High"),
+        ("Loy Yang A Power Station", "Coal Plant", "Victoria", "VIC", "Extreme Heat", "High", 4, "Critical"),
+        ("Snowy Hydro Tumut 3", "Hydro Dam", "New South Wales", "NSW", "Drought", "High", 4, "Critical"),
+        ("Western Sydney Distribution", "Distribution Network", "New South Wales", "NSW", "Storm", "Very High", 4, "High"),
+        ("North QLD 132kV Line", "Transmission Line", "Queensland", "QLD", "Cyclone", "Very High", 5, "Critical"),
+        ("Port Augusta Substation", "Substation", "South Australia", "SA", "Heatwave", "High", 3, "High"),
+        ("Hornsdale Wind Farm", "Wind Farm", "South Australia", "SA", "Storm", "Medium", 2, "Low"),
+        ("Bungala Solar Farm", "Solar Farm", "South Australia", "SA", "Bushfire", "High", 3, "Medium"),
+        ("Callide C Gas Plant", "Gas Plant", "Queensland", "QLD", "Flood", "High", 4, "Critical"),
+        ("Hazelwood Substation", "Substation", "Victoria", "VIC", "Bushfire", "Very High", 5, "Critical"),
+        ("Hume Hydro Dam", "Hydro Dam", "New South Wales", "NSW", "Flood", "High", 4, "High"),
+        ("SEQ Distribution Network", "Distribution Network", "Queensland", "QLD", "Cyclone", "Very High", 5, "Critical"),
+        ("Basslink Interconnector", "Transmission Line", "Victoria", "VIC", "Sea Level Rise", "Medium", 3, "High"),
+        ("Muja Power Station", "Coal Plant", "Western Australia", "WA", "Heatwave", "High", 4, "High"),
+        ("Kwinana Substation", "Substation", "Western Australia", "WA", "Storm", "Medium", 2, "Medium"),
+        ("Badgingarra Wind Farm", "Wind Farm", "Western Australia", "WA", "Cyclone", "High", 4, "High"),
+        ("Merredin Solar Farm", "Solar Farm", "Western Australia", "WA", "Extreme Heat", "Very High", 3, "Medium"),
+        ("Central West Orana Line", "Transmission Line", "New South Wales", "NSW", "Bushfire", "High", 3, "High"),
+        ("Laverton North Substation", "Substation", "Victoria", "VIC", "Flood", "Medium", 3, "Medium"),
+        ("Eildon Hydro Dam", "Hydro Dam", "Victoria", "VIC", "Drought", "High", 4, "High"),
+        ("Adelaide Distribution Network", "Distribution Network", "South Australia", "SA", "Heatwave", "Very High", 4, "Critical"),
+    ]
+
+    asset_risks = []
+    for i, (name, atype, region, state, hazard, exposure, vuln, conseq) in enumerate(asset_templates, 1):
+        base_score = vuln * (exposures.index(exposure) + 1)
+        curr = min(25, max(1, base_score + rng.randint(-1, 2)))
+        r30 = min(25, curr + rng.randint(1, 4))
+        r50 = min(25, r30 + rng.randint(2, 5))
+        asset_risks.append(PGCRAssetRiskRecord(
+            risk_id=f"PGCR-ASSET-{i:03d}",
+            asset_name=name,
+            asset_type=atype,
+            region=region,
+            state=state,
+            climate_hazard=hazard,
+            hazard_exposure=exposure,
+            vulnerability_rating=vuln,
+            consequence_severity=conseq,
+            current_risk_score=curr,
+            risk_2030=r30,
+            risk_2050=r50,
+            adaptation_cost_m=round(rng.uniform(2.5, 185.0), 1),
+            adaptation_measure=rng.choice(measures),
+        ))
+
+    # ------------------------------------------------------------------
+    # 15 Climate Event Records
+    # ------------------------------------------------------------------
+    event_templates = [
+        ("PGCR-EVT-001", "Black Summer Bushfires 2019-20", "Bushfire", "NSW", "2019-11-08", 79, 12_000_000, 48, 3200, 890000, 1_200_000, 21, 5800, 93.0, 1.0),
+        ("PGCR-EVT-002", "Cyclone Yasi 2011", "Cyclone", "QLD", "2011-02-02", 5, 300_000, 32, 4100, 620000, 800_000, 8, 3600, 88.5, 20.0),
+        ("PGCR-EVT-003", "SA Statewide Blackout 2016", "Storm", "SA", "2016-09-28", 1, 18_000, 22, 1850, 850000, 850_000, 3, 420, 78.0, 50.0),
+        ("PGCR-EVT-004", "Queensland Floods 2011", "Flood", "QLD", "2011-01-10", 30, 35_000, 41, 2800, 480000, 380_000, 15, 2500, 72.0, 10.0),
+        ("PGCR-EVT-005", "Melbourne Heatwave 2009", "Heatwave", "VIC", "2009-01-26", 4, 30_000, 28, 9200, 1_400_000, 200_000, 6, 890, 82.0, 12.0),
+        ("PGCR-EVT-006", "Callide C Unit 4 Explosion 2021", "Flood", "QLD", "2021-05-25", 90, 5_000, 15, 1480, 470_000, 220_000, 20, 2400, 45.0, 100.0),
+        ("PGCR-EVT-007", "NSW Mid-North Coast Floods 2022", "Flood", "NSW", "2022-02-28", 14, 42_000, 35, 2100, 310_000, 180_000, 10, 1850, 76.0, 8.0),
+        ("PGCR-EVT-008", "Perth Hills Bushfire 2021", "Bushfire", "WA", "2021-02-01", 7, 10_000, 18, 850, 120_000, 60_000, 4, 680, 89.0, 30.0),
+        ("PGCR-EVT-009", "SA Heatwave January 2019", "Heatwave", "SA", "2019-01-24", 5, 25_000, 24, 7400, 1_100_000, 140_000, 5, 510, 80.0, 15.0),
+        ("PGCR-EVT-010", "Cyclone Debbie 2017", "Cyclone", "QLD", "2017-03-28", 4, 120_000, 26, 3500, 560_000, 440_000, 11, 2900, 85.0, 25.0),
+        ("PGCR-EVT-011", "VIC Extreme Heat Jan 2014", "Heatwave", "VIC", "2014-01-14", 3, 28_000, 19, 8600, 1_250_000, 180_000, 5, 620, 77.0, 10.0),
+        ("PGCR-EVT-012", "NQ Flooding 2019", "Flood", "QLD", "2019-01-25", 25, 65_000, 29, 1900, 280_000, 110_000, 12, 1200, 68.0, 7.0),
+        ("PGCR-EVT-013", "WA Tropical Cyclone Seroja 2021", "Cyclone", "WA", "2021-04-11", 2, 55_000, 22, 2200, 340_000, 210_000, 6, 1600, 90.0, 40.0),
+        ("PGCR-EVT-014", "Sydney Hailstorm 2020", "Storm", "NSW", "2020-12-19", 1, 5_000, 14, 1100, 220_000, 95_000, 3, 750, 60.0, 20.0),
+        ("PGCR-EVT-015", "Gippsland Drought Low Inflows 2019", "Drought", "VIC", "2019-03-01", 365, 70_000, 12, 680, 190_000, 40_000, 60, 420, 85.0, 5.0),
+    ]
+
+    events = []
+    for row in event_templates:
+        (eid, ename, etype, estate, edate, dur, area, assets, cap, energy,
+         cust, rest, damage, attr, ret_per) = row
+        events.append(PGCREventRecord(
+            event_id=eid,
+            event_name=ename,
+            event_type=etype,
+            state=estate,
+            event_date=edate,
+            duration_days=dur,
+            area_affected_km2=float(area),
+            assets_affected_count=assets,
+            capacity_impacted_mw=float(cap),
+            energy_unserved_mwh=float(energy),
+            outage_customers=cust,
+            restoration_time_days=float(rest),
+            economic_damage_m=float(damage),
+            climate_attribution_pct=attr,
+            return_period_years=ret_per,
+        ))
+
+    # ------------------------------------------------------------------
+    # 20 Hazard Projection Records (5 regions × 4 scenarios)
+    # ------------------------------------------------------------------
+    scenarios = ["1.5C", "2C", "3C", "4C"]
+    top_hazards = ["Bushfire", "Flood", "Extreme Heat", "Cyclone", "Heatwave"]
+    region_hazard_pairs = [
+        ("Queensland", "Cyclone"),
+        ("New South Wales", "Bushfire"),
+        ("Victoria", "Heatwave"),
+        ("South Australia", "Extreme Heat"),
+        ("Western Australia", "Flood"),
+    ]
+    source_models = ["CSIRO ACCESS-ESM1-5", "BOM BARPA-R", "NARCliM2.0", "CMIP6 Ensemble"]
+    drivers = ["SST Warming", "ENSO Intensification", "Jet Stream Shift", "Blocking High Frequency"]
+    confidence_levels = ["Low", "Medium", "High"]
+
+    hazard_projections = []
+    pid = 1
+    for region, hazard in region_hazard_pairs:
+        for sc in scenarios:
+            sc_idx = scenarios.index(sc)
+            base_int = 1.0 + sc_idx * 0.18 + rng.uniform(0, 0.12)
+            hazard_projections.append(PGCRHazardProjectionRecord(
+                proj_id=f"PGCR-PROJ-{pid:03d}",
+                region=region,
+                climate_scenario=sc,
+                hazard_type=hazard,
+                year_2030_intensity=round(base_int + rng.uniform(0.05, 0.15), 3),
+                year_2040_intensity=round(base_int + 0.12 + rng.uniform(0.08, 0.22), 3),
+                year_2050_intensity=round(base_int + 0.28 + rng.uniform(0.12, 0.35), 3),
+                year_2030_frequency_pa=round(rng.uniform(0.5, 3.5) * (1 + sc_idx * 0.2), 3),
+                year_2050_frequency_pa=round(rng.uniform(0.8, 5.2) * (1 + sc_idx * 0.4), 3),
+                confidence_level=rng.choice(confidence_levels),
+                key_driver=rng.choice(drivers),
+                source_model=rng.choice(source_models),
+            ))
+            pid += 1
+
+    # ------------------------------------------------------------------
+    # 12 Adaptation Records
+    # ------------------------------------------------------------------
+    adaptation_data = [
+        ("Transmission Line", "Underground Cables", 3.8, 72.0, "Resilience", 8, True, 2.1, 12.0),
+        ("Substation", "Flood Barriers", 1.2, 65.0, "Reliability", 3, True, 3.4, 28.0),
+        ("Substation", "Cooling Systems", 0.8, 55.0, "Efficiency", 2, False, 2.8, 45.0),
+        ("Wind Farm", "Remote Monitoring", 0.15, 38.0, "Efficiency", 1, False, 4.2, 60.0),
+        ("Solar Farm", "Fire-resistant Hardware", 0.22, 48.0, "Safety", 2, False, 2.6, 35.0),
+        ("Distribution Network", "Grid Hardening", 0.95, 60.0, "Resilience", 5, True, 2.9, 22.0),
+        ("Distribution Network", "Smart Grid", 0.65, 52.0, "Reliability", 4, False, 3.5, 18.0),
+        ("Transmission Line", "Asset Relocation", 5.5, 80.0, "Resilience", 10, False, 1.8, 5.0),
+        ("Gas Plant", "Redundancy", 2.1, 58.0, "Reliability", 3, False, 2.4, 42.0),
+        ("Hydro Dam", "Remote Monitoring", 0.25, 42.0, "Safety", 1, True, 3.8, 55.0),
+        ("Coal Plant", "Cooling Systems", 1.4, 50.0, "Efficiency", 3, True, 1.9, 38.0),
+        ("Distribution Network", "Flood Barriers", 0.85, 62.0, "Resilience", 4, True, 3.1, 25.0),
+    ]
+
+    adaptations = []
+    for i, (atype, measure, cost, rr, cobenefit, timeline, reg, cbr, adoption) in enumerate(adaptation_data, 1):
+        adaptations.append(PGCRAdaptationRecord(
+            adapt_id=f"PGCR-ADAPT-{i:03d}",
+            asset_type=atype,
+            adaptation_measure=measure,
+            implementation_cost_m_per_km_or_unit=cost,
+            risk_reduction_pct=rr,
+            co_benefit=cobenefit,
+            implementation_timeline_years=timeline,
+            regulatory_requirement=reg,
+            cost_benefit_ratio=cbr,
+            current_adoption_pct=adoption,
+        ))
+
+    # ------------------------------------------------------------------
+    # 10 Financial Risk Records
+    # ------------------------------------------------------------------
+    financial_data = [
+        ("AusNet Services", "TNSP", 2_850_000_000, 1_200_000_000, 4_050_000_000, 1_580_000_000, 68.0, True, True, 4),
+        ("TransGrid", "TNSP", 3_100_000_000, 980_000_000, 4_080_000_000, 1_620_000_000, 72.0, True, True, 4),
+        ("Ergon Energy", "DNSP", 1_650_000_000, 620_000_000, 2_270_000_000, 850_000_000, 55.0, False, True, 3),
+        ("Ausgrid", "DNSP", 2_200_000_000, 880_000_000, 3_080_000_000, 1_100_000_000, 62.0, True, True, 4),
+        ("AGL Energy", "Generator", 4_200_000_000, 3_100_000_000, 7_300_000_000, 2_900_000_000, 45.0, True, True, 3),
+        ("Origin Energy", "Generator", 3_800_000_000, 2_600_000_000, 6_400_000_000, 2_400_000_000, 48.0, True, True, 3),
+        ("Energy Queensland", "DNSP", 1_850_000_000, 720_000_000, 2_570_000_000, 920_000_000, 58.0, True, True, 3),
+        ("PowerLink Queensland", "TNSP", 2_100_000_000, 750_000_000, 2_850_000_000, 980_000_000, 70.0, True, True, 4),
+        ("ElectraNet", "TNSP", 890_000_000, 380_000_000, 1_270_000_000, 420_000_000, 65.0, True, True, 3),
+        ("Snowy Hydro", "Generator", 1_200_000_000, 850_000_000, 2_050_000_000, 780_000_000, 52.0, True, True, 4),
+    ]
+
+    financial_risks = []
+    for i, (name, etype, phys, trans, tvar, stress, ins_pct, tcfd, nz, maturity) in enumerate(financial_data, 1):
+        uninsured = round(phys * (1 - ins_pct / 100), 0)
+        financial_risks.append(PGCRFinancialRiskRecord(
+            fin_id=f"PGCR-FIN-{i:03d}",
+            entity_name=name,
+            entity_type=etype,
+            physical_risk_aud=float(phys),
+            transition_risk_aud=float(trans),
+            total_climate_var_aud=float(tvar),
+            stressed_losses_aud=float(stress),
+            insurance_coverage_pct=ins_pct,
+            uninsured_exposure_aud=uninsured,
+            tcfd_disclosure=tcfd,
+            net_zero_commitment=nz,
+            climate_risk_maturity=maturity,
+        ))
+
+    # ------------------------------------------------------------------
+    # 12 Policy Records
+    # ------------------------------------------------------------------
+    policy_data = [
+        ("PGCR-POL-001", "National Electricity Rules - Climate Resilience Standard", "Federal", "Adaptation Standard", "Consultation", "Asset risk score < 15 by 2030", 25.0, 0.0, "2025-06-30", 3.2),
+        ("PGCR-POL-002", "Climate Change Authority Act - Power Sector", "Federal", "Climate Disclosure", "Active", "TCFD compliance rate > 90%", 65.0, 0.0, "2026-12-31", 3.8),
+        ("PGCR-POL-003", "National Disaster Risk Reduction Framework", "Federal", "Emergency Preparedness", "Active", "Recovery time < 72hrs for major assets", 70.0, 350.0, "2027-06-30", 4.1),
+        ("PGCR-POL-004", "QLD Climate Resilience Infrastructure Investment", "State", "Resilience Investment", "Active", "AUD 1.8bn grid hardening by 2030", 40.0, 1_800.0, "2030-06-30", 3.5),
+        ("PGCR-POL-005", "NSW Transmission Adaptation Plan", "State", "Adaptation Standard", "Active", "All 132kV+ lines assessed by 2025", 80.0, 580.0, "2025-12-31", 4.0),
+        ("PGCR-POL-006", "VIC Climate Resilience Investment Program", "State", "Resilience Investment", "Active", "AUD 2.1bn DNSP hardening 2023-2030", 35.0, 2_100.0, "2030-12-31", 3.6),
+        ("PGCR-POL-007", "SA Extreme Heat Grid Preparedness Standard", "State", "Adaptation Standard", "Active", "Cooling systems at all critical substations", 60.0, 120.0, "2026-06-30", 3.9),
+        ("PGCR-POL-008", "WA Cyclone Infrastructure Standard", "State", "Adaptation Standard", "Active", "All transmission lines rated TC3+ by 2028", 50.0, 350.0, "2028-12-31", 3.4),
+        ("PGCR-POL-009", "AEMO Reliability Emergency Reserve Trader Reform", "Federal", "Emergency Preparedness", "Active", "Reserve capacity < 0.002% USE", 75.0, 0.0, "2025-03-31", 4.2),
+        ("PGCR-POL-010", "NEM Insurance & Stranded Asset Framework", "Federal", "Insurance Reform", "Proposed", "Mandatory climate risk disclosure in RAB", 10.0, 0.0, "2026-06-30", 2.8),
+        ("PGCR-POL-011", "National Climate Risk Assessment - Energy Sector", "Federal", "Planning Requirement", "Active", "Biennial risk assessment all critical assets", 55.0, 45.0, "2025-12-31", 3.7),
+        ("PGCR-POL-012", "QLD Bushfire Resilience Transmission Plan", "State", "Resilience Investment", "Active", "Underground 30% of bushfire-prone lines by 2035", 20.0, 900.0, "2035-06-30", 3.1),
+    ]
+
+    policies = []
+    for row in policy_data:
+        (pid2, pname, juris, ptype, status, target, prog, invest, rdate, eff) = row
+        policies.append(PGCRPolicyRecord(
+            policy_id=pid2,
+            policy_name=pname,
+            jurisdiction=juris,
+            policy_type=ptype,
+            implementation_status=status,
+            target_metric=target,
+            progress_pct=prog,
+            investment_m=invest,
+            review_date=rdate,
+            effectiveness_rating=eff,
+        ))
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    high_risk_assets = sum(1 for a in asset_risks if a.current_risk_score >= 15)
+    avg_risk = round(sum(a.current_risk_score for a in asset_risks) / len(asset_risks), 2)
+    total_damage_bn = round(sum(e.economic_damage_m for e in events) / 1000, 3)
+    adapt_invest_bn = round(sum(a.implementation_cost_m_per_km_or_unit * rng.uniform(800, 1200)
+                               for a in adaptations) / 1_000_000, 2)
+
+    _pgcr_cache.update(PGCRDashboard(
+        asset_risks=asset_risks,
+        events=events,
+        hazard_projections=hazard_projections,
+        adaptations=adaptations,
+        financial_risks=financial_risks,
+        policies=policies,
+        summary={
+            "total_at_risk_assets": len(asset_risks),
+            "avg_risk_score": avg_risk,
+            "total_economic_damage_bn": total_damage_bn,
+            "adaptation_investment_needed_bn": adapt_invest_bn,
+            "high_risk_assets_count": high_risk_assets,
+        },
+    ).model_dump())
+    return _pgcr_cache
+
+
+# ============================================================
+# Sprint 107c – Energy Storage Technology Comparison Analytics
+# ============================================================
+
+class ESTCTechnologyRecord(BaseModel):
+    technology: str
+    vendor: str
+    maturity_level: str
+    round_trip_efficiency_pct: float
+    self_discharge_pct_day: float
+    cycle_life: int
+    calendar_life_years: float
+    energy_density_wh_kg: float
+    power_density_w_kg: float
+    response_time_ms: float
+    dod_pct: float
+
+
+class ESTCCostRecord(BaseModel):
+    year: int
+    technology: str
+    capex_kwh: float
+    capex_kw: float
+    opex_kwh_year: float
+    levelised_cost_storage_mwh: float
+    installation_cost_pct: float
+    financing_cost_pct: float
+
+
+class ESTCApplicationRecord(BaseModel):
+    application: str
+    technology: str
+    suitability_score: float
+    min_duration_h: float
+    max_duration_h: float
+    required_response_ms: float
+    market_value_aud_mwh: float
+    deployment_count_aus: int
+
+
+class ESTCMarketRecord(BaseModel):
+    date_month: str
+    cumulative_aus_mwh: float
+    new_deployments: int
+    dominant_technology: str
+    market_value_m: float
+    avg_contract_duration_years: float
+
+
+class ESTCPerformanceRecord(BaseModel):
+    project_id: str
+    technology: str
+    location: str
+    installed_mwh: float
+    installed_mw: float
+    actual_rte_pct: float
+    availability_pct: float
+    degradation_rate_pct_year: float
+    cycles_completed: int
+    revenue_aud_per_mwh: float
+    primary_use_case: str
+
+
+class ESTCProjectionRecord(BaseModel):
+    year: int
+    scenario: str
+    projected_aus_gwh: float
+    solar_paired_pct: float
+    wind_paired_pct: float
+    standalone_pct: float
+    dominant_tech: str
+    avg_lcoes_mwh: float
+    grid_contribution_pct: float
+
+
+class ESTCDashboard(BaseModel):
+    technologies: List[ESTCTechnologyRecord]
+    cost_trajectories: List[ESTCCostRecord]
+    applications: List[ESTCApplicationRecord]
+    market_evolution: List[ESTCMarketRecord]
+    performance: List[ESTCPerformanceRecord]
+    projections: List[ESTCProjectionRecord]
+    summary: dict
+
+
+_estc_cache: dict = {}
+
+
+@app.get("/api/energy-storage-technology-comparison/dashboard", response_model=ESTCDashboard, dependencies=[Depends(verify_api_key)])
+def get_estc_dashboard():
+    import random
+    if _estc_cache:
+        return ESTCDashboard(**_estc_cache)
+
+    rng = random.Random(20240301)
+
+    # ------------------------------------------------------------------
+    # Technologies (20 records)
+    # ------------------------------------------------------------------
+    tech_data = [
+        # (technology, vendor, maturity, rte_pct, self_disc_pct_day, cycle_life, cal_life_yr,
+        #   energy_density_wh_kg, power_density_w_kg, response_time_ms, dod_pct)
+        ("Li-ion NMC",    "Samsung SDI",     "Commercial", 93.0, 0.05, 3000,  10.0, 200.0, 800.0,  5.0,  95.0),
+        ("LFP",           "CATL",            "Commercial", 92.0, 0.03, 6000,  12.0, 150.0, 600.0,  8.0,  100.0),
+        ("Vanadium Flow", "Invinity",        "Commercial", 75.0, 0.00, 999999, 20.0, 25.0,  40.0,  500.0, 100.0),
+        ("Zinc-Bromine",  "Redflow",         "Commercial", 70.0, 0.00, 50000, 15.0, 65.0,  55.0,  300.0, 100.0),
+        ("Sodium-ion",    "HiNa Battery",    "Emerging",   88.0, 0.08, 4000,  10.0, 140.0, 550.0,  10.0,  95.0),
+        ("Lead-Acid",     "EnerTech",        "Commercial", 80.0, 0.30, 1200,   8.0, 35.0,  120.0, 20.0,  80.0),
+        ("Compressed Air","Hydrostor",       "Commercial", 55.0, 0.00, 999999, 30.0, 2.0,   5.0,   60000.0, 100.0),
+        ("Flywheel",      "Beacon Power",    "Commercial", 90.0, 20.0, 999999, 20.0, 30.0,  5000.0,  1.0,   100.0),
+        ("Hydrogen LDES", "ENGIE",           "Emerging",   40.0, 0.00, 999999, 25.0, 600.0, 10.0,  30000.0, 100.0),
+        ("Gravity Storage","Energy Vault",   "Emerging",   80.0, 0.00, 999999, 30.0, 1.0,   1.0,   5000.0, 100.0),
+        ("Liquid Air",    "Highview Power",  "Emerging",   60.0, 0.00, 999999, 25.0, 120.0, 30.0,  180000.0, 100.0),
+        ("Thermal Storage","Rondo Energy",   "Emerging",   45.0, 2.00, 999999, 30.0, 80.0,  15.0,  1800000.0, 100.0),
+        ("Li-ion NMC",    "LG Energy Solution", "Commercial", 92.5, 0.05, 2800, 10.0, 210.0, 820.0, 5.0, 95.0),
+        ("LFP",           "BYD",             "Commercial", 91.5, 0.03, 5500,  12.0, 145.0, 580.0,  8.0,  100.0),
+        ("Sodium-ion",    "CATL",            "Emerging",   87.0, 0.09, 3800,  10.0, 135.0, 530.0,  10.0,  95.0),
+        ("Vanadium Flow", "VRB Energy",      "Commercial", 76.0, 0.00, 999999, 20.0, 26.0,  42.0,  500.0, 100.0),
+        ("Li-ion NMC",    "Panasonic",       "Commercial", 93.5, 0.04, 3200,  11.0, 215.0, 850.0,  5.0,  95.0),
+        ("LFP",           "Pylontech",       "Commercial", 92.5, 0.02, 6500,  12.0, 155.0, 620.0,  8.0,  100.0),
+        ("Zinc-Bromine",  "Eos Energy",      "Emerging",   68.0, 0.00, 45000, 15.0, 60.0,  50.0,  350.0, 100.0),
+        ("Flywheel",      "Amber Kinetics",  "Commercial", 88.0, 18.0, 999999, 20.0, 35.0,  4800.0, 1.0,  100.0),
+    ]
+
+    technologies: List[ESTCTechnologyRecord] = []
+    for row in tech_data:
+        (tech, vendor, mat, rte, sd, cyc, cal, ed, pd, rt, dod) = row
+        technologies.append(ESTCTechnologyRecord(
+            technology=tech,
+            vendor=vendor,
+            maturity_level=mat,
+            round_trip_efficiency_pct=rte,
+            self_discharge_pct_day=sd,
+            cycle_life=cyc,
+            calendar_life_years=cal,
+            energy_density_wh_kg=ed,
+            power_density_w_kg=pd,
+            response_time_ms=rt,
+            dod_pct=dod,
+        ))
+
+    # ------------------------------------------------------------------
+    # Cost trajectories (40 records: 2020-2024 × 8 technologies)
+    # ------------------------------------------------------------------
+    cost_techs = [
+        # (technology, capex_2020, decline_rate, capex_kw_2020, opex_base, lcoes_2020)
+        ("Li-ion NMC",    430.0, 0.12, 900.0,  8.0,  380.0),
+        ("LFP",           380.0, 0.11, 820.0,  7.0,  330.0),
+        ("Vanadium Flow", 600.0, 0.06, 1100.0, 15.0, 520.0),
+        ("Zinc-Bromine",  450.0, 0.08, 850.0,  12.0, 390.0),
+        ("Sodium-ion",    500.0, 0.10, 950.0,  9.0,  440.0),
+        ("Lead-Acid",     130.0, 0.04, 400.0,  10.0, 180.0),
+        ("Compressed Air", 120.0, 0.03, 1200.0, 5.0, 150.0),
+        ("Flywheel",      800.0, 0.05, 2500.0, 20.0, 600.0),
+    ]
+
+    cost_trajectories: List[ESTCCostRecord] = []
+    for year in range(2020, 2025):
+        yr_offset = year - 2020
+        for (tech, base_capex_kwh, dec, base_capex_kw, opex_base, lcoes_base) in cost_techs:
+            capex_kwh = round(base_capex_kwh * ((1 - dec) ** yr_offset), 1)
+            capex_kw = round(base_capex_kw * ((1 - dec * 0.5) ** yr_offset), 1)
+            opex = round(opex_base * ((1 - 0.02) ** yr_offset), 2)
+            lcoes = round(lcoes_base * ((1 - dec * 0.7) ** yr_offset), 1)
+            cost_trajectories.append(ESTCCostRecord(
+                year=year,
+                technology=tech,
+                capex_kwh=capex_kwh,
+                capex_kw=capex_kw,
+                opex_kwh_year=opex,
+                levelised_cost_storage_mwh=lcoes,
+                installation_cost_pct=round(rng.uniform(8.0, 15.0), 1),
+                financing_cost_pct=round(rng.uniform(4.5, 7.5), 1),
+            ))
+
+    # ------------------------------------------------------------------
+    # Applications (30 records)
+    # ------------------------------------------------------------------
+    app_data = [
+        # (application, technology, suit, min_h, max_h, resp_ms, val_aud, count)
+        ("Frequency Regulation",       "Li-ion NMC",    9.5, 0.0,  0.5,  10.0,  180.0, 12),
+        ("Frequency Regulation",       "LFP",           9.0, 0.0,  0.5,  10.0,  180.0, 18),
+        ("Frequency Regulation",       "Flywheel",      9.8, 0.0,  0.25,  1.0,  190.0, 5),
+        ("Peak Shaving",               "LFP",           9.5, 1.0,  4.0,  200.0, 120.0, 42),
+        ("Peak Shaving",               "Vanadium Flow", 8.5, 2.0,  8.0,  500.0, 115.0, 8),
+        ("Peak Shaving",               "Li-ion NMC",   9.0, 1.0,  4.0,  200.0, 120.0, 28),
+        ("Bulk Energy Shifting",       "Vanadium Flow", 9.0, 4.0, 12.0,  600.0, 95.0,  6),
+        ("Bulk Energy Shifting",       "Compressed Air",8.0, 8.0, 24.0, 60000.0, 80.0, 3),
+        ("Bulk Energy Shifting",       "Hydrogen LDES", 8.5, 24.0, 720.0, 30000.0, 75.0, 1),
+        ("Black Start",                "LFP",           9.0, 1.0,  4.0,  500.0, 250.0, 4),
+        ("Black Start",                "Li-ion NMC",   8.5, 1.0,  4.0,  500.0, 250.0, 3),
+        ("Black Start",                "Vanadium Flow", 7.5, 2.0,  8.0,  600.0, 230.0, 2),
+        ("Voltage Support",            "Li-ion NMC",   9.5, 0.0,  0.5,   5.0,  140.0, 15),
+        ("Voltage Support",            "LFP",           9.0, 0.0,  0.5,   5.0,  140.0, 20),
+        ("Voltage Support",            "Flywheel",      9.8, 0.0,  0.25,  1.0,  145.0, 4),
+        ("EV Charging Buffer",         "LFP",           9.5, 0.5,  2.0,  100.0, 90.0,  35),
+        ("EV Charging Buffer",         "Li-ion NMC",   9.0, 0.5,  2.0,  100.0, 90.0,  22),
+        ("EV Charging Buffer",         "Sodium-ion",    8.0, 0.5,  2.0,  150.0, 85.0,  5),
+        ("Microgrid",                  "LFP",           9.5, 2.0,  8.0,  200.0, 110.0, 28),
+        ("Microgrid",                  "Vanadium Flow", 8.5, 4.0, 12.0,  600.0, 105.0, 7),
+        ("Microgrid",                  "Lead-Acid",     6.0, 2.0,  8.0,  500.0, 80.0,  15),
+        ("Island Mode",                "Vanadium Flow", 9.0, 8.0, 24.0,  600.0, 130.0, 5),
+        ("Island Mode",                "LFP",           8.5, 4.0, 12.0,  200.0, 125.0, 12),
+        ("Island Mode",                "Hydrogen LDES", 8.0, 24.0, 720.0, 30000.0, 120.0, 2),
+        ("Time-of-Use Optimisation",   "LFP",           9.5, 1.0,  4.0,  200.0, 100.0, 55),
+        ("Time-of-Use Optimisation",   "Li-ion NMC",   9.0, 1.0,  4.0,  200.0, 100.0, 40),
+        ("Time-of-Use Optimisation",   "Sodium-ion",    7.5, 1.0,  4.0,  250.0, 90.0,  8),
+        ("Behind-Meter Commercial",    "LFP",           9.5, 1.0,  4.0,  200.0, 105.0, 48),
+        ("Behind-Meter Commercial",    "Li-ion NMC",   9.0, 1.0,  4.0,  200.0, 105.0, 35),
+        ("Behind-Meter Commercial",    "Lead-Acid",     5.5, 1.0,  4.0,  500.0, 70.0,  20),
+    ]
+
+    applications: List[ESTCApplicationRecord] = []
+    for row in app_data:
+        (app, tech, suit, min_h, max_h, resp_ms, val, cnt) = row
+        applications.append(ESTCApplicationRecord(
+            application=app,
+            technology=tech,
+            suitability_score=suit,
+            min_duration_h=min_h,
+            max_duration_h=max_h,
+            required_response_ms=resp_ms,
+            market_value_aud_mwh=val,
+            deployment_count_aus=cnt,
+        ))
+
+    # ------------------------------------------------------------------
+    # Market evolution (24 records: 2020-2024, ~5 months/year sampled)
+    # ------------------------------------------------------------------
+    market_months = [
+        ("2020-01", 1200.0,  3, "LFP",            85.0,  12.0),
+        ("2020-07", 1650.0,  5, "LFP",            115.0, 12.0),
+        ("2021-01", 2100.0,  6, "LFP",            145.0, 11.5),
+        ("2021-07", 2900.0,  9, "Li-ion NMC",     195.0, 11.0),
+        ("2022-01", 3800.0, 12, "Li-ion NMC",     265.0, 11.0),
+        ("2022-07", 5200.0, 15, "LFP",            355.0, 11.0),
+        ("2022-10", 6100.0, 14, "LFP",            415.0, 10.5),
+        ("2023-01", 7400.0, 18, "LFP",            510.0, 10.5),
+        ("2023-04", 8900.0, 20, "LFP",            610.0, 10.5),
+        ("2023-07", 10500.0,22, "LFP",            715.0, 10.0),
+        ("2023-10", 12200.0,19, "LFP",            830.0, 10.0),
+        ("2024-01", 14100.0,24, "LFP",            970.0, 10.0),
+        ("2024-02", 14900.0,18, "LFP",            1025.0, 10.0),
+        ("2024-03", 15800.0,22, "LFP",            1085.0, 10.0),
+        ("2024-04", 16700.0,20, "LFP",            1150.0, 9.5),
+        ("2024-05", 17600.0,23, "LFP",            1215.0, 9.5),
+        ("2024-06", 18600.0,25, "LFP",            1285.0, 9.5),
+        ("2024-07", 19700.0,27, "LFP",            1360.0, 9.5),
+        ("2024-08", 20900.0,28, "LFP",            1440.0, 9.0),
+        ("2024-09", 22200.0,30, "LFP",            1525.0, 9.0),
+        ("2024-10", 23700.0,32, "LFP",            1630.0, 9.0),
+        ("2024-11", 25300.0,31, "LFP",            1740.0, 9.0),
+        ("2024-12", 27000.0,35, "LFP",            1860.0, 9.0),
+        ("2025-01", 29100.0,38, "LFP",            2010.0, 9.0),
+    ]
+
+    market_evolution: List[ESTCMarketRecord] = []
+    for row in market_months:
+        (dm, cum_mwh, new_dep, dom_tech, mkt_val, avg_ctr) = row
+        market_evolution.append(ESTCMarketRecord(
+            date_month=dm,
+            cumulative_aus_mwh=cum_mwh,
+            new_deployments=new_dep,
+            dominant_technology=dom_tech,
+            market_value_m=mkt_val,
+            avg_contract_duration_years=avg_ctr,
+        ))
+
+    # ------------------------------------------------------------------
+    # Performance (35 records)
+    # ------------------------------------------------------------------
+    perf_data = [
+        # (project_id, technology, location, installed_mwh, installed_mw,
+        #   actual_rte_pct, avail_pct, deg_pct_yr, cycles, rev_aud, use_case)
+        ("ESTC-P-001", "LFP",           "SA",  129.0, 100.0, 90.5, 97.2, 1.5, 1850, 135.0, "Frequency Regulation"),
+        ("ESTC-P-002", "LFP",           "VIC", 300.0, 150.0, 91.0, 98.0, 1.4, 2100, 128.0, "Peak Shaving"),
+        ("ESTC-P-003", "Li-ion NMC",    "NSW", 200.0, 100.0, 91.5, 97.5, 1.8, 1650, 142.0, "Frequency Regulation"),
+        ("ESTC-P-004", "Li-ion NMC",    "QLD", 100.0,  50.0, 92.0, 96.8, 1.9, 1520, 138.0, "Peak Shaving"),
+        ("ESTC-P-005", "LFP",           "WA",  250.0, 100.0, 91.2, 97.8, 1.3, 1980, 125.0, "Bulk Energy Shifting"),
+        ("ESTC-P-006", "Vanadium Flow", "SA",   10.0,   2.5, 73.0, 99.0, 0.1,  450, 110.0, "Microgrid"),
+        ("ESTC-P-007", "LFP",           "SA",  400.0, 200.0, 91.8, 97.5, 1.2, 2450, 131.0, "Bulk Energy Shifting"),
+        ("ESTC-P-008", "Li-ion NMC",    "VIC", 150.0,  75.0, 91.0, 97.0, 2.0, 1420, 140.0, "Time-of-Use Optimisation"),
+        ("ESTC-P-009", "LFP",           "NSW", 500.0, 200.0, 90.8, 98.2, 1.1, 2800, 122.0, "Peak Shaving"),
+        ("ESTC-P-010", "LFP",           "QLD", 150.0, 100.0, 91.5, 98.0, 1.3, 1650, 132.0, "Frequency Regulation"),
+        ("ESTC-P-011", "Li-ion NMC",    "SA",   50.0,  25.0, 92.5, 96.5, 1.7, 1200,  95.0, "Behind-Meter Commercial"),
+        ("ESTC-P-012", "LFP",           "TAS",  80.0,  40.0, 90.0, 97.8, 1.4,  980, 118.0, "Black Start"),
+        ("ESTC-P-013", "Flywheel",       "SA",    5.0,  20.0, 87.5, 99.5, 0.2, 8500, 175.0, "Frequency Regulation"),
+        ("ESTC-P-014", "LFP",           "WA",  200.0,  80.0, 90.5, 97.2, 1.5, 1550, 120.0, "Island Mode"),
+        ("ESTC-P-015", "Li-ion NMC",    "NSW", 120.0,  60.0, 91.8, 97.0, 1.9, 1380, 137.0, "Voltage Support"),
+        ("ESTC-P-016", "LFP",           "VIC", 350.0, 150.0, 91.0, 98.3, 1.2, 2250, 126.0, "Bulk Energy Shifting"),
+        ("ESTC-P-017", "Sodium-ion",    "NSW",  20.0,  10.0, 85.0, 96.0, 2.5,  380,  92.0, "EV Charging Buffer"),
+        ("ESTC-P-018", "LFP",           "QLD", 180.0,  90.0, 91.3, 97.9, 1.3, 1720, 129.0, "Peak Shaving"),
+        ("ESTC-P-019", "Vanadium Flow", "NT",    8.0,   2.0, 72.5, 99.2, 0.1,  320, 108.0, "Island Mode"),
+        ("ESTC-P-020", "Li-ion NMC",    "SA",  250.0, 125.0, 91.2, 97.2, 1.8, 1780, 141.0, "Frequency Regulation"),
+        ("ESTC-P-021", "LFP",           "NSW", 600.0, 200.0, 90.6, 98.5, 1.1, 3100, 119.0, "Bulk Energy Shifting"),
+        ("ESTC-P-022", "Li-ion NMC",    "VIC",  80.0,  40.0, 92.0, 96.8, 1.9,  980, 143.0, "Behind-Meter Commercial"),
+        ("ESTC-P-023", "LFP",           "WA",  120.0,  60.0, 91.5, 98.0, 1.4, 1250, 127.0, "Microgrid"),
+        ("ESTC-P-024", "LFP",           "SA",  450.0, 150.0, 90.9, 97.7, 1.2, 2650, 124.0, "Peak Shaving"),
+        ("ESTC-P-025", "Lead-Acid",     "NT",   30.0,   6.0, 77.0, 90.0, 5.0,  280,  68.0, "Island Mode"),
+        ("ESTC-P-026", "LFP",           "VIC", 250.0, 100.0, 91.2, 97.5, 1.3, 1900, 130.0, "Frequency Regulation"),
+        ("ESTC-P-027", "Li-ion NMC",    "QLD", 180.0,  90.0, 91.5, 97.0, 1.8, 1620, 139.0, "Peak Shaving"),
+        ("ESTC-P-028", "LFP",           "NSW", 320.0, 160.0, 91.0, 98.1, 1.2, 2050, 125.0, "Time-of-Use Optimisation"),
+        ("ESTC-P-029", "Compressed Air","VIC", 200.0,  50.0, 52.0, 96.5, 0.2,  180,  72.0, "Bulk Energy Shifting"),
+        ("ESTC-P-030", "LFP",           "SA",  100.0,  50.0, 91.8, 98.0, 1.3, 1150, 133.0, "Voltage Support"),
+        ("ESTC-P-031", "Li-ion NMC",    "WA",  200.0, 100.0, 92.2, 96.9, 1.7, 1550, 144.0, "Frequency Regulation"),
+        ("ESTC-P-032", "LFP",           "TAS", 150.0,  75.0, 90.5, 97.9, 1.4, 1380, 121.0, "Black Start"),
+        ("ESTC-P-033", "Sodium-ion",    "QLD",  30.0,  15.0, 84.5, 95.5, 2.8,  420,  89.0, "EV Charging Buffer"),
+        ("ESTC-P-034", "LFP",           "VIC", 400.0, 200.0, 91.3, 98.2, 1.2, 2400, 128.0, "Peak Shaving"),
+        ("ESTC-P-035", "Li-ion NMC",    "NSW", 350.0, 175.0, 91.7, 97.3, 1.8, 2180, 140.0, "Bulk Energy Shifting"),
+    ]
+
+    performance: List[ESTCPerformanceRecord] = []
+    for row in perf_data:
+        (pid, tech, loc, i_mwh, i_mw, rte, avail, deg, cyc, rev, uc) = row
+        performance.append(ESTCPerformanceRecord(
+            project_id=pid,
+            technology=tech,
+            location=loc,
+            installed_mwh=i_mwh,
+            installed_mw=i_mw,
+            actual_rte_pct=rte,
+            availability_pct=avail,
+            degradation_rate_pct_year=deg,
+            cycles_completed=cyc,
+            revenue_aud_per_mwh=rev,
+            primary_use_case=uc,
+        ))
+
+    # ------------------------------------------------------------------
+    # Projections (30 records: 2025-2035 × 3 scenarios)
+    # ------------------------------------------------------------------
+    proj_data = [
+        # (year, scenario, gwh, solar_pct, wind_pct, standalone_pct, dom_tech, lcoes, grid_contr_pct)
+        (2025, "Base",          30.5, 55.0, 20.0, 25.0, "LFP",  165.0, 8.5),
+        (2025, "Accelerated",   35.0, 60.0, 22.0, 18.0, "LFP",  155.0, 10.0),
+        (2025, "Conservative",  26.0, 48.0, 18.0, 34.0, "LFP",  175.0, 7.0),
+        (2026, "Base",          45.0, 57.0, 21.0, 22.0, "LFP",  150.0, 11.0),
+        (2026, "Accelerated",   55.0, 62.0, 23.0, 15.0, "LFP",  140.0, 13.5),
+        (2026, "Conservative",  36.0, 50.0, 18.0, 32.0, "LFP",  162.0, 9.0),
+        (2027, "Base",          65.0, 58.0, 22.0, 20.0, "LFP",  138.0, 14.0),
+        (2027, "Accelerated",   82.0, 63.0, 24.0, 13.0, "LFP",  125.0, 17.5),
+        (2027, "Conservative",  50.0, 51.0, 19.0, 30.0, "LFP",  150.0, 11.5),
+        (2028, "Base",          90.0, 59.0, 23.0, 18.0, "LFP",  125.0, 17.5),
+        (2028, "Accelerated",  118.0, 65.0, 24.0, 11.0, "LFP",  112.0, 22.0),
+        (2028, "Conservative",  68.0, 52.0, 20.0, 28.0, "LFP",  138.0, 14.0),
+        (2029, "Base",         120.0, 60.0, 23.0, 17.0, "LFP",  115.0, 21.0),
+        (2029, "Accelerated",  160.0, 66.0, 25.0, 9.0,  "LFP",  100.0, 27.0),
+        (2029, "Conservative",  88.0, 53.0, 20.0, 27.0, "LFP",  128.0, 17.0),
+        (2030, "Base",         155.0, 61.0, 24.0, 15.0, "LFP",  105.0, 25.5),
+        (2030, "Accelerated",  210.0, 67.0, 26.0, 7.0,  "LFP",  90.0,  33.0),
+        (2030, "Conservative", 110.0, 54.0, 21.0, 25.0, "LFP",  118.0, 20.5),
+        (2031, "Base",         195.0, 62.0, 25.0, 13.0, "LFP",  96.0,  30.0),
+        (2031, "Accelerated",  268.0, 68.0, 27.0, 5.0,  "Sodium-ion", 82.0, 39.0),
+        (2031, "Conservative", 135.0, 55.0, 22.0, 23.0, "LFP",  110.0, 24.0),
+        (2032, "Base",         240.0, 63.0, 26.0, 11.0, "LFP",  88.0,  35.0),
+        (2032, "Accelerated",  335.0, 69.0, 28.0, 3.0,  "Sodium-ion", 74.0, 46.0),
+        (2032, "Conservative", 162.0, 56.0, 23.0, 21.0, "LFP",  102.0, 28.0),
+        (2033, "Base",         290.0, 64.0, 27.0, 9.0,  "LFP",  81.0,  40.0),
+        (2033, "Accelerated",  410.0, 70.0, 29.0, 1.0,  "Sodium-ion", 67.0, 54.0),
+        (2033, "Conservative", 192.0, 57.0, 24.0, 19.0, "LFP",  95.0,  32.0),
+        (2034, "Base",         345.0, 65.0, 28.0, 7.0,  "LFP",  75.0,  45.5),
+        (2034, "Accelerated",  495.0, 71.0, 30.0, -1.0, "Sodium-ion", 61.0, 62.0),
+        (2034, "Conservative", 225.0, 58.0, 25.0, 17.0, "LFP",  89.0,  36.0),
+    ]
+
+    projections: List[ESTCProjectionRecord] = []
+    for row in proj_data:
+        (yr, scen, gwh, sol, wnd, stan, dom, lcoes, grid) = row
+        projections.append(ESTCProjectionRecord(
+            year=yr,
+            scenario=scen,
+            projected_aus_gwh=gwh,
+            solar_paired_pct=sol,
+            wind_paired_pct=wnd,
+            standalone_pct=max(stan, 0.0),
+            dominant_tech=dom,
+            avg_lcoes_mwh=lcoes,
+            grid_contribution_pct=grid,
+        ))
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    total_technologies = len(set(t.technology for t in technologies))
+    avg_rte = round(sum(t.round_trip_efficiency_pct for t in technologies) / len(technologies), 1)
+
+    # Lowest capex/kWh in 2024
+    cost_2024 = [c for c in cost_trajectories if c.year == 2024]
+    lowest_capex_tech = min(cost_2024, key=lambda c: c.capex_kwh).technology
+    highest_cycle_tech = max(technologies, key=lambda t: t.cycle_life).technology
+    total_aus_mwh = round(sum(p.installed_mwh for p in performance), 1)
+    base_2030 = next((p.projected_aus_gwh for p in projections if p.year == 2030 and p.scenario == "Base"), 0.0)
+
+    summary = {
+        "total_technologies": total_technologies,
+        "avg_round_trip_efficiency": avg_rte,
+        "lowest_capex_kwh_tech": lowest_capex_tech,
+        "highest_cycle_life_tech": highest_cycle_tech,
+        "total_aus_deployed_mwh": total_aus_mwh,
+        "projected_2030_gwh": base_2030,
+    }
+
+    _estc_cache.update(ESTCDashboard(
+        technologies=technologies,
+        cost_trajectories=cost_trajectories,
+        applications=applications,
+        market_evolution=market_evolution,
+        performance=performance,
+        projections=projections,
+        summary=summary,
+    ).model_dump())
+
+    return ESTCDashboard(**_estc_cache)
