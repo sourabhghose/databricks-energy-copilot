@@ -14460,3 +14460,226 @@ class TestEPVCDashboard:
                       "net_disconnections", "medical_exemptions", "life_support_count",
                       "avg_days_disconnected", "debt_at_disconnection_aud", "low_income_share_pct"):
             assert field in rec
+
+
+# ===========================================================================
+# TestNSMRDashboard — Sprint 111a Nuclear Small Modular Reactor Analytics
+# ===========================================================================
+
+class TestNSMRDashboard:
+    """Tests for GET /api/nuclear-small-modular-reactor/dashboard (Sprint 111a)"""
+
+    URL = "/api/nuclear-small-modular-reactor/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_designs(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "designs" in data
+        assert len(data["designs"]) == 20
+
+    def test_has_global_projects(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "global_projects" in data
+        assert len(data["global_projects"]) == 25
+
+    def test_has_sites(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "sites" in data
+        assert len(data["sites"]) == 15
+
+    def test_has_costs(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "costs" in data
+        assert len(data["costs"]) == 24
+
+    def test_has_regulations(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "regulations" in data
+        assert len(data["regulations"]) == 15
+
+    def test_has_scenarios(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "scenarios" in data
+        assert len(data["scenarios"]) == 20
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_designs_tracked" in summary
+        assert "total_global_projects" in summary
+        assert "most_advanced_design" in summary
+        assert "avg_lcoe_central_aud_per_mwh" in summary
+        assert "potential_aus_sites" in summary
+        assert "earliest_possible_grid_date" in summary
+
+    def test_design_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["designs"][0]
+        for field in (
+            "design_id", "vendor", "design_name", "country_of_origin",
+            "reactor_type", "thermal_mw", "electrical_mw", "efficiency_pct",
+            "design_lifetime_years", "fuel_type", "refuelling_interval_months",
+            "trl", "first_commercial_year", "target_capex_per_kw_usd",
+            "lcoe_usd_per_mwh",
+        ):
+            assert field in rec
+
+
+# ===========================================================================
+# TestEMTRDashboard — Sprint 111b
+# ===========================================================================
+
+class TestEMTRDashboard:
+    """Tests for GET /api/electricity-market-transparency/dashboard (Sprint 111b)"""
+
+    URL = "/api/electricity-market-transparency/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_data_quality(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "data_quality" in data
+        assert len(data["data_quality"]) == 25
+
+    def test_has_compliance(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "compliance" in data
+        assert len(data["compliance"]) == 20
+
+    def test_has_market_notices(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "market_notices" in data
+        assert len(data["market_notices"]) == 30
+
+    def test_has_audits(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "audits" in data
+        assert len(data["audits"]) == 15
+
+    def test_has_information_gaps(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "information_gaps" in data
+        assert len(data["information_gaps"]) > 0
+
+    def test_has_transparency_scores(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "transparency_scores" in data
+        assert len(data["transparency_scores"]) == 24
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_data_completeness_pct" in summary
+        assert "avg_api_uptime_pct" in summary
+        assert "total_non_compliance_notices" in summary
+        assert "total_penalties_m" in summary
+        assert "avg_transparency_score" in summary
+        assert "highest_transparency_region" in summary
+
+    def test_data_quality_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["data_quality"][0]
+        for field in (
+            "report_month", "data_type", "completeness_pct", "timeliness_score",
+            "error_rate_pct", "corrections_issued", "user_complaints",
+            "api_uptime_pct", "revision_frequency",
+        ):
+            assert field in rec
+
+# ===========================================================================
+# TestGEDADashboard — Geothermal Energy Development Analytics
+# ===========================================================================
+
+class TestGEDADashboard:
+    """Tests for GET /api/geothermal-energy-development/dashboard"""
+
+    URL = "/api/geothermal-energy-development/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_resources(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "resources" in data
+        assert len(data["resources"]) == 20
+
+    def test_has_projects(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert len(data["projects"]) == 20
+
+    def test_has_costs(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "costs" in data
+        assert len(data["costs"]) == 24
+
+    def test_has_global_benchmarks(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "global_benchmarks" in data
+        assert len(data["global_benchmarks"]) == 20
+
+    def test_has_heat_applications(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "heat_applications" in data
+        assert len(data["heat_applications"]) > 0
+
+    def test_has_scenarios(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "scenarios" in data
+        assert len(data["scenarios"]) > 0
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_resource_potential_mw" in summary
+        assert "total_projects" in summary
+        assert "avg_lcoe_current_aud_per_mwh" in summary
+        assert "leading_country_mw" in summary
+        assert "largest_resource_basin" in summary
+        assert "projected_2040_capacity_mw" in summary
+
+    def test_resource_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["resources"][0]
+        for field in (
+            "resource_id", "state", "resource_type", "basin_name",
+            "depth_m", "temperature_c", "estimated_potential_mw",
+            "exploration_status", "heat_flow_mw_per_m2", "permeability_millidarcy",
+        ):
+            assert field in rec

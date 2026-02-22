@@ -83724,3 +83724,984 @@ def get_epvc_dashboard():
         summary=summary,
     ).model_dump())
     return EPVCDashboard(**_epvc_cache)
+
+# ============================================================================
+# Sprint 111a — Nuclear Small Modular Reactor Analytics (NSMR prefix)
+# ============================================================================
+
+class NSMRDesignRecord(BaseModel):
+    design_id: str
+    vendor: str
+    design_name: str
+    country_of_origin: str
+    reactor_type: str          # PWR/BWR/HTGR/MSR/Fast Neutron/ARC
+    thermal_mw: float
+    electrical_mw: float
+    efficiency_pct: float
+    design_lifetime_years: int
+    fuel_type: str             # LEU/HALEU/Thorium/Molten Salt
+    refuelling_interval_months: int
+    trl: int                   # 1-9
+    first_commercial_year: int
+    target_capex_per_kw_usd: float
+    lcoe_usd_per_mwh: float
+
+class NSMRGlobalProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    country: str
+    vendor: str
+    capacity_mw: float
+    status: str                # Concept/Licensing/Construction/Operating
+    expected_cod: str
+    capex_m_usd: float
+    operator: str
+    grid_connection: bool
+    purpose: str               # Grid/Industrial Heat/Hydrogen/Desalination/Remote
+
+class NSMRSiteRecord(BaseModel):
+    site_id: str
+    site_name: str
+    state: str
+    assessment_type: str       # Coal Retirement/Greenfield/Industrial Precinct/Remote Community
+    land_area_ha: float
+    grid_proximity_km: float
+    water_source: str
+    seismic_risk: str          # Low/Medium/High
+    community_support_pct: float
+    estimated_jobs: int
+    earliest_possible_year: int
+
+class NSMRCostRecord(BaseModel):
+    year: int
+    scenario: str              # Optimistic/Central/Pessimistic
+    capex_per_kw_aud: float
+    lcoe_aud_per_mwh: float
+    construction_years: float
+    capacity_factor_pct: float
+    overnight_cost_b: float
+    financing_cost_pct: float
+    fuel_cost_aud_per_mwh: float
+    waste_disposal_aud_per_mwh: float
+
+class NSMRRegulationRecord(BaseModel):
+    regulation_name: str
+    jurisdiction: str          # Federal/NSW/QLD/VIC/SA/WA
+    regulation_type: str       # Safety/Waste/Siting/Licensing/Environmental
+    current_status: str        # Prohibiting/Neutral/Enabling/Enacted
+    reform_required: bool
+    estimated_reform_years: float
+    key_body: str
+    international_precedent: str
+
+class NSMRScenarioRecord(BaseModel):
+    year: int
+    scenario: str              # No Nuclear/Nuclear Pathway
+    installed_capacity_mw: float
+    plants_operating: int
+    pct_of_nem_capacity: float
+    annual_generation_twh: float
+    carbon_abated_mtpa: float
+    total_investment_b: float
+    jobs_sustained: int
+
+class NSMRDashboard(BaseModel):
+    designs: List[NSMRDesignRecord]
+    global_projects: List[NSMRGlobalProjectRecord]
+    sites: List[NSMRSiteRecord]
+    costs: List[NSMRCostRecord]
+    regulations: List[NSMRRegulationRecord]
+    scenarios: List[NSMRScenarioRecord]
+    summary: dict
+
+_nsmr_cache: dict = {}
+
+@app.get("/api/nuclear-small-modular-reactor/dashboard", response_model=NSMRDashboard, dependencies=[Depends(verify_api_key)])
+def get_nsmr_dashboard():
+    import random
+    if _nsmr_cache:
+        return NSMRDashboard(**_nsmr_cache)
+
+    rng = random.Random(42)
+
+    # ── Design Records (20 records) ──────────────────────────────────────────
+    _design_data = [
+        # (design_id, vendor, design_name, country_of_origin, reactor_type,
+        #  thermal_mw, electrical_mw, efficiency_pct, design_lifetime_years,
+        #  fuel_type, refuelling_interval_months, trl, first_commercial_year,
+        #  target_capex_per_kw_usd, lcoe_usd_per_mwh)
+        ("SMR-001", "NuScale Power",           "VOYGR-12",          "USA",    "PWR",          1632.0, 462.0,  28.3, 60, "LEU",         24, 9, 2029, 6500.0,  95.0),
+        ("SMR-002", "GE-Hitachi",              "BWRX-300",          "USA",    "BWR",           900.0, 300.0,  33.3, 60, "LEU",         24, 8, 2029, 3800.0,  75.0),
+        ("SMR-003", "Rolls-Royce SMR",         "RR-SMR-470",        "UK",     "PWR",          1400.0, 470.0,  33.6, 60, "LEU",         18, 7, 2031, 4500.0,  80.0),
+        ("SMR-004", "X-energy",                "Xe-100",            "USA",    "HTGR",          320.0,  80.0,  25.0, 60, "HALEU",       48, 7, 2030, 7200.0, 110.0),
+        ("SMR-005", "TerraPower",              "Natrium",           "USA",    "Fast Neutron",  840.0, 345.0,  41.1, 60, "HALEU",       60, 7, 2030, 5200.0,  88.0),
+        ("SMR-006", "Kairos Power",            "KP-FHR",            "USA",    "HTGR",          320.0, 140.0,  43.8, 40, "HALEU",       48, 6, 2033, 8000.0, 120.0),
+        ("SMR-007", "Terrestrial Energy",      "IMSR-400",          "Canada", "MSR",           400.0, 195.0,  48.8, 40, "Molten Salt", 84, 6, 2034, 4800.0, 100.0),
+        ("SMR-008", "Moltex Energy",           "SSR-W 300",         "Canada", "MSR",           750.0, 300.0,  40.0, 60, "Molten Salt", 60, 5, 2035, 4200.0,  90.0),
+        ("SMR-009", "Holtec International",    "SMR-300",           "USA",    "PWR",           953.0, 300.0,  31.5, 80, "LEU",         30, 7, 2030, 4000.0,  78.0),
+        ("SMR-010", "USNC",                    "MMR",               "Canada", "HTGR",           15.0,   5.0,  33.3, 20, "HALEU",       240, 6, 2028, 9500.0, 180.0),
+        ("SMR-011", "Westinghouse",            "eVinci",            "USA",    "Fast Neutron",   25.0,   5.0,  20.0, 10, "HALEU",      1200, 6, 2027, 8500.0, 200.0),
+        ("SMR-012", "Nuscale Power",           "VOYGR-6",           "USA",    "PWR",           816.0, 231.0,  28.3, 60, "LEU",         24, 9, 2028, 7000.0, 105.0),
+        ("SMR-013", "CANDU Energy",            "EC6-SMR",           "Canada", "PWR",           700.0, 220.0,  31.4, 50, "LEU",         18, 7, 2032, 5500.0,  92.0),
+        ("SMR-014", "ARC Clean Technology",    "ARC-100",           "Canada", "Fast Neutron",  286.0, 100.0,  35.0, 60, "LEU",         84, 6, 2033, 6000.0, 105.0),
+        ("SMR-015", "Last Energy",             "PWR-20",            "USA",    "PWR",            66.0,  20.0,  30.3, 40, "LEU",         24, 5, 2030, 6800.0, 130.0),
+        ("SMR-016", "SNC-Lavalin",             "CANDU SMR",         "Canada", "PWR",           900.0, 300.0,  33.3, 60, "Thorium",     24, 5, 2035, 5800.0,  98.0),
+        ("SMR-017", "Framatome",               "Nuward-400",        "France", "PWR",          1100.0, 400.0,  36.4, 60, "LEU",         18, 6, 2032, 5000.0,  85.0),
+        ("SMR-018", "ROSATOM",                 "RITM-200",          "Russia", "PWR",           380.0, 100.0,  26.3, 60, "LEU",         36, 8, 2027, 4200.0,  80.0),
+        ("SMR-019", "KEPCO",                   "SMART-100",         "S.Korea","PWR",           365.0, 100.0,  27.4, 60, "LEU",         36, 7, 2030, 4600.0,  86.0),
+        ("SMR-020", "LeadCold",                "SEALER-55",         "Sweden", "Fast Neutron",  140.0,  55.0,  39.3, 40, "LEU",         120, 4, 2036, 8200.0, 145.0),
+    ]
+    designs = [
+        NSMRDesignRecord(
+            design_id=did, vendor=vendor, design_name=dname, country_of_origin=coo,
+            reactor_type=rtype, thermal_mw=thermal_mw, electrical_mw=elec_mw,
+            efficiency_pct=eff, design_lifetime_years=lifetime, fuel_type=fuel,
+            refuelling_interval_months=refuel, trl=trl, first_commercial_year=fcy,
+            target_capex_per_kw_usd=capex, lcoe_usd_per_mwh=lcoe
+        )
+        for (did, vendor, dname, coo, rtype, thermal_mw, elec_mw, eff,
+             lifetime, fuel, refuel, trl, fcy, capex, lcoe) in _design_data
+    ]
+
+    # ── Global Project Records (25 records) ──────────────────────────────────
+    _project_data = [
+        # (project_id, project_name, country, vendor, capacity_mw, status,
+        #  expected_cod, capex_m_usd, operator, grid_connection, purpose)
+        ("PRJ-001", "Clinch River SMR",       "USA",       "GE-Hitachi",         300.0, "Licensing",    "2030", 1200.0,  "TVA",              True,  "Grid"),
+        ("PRJ-002", "Carbon Free Power",      "USA",       "NuScale Power",      462.0, "Licensing",    "2029", 3000.0,  "UAMPS",            True,  "Grid"),
+        ("PRJ-003", "Darlington SMR",         "Canada",    "GE-Hitachi",         300.0, "Licensing",    "2030", 1500.0,  "Ontario Power",    True,  "Grid"),
+        ("PRJ-004", "Chalk River Demo",       "Canada",    "USNC",                 5.0, "Construction", "2026",  100.0,  "Canadian Nuclear", False, "Remote"),
+        ("PRJ-005", "Wylfa Newydd SMR",       "UK",        "Rolls-Royce SMR",    470.0, "Concept",      "2035", 2200.0,  "National Grid",    True,  "Grid"),
+        ("PRJ-006", "Oldbury SMR",            "UK",        "Rolls-Royce SMR",    470.0, "Concept",      "2035", 2200.0,  "Horizon Nuclear",  True,  "Grid"),
+        ("PRJ-007", "Akademik Lomonosov",     "Russia",    "ROSATOM",             70.0, "Operating",    "2020",  740.0,  "Rosenergoatom",    False, "Remote"),
+        ("PRJ-008", "Baltic SMR",             "Russia",    "ROSATOM",            100.0, "Construction", "2027",  550.0,  "Rosenergoatom",    True,  "Grid"),
+        ("PRJ-009", "Brestskaya AES",         "Russia",    "ROSATOM",            300.0, "Construction", "2026", 1800.0,  "Rosatom",          True,  "Grid"),
+        ("PRJ-010", "SMART Pilot",            "S.Korea",   "KEPCO",              100.0, "Licensing",    "2029",  600.0,  "KEPCO",            True,  "Desalination"),
+        ("PRJ-011", "Seaborg CMSR",           "Denmark",   "Seaborg Tech",       100.0, "Concept",      "2030",  500.0,  "Seaborg",          True,  "Hydrogen"),
+        ("PRJ-012", "NUWARD Demo",            "France",    "Framatome",          400.0, "Concept",      "2035", 2500.0,  "EDF",              True,  "Grid"),
+        ("PRJ-013", "SMR Alberta",            "Canada",    "X-energy",            80.0, "Concept",      "2033",  700.0,  "ATCO",             False, "Industrial Heat"),
+        ("PRJ-014", "Natrium Demo",           "USA",       "TerraPower",         345.0, "Construction", "2030", 4000.0,  "PacifiCorp",       True,  "Grid"),
+        ("PRJ-015", "eVinci Pembina",         "Canada",    "Westinghouse",         5.0, "Concept",      "2027",  100.0,  "Pembina Pipeline", False, "Industrial Heat"),
+        ("PRJ-016", "Holtec SMR-300",         "USA",       "Holtec International",300.0,"Licensing",   "2031", 1400.0,  "Holtec",           True,  "Grid"),
+        ("PRJ-017", "IEA Last Energy Poland", "Poland",    "Last Energy",         20.0, "Concept",      "2030",  180.0,  "IEA",              True,  "Grid"),
+        ("PRJ-018", "Kairos Hermes Demo",     "USA",       "Kairos Power",        35.0, "Construction", "2027",  300.0,  "Kairos",           False, "Grid"),
+        ("PRJ-019", "Horizon SMR Japan",      "Japan",     "GE-Hitachi",         300.0, "Concept",      "2035", 1800.0,  "Hitachi-GE",       True,  "Grid"),
+        ("PRJ-020", "Saudi SMART",            "Saudi Ar.", "KEPCO",              100.0, "Concept",      "2032",  800.0,  "KACARE",           True,  "Desalination"),
+        ("PRJ-021", "IMSR Demo",              "Canada",    "Terrestrial Energy",  195.0,"Concept",      "2034", 1200.0,  "Terrestrial Egy",  True,  "Grid"),
+        ("PRJ-022", "ARC-100 NB Power",       "Canada",    "ARC Clean Technology",100.0,"Concept",     "2033",  700.0,  "NB Power",         True,  "Grid"),
+        ("PRJ-023", "CGN ACPR50S",            "China",     "CGN",                 60.0, "Construction", "2026",  400.0,  "CGN",              False, "Remote"),
+        ("PRJ-024", "KAERI SMART-R",          "S.Korea",   "KAERI",              100.0, "Licensing",    "2030",  700.0,  "KAERI",            True,  "Grid"),
+        ("PRJ-025", "ITER-Adjacent SMR",      "France",    "Framatome",          100.0, "Concept",      "2036",  800.0,  "CEA",              True,  "Hydrogen"),
+    ]
+    global_projects = [
+        NSMRGlobalProjectRecord(
+            project_id=pid, project_name=pname, country=country, vendor=vendor,
+            capacity_mw=cap, status=status, expected_cod=cod, capex_m_usd=capex,
+            operator=operator, grid_connection=grid_conn, purpose=purpose
+        )
+        for (pid, pname, country, vendor, cap, status, cod, capex,
+             operator, grid_conn, purpose) in _project_data
+    ]
+
+    # ── Site Records (15 records) ─────────────────────────────────────────────
+    _site_data = [
+        # (site_id, site_name, state, assessment_type, land_area_ha, grid_proximity_km,
+        #  water_source, seismic_risk, community_support_pct, estimated_jobs, earliest_possible_year)
+        ("SITE-001", "Liddell Power Station",  "NSW", "Coal Retirement",      450.0,  2.5, "Hunter River",    "Low",    62.0, 1800, 2036),
+        ("SITE-002", "Vales Point",            "NSW", "Coal Retirement",      320.0,  3.0, "Lake Macquarie",  "Low",    58.0, 1500, 2037),
+        ("SITE-003", "Hazelwood Precinct",     "VIC", "Coal Retirement",      380.0,  1.5, "Morwell River",   "Low",    45.0, 1400, 2037),
+        ("SITE-004", "Yallourn Precinct",      "VIC", "Coal Retirement",      290.0,  2.0, "Latrobe River",   "Low",    47.0, 1300, 2038),
+        ("SITE-005", "Callide",                "QLD", "Coal Retirement",      410.0,  4.0, "Callide Creek",   "Low",    55.0, 1600, 2038),
+        ("SITE-006", "Kogan Creek",            "QLD", "Coal Retirement",      250.0,  8.0, "Condamine River", "Low",    51.0, 1200, 2039),
+        ("SITE-007", "Port Augusta",           "SA",  "Industrial Precinct",  600.0, 15.0, "Spencer Gulf",    "Low",    68.0, 2200, 2035),
+        ("SITE-008", "Whyalla",               "SA",  "Industrial Precinct",  800.0, 20.0, "Spencer Gulf",    "Low",    60.0, 2800, 2035),
+        ("SITE-009", "Collie",               "WA",  "Coal Retirement",      350.0, 12.0, "Collie River",    "Low",    52.0, 1100, 2040),
+        ("SITE-010", "Muja",                 "WA",  "Coal Retirement",      420.0, 10.0, "Collie River",    "Low",    49.0, 1300, 2041),
+        ("SITE-011", "Darwin Port Precinct", "NT",  "Industrial Precinct",  500.0, 25.0, "Darwin Harbour",  "Medium", 58.0, 1700, 2036),
+        ("SITE-012", "Roxby Downs",         "SA",  "Remote Community",     150.0, 180.0,"Artesian Basin",  "Low",    71.0,  800, 2035),
+        ("SITE-013", "Karratha",            "WA",  "Industrial Precinct",  400.0, 35.0, "Indian Ocean",    "Medium", 55.0, 1900, 2037),
+        ("SITE-014", "Tomago Aluminium",    "NSW", "Industrial Precinct",  200.0,  5.0, "Hunter River",    "Low",    64.0, 2000, 2036),
+        ("SITE-015", "Narrabri Region",     "NSW", "Greenfield",           700.0, 45.0, "Namoi River",     "Low",    43.0, 1500, 2040),
+    ]
+    sites = [
+        NSMRSiteRecord(
+            site_id=sid, site_name=sname, state=state, assessment_type=atype,
+            land_area_ha=land, grid_proximity_km=grid_km, water_source=water,
+            seismic_risk=seismic, community_support_pct=support, estimated_jobs=jobs,
+            earliest_possible_year=epy
+        )
+        for (sid, sname, state, atype, land, grid_km, water,
+             seismic, support, jobs, epy) in _site_data
+    ]
+
+    # ── Cost Records (24 records: 8 years × 3 scenarios) ─────────────────────
+    # year, scenario, capex_per_kw_aud, lcoe_aud_per_mwh, construction_years,
+    # capacity_factor_pct, overnight_cost_b, financing_cost_pct,
+    # fuel_cost_aud_per_mwh, waste_disposal_aud_per_mwh
+    _cost_data = [
+        (2025, "Optimistic",  4800.0,  85.0, 7.0, 92.0, 1.44, 6.0,  8.0, 4.0),
+        (2025, "Central",     7200.0, 130.0, 9.0, 90.0, 2.16, 8.0, 10.0, 5.0),
+        (2025, "Pessimistic",10000.0, 185.0,12.0, 88.0, 3.00, 10.0,12.0, 6.5),
+        (2027, "Optimistic",  4500.0,  80.0, 6.5, 92.5, 1.35, 5.8,  7.8, 3.8),
+        (2027, "Central",     6800.0, 122.0, 8.5, 90.5, 2.04, 7.5,  9.5, 4.8),
+        (2027, "Pessimistic", 9500.0, 175.0,11.5, 88.5, 2.85, 9.5, 11.5, 6.2),
+        (2029, "Optimistic",  4200.0,  75.0, 6.0, 93.0, 1.26, 5.5,  7.5, 3.5),
+        (2029, "Central",     6400.0, 115.0, 8.0, 91.0, 1.92, 7.0,  9.0, 4.5),
+        (2029, "Pessimistic", 9000.0, 165.0,11.0, 89.0, 2.70, 9.0, 11.0, 5.8),
+        (2030, "Optimistic",  4000.0,  72.0, 5.8, 93.0, 1.20, 5.3,  7.2, 3.3),
+        (2030, "Central",     6100.0, 110.0, 7.8, 91.5, 1.83, 6.8,  8.5, 4.3),
+        (2030, "Pessimistic", 8500.0, 158.0,10.5, 89.5, 2.55, 8.5, 10.5, 5.5),
+        (2031, "Optimistic",  3800.0,  68.0, 5.5, 93.5, 1.14, 5.0,  7.0, 3.0),
+        (2031, "Central",     5800.0, 105.0, 7.5, 92.0, 1.74, 6.5,  8.0, 4.0),
+        (2031, "Pessimistic", 8100.0, 150.0,10.0, 90.0, 2.43, 8.0, 10.0, 5.2),
+        (2032, "Optimistic",  3600.0,  64.0, 5.2, 94.0, 1.08, 4.8,  6.8, 2.8),
+        (2032, "Central",     5500.0, 100.0, 7.2, 92.5, 1.65, 6.2,  7.5, 3.8),
+        (2032, "Pessimistic", 7700.0, 143.0, 9.5, 90.5, 2.31, 7.5,  9.5, 5.0),
+        (2033, "Optimistic",  3400.0,  60.0, 5.0, 94.0, 1.02, 4.5,  6.5, 2.5),
+        (2033, "Central",     5200.0,  95.0, 7.0, 93.0, 1.56, 6.0,  7.0, 3.5),
+        (2033, "Pessimistic", 7300.0, 136.0, 9.0, 91.0, 2.19, 7.2,  9.0, 4.8),
+        (2034, "Optimistic",  3200.0,  57.0, 4.8, 94.5, 0.96, 4.3,  6.2, 2.3),
+        (2034, "Central",     4900.0,  90.0, 6.8, 93.5, 1.47, 5.8,  6.8, 3.2),
+        (2034, "Pessimistic", 6900.0, 130.0, 8.5, 91.5, 2.07, 7.0,  8.5, 4.5),
+    ]
+    costs = [
+        NSMRCostRecord(
+            year=year, scenario=scenario, capex_per_kw_aud=capex_kw,
+            lcoe_aud_per_mwh=lcoe, construction_years=constr_yrs,
+            capacity_factor_pct=cap_factor, overnight_cost_b=onc,
+            financing_cost_pct=fin_cost, fuel_cost_aud_per_mwh=fuel_cost,
+            waste_disposal_aud_per_mwh=waste_cost
+        )
+        for (year, scenario, capex_kw, lcoe, constr_yrs, cap_factor,
+             onc, fin_cost, fuel_cost, waste_cost) in _cost_data
+    ]
+
+    # ── Regulation Records (15 records) ──────────────────────────────────────
+    _regulation_data = [
+        # (regulation_name, jurisdiction, regulation_type, current_status,
+        #  reform_required, estimated_reform_years, key_body, international_precedent)
+        ("ARPANSA Act 1998",              "Federal", "Safety",      "Neutral",    True,  3.0, "ARPANSA",   "IAEA SSR-2/1"),
+        ("ANSTO Act 1987",                "Federal", "Licensing",   "Neutral",    True,  2.0, "ANSTO",     "NRC 10 CFR 50"),
+        ("Australian Radiation Protection", "Federal", "Safety",    "Neutral",    True,  2.5, "ARPANSA",   "IAEA GSR Part 3"),
+        ("EPBC Act 1999",                 "Federal", "Environmental","Neutral",   True,  1.5, "DAWE",      "NEPA USA"),
+        ("Radioactive Waste Management Act","Federal","Waste",      "Enabling",   False, 0.5, "DISR",      "NDA UK"),
+        ("Nuclear Facilities Prohibition", "VIC",    "Siting",      "Prohibiting",True,  5.0, "Victorian Gov","None"),
+        ("Nuclear Activities Regulation",  "NSW",    "Siting",      "Prohibiting",True,  4.5, "NSW Planning","None"),
+        ("Atomic Energy Act 1953",        "Federal", "Licensing",   "Prohibiting",True,  4.0, "DISR",      "AEA UK"),
+        ("NEM Market Rules (AEMO)",       "Federal", "Licensing",   "Neutral",    True,  2.0, "AEMO",      "FERC USA"),
+        ("Environmental Assessment Act",  "QLD",     "Environmental","Neutral",   True,  2.0, "DESI QLD",  "EIA Directive EU"),
+        ("Planning and Development Act",  "SA",      "Siting",      "Neutral",    True,  2.5, "SA Planning","GDA UK"),
+        ("WA Planning",                   "WA",      "Siting",      "Neutral",    True,  3.0, "DPLH WA",   "None"),
+        ("NGER Scheme",                   "Federal", "Environmental","Enabling",  False, 0.0, "CER",       "EU ETS"),
+        ("Safeguard Mechanism",           "Federal", "Environmental","Enabling",  False, 0.0, "CER",       "EU ETS"),
+        ("Infrastructure Approvals",      "Federal", "Siting",      "Neutral",    True,  2.0, "IPA",       "NSIP UK"),
+    ]
+    regulations = [
+        NSMRRegulationRecord(
+            regulation_name=rname, jurisdiction=jur, regulation_type=rtype,
+            current_status=status, reform_required=reform_req,
+            estimated_reform_years=reform_yrs, key_body=key_body,
+            international_precedent=intl_prec
+        )
+        for (rname, jur, rtype, status, reform_req,
+             reform_yrs, key_body, intl_prec) in _regulation_data
+    ]
+
+    # ── Scenario Records (20 records: 2030-2060 × 2 scenarios, every 2-3 yrs) ─
+    # year, scenario, installed_capacity_mw, plants_operating, pct_of_nem_capacity,
+    # annual_generation_twh, carbon_abated_mtpa, total_investment_b, jobs_sustained
+    _scenario_data = [
+        (2030, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2030, "Nuclear Pathway", 300.0, 1, 0.8,  2.4,  1.2,   1.5, 1000),
+        (2033, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2033, "Nuclear Pathway", 900.0, 3, 2.3,  7.1,  3.5,   4.5, 3000),
+        (2035, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2035, "Nuclear Pathway",2100.0, 7, 5.0, 16.6,  8.2,  10.5, 7000),
+        (2038, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2038, "Nuclear Pathway",4200.0,14,  9.5, 33.1, 16.4,  21.0,14000),
+        (2040, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2040, "Nuclear Pathway",6300.0,21, 13.6, 49.7, 24.6,  31.5,21000),
+        (2043, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2043, "Nuclear Pathway",8400.0,28, 17.0, 66.2, 32.8,  42.0,28000),
+        (2045, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2045, "Nuclear Pathway",10500.0,35,20.0, 82.8, 41.0,  52.5,35000),
+        (2048, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2048, "Nuclear Pathway",12600.0,42,23.0, 99.3, 49.2,  63.0,42000),
+        (2050, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2050, "Nuclear Pathway",14000.0,47,24.5,110.4, 54.7,  70.0,47000),
+        (2055, "No Nuclear",      0.0,  0,  0.0,  0.0,  0.0,   0.0,    0),
+        (2055, "Nuclear Pathway",16800.0,56,28.0,132.5, 65.6,  84.0,56000),
+    ]
+    scenarios = [
+        NSMRScenarioRecord(
+            year=year, scenario=scenario, installed_capacity_mw=cap_mw,
+            plants_operating=plants, pct_of_nem_capacity=pct_nem,
+            annual_generation_twh=gen_twh, carbon_abated_mtpa=carbon,
+            total_investment_b=investment, jobs_sustained=jobs
+        )
+        for (year, scenario, cap_mw, plants, pct_nem,
+             gen_twh, carbon, investment, jobs) in _scenario_data
+    ]
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    total_designs_tracked = len(designs)
+    total_global_projects = len(global_projects)
+
+    most_advanced = max(designs, key=lambda d: d.trl)
+    most_advanced_design = most_advanced.design_name
+
+    central_costs = [c.lcoe_aud_per_mwh for c in costs if c.scenario == "Central"]
+    avg_lcoe_central_aud_per_mwh = round(sum(central_costs) / len(central_costs), 1) if central_costs else 0.0
+
+    potential_aus_sites = len(sites)
+
+    earliest_possible_grid_date = str(min(s.earliest_possible_year for s in sites))
+
+    summary = {
+        "total_designs_tracked": total_designs_tracked,
+        "total_global_projects": total_global_projects,
+        "most_advanced_design": most_advanced_design,
+        "avg_lcoe_central_aud_per_mwh": avg_lcoe_central_aud_per_mwh,
+        "potential_aus_sites": potential_aus_sites,
+        "earliest_possible_grid_date": earliest_possible_grid_date,
+    }
+
+    _nsmr_cache.update(NSMRDashboard(
+        designs=designs,
+        global_projects=global_projects,
+        sites=sites,
+        costs=costs,
+        regulations=regulations,
+        scenarios=scenarios,
+        summary=summary,
+    ).model_dump())
+    return NSMRDashboard(**_nsmr_cache)
+
+
+# ===========================================================================
+# Sprint 111b — Electricity Market Transparency Reporting Analytics (EMTR)
+# ===========================================================================
+
+class EMTRDataQualityRecord(BaseModel):
+    report_month: str
+    data_type: str
+    completeness_pct: float
+    timeliness_score: float
+    error_rate_pct: float
+    corrections_issued: int
+    user_complaints: int
+    api_uptime_pct: float
+    revision_frequency: float
+
+
+class EMTRComplianceRecord(BaseModel):
+    participant: str
+    participant_type: str
+    reporting_period: str
+    reports_due: int
+    reports_submitted: int
+    reports_late: int
+    data_errors: int
+    non_compliance_notices: int
+    penalty_aud: float
+    exemptions_granted: int
+
+
+class EMTRMarketNoticRecord(BaseModel):
+    notice_id: str
+    notice_date: str
+    notice_type: str
+    region: str
+    lead_time_minutes: float
+    accuracy_pct: float
+    market_impact_mwh: float
+    price_impact_mwh: float
+    participants_affected: int
+
+
+class EMTRAuditRecord(BaseModel):
+    audit_id: str
+    auditor: str
+    participant: str
+    audit_year: int
+    audit_type: str
+    findings_count: int
+    critical_findings: int
+    recommendations: int
+    remediation_status: str
+    penalty_issued_m: float
+
+
+class EMTRInformationRecord(BaseModel):
+    metric_name: str
+    region: str
+    information_advantage_score: float
+    data_lag_minutes: float
+    public_access: bool
+    participant_only: bool
+    institutional_advantage_score: float
+    retail_customer_access: bool
+    improvement_priority: str
+
+
+class EMTRTransparencyScoreRecord(BaseModel):
+    year: int
+    region: str
+    overall_transparency_score: float
+    data_quality_score: float
+    timeliness_score: float
+    accessibility_score: float
+    completeness_score: float
+    participant_compliance_score: float
+    public_confidence_index: float
+
+
+class EMTRDashboard(BaseModel):
+    data_quality: List[EMTRDataQualityRecord]
+    compliance: List[EMTRComplianceRecord]
+    market_notices: List[EMTRMarketNoticRecord]
+    audits: List[EMTRAuditRecord]
+    information_gaps: List[EMTRInformationRecord]
+    transparency_scores: List[EMTRTransparencyScoreRecord]
+    summary: dict
+
+
+_emtr_cache: dict = {}
+
+
+@app.get("/api/electricity-market-transparency/dashboard", response_model=EMTRDashboard, dependencies=[Depends(verify_api_key)])
+def get_emtr_dashboard():
+    import random
+    if _emtr_cache:
+        return EMTRDashboard(**_emtr_cache)
+
+    rng = random.Random(42)
+
+    data_types = [
+        "5-min Dispatch", "30-min Settlement", "Pre-dispatch",
+        "ST PASA", "MT PASA", "Market Notices", "Ancillary Services", "Causer Pays",
+    ]
+    months = [
+        "2023-01", "2023-04", "2023-07", "2023-10",
+        "2024-01", "2024-04", "2024-07",
+    ]
+    data_quality: List[EMTRDataQualityRecord] = []
+    # 25 records cycling through data_types and months
+    for i in range(25):
+        dt = data_types[i % len(data_types)]
+        mo = months[i % len(months)]
+        data_quality.append(EMTRDataQualityRecord(
+            report_month=mo,
+            data_type=dt,
+            completeness_pct=rng.uniform(92.0, 99.9),
+            timeliness_score=round(rng.uniform(6.5, 10.0), 1),
+            error_rate_pct=round(rng.uniform(0.01, 1.5), 3),
+            corrections_issued=rng.randint(0, 12),
+            user_complaints=rng.randint(0, 8),
+            api_uptime_pct=round(rng.uniform(97.5, 99.99), 3),
+            revision_frequency=round(rng.uniform(0.5, 4.0), 2),
+        ))
+
+    participant_types = ["Generator", "Retailer", "Network", "TNSP", "DNSP", "Trader"]
+    participants = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Snowy Hydro",
+        "Meridian Energy", "Pacific Hydro", "Alinta Energy", "CS Energy",
+        "CleanCo", "Shell Energy", "Acciona Energy", "Tilt Renewables",
+        "Neoen", "Macquarie Energy", "NextEra Australia", "Stanwell",
+        "Delta Electricity", "Transgrid", "ElectraNet", "AusNet",
+    ]
+    periods = ["Q1 2024", "Q2 2024", "Q3 2024", "Q4 2023", "Q2 2023"]
+    compliance: List[EMTRComplianceRecord] = []
+    for i in range(20):
+        p = participants[i % len(participants)]
+        pt = participant_types[i % len(participant_types)]
+        period = periods[i % len(periods)]
+        due = rng.randint(8, 24)
+        submitted = rng.randint(max(1, due - 4), due)
+        late = rng.randint(0, min(3, submitted))
+        errors = rng.randint(0, 5)
+        notices = rng.randint(0, 3)
+        compliance.append(EMTRComplianceRecord(
+            participant=p,
+            participant_type=pt,
+            reporting_period=period,
+            reports_due=due,
+            reports_submitted=submitted,
+            reports_late=late,
+            data_errors=errors,
+            non_compliance_notices=notices,
+            penalty_aud=round(rng.uniform(0, 250000), 2) if notices > 0 else 0.0,
+            exemptions_granted=rng.randint(0, 2),
+        ))
+
+    notice_types = [
+        "Price Setter", "Constraint", "Dispatch", "RERT",
+        "Market Suspension", "LOR", "Managed Constraint", "Reserve Shortfall",
+    ]
+    regions_list = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    market_notices: List[EMTRMarketNoticRecord] = []
+    for i in range(30):
+        nt = notice_types[i % len(notice_types)]
+        reg = regions_list[i % len(regions_list)]
+        market_notices.append(EMTRMarketNoticRecord(
+            notice_id=f"MN-2024-{1000 + i}",
+            notice_date=f"2024-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}",
+            notice_type=nt,
+            region=reg,
+            lead_time_minutes=round(rng.uniform(2.0, 45.0), 1),
+            accuracy_pct=round(rng.uniform(82.0, 99.5), 1),
+            market_impact_mwh=round(rng.uniform(50.0, 5000.0), 1),
+            price_impact_mwh=round(rng.uniform(5.0, 300.0), 2),
+            participants_affected=rng.randint(2, 25),
+        ))
+
+    auditors = ["AER", "ACCC", "AEMO", "Independent"]
+    audit_types = ["Compliance", "Performance", "Market Monitoring", "Ring-fencing", "Registration"]
+    remediation_statuses = ["Complete", "In Progress", "Outstanding"]
+    audit_participants = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Transgrid",
+        "ElectraNet", "AusNet", "Snowy Hydro", "CS Energy",
+        "Alinta Energy", "Meridian Energy", "Stanwell", "Delta Electricity",
+        "Shell Energy", "Neoen", "CleanCo",
+    ]
+    audits: List[EMTRAuditRecord] = []
+    for i in range(15):
+        aud = auditors[i % len(auditors)]
+        atype = audit_types[i % len(audit_types)]
+        findings = rng.randint(1, 20)
+        critical = rng.randint(0, min(5, findings))
+        audits.append(EMTRAuditRecord(
+            audit_id=f"AUD-{2020 + (i % 5)}-{100 + i}",
+            auditor=aud,
+            participant=audit_participants[i % len(audit_participants)],
+            audit_year=2020 + (i % 5),
+            audit_type=atype,
+            findings_count=findings,
+            critical_findings=critical,
+            recommendations=rng.randint(findings, findings + 5),
+            remediation_status=remediation_statuses[i % len(remediation_statuses)],
+            penalty_issued_m=round(rng.uniform(0.0, 2.5), 3) if critical > 0 else 0.0,
+        ))
+
+    info_metrics = [
+        "Dispatch Prices", "Pre-dispatch Prices", "NEMDE Inputs",
+        "Constraint Equations", "Bid Stack Data", "Causer Pays Factors",
+        "Outage Register", "Generator Dispatch", "Market Notices Feed",
+        "PASA Results", "Interconnector Flows", "FCAS Prices",
+        "MLF Calculations", "ST PASA Probabilistic", "MT PASA Inputs",
+        "Load Profiling", "Settlement Residues", "Market Reports",
+        "NEM Review Data", "AER Market Reports",
+    ]
+    priorities = ["High", "Medium", "Low"]
+    information_gaps: List[EMTRInformationRecord] = []
+    for i in range(20):
+        metric = info_metrics[i % len(info_metrics)]
+        reg = regions_list[i % len(regions_list)]
+        adv = round(rng.uniform(1.5, 9.5), 1)
+        inst_adv = round(rng.uniform(1.0, adv), 1)
+        pub_access = rng.random() > 0.4
+        part_only = rng.random() > 0.6
+        retail_access = rng.random() > 0.5
+        information_gaps.append(EMTRInformationRecord(
+            metric_name=metric,
+            region=reg,
+            information_advantage_score=adv,
+            data_lag_minutes=round(rng.uniform(0.0, 120.0), 1),
+            public_access=pub_access,
+            participant_only=part_only,
+            institutional_advantage_score=inst_adv,
+            retail_customer_access=retail_access,
+            improvement_priority=priorities[i % len(priorities)],
+        ))
+
+    # 24 records: years 2020-2024 × 5 regions (rounds to 25 but spec says 24)
+    # Use 2020-2023 × 5 regions + 4 extra for 2024 = 24
+    transparency_scores: List[EMTRTransparencyScoreRecord] = []
+    years_ts = [2020, 2021, 2022, 2023]
+    for yr in years_ts:
+        for reg in regions_list:
+            base = rng.uniform(55.0, 90.0)
+            transparency_scores.append(EMTRTransparencyScoreRecord(
+                year=yr,
+                region=reg,
+                overall_transparency_score=round(base, 1),
+                data_quality_score=round(rng.uniform(base - 8, base + 8), 1),
+                timeliness_score=round(rng.uniform(base - 10, base + 10), 1),
+                accessibility_score=round(rng.uniform(base - 12, base + 5), 1),
+                completeness_score=round(rng.uniform(base - 5, base + 8), 1),
+                participant_compliance_score=round(rng.uniform(base - 7, base + 7), 1),
+                public_confidence_index=round(rng.uniform(40.0, 85.0), 1),
+            ))
+    # 4 extra for 2024 (first 4 regions) to reach 24 total
+    for reg in regions_list[:4]:
+        base = rng.uniform(60.0, 92.0)
+        transparency_scores.append(EMTRTransparencyScoreRecord(
+            year=2024,
+            region=reg,
+            overall_transparency_score=round(base, 1),
+            data_quality_score=round(rng.uniform(base - 8, base + 8), 1),
+            timeliness_score=round(rng.uniform(base - 10, base + 10), 1),
+            accessibility_score=round(rng.uniform(base - 12, base + 5), 1),
+            completeness_score=round(rng.uniform(base - 5, base + 8), 1),
+            participant_compliance_score=round(rng.uniform(base - 7, base + 7), 1),
+            public_confidence_index=round(rng.uniform(45.0, 88.0), 1),
+        ))
+
+    avg_data_completeness_pct = round(
+        sum(r.completeness_pct for r in data_quality) / len(data_quality), 2
+    )
+    avg_api_uptime_pct = round(
+        sum(r.api_uptime_pct for r in data_quality) / len(data_quality), 2
+    )
+    total_non_compliance_notices = sum(r.non_compliance_notices for r in compliance)
+    total_penalties_m = round(
+        sum(r.penalty_aud for r in compliance) / 1_000_000
+        + sum(a.penalty_issued_m for a in audits), 3
+    )
+    avg_transparency_score = round(
+        sum(r.overall_transparency_score for r in transparency_scores) / len(transparency_scores), 2
+    )
+    region_scores: dict = {}
+    for rec in transparency_scores:
+        region_scores.setdefault(rec.region, []).append(rec.overall_transparency_score)
+    highest_transparency_region = max(
+        region_scores, key=lambda r: sum(region_scores[r]) / len(region_scores[r])
+    )
+
+    summary = {
+        "avg_data_completeness_pct": avg_data_completeness_pct,
+        "avg_api_uptime_pct": avg_api_uptime_pct,
+        "total_non_compliance_notices": total_non_compliance_notices,
+        "total_penalties_m": total_penalties_m,
+        "avg_transparency_score": avg_transparency_score,
+        "highest_transparency_region": highest_transparency_region,
+    }
+
+    _emtr_cache.update(EMTRDashboard(
+        data_quality=data_quality,
+        compliance=compliance,
+        market_notices=market_notices,
+        audits=audits,
+        information_gaps=information_gaps,
+        transparency_scores=transparency_scores,
+        summary=summary,
+    ).model_dump())
+    return EMTRDashboard(**_emtr_cache)
+
+# ===========================================================================
+# GEDA — Geothermal Energy Development Analytics
+# Sprint 111c
+# ===========================================================================
+
+class GEDAResourceRecord(BaseModel):
+    resource_id: str
+    state: str
+    resource_type: str
+    basin_name: str
+    depth_m: float
+    temperature_c: float
+    estimated_potential_mw: float
+    exploration_status: str
+    heat_flow_mw_per_m2: float
+    permeability_millidarcy: float
+
+class GEDAProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    project_type: str
+    capacity_mw_e: float
+    capacity_mw_th: float
+    status: str
+    capex_m: float
+    expected_lcoe_aud_per_mwh: float
+    drilling_depth_m: float
+    well_count: int
+    commencement_year: int
+
+class GEDACostRecord(BaseModel):
+    year: int
+    technology_variant: str
+    capex_mw: float
+    opex_mwh: float
+    lcoe_aud_per_mwh: float
+    drilling_cost_m: float
+    exploration_cost_m: float
+    success_rate_pct: float
+    learning_rate_pct: float
+
+class GEDAGlobalBenchmarkRecord(BaseModel):
+    country: str
+    installed_capacity_mw: float
+    annual_generation_gwh: float
+    capacity_factor_pct: float
+    primary_resource: str
+    avg_lcoe_usd_per_mwh: float
+    growth_rate_pct: float
+    technology_maturity: str
+    direct_use_mw_th: float
+    jobs_per_mw: float
+
+class GEDAHeatApplicationRecord(BaseModel):
+    application: str
+    potential_region: str
+    heat_demand_mw_th: float
+    temperature_required_c: float
+    geothermal_suitable: bool
+    potential_sites: int
+    existing_installations: int
+    annual_value_m: float
+    co2_displaced_kt: float
+
+class GEDAScenarioRecord(BaseModel):
+    year: int
+    scenario: str
+    installed_capacity_mw: float
+    annual_generation_gwh: float
+    direct_heat_mw_th: float
+    projects_operating: int
+    investment_b: float
+    lcoe_aud_per_mwh: float
+    jobs_created: int
+    co2_abated_ktpa: float
+
+class GEDADashboard(BaseModel):
+    resources: List[GEDAResourceRecord]
+    projects: List[GEDAProjectRecord]
+    costs: List[GEDACostRecord]
+    global_benchmarks: List[GEDAGlobalBenchmarkRecord]
+    heat_applications: List[GEDAHeatApplicationRecord]
+    scenarios: List[GEDAScenarioRecord]
+    summary: dict
+
+_geda_cache: dict = {}
+
+@app.get("/api/geothermal-energy-development/dashboard", response_model=GEDADashboard, dependencies=[Depends(verify_api_key)])
+def get_geda_dashboard():
+    import random
+    if _geda_cache:
+        return GEDADashboard(**_geda_cache)
+
+    rng = random.Random(42)
+
+    # ── Resources (20 records) ──────────────────────────────────────────────
+    resource_types = ["Hot Dry Rock", "Hydrothermal", "Geopressured", "Volcanic"]
+    basins = [
+        "Cooper Basin", "Otway Basin", "Perth Basin",
+        "Clarence-Moreton", "Bowen", "Galilee", "Amadeus",
+    ]
+    states_res = ["SA", "VIC", "WA", "QLD", "NT", "QLD", "NT"]
+    exploration_statuses = ["Untested", "Surveyed", "Drilled", "Confirmed"]
+
+    resources = []
+    for i in range(20):
+        basin_idx = i % len(basins)
+        rtype = resource_types[i % len(resource_types)]
+        depth = rng.uniform(3500, 6500) if rtype == "Hot Dry Rock" else rng.uniform(500, 3000)
+        temp = rng.uniform(200, 310) if rtype == "Hot Dry Rock" else rng.uniform(80, 220)
+        potential = rng.uniform(200, 4500)
+        resources.append(GEDAResourceRecord(
+            resource_id=f"RES-{i+1:03d}",
+            state=states_res[basin_idx],
+            resource_type=rtype,
+            basin_name=basins[basin_idx],
+            depth_m=round(depth, 0),
+            temperature_c=round(temp, 1),
+            estimated_potential_mw=round(potential, 0),
+            exploration_status=exploration_statuses[i % len(exploration_statuses)],
+            heat_flow_mw_per_m2=round(rng.uniform(0.06, 0.12), 4),
+            permeability_millidarcy=round(rng.uniform(0.001, 50.0), 3),
+        ))
+
+    # ── Projects (20 records) ───────────────────────────────────────────────
+    project_types = ["EGS", "Hydrothermal", "Direct Use Heat", "Co-produced", "District Heating"]
+    project_statuses = ["Concept", "Exploration", "Development", "Pilot", "Operating", "Suspended"]
+    developers = [
+        "Geodynamics Ltd", "Hot Rock Energy", "Petratherm Ltd",
+        "Origin Energy", "Santos", "Beach Energy",
+        "AGL Geothermal", "GreenRock Energy", "CarbonNet", "APA Group",
+    ]
+    proj_states = ["SA", "QLD", "WA", "VIC", "NT", "NSW"]
+
+    projects = []
+    for i in range(20):
+        ptype = project_types[i % len(project_types)]
+        is_egs = ptype == "EGS"
+        cap_e = rng.uniform(1, 30) if is_egs else rng.uniform(5, 100)
+        cap_th = rng.uniform(10, 200)
+        capex = rng.uniform(80, 800)
+        lcoe = rng.uniform(200, 380) if is_egs else rng.uniform(60, 140)
+        depth = rng.uniform(4000, 6000) if is_egs else rng.uniform(800, 3000)
+        projects.append(GEDAProjectRecord(
+            project_id=f"PROJ-{i+1:03d}",
+            project_name=f"{basins[i % len(basins)]} Geothermal {ptype} Project {i+1}",
+            developer=developers[i % len(developers)],
+            state=proj_states[i % len(proj_states)],
+            project_type=ptype,
+            capacity_mw_e=round(cap_e, 1),
+            capacity_mw_th=round(cap_th, 1),
+            status=project_statuses[i % len(project_statuses)],
+            capex_m=round(capex, 1),
+            expected_lcoe_aud_per_mwh=round(lcoe, 1),
+            drilling_depth_m=round(depth, 0),
+            well_count=rng.randint(2, 12),
+            commencement_year=rng.randint(2025, 2038),
+        ))
+
+    # ── Costs (24 records: 2020-2043 one record per year, cycling variants) ─
+    tech_variants = [
+        "Hydrothermal Flash", "Binary Cycle", "EGS Pilot",
+        "EGS Commercial", "Co-produced", "Direct Heat",
+    ]
+    costs = []
+    for yr in range(2020, 2044):
+        tv = tech_variants[(yr - 2020) % len(tech_variants)]
+        t = yr - 2020
+        is_egs = "EGS" in tv
+        base_lcoe = 280 if is_egs else 85
+        lcoe = max(base_lcoe - t * (8 if is_egs else 1.5), 60 if not is_egs else 120)
+        capex = 5000 - t * (80 if is_egs else 30)
+        costs.append(GEDACostRecord(
+            year=yr,
+            technology_variant=tv,
+            capex_mw=round(max(capex, 1500), 0),
+            opex_mwh=round(rng.uniform(10, 35), 1),
+            lcoe_aud_per_mwh=round(lcoe + rng.uniform(-5, 5), 1),
+            drilling_cost_m=round(rng.uniform(5, 50), 1),
+            exploration_cost_m=round(rng.uniform(1, 20), 1),
+            success_rate_pct=round(rng.uniform(40, 90), 1),
+            learning_rate_pct=round(rng.uniform(8, 18), 1),
+        ))
+
+    # ── Global Benchmarks (20 records) ──────────────────────────────────────
+    benchmark_data = [
+        ("USA",         3904, 21_000, 90, "Hydrothermal",     60,  2.0, "Proven",       23_000, 5.0),
+        ("Indonesia",   2430, 18_000, 85, "Hydrothermal",     55,  8.5, "Proven",        5_000, 6.0),
+        ("Philippines", 1928, 15_000, 88, "Hydrothermal",     58,  3.0, "Proven",        1_200, 5.5),
+        ("Turkey",      1700, 12_000, 80, "Hydrothermal",     62,  9.0, "Proven",       17_500, 4.5),
+        ("New Zealand", 1006,  7_000, 79, "Hydrothermal",     65,  2.5, "Proven",        1_800, 6.5),
+        ("Mexico",       963,  6_800, 82, "Hydrothermal",     63,  1.5, "Proven",          800, 5.0),
+        ("Italy",        916,  5_900, 73, "Hydrothermal",     70,  0.5, "Proven",        3_600, 4.0),
+        ("Kenya",        863,  6_500, 86, "Hydrothermal",     56, 15.0, "Proven",          200, 7.0),
+        ("Iceland",      755,  6_100, 92, "Volcanic",         45,  1.0, "Proven",       10_500, 8.0),
+        ("Japan",        603,  3_800, 72, "Volcanic",         75,  4.0, "Proven",        5_400, 5.5),
+        ("Costa Rica",   218,  1_700, 89, "Hydrothermal",     60,  3.5, "Proven",          300, 7.5),
+        ("El Salvador",  204,  1_500, 84, "Hydrothermal",     62,  2.0, "Proven",          100, 6.0),
+        ("Nicaragua",    154,  1_100, 82, "Hydrothermal",     64,  5.0, "Emerging",         50, 6.5),
+        ("Ethiopia",     138,    900, 74, "Hydrothermal",     68, 12.0, "Emerging",         80, 8.5),
+        ("Chile",         40,    280, 80, "Volcanic",         80,  8.0, "Emerging",        120, 7.0),
+        ("Germany",       37,    200, 62, "Binary Cycle",    110,  3.0, "Emerging",      3_200, 4.5),
+        ("Australia",      1,      5, 45, "Hot Dry Rock",    300,  0.0, "Experimental",    20, 4.0),
+        ("France",         16,    110, 79, "Hydrothermal",    95,  1.5, "Proven",        2_800, 4.5),
+        ("Hungary",        94,    600, 73, "Hydrothermal",    90,  2.0, "Proven",        5_500, 4.0),
+        ("Portugal",        29,   200, 78, "Volcanic",        72,  3.0, "Emerging",        150, 5.5),
+    ]
+    global_benchmarks = []
+    for row in benchmark_data:
+        country, cap, gen, cf, prim, lcoe_usd, growth, maturity, direct_use, jobs = row
+        global_benchmarks.append(GEDAGlobalBenchmarkRecord(
+            country=country,
+            installed_capacity_mw=float(cap),
+            annual_generation_gwh=float(gen),
+            capacity_factor_pct=float(cf),
+            primary_resource=prim,
+            avg_lcoe_usd_per_mwh=float(lcoe_usd),
+            growth_rate_pct=float(growth),
+            technology_maturity=maturity,
+            direct_use_mw_th=float(direct_use),
+            jobs_per_mw=float(jobs),
+        ))
+
+    # ── Heat Applications (15 records) ──────────────────────────────────────
+    heat_app_data = [
+        ("District Heating",    "Adelaide/SA",   250, 80,  True,   12,  2, 45.0,  120),
+        ("Industrial Process",  "Cooper Basin",  800, 150, True,    8,  0, 180.0, 400),
+        ("Agriculture",         "SE Australia",  120, 40,  True,   30,  5, 22.0,   60),
+        ("Aquaculture",         "VIC Coast",      80, 30,  True,   18,  3, 15.0,   35),
+        ("Timber Drying",       "WA South",       60, 70,  True,   14,  1, 10.0,   25),
+        ("Food Processing",     "QLD",           200, 90,  True,   20,  2, 38.0,   90),
+        ("Spa",                 "NT/SA",          15, 38,  True,   45,  8,  5.0,    8),
+        ("Greenhouse",          "SA/VIC",        180, 50,  True,   25,  4, 32.0,   72),
+        ("Desalination",        "WA Coast",      500, 100, True,    6,  0, 95.0,  210),
+        ("Timber Drying",       "TAS",            40, 65,  True,   10,  2,  7.5,   18),
+        ("Industrial Process",  "Newcastle NSW", 400, 130, False,   3,  0, 85.0,  190),
+        ("Agriculture",         "VIC Mallee",     90, 35,  True,   22,  6, 16.0,   42),
+        ("District Heating",    "Geelong VIC",   150, 75,  True,    8,  1, 28.0,   68),
+        ("Aquaculture",         "SA Spencer Gulf",110, 28,  True,  15,  2, 21.0,   48),
+        ("Food Processing",     "Bundaberg QLD", 160, 85,  True,   12,  1, 30.0,   70),
+    ]
+    heat_applications = []
+    for row in heat_app_data:
+        app, region, demand, temp, suitable, sites, existing, value, co2 = row
+        heat_applications.append(GEDAHeatApplicationRecord(
+            application=app,
+            potential_region=region,
+            heat_demand_mw_th=float(demand),
+            temperature_required_c=float(temp),
+            geothermal_suitable=suitable,
+            potential_sites=sites,
+            existing_installations=existing,
+            annual_value_m=value,
+            co2_displaced_kt=float(co2),
+        ))
+
+    # ── Scenarios (20 records: 2025-2050 step 5 × 2 scenarios) ─────────────
+    scenario_years = list(range(2025, 2051, 5))  # 6 years but we need 20 records
+    # Use step 1.25 to get 10 years for 2 scenarios = 20 records
+    scenario_years_full = list(range(2025, 2050, 3))[:10]  # 10 years
+    scenarios_data = []
+    for scen in ["Slow Development", "Accelerated"]:
+        cap_base = 1.0 if scen == "Slow Development" else 5.0
+        for j, yr in enumerate(scenario_years_full):
+            t = j
+            cap = round(cap_base * (1.15 ** t if scen == "Slow Development" else 1.30 ** t), 0)
+            gen = round(cap * 7500 / 1000, 0)
+            scenarios_data.append(GEDAScenarioRecord(
+                year=yr,
+                scenario=scen,
+                installed_capacity_mw=cap,
+                annual_generation_gwh=gen,
+                direct_heat_mw_th=round(cap * 2.5, 0),
+                projects_operating=max(1, int(cap / 20)),
+                investment_b=round(cap * 0.006, 2),
+                lcoe_aud_per_mwh=round(max(80, 280 - t * 15 if scen == "Slow Development" else 280 - t * 22), 1),
+                jobs_created=int(cap * 4),
+                co2_abated_ktpa=round(cap * 7.0, 0),
+            ))
+
+    # ── Summary ─────────────────────────────────────────────────────────────
+    total_resource_potential_mw = round(sum(r.estimated_potential_mw for r in resources), 0)
+    avg_lcoe_current = round(
+        sum(c.lcoe_aud_per_mwh for c in costs if c.year == 2024) /
+        max(1, len([c for c in costs if c.year == 2024])), 1
+    )
+    leading_country = max(global_benchmarks, key=lambda x: x.installed_capacity_mw)
+    basin_totals: dict = {}
+    for r in resources:
+        basin_totals[r.basin_name] = basin_totals.get(r.basin_name, 0) + r.estimated_potential_mw
+    largest_basin = max(basin_totals, key=lambda k: basin_totals[k])
+    accel_2040 = next(
+        (s.installed_capacity_mw for s in scenarios_data if s.scenario == "Accelerated" and s.year >= 2040),
+        500.0,
+    )
+
+    summary = {
+        "total_resource_potential_mw": total_resource_potential_mw,
+        "total_projects": len(projects),
+        "avg_lcoe_current_aud_per_mwh": avg_lcoe_current if avg_lcoe_current > 0 else 185.0,
+        "leading_country_mw": leading_country.installed_capacity_mw,
+        "largest_resource_basin": largest_basin,
+        "projected_2040_capacity_mw": accel_2040,
+    }
+
+    _geda_cache.update(GEDADashboard(
+        resources=resources,
+        projects=projects,
+        costs=costs,
+        global_benchmarks=global_benchmarks,
+        heat_applications=heat_applications,
+        scenarios=scenarios_data,
+        summary=summary,
+    ).model_dump())
+    return GEDADashboard(**_geda_cache)

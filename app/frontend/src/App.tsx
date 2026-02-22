@@ -80,6 +80,7 @@ import {
   CheckCircle,
   Monitor,
   ShoppingBag,
+  Eye,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -380,6 +381,9 @@ import LongDurationEnergyStorageAnalytics from './pages/LongDurationEnergyStorag
 import HydrogenPipelineInfrastructureAnalytics from './pages/HydrogenPipelineInfrastructureAnalytics'
 import CarbonCaptureStorageProjectAnalytics from './pages/CarbonCaptureStorageProjectAnalytics'
 import EnergyPovertyVulnerableConsumerAnalytics from './pages/EnergyPovertyVulnerableConsumerAnalytics'
+import NuclearSmallModularReactorAnalytics from './pages/NuclearSmallModularReactorAnalytics'
+import ElectricityMarketTransparencyAnalytics from './pages/ElectricityMarketTransparencyAnalytics'
+import GeothermalEnergyDevelopmentAnalytics from './pages/GeothermalEnergyDevelopmentAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -681,6 +685,9 @@ const NAV_ITEMS = [
   { to: '/hydrogen-pipeline-infrastructure', label: 'H2 Pipeline Infrastructure', Icon: GitBranch },
   { to: '/carbon-capture-storage-project',  label: 'CCS Project Analytics',       Icon: Layers    },
   { to: '/energy-poverty-vulnerable-consumer', label: 'Energy Poverty',           Icon: Users     },
+  { to: '/nuclear-small-modular-reactor',      label: 'SMR Nuclear Analytics',     Icon: Atom      },
+  { to: '/electricity-market-transparency',    label: 'Market Transparency',        Icon: Eye       },
+  { to: '/geothermal-energy-development',      label: 'Geothermal Development',     Icon: Thermometer },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1057,6 +1064,9 @@ export default function App() {
               <Route path="/hydrogen-pipeline-infrastructure" element={<HydrogenPipelineInfrastructureAnalytics />} />
               <Route path="/carbon-capture-storage-project"  element={<CarbonCaptureStorageProjectAnalytics />}  />
               <Route path="/energy-poverty-vulnerable-consumer" element={<EnergyPovertyVulnerableConsumerAnalytics />} />
+              <Route path="/nuclear-small-modular-reactor" element={<NuclearSmallModularReactorAnalytics />} />
+              <Route path="/electricity-market-transparency" element={<ElectricityMarketTransparencyAnalytics />} />
+              <Route path="/geothermal-energy-development" element={<GeothermalEnergyDevelopmentAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -20344,3 +20344,287 @@ export interface EPVCDashboard {
 
 export const getEnergyPovertyVulnerableConsumerDashboard = (): Promise<EPVCDashboard> =>
   get<EPVCDashboard>('/api/energy-poverty-vulnerable-consumer/dashboard')
+
+// ── Sprint 111a: Nuclear Small Modular Reactor Analytics (NSMR) ─────────────
+
+export interface NSMRDesignRecord {
+  design_id: string
+  vendor: string
+  design_name: string
+  country_of_origin: string
+  reactor_type: string
+  thermal_mw: number
+  electrical_mw: number
+  efficiency_pct: number
+  design_lifetime_years: number
+  fuel_type: string
+  refuelling_interval_months: number
+  trl: number
+  first_commercial_year: number
+  target_capex_per_kw_usd: number
+  lcoe_usd_per_mwh: number
+}
+
+export interface NSMRGlobalProjectRecord {
+  project_id: string
+  project_name: string
+  country: string
+  vendor: string
+  capacity_mw: number
+  status: string
+  expected_cod: string
+  capex_m_usd: number
+  operator: string
+  grid_connection: boolean
+  purpose: string
+}
+
+export interface NSMRSiteRecord {
+  site_id: string
+  site_name: string
+  state: string
+  assessment_type: string
+  land_area_ha: number
+  grid_proximity_km: number
+  water_source: string
+  seismic_risk: string
+  community_support_pct: number
+  estimated_jobs: number
+  earliest_possible_year: number
+}
+
+export interface NSMRCostRecord {
+  year: number
+  scenario: string
+  capex_per_kw_aud: number
+  lcoe_aud_per_mwh: number
+  construction_years: number
+  capacity_factor_pct: number
+  overnight_cost_b: number
+  financing_cost_pct: number
+  fuel_cost_aud_per_mwh: number
+  waste_disposal_aud_per_mwh: number
+}
+
+export interface NSMRRegulationRecord {
+  regulation_name: string
+  jurisdiction: string
+  regulation_type: string
+  current_status: string
+  reform_required: boolean
+  estimated_reform_years: number
+  key_body: string
+  international_precedent: string
+}
+
+export interface NSMRScenarioRecord {
+  year: number
+  scenario: string
+  installed_capacity_mw: number
+  plants_operating: number
+  pct_of_nem_capacity: number
+  annual_generation_twh: number
+  carbon_abated_mtpa: number
+  total_investment_b: number
+  jobs_sustained: number
+}
+
+export interface NSMRDashboard {
+  designs: NSMRDesignRecord[]
+  global_projects: NSMRGlobalProjectRecord[]
+  sites: NSMRSiteRecord[]
+  costs: NSMRCostRecord[]
+  regulations: NSMRRegulationRecord[]
+  scenarios: NSMRScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getNuclearSmallModularReactorDashboard = (): Promise<NSMRDashboard> =>
+  get<NSMRDashboard>('/api/nuclear-small-modular-reactor/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 111b — Electricity Market Transparency Reporting Analytics (EMTR)
+// ---------------------------------------------------------------------------
+
+export interface EMTRDataQualityRecord {
+  report_month: string
+  data_type: string
+  completeness_pct: number
+  timeliness_score: number
+  error_rate_pct: number
+  corrections_issued: number
+  user_complaints: number
+  api_uptime_pct: number
+  revision_frequency: number
+}
+
+export interface EMTRComplianceRecord {
+  participant: string
+  participant_type: string
+  reporting_period: string
+  reports_due: number
+  reports_submitted: number
+  reports_late: number
+  data_errors: number
+  non_compliance_notices: number
+  penalty_aud: number
+  exemptions_granted: number
+}
+
+export interface EMTRMarketNoticRecord {
+  notice_id: string
+  notice_date: string
+  notice_type: string
+  region: string
+  lead_time_minutes: number
+  accuracy_pct: number
+  market_impact_mwh: number
+  price_impact_mwh: number
+  participants_affected: number
+}
+
+export interface EMTRAuditRecord {
+  audit_id: string
+  auditor: string
+  participant: string
+  audit_year: number
+  audit_type: string
+  findings_count: number
+  critical_findings: number
+  recommendations: number
+  remediation_status: string
+  penalty_issued_m: number
+}
+
+export interface EMTRInformationRecord {
+  metric_name: string
+  region: string
+  information_advantage_score: number
+  data_lag_minutes: number
+  public_access: boolean
+  participant_only: boolean
+  institutional_advantage_score: number
+  retail_customer_access: boolean
+  improvement_priority: string
+}
+
+export interface EMTRTransparencyScoreRecord {
+  year: number
+  region: string
+  overall_transparency_score: number
+  data_quality_score: number
+  timeliness_score: number
+  accessibility_score: number
+  completeness_score: number
+  participant_compliance_score: number
+  public_confidence_index: number
+}
+
+export interface EMTRDashboard {
+  data_quality: EMTRDataQualityRecord[]
+  compliance: EMTRComplianceRecord[]
+  market_notices: EMTRMarketNoticRecord[]
+  audits: EMTRAuditRecord[]
+  information_gaps: EMTRInformationRecord[]
+  transparency_scores: EMTRTransparencyScoreRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getElectricityMarketTransparencyDashboard = (): Promise<EMTRDashboard> =>
+  get<EMTRDashboard>('/api/electricity-market-transparency/dashboard')
+
+// ---------------------------------------------------------------------------
+// GEDA — Geothermal Energy Development Analytics
+// ---------------------------------------------------------------------------
+
+export interface GEDAResourceRecord {
+  resource_id: string
+  state: string
+  resource_type: string
+  basin_name: string
+  depth_m: number
+  temperature_c: number
+  estimated_potential_mw: number
+  exploration_status: string
+  heat_flow_mw_per_m2: number
+  permeability_millidarcy: number
+}
+
+export interface GEDAProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  state: string
+  project_type: string
+  capacity_mw_e: number
+  capacity_mw_th: number
+  status: string
+  capex_m: number
+  expected_lcoe_aud_per_mwh: number
+  drilling_depth_m: number
+  well_count: number
+  commencement_year: number
+}
+
+export interface GEDACostRecord {
+  year: number
+  technology_variant: string
+  capex_mw: number
+  opex_mwh: number
+  lcoe_aud_per_mwh: number
+  drilling_cost_m: number
+  exploration_cost_m: number
+  success_rate_pct: number
+  learning_rate_pct: number
+}
+
+export interface GEDAGlobalBenchmarkRecord {
+  country: string
+  installed_capacity_mw: number
+  annual_generation_gwh: number
+  capacity_factor_pct: number
+  primary_resource: string
+  avg_lcoe_usd_per_mwh: number
+  growth_rate_pct: number
+  technology_maturity: string
+  direct_use_mw_th: number
+  jobs_per_mw: number
+}
+
+export interface GEDAHeatApplicationRecord {
+  application: string
+  potential_region: string
+  heat_demand_mw_th: number
+  temperature_required_c: number
+  geothermal_suitable: boolean
+  potential_sites: number
+  existing_installations: number
+  annual_value_m: number
+  co2_displaced_kt: number
+}
+
+export interface GEDAScenarioRecord {
+  year: number
+  scenario: string
+  installed_capacity_mw: number
+  annual_generation_gwh: number
+  direct_heat_mw_th: number
+  projects_operating: number
+  investment_b: number
+  lcoe_aud_per_mwh: number
+  jobs_created: number
+  co2_abated_ktpa: number
+}
+
+export interface GEDADashboard {
+  resources: GEDAResourceRecord[]
+  projects: GEDAProjectRecord[]
+  costs: GEDACostRecord[]
+  global_benchmarks: GEDAGlobalBenchmarkRecord[]
+  heat_applications: GEDAHeatApplicationRecord[]
+  scenarios: GEDAScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getGeothermalEnergyDevelopmentDashboard = (): Promise<GEDADashboard> =>
+  get<GEDADashboard>('/api/geothermal-energy-development/dashboard')
