@@ -69785,3 +69785,1117 @@ def get_gfiax_dashboard():
         }
     ).model_dump())
     return _gfiax_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 99a — Electricity Price Risk Management Analytics (EPRM)
+# ---------------------------------------------------------------------------
+
+class EPRMPortfolioRecord(BaseModel):
+    portfolio_id: str
+    entity_name: str
+    entity_type: str  # Retailer, Generator, Large Consumer, Trader, Fund
+    region: str
+    total_load_twh: float
+    total_generation_twh: float
+    net_position_twh: float  # positive = short (needs to buy)
+    hedge_ratio_pct: float
+    open_position_twh: float
+    var_95_m: float
+    cvar_95_m: float
+    max_loss_scenario_m: float
+
+
+class EPRMHedgeRecord(BaseModel):
+    hedge_id: str
+    portfolio_id: str
+    product_type: str  # Swap, Cap, Floor, Collar, Futures, PPA
+    region: str
+    volume_mw: float
+    strike_price_dolpermwh: float
+    market_price_dolpermwh: float
+    start_date: str
+    end_date: str
+    mtm_value_m: float  # mark-to-market
+    premium_paid_m: float
+    hedge_effectiveness_pct: float
+    counterparty: str
+
+
+class EPRMVaRRecord(BaseModel):
+    var_id: str
+    portfolio_id: str
+    calculation_date: str
+    methodology: str  # Historical, Monte Carlo, Parametric
+    confidence_level_pct: float
+    time_horizon_days: int
+    var_m: float
+    cvar_m: float
+    scenario_99_m: float
+    stressed_var_m: float
+    correlation_risk_m: float
+    basis_risk_m: float
+
+
+class EPRMScenarioRecord(BaseModel):
+    scenario_id: str
+    scenario_name: str  # Base, Extreme Wet, Extreme Dry, High Gas Price, Low Gas, Demand Surge, Market Disruption, Net Zero Transition
+    year: int
+    avg_price_dolpermwh: float
+    peak_price_dolpermwh: float
+    price_vol_pct: float
+    portfolio_pnl_m: float  # profit/loss
+    hedge_benefit_m: float
+    worst_30day_loss_m: float
+
+
+class EPRMCorrelationRecord(BaseModel):
+    correlation_id: str
+    factor_pair: str  # e.g. "QLD-NSW prices", "Gas Price-Electricity", "Temperature-Demand"
+    correlation_coefficient: float
+    r_squared: float
+    lag_days: int
+    data_period_years: int
+    statistical_significance: bool
+    hedging_implication: str
+
+
+class EPRMRegulatoryCapitalRecord(BaseModel):
+    capital_id: str
+    entity_name: str
+    regulatory_framework: str  # AFSL, Prudential, AEMO Credit, ASX Margin
+    capital_requirement_m: float
+    current_capital_m: float
+    coverage_ratio_pct: float
+    liquidity_buffer_m: float
+    stressed_requirement_m: float
+    compliance_status: str  # Compliant, Warning, Breach
+    review_date: str
+
+
+class EPRMDashboard(BaseModel):
+    portfolios: list[EPRMPortfolioRecord]
+    hedges: list[EPRMHedgeRecord]
+    var_records: list[EPRMVaRRecord]
+    scenarios: list[EPRMScenarioRecord]
+    correlations: list[EPRMCorrelationRecord]
+    regulatory_capital: list[EPRMRegulatoryCapitalRecord]
+    summary: dict
+
+
+_eprm_cache: dict = {}
+
+
+@app.get("/api/electricity-price-risk/dashboard")
+def get_electricity_price_risk_dashboard():
+    import random
+    if _eprm_cache:
+        return _eprm_cache
+
+    rng = random.Random(20240922)
+
+    # --- Portfolios (10 records) ---
+    portfolio_data = [
+        ("EPRM-PORT-001", "AGL Energy Retail", "Retailer", "NSW", 18.5, 2.1),
+        ("EPRM-PORT-002", "Origin Energy Retail", "Retailer", "QLD", 16.2, 1.8),
+        ("EPRM-PORT-003", "EnergyAustralia Retail", "Retailer", "VIC", 14.8, 0.9),
+        ("EPRM-PORT-004", "AGL Generation", "Generator", "NSW", 0.5, 22.4),
+        ("EPRM-PORT-005", "Origin Generation", "Generator", "QLD", 0.3, 18.7),
+        ("EPRM-PORT-006", "Bluescope Steel", "Large Consumer", "NSW", 6.2, 0.0),
+        ("EPRM-PORT-007", "Rio Tinto Aluminium", "Large Consumer", "QLD", 8.1, 0.0),
+        ("EPRM-PORT-008", "Macquarie Energy Trading", "Trader", "NSW", 5.0, 4.8),
+        ("EPRM-PORT-009", "Clean Energy Finance Corp", "Fund", "NEM", 1.2, 3.5),
+        ("EPRM-PORT-010", "Shell Energy Wholesale", "Trader", "VIC", 4.5, 3.9),
+    ]
+    portfolios = []
+    for pid, ename, etype, region, load, gen in portfolio_data:
+        net_pos = round(load - gen, 2)
+        hedge_ratio = round(rng.uniform(45, 92), 1)
+        open_pos = round(abs(net_pos) * (1 - hedge_ratio / 100), 3)
+        var95 = round(abs(net_pos) * rng.uniform(2.5, 6.5), 1)
+        portfolios.append(EPRMPortfolioRecord(
+            portfolio_id=pid,
+            entity_name=ename,
+            entity_type=etype,
+            region=region,
+            total_load_twh=load,
+            total_generation_twh=gen,
+            net_position_twh=net_pos,
+            hedge_ratio_pct=hedge_ratio,
+            open_position_twh=open_pos,
+            var_95_m=var95,
+            cvar_95_m=round(var95 * rng.uniform(1.25, 1.6), 1),
+            max_loss_scenario_m=round(var95 * rng.uniform(2.0, 3.5), 1),
+        ))
+
+    # --- Hedges (30 records — 3 portfolios × 10 instruments) ---
+    hedge_products = [
+        ("Swap", 80.0, 30), ("Swap", 95.0, 50), ("Cap", 150.0, 25),
+        ("Cap", 200.0, 20), ("Floor", 60.0, 15), ("Collar", 85.0, 35),
+        ("Collar", 90.0, 40), ("Futures", 88.0, 60), ("Futures", 92.0, 45),
+        ("PPA", 75.0, 100),
+    ]
+    hedge_portfolios = ["EPRM-PORT-001", "EPRM-PORT-002", "EPRM-PORT-003"]
+    counterparties = ["Macquarie Bank", "ANZ Capital", "CBA Markets", "JP Morgan Sydney",
+                      "Goldman Sachs AUS", "Westpac Institutional", "UBS Energy", "Deutsche Bank"]
+    regions = ["NSW", "QLD", "VIC", "SA"]
+    hedges = []
+    hcount = 1
+    for port_id in hedge_portfolios:
+        for prod_type, strike, vol_mw in hedge_products:
+            mkt_price = round(strike * rng.uniform(0.75, 1.35), 2)
+            mtm = round((mkt_price - strike) * vol_mw * 8760 / 1e6 * rng.uniform(0.3, 0.7), 2)
+            hedges.append(EPRMHedgeRecord(
+                hedge_id=f"EPRM-HEDGE-{hcount:03d}",
+                portfolio_id=port_id,
+                product_type=prod_type,
+                region=rng.choice(regions),
+                volume_mw=float(vol_mw),
+                strike_price_dolpermwh=strike,
+                market_price_dolpermwh=mkt_price,
+                start_date="2025-01-01",
+                end_date=rng.choice(["2025-12-31", "2026-06-30", "2026-12-31", "2027-12-31"]),
+                mtm_value_m=mtm,
+                premium_paid_m=round(rng.uniform(0.5, 8.0), 2),
+                hedge_effectiveness_pct=round(rng.uniform(72, 98), 1),
+                counterparty=rng.choice(counterparties),
+            ))
+            hcount += 1
+
+    # --- VaR Records (20 records — 5 portfolios × 4 methodology/dates) ---
+    var_port_ids = ["EPRM-PORT-001", "EPRM-PORT-002", "EPRM-PORT-003", "EPRM-PORT-004", "EPRM-PORT-005"]
+    methodologies = ["Historical", "Monte Carlo", "Parametric", "Historical"]
+    calc_dates = ["2025-10-31", "2025-11-30", "2025-12-31", "2026-01-31"]
+    var_records = []
+    vcount = 1
+    for pid in var_port_ids:
+        for meth, cdate in zip(methodologies, calc_dates):
+            base_var = rng.uniform(8.0, 55.0)
+            var_records.append(EPRMVaRRecord(
+                var_id=f"EPRM-VAR-{vcount:03d}",
+                portfolio_id=pid,
+                calculation_date=cdate,
+                methodology=meth,
+                confidence_level_pct=95.0,
+                time_horizon_days=rng.choice([1, 5, 10]),
+                var_m=round(base_var, 2),
+                cvar_m=round(base_var * rng.uniform(1.2, 1.6), 2),
+                scenario_99_m=round(base_var * rng.uniform(1.5, 2.2), 2),
+                stressed_var_m=round(base_var * rng.uniform(1.8, 2.8), 2),
+                correlation_risk_m=round(rng.uniform(2.0, 15.0), 2),
+                basis_risk_m=round(rng.uniform(1.0, 8.0), 2),
+            ))
+            vcount += 1
+
+    # --- Scenarios (24 records — 3 portfolios × 8 scenarios) ---
+    scenario_names = [
+        "Base", "Extreme Wet", "Extreme Dry", "High Gas Price",
+        "Low Gas", "Demand Surge", "Market Disruption", "Net Zero Transition"
+    ]
+    scenario_port_ids = ["EPRM-PORT-001", "EPRM-PORT-002", "EPRM-PORT-004"]
+    base_prices = {"Base": 90, "Extreme Wet": 55, "Extreme Dry": 180, "High Gas Price": 145,
+                   "Low Gas": 68, "Demand Surge": 165, "Market Disruption": 220, "Net Zero Transition": 72}
+    scenarios = []
+    scount = 1
+    for port_id in scenario_port_ids:
+        for sname in scenario_names:
+            avg_p = round(base_prices[sname] * rng.uniform(0.9, 1.1), 2)
+            peak_p = round(avg_p * rng.uniform(3.5, 8.0), 2)
+            vol_pct = round(rng.uniform(25, 85), 1)
+            pnl = round(rng.uniform(-80, 60), 1) if sname != "Base" else round(rng.uniform(-15, 25), 1)
+            scenarios.append(EPRMScenarioRecord(
+                scenario_id=f"EPRM-SCEN-{scount:03d}",
+                scenario_name=sname,
+                year=2026,
+                avg_price_dolpermwh=avg_p,
+                peak_price_dolpermwh=peak_p,
+                price_vol_pct=vol_pct,
+                portfolio_pnl_m=pnl,
+                hedge_benefit_m=round(abs(pnl) * rng.uniform(0.3, 0.7), 1),
+                worst_30day_loss_m=round(abs(pnl) * rng.uniform(1.2, 2.0), 1),
+            ))
+            scount += 1
+
+    # --- Correlations (15 records) ---
+    correlation_data = [
+        ("QLD-NSW prices", 0.82, 1, 5),
+        ("NSW-VIC prices", 0.78, 1, 5),
+        ("QLD-SA prices", 0.61, 2, 5),
+        ("Gas Price-Electricity", 0.71, 3, 7),
+        ("Coal Price-Electricity", 0.55, 5, 7),
+        ("Temperature-Demand", 0.88, 0, 10),
+        ("Rainfall-Hydro Gen", -0.79, 14, 10),
+        ("Wind Speed-Wind Gen", 0.91, 0, 8),
+        ("Solar Irradiance-Solar Gen", 0.94, 0, 5),
+        ("Demand-Spot Price", 0.68, 1, 10),
+        ("Interconnector Flow-Price Spread", -0.72, 0, 5),
+        ("Futures-Spot Price", 0.85, 30, 7),
+        ("Carbon Price-Electricity Price", 0.48, 5, 4),
+        ("Volatility Regime-VaR", 0.76, 0, 5),
+        ("FCAS Price-Volatility", 0.63, 1, 5),
+    ]
+    correlations = []
+    implications = [
+        "Strong regional hedge basis risk", "Moderate cross-regional arbitrage opportunity",
+        "Gas exposure offsets power position", "Coal contract timing hedge useful",
+        "Weather derivatives reduce demand risk", "Hydro optionality critical in dry years",
+        "Wind portfolio natural hedge value", "Solar duck curve management required",
+        "Futures hedge reduces spot exposure", "Carbon price hedge recommended",
+        "VaR model regime-switching needed", "FCAS cost hedging worth evaluating",
+        "Interconnector booking reduces congestion risk", "Temperature swap reduces retail margin risk",
+        "Cross-commodity hedge improves risk-adjusted return",
+    ]
+    for i, (pair, coeff, lag, period) in enumerate(correlation_data, 1):
+        correlations.append(EPRMCorrelationRecord(
+            correlation_id=f"EPRM-CORR-{i:03d}",
+            factor_pair=pair,
+            correlation_coefficient=round(coeff * rng.uniform(0.95, 1.05), 3),
+            r_squared=round(coeff ** 2 * rng.uniform(0.95, 1.05), 3),
+            lag_days=lag,
+            data_period_years=period,
+            statistical_significance=abs(coeff) > 0.5,
+            hedging_implication=implications[i - 1],
+        ))
+
+    # --- Regulatory Capital (10 records) ---
+    reg_cap_data = [
+        ("AGL Energy Retail", "AFSL", 85.0, 112.0, 48.0, 140.0),
+        ("Origin Energy Retail", "AFSL", 72.0, 95.0, 38.0, 118.0),
+        ("EnergyAustralia Retail", "AFSL", 65.0, 78.0, 32.0, 102.0),
+        ("AGL Generation", "Prudential", 55.0, 68.0, 28.0, 90.0),
+        ("Origin Generation", "AEMO Credit", 48.0, 52.0, 22.0, 78.0),
+        ("Macquarie Energy Trading", "ASX Margin", 95.0, 145.0, 62.0, 160.0),
+        ("Shell Energy Wholesale", "ASX Margin", 88.0, 102.0, 45.0, 138.0),
+        ("Clean Energy Finance Corp", "Prudential", 42.0, 58.0, 25.0, 68.0),
+        ("Rio Tinto Aluminium", "AEMO Credit", 38.0, 35.0, 18.0, 62.0),  # Warning
+        ("Bluescope Steel", "AEMO Credit", 32.0, 28.0, 15.0, 52.0),       # Breach
+    ]
+    regulatory_capital = []
+    for i, (ename, framework, req, curr, liq, stressed) in enumerate(reg_cap_data, 1):
+        cov = round(curr / req * 100, 1)
+        if cov >= 105:
+            status = "Compliant"
+        elif cov >= 90:
+            status = "Warning"
+        else:
+            status = "Breach"
+        regulatory_capital.append(EPRMRegulatoryCapitalRecord(
+            capital_id=f"EPRM-CAP-{i:03d}",
+            entity_name=ename,
+            regulatory_framework=framework,
+            capital_requirement_m=req,
+            current_capital_m=curr,
+            coverage_ratio_pct=cov,
+            liquidity_buffer_m=liq,
+            stressed_requirement_m=stressed,
+            compliance_status=status,
+            review_date=f"2026-{rng.randint(1, 6):02d}-30",
+        ))
+
+    # --- Summary ---
+    total_open_pos = round(sum(p.open_position_twh for p in portfolios), 3)
+    agg_var = round(sum(p.var_95_m for p in portfolios), 1)
+    avg_hedge = round(sum(p.hedge_ratio_pct for p in portfolios) / len(portfolios), 1)
+    total_hedge_mw = round(sum(h.volume_mw for h in hedges), 0)
+
+    _eprm_cache.update(EPRMDashboard(
+        portfolios=portfolios,
+        hedges=hedges,
+        var_records=var_records,
+        scenarios=scenarios,
+        correlations=correlations,
+        regulatory_capital=regulatory_capital,
+        summary={
+            "total_open_position_twh": total_open_pos,
+            "aggregate_var_95_m": agg_var,
+            "avg_hedge_ratio_pct": avg_hedge,
+            "num_entities_risk_managed": len(portfolios),
+            "total_hedge_book_mw": total_hedge_mw,
+        }
+    ).model_dump())
+    return _eprm_cache
+
+
+# ===========================================================================
+# EV Fleet Depot Charging Analytics  (Sprint 99b)
+# ===========================================================================
+
+class EVFDFleetRecord(BaseModel):
+    fleet_id: str
+    fleet_name: str
+    operator: str
+    fleet_type: str
+    state: str
+    num_vehicles: int
+    avg_range_km: float
+    battery_capacity_kwh: float
+    annual_km_per_vehicle: float
+    charging_strategy: str
+    total_fleet_capacity_mwh: float
+    annual_energy_consumption_mwh: float
+    avg_charging_cost_c_per_km: float
+    annual_savings_vs_diesel_aud: float
+
+
+class EVFDDepotRecord(BaseModel):
+    depot_id: str
+    fleet_id: str
+    depot_name: str
+    state: str
+    num_chargers: int
+    charger_types: str
+    total_charging_capacity_kw: float
+    solar_capacity_kw: float
+    battery_storage_kwh: float
+    grid_connection_kva: float
+    smart_charging_enabled: bool
+    v2g_enabled: bool
+    annual_energy_dispensed_mwh: float
+    depot_opex_m_pa: float
+
+
+class EVFDChargingSessionRecord(BaseModel):
+    session_id: str
+    depot_id: str
+    vehicle_type: str
+    session_date: str
+    hour_start: int
+    duration_hours: float
+    energy_kwh: float
+    peak_power_kw: float
+    tariff_type: str
+    cost_aud: float
+    soc_start_pct: float
+    soc_end_pct: float
+    grid_or_solar: str
+    co2_kg: float
+
+
+class EVFDGridImpactRecord(BaseModel):
+    impact_id: str
+    depot_id: str
+    date: str
+    peak_demand_kw: float
+    peak_demand_shifted_kw: float
+    peak_reduction_kw: float
+    solar_utilisation_pct: float
+    v2g_export_kwh: float
+    demand_response_activated: bool
+    grid_cost_aud: float
+    solar_saving_aud: float
+    v2g_revenue_aud: float
+    total_bill_aud: float
+
+
+class EVFDTCORecord(BaseModel):
+    tco_id: str
+    fleet_type: str
+    fuel_type: str
+    state: str
+    purchase_cost_aud: float
+    annual_fuel_energy_cost_aud: float
+    annual_maintenance_aud: float
+    annual_insurance_aud: float
+    residual_value_aud: float
+    total_tco_10yr_aud: float
+    tco_per_km_c: float
+    co2_tpa: float
+    payback_years_vs_ice: float
+
+
+class EVFDForecastRecord(BaseModel):
+    forecast_id: str
+    state: str
+    year: int
+    scenario: str
+    ev_fleet_vehicles: int
+    ev_penetration_pct: float
+    total_charging_demand_gwh: float
+    peak_grid_demand_mw: float
+    v2g_capacity_mw: float
+    renewable_charging_pct: float
+    co2_reduction_kt: float
+
+
+class EVFDDashboard(BaseModel):
+    fleets: list[EVFDFleetRecord]
+    depots: list[EVFDDepotRecord]
+    charging_sessions: list[EVFDChargingSessionRecord]
+    grid_impacts: list[EVFDGridImpactRecord]
+    tco_records: list[EVFDTCORecord]
+    forecasts: list[EVFDForecastRecord]
+    summary: dict
+
+
+_evfd_cache: dict = {}
+
+
+@app.get("/api/ev-fleet-depot/dashboard")
+def get_ev_fleet_depot_dashboard():
+    import random
+    if _evfd_cache:
+        return _evfd_cache
+
+    rng = random.Random(20240922)
+
+    # --- Fleet records (15) ---
+    fleet_data = [
+        ("EVFD-FL-001", "TransUrban Bus Fleet", "TransUrban Group", "Bus", "NSW", 120, 280.0, 400.0, 55000),
+        ("EVFD-FL-002", "Metro Trains EV Fleet", "Metro Trains Melbourne", "Bus", "VIC", 85, 260.0, 350.0, 48000),
+        ("EVFD-FL-003", "Brisbane City Council Buses", "Brisbane City Council", "Bus", "QLD", 95, 270.0, 380.0, 52000),
+        ("EVFD-FL-004", "Linfox Electric Trucks", "Linfox Logistics", "Truck", "VIC", 60, 350.0, 600.0, 80000),
+        ("EVFD-FL-005", "Toll Group EV Distribution", "Toll Group", "Truck", "NSW", 45, 330.0, 550.0, 75000),
+        ("EVFD-FL-006", "StarTrack EV Delivery", "StarTrack Express", "Light Commercial", "QLD", 200, 180.0, 75.0, 40000),
+        ("EVFD-FL-007", "AusPost Electric Vans", "Australia Post", "Light Commercial", "VIC", 350, 200.0, 80.0, 38000),
+        ("EVFD-FL-008", "Uber EV Partner Fleet", "Uber Technologies", "Rideshare", "NSW", 800, 450.0, 75.0, 35000),
+        ("EVFD-FL-009", "Ola EV Rideshare Fleet", "Ola Cabs Australia", "Rideshare", "VIC", 620, 430.0, 70.0, 33000),
+        ("EVFD-FL-010", "SA Government Fleet", "SA Govt Fleet Management", "Government", "SA", 180, 380.0, 60.0, 25000),
+        ("EVFD-FL-011", "NSW Police EV Patrol", "NSW Police Force", "Government", "NSW", 250, 420.0, 82.0, 30000),
+        ("EVFD-FL-012", "WA Health Transport", "WA Health", "Government", "WA", 110, 360.0, 65.0, 28000),
+        ("EVFD-FL-013", "Port of Melbourne Trucks", "Port of Melbourne", "Truck", "VIC", 30, 200.0, 450.0, 60000),
+        ("EVFD-FL-014", "Adelaide Metro Buses", "Adelaide Metro", "Bus", "SA", 55, 250.0, 350.0, 50000),
+        ("EVFD-FL-015", "DiDi EV Rideshare QLD", "DiDi Australia", "Rideshare", "QLD", 480, 410.0, 72.0, 32000),
+    ]
+    charging_strategies = ["Overnight Dumb", "Smart TOU", "V2G", "Solar-optimised"]
+    fleets = []
+    for fd in fleet_data:
+        fid, fname, fop, ftype, fstate, nveh, arange, bcap, ankm = fd
+        strategy = rng.choice(charging_strategies)
+        total_cap = round(nveh * bcap / 1000, 2)
+        annual_energy = round(nveh * ankm * bcap / arange / 1000, 2)
+        cost_c_km = round(rng.uniform(3.5, 9.5), 2)
+        savings = round(nveh * ankm * rng.uniform(0.04, 0.12), 0)
+        fleets.append(EVFDFleetRecord(
+            fleet_id=fid,
+            fleet_name=fname,
+            operator=fop,
+            fleet_type=ftype,
+            state=fstate,
+            num_vehicles=nveh,
+            avg_range_km=arange,
+            battery_capacity_kwh=bcap,
+            annual_km_per_vehicle=float(ankm),
+            charging_strategy=strategy,
+            total_fleet_capacity_mwh=total_cap,
+            annual_energy_consumption_mwh=annual_energy,
+            avg_charging_cost_c_per_km=cost_c_km,
+            annual_savings_vs_diesel_aud=savings,
+        ))
+
+    # --- Depot records (20) ---
+    depot_data = [
+        ("EVFD-DP-001", "EVFD-FL-001", "Ryde Bus Depot", "NSW"),
+        ("EVFD-DP-002", "EVFD-FL-001", "Parramatta Bus Depot", "NSW"),
+        ("EVFD-DP-003", "EVFD-FL-002", "Burnley Rail Depot", "VIC"),
+        ("EVFD-DP-004", "EVFD-FL-002", "Laverton EV Depot", "VIC"),
+        ("EVFD-DP-005", "EVFD-FL-003", "Kedron Bus Depot", "QLD"),
+        ("EVFD-DP-006", "EVFD-FL-004", "Altona Linfox Hub", "VIC"),
+        ("EVFD-DP-007", "EVFD-FL-004", "Somerton EV Truck Depot", "VIC"),
+        ("EVFD-DP-008", "EVFD-FL-005", "Eastern Creek Toll Hub", "NSW"),
+        ("EVFD-DP-009", "EVFD-FL-006", "Archerfield StarTrack", "QLD"),
+        ("EVFD-DP-010", "EVFD-FL-007", "Dandenong AusPost Hub", "VIC"),
+        ("EVFD-DP-011", "EVFD-FL-007", "Tullamarine AusPost", "VIC"),
+        ("EVFD-DP-012", "EVFD-FL-008", "Green Square Uber Hub", "NSW"),
+        ("EVFD-DP-013", "EVFD-FL-009", "Tullamarine Ola Hub", "VIC"),
+        ("EVFD-DP-014", "EVFD-FL-010", "SA Fleet Depot Adelaide", "SA"),
+        ("EVFD-DP-015", "EVFD-FL-011", "Goulburn Police Depot", "NSW"),
+        ("EVFD-DP-016", "EVFD-FL-012", "Midland WA Health Depot", "WA"),
+        ("EVFD-DP-017", "EVFD-FL-013", "Port Melbourne Truck Hub", "VIC"),
+        ("EVFD-DP-018", "EVFD-FL-014", "Morphett Vale Bus Depot", "SA"),
+        ("EVFD-DP-019", "EVFD-FL-015", "Zillmere DiDi Hub", "QLD"),
+        ("EVFD-DP-020", "EVFD-FL-003", "Hendra Bus Depot", "QLD"),
+    ]
+    charger_type_options = [
+        "AC L2, DC Fast 50kW",
+        "AC L2, DC Fast 150kW",
+        "DC Fast 50kW, DC Fast 150kW",
+        "AC L2, DC Fast 50kW, DC Fast 150kW",
+        "DC Fast 150kW, DC Ultra 350kW",
+        "AC L2, DC Fast 50kW, DC Fast 150kW, DC Ultra 350kW",
+    ]
+    depots = []
+    for dd in depot_data:
+        did, dfid, dname, dstate = dd
+        n_chargers = rng.randint(8, 50)
+        ctypes = rng.choice(charger_type_options)
+        total_kw = round(n_chargers * rng.uniform(50, 250), 0)
+        solar_kw = round(rng.uniform(100, 800), 0)
+        batt_kwh = round(rng.uniform(200, 2000), 0)
+        grid_kva = round(total_kw * rng.uniform(1.1, 1.5), 0)
+        smart = rng.random() > 0.3
+        v2g = rng.random() > 0.6
+        dispensed = round(total_kw * 8760 * rng.uniform(0.15, 0.40) / 1000, 1)
+        opex = round(rng.uniform(0.3, 2.5), 2)
+        depots.append(EVFDDepotRecord(
+            depot_id=did,
+            fleet_id=dfid,
+            depot_name=dname,
+            state=dstate,
+            num_chargers=n_chargers,
+            charger_types=ctypes,
+            total_charging_capacity_kw=total_kw,
+            solar_capacity_kw=solar_kw,
+            battery_storage_kwh=batt_kwh,
+            grid_connection_kva=grid_kva,
+            smart_charging_enabled=smart,
+            v2g_enabled=v2g,
+            annual_energy_dispensed_mwh=dispensed,
+            depot_opex_m_pa=opex,
+        ))
+
+    # --- Charging sessions (80) ---
+    depot_ids_sample = [d.depot_id for d in depots]
+    vehicle_types = ["Bus", "Truck", "Light Van", "Rideshare Car", "Government Car"]
+    tariff_types = ["Off-peak", "Shoulder", "Peak", "Dynamic"]
+    grid_solar = ["Grid", "Solar", "Mixed"]
+    sessions = []
+    for i in range(1, 81):
+        dep_id = rng.choice(depot_ids_sample)
+        vtype = rng.choice(vehicle_types)
+        month = rng.randint(1, 12)
+        day = rng.randint(1, 28)
+        hour = rng.randint(0, 23)
+        dur = round(rng.uniform(0.5, 8.0), 1)
+        energy = round(rng.uniform(20, 350), 1)
+        peak_kw = round(energy / dur * rng.uniform(0.9, 1.1), 1)
+        tariff = tariff_types[0] if hour < 7 or hour >= 22 else (tariff_types[2] if 8 <= hour <= 20 else tariff_types[1])
+        rate = {"Off-peak": 0.12, "Shoulder": 0.22, "Peak": 0.38, "Dynamic": rng.uniform(0.08, 0.45)}[tariff]
+        cost = round(energy * rate, 2)
+        soc_s = round(rng.uniform(10, 40), 1)
+        soc_e = min(100.0, round(soc_s + rng.uniform(20, 60), 1))
+        gs = rng.choice(grid_solar)
+        co2 = round(energy * (0.0 if gs == "Solar" else 0.82 if gs == "Grid" else 0.41), 2)
+        sessions.append(EVFDChargingSessionRecord(
+            session_id=f"EVFD-SS-{i:04d}",
+            depot_id=dep_id,
+            vehicle_type=vtype,
+            session_date=f"2025-{month:02d}-{day:02d}",
+            hour_start=hour,
+            duration_hours=dur,
+            energy_kwh=energy,
+            peak_power_kw=peak_kw,
+            tariff_type=tariff,
+            cost_aud=cost,
+            soc_start_pct=soc_s,
+            soc_end_pct=soc_e,
+            grid_or_solar=gs,
+            co2_kg=co2,
+        ))
+
+    # --- Grid impact records (20: 4 depots x 5 days) ---
+    gi_depot_ids = [depots[i].depot_id for i in [0, 5, 9, 14]]
+    grid_impacts = []
+    gidx = 1
+    for gdid in gi_depot_ids:
+        for day_offset in range(5):
+            month = 6
+            day = 10 + day_offset
+            peak_d = round(rng.uniform(500, 2000), 1)
+            shifted = round(peak_d * rng.uniform(0.6, 0.85), 1)
+            reduction = round(peak_d - shifted, 1)
+            sol_util = round(rng.uniform(40, 95), 1)
+            v2g_exp = round(rng.uniform(0, 500), 1)
+            dr_act = rng.random() > 0.5
+            grid_cost = round(rng.uniform(800, 5000), 2)
+            sol_save = round(rng.uniform(100, 800), 2)
+            v2g_rev = round(v2g_exp * rng.uniform(0.08, 0.20), 2)
+            bill = round(grid_cost - sol_save - v2g_rev, 2)
+            grid_impacts.append(EVFDGridImpactRecord(
+                impact_id=f"EVFD-GI-{gidx:03d}",
+                depot_id=gdid,
+                date=f"2025-{month:02d}-{day:02d}",
+                peak_demand_kw=peak_d,
+                peak_demand_shifted_kw=shifted,
+                peak_reduction_kw=reduction,
+                solar_utilisation_pct=sol_util,
+                v2g_export_kwh=v2g_exp,
+                demand_response_activated=dr_act,
+                grid_cost_aud=grid_cost,
+                solar_saving_aud=sol_save,
+                v2g_revenue_aud=v2g_rev,
+                total_bill_aud=bill,
+            ))
+            gidx += 1
+
+    # --- TCO records (20: 4 vehicle types x 5 states) ---
+    tco_states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    tco_vehicle_fuel_pairs = [
+        ("Bus", "Diesel"),
+        ("Bus", "BEV"),
+        ("Truck", "Diesel"),
+        ("Truck", "BEV"),
+    ]
+    tco_records = []
+    tidx = 1
+    for ftype, fueltype in tco_vehicle_fuel_pairs:
+        for tstate in tco_states:
+            is_bev = fueltype == "BEV"
+            is_truck = ftype == "Truck"
+            base_purch = (650000 if is_truck else 450000) if is_bev else (320000 if is_truck else 280000)
+            purch = round(base_purch * rng.uniform(0.92, 1.08), 0)
+            annual_fuel = round((rng.uniform(15000, 30000) if is_bev else rng.uniform(40000, 80000)), 0)
+            annual_maint = round((rng.uniform(8000, 18000) if is_bev else rng.uniform(15000, 35000)), 0)
+            annual_ins = round(rng.uniform(8000, 20000), 0)
+            resid = round(purch * rng.uniform(0.1, 0.3), 0)
+            tco_10yr = round(purch + (annual_fuel + annual_maint + annual_ins) * 10 - resid, 0)
+            annual_km = 80000 if is_truck else 50000
+            tco_per_km = round(tco_10yr / (annual_km * 10) * 100, 1)
+            co2 = round((0.0 if is_bev else (rng.uniform(120, 250) if is_truck else rng.uniform(60, 120))), 1)
+            payback = round(rng.uniform(2.5, 7.5) if is_bev else 0.0, 1)
+            tco_records.append(EVFDTCORecord(
+                tco_id=f"EVFD-TCO-{tidx:03d}",
+                fleet_type=ftype,
+                fuel_type=fueltype,
+                state=tstate,
+                purchase_cost_aud=purch,
+                annual_fuel_energy_cost_aud=annual_fuel,
+                annual_maintenance_aud=annual_maint,
+                annual_insurance_aud=annual_ins,
+                residual_value_aud=resid,
+                total_tco_10yr_aud=tco_10yr,
+                tco_per_km_c=tco_per_km,
+                co2_tpa=co2,
+                payback_years_vs_ice=payback,
+            ))
+            tidx += 1
+
+    # --- Forecast records (25: 5 states x 5 years) ---
+    fc_states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    fc_years = [2025, 2026, 2027, 2028, 2029]
+    scenarios = ["Base", "High Adoption", "Government Target", "Low Adoption", "Base"]
+    forecasts = []
+    fidx = 1
+    for fstate in fc_states:
+        scenario = rng.choice(scenarios)
+        base_vehicles = rng.randint(2000, 8000)
+        for yi, yr in enumerate(fc_years):
+            growth = 1.0 + rng.uniform(0.15, 0.35)
+            ev_veh = int(base_vehicles * (growth ** yi))
+            ev_pen = round(min(80.0, ev_veh / rng.uniform(15000, 60000) * 100), 1)
+            charge_gwh = round(ev_veh * rng.uniform(0.010, 0.025), 2)
+            peak_mw = round(charge_gwh * 1000 / 8760 * rng.uniform(3, 6), 1)
+            v2g_mw = round(peak_mw * rng.uniform(0.1, 0.35), 1)
+            ren_pct = round(min(100.0, 40 + yi * rng.uniform(5, 12)), 1)
+            co2_red = round(ev_veh * rng.uniform(0.5, 2.0) / 1000, 1)
+            forecasts.append(EVFDForecastRecord(
+                forecast_id=f"EVFD-FC-{fidx:03d}",
+                state=fstate,
+                year=yr,
+                scenario=scenario,
+                ev_fleet_vehicles=ev_veh,
+                ev_penetration_pct=ev_pen,
+                total_charging_demand_gwh=charge_gwh,
+                peak_grid_demand_mw=peak_mw,
+                v2g_capacity_mw=v2g_mw,
+                renewable_charging_pct=ren_pct,
+                co2_reduction_kt=co2_red,
+            ))
+            fidx += 1
+
+    # --- Summary ---
+    total_ev_vehicles = sum(f.num_vehicles for f in fleets)
+    total_charge_cap_mw = round(sum(d.total_charging_capacity_kw for d in depots) / 1000, 2)
+    annual_consumption_gwh = round(sum(f.annual_energy_consumption_mwh for f in fleets) / 1000, 2)
+    avg_savings_m = round(sum(f.annual_savings_vs_diesel_aud for f in fleets) / len(fleets) / 1_000_000, 2)
+    total_co2_kt = round(sum(r.co2_tpa for r in tco_records if r.fuel_type == "Diesel") / 1000, 1)
+
+    _evfd_cache.update(EVFDDashboard(
+        fleets=fleets,
+        depots=depots,
+        charging_sessions=sessions,
+        grid_impacts=grid_impacts,
+        tco_records=tco_records,
+        forecasts=forecasts,
+        summary={
+            "total_ev_fleet_vehicles": total_ev_vehicles,
+            "total_charging_capacity_mw": total_charge_cap_mw,
+            "annual_energy_consumption_gwh": annual_consumption_gwh,
+            "avg_annual_savings_vs_diesel_m": avg_savings_m,
+            "total_co2_reduction_kt": total_co2_kt,
+        }
+    ).model_dump())
+    return _evfd_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 99c — Wind Farm Wake Effect Analytics
+# ---------------------------------------------------------------------------
+
+class WFWEFarmRecord(BaseModel):
+    farm_id: str
+    farm_name: str
+    state: str
+    developer: str
+    technology: str
+    num_turbines: int
+    turbine_model: str
+    turbine_capacity_mw: float
+    hub_height_m: float
+    rotor_diameter_m: float
+    total_capacity_mw: float
+    gross_aep_gwh: float
+    wake_loss_pct: float
+    net_aep_gwh: float
+    availability_pct: float
+    layout_type: str
+    wind_rose_direction_deg: float
+
+
+class WFWETurbineRecord(BaseModel):
+    turbine_id: str
+    farm_id: str
+    position_row: int
+    position_col: int
+    x_coord_m: float
+    y_coord_m: float
+    distance_to_nearest_turbine_m: float
+    upstream_turbines_count: int
+    wake_affected: bool
+    individual_capacity_factor_pct: float
+    wake_deficit_pct: float
+    annual_energy_mwh: float
+    estimated_wake_loss_mwh: float
+    wind_speed_at_hub_m_s: float
+
+
+class WFWEWakeLossRecord(BaseModel):
+    loss_id: str
+    farm_id: str
+    wind_direction_deg: float
+    wind_speed_bin_m_s: float
+    wake_loss_pct: float
+    affected_turbines_count: int
+    total_loss_mwh_pa: float
+    revenue_loss_m_pa: float
+    wind_frequency_pct: float
+    jensen_model_pct: float
+    floris_model_pct: float
+    measured_pct: float
+
+
+class WFWELayoutOptimisationRecord(BaseModel):
+    opt_id: str
+    farm_id: str
+    scenario_name: str
+    num_turbines: int
+    total_capacity_mw: float
+    gross_aep_gwh: float
+    wake_loss_pct: float
+    net_aep_gwh: float
+    land_use_km2: float
+    capex_m: float
+    lcoe_dolpermwh: float
+    aep_improvement_pct_vs_baseline: float
+
+
+class WFWEMaintenanceRecord(BaseModel):
+    maint_id: str
+    turbine_id: str
+    farm_id: str
+    maintenance_type: str
+    component: str
+    issue_detected_date: str
+    repair_date: str
+    downtime_hours: float
+    energy_lost_mwh: float
+    repair_cost_aud: float
+    caused_by_wake: bool
+    failure_mode: str
+
+
+class WFWEPerformanceRecord(BaseModel):
+    perf_id: str
+    farm_id: str
+    year: int
+    month: int
+    p50_aep_gwh: float
+    p90_aep_gwh: float
+    actual_aep_gwh: float
+    availability_pct: float
+    performance_ratio_pct: float
+    wake_loss_actual_pct: float
+    curtailment_mwh: float
+    grid_constraint_mwh: float
+    capacity_factor_pct: float
+    benchmark_capacity_factor_pct: float
+
+
+class WFWEDashboard(BaseModel):
+    farms: List[WFWEFarmRecord]
+    turbines: List[WFWETurbineRecord]
+    wake_losses: List[WFWEWakeLossRecord]
+    layout_optimisations: List[WFWELayoutOptimisationRecord]
+    maintenance: List[WFWEMaintenanceRecord]
+    performance: List[WFWEPerformanceRecord]
+    summary: dict
+
+
+_wfwe_cache: dict = {}
+
+
+@app.get("/api/wind-farm-wake/dashboard")
+def get_wind_farm_wake_dashboard():
+    import random
+    if _wfwe_cache:
+        return _wfwe_cache
+
+    rng = random.Random(20240301)
+
+    farm_defs = [
+        ("WFWE-F-001", "Grampians North Wind Farm",  "VIC", "AGL Energy",        "Onshore",  60, "Vestas V150-4.5",  4.5, 105, 150, 270,  "Regular Grid",    195),
+        ("WFWE-F-002", "Snowtown Stage 3",            "SA",  "Tilt Renewables",   "Onshore",  80, "Siemens SWT-3.6", 3.6,  90, 120, 288,  "Row",             225),
+        ("WFWE-F-003", "Warradarge Wind Farm",        "WA",  "Bright Energy",     "Onshore",  51, "Vestas V136-3.45",3.45,112, 136, 176,  "Irregular",       210),
+        ("WFWE-F-004", "Coopers Gap Wind Farm",       "QLD", "AGL Energy",        "Onshore",  123,"GE 3.8-130",      3.8, 110, 130, 453,  "Cluster",         200),
+        ("WFWE-F-005", "Sapphire Wind Farm",          "NSW", "CWP Renewables",    "Onshore",  75, "Enercon E-115",   3.0, 122, 115, 225,  "Regular Grid",    185),
+        ("WFWE-F-006", "Silverton Wind Farm",         "NSW", "Epuron",            "Onshore",  58, "Vestas V112-3.0", 3.0, 119, 112, 174,  "Row",             170),
+        ("WFWE-F-007", "Star of the South",           "VIC", "Star of the South", "Offshore", 490,"MHI Vestas V164", 9.5, 105, 164, 2200, "Regular Grid",    220),
+        ("WFWE-F-008", "Hunter Valley Offshore",      "NSW", "Blue Float Energy", "Offshore", 200,"Siemens SG 8.0",  8.0, 108, 167, 1600, "Row",             230),
+        ("WFWE-F-009", "Gippsland Offshore Project",  "VIC", "Equinor",           "Offshore", 150,"Siemens SG 14.0",14.0,110, 193, 2100, "Irregular",       215),
+        ("WFWE-F-010", "Pacific Ocean Wind",          "NSW", "Macquarie Capital", "Offshore", 70, "GE Haliade-X 12", 12.0,110, 220,  840, "Cluster",         225),
+    ]
+
+    farms: List[WFWEFarmRecord] = []
+    for fd in farm_defs:
+        (fid, fname, state, dev, tech, nturb, tmodel, tcap, hub, rotor,
+         totcap, layout, wr_dir) = fd
+        gross_aep = round(totcap * rng.uniform(3100, 3800) / 1000, 1)
+        wake_loss = round(rng.uniform(4.5, 14.5), 2)
+        net_aep = round(gross_aep * (1 - wake_loss / 100), 1)
+        avail = round(rng.uniform(95.5, 98.9), 1)
+        farms.append(WFWEFarmRecord(
+            farm_id=fid, farm_name=fname, state=state, developer=dev,
+            technology=tech, num_turbines=nturb, turbine_model=tmodel,
+            turbine_capacity_mw=tcap, hub_height_m=float(hub),
+            rotor_diameter_m=float(rotor), total_capacity_mw=float(totcap),
+            gross_aep_gwh=gross_aep, wake_loss_pct=wake_loss,
+            net_aep_gwh=net_aep, availability_pct=avail,
+            layout_type=layout, wind_rose_direction_deg=float(wr_dir),
+        ))
+
+    # --- Turbine records: 6 per farm = 60 total ---
+    turbines: List[WFWETurbineRecord] = []
+    tidx = 1
+    for farm in farms:
+        rotor_d = farm.rotor_diameter_m
+        spacing = rotor_d * rng.uniform(4.5, 7.5)
+        for row in range(2):
+            for col in range(3):
+                x = col * spacing + rng.uniform(-spacing * 0.1, spacing * 0.1)
+                y = row * spacing + rng.uniform(-spacing * 0.1, spacing * 0.1)
+                dist_near = spacing * rng.uniform(0.9, 1.1)
+                upstream = row * 3 + col if row > 0 else 0
+                wake_aff = upstream > 0 or col > 0
+                cf = round(rng.uniform(28 if wake_aff else 36, 45), 1)
+                deficit = round(rng.uniform(3.0, 18.0) if wake_aff else rng.uniform(0.0, 2.5), 2)
+                ann_e = round(farm.turbine_capacity_mw * cf / 100 * 8760, 0)
+                wake_loss_mwh = round(ann_e * deficit / 100, 0)
+                ws = round(rng.uniform(7.5, 11.5), 2)
+                turbines.append(WFWETurbineRecord(
+                    turbine_id=f"WFWE-T-{tidx:04d}",
+                    farm_id=farm.farm_id,
+                    position_row=row + 1, position_col=col + 1,
+                    x_coord_m=round(x, 1), y_coord_m=round(y, 1),
+                    distance_to_nearest_turbine_m=round(dist_near, 1),
+                    upstream_turbines_count=upstream,
+                    wake_affected=wake_aff,
+                    individual_capacity_factor_pct=cf,
+                    wake_deficit_pct=deficit,
+                    annual_energy_mwh=ann_e,
+                    estimated_wake_loss_mwh=wake_loss_mwh,
+                    wind_speed_at_hub_m_s=ws,
+                ))
+                tidx += 1
+
+    # --- Wake loss records: 8 wind direction sectors x 5 farms = 40 ---
+    wake_losses: List[WFWEWakeLossRecord] = []
+    wlidx = 1
+    directions = [0, 45, 90, 135, 180, 225, 270, 315]
+    for farm in farms[:5]:
+        for direction in directions:
+            ws_bin = round(rng.uniform(6.0, 14.0), 1)
+            wl_pct = round(rng.uniform(3.0, 20.0), 2)
+            aff_turbs = rng.randint(2, min(farm.num_turbines, 20))
+            loss_mwh = round(farm.total_capacity_mw * wl_pct / 100 * rng.uniform(1800, 2800), 1)
+            rev_loss = round(loss_mwh * rng.uniform(65, 95) / 1_000_000, 3)
+            freq = round(rng.uniform(5.0, 20.0), 1)
+            jensen = round(wl_pct * rng.uniform(0.9, 1.15), 2)
+            floris = round(wl_pct * rng.uniform(0.85, 1.10), 2)
+            measured = round(wl_pct * rng.uniform(0.92, 1.08), 2)
+            wake_losses.append(WFWEWakeLossRecord(
+                loss_id=f"WFWE-WL-{wlidx:03d}",
+                farm_id=farm.farm_id,
+                wind_direction_deg=float(direction),
+                wind_speed_bin_m_s=ws_bin,
+                wake_loss_pct=wl_pct,
+                affected_turbines_count=aff_turbs,
+                total_loss_mwh_pa=loss_mwh,
+                revenue_loss_m_pa=rev_loss,
+                wind_frequency_pct=freq,
+                jensen_model_pct=jensen,
+                floris_model_pct=floris,
+                measured_pct=measured,
+            ))
+            wlidx += 1
+
+    # --- Layout optimisation: 5 scenarios x 4 farms = 20 ---
+    layout_optimisations: List[WFWELayoutOptimisationRecord] = []
+    oidx = 1
+    scenarios = [
+        "Baseline", "Spacing 5D", "Spacing 7D", "Staggered", "AEP Optimised"
+    ]
+    for farm in farms[:4]:
+        base_gross = farm.gross_aep_gwh
+        base_wake = farm.wake_loss_pct
+        for si, scenario in enumerate(scenarios):
+            if scenario == "Baseline":
+                wake_l = base_wake
+                gross = base_gross
+                aep_imp = 0.0
+                nturb = farm.num_turbines
+            elif scenario == "Spacing 5D":
+                wake_l = round(base_wake * 0.92, 2)
+                gross = round(base_gross * 1.01, 1)
+                aep_imp = round(rng.uniform(1.0, 3.5), 2)
+                nturb = farm.num_turbines
+            elif scenario == "Spacing 7D":
+                wake_l = round(base_wake * 0.78, 2)
+                gross = round(base_gross * 1.02, 1)
+                aep_imp = round(rng.uniform(3.5, 7.0), 2)
+                nturb = farm.num_turbines
+            elif scenario == "Staggered":
+                wake_l = round(base_wake * 0.82, 2)
+                gross = round(base_gross * 1.015, 1)
+                aep_imp = round(rng.uniform(3.0, 6.0), 2)
+                nturb = farm.num_turbines
+            else:  # AEP Optimised
+                wake_l = round(base_wake * 0.70, 2)
+                gross = round(base_gross * 1.025, 1)
+                aep_imp = round(rng.uniform(7.0, 12.0), 2)
+                nturb = farm.num_turbines
+            net = round(gross * (1 - wake_l / 100), 1)
+            capx = round(farm.total_capacity_mw * rng.uniform(2.2, 3.5), 1)
+            land = round(farm.total_capacity_mw * rng.uniform(0.08, 0.18), 2)
+            lcoe = round(rng.uniform(55, 90), 1)
+            layout_optimisations.append(WFWELayoutOptimisationRecord(
+                opt_id=f"WFWE-OPT-{oidx:03d}",
+                farm_id=farm.farm_id,
+                scenario_name=scenario,
+                num_turbines=nturb,
+                total_capacity_mw=farm.total_capacity_mw,
+                gross_aep_gwh=gross,
+                wake_loss_pct=wake_l,
+                net_aep_gwh=net,
+                land_use_km2=land,
+                capex_m=capx,
+                lcoe_dolpermwh=lcoe,
+                aep_improvement_pct_vs_baseline=aep_imp,
+            ))
+            oidx += 1
+
+    # --- Maintenance records: 3 per farm = 30 ---
+    maintenance: List[WFWEMaintenanceRecord] = []
+    midx = 1
+    maint_types = ["Scheduled", "Predictive", "Corrective"]
+    components = ["Gearbox", "Generator", "Blades", "Yaw System",
+                  "Pitch Control", "Tower", "Foundation"]
+    failure_modes = [
+        "Fatigue crack — wake turbulence", "Gear tooth wear", "Bearing overload",
+        "Blade trailing edge erosion", "Yaw misalignment — wake induced",
+        "Pitch actuator seal failure", "Tower vortex-induced vibration",
+        "Foundation scour", "Generator winding insulation degradation",
+    ]
+    for farm in farms:
+        for _ in range(3):
+            turb_rec = rng.choice([t for t in turbines if t.farm_id == farm.farm_id])
+            mtype = rng.choice(maint_types)
+            comp = rng.choice(components)
+            det_month = rng.randint(1, 10)
+            det_day = rng.randint(1, 28)
+            rep_day = det_day + rng.randint(2, 20)
+            if rep_day > 28:
+                rep_day = 28
+            det_date = f"2024-{det_month:02d}-{det_day:02d}"
+            rep_date = f"2024-{det_month:02d}-{rep_day:02d}"
+            downtime = round(rng.uniform(8, 240), 1)
+            e_lost = round(farm.turbine_capacity_mw * downtime * rng.uniform(0.3, 0.9), 1)
+            cost = round(rng.uniform(8000, 350000), 0)
+            by_wake = rng.random() < 0.45
+            fmode = rng.choice(failure_modes)
+            maintenance.append(WFWEMaintenanceRecord(
+                maint_id=f"WFWE-M-{midx:03d}",
+                turbine_id=turb_rec.turbine_id,
+                farm_id=farm.farm_id,
+                maintenance_type=mtype,
+                component=comp,
+                issue_detected_date=det_date,
+                repair_date=rep_date,
+                downtime_hours=downtime,
+                energy_lost_mwh=e_lost,
+                repair_cost_aud=cost,
+                caused_by_wake=by_wake,
+                failure_mode=fmode,
+            ))
+            midx += 1
+
+    # --- Performance records: 8 months x 5 farms = 40 ---
+    performance: List[WFWEPerformanceRecord] = []
+    pidx = 1
+    months = [1, 2, 3, 4, 5, 6, 7, 8]
+    year = 2024
+    for farm in farms[:5]:
+        for month in months:
+            p50 = round(farm.net_aep_gwh / 12 * rng.uniform(0.85, 1.15), 2)
+            p90 = round(p50 * rng.uniform(0.78, 0.90), 2)
+            actual = round(p50 * rng.uniform(0.88, 1.08), 2)
+            avail = round(rng.uniform(94.0, 99.5), 1)
+            pr = round(actual / p50 * 100, 1)
+            wake_act = round(farm.wake_loss_pct * rng.uniform(0.85, 1.15), 2)
+            curt = round(farm.total_capacity_mw * rng.uniform(0, 50), 1)
+            grid_c = round(farm.total_capacity_mw * rng.uniform(0, 30), 1)
+            cf = round(actual * 1000 / (farm.total_capacity_mw * 8760 / 12) * 100, 1)
+            bench_cf = round(rng.uniform(30, 45), 1)
+            performance.append(WFWEPerformanceRecord(
+                perf_id=f"WFWE-P-{pidx:03d}",
+                farm_id=farm.farm_id,
+                year=year,
+                month=month,
+                p50_aep_gwh=p50,
+                p90_aep_gwh=p90,
+                actual_aep_gwh=actual,
+                availability_pct=avail,
+                performance_ratio_pct=pr,
+                wake_loss_actual_pct=wake_act,
+                curtailment_mwh=curt,
+                grid_constraint_mwh=grid_c,
+                capacity_factor_pct=cf,
+                benchmark_capacity_factor_pct=bench_cf,
+            ))
+            pidx += 1
+
+    # --- Summary ---
+    total_cap_gw = round(sum(f.total_capacity_mw for f in farms) / 1000, 3)
+    avg_wake_loss = round(sum(f.wake_loss_pct for f in farms) / len(farms), 2)
+    total_aep_loss = round(sum(
+        f.gross_aep_gwh - f.net_aep_gwh for f in farms
+    ), 1)
+    best_layout_imp = round(max(
+        o.aep_improvement_pct_vs_baseline for o in layout_optimisations
+    ), 2)
+    avg_cf = round(sum(p.capacity_factor_pct for p in performance) / len(performance), 1)
+
+    _wfwe_cache.update(WFWEDashboard(
+        farms=farms,
+        turbines=turbines,
+        wake_losses=wake_losses,
+        layout_optimisations=layout_optimisations,
+        maintenance=maintenance,
+        performance=performance,
+        summary={
+            "total_wind_capacity_gw": total_cap_gw,
+            "avg_wake_loss_pct": avg_wake_loss,
+            "total_aep_loss_gwh_pa": total_aep_loss,
+            "best_layout_improvement_pct": best_layout_imp,
+            "avg_capacity_factor_pct": avg_cf,
+        }
+    ).model_dump())
+    return _wfwe_cache

@@ -341,6 +341,9 @@ import IndustrialDecarbonisationAnalytics from './pages/IndustrialDecarbonisatio
 import CommunityEnergyStorageAnalytics from './pages/CommunityEnergyStorageAnalytics'
 import NEMGenerationMixAnalytics from './pages/NEMGenerationMixAnalytics'
 import ConsumerEnergyAffordabilityAnalytics from './pages/ConsumerEnergyAffordabilityAnalytics'
+import ElectricityPriceRiskAnalytics from './pages/ElectricityPriceRiskAnalytics'
+import EVFleetDepotAnalytics from './pages/EVFleetDepotAnalytics'
+import WindFarmWakeAnalytics from './pages/WindFarmWakeAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -606,6 +609,9 @@ const NAV_ITEMS = [
   { to: '/community-energy-storage', label: 'Community Energy Storage', Icon: Users },
   { to: '/nem-generation-mix', label: 'NEM Generation Mix', Icon: BarChart2 },
   { to: '/consumer-energy-affordability', label: 'Consumer Energy Affordability', Icon: Heart },
+  { to: '/electricity-price-risk', label: 'Electricity Price Risk Mgmt', Icon: Shield },
+  { to: '/ev-fleet-depot',    label: 'EV Fleet Depot Charging',    Icon: Truck  },
+  { to: '/wind-farm-wake',    label: 'Wind Farm Wake Analytics',   Icon: Wind   },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -946,6 +952,9 @@ export default function App() {
               <Route path="/community-energy-storage" element={<CommunityEnergyStorageAnalytics />} />
               <Route path="/nem-generation-mix" element={<NEMGenerationMixAnalytics />} />
               <Route path="/consumer-energy-affordability" element={<ConsumerEnergyAffordabilityAnalytics />} />
+              <Route path="/electricity-price-risk" element={<ElectricityPriceRiskAnalytics />} />
+              <Route path="/ev-fleet-depot"    element={<EVFleetDepotAnalytics />}          />
+              <Route path="/wind-farm-wake"    element={<WindFarmWakeAnalytics />}          />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

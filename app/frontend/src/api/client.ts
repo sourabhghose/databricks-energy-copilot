@@ -16445,3 +16445,332 @@ export interface GFIAXDashboard {
 
 export const getGridFormingInverterXDashboard = (): Promise<GFIAXDashboard> =>
   get<GFIAXDashboard>('/api/grid-forming-inverter-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 99a — Electricity Price Risk Management Analytics (EPRM)
+// ---------------------------------------------------------------------------
+
+export interface EPRMPortfolioRecord {
+  portfolio_id: string
+  entity_name: string
+  entity_type: string
+  region: string
+  total_load_twh: number
+  total_generation_twh: number
+  net_position_twh: number
+  hedge_ratio_pct: number
+  open_position_twh: number
+  var_95_m: number
+  cvar_95_m: number
+  max_loss_scenario_m: number
+}
+
+export interface EPRMHedgeRecord {
+  hedge_id: string
+  portfolio_id: string
+  product_type: string
+  region: string
+  volume_mw: number
+  strike_price_dolpermwh: number
+  market_price_dolpermwh: number
+  start_date: string
+  end_date: string
+  mtm_value_m: number
+  premium_paid_m: number
+  hedge_effectiveness_pct: number
+  counterparty: string
+}
+
+export interface EPRMVaRRecord {
+  var_id: string
+  portfolio_id: string
+  calculation_date: string
+  methodology: string
+  confidence_level_pct: number
+  time_horizon_days: number
+  var_m: number
+  cvar_m: number
+  scenario_99_m: number
+  stressed_var_m: number
+  correlation_risk_m: number
+  basis_risk_m: number
+}
+
+export interface EPRMScenarioRecord {
+  scenario_id: string
+  scenario_name: string
+  year: number
+  avg_price_dolpermwh: number
+  peak_price_dolpermwh: number
+  price_vol_pct: number
+  portfolio_pnl_m: number
+  hedge_benefit_m: number
+  worst_30day_loss_m: number
+}
+
+export interface EPRMCorrelationRecord {
+  correlation_id: string
+  factor_pair: string
+  correlation_coefficient: number
+  r_squared: number
+  lag_days: number
+  data_period_years: number
+  statistical_significance: boolean
+  hedging_implication: string
+}
+
+export interface EPRMRegulatoryCapitalRecord {
+  capital_id: string
+  entity_name: string
+  regulatory_framework: string
+  capital_requirement_m: number
+  current_capital_m: number
+  coverage_ratio_pct: number
+  liquidity_buffer_m: number
+  stressed_requirement_m: number
+  compliance_status: string
+  review_date: string
+}
+
+export interface EPRMDashboard {
+  portfolios: EPRMPortfolioRecord[]
+  hedges: EPRMHedgeRecord[]
+  var_records: EPRMVaRRecord[]
+  scenarios: EPRMScenarioRecord[]
+  correlations: EPRMCorrelationRecord[]
+  regulatory_capital: EPRMRegulatoryCapitalRecord[]
+  summary: Record<string, number>
+}
+
+export const getElectricityPriceRiskDashboard = (): Promise<EPRMDashboard> =>
+  get<EPRMDashboard>('/api/electricity-price-risk/dashboard')
+
+// ---------------------------------------------------------------------------
+// EV Fleet Depot Charging Analytics  (Sprint 99b)
+// ---------------------------------------------------------------------------
+
+export interface EVFDFleetRecord {
+  fleet_id: string
+  fleet_name: string
+  operator: string
+  fleet_type: string
+  state: string
+  num_vehicles: number
+  avg_range_km: number
+  battery_capacity_kwh: number
+  annual_km_per_vehicle: number
+  charging_strategy: string
+  total_fleet_capacity_mwh: number
+  annual_energy_consumption_mwh: number
+  avg_charging_cost_c_per_km: number
+  annual_savings_vs_diesel_aud: number
+}
+
+export interface EVFDDepotRecord {
+  depot_id: string
+  fleet_id: string
+  depot_name: string
+  state: string
+  num_chargers: number
+  charger_types: string
+  total_charging_capacity_kw: number
+  solar_capacity_kw: number
+  battery_storage_kwh: number
+  grid_connection_kva: number
+  smart_charging_enabled: boolean
+  v2g_enabled: boolean
+  annual_energy_dispensed_mwh: number
+  depot_opex_m_pa: number
+}
+
+export interface EVFDChargingSessionRecord {
+  session_id: string
+  depot_id: string
+  vehicle_type: string
+  session_date: string
+  hour_start: number
+  duration_hours: number
+  energy_kwh: number
+  peak_power_kw: number
+  tariff_type: string
+  cost_aud: number
+  soc_start_pct: number
+  soc_end_pct: number
+  grid_or_solar: string
+  co2_kg: number
+}
+
+export interface EVFDGridImpactRecord {
+  impact_id: string
+  depot_id: string
+  date: string
+  peak_demand_kw: number
+  peak_demand_shifted_kw: number
+  peak_reduction_kw: number
+  solar_utilisation_pct: number
+  v2g_export_kwh: number
+  demand_response_activated: boolean
+  grid_cost_aud: number
+  solar_saving_aud: number
+  v2g_revenue_aud: number
+  total_bill_aud: number
+}
+
+export interface EVFDTCORecord {
+  tco_id: string
+  fleet_type: string
+  fuel_type: string
+  state: string
+  purchase_cost_aud: number
+  annual_fuel_energy_cost_aud: number
+  annual_maintenance_aud: number
+  annual_insurance_aud: number
+  residual_value_aud: number
+  total_tco_10yr_aud: number
+  tco_per_km_c: number
+  co2_tpa: number
+  payback_years_vs_ice: number
+}
+
+export interface EVFDForecastRecord {
+  forecast_id: string
+  state: string
+  year: number
+  scenario: string
+  ev_fleet_vehicles: number
+  ev_penetration_pct: number
+  total_charging_demand_gwh: number
+  peak_grid_demand_mw: number
+  v2g_capacity_mw: number
+  renewable_charging_pct: number
+  co2_reduction_kt: number
+}
+
+export interface EVFDDashboard {
+  fleets: EVFDFleetRecord[]
+  depots: EVFDDepotRecord[]
+  charging_sessions: EVFDChargingSessionRecord[]
+  grid_impacts: EVFDGridImpactRecord[]
+  tco_records: EVFDTCORecord[]
+  forecasts: EVFDForecastRecord[]
+  summary: Record<string, number>
+}
+
+export const getEVFleetDepotDashboard = (): Promise<EVFDDashboard> =>
+  get<EVFDDashboard>('/api/ev-fleet-depot/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 99c — Wind Farm Wake Effect Analytics
+// ---------------------------------------------------------------------------
+
+export interface WFWEFarmRecord {
+  farm_id: string
+  farm_name: string
+  state: string
+  developer: string
+  technology: string
+  num_turbines: number
+  turbine_model: string
+  turbine_capacity_mw: number
+  hub_height_m: number
+  rotor_diameter_m: number
+  total_capacity_mw: number
+  gross_aep_gwh: number
+  wake_loss_pct: number
+  net_aep_gwh: number
+  availability_pct: number
+  layout_type: string
+  wind_rose_direction_deg: number
+}
+
+export interface WFWETurbineRecord {
+  turbine_id: string
+  farm_id: string
+  position_row: number
+  position_col: number
+  x_coord_m: number
+  y_coord_m: number
+  distance_to_nearest_turbine_m: number
+  upstream_turbines_count: number
+  wake_affected: boolean
+  individual_capacity_factor_pct: number
+  wake_deficit_pct: number
+  annual_energy_mwh: number
+  estimated_wake_loss_mwh: number
+  wind_speed_at_hub_m_s: number
+}
+
+export interface WFWEWakeLossRecord {
+  loss_id: string
+  farm_id: string
+  wind_direction_deg: number
+  wind_speed_bin_m_s: number
+  wake_loss_pct: number
+  affected_turbines_count: number
+  total_loss_mwh_pa: number
+  revenue_loss_m_pa: number
+  wind_frequency_pct: number
+  jensen_model_pct: number
+  floris_model_pct: number
+  measured_pct: number
+}
+
+export interface WFWELayoutOptimisationRecord {
+  opt_id: string
+  farm_id: string
+  scenario_name: string
+  num_turbines: number
+  total_capacity_mw: number
+  gross_aep_gwh: number
+  wake_loss_pct: number
+  net_aep_gwh: number
+  land_use_km2: number
+  capex_m: number
+  lcoe_dolpermwh: number
+  aep_improvement_pct_vs_baseline: number
+}
+
+export interface WFWEMaintenanceRecord {
+  maint_id: string
+  turbine_id: string
+  farm_id: string
+  maintenance_type: string
+  component: string
+  issue_detected_date: string
+  repair_date: string
+  downtime_hours: number
+  energy_lost_mwh: number
+  repair_cost_aud: number
+  caused_by_wake: boolean
+  failure_mode: string
+}
+
+export interface WFWEPerformanceRecord {
+  perf_id: string
+  farm_id: string
+  year: number
+  month: number
+  p50_aep_gwh: number
+  p90_aep_gwh: number
+  actual_aep_gwh: number
+  availability_pct: number
+  performance_ratio_pct: number
+  wake_loss_actual_pct: number
+  curtailment_mwh: number
+  grid_constraint_mwh: number
+  capacity_factor_pct: number
+  benchmark_capacity_factor_pct: number
+}
+
+export interface WFWEDashboard {
+  farms: WFWEFarmRecord[]
+  turbines: WFWETurbineRecord[]
+  wake_losses: WFWEWakeLossRecord[]
+  layout_optimisations: WFWELayoutOptimisationRecord[]
+  maintenance: WFWEMaintenanceRecord[]
+  performance: WFWEPerformanceRecord[]
+  summary: Record<string, number>
+}
+
+export const getWindFarmWakeDashboard = (): Promise<WFWEDashboard> =>
+  get<WFWEDashboard>('/api/wind-farm-wake/dashboard')
