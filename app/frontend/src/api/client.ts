@@ -18793,3 +18793,336 @@ export interface DNPADashboard {
 
 export const getDistributionNetworkPlanningDashboard = (): Promise<DNPADashboard> =>
   get<DNPADashboard>('/api/distribution-network-planning/dashboard')
+
+// ---------------------------------------------------------------------------
+// EGFS — Electricity Grid Flexibility Services Analytics  (Sprint 106a)
+// ---------------------------------------------------------------------------
+
+export interface EGFSServiceRecord {
+  service_id: string
+  service_name: string
+  service_category: string
+  region: string
+  procurement_mechanism: string
+  contracted_mw: number
+  contracted_mvar: number
+  annual_cost_m: number
+  provider_type: string
+  duration_years: number
+  review_frequency: string
+}
+
+export interface EGFSProviderRecord {
+  provider_id: string
+  provider_name: string
+  technology: string
+  region: string
+  services_provided: string
+  total_contracted_mw: number
+  annual_revenue_m: number
+  contract_type: string
+  reliability_pct: number
+  response_time_seconds: number
+  black_start_qualified: boolean
+  inertia_contribution_mws: number
+  system_strength_mva: number
+  contract_expiry_year: number
+}
+
+export interface EGFSCostRecord {
+  cost_id: string
+  service_category: string
+  region: string
+  year: number
+  quarter: number
+  contracted_volume_mw: number
+  total_cost_m: number
+  cost_per_mw_per_year: number
+  cost_trend_yoy_pct: number
+  allocated_to_generators_pct: number
+  allocated_to_loads_pct: number
+  allocated_to_market_pct: number
+  key_cost_driver: string
+}
+
+export interface EGFSNeedRecord {
+  need_id: string
+  region: string
+  year: number
+  scenario: string
+  inertia_need_mws: number
+  system_strength_need_mva: number
+  black_start_coverage_pct: number
+  voltage_support_mvar: number
+  ramping_need_mw_per_min: number
+  current_provision_pct: number
+  gap_mws: number
+  gap_mva: number
+  investment_required_m: number
+}
+
+export interface EGFSTenderRecord {
+  tender_id: string
+  service_name: string
+  region: string
+  tender_date: string
+  contract_duration_years: number
+  volume_required_mw: number
+  num_bids: number
+  num_awarded: number
+  clearing_price_dolpermw_pa: number
+  competitive_index: number
+  technology_types_awarded: string
+  total_contract_value_m: number
+  outcome: string
+}
+
+export interface EGFSFutureNeedRecord {
+  future_id: string
+  region: string
+  year: number
+  driver: string
+  need_type: string
+  required_service_mw: number
+  current_gap_mw: number
+  lead_time_years: number
+  recommended_solution: string
+  estimated_cost_m: number
+  regulatory_pathway: string
+}
+
+export interface EGFSDashboard {
+  services: EGFSServiceRecord[]
+  providers: EGFSProviderRecord[]
+  costs: EGFSCostRecord[]
+  needs: EGFSNeedRecord[]
+  tenders: EGFSTenderRecord[]
+  future_needs: EGFSFutureNeedRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getGridFlexibilityServicesDashboard = (): Promise<EGFSDashboard> =>
+  get<EGFSDashboard>('/api/grid-flexibility-services/dashboard')
+
+// ---------------------------------------------------------------------------
+// HYDROGEN REFUELLING STATION NETWORK ANALYTICS  (Sprint 106b)
+// ---------------------------------------------------------------------------
+
+export interface HRSAStationRecord {
+  station_id: string
+  station_name: string
+  operator: string
+  state: string
+  location_type: string
+  latitude_approx: number
+  longitude_approx: number
+  daily_capacity_kg_h2: number
+  dispensing_pressure_bar: number
+  h2_source: string
+  h2_purity_pct: number
+  num_dispensers: number
+  dispensing_rate_kg_per_min: number
+  commissioning_year: number
+  status: string
+  price_dollar_per_kg: number
+  daily_utilisation_pct: number
+}
+
+export interface HRSADemandRecord {
+  demand_id: string
+  station_id: string
+  vehicle_type: string
+  vehicles_served_daily: number
+  fuel_consumed_kg_pa: number
+  avg_fill_kg_per_vehicle: number
+  peak_demand_kg_per_hour: number
+  demand_seasonality_pct_variation: number
+  fleet_contract: boolean
+  fleet_customer_name: string
+  demand_growth_pct_pa: number
+}
+
+export interface HRSAEconomicsRecord {
+  econ_id: string
+  station_id: string
+  year: number
+  total_h2_dispensed_kg: number
+  revenue_m: number
+  renewable_energy_cost_m: number
+  compression_cost_m: number
+  storage_cost_m: number
+  transport_cost_m: number
+  om_cost_m: number
+  total_opex_m: number
+  capex_recovery_m: number
+  gross_margin_m: number
+  levelised_cost_dollar_per_kg: number
+  breakeven_utilisation_pct: number
+}
+
+export interface HRSASupplyChainRecord {
+  chain_id: string
+  station_id: string
+  supply_route: string
+  distance_km: number
+  electrolyser_mw: number
+  renewable_source: string
+  storage_capacity_kg: number
+  buffer_days: number
+  supply_reliability_pct: number
+  transport_emissions_kgco2_per_kg_h2: number
+  total_lifecycle_co2_kgco2_per_kg_h2: number
+}
+
+export interface HRSANetworkRecord {
+  network_id: string
+  corridor_name: string
+  states_covered: string
+  corridor_length_km: number
+  stations_operating: number
+  stations_planned: number
+  coverage_pct: number
+  gap_km_max: number
+  annual_hydrogen_demand_tpa: number
+  served_vehicle_classes: string
+  network_readiness_score: number
+  investment_needed_m: number
+  key_bottleneck: string
+}
+
+export interface HRSAProjectionRecord {
+  proj_id: string
+  year: number
+  scenario: string
+  num_stations_operating: number
+  num_stations_planned: number
+  total_daily_capacity_tonnes: number
+  h2_vehicles_served_daily: number
+  price_dollar_per_kg: number
+  market_size_m: number
+  green_h2_share_pct: number
+  job_years_created: number
+}
+
+export interface HRSADashboard {
+  stations: HRSAStationRecord[]
+  demand_records: HRSADemandRecord[]
+  economics: HRSAEconomicsRecord[]
+  supply_chains: HRSASupplyChainRecord[]
+  networks: HRSANetworkRecord[]
+  projections: HRSAProjectionRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getHydrogenRefuellingStationDashboard = (): Promise<HRSADashboard> =>
+  get<HRSADashboard>('/api/hydrogen-refuelling-station/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 106c — Offshore Wind Project Finance Analytics
+// ---------------------------------------------------------------------------
+
+export interface OWPFProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  state: string
+  offshore_zone: string
+  technology: string
+  capacity_mw: number
+  water_depth_m: number
+  distance_to_shore_km: number
+  num_turbines: number
+  turbine_mw: number
+  commissioning_year: number
+  stage: string
+  capex_bn: number
+  lcoe_dolpermwh: number
+  capacity_factor_pct: number
+  offshore_licence_held: boolean
+  environmental_approval: boolean
+  grid_connection_agreed: boolean
+}
+
+export interface OWPFFinancingRecord {
+  finance_id: string
+  project_id: string
+  instrument_type: string
+  provider: string
+  amount_m: number
+  interest_rate_pct: number
+  tenor_years: number
+  debt_equity_ratio: number
+  guarantee_type: string
+  financial_close_date: string
+  covenants: string
+  security_package: string
+}
+
+export interface OWPFCostRecord {
+  cost_id: string
+  project_id: string
+  cost_category: string
+  capex_pct: number
+  value_m: number
+  learning_curve_2030_pct: number
+  learning_curve_2040_pct: number
+  supply_chain_risk: string
+  australian_content_pct: number
+  local_manufacturing_potential: boolean
+}
+
+export interface OWPFSupplyChainRecord {
+  chain_id: string
+  component: string
+  supplier_country: string
+  market_share_pct: number
+  lead_time_months: number
+  port_requirement: string
+  crane_vessel_type: string
+  australian_manufacturing_gap: boolean
+  localisation_investment_m: number
+  jobs_created_fte: number
+  policy_support_needed: string
+}
+
+export interface OWPFRevenueRecord {
+  rev_id: string
+  project_id: string
+  revenue_stream: string
+  volume_mw: number
+  price_dolpermwh: number
+  contract_term_years: number
+  indexed_to_inflation: boolean
+  revenue_m_pa: number
+  revenue_certainty: string
+  offtaker_credit_rating: string
+}
+
+export interface OWPFScenarioRecord {
+  scenario_id: string
+  project_name: string
+  scenario_name: string
+  lcoe_dolpermwh: number
+  capex_bn: number
+  irr_equity_pct: number
+  irr_project_pct: number
+  npv_m: number
+  dscr_min: number
+  payback_years: number
+  sensitivity_to_carbon_price: boolean
+  viability: string
+  first_power_year: number
+}
+
+export interface OWPFDashboard {
+  projects: OWPFProjectRecord[]
+  financing: OWPFFinancingRecord[]
+  costs: OWPFCostRecord[]
+  supply_chain: OWPFSupplyChainRecord[]
+  revenues: OWPFRevenueRecord[]
+  scenarios: OWPFScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getOffshoreWindFinanceDashboard = (): Promise<OWPFDashboard> =>
+  get<OWPFDashboard>('/api/offshore-wind-finance/dashboard')

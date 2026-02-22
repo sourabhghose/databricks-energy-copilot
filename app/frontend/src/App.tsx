@@ -365,6 +365,9 @@ import RetailMarketDesignAnalytics from './pages/RetailMarketDesignAnalytics'
 import SpotMarketDepthXAnalytics from './pages/SpotMarketDepthXAnalytics'
 import SolarFarmOperationsAnalytics from './pages/SolarFarmOperationsAnalytics'
 import DistributionNetworkPlanningAnalytics from './pages/DistributionNetworkPlanningAnalytics'
+import GridFlexibilityServicesAnalytics from './pages/GridFlexibilityServicesAnalytics'
+import HydrogenRefuellingStationAnalytics from './pages/HydrogenRefuellingStationAnalytics'
+import OffshoreWindFinanceAnalytics from './pages/OffshoreWindFinanceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -564,6 +567,7 @@ const NAV_ITEMS = [
   { to: '/spot-price-volatility-regime', label: 'Spot Price Volatility Regime', Icon: Activity  },
   { to: '/industrial-electrification', label: 'Industrial Electrification',   Icon: Zap        },
   { to: '/offshore-wind-dev-analytics', label: 'Offshore Wind Dev Pipeline',  Icon: Wind       },
+  { to: '/offshore-wind-finance',       label: 'Offshore Wind Finance',        Icon: Wind       },
   { to: '/pumped-hydro-resource-assessment', label: 'Pumped Hydro Resource Assessment', Icon: Droplets },
   { to: '/frequency-control-performance', label: 'NEM Frequency Control Performance', Icon: Radio  },
   { to: '/cost-reflective-tariff-reform', label: 'Cost-Reflective Tariff Reform', Icon: BarChart2 },
@@ -651,6 +655,8 @@ const NAV_ITEMS = [
   { to: '/spot-market-depth-x', label: 'Spot Market Depth X', Icon: TrendingUp },
   { to: '/solar-farm-operations', label: 'Solar Farm O&M Analytics', Icon: Sun },
   { to: '/distribution-network-planning', label: 'Distribution Network Planning', Icon: Network },
+  { to: '/grid-flexibility-services', label: 'Grid Flexibility Services Analytics', Icon: Moon },
+  { to: '/hydrogen-refuelling-station', label: 'Hydrogen Refuelling Station Analytics', Icon: Fuel },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1012,6 +1018,9 @@ export default function App() {
               <Route path="/spot-market-depth-x" element={<SpotMarketDepthXAnalytics />} />
               <Route path="/solar-farm-operations" element={<SolarFarmOperationsAnalytics />} />
               <Route path="/distribution-network-planning" element={<DistributionNetworkPlanningAnalytics />} />
+              <Route path="/grid-flexibility-services" element={<GridFlexibilityServicesAnalytics />} />
+              <Route path="/hydrogen-refuelling-station" element={<HydrogenRefuellingStationAnalytics />} />
+              <Route path="/offshore-wind-finance"       element={<OffshoreWindFinanceAnalytics />}       />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

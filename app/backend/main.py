@@ -77908,3 +77908,1209 @@ def get_dnpa_dashboard():
     return _dnpa_cache
 
     return _sfoa_cache
+
+
+# ===========================================================================
+# EGFS — Electricity Grid Flexibility Services Analytics  (Sprint 106a)
+# ===========================================================================
+
+class EGFSServiceRecord(BaseModel):
+    service_id: str
+    service_name: str
+    service_category: str
+    region: str
+    procurement_mechanism: str
+    contracted_mw: float
+    contracted_mvar: float
+    annual_cost_m: float
+    provider_type: str
+    duration_years: int
+    review_frequency: str
+
+
+class EGFSProviderRecord(BaseModel):
+    provider_id: str
+    provider_name: str
+    technology: str
+    region: str
+    services_provided: str
+    total_contracted_mw: float
+    annual_revenue_m: float
+    contract_type: str
+    reliability_pct: float
+    response_time_seconds: float
+    black_start_qualified: bool
+    inertia_contribution_mws: float
+    system_strength_mva: float
+    contract_expiry_year: int
+
+
+class EGFSCostRecord(BaseModel):
+    cost_id: str
+    service_category: str
+    region: str
+    year: int
+    quarter: int
+    contracted_volume_mw: float
+    total_cost_m: float
+    cost_per_mw_per_year: float
+    cost_trend_yoy_pct: float
+    allocated_to_generators_pct: float
+    allocated_to_loads_pct: float
+    allocated_to_market_pct: float
+    key_cost_driver: str
+
+
+class EGFSNeedRecord(BaseModel):
+    need_id: str
+    region: str
+    year: int
+    scenario: str
+    inertia_need_mws: float
+    system_strength_need_mva: float
+    black_start_coverage_pct: float
+    voltage_support_mvar: float
+    ramping_need_mw_per_min: float
+    current_provision_pct: float
+    gap_mws: float
+    gap_mva: float
+    investment_required_m: float
+
+
+class EGFSTenderRecord(BaseModel):
+    tender_id: str
+    service_name: str
+    region: str
+    tender_date: str
+    contract_duration_years: int
+    volume_required_mw: float
+    num_bids: int
+    num_awarded: int
+    clearing_price_dolpermw_pa: float
+    competitive_index: float
+    technology_types_awarded: str
+    total_contract_value_m: float
+    outcome: str
+
+
+class EGFSFutureNeedRecord(BaseModel):
+    future_id: str
+    region: str
+    year: int
+    driver: str
+    need_type: str
+    required_service_mw: float
+    current_gap_mw: float
+    lead_time_years: int
+    recommended_solution: str
+    estimated_cost_m: float
+    regulatory_pathway: str
+
+
+class EGFSDashboard(BaseModel):
+    services: List[EGFSServiceRecord]
+    providers: List[EGFSProviderRecord]
+    costs: List[EGFSCostRecord]
+    needs: List[EGFSNeedRecord]
+    tenders: List[EGFSTenderRecord]
+    future_needs: List[EGFSFutureNeedRecord]
+    summary: Dict[str, Any]
+
+
+_egfs_cache: Dict[str, Any] = {}
+
+
+@app.get("/api/grid-flexibility-services/dashboard")
+def get_egfs_dashboard() -> EGFSDashboard:
+    import random
+    if _egfs_cache:
+        return EGFSDashboard(**_egfs_cache)
+
+    rng = random.Random(20240106)
+
+    regions = ["NSW", "QLD", "VIC", "SA", "TAS"]
+    service_categories = [
+        "Synchronous Inertia",
+        "Voltage Support",
+        "Black Start",
+        "SRAS - System Restart Ancillary Service",
+        "Load Following",
+        "Ramping",
+        "Frequency Response",
+        "System Strength",
+    ]
+    procurement_mechanisms = ["Tender", "Market", "Regulated", "Bilateral"]
+    provider_types = [
+        "Generator", "Battery", "Synchronous Condenser",
+        "STATCOM", "Load", "Interconnector",
+    ]
+    review_freqs = ["Annual", "Biennial", "Quarterly"]
+
+    # -----------------------------------------------------------------------
+    # 1. Service records (15)
+    # -----------------------------------------------------------------------
+    service_data = [
+        ("EGFS-SVC-001", "NSW Synchronous Inertia Service", "Synchronous Inertia", "NSW", "Tender", "Generator", 5),
+        ("EGFS-SVC-002", "QLD Black Start SRAS", "SRAS - System Restart Ancillary Service", "QLD", "Regulated", "Generator", 10),
+        ("EGFS-SVC-003", "SA System Strength Service", "System Strength", "SA", "Bilateral", "Synchronous Condenser", 7),
+        ("EGFS-SVC-004", "VIC Voltage Support STATCOM", "Voltage Support", "VIC", "Regulated", "STATCOM", 5),
+        ("EGFS-SVC-005", "TAS Black Start Generation", "Black Start", "TAS", "Regulated", "Generator", 10),
+        ("EGFS-SVC-006", "NSW Fast Ramping Service", "Ramping", "NSW", "Market", "Battery", 3),
+        ("EGFS-SVC-007", "QLD Load Following Contract", "Load Following", "QLD", "Bilateral", "Generator", 5),
+        ("EGFS-SVC-008", "SA Fast Frequency Response", "Frequency Response", "SA", "Market", "Battery", 3),
+        ("EGFS-SVC-009", "VIC Inertia Syncon Service", "Synchronous Inertia", "VIC", "Tender", "Synchronous Condenser", 7),
+        ("EGFS-SVC-010", "NSW Black Start SRAS", "SRAS - System Restart Ancillary Service", "NSW", "Regulated", "Generator", 10),
+        ("EGFS-SVC-011", "QLD System Strength Contract", "System Strength", "QLD", "Bilateral", "Generator", 5),
+        ("EGFS-SVC-012", "SA Voltage Support Syncon", "Voltage Support", "SA", "Tender", "Synchronous Condenser", 5),
+        ("EGFS-SVC-013", "VIC Demand Ramping Service", "Ramping", "VIC", "Market", "Load", 2),
+        ("EGFS-SVC-014", "TAS Frequency Response BESS", "Frequency Response", "TAS", "Market", "Battery", 3),
+        ("EGFS-SVC-015", "NSW Interconnector Inertia", "Synchronous Inertia", "NSW", "Bilateral", "Interconnector", 5),
+    ]
+    services: List[EGFSServiceRecord] = []
+    for sd in service_data:
+        svc_id, svc_name, category, region, proc, ptype, dur = sd
+        services.append(EGFSServiceRecord(
+            service_id=svc_id,
+            service_name=svc_name,
+            service_category=category,
+            region=region,
+            procurement_mechanism=proc,
+            contracted_mw=round(rng.uniform(50, 800), 1),
+            contracted_mvar=round(rng.uniform(20, 400), 1),
+            annual_cost_m=round(rng.uniform(1.5, 45.0), 2),
+            provider_type=ptype,
+            duration_years=dur,
+            review_frequency=rng.choice(review_freqs),
+        ))
+
+    # -----------------------------------------------------------------------
+    # 2. Provider records (12)
+    # -----------------------------------------------------------------------
+    provider_data = [
+        ("EGFS-PRV-001", "AGL Energy Bayswater", "Coal/Gas Generator", "NSW"),
+        ("EGFS-PRV-002", "Origin Eraring", "Coal Generator", "NSW"),
+        ("EGFS-PRV-003", "AGL Torrens Island", "Gas Generator", "SA"),
+        ("EGFS-PRV-004", "Tesla Hornsdale BESS", "Battery Storage", "SA"),
+        ("EGFS-PRV-005", "Neoen Crystal Brook BESS", "Battery Storage", "SA"),
+        ("EGFS-PRV-006", "Tilt Renewables Snowtown", "Wind Generator", "SA"),
+        ("EGFS-PRV-007", "CS Energy Callide", "Coal Generator", "QLD"),
+        ("EGFS-PRV-008", "Hydro Tasmania Gordon", "Hydro Generator", "TAS"),
+        ("EGFS-PRV-009", "AusNet Syncon 1", "Synchronous Condenser", "VIC"),
+        ("EGFS-PRV-010", "ElectraNet STATCOM Network", "STATCOM", "SA"),
+        ("EGFS-PRV-011", "Transgrid NSW Syncon", "Synchronous Condenser", "NSW"),
+        ("EGFS-PRV-012", "EnergyAustralia Jeeralang", "Gas Generator", "VIC"),
+    ]
+    contract_types = ["Term", "Option", "Spot"]
+    providers: List[EGFSProviderRecord] = []
+    for pd_item in provider_data:
+        prov_id, prov_name, tech, region = pd_item
+        has_bs = rng.random() > 0.45
+        providers.append(EGFSProviderRecord(
+            provider_id=prov_id,
+            provider_name=prov_name,
+            technology=tech,
+            region=region,
+            services_provided=", ".join(rng.sample(service_categories, rng.randint(2, 4))),
+            total_contracted_mw=round(rng.uniform(50, 900), 1),
+            annual_revenue_m=round(rng.uniform(2.0, 55.0), 2),
+            contract_type=rng.choice(contract_types),
+            reliability_pct=round(rng.uniform(94.0, 99.9), 2),
+            response_time_seconds=round(rng.uniform(0.5, 30.0), 2),
+            black_start_qualified=has_bs,
+            inertia_contribution_mws=round(rng.uniform(100, 2000), 1),
+            system_strength_mva=round(rng.uniform(50, 1500), 1),
+            contract_expiry_year=rng.randint(2025, 2034),
+        ))
+
+    # -----------------------------------------------------------------------
+    # 3. Cost records (20: 4 service types × 5 quarters)
+    # -----------------------------------------------------------------------
+    cost_categories = [
+        "Synchronous Inertia",
+        "System Strength",
+        "Black Start",
+        "Voltage Support",
+    ]
+    cost_drivers = [
+        "Renewable Integration",
+        "Generator Retirement",
+        "Load Growth",
+        "Regulatory Change",
+        "Market Design",
+        "Technology Transition",
+    ]
+    costs: List[EGFSCostRecord] = []
+    cost_idx = 1
+    quarters = [(2023, 1), (2023, 2), (2023, 3), (2023, 4), (2024, 1)]
+    for cat in cost_categories:
+        for yr, qtr in quarters:
+            base_vol = rng.uniform(200, 700)
+            base_cost = rng.uniform(5.0, 30.0)
+            trend = rng.uniform(-5.0, 15.0)
+            gen_pct = rng.uniform(40, 70)
+            load_pct = rng.uniform(15, 35)
+            mkt_pct = 100 - gen_pct - load_pct
+            costs.append(EGFSCostRecord(
+                cost_id=f"EGFS-CST-{cost_idx:03d}",
+                service_category=cat,
+                region=rng.choice(regions),
+                year=yr,
+                quarter=qtr,
+                contracted_volume_mw=round(base_vol, 1),
+                total_cost_m=round(base_cost, 2),
+                cost_per_mw_per_year=round(base_cost * 1e6 / base_vol / 4, 0),
+                cost_trend_yoy_pct=round(trend, 2),
+                allocated_to_generators_pct=round(gen_pct, 1),
+                allocated_to_loads_pct=round(load_pct, 1),
+                allocated_to_market_pct=round(mkt_pct, 1),
+                key_cost_driver=rng.choice(cost_drivers),
+            ))
+            cost_idx += 1
+
+    # -----------------------------------------------------------------------
+    # 4. Need records (20: 5 regions × 4 scenarios)
+    # -----------------------------------------------------------------------
+    scenarios = [
+        "Current",
+        "50% Renewable",
+        "70% Renewable",
+        "90% Renewable",
+    ]
+    needs: List[EGFSNeedRecord] = []
+    need_idx = 1
+    for region in regions:
+        for scenario in scenarios:
+            scenario_mult = {
+                "Current": 1.0,
+                "50% Renewable": 1.3,
+                "70% Renewable": 1.7,
+                "90% Renewable": 2.4,
+            }[scenario]
+            inertia_base = rng.uniform(3000, 8000)
+            ss_base = rng.uniform(1000, 4000)
+            provision = rng.uniform(60, 100)
+            gap_inertia = max(0.0, inertia_base * scenario_mult * (1 - provision / 100))
+            gap_ss = max(0.0, ss_base * scenario_mult * (1 - provision / 100))
+            needs.append(EGFSNeedRecord(
+                need_id=f"EGFS-NEED-{need_idx:03d}",
+                region=region,
+                year=2024,
+                scenario=scenario,
+                inertia_need_mws=round(inertia_base * scenario_mult, 1),
+                system_strength_need_mva=round(ss_base * scenario_mult, 1),
+                black_start_coverage_pct=round(rng.uniform(75, 100), 1),
+                voltage_support_mvar=round(rng.uniform(200, 1200) * scenario_mult, 1),
+                ramping_need_mw_per_min=round(rng.uniform(20, 150) * scenario_mult, 1),
+                current_provision_pct=round(provision, 1),
+                gap_mws=round(gap_inertia, 1),
+                gap_mva=round(gap_ss, 1),
+                investment_required_m=round(gap_inertia * rng.uniform(0.05, 0.25), 2),
+            ))
+            need_idx += 1
+
+    # -----------------------------------------------------------------------
+    # 5. Tender records (10)
+    # -----------------------------------------------------------------------
+    tender_data = [
+        ("EGFS-TND-001", "SRAS Tender Round 1", "SA", "2021-03-15", 5, 300),
+        ("EGFS-TND-002", "Inertia Services Tender", "VIC", "2021-08-20", 7, 500),
+        ("EGFS-TND-003", "System Strength NSW", "NSW", "2022-01-10", 5, 400),
+        ("EGFS-TND-004", "Black Start QLD Round 2", "QLD", "2022-06-05", 10, 200),
+        ("EGFS-TND-005", "Voltage Support SA", "SA", "2022-11-15", 5, 250),
+        ("EGFS-TND-006", "SRAS Tender Round 2", "TAS", "2023-02-28", 5, 150),
+        ("EGFS-TND-007", "Inertia Syncon Tender VIC", "VIC", "2023-07-10", 7, 600),
+        ("EGFS-TND-008", "System Strength QLD", "QLD", "2023-11-20", 5, 350),
+        ("EGFS-TND-009", "NSW Fast Frequency Response", "NSW", "2024-01-15", 3, 450),
+        ("EGFS-TND-010", "SA Black Start Tender", "SA", "2024-04-30", 10, 180),
+    ]
+    outcomes = ["Successful", "Partially Successful", "Unsuccessful", "Cancelled"]
+    outcome_weights = [0.6, 0.25, 0.1, 0.05]
+    tech_types_pool = [
+        "Gas Generator", "Battery Storage", "Synchronous Condenser",
+        "Hydro Generator", "STATCOM", "Coal Generator",
+    ]
+    tenders: List[EGFSTenderRecord] = []
+    for td in tender_data:
+        t_id, t_name, t_region, t_date, t_dur, t_vol = td
+        n_bids = rng.randint(3, 12)
+        n_awarded = rng.randint(1, min(n_bids, 5))
+        clearing = rng.uniform(25000, 120000)
+        awarded_tech = rng.sample(tech_types_pool, rng.randint(1, 3))
+        outcome_r = rng.random()
+        cumw = 0.0
+        outcome = "Successful"
+        for oc, wt in zip(outcomes, outcome_weights):
+            cumw += wt
+            if outcome_r <= cumw:
+                outcome = oc
+                break
+        tenders.append(EGFSTenderRecord(
+            tender_id=t_id,
+            service_name=t_name,
+            region=t_region,
+            tender_date=t_date,
+            contract_duration_years=t_dur,
+            volume_required_mw=float(t_vol),
+            num_bids=n_bids,
+            num_awarded=n_awarded,
+            clearing_price_dolpermw_pa=round(clearing, 0),
+            competitive_index=round(n_bids / max(n_awarded, 1), 2),
+            technology_types_awarded=", ".join(awarded_tech),
+            total_contract_value_m=round(clearing * t_vol * t_dur / 1e6, 2),
+            outcome=outcome,
+        ))
+
+    # -----------------------------------------------------------------------
+    # 6. Future need records (15)
+    # -----------------------------------------------------------------------
+    drivers = [
+        "High Renewables",
+        "Coal Retirement",
+        "Load Growth",
+        "New Technology",
+    ]
+    need_types = [
+        "Inertia", "System Strength", "Black Start",
+        "Voltage Support", "Ramping", "Fast Frequency Response",
+    ]
+    reg_pathways = ["Existing Market", "New Rule", "Regulated", "Bilateral"]
+    recommended_solutions = [
+        "Synchronous Condenser Installation",
+        "Battery Energy Storage System",
+        "Gas Peaker Upgrade",
+        "Grid-Forming Inverter",
+        "STATCOM Installation",
+        "Demand Response Program",
+        "Interconnector Upgrade",
+    ]
+    future_needs: List[EGFSFutureNeedRecord] = []
+    fn_idx = 1
+    future_scenarios = [
+        ("NSW", 2026, "High Renewables", "Inertia"),
+        ("NSW", 2028, "Coal Retirement", "System Strength"),
+        ("NSW", 2030, "Coal Retirement", "Black Start"),
+        ("QLD", 2026, "High Renewables", "Fast Frequency Response"),
+        ("QLD", 2029, "Coal Retirement", "Inertia"),
+        ("QLD", 2032, "Coal Retirement", "System Strength"),
+        ("SA",  2025, "High Renewables", "System Strength"),
+        ("SA",  2027, "High Renewables", "Voltage Support"),
+        ("SA",  2030, "New Technology", "Fast Frequency Response"),
+        ("VIC", 2027, "Coal Retirement", "Inertia"),
+        ("VIC", 2029, "Coal Retirement", "System Strength"),
+        ("VIC", 2031, "Load Growth", "Ramping"),
+        ("TAS", 2026, "New Technology", "Black Start"),
+        ("TAS", 2028, "Load Growth", "Voltage Support"),
+        ("TAS", 2033, "High Renewables", "Inertia"),
+    ]
+    for fs in future_scenarios:
+        fn_region, fn_year, fn_driver, fn_type = fs
+        req_mw = rng.uniform(100, 900)
+        gap_mw = rng.uniform(50, req_mw * 0.8)
+        future_needs.append(EGFSFutureNeedRecord(
+            future_id=f"EGFS-FUT-{fn_idx:03d}",
+            region=fn_region,
+            year=fn_year,
+            driver=fn_driver,
+            need_type=fn_type,
+            required_service_mw=round(req_mw, 1),
+            current_gap_mw=round(gap_mw, 1),
+            lead_time_years=rng.randint(2, 6),
+            recommended_solution=rng.choice(recommended_solutions),
+            estimated_cost_m=round(gap_mw * rng.uniform(0.1, 0.5), 2),
+            regulatory_pathway=rng.choice(reg_pathways),
+        ))
+        fn_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    total_ancillary_cost = round(sum(c.total_cost_m for c in costs), 2)
+    regions_with_gaps = len(set(n.region for n in needs if n.gap_mws > 200 or n.gap_mva > 200))
+    critical_services = len([s for s in services if s.service_category in (
+        "Black Start", "SRAS - System Restart Ancillary Service", "Synchronous Inertia"
+    )])
+    total_contracted_mw = round(sum(s.contracted_mw for s in services), 1)
+    projected_investment = round(sum(fn.estimated_cost_m for fn in future_needs), 2)
+
+    _egfs_cache.update(EGFSDashboard(
+        services=services,
+        providers=providers,
+        costs=costs,
+        needs=needs,
+        tenders=tenders,
+        future_needs=future_needs,
+        summary={
+            "total_ancillary_cost_m": total_ancillary_cost,
+            "regions_with_gaps": regions_with_gaps,
+            "critical_services_count": critical_services,
+            "total_contracted_mw": total_contracted_mw,
+            "projected_investment_needed_m": projected_investment,
+        },
+    ).model_dump())
+
+    return EGFSDashboard(**_egfs_cache)
+
+
+# ===========================================================================
+# HYDROGEN REFUELLING STATION NETWORK ANALYTICS  (Sprint 106b)
+# ===========================================================================
+
+class HRSAStationRecord(BaseModel):
+    station_id: str
+    station_name: str
+    operator: str
+    state: str
+    location_type: str          # Highway, City, Industrial, Port, Airport, Depot
+    latitude_approx: float
+    longitude_approx: float
+    daily_capacity_kg_h2: float
+    dispensing_pressure_bar: int  # 350 or 700
+    h2_source: str              # Green Electrolysis, SMR, Blue SMR, Biomass
+    h2_purity_pct: float
+    num_dispensers: int
+    dispensing_rate_kg_per_min: float
+    commissioning_year: int
+    status: str                 # Operating, Construction, Planned, Decommissioned
+    price_dollar_per_kg: float
+    daily_utilisation_pct: float
+
+
+class HRSADemandRecord(BaseModel):
+    demand_id: str
+    station_id: str
+    vehicle_type: str           # Bus, Truck, Car, Forklift, Train, Maritime
+    vehicles_served_daily: int
+    fuel_consumed_kg_pa: float
+    avg_fill_kg_per_vehicle: float
+    peak_demand_kg_per_hour: float
+    demand_seasonality_pct_variation: float
+    fleet_contract: bool
+    fleet_customer_name: str
+    demand_growth_pct_pa: float
+
+
+class HRSAEconomicsRecord(BaseModel):
+    econ_id: str
+    station_id: str
+    year: int
+    total_h2_dispensed_kg: float
+    revenue_m: float
+    renewable_energy_cost_m: float
+    compression_cost_m: float
+    storage_cost_m: float
+    transport_cost_m: float
+    om_cost_m: float
+    total_opex_m: float
+    capex_recovery_m: float
+    gross_margin_m: float
+    levelised_cost_dollar_per_kg: float
+    breakeven_utilisation_pct: float
+
+
+class HRSASupplyChainRecord(BaseModel):
+    chain_id: str
+    station_id: str
+    supply_route: str           # On-site Electrolysis, Tube Trailer Delivery, Pipeline, Liquid H2 Delivery
+    distance_km: float
+    electrolyser_mw: float
+    renewable_source: str
+    storage_capacity_kg: float
+    buffer_days: float
+    supply_reliability_pct: float
+    transport_emissions_kgco2_per_kg_h2: float
+    total_lifecycle_co2_kgco2_per_kg_h2: float
+
+
+class HRSANetworkRecord(BaseModel):
+    network_id: str
+    corridor_name: str
+    states_covered: str
+    corridor_length_km: float
+    stations_operating: int
+    stations_planned: int
+    coverage_pct: float
+    gap_km_max: float
+    annual_hydrogen_demand_tpa: float
+    served_vehicle_classes: str
+    network_readiness_score: float  # 0-100
+    investment_needed_m: float
+    key_bottleneck: str
+
+
+class HRSAProjectionRecord(BaseModel):
+    proj_id: str
+    year: int
+    scenario: str               # Base, High Adoption, Government Target, Low Adoption
+    num_stations_operating: int
+    num_stations_planned: int
+    total_daily_capacity_tonnes: float
+    h2_vehicles_served_daily: int
+    price_dollar_per_kg: float
+    market_size_m: float
+    green_h2_share_pct: float
+    job_years_created: int
+
+
+class HRSADashboard(BaseModel):
+    stations: List[HRSAStationRecord]
+    demand_records: List[HRSADemandRecord]
+    economics: List[HRSAEconomicsRecord]
+    supply_chains: List[HRSASupplyChainRecord]
+    networks: List[HRSANetworkRecord]
+    projections: List[HRSAProjectionRecord]
+    summary: dict
+
+
+_hrsa_cache: dict = {}
+
+
+@app.get("/api/hydrogen-refuelling-station/dashboard")
+def get_hrsa_dashboard():
+    import random
+    if _hrsa_cache:
+        return HRSADashboard(**_hrsa_cache)
+
+    rng = random.Random(20240610)
+
+    # -----------------------------------------------------------------------
+    # Station records (20 stations across Australian states)
+    # -----------------------------------------------------------------------
+    station_data = [
+        ("HRSA-STN-001", "Sydney HRS - Port Botany",         "BOC Hydrogen",          "NSW", "Port",       -33.95,  151.19, 2000, 700, "Green Electrolysis", "Operating",  14.5, 2021),
+        ("HRSA-STN-002", "Melbourne HRS - Altona",           "Linde Australia",        "VIC", "Industrial", -37.87,  144.83, 1500, 700, "Blue SMR",           "Operating",  13.0, 2020),
+        ("HRSA-STN-003", "Brisbane HRS - Murarrie",          "H2X Energy",             "QLD", "Industrial", -27.46,  153.10, 1200, 350, "SMR",                "Operating",  12.5, 2022),
+        ("HRSA-STN-004", "Perth HRS - Kwinana",              "Woodside Energy",        "WA",  "Industrial", -32.24,  115.79, 3000, 700, "Green Electrolysis", "Operating",  11.0, 2021),
+        ("HRSA-STN-005", "Adelaide HRS - Birkenhead",        "AGN Australia",          "SA",  "Port",       -34.84,  138.51, 800,  350, "Biomass",            "Operating",  15.5, 2023),
+        ("HRSA-STN-006", "Canberra HRS - Fyshwick",          "ActewAGL",               "ACT", "City",       -35.33,  149.18, 600,  700, "Green Electrolysis", "Operating",  16.0, 2022),
+        ("HRSA-STN-007", "Darwin HRS - East Arm",            "NT Power",               "NT",  "Port",       -12.47,  130.84, 500,  350, "SMR",                "Operating",  18.0, 2023),
+        ("HRSA-STN-008", "Hobart HRS - Macquarie Point",     "Aurora Energy",          "TAS", "City",       -42.88,  147.34, 400,  350, "Green Electrolysis", "Operating",  17.5, 2023),
+        ("HRSA-STN-009", "Gold Coast HRS - Yatala",          "H2X Energy",             "QLD", "Highway",    -27.71,  153.24, 900,  700, "Blue SMR",           "Operating",  13.5, 2022),
+        ("HRSA-STN-010", "Newcastle HRS - Mayfield",         "Origin Energy",          "NSW", "Industrial", -32.88,  151.73, 1100, 700, "Green Electrolysis", "Operating",  14.0, 2022),
+        ("HRSA-STN-011", "Geelong HRS - Corio",              "AGL Energy",             "VIC", "Industrial", -38.07,  144.39, 1800, 700, "Green Electrolysis", "Construction",10.5, 2025),
+        ("HRSA-STN-012", "Townsville HRS - Bohle",           "Ergon Energy",           "QLD", "Industrial", -19.27,  146.80, 1600, 700, "Blue SMR",           "Construction",11.5, 2025),
+        ("HRSA-STN-013", "Bunbury HRS - Picton",             "Synergy",                "WA",  "Highway",    -33.37,  115.64, 700,  350, "Green Electrolysis", "Construction",12.0, 2025),
+        ("HRSA-STN-014", "Launceston HRS - Invermay",        "Aurora Energy",          "TAS", "City",       -41.44,  147.14, 350,  350, "Biomass",            "Planned",    16.5, 2026),
+        ("HRSA-STN-015", "Toowoomba HRS - Charlton",         "Queensland Rail",        "QLD", "Highway",    -27.56,  151.95, 1000, 700, "Green Electrolysis", "Planned",    12.5, 2026),
+        ("HRSA-STN-016", "Wollongong HRS - Port Kembla",     "BlueScope Steel",        "NSW", "Industrial", -34.48,  150.91, 2500, 700, "Blue SMR",           "Planned",    10.0, 2026),
+        ("HRSA-STN-017", "Cairns HRS - Portsmith",           "Ergon Energy",           "QLD", "Port",       -16.93,  145.78, 600,  350, "Biomass",            "Planned",    14.0, 2027),
+        ("HRSA-STN-018", "Alice Springs HRS - Stuart Highway","Territory Generation", "NT",  "Highway",    -23.70,  133.88, 300,  350, "Green Electrolysis", "Planned",    19.5, 2027),
+        ("HRSA-STN-019", "Ballarat HRS - Delacombe",         "AGL Energy",             "VIC", "City",       -37.59,  143.86, 550,  700, "Green Electrolysis", "Planned",    13.5, 2027),
+        ("HRSA-STN-020", "Mackay HRS - Paget",               "Ergon Energy",           "QLD", "Industrial", -21.17,  149.18, 900,  700, "Blue SMR",           "Planned",    11.0, 2028),
+    ]
+
+    operators = ["BOC Hydrogen", "Linde Australia", "H2X Energy", "Woodside Energy", "AGN Australia", "ActewAGL"]
+    stations: List[HRSAStationRecord] = []
+    for sd in station_data:
+        sid, sname, sop, sstate, sloc, slat, slon, scap, spres, sh2src, sstatus, sprice, syear = sd
+        stations.append(HRSAStationRecord(
+            station_id=sid,
+            station_name=sname,
+            operator=sop,
+            state=sstate,
+            location_type=sloc,
+            latitude_approx=slat,
+            longitude_approx=slon,
+            daily_capacity_kg_h2=float(scap),
+            dispensing_pressure_bar=spres,
+            h2_source=sh2src,
+            h2_purity_pct=round(rng.uniform(99.95, 99.999), 4),
+            num_dispensers=rng.randint(2, 10),
+            dispensing_rate_kg_per_min=round(rng.uniform(0.5, 3.6), 2),
+            commissioning_year=syear,
+            status=sstatus,
+            price_dollar_per_kg=sprice,
+            daily_utilisation_pct=round(rng.uniform(20, 85), 1) if sstatus == "Operating" else round(rng.uniform(0, 10), 1),
+        ))
+
+    # -----------------------------------------------------------------------
+    # Demand records (25 records, varied vehicle types)
+    # -----------------------------------------------------------------------
+    vehicle_types = ["Bus", "Truck", "Car", "Forklift", "Train", "Maritime"]
+    fleet_customers = [
+        "TransLink QLD", "Transdev NSW", "Toll Group", "Linfox", "Woolworths Logistics",
+        "Public", "Patrick Terminals", "DP World", "John Holland", "BHP",
+        "Rio Tinto", "Qantas Ground Services", "NovaBus", "KordaMentha", "ARTC"
+    ]
+    demand_station_ids = [f"HRSA-STN-{i:03d}" for i in range(1, 11)]  # Operating stations
+    demand_records: List[HRSADemandRecord] = []
+    demand_combos = [
+        ("HRSA-STN-001", "Maritime"),   ("HRSA-STN-001", "Truck"),    ("HRSA-STN-001", "Bus"),
+        ("HRSA-STN-002", "Truck"),      ("HRSA-STN-002", "Bus"),       ("HRSA-STN-002", "Forklift"),
+        ("HRSA-STN-003", "Bus"),        ("HRSA-STN-003", "Car"),        ("HRSA-STN-003", "Truck"),
+        ("HRSA-STN-004", "Truck"),      ("HRSA-STN-004", "Maritime"),  ("HRSA-STN-004", "Forklift"),
+        ("HRSA-STN-005", "Maritime"),   ("HRSA-STN-005", "Car"),
+        ("HRSA-STN-006", "Bus"),        ("HRSA-STN-006", "Car"),
+        ("HRSA-STN-007", "Maritime"),   ("HRSA-STN-007", "Truck"),
+        ("HRSA-STN-008", "Bus"),        ("HRSA-STN-008", "Car"),
+        ("HRSA-STN-009", "Bus"),        ("HRSA-STN-009", "Truck"),
+        ("HRSA-STN-010", "Train"),      ("HRSA-STN-010", "Truck"),     ("HRSA-STN-010", "Forklift"),
+    ]
+    for d_idx, (d_sid, d_vtype) in enumerate(demand_combos, start=1):
+        vpd = rng.randint(5, 150)
+        avg_fill = rng.uniform(5, 60) if d_vtype in ("Car", "Bus", "Forklift") else rng.uniform(20, 100)
+        demand_records.append(HRSADemandRecord(
+            demand_id=f"HRSA-DEM-{d_idx:03d}",
+            station_id=d_sid,
+            vehicle_type=d_vtype,
+            vehicles_served_daily=vpd,
+            fuel_consumed_kg_pa=round(vpd * avg_fill * 365, 1),
+            avg_fill_kg_per_vehicle=round(avg_fill, 2),
+            peak_demand_kg_per_hour=round(vpd * avg_fill / 8, 2),
+            demand_seasonality_pct_variation=round(rng.uniform(5, 30), 1),
+            fleet_contract=rng.random() > 0.4,
+            fleet_customer_name=rng.choice(fleet_customers),
+            demand_growth_pct_pa=round(rng.uniform(5, 35), 1),
+        ))
+
+    # -----------------------------------------------------------------------
+    # Economics records (6 stations × 4 years = 24 records)
+    # -----------------------------------------------------------------------
+    economics: List[HRSAEconomicsRecord] = []
+    econ_stations = ["HRSA-STN-001", "HRSA-STN-002", "HRSA-STN-003", "HRSA-STN-004", "HRSA-STN-005", "HRSA-STN-006"]
+    econ_idx = 1
+    for e_sid in econ_stations:
+        stn_obj = next(s for s in stations if s.station_id == e_sid)
+        base_cap = stn_obj.daily_capacity_kg_h2
+        for yr in range(2021, 2025):
+            dispensed = base_cap * 365 * rng.uniform(0.3, 0.8)
+            rev = dispensed * stn_obj.price_dollar_per_kg / 1e6
+            ren_cost = dispensed * rng.uniform(2, 5) / 1e6
+            comp_cost = dispensed * rng.uniform(0.3, 0.8) / 1e6
+            stor_cost = dispensed * rng.uniform(0.2, 0.5) / 1e6
+            trans_cost = dispensed * rng.uniform(0.1, 0.4) / 1e6
+            om_cost = dispensed * rng.uniform(0.5, 1.5) / 1e6
+            total_opex = ren_cost + comp_cost + stor_cost + trans_cost + om_cost
+            capex_rec = dispensed * rng.uniform(1, 3) / 1e6
+            gross_margin = rev - total_opex - capex_rec
+            lcos = (total_opex + capex_rec) * 1e6 / dispensed if dispensed > 0 else 0
+            be_util = rng.uniform(30, 70)
+            economics.append(HRSAEconomicsRecord(
+                econ_id=f"HRSA-ECON-{econ_idx:03d}",
+                station_id=e_sid,
+                year=yr,
+                total_h2_dispensed_kg=round(dispensed, 1),
+                revenue_m=round(rev, 3),
+                renewable_energy_cost_m=round(ren_cost, 3),
+                compression_cost_m=round(comp_cost, 3),
+                storage_cost_m=round(stor_cost, 3),
+                transport_cost_m=round(trans_cost, 3),
+                om_cost_m=round(om_cost, 3),
+                total_opex_m=round(total_opex, 3),
+                capex_recovery_m=round(capex_rec, 3),
+                gross_margin_m=round(gross_margin, 3),
+                levelised_cost_dollar_per_kg=round(lcos, 2),
+                breakeven_utilisation_pct=round(be_util, 1),
+            ))
+            econ_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Supply chain records (15 records)
+    # -----------------------------------------------------------------------
+    supply_routes = ["On-site Electrolysis", "Tube Trailer Delivery", "Pipeline", "Liquid H2 Delivery"]
+    renewable_sources = ["Solar PV", "Wind", "Hybrid Solar-Wind", "Grid Renewable", "Hydro"]
+    supply_data = [
+        ("HRSA-STN-001", "Tube Trailer Delivery", 85.0, "Solar PV"),
+        ("HRSA-STN-002", "On-site Electrolysis", 0.0, "Wind"),
+        ("HRSA-STN-003", "Tube Trailer Delivery", 120.0, "Hybrid Solar-Wind"),
+        ("HRSA-STN-004", "On-site Electrolysis", 0.0, "Solar PV"),
+        ("HRSA-STN-005", "Liquid H2 Delivery", 65.0, "Hydro"),
+        ("HRSA-STN-006", "On-site Electrolysis", 0.0, "Grid Renewable"),
+        ("HRSA-STN-007", "Tube Trailer Delivery", 200.0, "Solar PV"),
+        ("HRSA-STN-008", "Liquid H2 Delivery", 45.0, "Hydro"),
+        ("HRSA-STN-009", "Pipeline", 30.0, "Wind"),
+        ("HRSA-STN-010", "On-site Electrolysis", 0.0, "Solar PV"),
+        ("HRSA-STN-011", "On-site Electrolysis", 0.0, "Wind"),
+        ("HRSA-STN-012", "Tube Trailer Delivery", 150.0, "Solar PV"),
+        ("HRSA-STN-013", "On-site Electrolysis", 0.0, "Solar PV"),
+        ("HRSA-STN-014", "Liquid H2 Delivery", 55.0, "Hydro"),
+        ("HRSA-STN-015", "Pipeline", 40.0, "Hybrid Solar-Wind"),
+    ]
+    supply_chains: List[HRSASupplyChainRecord] = []
+    for sc_idx, (sc_sid, sc_route, sc_dist, sc_ren) in enumerate(supply_data, start=1):
+        electro_mw = rng.uniform(1, 20) if sc_route == "On-site Electrolysis" else 0.0
+        stor_cap = rng.uniform(200, 5000)
+        buf_days = rng.uniform(0.5, 5)
+        transport_em = 0.0 if sc_dist == 0 else round(rng.uniform(0.3, 2.5), 3)
+        lifecycle_co2 = round(rng.uniform(0.5, 8.0), 2)
+        supply_chains.append(HRSASupplyChainRecord(
+            chain_id=f"HRSA-SC-{sc_idx:03d}",
+            station_id=sc_sid,
+            supply_route=sc_route,
+            distance_km=sc_dist,
+            electrolyser_mw=round(electro_mw, 2),
+            renewable_source=sc_ren,
+            storage_capacity_kg=round(stor_cap, 1),
+            buffer_days=round(buf_days, 2),
+            supply_reliability_pct=round(rng.uniform(92, 99.9), 2),
+            transport_emissions_kgco2_per_kg_h2=transport_em,
+            total_lifecycle_co2_kgco2_per_kg_h2=lifecycle_co2,
+        ))
+
+    # -----------------------------------------------------------------------
+    # Network corridor records (8 corridors)
+    # -----------------------------------------------------------------------
+    network_data = [
+        ("HRSA-NET-001", "East Coast Highway Corridor",     "NSW, VIC, QLD",      3100, 5, 8,  55, 320, 4200, "Trucks, Buses",       52, 380, "Station density"),
+        ("HRSA-NET-002", "Hume Highway Corridor",           "NSW, VIC",            870, 4, 4,  65, 180, 2100, "Trucks",              61, 220, "Refuelling gaps"),
+        ("HRSA-NET-003", "Western Australian Coastal",      "WA",                 1400, 3, 5,  45, 280, 1800, "Trucks, Maritime",    48, 190, "Hydrogen supply"),
+        ("HRSA-NET-004", "Queensland Mining Corridor",      "QLD",                1200, 2, 7,  35, 450, 3500, "Trucks, Forklifts",   38, 310, "Mine-site demand"),
+        ("HRSA-NET-005", "Pacific Highway Corridor",        "NSW, QLD",           1000, 3, 3,  55, 240, 1600, "Trucks, Buses, Cars", 54, 160, "Urban coverage"),
+        ("HRSA-NET-006", "Inland Rail Corridor",            "VIC, NSW, QLD",      1700, 2, 9,  25, 620, 2800, "Trains, Trucks",      32, 420, "Rail integration"),
+        ("HRSA-NET-007", "South Australian Freight",        "SA, VIC",             600, 2, 3,  50, 200, 900,  "Trucks",              50, 130, "Grid connection"),
+        ("HRSA-NET-008", "Northern Territory Highway",      "NT",                 1500, 1, 4,  20, 780, 600,  "Trucks, Cars",        22, 280, "Infrastructure"),
+    ]
+    networks: List[HRSANetworkRecord] = []
+    for nd in network_data:
+        nid, ncorr, nstates, nlen, nop, nplan, ncov, ngap, ndem, nveh, nready, ninv, nbottle = nd
+        networks.append(HRSANetworkRecord(
+            network_id=nid,
+            corridor_name=ncorr,
+            states_covered=nstates,
+            corridor_length_km=float(nlen),
+            stations_operating=nop,
+            stations_planned=nplan,
+            coverage_pct=float(ncov),
+            gap_km_max=float(ngap),
+            annual_hydrogen_demand_tpa=float(ndem),
+            served_vehicle_classes=nveh,
+            network_readiness_score=float(nready),
+            investment_needed_m=float(ninv),
+            key_bottleneck=nbottle,
+        ))
+
+    # -----------------------------------------------------------------------
+    # Projection records (4 scenarios × 5 years = 20 records)
+    # -----------------------------------------------------------------------
+    scenarios_proj = {
+        "Base":              {"stn_start": 20, "stn_growth": 8,  "price_start": 14.0, "price_drop": 0.8, "mkt_start": 120, "green_start": 45},
+        "High Adoption":     {"stn_start": 20, "stn_growth": 18, "price_start": 13.0, "price_drop": 1.2, "mkt_start": 180, "green_start": 55},
+        "Government Target": {"stn_start": 20, "stn_growth": 25, "price_start": 12.5, "price_drop": 1.5, "mkt_start": 220, "green_start": 65},
+        "Low Adoption":      {"stn_start": 20, "stn_growth": 3,  "price_start": 15.0, "price_drop": 0.4, "mkt_start": 80,  "green_start": 35},
+    }
+    projections: List[HRSAProjectionRecord] = []
+    proj_idx = 1
+    for scen_name, scen_params in scenarios_proj.items():
+        for y_offset, yr in enumerate(range(2025, 2030)):
+            stn_op = scen_params["stn_start"] + scen_params["stn_growth"] * y_offset
+            stn_plan = max(5, scen_params["stn_growth"] * 3 - y_offset * 2)
+            cap_tpd = round(stn_op * rng.uniform(0.8, 1.5), 1)
+            vehicles_served = int(cap_tpd * 1000 / rng.uniform(25, 60))
+            price = round(max(8.0, scen_params["price_start"] - scen_params["price_drop"] * y_offset), 2)
+            mkt = round(scen_params["mkt_start"] * (1 + 0.25 * y_offset), 1)
+            green_share = min(95, scen_params["green_start"] + 5 * y_offset)
+            jobs = int(stn_op * rng.uniform(15, 40))
+            projections.append(HRSAProjectionRecord(
+                proj_id=f"HRSA-PROJ-{proj_idx:03d}",
+                year=yr,
+                scenario=scen_name,
+                num_stations_operating=stn_op,
+                num_stations_planned=stn_plan,
+                total_daily_capacity_tonnes=cap_tpd,
+                h2_vehicles_served_daily=vehicles_served,
+                price_dollar_per_kg=price,
+                market_size_m=mkt,
+                green_h2_share_pct=float(green_share),
+                job_years_created=jobs,
+            ))
+            proj_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    operating_stns = [s for s in stations if s.status == "Operating"]
+    total_daily_cap_tpd = round(sum(s.daily_capacity_kg_h2 for s in operating_stns) / 1000, 2)
+    avg_price = round(sum(s.price_dollar_per_kg for s in operating_stns) / max(1, len(operating_stns)), 2)
+    net_coverage = round(sum(n.coverage_pct for n in networks) / len(networks), 1)
+    proj_2030_base = [p for p in projections if p.scenario == "Base" and p.year == 2029]
+    projected_2030_stns = proj_2030_base[0].num_stations_operating if proj_2030_base else 0
+
+    _hrsa_cache.update(HRSADashboard(
+        stations=stations,
+        demand_records=demand_records,
+        economics=economics,
+        supply_chains=supply_chains,
+        networks=networks,
+        projections=projections,
+        summary={
+            "total_stations": len(stations),
+            "total_daily_capacity_tpd": total_daily_cap_tpd,
+            "avg_price_dollar_per_kg": avg_price,
+            "network_coverage_pct": net_coverage,
+            "projected_stations_2030": projected_2030_stns,
+        },
+    ).model_dump())
+
+    return HRSADashboard(**_hrsa_cache)
+
+
+# =============================================================================
+# Sprint 106c — Offshore Wind Project Finance Analytics
+# =============================================================================
+
+class OWPFProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    offshore_zone: str
+    technology: str          # Fixed Bottom, Floating, Hybrid
+    capacity_mw: float
+    water_depth_m: float
+    distance_to_shore_km: float
+    num_turbines: int
+    turbine_mw: float
+    commissioning_year: int
+    stage: str               # Pre-FEED, FEED, Approved, Construction, Operating
+    capex_bn: float
+    lcoe_dolpermwh: float
+    capacity_factor_pct: float
+    offshore_licence_held: bool
+    environmental_approval: bool
+    grid_connection_agreed: bool
+
+
+class OWPFFinancingRecord(BaseModel):
+    finance_id: str
+    project_id: str
+    instrument_type: str     # Project Finance Debt, Corporate Debt, Equity, Green Bond, Government Grant, Export Finance, Blended Finance
+    provider: str
+    amount_m: float
+    interest_rate_pct: float
+    tenor_years: int
+    debt_equity_ratio: float
+    guarantee_type: str      # None, Government, Export Credit, Insurance
+    financial_close_date: str
+    covenants: str
+    security_package: str
+
+
+class OWPFCostRecord(BaseModel):
+    cost_id: str
+    project_id: str
+    cost_category: str       # Foundations, Turbines, Offshore Substation, Cables, Installation, O&M 20yr, Decommissioning
+    capex_pct: float
+    value_m: float
+    learning_curve_2030_pct: float
+    learning_curve_2040_pct: float
+    supply_chain_risk: str   # Low, Medium, High
+    australian_content_pct: float
+    local_manufacturing_potential: bool
+
+
+class OWPFSupplyChainRecord(BaseModel):
+    chain_id: str
+    component: str
+    supplier_country: str    # Australia, China, Denmark, Germany, Spain, USA, Japan
+    market_share_pct: float
+    lead_time_months: int
+    port_requirement: str
+    crane_vessel_type: str
+    australian_manufacturing_gap: bool
+    localisation_investment_m: float
+    jobs_created_fte: int
+    policy_support_needed: str
+
+
+class OWPFRevenueRecord(BaseModel):
+    rev_id: str
+    project_id: str
+    revenue_stream: str      # Spot Market, PPA, CIS Contract, Capacity Payment, RECs, Export Cable
+    volume_mw: float
+    price_dolpermwh: float
+    contract_term_years: int
+    indexed_to_inflation: bool
+    revenue_m_pa: float
+    revenue_certainty: str   # Certain, Probable, Contingent
+    offtaker_credit_rating: str
+
+
+class OWPFScenarioRecord(BaseModel):
+    scenario_id: str
+    project_name: str
+    scenario_name: str       # Base, High Cost, Low Cost, CIS Support, Accelerated Build
+    lcoe_dolpermwh: float
+    capex_bn: float
+    irr_equity_pct: float
+    irr_project_pct: float
+    npv_m: float
+    dscr_min: float
+    payback_years: float
+    sensitivity_to_carbon_price: bool
+    viability: str           # Viable, Marginal, Not Viable
+    first_power_year: int
+
+
+class OWPFDashboard(BaseModel):
+    projects: List[OWPFProjectRecord]
+    financing: List[OWPFFinancingRecord]
+    costs: List[OWPFCostRecord]
+    supply_chain: List[OWPFSupplyChainRecord]
+    revenues: List[OWPFRevenueRecord]
+    scenarios: List[OWPFScenarioRecord]
+    summary: Dict[str, Any]
+
+
+_owpf_cache: Dict[str, Any] = {}
+
+
+@app.get("/api/offshore-wind-finance/dashboard", response_model=OWPFDashboard)
+def get_owpf_dashboard() -> OWPFDashboard:
+    import random
+
+    if _owpf_cache:
+        return OWPFDashboard(**_owpf_cache)
+
+    rng = random.Random(20240601)
+
+    # -----------------------------------------------------------------------
+    # Projects — 12 records across VIC / NSW / SA / WA / TAS
+    # -----------------------------------------------------------------------
+    project_templates = [
+        # Fixed Bottom near-shore
+        ("OWPF-PRJ-001", "Gippsland Offshore Wind", "Star of the South Energy", "VIC",
+         "Gippsland Basin", "Fixed Bottom", 2200.0, 38.0, 22.0, 147, 15.0, 2029,
+         "Construction", 8.4, 88.5, 43.2, True, True, True),
+        ("OWPF-PRJ-002", "Hunter Offshore Wind", "Oceanex Energy", "NSW",
+         "Hunter IDLEZ", "Fixed Bottom", 1500.0, 45.0, 30.0, 100, 15.0, 2030,
+         "Approved", 5.8, 96.0, 40.8, True, True, False),
+        ("OWPF-PRJ-003", "Southern Ocean Wind SA", "Pacific Energy Partners", "SA",
+         "Southern Ocean Zone", "Fixed Bottom", 1200.0, 35.0, 18.0, 80, 15.0, 2031,
+         "FEED", 4.6, 101.2, 41.5, True, False, False),
+        ("OWPF-PRJ-004", "Leeuwin Offshore Wind", "WA Offshore Wind Co", "WA",
+         "Leeuwin Zone", "Fixed Bottom", 1000.0, 40.0, 25.0, 67, 15.0, 2032,
+         "FEED", 3.9, 103.5, 42.0, False, False, False),
+        ("OWPF-PRJ-005", "Bass Strait Floating Wind", "Blue Economy CRC", "TAS",
+         "Bass Strait Deep Zone", "Floating", 600.0, 120.0, 55.0, 40, 15.0, 2034,
+         "Pre-FEED", 4.2, 138.0, 36.5, False, False, False),
+        ("OWPF-PRJ-006", "Illawarra Floating Wind", "Deep Water Energy Ltd", "NSW",
+         "Illawarra IDLEZ", "Floating", 750.0, 150.0, 70.0, 50, 15.0, 2035,
+         "Pre-FEED", 5.6, 145.0, 37.0, False, False, False),
+        # Additional fixed bottom
+        ("OWPF-PRJ-007", "Bunbury Offshore Wind", "South West Wind Pty", "WA",
+         "Bunbury Zone", "Fixed Bottom", 800.0, 30.0, 20.0, 53, 15.0, 2033,
+         "Pre-FEED", 3.1, 99.0, 41.0, False, False, False),
+        ("OWPF-PRJ-008", "Portland Offshore Wind", "Victorian Seas Energy", "VIC",
+         "Portland Zone", "Fixed Bottom", 500.0, 28.0, 15.0, 33, 15.0, 2033,
+         "Pre-FEED", 1.9, 97.5, 42.5, False, False, False),
+        # Hybrid
+        ("OWPF-PRJ-009", "King Island Hybrid Wind", "Hydro Tasmania Offshore", "TAS",
+         "King Island Zone", "Hybrid", 400.0, 75.0, 45.0, 27, 15.0, 2035,
+         "Pre-FEED", 3.0, 125.0, 38.0, False, False, False),
+        ("OWPF-PRJ-010", "Newcastle Offshore Wind", "NEWind Partners", "NSW",
+         "Newcastle IDLEZ", "Fixed Bottom", 1100.0, 42.0, 28.0, 73, 15.0, 2031,
+         "FEED", 4.2, 98.0, 41.8, True, False, False),
+        ("OWPF-PRJ-011", "Jervis Bay Floating Wind", "Blue Horizon Energy", "NSW",
+         "Jervis Bay IDLEZ", "Floating", 900.0, 160.0, 80.0, 60, 15.0, 2036,
+         "Pre-FEED", 6.8, 150.0, 36.0, False, False, False),
+        ("OWPF-PRJ-012", "Torrens Offshore Wind", "SA Renewable Energy Trust", "SA",
+         "Spencer Gulf Zone", "Fixed Bottom", 700.0, 32.0, 16.0, 47, 15.0, 2033,
+         "Pre-FEED", 2.7, 102.0, 40.5, False, False, False),
+    ]
+
+    projects: List[OWPFProjectRecord] = []
+    for t in project_templates:
+        projects.append(OWPFProjectRecord(
+            project_id=t[0], project_name=t[1], developer=t[2], state=t[3],
+            offshore_zone=t[4], technology=t[5], capacity_mw=t[6],
+            water_depth_m=t[7], distance_to_shore_km=t[8], num_turbines=t[9],
+            turbine_mw=t[10], commissioning_year=t[11], stage=t[12],
+            capex_bn=t[13], lcoe_dolpermwh=t[14], capacity_factor_pct=t[15],
+            offshore_licence_held=t[16], environmental_approval=t[17],
+            grid_connection_agreed=t[18],
+        ))
+
+    # -----------------------------------------------------------------------
+    # Financing — 20 records (first 4 projects × 5 instruments each)
+    # -----------------------------------------------------------------------
+    finance_proj_ids = ["OWPF-PRJ-001", "OWPF-PRJ-002", "OWPF-PRJ-003", "OWPF-PRJ-004"]
+    finance_instruments = [
+        ("Project Finance Debt", "ANZ Infrastructure Finance", 0.42, 5.8, 18, "Government", "Senior secured over project assets"),
+        ("Green Bond", "Clean Energy Finance Corporation", 0.15, 4.9, 15, "Government", "Subordinated green bond"),
+        ("Equity", "Copenhagen Infrastructure Partners", 0.25, 0.0, 0, "None", "Equity stake in project SPV"),
+        ("Export Finance", "Export Finance Australia", 0.10, 5.2, 12, "Export Credit", "Tied to turbine supply contract"),
+        ("Government Grant", "ARENA / CIS Program", 0.08, 0.0, 0, "Government", "Non-repayable grant facility"),
+    ]
+    financing: List[OWPFFinancingRecord] = []
+    fin_idx = 1
+    for proj_id in finance_proj_ids:
+        proj = next(p for p in projects if p.project_id == proj_id)
+        for inst in finance_instruments:
+            amount = round(proj.capex_bn * 1000 * inst[2], 1)
+            financing.append(OWPFFinancingRecord(
+                finance_id=f"OWPF-FIN-{fin_idx:03d}",
+                project_id=proj_id,
+                instrument_type=inst[0],
+                provider=inst[1],
+                amount_m=amount,
+                interest_rate_pct=inst[3],
+                tenor_years=inst[4],
+                debt_equity_ratio=round(rng.uniform(60, 80), 1) if "Debt" in inst[0] else round(rng.uniform(20, 35), 1),
+                guarantee_type=inst[5],
+                financial_close_date=f"202{rng.randint(5,8)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+                covenants=f"DSCR >= 1.{rng.randint(2,4)}x, Gearing <= {rng.randint(70,80)}%",
+                security_package=inst[6],
+            ))
+            fin_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Costs — 30 records (6 projects × 5 cost categories)
+    # -----------------------------------------------------------------------
+    cost_proj_ids = ["OWPF-PRJ-001", "OWPF-PRJ-002", "OWPF-PRJ-003",
+                     "OWPF-PRJ-004", "OWPF-PRJ-005", "OWPF-PRJ-006"]
+    cost_categories = [
+        ("Foundations",          28.0, -15.0, -30.0, "High",   12.0, False),
+        ("Turbines",             35.0, -12.0, -25.0, "Medium", 8.0,  False),
+        ("Offshore Substation",  10.0,  -8.0, -18.0, "Medium", 25.0, True),
+        ("Cables",               12.0,  -5.0, -12.0, "Low",    30.0, True),
+        ("Installation",         15.0, -18.0, -35.0, "High",   15.0, False),
+    ]
+    costs: List[OWPFCostRecord] = []
+    cost_idx = 1
+    for proj_id in cost_proj_ids:
+        proj = next(p for p in projects if p.project_id == proj_id)
+        for cat in cost_categories:
+            floating_mult = 1.4 if proj.technology == "Floating" else 1.0
+            value = round(proj.capex_bn * 1000 * (cat[1] / 100) * floating_mult, 1)
+            costs.append(OWPFCostRecord(
+                cost_id=f"OWPF-CST-{cost_idx:03d}",
+                project_id=proj_id,
+                cost_category=cat[0],
+                capex_pct=cat[1],
+                value_m=value,
+                learning_curve_2030_pct=cat[2],
+                learning_curve_2040_pct=cat[3],
+                supply_chain_risk=cat[4],
+                australian_content_pct=cat[5] + rng.uniform(-3, 5),
+                local_manufacturing_potential=cat[6],
+            ))
+            cost_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Supply Chain — 12 records (key components)
+    # -----------------------------------------------------------------------
+    supply_chain_data = [
+        ("OWPF-SC-001", "Monopile Foundations", "Germany", 35.0, 18, "Heavy-lift deep-water port", "NG-16000X SHEERLEG", True, 450.0, 2200, "Steel plate import tariff review"),
+        ("OWPF-SC-002", "Jacket Foundations", "China", 40.0, 14, "Fabrication quayside port", "Semi-submersible crane vessel", True, 380.0, 1800, "Anti-dumping duty exemption"),
+        ("OWPF-SC-003", "15MW Turbines", "Denmark", 55.0, 24, "Roll-on/roll-off terminal", "Specialized blade transport", True, 800.0, 3500, "Co-investment in nacelle assembly"),
+        ("OWPF-SC-004", "Floating Semi-sub Platforms", "Spain", 30.0, 30, "Deep-water construction yard", "Heavy-lift semi-submersible", True, 650.0, 2800, "Local yard upgrade grants"),
+        ("OWPF-SC-005", "Export Cables (HVAC)", "Germany", 45.0, 20, "Cable lay vessel berth", "Cable lay vessel", True, 300.0, 900, "Cable manufacturing facility investment"),
+        ("OWPF-SC-006", "Export Cables (HVDC)", "Japan", 25.0, 22, "Cable lay vessel berth", "HVDC cable vessel", True, 500.0, 1200, "Domestic HVDC manufacturing"),
+        ("OWPF-SC-007", "Offshore Substation Topside", "Germany", 60.0, 26, "Heavy-lift port", "Heavy-lift crane vessel", True, 280.0, 700, "Electrical equipment manufacturing"),
+        ("OWPF-SC-008", "Installation Vessels (WTIVs)", "China", 70.0, 36, "Large vessel berth ≥15m depth", "Wind Turbine Installation Vessel", True, 1200.0, 500, "WTIW domestic build program"),
+        ("OWPF-SC-009", "O&M Vessels (SOVs)", "Australia", 20.0, 12, "O&M harbour facility", "Service Operation Vessel", False, 180.0, 800, "Local vessel construction subsidy"),
+        ("OWPF-SC-010", "Array Cables", "Denmark", 35.0, 16, "Cable storage yard", "Cable lay barge", False, 120.0, 450, "Inter-array cable local sourcing"),
+        ("OWPF-SC-011", "Tower Sections", "China", 50.0, 12, "Roll-on/roll-off terminal", "Heavy transport vessel", True, 200.0, 1100, "Tower manufacturing facility"),
+        ("OWPF-SC-012", "Scour Protection (Rock)", "Australia", 15.0, 6, "Aggregate terminal", "Rock dumping vessel", False, 50.0, 350, "Quarry licensing & port access"),
+    ]
+    supply_chain: List[OWPFSupplyChainRecord] = []
+    for sc in supply_chain_data:
+        supply_chain.append(OWPFSupplyChainRecord(
+            chain_id=sc[0], component=sc[1], supplier_country=sc[2],
+            market_share_pct=sc[3], lead_time_months=sc[4],
+            port_requirement=sc[5], crane_vessel_type=sc[6],
+            australian_manufacturing_gap=sc[7], localisation_investment_m=sc[8],
+            jobs_created_fte=sc[9], policy_support_needed=sc[10],
+        ))
+
+    # -----------------------------------------------------------------------
+    # Revenues — 20 records (first 5 projects × 4 revenue streams each)
+    # -----------------------------------------------------------------------
+    rev_proj_ids = ["OWPF-PRJ-001", "OWPF-PRJ-002", "OWPF-PRJ-003",
+                    "OWPF-PRJ-004", "OWPF-PRJ-005"]
+    revenue_streams = [
+        ("CIS Contract",    0.45, 110.0, 15, True, "Certain",    "Commonwealth AA"),
+        ("PPA",             0.30,  95.0, 12, True, "Probable",   "A / BBB"),
+        ("Spot Market",     0.15,  78.0,  0, False, "Contingent", "N/A"),
+        ("RECs",            0.10,  35.0, 10, False, "Probable",   "N/A"),
+    ]
+    revenues: List[OWPFRevenueRecord] = []
+    rev_idx = 1
+    for proj_id in rev_proj_ids:
+        proj = next(p for p in projects if p.project_id == proj_id)
+        for rs in revenue_streams:
+            volume = round(proj.capacity_mw * rs[1], 1)
+            annual_gwh = proj.capacity_mw * rs[1] * 8760 * (proj.capacity_factor_pct / 100) / 1000
+            rev_pa = round(annual_gwh * rs[2], 1)
+            revenues.append(OWPFRevenueRecord(
+                rev_id=f"OWPF-REV-{rev_idx:03d}",
+                project_id=proj_id,
+                revenue_stream=rs[0],
+                volume_mw=volume,
+                price_dolpermwh=rs[2],
+                contract_term_years=rs[3],
+                indexed_to_inflation=rs[4],
+                revenue_m_pa=rev_pa,
+                revenue_certainty=rs[5],
+                offtaker_credit_rating=rs[6],
+            ))
+            rev_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Scenarios — 24 records (6 projects × 4 scenarios each)
+    # -----------------------------------------------------------------------
+    scen_proj_ids = ["OWPF-PRJ-001", "OWPF-PRJ-002", "OWPF-PRJ-003",
+                     "OWPF-PRJ-004", "OWPF-PRJ-005", "OWPF-PRJ-006"]
+    scenario_defs = [
+        # (name, lcoe_mult, capex_mult, irr_eq, irr_proj, npv_m_base, dscr, payback, carbon_sens, viability_threshold)
+        ("Base",             1.00, 1.00, 10.5, 7.0, 280.0, 1.35, 18.0, False, "Viable"),
+        ("High Cost",        1.20, 1.25,  7.2, 5.1, -85.0, 1.12, 23.5, False, "Marginal"),
+        ("CIS Support",      0.85, 1.00, 13.8, 9.2, 520.0, 1.62, 14.5, False, "Viable"),
+        ("Accelerated Build",0.92, 0.95, 12.1, 8.3, 410.0, 1.48, 15.8, True,  "Viable"),
+    ]
+    scenarios: List[OWPFScenarioRecord] = []
+    scen_idx = 1
+    for proj_id in scen_proj_ids:
+        proj = next(p for p in projects if p.project_id == proj_id)
+        floating_lcoe_adj = 1.35 if proj.technology == "Floating" else 1.0
+        for sd in scenario_defs:
+            base_lcoe = proj.lcoe_dolpermwh * floating_lcoe_adj
+            capex = round(proj.capex_bn * sd[2] * (1.35 if proj.technology == "Floating" else 1.0), 2)
+            npv = round(sd[5] * (proj.capacity_mw / 1000) * rng.uniform(0.85, 1.15), 1)
+            viability = sd[9]
+            if proj.technology == "Floating" and sd[1] == "High Cost":
+                viability = "Not Viable"
+            scenarios.append(OWPFScenarioRecord(
+                scenario_id=f"OWPF-SCN-{scen_idx:03d}",
+                project_name=proj.project_name,
+                scenario_name=sd[0],
+                lcoe_dolpermwh=round(base_lcoe * sd[1], 1),
+                capex_bn=capex,
+                irr_equity_pct=round(sd[3] * rng.uniform(0.9, 1.1), 1),
+                irr_project_pct=round(sd[4] * rng.uniform(0.9, 1.1), 1),
+                npv_m=npv,
+                dscr_min=round(sd[6] * rng.uniform(0.95, 1.05), 2),
+                payback_years=round(sd[7] * rng.uniform(0.9, 1.1), 1),
+                sensitivity_to_carbon_price=sd[8],
+                viability=viability,
+                first_power_year=proj.commissioning_year + (1 if sd[0] == "High Cost" else 0),
+            ))
+            scen_idx += 1
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    total_pipeline_gw = round(sum(p.capacity_mw for p in projects) / 1000, 2)
+    fid_stages = {"Approved", "Construction"}
+    projects_at_fid_stage = sum(1 for p in projects if p.stage in fid_stages)
+    avg_lcoe = round(sum(p.lcoe_dolpermwh for p in projects) / len(projects), 1)
+    total_financing_bn = round(sum(f.amount_m for f in financing) / 1000, 2)
+    viable_count = sum(1 for s in scenarios if s.viability == "Viable")
+    viable_pct = round(viable_count / len(scenarios) * 100, 1)
+
+    _owpf_cache.update(OWPFDashboard(
+        projects=projects,
+        financing=financing,
+        costs=costs,
+        supply_chain=supply_chain,
+        revenues=revenues,
+        scenarios=scenarios,
+        summary={
+            "total_pipeline_gw": total_pipeline_gw,
+            "projects_at_fid_stage": projects_at_fid_stage,
+            "avg_lcoe_dolpermwh": avg_lcoe,
+            "total_financing_bn": total_financing_bn,
+            "viable_scenarios_pct": viable_pct,
+        },
+    ).model_dump())
+
+    return OWPFDashboard(**_owpf_cache)
