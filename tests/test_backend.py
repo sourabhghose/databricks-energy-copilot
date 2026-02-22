@@ -14245,3 +14245,218 @@ class TestLDESDashboard:
                       "technology_readiness_level", "cycle_life",
                       "self_discharge_pct_day", "footprint_m2_mwh"):
             assert field in rec
+
+
+class TestHPIADashboard:
+    """Tests for GET /api/hydrogen-pipeline-infrastructure/dashboard (Sprint 110a)"""
+
+    URL = "/api/hydrogen-pipeline-infrastructure/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_pipelines(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "pipelines" in data
+        assert len(data["pipelines"]) == 20
+
+    def test_has_hubs(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hubs" in data
+        assert len(data["hubs"]) == 15
+
+    def test_has_transport_comparison(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "transport_comparison" in data
+        assert len(data["transport_comparison"]) == 20
+
+    def test_has_blending(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "blending" in data
+        assert len(data["blending"]) == 24
+
+    def test_has_projects(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert len(data["projects"]) == 20
+
+    def test_has_demand_forecast(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "demand_forecast" in data
+        assert len(data["demand_forecast"]) == 20
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_pipeline_km" in summary
+        assert "total_h2_storage_capacity_tonne" in summary
+        assert "cheapest_transport_mode" in summary
+        assert "avg_blend_pct_current" in summary
+        assert "total_project_pipeline_b" in summary
+        assert "projected_2030_demand_kt" in summary
+
+    def test_pipeline_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["pipelines"][0]
+        for field in ("pipeline_id", "name", "state", "length_km", "diameter_mm",
+                      "design_pressure_bar", "capacity_kg_h2_day", "status",
+                      "h2_blend_pct", "repurposed_from_gas", "capex_m",
+                      "opex_m_year", "shipper_count"):
+            assert field in rec
+
+
+class TestCCSPDashboard:
+    """Tests for GET /api/carbon-capture-storage-project/dashboard (Sprint 110b)"""
+
+    URL = "/api/carbon-capture-storage-project/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_projects(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert len(data["projects"]) == 20
+
+    def test_has_storage_sites(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "storage_sites" in data
+        assert len(data["storage_sites"]) == 15
+
+    def test_has_performance(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "performance" in data
+        assert len(data["performance"]) == 30
+
+    def test_has_costs(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "costs" in data
+        assert len(data["costs"]) == 24
+
+    def test_has_regulations(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "regulations" in data
+        assert len(data["regulations"]) == 15
+
+    def test_has_scenarios(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "scenarios" in data
+        assert len(data["scenarios"]) == 20
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_projects" in summary
+        assert "total_storage_capacity_gt" in summary
+        assert "avg_capture_efficiency_pct" in summary
+        assert "avg_total_cost_aud_per_tonne" in summary
+        assert "total_operating_capacity_mtpa" in summary
+        assert "projected_2035_storage_gt" in summary
+
+    def test_project_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["projects"][0]
+        for field in ("project_id", "project_name", "operator", "state", "project_type",
+                      "source_industry", "capture_capacity_mtpa", "storage_formation",
+                      "status", "capex_m", "opex_m_year", "commencement_year"):
+            assert field in rec
+
+
+class TestEPVCDashboard:
+    """Tests for GET /api/energy-poverty-vulnerable-consumer/dashboard (Sprint 110c)"""
+
+    URL = "/api/energy-poverty-vulnerable-consumer/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_hardship(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hardship" in data
+        assert len(data["hardship"]) == 25
+
+    def test_has_disconnections(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "disconnections" in data
+        assert len(data["disconnections"]) == 30
+
+    def test_has_concessions(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "concessions" in data
+        assert len(data["concessions"]) == 20
+
+    def test_has_affordability(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "affordability" in data
+        assert len(data["affordability"]) == 24
+
+    def test_has_interventions(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "interventions" in data
+        assert len(data["interventions"]) == 15
+
+    def test_has_forecasts(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "forecasts" in data
+        assert len(data["forecasts"]) == 20
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_hardship_customers" in summary
+        assert "avg_disconnection_rate_per_1000" in summary
+        assert "avg_energy_poverty_rate_pct" in summary
+        assert "total_concession_spend_m" in summary
+        assert "most_effective_intervention" in summary
+        assert "projected_2030_poverty_rate_pct" in summary
+
+    def test_hardship_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["hardship"][0]
+        for field in ("retailer", "state", "year", "customers_on_hardship_program",
+                      "new_customers_enrolled", "exits_resolved_pct", "exits_disconnected_pct",
+                      "avg_debt_aud", "avg_duration_months", "payment_plan_adherence_pct",
+                      "wellbeing_calls_made"):
+            assert field in rec
+
+    def test_disconnection_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["disconnections"][0]
+        for field in ("state", "year", "quarter", "disconnections_count", "reconnections_count",
+                      "net_disconnections", "medical_exemptions", "life_support_count",
+                      "avg_days_disconnected", "debt_at_disconnection_aud", "low_income_share_pct"):
+            assert field in rec

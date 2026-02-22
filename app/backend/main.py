@@ -82659,3 +82659,1068 @@ def get_ldesx_dashboard():
         summary=summary,
     ).model_dump())
     return LDESXDashboard(**_ldesx_cache)
+
+# ============================================================
+# Sprint 110a — Hydrogen Pipeline Infrastructure Analytics (HPIA)
+# ============================================================
+
+class HPIAPipelineRecord(BaseModel):
+    pipeline_id: str
+    name: str
+    state: str
+    length_km: float
+    diameter_mm: int
+    design_pressure_bar: float
+    capacity_kg_h2_day: float
+    status: str
+    h2_blend_pct: float
+    repurposed_from_gas: bool
+    capex_m: float
+    opex_m_year: float
+    shipper_count: int
+
+class HPIAHubRecord(BaseModel):
+    hub_id: str
+    hub_name: str
+    location: str
+    state: str
+    hub_type: str
+    storage_capacity_tonne_h2: float
+    throughput_tpd: float
+    connected_pipelines: int
+    export_capable: bool
+    compression_mw: float
+    liquefaction_capacity_tpd: float
+    operator: str
+
+class HPIATransportComparisonRecord(BaseModel):
+    year: int
+    route: str
+    from_location: str
+    to_location: str
+    distance_km: int
+    mode: str
+    cost_aud_per_kg_h2: float
+    energy_penalty_pct: float
+    round_trip_efficiency_pct: float
+    annual_capacity_tonne: float
+    co2_intensity_kgco2_per_kg_h2: float
+
+class HPIABlendingRecord(BaseModel):
+    month: str
+    gas_network: str
+    state: str
+    blend_pct: float
+    h2_volume_gj: float
+    caloric_impact_pct: float
+    pressure_impact_pct: float
+    appliance_compatibility_pct: float
+    cost_premium_pct: float
+    safety_incidents: int
+
+class HPIAProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    project_type: str
+    capacity_descriptor: str
+    capex_m: float
+    status: str
+    expected_completion: str
+    funding_source: str
+    h2_source: str
+    target_market: str
+
+class HPIADemandRecord(BaseModel):
+    year: int
+    sector: str
+    demand_kt_h2: float
+    pipeline_share_pct: float
+    shipping_share_pct: float
+    local_share_pct: float
+    price_aud_per_kg: float
+    infrastructure_needed_b: float
+
+class HPIADashboard(BaseModel):
+    pipelines: List[HPIAPipelineRecord]
+    hubs: List[HPIAHubRecord]
+    transport_comparison: List[HPIATransportComparisonRecord]
+    blending: List[HPIABlendingRecord]
+    projects: List[HPIAProjectRecord]
+    demand_forecast: List[HPIADemandRecord]
+    summary: dict
+
+_hpia_cache: dict = {}
+
+@app.get("/api/hydrogen-pipeline-infrastructure/dashboard", response_model=HPIADashboard, dependencies=[Depends(verify_api_key)])
+def get_hpia_dashboard():
+    import random
+    if _hpia_cache:
+        return HPIADashboard(**_hpia_cache)
+
+    rng = random.Random(20241109)
+
+    # ── Pipelines (20 records) ─────────────────────────────────────────────
+    _pipeline_data = [
+        # id, name, state, length_km, diam_mm, pressure_bar, cap_kg_h2_day, status, blend_pct, repurposed, capex_m, opex_m, shippers
+        ("PL-001", "Pilbara H2 Backbone",           "WA",  820.0, 508, 80.0,  240000.0, "Proposed",          0.0,  False, 1640.0, 28.5,  3),
+        ("PL-002", "Hunter Valley H2 Trunk",         "NSW", 180.0, 406, 70.0,   85000.0, "Approved",          5.0,  True,  315.0,  7.2,   2),
+        ("PL-003", "Gladstone H2 Export Line",       "QLD", 95.0,  355, 75.0,   60000.0, "Under Construction",0.0,  False, 190.0,  4.8,   1),
+        ("PL-004", "Latrobe Valley H2 Spur",         "VIC", 65.0,  254, 60.0,   28000.0, "Proposed",          10.0, True,  97.5,   2.1,   2),
+        ("PL-005", "Newcastle Port H2 Connector",    "NSW", 42.0,  305, 72.0,   35000.0, "Approved",          0.0,  False, 88.2,   2.4,   1),
+        ("PL-006", "Darwin H2 Industrial Link",      "NT",  130.0, 406, 80.0,   70000.0, "Proposed",          0.0,  False, 247.0,  5.6,   2),
+        ("PL-007", "Whyalla Green Steel H2 Line",    "SA",  78.0,  356, 65.0,   45000.0, "Under Construction",0.0,  False, 140.4,  3.2,   1),
+        ("PL-008", "South West WA H2 Network",       "WA",  310.0, 457, 70.0,  120000.0, "Proposed",          0.0,  False, 589.0,  12.8,  4),
+        ("PL-009", "Port Hedland Export H2 Trunk",   "WA",  195.0, 508, 85.0,  175000.0, "Approved",          0.0,  False, 390.0,  9.5,   2),
+        ("PL-010", "Liddell-Tomago H2 Ring",         "NSW", 55.0,  254, 55.0,   22000.0, "Proposed",          8.0,  True,  82.5,   1.8,   3),
+        ("PL-011", "Townsville H2 Industrial Spur",  "QLD", 48.0,  305, 68.0,   30000.0, "Approved",          3.0,  False, 91.2,   2.3,   1),
+        ("PL-012", "Port Augusta H2 Hub Link",       "SA",  88.0,  355, 70.0,   50000.0, "Proposed",          0.0,  False, 158.4,  3.6,   2),
+        ("PL-013", "Geelong Refinery H2 Supply",     "VIC", 35.0,  203, 50.0,   12000.0, "Operating",         7.0,  True,  42.0,   1.2,   1),
+        ("PL-014", "Karratha LNG-H2 Blend Main",     "WA",  215.0, 457, 78.0,  140000.0, "Proposed",          10.0, True,  408.5,  10.2,  3),
+        ("PL-015", "Bass Strait H2 Crossing",        "VIC", 280.0, 406, 90.0,   95000.0, "Proposed",          0.0,  False, 700.0,  16.8,  2),
+        ("PL-016", "Roma H2 Production Spur",        "QLD", 72.0,  254, 60.0,   25000.0, "Proposed",          5.0,  True,  108.0,  2.5,   1),
+        ("PL-017", "Kalgoorlie H2 Mining Supply",    "WA",  155.0, 356, 72.0,   68000.0, "Approved",          0.0,  False, 294.5,  7.0,   2),
+        ("PL-018", "Tomago Aluminium H2 Pipe",       "NSW", 22.0,  203, 45.0,    8500.0, "Operating",         0.0,  False, 22.0,   0.8,   1),
+        ("PL-019", "Murchison H2 Backbone",          "WA",  680.0, 508, 82.0,  210000.0, "Proposed",          0.0,  False, 1360.0, 24.5,  3),
+        ("PL-020", "SE Queensland H2 City Ring",     "QLD", 120.0, 305, 55.0,   40000.0, "Proposed",          10.0, True,  180.0,  4.2,   5),
+    ]
+    pipelines = [
+        HPIAPipelineRecord(
+            pipeline_id=pid, name=nm, state=st, length_km=lkm, diameter_mm=dmm,
+            design_pressure_bar=dpb, capacity_kg_h2_day=cap, status=stat,
+            h2_blend_pct=blend, repurposed_from_gas=repurp, capex_m=capex,
+            opex_m_year=opex, shipper_count=shippers
+        )
+        for (pid, nm, st, lkm, dmm, dpb, cap, stat, blend, repurp, capex, opex, shippers) in _pipeline_data
+    ]
+
+    # ── Hubs (15 records) ─────────────────────────────────────────────────
+    _hub_data = [
+        # id, name, location, state, type, storage_t, throughput_tpd, conn_pipelines, export, comp_mw, liq_tpd, operator
+        ("HB-001", "Pilbara H2 Export Hub",        "Port Hedland",   "WA",  "Export",      50000.0, 2000.0, 4, True,  180.0, 400.0, "Future Energy Export Corp"),
+        ("HB-002", "Gladstone H2 Hub",             "Gladstone",      "QLD", "Export",      35000.0, 1500.0, 3, True,  130.0, 300.0, "Queensland H2 Alliance"),
+        ("HB-003", "Newcastle Industrial H2 Hub",  "Newcastle",      "NSW", "Distribution",8000.0,  280.0,  2, False,  45.0,   0.0, "Hunter H2 Networks"),
+        ("HB-004", "Whyalla Steel H2 Production",  "Whyalla",        "SA",  "Production",  5000.0,  150.0,  2, False,  35.0,   0.0, "GFG Alliance"),
+        ("HB-005", "Darwin H2 Export Terminal",    "Darwin",         "NT",  "Export",      20000.0,  850.0,  3, True,   95.0, 170.0, "NT Hydrogen Corp"),
+        ("HB-006", "Geelong H2 Distribution Hub",  "Geelong",        "VIC", "Distribution",3500.0,  120.0,  2, False,  28.0,   0.0, "AGL Networks"),
+        ("HB-007", "Kalgoorlie H2 Mining Hub",     "Kalgoorlie",     "WA",  "Distribution",6000.0,  200.0,  2, False,  42.0,   0.0, "Fortescue H2"),
+        ("HB-008", "Townsville H2 Production Hub", "Townsville",     "QLD", "Production",  7500.0,  240.0,  2, False,  50.0,   0.0, "CopperString H2 JV"),
+        ("HB-009", "Murchison H2 Production Hub",  "Geraldton",      "WA",  "Production",  15000.0, 600.0,  2, True,   80.0, 120.0, "Murchison H2 Pty Ltd"),
+        ("HB-010", "Adelaide H2 City Gate",        "Adelaide",       "SA",  "Distribution",2000.0,   80.0,  3, False,  22.0,   0.0, "AGN Gas Networks"),
+        ("HB-011", "Port Augusta Storage Hub",     "Port Augusta",   "SA",  "Storage",     12000.0, 400.0,  3, False,  60.0,   0.0, "SA H2 Storage"),
+        ("HB-012", "Bass Strait H2 Terminal",      "Hastings",       "VIC", "Export",      25000.0, 1000.0, 2, True,  110.0, 200.0, "APA Group H2"),
+        ("HB-013", "Karratha LNG-H2 Hub",          "Karratha",       "WA",  "Export",      30000.0, 1200.0, 3, True,  140.0, 250.0, "Woodside Energy"),
+        ("HB-014", "Brisbane H2 Distribution Hub", "Brisbane",       "QLD", "Distribution",4500.0,  160.0,  4, False,  38.0,   0.0, "Jemena H2 QLD"),
+        ("HB-015", "Perth H2 City Gate",           "Kwinana",        "WA",  "Distribution",3000.0,  100.0,  3, False,  30.0,   0.0, "ATCO Gas Australia"),
+    ]
+    hubs = [
+        HPIAHubRecord(
+            hub_id=hid, hub_name=hn, location=loc, state=st, hub_type=ht,
+            storage_capacity_tonne_h2=storage, throughput_tpd=tput, connected_pipelines=conn,
+            export_capable=exp, compression_mw=comp, liquefaction_capacity_tpd=liq, operator=op
+        )
+        for (hid, hn, loc, st, ht, storage, tput, conn, exp, comp, liq, op) in _hub_data
+    ]
+
+    # ── Transport Comparison (20 records) ─────────────────────────────────
+    _transport_data = [
+        # yr, route, from, to, dist_km, mode, cost, energy_penalty, rte, cap_t, co2
+        (2024, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Liquefied H2 Ship",          4.80, 38.0, 52.0,  50000.0, 0.45),
+        (2024, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Ammonia Ship",               2.10, 22.0, 68.0, 120000.0, 0.30),
+        (2024, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "LOHC Tanker",                3.50, 35.0, 58.0,  80000.0, 0.38),
+        (2024, "Pilbara→Korea",   "Port Hedland", "Busan",       7500, "Liquefied H2 Ship",          4.60, 38.0, 52.0,  50000.0, 0.44),
+        (2024, "Pilbara→Korea",   "Port Hedland", "Busan",       7500, "Ammonia Ship",               2.00, 22.0, 68.0, 120000.0, 0.29),
+        (2024, "QLD→Japan",       "Gladstone",    "Kobe",        8000, "Ammonia Ship",               2.20, 22.0, 67.0, 100000.0, 0.32),
+        (2024, "QLD→Japan",       "Gladstone",    "Kobe",        8000, "Liquefied H2 Ship",          4.90, 38.0, 52.0,  45000.0, 0.46),
+        (2024, "WA→Perth (pipe)", "Kalgoorlie",   "Perth",        600, "Compressed Gas Pipeline",    1.80,  8.0, 88.0,  30000.0, 0.02),
+        (2024, "NSW Blended Gas", "Hunter Valley", "Sydney",      200, "Compressed Gas Pipeline",    1.20,  3.0, 95.0,  15000.0, 0.01),
+        (2024, "SA Pipe Network", "Port Augusta", "Adelaide",     300, "Compressed Gas Pipeline",    1.50,  5.0, 92.0,  20000.0, 0.01),
+        (2026, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Liquefied H2 Ship",          4.20, 36.0, 54.0,  80000.0, 0.40),
+        (2026, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Ammonia Ship",               1.80, 20.0, 70.0, 180000.0, 0.26),
+        (2026, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "LOHC Tanker",                3.10, 33.0, 60.0, 110000.0, 0.34),
+        (2026, "Murchison→EU",    "Geraldton",    "Rotterdam",  16000, "Ammonia Ship",               2.40, 22.0, 66.0, 100000.0, 0.35),
+        (2026, "NT→Asia",         "Darwin",       "Singapore",   3500, "Ammonia Ship",               1.70, 18.0, 72.0, 150000.0, 0.24),
+        (2028, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Liquefied H2 Ship",          3.60, 34.0, 56.0, 120000.0, 0.35),
+        (2028, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Ammonia Ship",               1.55, 18.0, 72.0, 250000.0, 0.22),
+        (2028, "On-site Demand",  "Local",        "Local",           0, "On-site Production",        1.40,  0.0,100.0, 200000.0, 0.05),
+        (2030, "Pilbara→Japan",   "Port Hedland", "Yokohama",    8200, "Ammonia Ship",               1.35, 16.0, 74.0, 350000.0, 0.18),
+        (2030, "WA→Perth (pipe)", "Kalgoorlie",   "Perth",        600, "Compressed Gas Pipeline",    1.20,  6.0, 92.0,  80000.0, 0.01),
+    ]
+    transport_comparison = [
+        HPIATransportComparisonRecord(
+            year=yr, route=route, from_location=frm, to_location=to, distance_km=dist,
+            mode=mode, cost_aud_per_kg_h2=cost, energy_penalty_pct=ep,
+            round_trip_efficiency_pct=rte, annual_capacity_tonne=cap, co2_intensity_kgco2_per_kg_h2=co2
+        )
+        for (yr, route, frm, to, dist, mode, cost, ep, rte, cap, co2) in _transport_data
+    ]
+
+    # ── Blending (24 records: 2021-2024 monthly) ──────────────────────────
+    _blending_months = []
+    _blend_networks = [
+        ("APA East Gas Grid", "NSW"),
+        ("Jemena Gas Networks", "VIC"),
+        ("AGN SA Gas Network", "SA"),
+        ("ATCO WA Distribution", "WA"),
+        ("Multinet Gas", "VIC"),
+        ("ActewAGL Gas", "ACT"),
+    ]
+    _month_list = []
+    for yr in range(2021, 2025):
+        for mo in range(1, 13):
+            _month_list.append(f"{yr}-{mo:02d}")
+    # select 24 months across 2021-2024 evenly
+    _selected_months = _month_list[::2]  # every other month gives 24 entries
+
+    _blend_details = [
+        # month_idx, network_idx, blend_pct, h2_vol_gj, caloric_impact, pressure_impact, compat, cost_premium, incidents
+        (0,  0, 1.0,   4200.0,  -0.36, -0.12, 99.8, 1.2, 0),
+        (1,  1, 1.5,   6800.0,  -0.54, -0.18, 99.6, 1.6, 0),
+        (2,  2, 2.0,   3500.0,  -0.72, -0.24, 99.5, 2.0, 0),
+        (3,  3, 2.5,   5200.0,  -0.90, -0.30, 99.4, 2.4, 0),
+        (4,  4, 1.0,   2100.0,  -0.36, -0.12, 99.8, 1.2, 0),
+        (5,  5, 1.5,   1800.0,  -0.54, -0.18, 99.7, 1.4, 0),
+        (6,  0, 2.0,   8400.0,  -0.72, -0.24, 99.5, 2.0, 0),
+        (7,  1, 2.5,  11200.0,  -0.90, -0.30, 99.3, 2.6, 0),
+        (8,  2, 3.0,   6000.0,  -1.08, -0.36, 99.2, 3.1, 0),
+        (9,  3, 3.5,   8500.0,  -1.26, -0.42, 99.1, 3.4, 0),
+        (10, 4, 2.0,   4300.0,  -0.72, -0.24, 99.5, 2.0, 0),
+        (11, 5, 2.5,   3200.0,  -0.90, -0.30, 99.4, 2.5, 0),
+        (12, 0, 3.0,  12500.0,  -1.08, -0.36, 99.2, 3.0, 0),
+        (13, 1, 4.0,  17000.0,  -1.44, -0.48, 98.9, 3.8, 0),
+        (14, 2, 4.5,   8800.0,  -1.62, -0.54, 98.8, 4.2, 0),
+        (15, 3, 5.0,  12000.0,  -1.80, -0.60, 98.7, 4.6, 1),
+        (16, 4, 3.5,   7200.0,  -1.26, -0.42, 99.0, 3.5, 0),
+        (17, 5, 3.0,   4800.0,  -1.08, -0.36, 99.2, 3.0, 0),
+        (18, 0, 5.0,  20000.0,  -1.80, -0.60, 98.6, 4.8, 0),
+        (19, 1, 6.0,  25500.0,  -2.16, -0.72, 98.4, 5.5, 1),
+        (20, 2, 6.5,  13000.0,  -2.34, -0.78, 98.3, 6.0, 0),
+        (21, 3, 7.0,  17500.0,  -2.52, -0.84, 98.2, 6.4, 0),
+        (22, 4, 5.5,  11000.0,  -1.98, -0.66, 98.5, 5.2, 0),
+        (23, 5, 5.0,   7500.0,  -1.80, -0.60, 98.7, 4.8, 0),
+    ]
+    blending = [
+        HPIABlendingRecord(
+            month=_selected_months[mi],
+            gas_network=_blend_networks[ni][0],
+            state=_blend_networks[ni][1],
+            blend_pct=bp,
+            h2_volume_gj=hvol,
+            caloric_impact_pct=cal,
+            pressure_impact_pct=pres,
+            appliance_compatibility_pct=compat,
+            cost_premium_pct=cprem,
+            safety_incidents=si
+        )
+        for (mi, ni, bp, hvol, cal, pres, compat, cprem, si) in _blend_details
+    ]
+
+    # ── Projects (20 records) ────────────────────────────────────────────
+    _project_data = [
+        # id, name, developer, state, type, cap_desc, capex_m, status, completion, funding, h2_src, market
+        ("PR-001", "Pilbara H2 Backbone Pipeline",         "ATCO / Fortescue",       "WA",  "Pipeline",         "820 km DN500",    1640.0, "Feasibility",       "2030", "Private + ARENA",    "Green", "Exports"),
+        ("PR-002", "Gladstone H2 Export Terminal",         "Queensland H2 Alliance", "QLD", "Export Terminal",  "1.5 Mt/yr export", 2800.0, "FEED",              "2029", "Federal CEFC",       "Green", "Japan/Korea"),
+        ("PR-003", "Whyalla H2 Storage Cavern",            "GFG Alliance",           "SA",  "Storage",          "5,000 t H2",       450.0,  "Under Construction","2027", "SA Government Grant","Green", "Industry"),
+        ("PR-004", "Darwin LH2 Export Terminal",           "NT Hydrogen Corp",       "NT",  "Export Terminal",  "850 ktpd",        1900.0,  "Approved",          "2028", "NT Government + Private","Green", "Singapore/Japan"),
+        ("PR-005", "Hunter Valley H2 Trunk Pipe",          "APA Group",              "NSW", "Pipeline",         "180 km DN400",     315.0,  "FEED",              "2028", "NSW Government + Private","Mixed", "Industry + Blending"),
+        ("PR-006", "Murchison H2 Production Pipeline",     "Murchison H2 Pty Ltd",   "WA",  "Pipeline",         "680 km DN500",    1360.0,  "Feasibility",       "2031", "Private + CEFC",     "Green", "Exports"),
+        ("PR-007", "Port Hedland H2 Compression Station",  "Future Energy Export",   "WA",  "Compression",      "180 MW",           280.0,  "FEED",              "2028", "Private",            "Green", "Export Terminal"),
+        ("PR-008", "Port Augusta Underground H2 Storage",  "SA H2 Storage JV",       "SA",  "Storage",          "12,000 t H2",      960.0,  "Feasibility",       "2031", "SA Government + Federal","Green", "Grid Firming"),
+        ("PR-009", "SE Queensland City Gas H2 Blend Ring", "Jemena",                 "QLD", "Pipeline",         "120 km DN300",     180.0,  "Approved",          "2027", "ARENA H2 Blending Program","Mixed", "Gas Blending"),
+        ("PR-010", "Bass Strait H2 Subsea Pipeline",       "APA Group H2",           "VIC", "Pipeline",         "280 km DN400 sub", 700.0,  "Feasibility",       "2032", "Federal CIS + Private","Green", "Exports"),
+        ("PR-011", "Townsville Green H2 Industrial Hub",   "CopperString H2 JV",     "QLD", "Export Terminal",  "240 tpd capacity", 620.0,  "Feasibility",       "2030", "QLD Government + ARENA","Green", "Industry + Export"),
+        ("PR-012", "Kalgoorlie H2 Mining Supply Pipeline", "Fortescue",              "WA",  "Pipeline",         "155 km DN350",     294.5,  "Approved",          "2027", "Private",            "Green", "Mining Industry"),
+        ("PR-013", "Latrobe Valley Gas-H2 Blend Upgrade",  "AGN VIC",               "VIC", "Pipeline",         "65 km repurposed",  97.5,  "FEED",              "2026", "ARENA Blending Pilot","Mixed", "Gas Blending"),
+        ("PR-014", "Newcastle H2 Port Connector",          "Hunter H2 Networks",     "NSW", "Pipeline",         "42 km DN300",       88.2,  "Approved",          "2027", "NSW + Federal",      "Green", "Exports"),
+        ("PR-015", "Karratha LNG-H2 Liquefaction Hub",     "Woodside Energy",        "WA",  "Export Terminal",  "250 tpd LH2",     1450.0,  "Feasibility",       "2031", "Private + Federal CIS","Green", "Japan LH2"),
+        ("PR-016", "South West WA H2 Transmission Network","ATCO Gas Australia",     "WA",  "Pipeline",         "310 km DN450 ring", 589.0, "Feasibility",       "2031", "WA Government + Private","Green", "Industry + Export"),
+        ("PR-017", "Port Augusta H2 Compression Cluster",  "SA H2 Storage JV",       "SA",  "Compression",      "60 MW",            84.0,  "Approved",          "2026", "SA Government",      "Green", "Network Compression"),
+        ("PR-018", "Adelaide H2 City Gas Distribution",    "AGN SA",                 "SA",  "Pipeline",         "10% blend ready",   65.0,  "Operating",         "2025", "ARENA Blending",     "Mixed", "Gas Blending"),
+        ("PR-019", "Darwin H2 Pipeline to Howard Springs","NT Hydrogen Corp",        "NT",  "Pipeline",         "130 km DN400",     247.0,  "FEED",              "2028", "NT Government + Private","Green", "Industry"),
+        ("PR-020", "Roma Basin Blue H2 Pipeline",          "Santos",                 "QLD", "Pipeline",         "72 km DN250",      108.0,  "Feasibility",       "2030", "Private",            "Blue",  "Industry Offtake"),
+    ]
+    projects = [
+        HPIAProjectRecord(
+            project_id=pid, project_name=pn, developer=dev, state=st,
+            project_type=pt, capacity_descriptor=cap, capex_m=capex,
+            status=stat, expected_completion=comp, funding_source=fund,
+            h2_source=h2src, target_market=mkt
+        )
+        for (pid, pn, dev, st, pt, cap, capex, stat, comp, fund, h2src, mkt) in _project_data
+    ]
+
+    # ── Demand Forecast (20 records: 2024-2035 × multiple sectors) ────────
+    _demand_data = [
+        # yr, sector, demand_kt, pipe_share, ship_share, local_share, price, infra_b
+        (2024, "Industry",  8.5,  45.0, 10.0, 45.0, 6.50, 0.2),
+        (2024, "Transport", 1.2,  20.0,  0.0, 80.0, 8.20, 0.1),
+        (2024, "Exports",   5.0,   0.0, 95.0,  5.0, 4.80, 0.5),
+        (2024, "Blending",  2.5,  70.0,  0.0, 30.0, 5.80, 0.1),
+        (2025, "Industry", 12.0,  48.0, 12.0, 40.0, 5.90, 0.4),
+        (2025, "Exports",  15.0,   0.0, 95.0,  5.0, 4.20, 1.2),
+        (2026, "Industry", 18.0,  52.0, 15.0, 33.0, 5.40, 0.7),
+        (2026, "Exports",  35.0,   0.0, 96.0,  4.0, 3.80, 2.8),
+        (2026, "Transport", 4.5,  30.0,  0.0, 70.0, 7.00, 0.2),
+        (2027, "Industry", 28.0,  55.0, 18.0, 27.0, 4.80, 1.2),
+        (2027, "Exports",  70.0,   0.0, 97.0,  3.0, 3.40, 5.5),
+        (2028, "Industry", 42.0,  58.0, 20.0, 22.0, 4.20, 1.8),
+        (2028, "Exports", 130.0,   0.0, 97.0,  3.0, 3.00, 9.0),
+        (2029, "Industry", 60.0,  60.0, 22.0, 18.0, 3.80, 2.5),
+        (2030, "Industry", 85.0,  62.0, 25.0, 13.0, 3.40, 3.5),
+        (2030, "Exports", 350.0,   0.0, 98.0,  2.0, 2.40, 28.0),
+        (2030, "Power",    12.0,  55.0, 10.0, 35.0, 4.00, 0.6),
+        (2032, "Exports", 600.0,   0.0, 98.0,  2.0, 2.10, 45.0),
+        (2033, "Industry",180.0,  65.0, 28.0,  7.0, 2.90, 8.0),
+        (2035, "Exports", 900.0,   0.0, 99.0,  1.0, 1.80, 72.0),
+    ]
+    demand_forecast = [
+        HPIADemandRecord(
+            year=yr, sector=sector, demand_kt_h2=dkt,
+            pipeline_share_pct=pipe_sh, shipping_share_pct=ship_sh,
+            local_share_pct=local_sh, price_aud_per_kg=price,
+            infrastructure_needed_b=infra
+        )
+        for (yr, sector, dkt, pipe_sh, ship_sh, local_sh, price, infra) in _demand_data
+    ]
+
+    # ── Summary ───────────────────────────────────────────────────────────
+    total_pipeline_km = round(sum(p.length_km for p in pipelines), 1)
+    total_h2_storage_capacity_tonne = round(sum(h.storage_capacity_tonne_h2 for h in hubs), 0)
+    cheapest_rec = min(transport_comparison, key=lambda x: x.cost_aud_per_kg_h2)
+    cheapest_transport_mode = cheapest_rec.mode
+    current_blend_records = [b for b in blending if b.month >= "2024-01"]
+    avg_blend_pct_current = round(
+        sum(b.blend_pct for b in current_blend_records) / len(current_blend_records), 2
+    ) if current_blend_records else 0.0
+    total_project_pipeline_b = round(sum(pr.capex_m for pr in projects) / 1000.0, 2)
+    demand_2030_exports = next(
+        (d.demand_kt_h2 for d in demand_forecast if d.year == 2030 and d.sector == "Exports"), 0.0
+    )
+    projected_2030_demand_kt = round(demand_2030_exports, 1)
+
+    summary = {
+        "total_pipeline_km": total_pipeline_km,
+        "total_h2_storage_capacity_tonne": total_h2_storage_capacity_tonne,
+        "cheapest_transport_mode": cheapest_transport_mode,
+        "avg_blend_pct_current": avg_blend_pct_current,
+        "total_project_pipeline_b": total_project_pipeline_b,
+        "projected_2030_demand_kt": projected_2030_demand_kt,
+    }
+
+    _hpia_cache.update(HPIADashboard(
+        pipelines=pipelines,
+        hubs=hubs,
+        transport_comparison=transport_comparison,
+        blending=blending,
+        projects=projects,
+        demand_forecast=demand_forecast,
+        summary=summary,
+    ).model_dump())
+    return HPIADashboard(**_hpia_cache)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Sprint 110b — Carbon Capture and Storage Project Analytics (CCSP)
+# ════════════════════════════════════════════════════════════════════════════════
+
+class CCSPProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    operator: str
+    state: str
+    project_type: str          # Post-combustion/Pre-combustion/Oxyfuel/DAC/BECCS/EOR
+    source_industry: str       # Coal Power/Gas Power/LNG/Steel/Cement/Chemicals/DAC
+    capture_capacity_mtpa: float
+    storage_formation: str
+    status: str                # Concept/Feasibility/Development/Operating/Suspended
+    capex_m: float
+    opex_m_year: float
+    commencement_year: int
+
+
+class CCSPStorageSiteRecord(BaseModel):
+    site_id: str
+    site_name: str
+    state: str
+    formation_type: str        # Depleted Oil Field/Saline Aquifer/Coal Seam/Basalt/Deep Offshore
+    storage_capacity_gt_co2: float
+    injectivity_mtpa: float
+    depth_m: int
+    reservoir_quality: str     # Excellent/Good/Moderate/Poor
+    seal_integrity: str        # Verified/Assessed/Uncertain
+    approved: bool
+    monitoring_wells: int
+    operator: str
+
+
+class CCSPPerformanceRecord(BaseModel):
+    quarter: str               # YYYY-Q1..Q4
+    project_id: str
+    project_name: str
+    actual_capture_mtpa: float
+    design_capture_mtpa: float
+    capture_efficiency_pct: float
+    co2_purity_pct: float
+    injection_pressure_bar: float
+    leakage_detected: bool
+    energy_penalty_pct: float
+    operating_cost_per_tonne_aud: float
+
+
+class CCSPCostRecord(BaseModel):
+    year: int
+    technology: str
+    industry_sector: str
+    capture_cost_aud_per_tonne: float
+    transport_cost_aud_per_tonne: float
+    storage_cost_aud_per_tonne: float
+    total_cost_aud_per_tonne: float
+    govt_support_pct: float
+    commercial_viability: bool
+    learning_rate_pct: float
+
+
+class CCSPRegulationRecord(BaseModel):
+    regulation_name: str
+    jurisdiction: str
+    regulation_type: str       # Permit/Standard/Liability/Reporting/MRV
+    scope: str
+    implementation_year: int
+    review_cycle_years: int
+    key_requirement: str
+    penalty_max_m: float
+    compliance_rate_pct: float
+
+
+class CCSPScenarioRecord(BaseModel):
+    year: int
+    scenario: str              # Current Policy / Net Zero
+    cumulative_storage_gt: float
+    annual_injection_mtpa: float
+    projects_operating: int
+    avg_cost_aud_per_tonne: float
+    govt_support_b: float
+    co2_abated_pct_of_national: float
+
+
+class CCSPDashboard(BaseModel):
+    projects: List[CCSPProjectRecord]
+    storage_sites: List[CCSPStorageSiteRecord]
+    performance: List[CCSPPerformanceRecord]
+    costs: List[CCSPCostRecord]
+    regulations: List[CCSPRegulationRecord]
+    scenarios: List[CCSPScenarioRecord]
+    summary: dict
+
+
+_ccsp_cache: dict = {}
+
+
+@app.get("/api/carbon-capture-storage-project/dashboard", response_model=CCSPDashboard, dependencies=[Depends(verify_api_key)])
+def get_ccsp_dashboard():
+    import random
+    if _ccsp_cache:
+        return CCSPDashboard(**_ccsp_cache)
+
+    rng = random.Random(42)
+
+    # ── Projects (20 records) ──────────────────────────────────────────────────
+    _project_data = [
+        ("CCSP-001", "Gorgon CO2 Injection",          "Chevron Australia",        "WA",  "Pre-combustion",    "LNG",         3.4,  "Dupuy Formation",           "Operating",    3200.0,  85.0,  2019),
+        ("CCSP-002", "Callide Oxyfuel Project",        "CS Energy",               "QLD", "Oxyfuel",           "Coal Power",  0.09, "Denison Trough",            "Suspended",     245.0,  12.0,  2012),
+        ("CCSP-003", "CarbonNet Hub",                  "DCCEEW",                  "VIC", "Post-combustion",   "Coal Power",  5.0,  "Offshore Otway",            "Feasibility",  1800.0,  45.0,  2030),
+        ("CCSP-004", "HyperScaler DAC Pilbara",        "Heirloom Australia",      "WA",  "Direct Air Capture","DAC",         0.1,  "Saline Yilgarn",            "Development",   320.0,  22.0,  2027),
+        ("CCSP-005", "Blue H2 Latrobe Valley",         "AGL Energy",              "VIC", "Pre-combustion",    "Coal Power",  1.5,  "Offshore Bass Strait",      "Feasibility",   950.0,  35.0,  2029),
+        ("CCSP-006", "Moomba CCS Project",             "Santos",                  "SA",  "Post-combustion",   "Gas Power",   1.7,  "Moomba Gas Field",          "Development",   220.0,  18.0,  2024),
+        ("CCSP-007", "NT BECCS Sugarcane",             "Territory Resources",     "NT",  "BECCS",             "Chemicals",   0.4,  "Amadeus Saline Aquifer",    "Concept",       180.0,   9.0,  2032),
+        ("CCSP-008", "Port Kembla Steel CCS",          "BlueScope Steel",         "NSW", "Post-combustion",   "Steel",       0.8,  "Offshore Sydney Basin",     "Feasibility",   640.0,  28.0,  2031),
+        ("CCSP-009", "Pluto LNG CCS Extension",        "Woodside Energy",         "WA",  "Pre-combustion",    "LNG",         2.0,  "Mungaroo Formation",        "Development",  1100.0,  42.0,  2028),
+        ("CCSP-010", "Cement CO2 Capture Gladstone",   "Boral Limited",           "QLD", "Post-combustion",   "Cement",      0.3,  "Bowen Basin Saline",        "Concept",       210.0,  11.0,  2033),
+        ("CCSP-011", "Cooper Basin EOR CCS",           "Beach Energy",            "SA",  "Enhanced Oil Recovery","Gas Power", 0.6, "Cooper Basin Reservoir",    "Operating",     280.0,  14.0,  2021),
+        ("CCSP-012", "Darwin LNG Sequestration",       "Santos/TEPNG",            "NT",  "Pre-combustion",    "LNG",         1.2,  "Bayu-Undan Depleted Field", "Development",   750.0,  31.0,  2027),
+        ("CCSP-013", "Collie Coal CCS Pilot",          "Synergy",                 "WA",  "Post-combustion",   "Coal Power",  0.15, "Lesueur Sandstone",         "Feasibility",   130.0,   7.0,  2029),
+        ("CCSP-014", "Surat Basin EOR",                "Origin Energy",           "QLD", "Enhanced Oil Recovery","Gas Power", 0.5, "Precipice Sandstone",       "Operating",     175.0,  10.0,  2020),
+        ("CCSP-015", "Adelaide Chemical Hub CCS",      "Incitec Pivot",           "SA",  "Post-combustion",   "Chemicals",   0.25, "Otway Saline Aquifer",      "Concept",       190.0,   9.5,  2034),
+        ("CCSP-016", "Wheatstone Offshore CCS",        "Chevron Australia",       "WA",  "Pre-combustion",    "LNG",         2.5,  "Barrow Deep Saline",        "Development",  1450.0,  55.0,  2028),
+        ("CCSP-017", "Hunter Valley Coal DAC",         "AGL Energy",              "NSW", "Direct Air Capture","DAC",         0.05, "Sydney Basin Basalt",       "Concept",       280.0,  18.0,  2035),
+        ("CCSP-018", "Townsville Nickel Refinery CCS", "QNI Metals",             "QLD", "Post-combustion",   "Chemicals",   0.2,  "Coral Sea Deep Saline",     "Feasibility",   160.0,   8.0,  2031),
+        ("CCSP-019", "Kwinana Industrial CCS Hub",     "Alcoa/BP",                "WA",  "Post-combustion",   "Steel",       1.0,  "Yanchep Saline Aquifer",    "Development",   580.0,  25.0,  2029),
+        ("CCSP-020", "Tasmania BECCS Forestry",        "Sustainable Timber Tasmania","TAS","BECCS",            "Chemicals",   0.35, "Bass Strait Formation",     "Concept",       140.0,   7.5,  2033),
+    ]
+    projects = [
+        CCSPProjectRecord(
+            project_id=pid, project_name=pname, operator=op, state=st,
+            project_type=ptype, source_industry=src, capture_capacity_mtpa=cap,
+            storage_formation=form, status=stat, capex_m=capex,
+            opex_m_year=opex, commencement_year=yr
+        )
+        for (pid, pname, op, st, ptype, src, cap, form, stat, capex, opex, yr) in _project_data
+    ]
+
+    # ── Storage Sites (15 records) ─────────────────────────────────────────────
+    _site_data = [
+        ("SITE-001", "Gorgon Dupuy Formation",          "WA",  "Deep Offshore",      300.0, 4.0,  2700, "Good",      "Verified",   True,  12, "Chevron Australia"),
+        ("SITE-002", "Offshore Otway Basin",            "VIC", "Saline Aquifer",      50.0, 5.0,  2100, "Good",      "Assessed",   True,   8, "DCCEEW / CarbonNet"),
+        ("SITE-003", "Moomba Gas Reservoir",            "SA",  "Depleted Oil Field",   6.0, 2.0,  1800, "Excellent", "Verified",   True,   6, "Santos"),
+        ("SITE-004", "Mungaroo Formation WA",           "WA",  "Deep Offshore",       80.0, 3.0,  3200, "Good",      "Assessed",   True,   9, "Woodside Energy"),
+        ("SITE-005", "Lesueur Sandstone WA",            "WA",  "Saline Aquifer",      25.0, 1.5,  1600, "Moderate",  "Assessed",   False,  4, "Synergy"),
+        ("SITE-006", "Yanchep Saline Aquifer",          "WA",  "Saline Aquifer",      35.0, 1.8,  1400, "Good",      "Assessed",   True,   6, "Alcoa/BP"),
+        ("SITE-007", "Cooper Basin SA",                 "SA",  "Depleted Oil Field",  12.0, 1.2,  2000, "Good",      "Verified",   True,   5, "Beach Energy"),
+        ("SITE-008", "Precipice Sandstone QLD",         "QLD", "Saline Aquifer",      40.0, 2.0,  900,  "Moderate",  "Assessed",   True,   5, "Origin Energy"),
+        ("SITE-009", "Bayu-Undan Depleted Field NT",    "NT",  "Depleted Oil Field",  10.0, 1.5,  2400, "Excellent", "Verified",   True,   7, "Santos/TEPNG"),
+        ("SITE-010", "Amadeus Basin NT",                "NT",  "Saline Aquifer",      60.0, 1.0,  2800, "Moderate",  "Uncertain",  False,  2, "Territory Resources"),
+        ("SITE-011", "Barrow Deep WA",                  "WA",  "Deep Offshore",       90.0, 3.5,  3800, "Excellent", "Assessed",   True,   8, "Chevron Australia"),
+        ("SITE-012", "Bass Strait TAS",                 "TAS", "Deep Offshore",       15.0, 0.8,  2200, "Good",      "Uncertain",  False,  2, "Sustainable Timber Tasmania"),
+        ("SITE-013", "Yilgarn Saline WA",               "WA",  "Saline Aquifer",      20.0, 0.5,  1200, "Poor",      "Uncertain",  False,  1, "Heirloom Australia"),
+        ("SITE-014", "Bowen Basin QLD",                 "QLD", "Coal Seam",            5.0, 0.4,  700,  "Poor",      "Uncertain",  False,  1, "Boral Limited"),
+        ("SITE-015", "Otway Saline SA",                 "SA",  "Saline Aquifer",      18.0, 1.0,  1900, "Moderate",  "Assessed",   False,  3, "Incitec Pivot"),
+    ]
+    storage_sites = [
+        CCSPStorageSiteRecord(
+            site_id=sid, site_name=sname, state=st, formation_type=ftype,
+            storage_capacity_gt_co2=cap, injectivity_mtpa=inj, depth_m=depth,
+            reservoir_quality=rq, seal_integrity=si, approved=appr,
+            monitoring_wells=mw, operator=op
+        )
+        for (sid, sname, st, ftype, cap, inj, depth, rq, si, appr, mw, op) in _site_data
+    ]
+
+    # ── Performance (30 records, 2020-2024 quarterly for operating projects) ───
+    _operating_projects = [
+        ("CCSP-001", "Gorgon CO2 Injection",   3.4,  0.90),
+        ("CCSP-011", "Cooper Basin EOR CCS",   0.6,  0.88),
+        ("CCSP-014", "Surat Basin EOR",        0.5,  0.86),
+    ]
+    _quarters = []
+    for yr in range(2020, 2025):
+        for q in range(1, 5):
+            _quarters.append(f"{yr}-Q{q}")
+
+    performance = []
+    for i, (pid, pname, design_cap, base_eff) in enumerate(_operating_projects):
+        for j, qtr in enumerate(_quarters[:10]):  # 10 quarters per project = 30 total
+            eff = round(min(99.0, base_eff * 100 + rng.uniform(-3.0, 2.0)), 2)
+            actual = round(design_cap * eff / 100 * rng.uniform(0.90, 1.02), 3)
+            purity = round(rng.uniform(98.5, 99.8), 2)
+            pressure = round(rng.uniform(180.0, 280.0), 1)
+            leakage = rng.random() < 0.03
+            energy_pen = round(rng.uniform(6.0, 14.0), 1)
+            op_cost = round(rng.uniform(55.0, 120.0), 2)
+            performance.append(CCSPPerformanceRecord(
+                quarter=qtr, project_id=pid, project_name=pname,
+                actual_capture_mtpa=actual, design_capture_mtpa=design_cap,
+                capture_efficiency_pct=eff, co2_purity_pct=purity,
+                injection_pressure_bar=pressure, leakage_detected=leakage,
+                energy_penalty_pct=energy_pen, operating_cost_per_tonne_aud=op_cost,
+            ))
+
+    # ── Costs (24 records) ────────────────────────────────────────────────────
+    _cost_data = [
+        # year, technology, industry_sector, cap_cost, trans_cost, stor_cost, govt_pct, viable, learning_rate
+        (2022, "Post-combustion Amine",     "Gas Power",   95.0,  12.0,  8.0, 30.0, False, 8.0),
+        (2022, "Post-combustion Amine",     "Coal Power",  110.0, 12.0,  8.0, 35.0, False, 8.0),
+        (2022, "Pre-combustion IGCC",       "LNG",          70.0,  15.0, 10.0, 25.0, True,  7.0),
+        (2022, "Oxyfuel Combustion",        "Steel",       130.0, 14.0,  9.0, 40.0, False, 9.0),
+        (2022, "Direct Air Capture",        "DAC",         450.0,  5.0,  8.0, 60.0, False, 15.0),
+        (2022, "BECCS",                     "Chemicals",    80.0,  10.0,  8.0, 35.0, False, 10.0),
+        (2024, "Post-combustion Amine",     "Gas Power",   88.0,  11.0,  7.5, 28.0, False, 8.0),
+        (2024, "Post-combustion Amine",     "Coal Power",  100.0, 11.0,  7.5, 33.0, False, 8.0),
+        (2024, "Pre-combustion IGCC",       "LNG",          63.0,  14.0,  9.5, 22.0, True,  7.0),
+        (2024, "Oxyfuel Combustion",        "Steel",       118.0, 13.0,  8.5, 38.0, False, 9.0),
+        (2024, "Direct Air Capture",        "DAC",         370.0,  5.0,  7.5, 55.0, False, 15.0),
+        (2024, "BECCS",                     "Chemicals",    72.0,  9.5,  7.5, 32.0, True,  10.0),
+        (2026, "Post-combustion Amine",     "Gas Power",   78.0,  10.0,  7.0, 25.0, True,  8.0),
+        (2026, "Post-combustion Amine",     "Coal Power",  90.0,  10.0,  7.0, 30.0, False, 8.0),
+        (2026, "Pre-combustion IGCC",       "LNG",          56.0,  13.0,  9.0, 20.0, True,  7.0),
+        (2026, "Oxyfuel Combustion",        "Steel",       105.0, 12.0,  8.0, 35.0, True,  9.0),
+        (2026, "Direct Air Capture",        "DAC",         290.0,  5.0,  7.0, 50.0, False, 15.0),
+        (2026, "BECCS",                     "Chemicals",    63.0,  9.0,  7.0, 28.0, True,  10.0),
+        (2030, "Post-combustion Amine",     "Gas Power",   62.0,  8.5,  6.5, 20.0, True,  8.0),
+        (2030, "Post-combustion Amine",     "Coal Power",  72.0,  8.5,  6.5, 22.0, True,  8.0),
+        (2030, "Pre-combustion IGCC",       "LNG",          45.0,  12.0,  8.5, 15.0, True,  7.0),
+        (2030, "Oxyfuel Combustion",        "Steel",        88.0, 11.0,  7.5, 28.0, True,  9.0),
+        (2030, "Direct Air Capture",        "DAC",         180.0,  4.5,  6.5, 40.0, False, 15.0),
+        (2030, "BECCS",                     "Chemicals",    50.0,  8.0,  6.5, 22.0, True,  10.0),
+    ]
+    costs = [
+        CCSPCostRecord(
+            year=yr, technology=tech, industry_sector=sector,
+            capture_cost_aud_per_tonne=cap_c,
+            transport_cost_aud_per_tonne=trans_c,
+            storage_cost_aud_per_tonne=stor_c,
+            total_cost_aud_per_tonne=round(cap_c + trans_c + stor_c, 2),
+            govt_support_pct=govt_p,
+            commercial_viability=viable,
+            learning_rate_pct=lr,
+        )
+        for (yr, tech, sector, cap_c, trans_c, stor_c, govt_p, viable, lr) in _cost_data
+    ]
+
+    # ── Regulations (15 records) ───────────────────────────────────────────────
+    _reg_data = [
+        ("Offshore Petroleum and Greenhouse Gas Storage Act 2006", "Commonwealth", "Permit",    "Offshore CCS operations",                      2006, 5, "Injection permit and storage licence mandatory",                    50.0, 98.0),
+        ("National Greenhouse and Energy Reporting Act 2007",       "Commonwealth", "Reporting", "All CCS facilities >25kt CO2/yr",              2007, 5, "Annual verified emissions and storage reporting",                  10.0, 99.0),
+        ("Environment Protection and Biodiversity Conservation Act","Commonwealth", "Permit",    "Projects with significant environmental impact",1999, 10,"Referral and assessment for new CCS facilities",                  25.0, 95.0),
+        ("CCS Levy (Storage Site Liability) Act 2012",              "Commonwealth", "Liability", "Post-closure liability for CO2 leakage",        2012, 5, "Levy of $10/tonne for post-closure liability fund",               100.0,92.0),
+        ("WA Petroleum and Geothermal Energy Act 1967 (amended)",   "WA",          "Permit",    "Geological storage approvals in WA",           2010, 7, "State exploration and injection permits required",                  20.0, 97.0),
+        ("SA Petroleum and Geothermal Energy Act 2000",             "SA",          "Permit",    "Onshore CCS in SA",                            2000, 7, "State storage licences and monitoring plans",                       15.0, 96.0),
+        ("VIC Mineral Resources (Sustainable Development) Act 1990","VIC",         "Permit",    "Onshore CCS in Victoria",                      2019, 5, "Storage exploration licence and injection permit",                  18.0, 94.0),
+        ("QLD Greenhouse Gas Storage Act 2009",                     "QLD",         "Permit",    "Geological sequestration in QLD",              2009, 5, "Injection licence and measurement plan",                            12.0, 96.0),
+        ("CCS MRV Framework (DCCEEW 2023)",                         "Commonwealth", "MRV",      "Measurement, reporting and verification",        2023, 3, "Quarterly injection reporting, annual third-party verification",    8.0, 93.0),
+        ("National CO2 Transport Code (AER 2022)",                  "Commonwealth", "Standard",  "Pipeline transport of CO2",                    2022, 5, "Design, operating and safety standards for CO2 pipelines",          5.0, 91.0),
+        ("Safeguard Mechanism (reformed 2023)",                     "Commonwealth", "Reporting", "Large emitters >100kt CO2-e/yr",              2023, 2, "Declining baselines; CCS credits eligible as offset method",        20.0, 88.0),
+        ("Australian Carbon Credit Unit Scheme (ACCU CCS Method)",  "Commonwealth", "Standard",  "ACCU generation from CCS projects",           2022, 3, "Eligible capture and storage required for ACCU issuance",           5.0, 90.0),
+        ("NT Petroleum Act 1984 (amended)",                         "NT",          "Permit",    "Offshore NT geological storage",               2015, 7, "NT Joint Authority permit including CO2 injection",                 10.0, 95.0),
+        ("NSW CO2 Geological Storage Licensing Regime",             "NSW",         "Permit",    "Onshore NSW CCS",                              2021, 5, "Exploration and injection licence under Petroleum Act",             12.0, 88.0),
+        ("TAS Mineral Resources Development Act 1995",              "TAS",         "Permit",    "Geological storage in Tasmania",               2022, 5, "Storage permit required for sequestration activities",              8.0, 85.0),
+    ]
+    regulations = [
+        CCSPRegulationRecord(
+            regulation_name=name, jurisdiction=jur, regulation_type=rtype,
+            scope=scope, implementation_year=impl_yr, review_cycle_years=rev,
+            key_requirement=req, penalty_max_m=pen, compliance_rate_pct=comp
+        )
+        for (name, jur, rtype, scope, impl_yr, rev, req, pen, comp) in _reg_data
+    ]
+
+    # ── Scenarios (20 records, 2025-2040 × 2 scenarios) ───────────────────────
+    _scenario_years = list(range(2025, 2041))  # 16 years; take 10 per scenario = 20
+    _scenario_years_subset = [2025, 2027, 2029, 2031, 2033, 2035, 2037, 2039, 2040, 2030]
+    _scenario_data_cp = [
+        # year, cum_store_gt, ann_inj_mtpa, proj_op, avg_cost, govt_b, abated_pct
+        (2025,  0.5,   5.0,   4,  115.0, 0.8,  0.4),
+        (2026,  0.6,   6.0,   5,  112.0, 0.9,  0.5),
+        (2027,  0.8,   8.0,   6,  108.0, 1.1,  0.7),
+        (2028,  1.1,  11.0,   8,  104.0, 1.4,  1.0),
+        (2029,  1.5,  15.0,  10,  100.0, 1.7,  1.3),
+        (2030,  2.0,  20.0,  12,   96.0, 2.1,  1.7),
+        (2031,  2.6,  25.0,  14,   92.0, 2.4,  2.2),
+        (2032,  3.3,  30.0,  16,   88.0, 2.7,  2.6),
+        (2033,  4.1,  36.0,  18,   84.0, 3.0,  3.1),
+        (2034,  5.1,  42.0,  20,   80.0, 3.3,  3.6),
+    ]
+    _scenario_data_nz = [
+        (2025,  0.6,   8.0,   6,  110.0, 1.5,  0.7),
+        (2026,  0.9,  13.0,   9,  104.0, 2.0,  1.1),
+        (2027,  1.4,  20.0,  13,   98.0, 2.8,  1.7),
+        (2028,  2.2,  30.0,  18,   91.0, 3.8,  2.6),
+        (2029,  3.4,  42.0,  24,   84.0, 5.0,  3.6),
+        (2030,  5.0,  56.0,  30,   76.0, 6.5,  4.8),
+        (2031,  7.0,  72.0,  38,   68.0, 8.2,  6.2),
+        (2032,  9.5,  90.0,  47,   61.0, 9.8,  7.7),
+        (2033, 12.5, 108.0,  56,   55.0, 11.2, 9.3),
+        (2034, 16.0, 128.0,  65,   49.0, 12.8, 11.0),
+    ]
+    scenarios = []
+    for (yr, cum, inj, ops, cost, govt, abated) in _scenario_data_cp:
+        scenarios.append(CCSPScenarioRecord(
+            year=yr, scenario="Current Policy",
+            cumulative_storage_gt=cum, annual_injection_mtpa=inj,
+            projects_operating=ops, avg_cost_aud_per_tonne=cost,
+            govt_support_b=govt, co2_abated_pct_of_national=abated,
+        ))
+    for (yr, cum, inj, ops, cost, govt, abated) in _scenario_data_nz:
+        scenarios.append(CCSPScenarioRecord(
+            year=yr, scenario="Net Zero",
+            cumulative_storage_gt=cum, annual_injection_mtpa=inj,
+            projects_operating=ops, avg_cost_aud_per_tonne=cost,
+            govt_support_b=govt, co2_abated_pct_of_national=abated,
+        ))
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    total_projects = len(projects)
+    total_storage_capacity_gt = round(sum(s.storage_capacity_gt_co2 for s in storage_sites), 1)
+    operating_perf = [p for p in performance if p.quarter >= "2023-Q1"]
+    avg_capture_efficiency_pct = round(
+        sum(p.capture_efficiency_pct for p in operating_perf) / len(operating_perf), 2
+    ) if operating_perf else 0.0
+    avg_total_cost_aud_per_tonne = round(
+        sum(c.total_cost_aud_per_tonne for c in costs) / len(costs), 2
+    )
+    operating_projects = [p for p in projects if p.status == "Operating"]
+    total_operating_capacity_mtpa = round(sum(p.capture_capacity_mtpa for p in operating_projects), 2)
+    nz_2035 = next(
+        (s.cumulative_storage_gt for s in scenarios if s.year == 2033 and s.scenario == "Net Zero"), 0.0
+    )
+    projected_2035_storage_gt = round(nz_2035, 1)
+
+    summary = {
+        "total_projects": total_projects,
+        "total_storage_capacity_gt": total_storage_capacity_gt,
+        "avg_capture_efficiency_pct": avg_capture_efficiency_pct,
+        "avg_total_cost_aud_per_tonne": avg_total_cost_aud_per_tonne,
+        "total_operating_capacity_mtpa": total_operating_capacity_mtpa,
+        "projected_2035_storage_gt": projected_2035_storage_gt,
+    }
+
+    _ccsp_cache.update(CCSPDashboard(
+        projects=projects,
+        storage_sites=storage_sites,
+        performance=performance,
+        costs=costs,
+        regulations=regulations,
+        scenarios=scenarios,
+        summary=summary,
+    ).model_dump())
+    return CCSPDashboard(**_ccsp_cache)
+
+
+# ── Sprint 110c: Energy Poverty and Vulnerable Consumer Analytics (EPVC) ──────
+
+class EPVCHardshipRecord(BaseModel):
+    retailer: str
+    state: str
+    year: int
+    customers_on_hardship_program: int
+    new_customers_enrolled: int
+    exits_resolved_pct: float
+    exits_disconnected_pct: float
+    avg_debt_aud: float
+    avg_duration_months: float
+    payment_plan_adherence_pct: float
+    wellbeing_calls_made: int
+
+class EPVCDisconnectionRecord(BaseModel):
+    state: str
+    year: int
+    quarter: str
+    disconnections_count: int
+    reconnections_count: int
+    net_disconnections: int
+    medical_exemptions: int
+    life_support_count: int
+    avg_days_disconnected: float
+    debt_at_disconnection_aud: float
+    low_income_share_pct: float
+
+class EPVCConcessionRecord(BaseModel):
+    state: str
+    scheme_name: str
+    scheme_type: str
+    annual_value_aud: float
+    eligible_households: int
+    uptake_rate_pct: float
+    admin_cost_pct: float
+    income_threshold_aud: float
+    year: int
+
+class EPVCAffordabilityRecord(BaseModel):
+    year: int
+    state: str
+    median_household_income_aud: float
+    avg_annual_electricity_bill_aud: float
+    electricity_bill_income_ratio_pct: float
+    housing_stress_combined_pct: float
+    energy_poverty_rate_pct: float
+    low_income_quintile_bill_aud: float
+    benefit_recipient_bill_aud: float
+
+class EPVCInterventionRecord(BaseModel):
+    program_name: str
+    state: str
+    program_type: str
+    households_supported: int
+    avg_bill_reduction_aud: float
+    program_cost_m: float
+    cost_per_household_aud: float
+    completion_rate_pct: float
+    nps_score: int
+
+class EPVCForecastRecord(BaseModel):
+    year: int
+    state: str
+    projected_energy_poverty_rate_pct: float
+    projected_hardship_customers: int
+    projected_bill_aud: float
+    concession_cost_m: float
+    intervention_investment_needed_m: float
+    policy_scenario: str
+
+class EPVCDashboard(BaseModel):
+    hardship: List[EPVCHardshipRecord]
+    disconnections: List[EPVCDisconnectionRecord]
+    concessions: List[EPVCConcessionRecord]
+    affordability: List[EPVCAffordabilityRecord]
+    interventions: List[EPVCInterventionRecord]
+    forecasts: List[EPVCForecastRecord]
+    summary: dict
+
+_epvc_cache: dict = {}
+
+@app.get("/api/energy-poverty-vulnerable-consumer/dashboard", response_model=EPVCDashboard, dependencies=[Depends(verify_api_key)])
+def get_epvc_dashboard():
+    import random
+    if _epvc_cache:
+        return EPVCDashboard(**_epvc_cache)
+
+    rng = random.Random(42)
+
+    _retailers = ["AGL", "Origin Energy", "EnergyAustralia", "Red Energy", "Powershop"]
+    _states = ["NSW", "VIC", "QLD", "SA", "WA"]
+
+    # ── Hardship Records (25 records) ─────────────────────────────────────────
+    _hardship_data = [
+        ("AGL",              "NSW", 2020, 32400, 8100,  58.2, 12.4, 2180.0, 14.5, 72.3, 41200),
+        ("AGL",              "NSW", 2022, 31200, 7800,  61.5, 11.8, 2050.0, 13.8, 74.1, 39800),
+        ("AGL",              "NSW", 2024, 29800, 7200,  64.8, 10.9, 1920.0, 12.9, 76.5, 38100),
+        ("Origin Energy",    "VIC", 2020, 28700, 7400,  55.9, 13.8, 2310.0, 15.2, 69.8, 36500),
+        ("Origin Energy",    "VIC", 2022, 27900, 7100,  59.3, 13.1, 2190.0, 14.6, 71.4, 35400),
+        ("Origin Energy",    "VIC", 2024, 26500, 6800,  62.7, 12.3, 2060.0, 13.7, 73.2, 33700),
+        ("EnergyAustralia",  "QLD", 2020, 19800, 5200,  53.4, 15.1, 2420.0, 16.1, 67.5, 25200),
+        ("EnergyAustralia",  "QLD", 2022, 19200, 4900,  57.1, 14.5, 2280.0, 15.4, 69.3, 24400),
+        ("EnergyAustralia",  "QLD", 2024, 18100, 4600,  60.9, 13.6, 2140.0, 14.5, 71.8, 23100),
+        ("Red Energy",       "SA",  2020, 11200, 2900,  51.8, 16.2, 2540.0, 17.3, 65.2, 14300),
+        ("Red Energy",       "SA",  2022, 10800, 2700,  55.6, 15.4, 2390.0, 16.5, 67.4, 13700),
+        ("Red Energy",       "SA",  2024, 10100, 2500,  59.4, 14.5, 2240.0, 15.6, 69.7, 12900),
+        ("Powershop",        "WA",  2020,  8900, 2300,  49.7, 17.5, 2650.0, 18.2, 63.1, 11300),
+        ("Powershop",        "WA",  2022,  8500, 2100,  53.2, 16.8, 2500.0, 17.4, 65.3, 10800),
+        ("Powershop",        "WA",  2024,  7900, 1900,  57.1, 15.7, 2340.0, 16.5, 67.8, 10100),
+        ("AGL",              "VIC", 2021, 14200, 3600,  60.3, 12.7, 2120.0, 14.1, 73.8, 18100),
+        ("Origin Energy",    "QLD", 2021, 12800, 3200,  57.8, 13.9, 2250.0, 15.0, 70.5, 16300),
+        ("EnergyAustralia",  "NSW", 2021, 11500, 2900,  56.1, 14.3, 2310.0, 15.6, 68.9, 14700),
+        ("Red Energy",       "VIC", 2023, 9800,  2500,  62.4, 12.1, 1980.0, 13.2, 75.1, 12500),
+        ("Powershop",        "SA",  2023, 5600,  1400,  58.7, 13.5, 2150.0, 14.4, 71.6,  7100),
+        ("AGL",              "QLD", 2020, 16300, 4200,  54.6, 14.7, 2390.0, 15.8, 68.2, 20800),
+        ("Origin Energy",    "NSW", 2023, 22100, 5600,  63.2, 11.5, 1990.0, 13.1, 75.8, 28200),
+        ("EnergyAustralia",  "SA",  2022,  7200, 1800,  56.9, 14.1, 2270.0, 15.2, 70.2,  9200),
+        ("Red Energy",       "WA",  2024,  4800, 1200,  61.5, 12.8, 2080.0, 13.9, 74.3,  6100),
+        ("Powershop",        "QLD", 2024,  6200, 1550,  63.8, 11.9, 1950.0, 12.8, 76.9,  7900),
+    ]
+    hardship = [
+        EPVCHardshipRecord(
+            retailer=retailer, state=state, year=year,
+            customers_on_hardship_program=cust, new_customers_enrolled=new_enrol,
+            exits_resolved_pct=exits_res, exits_disconnected_pct=exits_disc,
+            avg_debt_aud=avg_debt, avg_duration_months=avg_dur,
+            payment_plan_adherence_pct=adherence, wellbeing_calls_made=wellbeing
+        )
+        for (retailer, state, year, cust, new_enrol, exits_res, exits_disc,
+             avg_debt, avg_dur, adherence, wellbeing) in _hardship_data
+    ]
+
+    # ── Disconnection Records (30 records) ────────────────────────────────────
+    _disc_data = [
+        ("NSW", 2020, "2020-Q1", 19800, 17200, 2600, 420, 1850, 18.4, 1820.0, 38.5),
+        ("NSW", 2020, "2020-Q3", 17400, 15600, 1800, 390, 1870, 17.1, 1760.0, 39.1),
+        ("NSW", 2022, "2022-Q1", 14200, 12800, 1400, 480, 1920, 15.8, 1650.0, 40.2),
+        ("NSW", 2022, "2022-Q3", 12900, 11800, 1100, 510, 1950, 14.7, 1590.0, 41.0),
+        ("NSW", 2024, "2024-Q1", 10500, 9800,   700, 560, 2010, 12.4, 1480.0, 42.3),
+        ("NSW", 2024, "2024-Q3", 9800,  9200,   600, 580, 2030, 11.9, 1440.0, 42.8),
+        ("VIC", 2020, "2020-Q2", 17200, 15100, 2100, 380, 1680, 17.9, 1750.0, 37.8),
+        ("VIC", 2021, "2021-Q2", 13800, 12500, 1300, 430, 1720, 15.2, 1640.0, 38.9),
+        ("VIC", 2022, "2022-Q2", 11500, 10600,  900, 460, 1760, 13.6, 1560.0, 39.7),
+        ("VIC", 2023, "2023-Q2", 9800,  9200,   600, 490, 1790, 12.1, 1490.0, 40.6),
+        ("VIC", 2024, "2024-Q2", 8600,  8100,   500, 520, 1820, 11.3, 1420.0, 41.4),
+        ("QLD", 2020, "2020-Q1", 14500, 12800, 1700, 310, 1420, 19.2, 1880.0, 36.4),
+        ("QLD", 2021, "2021-Q1", 11800, 10700, 1100, 340, 1450, 17.5, 1780.0, 37.5),
+        ("QLD", 2022, "2022-Q1",  9900,  9200,  700, 370, 1480, 15.9, 1680.0, 38.6),
+        ("QLD", 2023, "2023-Q1",  8500,  8000,  500, 400, 1510, 14.3, 1600.0, 39.7),
+        ("QLD", 2024, "2024-Q1",  7400,  7000,  400, 430, 1540, 12.8, 1520.0, 40.8),
+        ("SA",  2020, "2020-Q2",  9800,  8400, 1400, 220,  980, 20.8, 1960.0, 41.2),
+        ("SA",  2021, "2021-Q2",  8100,  7200,  900, 240,  995, 19.1, 1850.0, 42.1),
+        ("SA",  2022, "2022-Q2",  6900,  6300,  600, 260, 1010, 17.4, 1750.0, 43.0),
+        ("SA",  2023, "2023-Q2",  5900,  5500,  400, 280, 1025, 15.7, 1660.0, 43.9),
+        ("SA",  2024, "2024-Q2",  5100,  4800,  300, 300, 1040, 14.1, 1580.0, 44.8),
+        ("WA",  2020, "2020-Q3",  7600,  6500, 1100, 180,  820, 21.5, 2010.0, 35.8),
+        ("WA",  2021, "2021-Q3",  6400,  5700,  700, 200,  840, 19.8, 1900.0, 36.9),
+        ("WA",  2022, "2022-Q3",  5500,  5000,  500, 220,  855, 18.1, 1800.0, 38.0),
+        ("WA",  2023, "2023-Q3",  4800,  4400,  400, 240,  870, 16.4, 1710.0, 39.1),
+        ("WA",  2024, "2024-Q3",  4200,  3900,  300, 260,  885, 14.8, 1630.0, 40.2),
+        ("NSW", 2021, "2021-Q4", 15700, 14100, 1600, 450, 1900, 16.5, 1700.0, 39.5),
+        ("VIC", 2020, "2020-Q4", 18100, 15900, 2200, 360, 1660, 18.7, 1800.0, 38.2),
+        ("QLD", 2024, "2024-Q4",  7100,  6700,  400, 450, 1560, 12.1, 1490.0, 41.3),
+        ("SA",  2024, "2024-Q4",  4900,  4600,  300, 310, 1050, 13.5, 1550.0, 45.2),
+    ]
+    disconnections = [
+        EPVCDisconnectionRecord(
+            state=state, year=year, quarter=quarter,
+            disconnections_count=disc, reconnections_count=reconn,
+            net_disconnections=net_disc, medical_exemptions=med_ex,
+            life_support_count=life_sup, avg_days_disconnected=avg_days,
+            debt_at_disconnection_aud=debt, low_income_share_pct=low_inc
+        )
+        for (state, year, quarter, disc, reconn, net_disc, med_ex,
+             life_sup, avg_days, debt, low_inc) in _disc_data
+    ]
+
+    # ── Concession Records (20 records) ───────────────────────────────────────
+    _conc_data = [
+        ("NSW", "NSW Low Income Household Rebate",      "Electricity Concession",    285.0,  850000, 78.4, 3.2, 48000, 2023),
+        ("NSW", "NSW Energy Accounts Payment Assistance","Emergency Relief",          500.0,  120000, 45.2, 8.1, 35000, 2023),
+        ("NSW", "NSW Life Support Rebate",              "Life Support",              2200.0,   18500, 92.3, 2.1, 0,     2023),
+        ("NSW", "NSW Medical Energy Rebate",            "Medical Cooling Allowance",  650.0,   42000, 68.9, 4.5, 45000, 2023),
+        ("VIC", "Victorian Default Offer Concession",  "Electricity Concession",    260.0, 1050000, 82.1, 2.8, 52000, 2023),
+        ("VIC", "VIC Winter Energy Payment",           "Rebate",                    250.0,  380000, 71.3, 5.2, 40000, 2023),
+        ("VIC", "VIC Solar Panel Rebate",              "Solar Bonus",              1400.0,   95000, 38.7, 6.8, 55000, 2023),
+        ("VIC", "VIC Life Support Machine Reg.",       "Life Support",             2350.0,   22000, 94.1, 1.9, 0,     2023),
+        ("QLD", "QLD Electricity Rebate",              "Electricity Concession",    372.0,  720000, 76.8, 3.5, 46000, 2023),
+        ("QLD", "QLD Home Energy Emergency Assist.",   "Emergency Relief",          720.0,   85000, 41.8, 9.2, 33000, 2023),
+        ("QLD", "QLD Gas Rebate",                      "Gas Concession",            120.0,  280000, 69.4, 4.1, 44000, 2023),
+        ("SA",  "SA Cost of Living Concession (Elec)", "Electricity Concession",    215.0,  310000, 80.2, 3.0, 42000, 2023),
+        ("SA",  "SA Gas Concession",                   "Gas Concession",            150.0,  195000, 74.6, 3.8, 42000, 2023),
+        ("SA",  "SA Hardship Utility Grant",           "Emergency Relief",          600.0,   48000, 43.5, 7.9, 32000, 2023),
+        ("SA",  "SA Medical Heating and Cooling Conc.","Medical Cooling Allowance", 800.0,   12500, 72.8, 5.1, 38000, 2023),
+        ("WA",  "WA Energy Assistance Payment",        "Electricity Concession",    330.0,  420000, 77.5, 3.3, 44000, 2023),
+        ("WA",  "WA Hardship Utility Grant Scheme",    "Emergency Relief",          680.0,   62000, 40.1, 8.6, 31000, 2023),
+        ("WA",  "WA Life Support Subsidy",             "Life Support",             2100.0,   14800, 91.7, 2.3, 0,     2023),
+        ("NSW", "NSW Solar Bonus Scheme",              "Solar Bonus",               680.0,  185000, 55.3, 5.9, 60000, 2023),
+        ("VIC", "VIC Power Saving Bonus",              "Rebate",                    250.0,  680000, 84.9, 2.4, 0,     2023),
+    ]
+    concessions = [
+        EPVCConcessionRecord(
+            state=state, scheme_name=scheme_name, scheme_type=scheme_type,
+            annual_value_aud=annual_val, eligible_households=eligible,
+            uptake_rate_pct=uptake, admin_cost_pct=admin_cost,
+            income_threshold_aud=income_thresh, year=year
+        )
+        for (state, scheme_name, scheme_type, annual_val, eligible,
+             uptake, admin_cost, income_thresh, year) in _conc_data
+    ]
+
+    # ── Affordability Records (24 records, 2020-2024 × 5 states minus 1) ─────
+    _afford_data = [
+        (2020, "NSW", 92400, 1820, 1.97, 14.2,  8.4, 2980, 2540),
+        (2021, "NSW", 94200, 1870, 1.98, 14.5,  8.7, 3040, 2590),
+        (2022, "NSW", 97800, 2150, 2.20, 15.8,  9.8, 3520, 2980),
+        (2023, "NSW", 99100, 2280, 2.30, 16.4, 10.5, 3730, 3180),
+        (2020, "VIC", 88600, 1760, 1.99, 15.1,  9.1, 2860, 2440),
+        (2021, "VIC", 90400, 1810, 2.00, 15.3,  9.4, 2940, 2510),
+        (2022, "VIC", 93200, 2090, 2.24, 16.7, 10.3, 3410, 2910),
+        (2023, "VIC", 94800, 2220, 2.34, 17.2, 11.1, 3620, 3090),
+        (2020, "QLD", 84200, 1980, 2.35, 13.8, 10.2, 3240, 2760),
+        (2021, "QLD", 86100, 2040, 2.37, 14.1, 10.5, 3340, 2840),
+        (2022, "QLD", 89400, 2340, 2.62, 15.6, 11.8, 3830, 3260),
+        (2023, "QLD", 90800, 2480, 2.73, 16.1, 12.6, 4060, 3460),
+        (2020, "SA",  79800, 2210, 2.77, 16.5, 12.1, 3620, 3080),
+        (2021, "SA",  81600, 2290, 2.81, 16.9, 12.5, 3750, 3190),
+        (2022, "SA",  84200, 2640, 3.13, 18.4, 14.2, 4320, 3680),
+        (2023, "SA",  85900, 2820, 3.28, 19.1, 15.1, 4620, 3940),
+        (2020, "WA",  91200, 1650, 1.81, 12.8,  7.8, 2700, 2300),
+        (2021, "WA",  93100, 1700, 1.83, 13.1,  8.0, 2780, 2370),
+        (2022, "WA",  96200, 1960, 2.04, 14.5,  9.1, 3210, 2730),
+        (2023, "WA",  97900, 2090, 2.13, 15.0,  9.7, 3420, 2920),
+        (2024, "NSW", 102400, 2380, 2.32, 16.8, 10.9, 3890, 3310),
+        (2024, "VIC",  97300, 2310, 2.37, 17.6, 11.5, 3780, 3220),
+        (2024, "QLD",  93500, 2560, 2.74, 16.5, 13.0, 4190, 3570),
+        (2024, "SA",   88600, 2940, 3.32, 19.6, 15.6, 4810, 4100),
+    ]
+    affordability = [
+        EPVCAffordabilityRecord(
+            year=year, state=state,
+            median_household_income_aud=med_inc,
+            avg_annual_electricity_bill_aud=avg_bill,
+            electricity_bill_income_ratio_pct=ratio,
+            housing_stress_combined_pct=housing_stress,
+            energy_poverty_rate_pct=poverty_rate,
+            low_income_quintile_bill_aud=low_inc_bill,
+            benefit_recipient_bill_aud=ben_bill
+        )
+        for (year, state, med_inc, avg_bill, ratio, housing_stress,
+             poverty_rate, low_inc_bill, ben_bill) in _afford_data
+    ]
+
+    # ── Intervention Records (15 records) ─────────────────────────────────────
+    _interv_data = [
+        ("NSW Energy Efficiency Upgrade Program",   "NSW", "Efficiency Upgrade",  18500, 420.0,  9.8, 530.0, 78.4, 62),
+        ("VIC Solar for Low-Income Households",     "VIC", "Community Solar",      8200, 680.0,  6.4, 780.0, 71.2, 71),
+        ("QLD Hardship Customer Tariff Relief",     "QLD", "Hardship Tariff",     24800, 280.0, 11.2, 451.0, 85.3, 55),
+        ("SA Home Energy Check Program",            "SA",  "Efficiency Upgrade",   7600, 390.0,  4.1, 539.0, 74.8, 58),
+        ("WA Emergency Energy Fund",                "WA",  "Emergency Fund",       5400, 520.0,  3.2, 593.0, 66.9, 48),
+        ("National Smart Meter Rollout - Low Inc.", "NSW", "Smart Meter",         31200, 310.0, 18.6, 596.0, 82.1, 52),
+        ("VIC Concession Top-Up Payment Plan",      "VIC", "Payment Plan",        42600, 240.0, 14.8, 347.0, 88.7, 44),
+        ("QLD Community Solar Garden",              "QLD", "Community Solar",      3800, 750.0,  3.8, 1000.0, 65.4, 74),
+        ("SA Hardship Tariff Adjustment Scheme",    "SA",  "Hardship Tariff",      9200, 260.0,  4.8, 522.0, 80.6, 53),
+        ("NSW Emergency Relief Fund",               "NSW", "Emergency Fund",      11800, 490.0,  7.1, 602.0, 70.2, 49),
+        ("VIC Renters Energy Efficiency Scheme",    "VIC", "Efficiency Upgrade",   6500, 450.0,  4.2, 646.0, 72.9, 63),
+        ("WA Smart Meter Low-Income Pilot",         "WA",  "Smart Meter",          4100, 295.0,  2.8, 683.0, 76.3, 51),
+        ("QLD Payment Plan Assistance Initiative",  "QLD", "Payment Plan",        18700, 215.0,  8.4, 449.0, 86.8, 43),
+        ("SA Community Solar Energy Access",        "SA",  "Community Solar",      2900, 710.0,  2.4, 828.0, 62.1, 72),
+        ("NSW Hardship Tariff Relief Program",      "NSW", "Hardship Tariff",     15600, 300.0,  8.2, 526.0, 83.4, 57),
+    ]
+    interventions = [
+        EPVCInterventionRecord(
+            program_name=prog, state=state, program_type=prog_type,
+            households_supported=hh, avg_bill_reduction_aud=bill_red,
+            program_cost_m=cost_m, cost_per_household_aud=cost_hh,
+            completion_rate_pct=comp_rate, nps_score=nps
+        )
+        for (prog, state, prog_type, hh, bill_red, cost_m, cost_hh, comp_rate, nps) in _interv_data
+    ]
+
+    # ── Forecast Records (20 records, 2024-2030 × 4 per scenario × 3 scenarios minus overlap) ─
+    _forecast_data = [
+        (2025, "NSW", 11.2,  31500, 2480, 125.4,  82.1, "BAU"),
+        (2027, "NSW", 12.8,  33200, 2640, 138.7,  97.4, "BAU"),
+        (2029, "NSW", 14.5,  35400, 2820, 154.2, 115.8, "BAU"),
+        (2030, "NSW", 15.4,  36800, 2920, 162.8, 125.4, "BAU"),
+        (2025, "VIC", 12.1,  28400, 2390, 118.6,  76.3, "BAU"),
+        (2027, "VIC", 13.9,  30100, 2560, 132.4,  91.8, "BAU"),
+        (2025, "NSW",  9.8,  27800, 2310, 118.2,  68.4, "Targeted Intervention"),
+        (2027, "NSW",  8.4,  25600, 2190, 104.8,  54.2, "Targeted Intervention"),
+        (2029, "NSW",  7.1,  23200, 2050,  91.4,  41.6, "Targeted Intervention"),
+        (2030, "NSW",  6.4,  21800, 1980,  85.1,  36.2, "Targeted Intervention"),
+        (2025, "VIC",  9.2,  24600, 2240, 109.4,  62.8, "Targeted Intervention"),
+        (2027, "VIC",  7.8,  22400, 2110,  96.2,  49.5, "Targeted Intervention"),
+        (2025, "QLD", 13.5,  20800, 2640, 102.8,  71.4, "BAU"),
+        (2030, "QLD", 17.2,  25400, 3020, 132.6, 104.8, "BAU"),
+        (2025, "SA",  16.2,  12400, 3010,  68.4,  52.1, "BAU"),
+        (2030, "SA",  20.8,  15200, 3480,  88.2,  76.4, "BAU"),
+        (2025, "NSW",  6.1,  19800, 2180,  98.4,  48.2, "Universal Basic Energy"),
+        (2027, "NSW",  4.8,  16400, 2020,  82.1,  32.6, "Universal Basic Energy"),
+        (2029, "NSW",  3.6,  13100, 1870,  68.4,  22.8, "Universal Basic Energy"),
+        (2030, "NSW",  2.9,  11200, 1790,  61.8,  18.4, "Universal Basic Energy"),
+    ]
+    forecasts = [
+        EPVCForecastRecord(
+            year=year, state=state,
+            projected_energy_poverty_rate_pct=poverty_rate,
+            projected_hardship_customers=hardship_cust,
+            projected_bill_aud=bill,
+            concession_cost_m=conc_cost,
+            intervention_investment_needed_m=invest,
+            policy_scenario=scenario
+        )
+        for (year, state, poverty_rate, hardship_cust, bill,
+             conc_cost, invest, scenario) in _forecast_data
+    ]
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    total_hardship_customers = sum(r.customers_on_hardship_program for r in hardship)
+    all_disc_rates = [r.disconnections_count for r in disconnections]
+    avg_disconnection_rate_per_1000 = round(
+        sum(all_disc_rates) / len(all_disc_rates) / 1000, 2
+    )
+    avg_energy_poverty_rate_pct = round(
+        sum(r.energy_poverty_rate_pct for r in affordability) / len(affordability), 2
+    )
+    total_concession_spend_m = round(
+        sum(c.annual_value_aud * c.eligible_households * c.uptake_rate_pct / 100 / 1_000_000
+            for c in concessions), 1
+    )
+    best_intervention = max(interventions, key=lambda x: x.avg_bill_reduction_aud)
+    most_effective_intervention = best_intervention.program_name
+
+    bau_2030 = [f for f in forecasts if f.policy_scenario == "BAU" and f.year == 2030]
+    projected_2030_poverty_rate_pct = round(
+        sum(f.projected_energy_poverty_rate_pct for f in bau_2030) / len(bau_2030), 2
+    ) if bau_2030 else 0.0
+
+    summary = {
+        "total_hardship_customers": total_hardship_customers,
+        "avg_disconnection_rate_per_1000": avg_disconnection_rate_per_1000,
+        "avg_energy_poverty_rate_pct": avg_energy_poverty_rate_pct,
+        "total_concession_spend_m": total_concession_spend_m,
+        "most_effective_intervention": most_effective_intervention,
+        "projected_2030_poverty_rate_pct": projected_2030_poverty_rate_pct,
+    }
+
+    _epvc_cache.update(EPVCDashboard(
+        hardship=hardship,
+        disconnections=disconnections,
+        concessions=concessions,
+        affordability=affordability,
+        interventions=interventions,
+        forecasts=forecasts,
+        summary=summary,
+    ).model_dump())
+    return EPVCDashboard(**_epvc_cache)

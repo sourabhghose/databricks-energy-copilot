@@ -377,6 +377,9 @@ import GridDecarbonisationPathwayAnalytics from './pages/GridDecarbonisationPath
 import RooftopSolarNetworkImpactAnalytics from './pages/RooftopSolarNetworkImpactAnalytics'
 import ElectricityNetworkTariffReformAnalytics from './pages/ElectricityNetworkTariffReformAnalytics'
 import LongDurationEnergyStorageAnalytics from './pages/LongDurationEnergyStorageAnalytics'
+import HydrogenPipelineInfrastructureAnalytics from './pages/HydrogenPipelineInfrastructureAnalytics'
+import CarbonCaptureStorageProjectAnalytics from './pages/CarbonCaptureStorageProjectAnalytics'
+import EnergyPovertyVulnerableConsumerAnalytics from './pages/EnergyPovertyVulnerableConsumerAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -675,6 +678,9 @@ const NAV_ITEMS = [
   { to: '/rooftop-solar-network-impact', label: 'Rooftop Solar Impact', Icon: Sun },
   { to: '/electricity-network-tariff-reform', label: 'Network Tariff Reform', Icon: DollarSign },
   { to: '/long-duration-energy-storage', label: 'Long Duration Storage', Icon: Database },
+  { to: '/hydrogen-pipeline-infrastructure', label: 'H2 Pipeline Infrastructure', Icon: GitBranch },
+  { to: '/carbon-capture-storage-project',  label: 'CCS Project Analytics',       Icon: Layers    },
+  { to: '/energy-poverty-vulnerable-consumer', label: 'Energy Poverty',           Icon: Users     },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1048,6 +1054,9 @@ export default function App() {
               <Route path="/rooftop-solar-network-impact" element={<RooftopSolarNetworkImpactAnalytics />} />
               <Route path="/electricity-network-tariff-reform" element={<ElectricityNetworkTariffReformAnalytics />} />
               <Route path="/long-duration-energy-storage" element={<LongDurationEnergyStorageAnalytics />} />
+              <Route path="/hydrogen-pipeline-infrastructure" element={<HydrogenPipelineInfrastructureAnalytics />} />
+              <Route path="/carbon-capture-storage-project"  element={<CarbonCaptureStorageProjectAnalytics />}  />
+              <Route path="/energy-poverty-vulnerable-consumer" element={<EnergyPovertyVulnerableConsumerAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

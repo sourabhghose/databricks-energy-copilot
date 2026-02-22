@@ -20060,3 +20060,287 @@ export interface LDESXDashboard {
 
 export const getLongDurationEnergyStorageDashboard = (): Promise<LDESXDashboard> =>
   get<LDESXDashboard>('/api/long-duration-energy-storage-x/dashboard')
+
+// ── Sprint 110a: Hydrogen Pipeline Infrastructure Analytics (HPIA) ─────────
+
+export interface HPIAPipelineRecord {
+  pipeline_id: string
+  name: string
+  state: string
+  length_km: number
+  diameter_mm: number
+  design_pressure_bar: number
+  capacity_kg_h2_day: number
+  status: string
+  h2_blend_pct: number
+  repurposed_from_gas: boolean
+  capex_m: number
+  opex_m_year: number
+  shipper_count: number
+}
+
+export interface HPIAHubRecord {
+  hub_id: string
+  hub_name: string
+  location: string
+  state: string
+  hub_type: string
+  storage_capacity_tonne_h2: number
+  throughput_tpd: number
+  connected_pipelines: number
+  export_capable: boolean
+  compression_mw: number
+  liquefaction_capacity_tpd: number
+  operator: string
+}
+
+export interface HPIATransportComparisonRecord {
+  year: number
+  route: string
+  from_location: string
+  to_location: string
+  distance_km: number
+  mode: string
+  cost_aud_per_kg_h2: number
+  energy_penalty_pct: number
+  round_trip_efficiency_pct: number
+  annual_capacity_tonne: number
+  co2_intensity_kgco2_per_kg_h2: number
+}
+
+export interface HPIABlendingRecord {
+  month: string
+  gas_network: string
+  state: string
+  blend_pct: number
+  h2_volume_gj: number
+  caloric_impact_pct: number
+  pressure_impact_pct: number
+  appliance_compatibility_pct: number
+  cost_premium_pct: number
+  safety_incidents: number
+}
+
+export interface HPIAProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  state: string
+  project_type: string
+  capacity_descriptor: string
+  capex_m: number
+  status: string
+  expected_completion: string
+  funding_source: string
+  h2_source: string
+  target_market: string
+}
+
+export interface HPIADemandRecord {
+  year: number
+  sector: string
+  demand_kt_h2: number
+  pipeline_share_pct: number
+  shipping_share_pct: number
+  local_share_pct: number
+  price_aud_per_kg: number
+  infrastructure_needed_b: number
+}
+
+export interface HPIADashboard {
+  pipelines: HPIAPipelineRecord[]
+  hubs: HPIAHubRecord[]
+  transport_comparison: HPIATransportComparisonRecord[]
+  blending: HPIABlendingRecord[]
+  projects: HPIAProjectRecord[]
+  demand_forecast: HPIADemandRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getHydrogenPipelineInfrastructureDashboard = (): Promise<HPIADashboard> =>
+  get<HPIADashboard>('/api/hydrogen-pipeline-infrastructure/dashboard')
+
+// ── Sprint 110b: Carbon Capture and Storage Project Analytics (CCSP) ──────────
+
+export interface CCSPProjectRecord {
+  project_id: string
+  project_name: string
+  operator: string
+  state: string
+  project_type: string
+  source_industry: string
+  capture_capacity_mtpa: number
+  storage_formation: string
+  status: string
+  capex_m: number
+  opex_m_year: number
+  commencement_year: number
+}
+
+export interface CCSPStorageSiteRecord {
+  site_id: string
+  site_name: string
+  state: string
+  formation_type: string
+  storage_capacity_gt_co2: number
+  injectivity_mtpa: number
+  depth_m: number
+  reservoir_quality: string
+  seal_integrity: string
+  approved: boolean
+  monitoring_wells: number
+  operator: string
+}
+
+export interface CCSPPerformanceRecord {
+  quarter: string
+  project_id: string
+  project_name: string
+  actual_capture_mtpa: number
+  design_capture_mtpa: number
+  capture_efficiency_pct: number
+  co2_purity_pct: number
+  injection_pressure_bar: number
+  leakage_detected: boolean
+  energy_penalty_pct: number
+  operating_cost_per_tonne_aud: number
+}
+
+export interface CCSPCostRecord {
+  year: number
+  technology: string
+  industry_sector: string
+  capture_cost_aud_per_tonne: number
+  transport_cost_aud_per_tonne: number
+  storage_cost_aud_per_tonne: number
+  total_cost_aud_per_tonne: number
+  govt_support_pct: number
+  commercial_viability: boolean
+  learning_rate_pct: number
+}
+
+export interface CCSPRegulationRecord {
+  regulation_name: string
+  jurisdiction: string
+  regulation_type: string
+  scope: string
+  implementation_year: number
+  review_cycle_years: number
+  key_requirement: string
+  penalty_max_m: number
+  compliance_rate_pct: number
+}
+
+export interface CCSPScenarioRecord {
+  year: number
+  scenario: string
+  cumulative_storage_gt: number
+  annual_injection_mtpa: number
+  projects_operating: number
+  avg_cost_aud_per_tonne: number
+  govt_support_b: number
+  co2_abated_pct_of_national: number
+}
+
+export interface CCSPDashboard {
+  projects: CCSPProjectRecord[]
+  storage_sites: CCSPStorageSiteRecord[]
+  performance: CCSPPerformanceRecord[]
+  costs: CCSPCostRecord[]
+  regulations: CCSPRegulationRecord[]
+  scenarios: CCSPScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getCarbonCaptureStorageProjectDashboard = (): Promise<CCSPDashboard> =>
+  get<CCSPDashboard>('/api/carbon-capture-storage-project/dashboard')
+
+// ── Sprint 110c: Energy Poverty and Vulnerable Consumer Analytics (EPVC) ──
+
+export interface EPVCHardshipRecord {
+  retailer: string
+  state: string
+  year: number
+  customers_on_hardship_program: number
+  new_customers_enrolled: number
+  exits_resolved_pct: number
+  exits_disconnected_pct: number
+  avg_debt_aud: number
+  avg_duration_months: number
+  payment_plan_adherence_pct: number
+  wellbeing_calls_made: number
+}
+
+export interface EPVCDisconnectionRecord {
+  state: string
+  year: number
+  quarter: string
+  disconnections_count: number
+  reconnections_count: number
+  net_disconnections: number
+  medical_exemptions: number
+  life_support_count: number
+  avg_days_disconnected: number
+  debt_at_disconnection_aud: number
+  low_income_share_pct: number
+}
+
+export interface EPVCConcessionRecord {
+  state: string
+  scheme_name: string
+  scheme_type: string
+  annual_value_aud: number
+  eligible_households: number
+  uptake_rate_pct: number
+  admin_cost_pct: number
+  income_threshold_aud: number
+  year: number
+}
+
+export interface EPVCAffordabilityRecord {
+  year: number
+  state: string
+  median_household_income_aud: number
+  avg_annual_electricity_bill_aud: number
+  electricity_bill_income_ratio_pct: number
+  housing_stress_combined_pct: number
+  energy_poverty_rate_pct: number
+  low_income_quintile_bill_aud: number
+  benefit_recipient_bill_aud: number
+}
+
+export interface EPVCInterventionRecord {
+  program_name: string
+  state: string
+  program_type: string
+  households_supported: number
+  avg_bill_reduction_aud: number
+  program_cost_m: number
+  cost_per_household_aud: number
+  completion_rate_pct: number
+  nps_score: number
+}
+
+export interface EPVCForecastRecord {
+  year: number
+  state: string
+  projected_energy_poverty_rate_pct: number
+  projected_hardship_customers: number
+  projected_bill_aud: number
+  concession_cost_m: number
+  intervention_investment_needed_m: number
+  policy_scenario: string
+}
+
+export interface EPVCDashboard {
+  hardship: EPVCHardshipRecord[]
+  disconnections: EPVCDisconnectionRecord[]
+  concessions: EPVCConcessionRecord[]
+  affordability: EPVCAffordabilityRecord[]
+  interventions: EPVCInterventionRecord[]
+  forecasts: EPVCForecastRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getEnergyPovertyVulnerableConsumerDashboard = (): Promise<EPVCDashboard> =>
+  get<EPVCDashboard>('/api/energy-poverty-vulnerable-consumer/dashboard')
