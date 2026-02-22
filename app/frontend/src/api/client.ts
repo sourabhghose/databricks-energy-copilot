@@ -19790,3 +19790,273 @@ export interface GDPADashboard {
 
 export const getGridDecarbonisationPathwayDashboard = (): Promise<GDPADashboard> =>
   get<GDPADashboard>('/api/grid-decarbonisation-pathway/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 109a – Rooftop Solar Network Impact Analytics (RSNI)
+// ---------------------------------------------------------------------------
+
+export interface RSNIInstallationRecord {
+  postcode: string
+  state: string
+  total_systems: number
+  total_capacity_kw: number
+  avg_system_size_kw: number
+  penetration_rate_pct: number
+  avg_age_years: number
+  battery_paired_pct: number
+  export_limited_pct: number
+  peer_to_peer_pct: number
+}
+
+export interface RSNIVoltageRecord {
+  feeder_id: string
+  dnsp: string
+  state: string
+  measurement_date: string
+  avg_voltage_pu: number
+  max_voltage_pu: number
+  overvoltage_events_count: number
+  time_above_1_06pu_hrs: number
+  export_curtailed_kwh: number
+  complaints_count: number
+}
+
+export interface RSNIHostingCapacityRecord {
+  substation_id: string
+  dnsp: string
+  state: string
+  feeder_type: string
+  existing_rooftop_mw: number
+  hosting_capacity_mw: number
+  spare_capacity_mw: number
+  capacity_utilisation_pct: number
+  upgrade_required: boolean
+  upgrade_cost_m: number
+  upgrade_timeline_years: number
+}
+
+export interface RSNIDuckCurveRecord {
+  month: string
+  region: string
+  midday_min_demand_mw: number
+  evening_ramp_mw_per_hour: number
+  traditional_peak_mw: number
+  net_peak_mw: number
+  curtailed_solar_gwh: number
+  negative_demand_hours: number
+  demand_flexibility_needed_mw: number
+}
+
+export interface RSNIExportSchemeRecord {
+  scheme_name: string
+  dnsp: string
+  state: string
+  scheme_type: string
+  max_export_kw: number
+  participants: number
+  total_capacity_kw: number
+  avg_curtailment_pct: number
+  customer_satisfaction_pct: number
+  implementation_year: number
+}
+
+export interface RSNIForecastRecord {
+  year: number
+  state: string
+  projected_systems_m: number
+  projected_capacity_gw: number
+  pct_battery_paired: number
+  hosting_capacity_breach_pct: number
+  network_upgrade_investment_b: number
+  curtailment_risk_pct: number
+}
+
+export interface RSNIDashboard {
+  installations: RSNIInstallationRecord[]
+  voltage_issues: RSNIVoltageRecord[]
+  hosting_capacity: RSNIHostingCapacityRecord[]
+  duck_curve: RSNIDuckCurveRecord[]
+  export_schemes: RSNIExportSchemeRecord[]
+  forecasts: RSNIForecastRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getRooftopSolarNetworkImpactDashboard = (): Promise<RSNIDashboard> =>
+  get<RSNIDashboard>('/api/rooftop-solar-network-impact/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 109b — Electricity Network Tariff Reform Analytics (ENTR)
+// ---------------------------------------------------------------------------
+
+export interface ENTRTariffStructureRecord {
+  dnsp: string
+  state: string
+  tariff_name: string
+  tariff_type: string
+  customer_segment: string
+  daily_supply_charge_cents: number
+  energy_charge_peak_cents_kwh: number
+  energy_charge_offpeak_cents_kwh: number
+  demand_charge_kw_month: number
+  export_tariff_cents_kwh: number
+  annual_revenue_m: number
+}
+
+export interface ENTRCostAllocationRecord {
+  dnsp: string
+  state: string
+  cost_category: string
+  customer_class: string
+  allocated_cost_m: number
+  recovered_cost_m: number
+  under_recovery_m: number
+  cost_pct_of_bill: number
+  current_recovery_method: string
+}
+
+export interface ENTRCrossSubsidyRecord {
+  dnsp: string
+  state: string
+  from_segment: string
+  to_segment: string
+  annual_subsidy_m: number
+  subsidy_per_customer_aud: number
+  solar_export_impact_m: number
+  low_income_impact_m: number
+  high_solar_penetration_impact_m: number
+}
+
+export interface ENTRReformScenarioRecord {
+  scenario: string
+  customer_segment: string
+  annual_bill_change_pct: number
+  network_cost_recovery_pct: number
+  peak_demand_reduction_pct: number
+  solar_self_consumption_change_pct: number
+  low_income_household_impact_aud: number
+  implementation_year: number
+}
+
+export interface ENTRPeakDemandRecord {
+  month: string
+  region: string
+  peak_demand_mw: number
+  coincident_peak_mw: number
+  network_utilisation_pct: number
+  demand_events_triggered: number
+  avg_demand_charge_customer_aud: number
+  demand_response_activated_mw: number
+}
+
+export interface ENTREquityRecord {
+  segment: string
+  avg_annual_bill_aud: number
+  network_cost_share_pct: number
+  solar_benefit_aud: number
+  cross_subsidy_paid_aud: number
+  net_position_aud: number
+  policy_recommendation: string
+}
+
+export interface ENTRDashboard {
+  tariff_structures: ENTRTariffStructureRecord[]
+  cost_allocations: ENTRCostAllocationRecord[]
+  cross_subsidies: ENTRCrossSubsidyRecord[]
+  reform_scenarios: ENTRReformScenarioRecord[]
+  peak_demand: ENTRPeakDemandRecord[]
+  equity_analysis: ENTREquityRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getElectricityNetworkTariffReformDashboard = (): Promise<ENTRDashboard> =>
+  get<ENTRDashboard>('/api/electricity-network-tariff-reform/dashboard')
+
+// ── Sprint 109c: Long Duration Energy Storage Analytics (LDESX) ───────────
+
+export interface LDESXTechnologyRecord {
+  technology: string
+  duration_h: number
+  round_trip_efficiency_pct: number
+  capex_kwh_2024: number
+  capex_kw_2024: number
+  capex_kwh_2030_projected: number
+  technology_readiness_level: number
+  cycle_life: number
+  self_discharge_pct_day: number
+  footprint_m2_mwh: number
+}
+
+export interface LDESXProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  state: string
+  technology: string
+  capacity_mw: number
+  duration_h: number
+  energy_capacity_mwh: number
+  capex_m: number
+  status: string
+  expected_cod: string
+  grid_service: string
+  policy_support: string
+}
+
+export interface LDESXEconomicsRecord {
+  year: number
+  technology: string
+  lcoes_aud_per_mwh: number
+  capex_kwh: number
+  revenue_potential_aud_per_kw_year: number
+  annual_cycles: number
+  irr_pct: number
+  payback_years: number
+  grid_value_aud_per_mwh: number
+}
+
+export interface LDESXGridValueRecord {
+  service_type: string
+  region: string
+  annual_value_m_per_gw: number
+  avg_utilisation_pct: number
+  duration_required_h: number
+  market_volume_gw: number
+  addressable_revenue_m: number
+}
+
+export interface LDESXPolicyRecord {
+  policy_name: string
+  jurisdiction: string
+  policy_type: string
+  target_gw: number
+  budget_m: number
+  duration_focus_h: number
+  projects_supported: number
+  implementation_year: number
+  expiry_year: number
+}
+
+export interface LDESXScenarioRecord {
+  year: number
+  scenario: string
+  installed_capacity_gw: number
+  energy_stored_gwh: number
+  pct_of_storage_fleet: number
+  dominant_technology: string
+  annual_investment_b: number
+  firmed_renewable_pct: number
+  curtailment_avoided_twh: number
+}
+
+export interface LDESXDashboard {
+  technologies: LDESXTechnologyRecord[]
+  projects: LDESXProjectRecord[]
+  economics: LDESXEconomicsRecord[]
+  grid_value: LDESXGridValueRecord[]
+  policies: LDESXPolicyRecord[]
+  scenarios: LDESXScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getLongDurationEnergyStorageDashboard = (): Promise<LDESXDashboard> =>
+  get<LDESXDashboard>('/api/long-duration-energy-storage-x/dashboard')

@@ -14034,3 +14034,214 @@ class TestGDPADashboard:
         assert "total_stranded_value_b" in summary
         assert "total_policy_budget_b" in summary
         assert "total_investment_gap_b" in summary
+
+
+# ===========================================================================
+# TestRSNIDashboard  (Sprint 109a – Rooftop Solar Network Impact Analytics)
+# ===========================================================================
+
+class TestRSNIDashboard:
+    """9 tests for GET /api/rooftop-solar-network-impact/dashboard"""
+
+    URL = "/api/rooftop-solar-network-impact/dashboard"
+    HEADERS = {"X-API-Key": "test-api-key"}
+
+    def test_status_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_installations(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "installations" in data
+
+    def test_installations_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["installations"]) == 25
+
+    def test_has_voltage_issues(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "voltage_issues" in data
+
+    def test_voltage_issues_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["voltage_issues"]) == 30
+
+    def test_has_hosting_capacity(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hosting_capacity" in data
+        assert len(data["hosting_capacity"]) == 20
+
+    def test_has_duck_curve(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "duck_curve" in data
+        assert len(data["duck_curve"]) == 24
+
+    def test_has_export_schemes(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "export_schemes" in data
+        assert len(data["export_schemes"]) > 0
+
+    def test_has_forecasts(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "forecasts" in data
+        assert len(data["forecasts"]) > 0
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_rooftop_systems_m" in summary
+        assert "total_rooftop_capacity_gw" in summary
+        assert "avg_penetration_rate_pct" in summary
+        assert "pct_feeders_at_hosting_capacity" in summary
+        assert "avg_curtailment_pct" in summary
+        assert "projected_2030_capacity_gw" in summary
+
+
+# ===========================================================================
+# TestENTRDashboard — Sprint 109b Electricity Network Tariff Reform Analytics
+# ===========================================================================
+
+class TestENTRDashboard:
+    """Tests for GET /api/electricity-network-tariff-reform/dashboard"""
+
+    URL = "/api/electricity-network-tariff-reform/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_tariff_structures(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "tariff_structures" in data
+        assert len(data["tariff_structures"]) == 20
+
+    def test_has_cost_allocations(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "cost_allocations" in data
+        assert len(data["cost_allocations"]) == 25
+
+    def test_has_cross_subsidies(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "cross_subsidies" in data
+        assert len(data["cross_subsidies"]) > 0
+
+    def test_has_reform_scenarios(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "reform_scenarios" in data
+        assert len(data["reform_scenarios"]) == 24
+
+    def test_has_peak_demand(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "peak_demand" in data
+        assert len(data["peak_demand"]) == 30
+
+    def test_has_equity_analysis(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "equity_analysis" in data
+        assert len(data["equity_analysis"]) > 0
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_network_revenue_m" in summary
+        assert "avg_under_recovery_pct" in summary
+        assert "largest_cross_subsidy_m" in summary
+        assert "best_reform_scenario" in summary
+        assert "avg_peak_demand_utilisation_pct" in summary
+        assert "low_income_annual_bill_aud" in summary
+
+    def test_tariff_structure_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["tariff_structures"][0]
+        for field in ("dnsp", "state", "tariff_name", "tariff_type", "customer_segment",
+                      "daily_supply_charge_cents", "energy_charge_peak_cents_kwh",
+                      "energy_charge_offpeak_cents_kwh", "demand_charge_kw_month",
+                      "export_tariff_cents_kwh", "annual_revenue_m"):
+            assert field in rec
+
+
+class TestLDESDashboard:
+    """Tests for GET /api/long-duration-energy-storage-x/dashboard (Sprint 109c)"""
+
+    URL = "/api/long-duration-energy-storage-x/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_technologies(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "technologies" in data
+        assert len(data["technologies"]) == 15
+
+    def test_has_projects(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert len(data["projects"]) == 20
+
+    def test_has_economics(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "economics" in data
+        assert len(data["economics"]) == 30
+
+    def test_has_grid_value(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "grid_value" in data
+        assert len(data["grid_value"]) == 20
+
+    def test_has_policies(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "policies" in data
+        assert len(data["policies"]) == 15
+
+    def test_has_scenarios(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "scenarios" in data
+        assert len(data["scenarios"]) == 32
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_technologies" in summary
+        assert "total_projects" in summary
+        assert "total_pipeline_mwh" in summary
+        assert "avg_lcoes_current_aud_mwh" in summary
+        assert "most_economic_technology" in summary
+        assert "projected_2030_capacity_gw" in summary
+
+    def test_technology_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["technologies"][0]
+        for field in ("technology", "duration_h", "round_trip_efficiency_pct",
+                      "capex_kwh_2024", "capex_kw_2024", "capex_kwh_2030_projected",
+                      "technology_readiness_level", "cycle_life",
+                      "self_discharge_pct_day", "footprint_m2_mwh"):
+            assert field in rec

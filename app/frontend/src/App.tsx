@@ -374,6 +374,9 @@ import EnergyStorageTechComparisonAnalytics from './pages/EnergyStorageTechCompa
 import PowerToXEconomicsAnalytics from './pages/PowerToXEconomicsAnalytics'
 import ElectricityMarketMicrostructureAnalytics from './pages/ElectricityMarketMicrostructureAnalytics'
 import GridDecarbonisationPathwayAnalytics from './pages/GridDecarbonisationPathwayAnalytics'
+import RooftopSolarNetworkImpactAnalytics from './pages/RooftopSolarNetworkImpactAnalytics'
+import ElectricityNetworkTariffReformAnalytics from './pages/ElectricityNetworkTariffReformAnalytics'
+import LongDurationEnergyStorageAnalytics from './pages/LongDurationEnergyStorageAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -669,6 +672,9 @@ const NAV_ITEMS = [
   { to: '/power-to-x-economics', label: 'Power-to-X Economics', Icon: Zap },
   { to: '/electricity-market-microstructure', label: 'Market Microstructure', Icon: BarChart2 },
   { to: '/grid-decarbonisation-pathway', label: 'Grid Decarbonisation', Icon: TrendingDown },
+  { to: '/rooftop-solar-network-impact', label: 'Rooftop Solar Impact', Icon: Sun },
+  { to: '/electricity-network-tariff-reform', label: 'Network Tariff Reform', Icon: DollarSign },
+  { to: '/long-duration-energy-storage', label: 'Long Duration Storage', Icon: Database },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1039,6 +1045,9 @@ export default function App() {
               <Route path="/power-to-x-economics" element={<PowerToXEconomicsAnalytics />} />
               <Route path="/electricity-market-microstructure" element={<ElectricityMarketMicrostructureAnalytics />} />
               <Route path="/grid-decarbonisation-pathway" element={<GridDecarbonisationPathwayAnalytics />} />
+              <Route path="/rooftop-solar-network-impact" element={<RooftopSolarNetworkImpactAnalytics />} />
+              <Route path="/electricity-network-tariff-reform" element={<ElectricityNetworkTariffReformAnalytics />} />
+              <Route path="/long-duration-energy-storage" element={<LongDurationEnergyStorageAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

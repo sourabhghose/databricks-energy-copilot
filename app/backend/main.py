@@ -81682,3 +81682,980 @@ def get_gdpa_dashboard():
         summary=summary,
     ).model_dump())
     return GDPADashboard(**_gdpa_cache)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 109a – Rooftop Solar Network Impact Analytics (RSNI)
+# ---------------------------------------------------------------------------
+
+class RSNIInstallationRecord(BaseModel):
+    postcode: str
+    state: str
+    total_systems: int
+    total_capacity_kw: float
+    avg_system_size_kw: float
+    penetration_rate_pct: float
+    avg_age_years: float
+    battery_paired_pct: float
+    export_limited_pct: float
+    peer_to_peer_pct: float
+
+
+class RSNIVoltageRecord(BaseModel):
+    feeder_id: str
+    dnsp: str
+    state: str
+    measurement_date: str
+    avg_voltage_pu: float
+    max_voltage_pu: float
+    overvoltage_events_count: int
+    time_above_1_06pu_hrs: float
+    export_curtailed_kwh: float
+    complaints_count: int
+
+
+class RSNIHostingCapacityRecord(BaseModel):
+    substation_id: str
+    dnsp: str
+    state: str
+    feeder_type: str
+    existing_rooftop_mw: float
+    hosting_capacity_mw: float
+    spare_capacity_mw: float
+    capacity_utilisation_pct: float
+    upgrade_required: bool
+    upgrade_cost_m: float
+    upgrade_timeline_years: float
+
+
+class RSNIDuckCurveRecord(BaseModel):
+    month: str
+    region: str
+    midday_min_demand_mw: float
+    evening_ramp_mw_per_hour: float
+    traditional_peak_mw: float
+    net_peak_mw: float
+    curtailed_solar_gwh: float
+    negative_demand_hours: int
+    demand_flexibility_needed_mw: float
+
+
+class RSNIExportSchemeRecord(BaseModel):
+    scheme_name: str
+    dnsp: str
+    state: str
+    scheme_type: str
+    max_export_kw: float
+    participants: int
+    total_capacity_kw: float
+    avg_curtailment_pct: float
+    customer_satisfaction_pct: float
+    implementation_year: int
+
+
+class RSNIForecastRecord(BaseModel):
+    year: int
+    state: str
+    projected_systems_m: float
+    projected_capacity_gw: float
+    pct_battery_paired: float
+    hosting_capacity_breach_pct: float
+    network_upgrade_investment_b: float
+    curtailment_risk_pct: float
+
+
+class RSNIDashboard(BaseModel):
+    installations: List[RSNIInstallationRecord]
+    voltage_issues: List[RSNIVoltageRecord]
+    hosting_capacity: List[RSNIHostingCapacityRecord]
+    duck_curve: List[RSNIDuckCurveRecord]
+    export_schemes: List[RSNIExportSchemeRecord]
+    forecasts: List[RSNIForecastRecord]
+    summary: dict
+
+
+_rsni_cache: dict = {}
+
+
+@app.get("/api/rooftop-solar-network-impact/dashboard", response_model=RSNIDashboard, dependencies=[Depends(verify_api_key)])
+def get_rsni_dashboard():
+    import random
+    if _rsni_cache:
+        return RSNIDashboard(**_rsni_cache)
+
+    rng = random.Random(109)
+
+    states = ["SA", "QLD", "NSW", "VIC", "WA", "TAS", "ACT", "NT"]
+    dnsps = ["SA Power Networks", "Energex", "Ergon", "Ausgrid", "Endeavour", "Essential", "CitiPower", "Powercor", "Western Power", "TasNetworks"]
+    dnsp_state = {
+        "SA Power Networks": "SA", "Energex": "QLD", "Ergon": "QLD",
+        "Ausgrid": "NSW", "Endeavour": "NSW", "Essential": "NSW",
+        "CitiPower": "VIC", "Powercor": "VIC",
+        "Western Power": "WA", "TasNetworks": "TAS",
+    }
+    # Penetration rates (SA highest ~45%)
+    state_penetration = {
+        "SA": 45.2, "QLD": 38.5, "NSW": 28.4, "VIC": 22.1,
+        "WA": 34.7, "TAS": 18.3, "ACT": 31.6, "NT": 12.8,
+    }
+    # Systems per state (rough distribution of ~4M total)
+    state_systems_base = {
+        "SA": 420, "QLD": 1050, "NSW": 1200, "VIC": 780,
+        "WA": 380, "TAS": 90, "ACT": 60, "NT": 20,
+    }
+
+    # ── 25 Installation Records ──────────────────────────────────────────────
+    postcodes_by_state = {
+        "SA":  ["5000", "5011", "5022", "5041"],
+        "QLD": ["4000", "4068", "4101", "4500", "4551"],
+        "NSW": ["2000", "2042", "2150", "2560", "2745"],
+        "VIC": ["3000", "3072", "3147", "3220"],
+        "WA":  ["6000", "6018", "6150"],
+        "TAS": ["7000", "7005"],
+        "ACT": ["2600"],
+        "NT":  ["0800"],
+    }
+    installations: List[RSNIInstallationRecord] = []
+    for state, postcodes in postcodes_by_state.items():
+        for pc in postcodes:
+            base_systems = state_systems_base[state] * rng.uniform(0.85, 1.15) // len(postcodes)
+            total_sys = int(base_systems * rng.uniform(0.9, 1.1))
+            avg_size = rng.uniform(8.5, 13.5)
+            installations.append(RSNIInstallationRecord(
+                postcode=pc,
+                state=state,
+                total_systems=total_sys,
+                total_capacity_kw=round(total_sys * avg_size, 1),
+                avg_system_size_kw=round(avg_size, 2),
+                penetration_rate_pct=round(state_penetration[state] * rng.uniform(0.85, 1.15), 1),
+                avg_age_years=round(rng.uniform(3.5, 8.2), 1),
+                battery_paired_pct=round(rng.uniform(18.0, 52.0), 1),
+                export_limited_pct=round(rng.uniform(12.0, 65.0), 1),
+                peer_to_peer_pct=round(rng.uniform(2.0, 18.0), 1),
+            ))
+
+    # ── 30 Voltage Records ────────────────────────────────────────────────────
+    voltage_issues: List[RSNIVoltageRecord] = []
+    feeder_dnsp_pool = [
+        ("FDR-SA-001", "SA Power Networks"), ("FDR-SA-002", "SA Power Networks"),
+        ("FDR-SA-003", "SA Power Networks"), ("FDR-SA-004", "SA Power Networks"),
+        ("FDR-QLD-001", "Energex"), ("FDR-QLD-002", "Energex"),
+        ("FDR-QLD-003", "Ergon"), ("FDR-QLD-004", "Ergon"),
+        ("FDR-NSW-001", "Ausgrid"), ("FDR-NSW-002", "Ausgrid"),
+        ("FDR-NSW-003", "Endeavour"), ("FDR-NSW-004", "Essential"),
+        ("FDR-VIC-001", "CitiPower"), ("FDR-VIC-002", "Powercor"),
+        ("FDR-WA-001", "Western Power"), ("FDR-WA-002", "Western Power"),
+        ("FDR-TAS-001", "TasNetworks"),
+    ]
+    months_2023_2024 = [
+        f"2023-{m:02d}" for m in range(1, 13)
+    ] + [f"2024-{m:02d}" for m in range(1, 7)]
+    for i in range(30):
+        feeder_id, dnsp = feeder_dnsp_pool[i % len(feeder_dnsp_pool)]
+        feeder_id_unique = f"{feeder_id}-{i // len(feeder_dnsp_pool) + 1}" if i >= len(feeder_dnsp_pool) else feeder_id
+        state = dnsp_state.get(dnsp, "NSW")
+        avg_v = rng.uniform(1.01, 1.065)
+        max_v = avg_v + rng.uniform(0.008, 0.025)
+        overvoltage = int(rng.uniform(0, 45))
+        time_above = round(rng.uniform(0, 18), 1)
+        curtailed = round(rng.uniform(50, 4200), 1)
+        complaints = int(rng.uniform(0, 28))
+        voltage_issues.append(RSNIVoltageRecord(
+            feeder_id=feeder_id_unique,
+            dnsp=dnsp,
+            state=state,
+            measurement_date=months_2023_2024[i % len(months_2023_2024)],
+            avg_voltage_pu=round(avg_v, 4),
+            max_voltage_pu=round(max_v, 4),
+            overvoltage_events_count=overvoltage,
+            time_above_1_06pu_hrs=time_above,
+            export_curtailed_kwh=curtailed,
+            complaints_count=complaints,
+        ))
+
+    # ── 20 Hosting Capacity Records ───────────────────────────────────────────
+    feeder_types = ["Urban", "Suburban", "Rural"]
+    hosting_capacity: List[RSNIHostingCapacityRecord] = []
+    dnsp_list = list(dnsp_state.keys())
+    for i in range(20):
+        dnsp = dnsp_list[i % len(dnsp_list)]
+        state = dnsp_state[dnsp]
+        ftype = rng.choice(feeder_types)
+        existing = round(rng.uniform(1.5, 18.0), 2)
+        hosting_cap = round(rng.uniform(8.0, 22.0), 2)
+        spare = round(max(0, hosting_cap - existing), 2)
+        utilisation = round((existing / hosting_cap) * 100, 1)
+        upgrade_req = utilisation > 80
+        upgrade_cost = round(rng.uniform(0.5, 8.5), 2) if upgrade_req else round(rng.uniform(0.0, 2.0), 2)
+        upgrade_timeline = round(rng.uniform(1.5, 5.0), 1) if upgrade_req else round(rng.uniform(3.0, 8.0), 1)
+        hosting_capacity.append(RSNIHostingCapacityRecord(
+            substation_id=f"SUB-{state}-{i + 1:03d}",
+            dnsp=dnsp,
+            state=state,
+            feeder_type=ftype,
+            existing_rooftop_mw=existing,
+            hosting_capacity_mw=hosting_cap,
+            spare_capacity_mw=spare,
+            capacity_utilisation_pct=utilisation,
+            upgrade_required=upgrade_req,
+            upgrade_cost_m=upgrade_cost,
+            upgrade_timeline_years=upgrade_timeline,
+        ))
+
+    # ── 24 Duck Curve Records (monthly) ──────────────────────────────────────
+    regions = ["SA1", "QLD1", "NSW1", "VIC1"]
+    duck_curve: List[RSNIDuckCurveRecord] = []
+    for i in range(24):
+        month_idx = i % 12
+        region = regions[i % len(regions)]
+        # Midday minimum demand lower in summer (months 1,2,11,12)
+        summer = month_idx in [0, 1, 10, 11]
+        midday_min = round(rng.uniform(600, 1800) if not summer else rng.uniform(200, 900), 1)
+        evening_ramp = round(rng.uniform(400, 950) if summer else rng.uniform(200, 600), 1)
+        trad_peak = round(rng.uniform(2500, 4200), 1)
+        net_peak = round(trad_peak - midday_min * rng.uniform(0.3, 0.6), 1)
+        curtailed = round(rng.uniform(0.05, 1.8) if summer else rng.uniform(0.01, 0.6), 3)
+        neg_hours = int(rng.uniform(0, 12) if summer else rng.uniform(0, 3))
+        flex_needed = round(evening_ramp * rng.uniform(0.6, 1.2), 1)
+        year = 2023 + i // 12
+        month_num = (month_idx % 12) + 1
+        duck_curve.append(RSNIDuckCurveRecord(
+            month=f"{year}-{month_num:02d}",
+            region=region,
+            midday_min_demand_mw=midday_min,
+            evening_ramp_mw_per_hour=evening_ramp,
+            traditional_peak_mw=trad_peak,
+            net_peak_mw=net_peak,
+            curtailed_solar_gwh=curtailed,
+            negative_demand_hours=neg_hours,
+            demand_flexibility_needed_mw=flex_needed,
+        ))
+
+    # ── 15 Export Scheme Records ──────────────────────────────────────────────
+    scheme_types = ["Dynamic Export", "Fixed Export", "Zero Export", "Peer-to-Peer"]
+    export_schemes_data = [
+        ("SA Dynamic Export Trial", "SA Power Networks", "SA", "Dynamic Export", 10.0, 2024),
+        ("QLD Solar Bonus Scheme", "Energex", "QLD", "Fixed Export", 5.0, 2020),
+        ("QLD Rural Zero Export", "Ergon", "QLD", "Zero Export", 0.0, 2019),
+        ("NSW Ausgrid Dynamic", "Ausgrid", "NSW", "Dynamic Export", 10.0, 2023),
+        ("NSW Endeavour Fixed Export", "Endeavour", "NSW", "Fixed Export", 5.0, 2021),
+        ("NSW Essential Zero Export", "Essential", "NSW", "Zero Export", 0.0, 2020),
+        ("VIC CitiPower P2P", "CitiPower", "VIC", "Peer-to-Peer", 10.0, 2022),
+        ("VIC Powercor Dynamic", "Powercor", "VIC", "Dynamic Export", 8.0, 2023),
+        ("WA Dynamic Export Pilot", "Western Power", "WA", "Dynamic Export", 10.0, 2023),
+        ("WA Fixed Export Scheme", "Western Power", "WA", "Fixed Export", 4.0, 2021),
+        ("TAS Zero Export (Rural)", "TasNetworks", "TAS", "Zero Export", 0.0, 2019),
+        ("TAS Fixed Export Scheme", "TasNetworks", "TAS", "Fixed Export", 3.0, 2022),
+        ("SA P2P Blockchain Trial", "SA Power Networks", "SA", "Peer-to-Peer", 10.0, 2023),
+        ("QLD P2P Microgrid Trial", "Energex", "QLD", "Peer-to-Peer", 10.0, 2022),
+        ("NSW Integrated Dynamic", "Endeavour", "NSW", "Dynamic Export", 10.0, 2024),
+    ]
+    export_schemes: List[RSNIExportSchemeRecord] = []
+    for scheme_name, dnsp, state, stype, max_exp, impl_year in export_schemes_data:
+        participants = int(rng.uniform(500, 28000))
+        cap = round(participants * rng.uniform(6.5, 12.5), 1)
+        curtailment_pct = round(rng.uniform(0.5, 22.0) if stype != "Zero Export" else rng.uniform(18.0, 45.0), 1)
+        satisfaction = round(rng.uniform(62.0, 92.0), 1)
+        export_schemes.append(RSNIExportSchemeRecord(
+            scheme_name=scheme_name,
+            dnsp=dnsp,
+            state=state,
+            scheme_type=stype,
+            max_export_kw=max_exp,
+            participants=participants,
+            total_capacity_kw=cap,
+            avg_curtailment_pct=curtailment_pct,
+            customer_satisfaction_pct=satisfaction,
+            implementation_year=impl_year,
+        ))
+
+    # ── 20 Forecast Records (2024-2030, by state subset) ─────────────────────
+    forecast_states = ["SA", "QLD", "NSW", "VIC"]
+    # 5 years × 4 states = 20 records
+    forecasts: List[RSNIForecastRecord] = []
+    base_capacity_gw = {"SA": 3.2, "QLD": 6.8, "NSW": 7.5, "VIC": 5.1}
+    base_systems_m = {"SA": 0.42, "QLD": 1.05, "NSW": 1.20, "VIC": 0.78}
+    for year_idx, year in enumerate(range(2024, 2029)):
+        for state in forecast_states:
+            growth_factor = 1 + year_idx * rng.uniform(0.08, 0.14)
+            proj_cap = round(base_capacity_gw[state] * growth_factor, 2)
+            proj_sys = round(base_systems_m[state] * growth_factor, 3)
+            batt_pct = round(25.0 + year_idx * rng.uniform(4.0, 8.0), 1)
+            breach_pct = round(min(85.0, 20.0 + year_idx * rng.uniform(6.0, 12.0)), 1)
+            upgrade_inv = round(rng.uniform(0.3, 2.5) * (1 + year_idx * 0.3), 2)
+            curtail_risk = round(min(35.0, 5.0 + year_idx * rng.uniform(3.0, 6.0)), 1)
+            forecasts.append(RSNIForecastRecord(
+                year=year,
+                state=state,
+                projected_systems_m=proj_sys,
+                projected_capacity_gw=proj_cap,
+                pct_battery_paired=batt_pct,
+                hosting_capacity_breach_pct=breach_pct,
+                network_upgrade_investment_b=upgrade_inv,
+                curtailment_risk_pct=curtail_risk,
+            ))
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    total_systems_m = round(sum(r.total_systems for r in installations) / 1_000_000 * 18.5, 3)
+    total_capacity_gw = round(sum(r.total_capacity_kw for r in installations) / 1_000_000 * 18.5, 2)
+    avg_penetration = round(sum(r.penetration_rate_pct for r in installations) / len(installations), 1)
+    feeders_at_capacity = [r for r in hosting_capacity if r.capacity_utilisation_pct >= 80]
+    pct_feeders_at_capacity = round(len(feeders_at_capacity) / len(hosting_capacity) * 100, 1)
+    avg_curtailment = round(sum(r.avg_curtailment_pct for r in export_schemes) / len(export_schemes), 1)
+    proj_2030 = round(max(f.projected_capacity_gw for f in forecasts) * 1.15, 1)
+
+    summary = {
+        "total_rooftop_systems_m": total_systems_m,
+        "total_rooftop_capacity_gw": total_capacity_gw,
+        "avg_penetration_rate_pct": avg_penetration,
+        "pct_feeders_at_hosting_capacity": pct_feeders_at_capacity,
+        "avg_curtailment_pct": avg_curtailment,
+        "projected_2030_capacity_gw": proj_2030,
+    }
+
+    _rsni_cache.update(RSNIDashboard(
+        installations=installations,
+        voltage_issues=voltage_issues,
+        hosting_capacity=hosting_capacity,
+        duck_curve=duck_curve,
+        export_schemes=export_schemes,
+        forecasts=forecasts,
+        summary=summary,
+    ).model_dump())
+    return RSNIDashboard(**_rsni_cache)
+
+
+# ===========================================================================
+# Sprint 109b — Electricity Network Tariff Reform Analytics (ENTR)
+# ===========================================================================
+
+class ENTRTariffStructureRecord(BaseModel):
+    dnsp: str
+    state: str
+    tariff_name: str
+    tariff_type: str                      # Flat / TOU / Demand / Flexible
+    customer_segment: str                 # Residential / SME / C&I / Large Industrial
+    daily_supply_charge_cents: float
+    energy_charge_peak_cents_kwh: float
+    energy_charge_offpeak_cents_kwh: float
+    demand_charge_kw_month: float
+    export_tariff_cents_kwh: float
+    annual_revenue_m: float
+
+
+class ENTRCostAllocationRecord(BaseModel):
+    dnsp: str
+    state: str
+    cost_category: str                    # Fixed Network / Variable Distribution / Transmission / Metering / Regulatory
+    customer_class: str
+    allocated_cost_m: float
+    recovered_cost_m: float
+    under_recovery_m: float
+    cost_pct_of_bill: float
+    current_recovery_method: str          # Volumetric / Fixed / Demand
+
+
+class ENTRCrossSubsidyRecord(BaseModel):
+    dnsp: str
+    state: str
+    from_segment: str
+    to_segment: str
+    annual_subsidy_m: float
+    subsidy_per_customer_aud: float
+    solar_export_impact_m: float
+    low_income_impact_m: float
+    high_solar_penetration_impact_m: float
+
+
+class ENTRReformScenarioRecord(BaseModel):
+    scenario: str                         # Status Quo / Moderate Reform / Full Cost-Reflective / Demand Tariffs / Equity Adjusted
+    customer_segment: str
+    annual_bill_change_pct: float
+    network_cost_recovery_pct: float
+    peak_demand_reduction_pct: float
+    solar_self_consumption_change_pct: float
+    low_income_household_impact_aud: float
+    implementation_year: int
+
+
+class ENTRPeakDemandRecord(BaseModel):
+    month: str                            # YYYY-MM
+    region: str
+    peak_demand_mw: float
+    coincident_peak_mw: float
+    network_utilisation_pct: float
+    demand_events_triggered: int
+    avg_demand_charge_customer_aud: float
+    demand_response_activated_mw: float
+
+
+class ENTREquityRecord(BaseModel):
+    segment: str                          # High Income Solar / High Income No Solar / Low Income Solar / Low Income No Solar / Renter / Social Housing
+    avg_annual_bill_aud: float
+    network_cost_share_pct: float
+    solar_benefit_aud: float
+    cross_subsidy_paid_aud: float
+    net_position_aud: float
+    policy_recommendation: str
+
+
+class ENTRDashboard(BaseModel):
+    tariff_structures: List[ENTRTariffStructureRecord]
+    cost_allocations: List[ENTRCostAllocationRecord]
+    cross_subsidies: List[ENTRCrossSubsidyRecord]
+    reform_scenarios: List[ENTRReformScenarioRecord]
+    peak_demand: List[ENTRPeakDemandRecord]
+    equity_analysis: List[ENTREquityRecord]
+    summary: dict
+
+
+_entr_cache: dict = {}
+
+
+@app.get("/api/electricity-network-tariff-reform/dashboard", response_model=ENTRDashboard, dependencies=[Depends(verify_api_key)])
+def get_entr_dashboard():
+    import random
+    if _entr_cache:
+        return ENTRDashboard(**_entr_cache)
+
+    rng = random.Random(109)
+
+    dnsps = [
+        ("Ausgrid",      "NSW"),
+        ("Endeavour",    "NSW"),
+        ("Essential",    "NSW"),
+        ("CitiPower",    "VIC"),
+        ("Powercor",     "VIC"),
+        ("United Energy","VIC"),
+        ("SA Power",     "SA"),
+        ("Energex",      "QLD"),
+        ("Ergon",        "QLD"),
+        ("Western Power","WA"),
+    ]
+
+    tariff_types     = ["Flat", "TOU", "Demand", "Flexible"]
+    customer_segs    = ["Residential", "SME", "C&I", "Large Industrial"]
+
+    # ── Tariff Structure Records (20) ──────────────────────────────────────
+    tariff_structures: List[ENTRTariffStructureRecord] = []
+    tariff_entries = [
+        ("Ausgrid",       "NSW", "ResFlat",        "Flat",     "Residential",     88.0,  22.5, 18.0,   0.0,  0.0,  420.0),
+        ("Ausgrid",       "NSW", "ResTOU",         "TOU",      "Residential",     88.0,  28.5, 14.0,   0.0,  6.5,  380.0),
+        ("Ausgrid",       "NSW", "SMEDemand",      "Demand",   "SME",            115.0,  18.0, 12.0,  11.5,  4.5,  290.0),
+        ("Endeavour",     "NSW", "ResFlat",        "Flat",     "Residential",     90.0,  23.0, 18.5,   0.0,  0.0,  350.0),
+        ("Endeavour",     "NSW", "ResTOU",         "TOU",      "Residential",     90.0,  29.0, 13.5,   0.0,  7.0,  310.0),
+        ("Essential",     "NSW", "RuralFlat",      "Flat",     "Residential",    102.0,  26.5, 20.0,   0.0,  0.0,  180.0),
+        ("CitiPower",     "VIC", "ResFlexible",    "Flexible", "Residential",     78.0,  32.0, 10.0,   0.0,  8.5,  310.0),
+        ("CitiPower",     "VIC", "CIDemand",       "Demand",   "C&I",            130.0,  16.0,  9.5,  14.0,  3.5,  260.0),
+        ("Powercor",      "VIC", "ResFlat",        "Flat",     "Residential",     82.0,  24.0, 19.0,   0.0,  0.0,  340.0),
+        ("Powercor",      "VIC", "LargeIndustrial","Demand",   "Large Industrial",195.0,  12.5,  7.0,  22.0,  2.0,  510.0),
+        ("United Energy", "VIC", "ResTOU",         "TOU",      "Residential",     80.0,  27.5, 14.5,   0.0,  7.5,  270.0),
+        ("SA Power",      "SA",  "ResFlat",        "Flat",     "Residential",     95.0,  25.0, 20.5,   0.0,  0.0,  420.0),
+        ("SA Power",      "SA",  "SolarTOU",       "TOU",      "Residential",     95.0,  31.0, 12.0,   0.0,  9.0,  390.0),
+        ("Energex",       "QLD", "ResFlat",        "Flat",     "Residential",     86.0,  22.0, 17.5,   0.0,  0.0,  580.0),
+        ("Energex",       "QLD", "SMEFlexible",    "Flexible", "SME",            120.0,  19.5, 11.0,  10.0,  5.0,  350.0),
+        ("Ergon",         "QLD", "RuralFlat",      "Flat",     "Residential",    108.0,  28.0, 22.0,   0.0,  0.0,  210.0),
+        ("Western Power", "WA",  "ResFlat",        "Flat",     "Residential",     83.0,  21.5, 17.0,   0.0,  0.0,  490.0),
+        ("Western Power", "WA",  "CIDemand",       "Demand",   "C&I",            140.0,  15.5,  9.0,  16.0,  3.0,  280.0),
+        ("Ausgrid",       "NSW", "CIFlexible",     "Flexible", "C&I",            125.0,  17.5, 10.5,  12.5,  4.0,  310.0),
+        ("Energex",       "QLD", "LargeIndustrial","Demand",   "Large Industrial",200.0,  11.5,  6.5,  25.0,  1.5,  540.0),
+    ]
+    for row in tariff_entries:
+        tariff_structures.append(ENTRTariffStructureRecord(
+            dnsp=row[0], state=row[1], tariff_name=row[2], tariff_type=row[3],
+            customer_segment=row[4], daily_supply_charge_cents=row[5],
+            energy_charge_peak_cents_kwh=row[6], energy_charge_offpeak_cents_kwh=row[7],
+            demand_charge_kw_month=row[8], export_tariff_cents_kwh=row[9],
+            annual_revenue_m=row[10],
+        ))
+
+    # ── Cost Allocation Records (25) ────────────────────────────────────────
+    cost_categories = ["Fixed Network", "Variable Distribution", "Transmission", "Metering", "Regulatory"]
+    recovery_methods = ["Volumetric", "Fixed", "Demand"]
+    cost_alloc_data = [
+        ("Ausgrid",       "NSW", "Fixed Network",           "Residential",     480.0, 390.0, 90.0, 28.0, "Fixed"),
+        ("Ausgrid",       "NSW", "Variable Distribution",   "Residential",     120.0, 140.0,-20.0,  8.0, "Volumetric"),
+        ("Ausgrid",       "NSW", "Transmission",            "Residential",     210.0, 195.0, 15.0, 12.0, "Volumetric"),
+        ("Ausgrid",       "NSW", "Metering",                "Residential",      55.0,  50.0,  5.0,  3.0, "Fixed"),
+        ("Ausgrid",       "NSW", "Regulatory",              "Residential",      40.0,  38.0,  2.0,  2.0, "Fixed"),
+        ("Endeavour",     "NSW", "Fixed Network",           "Residential",     360.0, 285.0, 75.0, 26.0, "Fixed"),
+        ("Endeavour",     "NSW", "Variable Distribution",   "SME",              95.0, 110.0,-15.0,  7.5, "Volumetric"),
+        ("CitiPower",     "VIC", "Fixed Network",           "Residential",     290.0, 245.0, 45.0, 25.0, "Fixed"),
+        ("CitiPower",     "VIC", "Transmission",            "C&I",             180.0, 170.0, 10.0, 11.0, "Demand"),
+        ("CitiPower",     "VIC", "Variable Distribution",   "Residential",     100.0, 115.0,-15.0,  7.0, "Volumetric"),
+        ("Powercor",      "VIC", "Fixed Network",           "Residential",     310.0, 260.0, 50.0, 27.0, "Fixed"),
+        ("Powercor",      "VIC", "Metering",                "Large Industrial",  65.0,  60.0,  5.0,  2.5, "Fixed"),
+        ("SA Power",      "SA",  "Fixed Network",           "Residential",     380.0, 310.0, 70.0, 29.0, "Fixed"),
+        ("SA Power",      "SA",  "Transmission",            "Residential",     190.0, 175.0, 15.0, 13.0, "Volumetric"),
+        ("SA Power",      "SA",  "Regulatory",              "Residential",      45.0,  42.0,  3.0,  2.5, "Fixed"),
+        ("Energex",       "QLD", "Fixed Network",           "Residential",     510.0, 420.0, 90.0, 30.0, "Fixed"),
+        ("Energex",       "QLD", "Variable Distribution",   "SME",             140.0, 160.0,-20.0,  8.5, "Volumetric"),
+        ("Energex",       "QLD", "Transmission",            "C&I",             220.0, 205.0, 15.0, 12.5, "Demand"),
+        ("Ergon",         "QLD", "Fixed Network",           "Residential",     175.0, 135.0, 40.0, 28.0, "Fixed"),
+        ("Ergon",         "QLD", "Regulatory",              "Residential",      30.0,  27.0,  3.0,  2.0, "Fixed"),
+        ("Western Power", "WA",  "Fixed Network",           "Residential",     440.0, 360.0, 80.0, 27.0, "Fixed"),
+        ("Western Power", "WA",  "Variable Distribution",   "Residential",     115.0, 130.0,-15.0,  7.5, "Volumetric"),
+        ("United Energy", "VIC", "Fixed Network",           "Residential",     255.0, 210.0, 45.0, 26.0, "Fixed"),
+        ("Essential",     "NSW", "Fixed Network",           "Residential",     160.0, 125.0, 35.0, 27.0, "Fixed"),
+        ("Essential",     "NSW", "Transmission",            "Residential",     100.0,  90.0, 10.0, 11.0, "Volumetric"),
+    ]
+    cost_allocations: List[ENTRCostAllocationRecord] = []
+    for row in cost_alloc_data:
+        cost_allocations.append(ENTRCostAllocationRecord(
+            dnsp=row[0], state=row[1], cost_category=row[2], customer_class=row[3],
+            allocated_cost_m=row[4], recovered_cost_m=row[5],
+            under_recovery_m=row[6], cost_pct_of_bill=row[7],
+            current_recovery_method=row[8],
+        ))
+
+    # ── Cross-Subsidy Records (20) ──────────────────────────────────────────
+    cross_subsidy_data = [
+        ("Ausgrid",       "NSW", "No-Solar Residential", "Solar Residential",       42.0, 180.0,  38.0, 12.0, 58.0),
+        ("Ausgrid",       "NSW", "C&I",                  "Residential",              28.0,  45.0,   8.0, 15.0, 18.0),
+        ("Ausgrid",       "NSW", "Large Industrial",     "Residential",              35.0,  22.0,   5.0, 18.0, 12.0),
+        ("Endeavour",     "NSW", "No-Solar Residential", "Solar Residential",        30.0, 145.0,  28.0,  9.0, 42.0),
+        ("Endeavour",     "NSW", "SME",                  "Residential",              18.0,  40.0,   6.0, 11.0, 15.0),
+        ("CitiPower",     "VIC", "No-Solar Residential", "Solar Residential",        25.0, 210.0,  32.0,  8.0, 48.0),
+        ("CitiPower",     "VIC", "C&I",                  "SME",                      15.0,  35.0,   4.0,  7.0, 11.0),
+        ("Powercor",      "VIC", "No-Solar Residential", "Solar Residential",        32.0, 165.0,  30.0, 10.0, 45.0),
+        ("Powercor",      "VIC", "Large Industrial",     "SME",                      22.0,  30.0,   3.0,  9.0,  8.0),
+        ("United Energy", "VIC", "No-Solar Residential", "Solar Residential",        20.0, 190.0,  28.0,  7.0, 40.0),
+        ("SA Power",      "SA",  "No-Solar Residential", "Solar Residential",        55.0, 235.0,  48.0, 16.0, 72.0),
+        ("SA Power",      "SA",  "C&I",                  "Residential",              31.0,  50.0,  10.0, 19.0, 22.0),
+        ("SA Power",      "SA",  "Large Industrial",     "Residential",              40.0,  25.0,   8.0, 22.0, 18.0),
+        ("Energex",       "QLD", "No-Solar Residential", "Solar Residential",        48.0, 200.0,  42.0, 14.0, 65.0),
+        ("Energex",       "QLD", "SME",                  "Residential",              24.0,  42.0,   7.0, 13.0, 16.0),
+        ("Ergon",         "QLD", "No-Solar Residential", "Solar Residential",        18.0, 155.0,  16.0,  6.0, 28.0),
+        ("Western Power", "WA",  "No-Solar Residential", "Solar Residential",        38.0, 175.0,  34.0, 11.0, 52.0),
+        ("Western Power", "WA",  "C&I",                  "Residential",              26.0,  47.0,   8.0, 16.0, 20.0),
+        ("Essential",     "NSW", "No-Solar Residential", "Solar Residential",        14.0, 130.0,  12.0,  5.0, 22.0),
+        ("Ausgrid",       "NSW", "High Income",          "Low Income",               19.0,  38.0,   0.0, 22.0,  5.0),
+    ]
+    cross_subsidies: List[ENTRCrossSubsidyRecord] = []
+    for row in cross_subsidy_data:
+        cross_subsidies.append(ENTRCrossSubsidyRecord(
+            dnsp=row[0], state=row[1], from_segment=row[2], to_segment=row[3],
+            annual_subsidy_m=row[4], subsidy_per_customer_aud=row[5],
+            solar_export_impact_m=row[6], low_income_impact_m=row[7],
+            high_solar_penetration_impact_m=row[8],
+        ))
+
+    # ── Reform Scenario Records (24) ────────────────────────────────────────
+    scenarios = ["Status Quo", "Moderate Reform", "Full Cost-Reflective", "Demand Tariffs", "Equity Adjusted", "AEMC Directed"]
+    scenario_data = [
+        # scenario,                  segment,           bill_chg, cost_rec, peak_red, solar_sc, li_impact, year
+        ("Status Quo",             "Residential",         0.0,   87.0,   0.0,   0.0,    0.0,   2024),
+        ("Status Quo",             "SME",                 0.0,   90.0,   0.0,   0.0,    0.0,   2024),
+        ("Status Quo",             "C&I",                 0.0,   93.0,   0.0,   0.0,    0.0,   2024),
+        ("Status Quo",             "Large Industrial",    0.0,   96.0,   0.0,   0.0,    0.0,   2024),
+        ("Moderate Reform",        "Residential",         3.5,   92.0,   5.0,   4.0,  -45.0,   2026),
+        ("Moderate Reform",        "SME",                -2.0,   94.0,   6.0,   3.0,  -20.0,   2026),
+        ("Moderate Reform",        "C&I",                -4.5,   95.0,   7.0,   2.5,   15.0,   2026),
+        ("Moderate Reform",        "Large Industrial",   -7.0,   97.0,   8.0,   2.0,   30.0,   2026),
+        ("Full Cost-Reflective",   "Residential",         8.5,   97.0,  14.0,  10.0, -120.0,   2028),
+        ("Full Cost-Reflective",   "SME",                -5.5,   98.0,  15.0,   8.0,  -35.0,   2028),
+        ("Full Cost-Reflective",   "C&I",               -11.0,   99.0,  18.0,   7.0,   65.0,   2028),
+        ("Full Cost-Reflective",   "Large Industrial",  -15.0,  100.0,  20.0,   5.0,   90.0,   2028),
+        ("Demand Tariffs",         "Residential",         5.0,   93.0,  12.0,   6.0,  -80.0,   2027),
+        ("Demand Tariffs",         "SME",                -3.0,   95.0,  14.0,   5.0,  -25.0,   2027),
+        ("Demand Tariffs",         "C&I",                -8.0,   97.0,  16.0,   4.5,   45.0,   2027),
+        ("Demand Tariffs",         "Large Industrial",  -12.0,   99.0,  18.0,   4.0,   70.0,   2027),
+        ("Equity Adjusted",        "Residential",         1.0,   90.0,   4.0,   3.0,   80.0,   2027),
+        ("Equity Adjusted",        "SME",                -1.5,   92.0,   5.0,   2.5,   20.0,   2027),
+        ("Equity Adjusted",        "C&I",                -3.0,   93.0,   6.0,   2.0,   30.0,   2027),
+        ("Equity Adjusted",        "Large Industrial",   -5.0,   95.0,   7.0,   1.5,   50.0,   2027),
+        ("AEMC Directed",          "Residential",         4.0,   94.0,  10.0,   7.0,  -60.0,   2028),
+        ("AEMC Directed",          "SME",                -2.5,   95.0,  11.0,   6.0,  -15.0,   2028),
+        ("AEMC Directed",          "C&I",                -6.0,   97.0,  13.0,   5.0,   35.0,   2028),
+        ("AEMC Directed",          "Large Industrial",  -10.0,   99.0,  15.0,   4.0,   60.0,   2028),
+    ]
+    reform_scenarios: List[ENTRReformScenarioRecord] = []
+    for row in scenario_data:
+        reform_scenarios.append(ENTRReformScenarioRecord(
+            scenario=row[0], customer_segment=row[1],
+            annual_bill_change_pct=row[2], network_cost_recovery_pct=row[3],
+            peak_demand_reduction_pct=row[4], solar_self_consumption_change_pct=row[5],
+            low_income_household_impact_aud=row[6], implementation_year=row[7],
+        ))
+
+    # ── Peak Demand Records (30) ────────────────────────────────────────────
+    regions = ["NSW", "VIC", "QLD", "SA", "WA"]
+    peak_demand: List[ENTRPeakDemandRecord] = []
+    base_peaks = {"NSW": 13800, "VIC": 10200, "QLD": 9600, "SA": 3100, "WA": 4200}
+    months_list = [
+        "2023-07","2023-08","2023-09","2023-10","2023-11","2023-12",
+        "2024-01","2024-02","2024-03","2024-04","2024-05","2024-06",
+        "2024-07","2024-08","2024-09","2024-10","2024-11","2024-12",
+        "2025-01","2025-02","2025-03","2025-04","2025-05","2025-06",
+        "2025-07","2025-08","2025-09","2025-10","2025-11","2025-12",
+    ]
+    summer_months = {12, 1, 2, 3}
+    region_cycle = (regions * 10)[:30]
+    month_cycle  = months_list[:30]
+    for i in range(30):
+        region = region_cycle[i]
+        month  = month_cycle[i]
+        month_num = int(month.split("-")[1])
+        is_summer = month_num in summer_months
+        base_mw = base_peaks[region]
+        seasonal_factor = rng.uniform(1.10, 1.25) if is_summer else rng.uniform(0.80, 0.95)
+        pk_mw  = round(base_mw * seasonal_factor * rng.uniform(0.95, 1.05))
+        co_mw  = round(pk_mw * rng.uniform(0.72, 0.88))
+        util   = round(min(98.0, pk_mw / (base_mw * 1.30) * 100), 1)
+        events = rng.randint(2, 12) if is_summer else rng.randint(0, 4)
+        avg_dc = round(rng.uniform(28.0, 95.0), 2)
+        dr_mw  = round(rng.uniform(50.0, 420.0), 1)
+        peak_demand.append(ENTRPeakDemandRecord(
+            month=month, region=region,
+            peak_demand_mw=float(pk_mw), coincident_peak_mw=float(co_mw),
+            network_utilisation_pct=util, demand_events_triggered=events,
+            avg_demand_charge_customer_aud=avg_dc,
+            demand_response_activated_mw=dr_mw,
+        ))
+
+    # ── Equity Records (15) ─────────────────────────────────────────────────
+    equity_data = [
+        # segment,                    bill,   net_share, solar_ben, xs_paid, policy_rec
+        ("High Income Solar",        1650.0,  14.5,  420.0, -210.0,
+         "Export tariffs should reflect network costs avoided"),
+        ("High Income No Solar",     1820.0,  18.2,    0.0,  185.0,
+         "Transition to demand-based fixed network charges"),
+        ("Middle Income Solar",      1520.0,  15.8,  280.0, -105.0,
+         "Graduated export tariff to reflect penetration level"),
+        ("Middle Income No Solar",   1750.0,  19.0,    0.0,  125.0,
+         "TOU pricing with consumer education program"),
+        ("Low Income Solar",         1380.0,  17.2,  190.0,  -40.0,
+         "Means-tested solar rebate to offset network costs"),
+        ("Low Income No Solar",      1920.0,  22.5,    0.0,   95.0,
+         "Hardship tariff with reduced fixed network charge"),
+        ("Renter",                   1980.0,  21.8,    0.0,   88.0,
+         "Embedded network reform to pass through solar benefits"),
+        ("Social Housing",           2080.0,  24.1,    0.0,   72.0,
+         "Direct subsidy program for social housing tenants"),
+        ("SME Solar",                4200.0,  13.5, 1100.0, -310.0,
+         "Demand tariff with solar self-consumption incentive"),
+        ("SME No Solar",             5100.0,  16.8,    0.0,  420.0,
+         "Cost-reflective network charge with 3-year transition"),
+        ("C&I High Demand",         42000.0,  12.0,    0.0, 2800.0,
+         "Peak demand tariff aligned to coincident network peak"),
+        ("Large Industrial",       185000.0,   9.5,    0.0,18500.0,
+         "Network user agreement with direct cost allocation"),
+        ("EV Early Adopter",         2250.0,  20.0,  150.0,   60.0,
+         "Off-peak EV charging incentive tariff"),
+        ("Pensioner Concession",     1850.0,  23.0,    0.0,   82.0,
+         "Ring-fenced concession funding through regulatory allowance"),
+        ("Regional/Rural",           2480.0,  26.5,   95.0,  110.0,
+         "Community solar micro-grid with shared network cost pool"),
+    ]
+    equity_analysis: List[ENTREquityRecord] = []
+    for row in equity_data:
+        seg, bill, net_share, solar_ben, xs_paid, policy = row
+        net_pos = round(-xs_paid + solar_ben, 2)
+        equity_analysis.append(ENTREquityRecord(
+            segment=seg, avg_annual_bill_aud=bill,
+            network_cost_share_pct=net_share, solar_benefit_aud=solar_ben,
+            cross_subsidy_paid_aud=xs_paid, net_position_aud=net_pos,
+            policy_recommendation=policy,
+        ))
+
+    # ── Summary ─────────────────────────────────────────────────────────────
+    total_network_revenue_m  = round(sum(r.annual_revenue_m for r in tariff_structures), 1)
+    total_under_recovery     = sum(r.under_recovery_m for r in cost_allocations)
+    total_allocated          = sum(r.allocated_cost_m  for r in cost_allocations)
+    avg_under_recovery_pct   = round(total_under_recovery / total_allocated * 100, 1) if total_allocated else 0.0
+    largest_cross_subsidy_m  = round(max(r.annual_subsidy_m for r in cross_subsidies), 1)
+    best_scenario_rec        = max(
+        [r for r in reform_scenarios if r.network_cost_recovery_pct > 0],
+        key=lambda r: r.network_cost_recovery_pct,
+    ).scenario
+    avg_peak_util            = round(sum(r.network_utilisation_pct for r in peak_demand) / len(peak_demand), 1)
+    low_inc_bill             = round(
+        next((r.avg_annual_bill_aud for r in equity_analysis if "Low Income No Solar" in r.segment), 1920.0), 2
+    )
+
+    summary = {
+        "total_network_revenue_m":        total_network_revenue_m,
+        "avg_under_recovery_pct":         avg_under_recovery_pct,
+        "largest_cross_subsidy_m":        largest_cross_subsidy_m,
+        "best_reform_scenario":           best_scenario_rec,
+        "avg_peak_demand_utilisation_pct":avg_peak_util,
+        "low_income_annual_bill_aud":     low_inc_bill,
+    }
+
+    _entr_cache.update(ENTRDashboard(
+        tariff_structures=tariff_structures,
+        cost_allocations=cost_allocations,
+        cross_subsidies=cross_subsidies,
+        reform_scenarios=reform_scenarios,
+        peak_demand=peak_demand,
+        equity_analysis=equity_analysis,
+        summary=summary,
+    ).model_dump())
+    return ENTRDashboard(**_entr_cache)
+
+
+# ============================================================================
+# Sprint 109c — Long Duration Energy Storage Analytics (LDESX)
+# Prefix: LDESX   Endpoint: /api/long-duration-energy-storage-x/dashboard
+# ============================================================================
+
+class LDESXTechnologyRecord(BaseModel):
+    technology: str
+    duration_h: float
+    round_trip_efficiency_pct: float
+    capex_kwh_2024: float
+    capex_kw_2024: float
+    capex_kwh_2030_projected: float
+    technology_readiness_level: int
+    cycle_life: int
+    self_discharge_pct_day: float
+    footprint_m2_mwh: float
+
+
+class LDESXProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    technology: str
+    capacity_mw: float
+    duration_h: float
+    energy_capacity_mwh: float
+    capex_m: float
+    status: str
+    expected_cod: str
+    grid_service: str
+    policy_support: str
+
+
+class LDESXEconomicsRecord(BaseModel):
+    year: int
+    technology: str
+    lcoes_aud_per_mwh: float
+    capex_kwh: float
+    revenue_potential_aud_per_kw_year: float
+    annual_cycles: float
+    irr_pct: float
+    payback_years: float
+    grid_value_aud_per_mwh: float
+
+
+class LDESXGridValueRecord(BaseModel):
+    service_type: str
+    region: str
+    annual_value_m_per_gw: float
+    avg_utilisation_pct: float
+    duration_required_h: float
+    market_volume_gw: float
+    addressable_revenue_m: float
+
+
+class LDESXPolicyRecord(BaseModel):
+    policy_name: str
+    jurisdiction: str
+    policy_type: str
+    target_gw: float
+    budget_m: float
+    duration_focus_h: float
+    projects_supported: int
+    implementation_year: int
+    expiry_year: int
+
+
+class LDESXScenarioRecord(BaseModel):
+    year: int
+    scenario: str
+    installed_capacity_gw: float
+    energy_stored_gwh: float
+    pct_of_storage_fleet: float
+    dominant_technology: str
+    annual_investment_b: float
+    firmed_renewable_pct: float
+    curtailment_avoided_twh: float
+
+
+class LDESXDashboard(BaseModel):
+    technologies: List[LDESXTechnologyRecord]
+    projects: List[LDESXProjectRecord]
+    economics: List[LDESXEconomicsRecord]
+    grid_value: List[LDESXGridValueRecord]
+    policies: List[LDESXPolicyRecord]
+    scenarios: List[LDESXScenarioRecord]
+    summary: dict
+
+
+_ldesx_cache: dict = {}
+
+
+@app.get("/api/long-duration-energy-storage-x/dashboard", response_model=LDESXDashboard, dependencies=[Depends(verify_api_key)])
+def get_ldesx_dashboard():
+    import random
+    if _ldesx_cache:
+        return LDESXDashboard(**_ldesx_cache)
+
+    rng = random.Random(42)
+
+    # ── Technologies (15 records) ──────────────────────────────────────────
+    technologies: List[LDESXTechnologyRecord] = [
+        LDESXTechnologyRecord(technology="Iron-Air Battery",         duration_h=100.0, round_trip_efficiency_pct=50.0, capex_kwh_2024=20.0,  capex_kw_2024=2000.0, capex_kwh_2030_projected=12.0, technology_readiness_level=7, cycle_life=10000, self_discharge_pct_day=0.05, footprint_m2_mwh=8.0),
+        LDESXTechnologyRecord(technology="Liquid Air (LAES)",         duration_h=12.0,  round_trip_efficiency_pct=54.0, capex_kwh_2024=350.0, capex_kw_2024=4200.0, capex_kwh_2030_projected=220.0, technology_readiness_level=7, cycle_life=20000, self_discharge_pct_day=0.10, footprint_m2_mwh=25.0),
+        LDESXTechnologyRecord(technology="Compressed Air (CAES)",     duration_h=20.0,  round_trip_efficiency_pct=60.0, capex_kwh_2024=80.0,  capex_kw_2024=1600.0, capex_kwh_2030_projected=60.0,  technology_readiness_level=8, cycle_life=25000, self_discharge_pct_day=0.01, footprint_m2_mwh=50.0),
+        LDESXTechnologyRecord(technology="Hydrogen Storage",          duration_h=720.0, round_trip_efficiency_pct=35.0, capex_kwh_2024=15.0,  capex_kw_2024=10800.0,capex_kwh_2030_projected=8.0,   technology_readiness_level=8, cycle_life=20000, self_discharge_pct_day=0.02, footprint_m2_mwh=5.0),
+        LDESXTechnologyRecord(technology="Pumped Hydro New",          duration_h=24.0,  round_trip_efficiency_pct=78.0, capex_kwh_2024=150.0, capex_kw_2024=3600.0, capex_kwh_2030_projected=140.0, technology_readiness_level=9, cycle_life=50000, self_discharge_pct_day=0.00, footprint_m2_mwh=200.0),
+        LDESXTechnologyRecord(technology="Flow Battery VRF",          duration_h=10.0,  round_trip_efficiency_pct=72.0, capex_kwh_2024=280.0, capex_kw_2024=2800.0, capex_kwh_2030_projected=160.0, technology_readiness_level=8, cycle_life=20000, self_discharge_pct_day=0.20, footprint_m2_mwh=40.0),
+        LDESXTechnologyRecord(technology="Gravity Storage",           duration_h=8.0,   round_trip_efficiency_pct=80.0, capex_kwh_2024=200.0, capex_kw_2024=1600.0, capex_kwh_2030_projected=130.0, technology_readiness_level=6, cycle_life=30000, self_discharge_pct_day=0.00, footprint_m2_mwh=30.0),
+        LDESXTechnologyRecord(technology="Thermal TES",               duration_h=14.0,  round_trip_efficiency_pct=88.0, capex_kwh_2024=25.0,  capex_kw_2024=350.0,  capex_kwh_2030_projected=18.0,  technology_readiness_level=9, cycle_life=30000, self_discharge_pct_day=1.00, footprint_m2_mwh=15.0),
+        LDESXTechnologyRecord(technology="Sodium-Sulfur (NaS)",       duration_h=6.0,   round_trip_efficiency_pct=75.0, capex_kwh_2024=400.0, capex_kw_2024=2400.0, capex_kwh_2030_projected=250.0, technology_readiness_level=8, cycle_life=4500,  self_discharge_pct_day=0.05, footprint_m2_mwh=35.0),
+        LDESXTechnologyRecord(technology="Zinc-Air Battery",          duration_h=50.0,  round_trip_efficiency_pct=62.0, capex_kwh_2024=65.0,  capex_kw_2024=3250.0, capex_kwh_2030_projected=35.0,  technology_readiness_level=5, cycle_life=5000,  self_discharge_pct_day=0.10, footprint_m2_mwh=12.0),
+        LDESXTechnologyRecord(technology="CO2-based Storage",         duration_h=12.0,  round_trip_efficiency_pct=52.0, capex_kwh_2024=180.0, capex_kw_2024=2160.0, capex_kwh_2030_projected=110.0, technology_readiness_level=4, cycle_life=20000, self_discharge_pct_day=0.05, footprint_m2_mwh=20.0),
+        LDESXTechnologyRecord(technology="Iron-Chrome Flow",          duration_h=10.0,  round_trip_efficiency_pct=68.0, capex_kwh_2024=150.0, capex_kw_2024=1500.0, capex_kwh_2030_projected=90.0,  technology_readiness_level=6, cycle_life=15000, self_discharge_pct_day=0.30, footprint_m2_mwh=45.0),
+        LDESXTechnologyRecord(technology="Zinc Hybrid Battery",       duration_h=8.0,   round_trip_efficiency_pct=70.0, capex_kwh_2024=120.0, capex_kw_2024=960.0,  capex_kwh_2030_projected=70.0,  technology_readiness_level=6, cycle_life=8000,  self_discharge_pct_day=0.15, footprint_m2_mwh=18.0),
+        LDESXTechnologyRecord(technology="Adiabatic CAES",            duration_h=16.0,  round_trip_efficiency_pct=70.0, capex_kwh_2024=95.0,  capex_kw_2024=1520.0, capex_kwh_2030_projected=65.0,  technology_readiness_level=5, cycle_life=25000, self_discharge_pct_day=0.01, footprint_m2_mwh=55.0),
+        LDESXTechnologyRecord(technology="Metal-Air Hybrid",          duration_h=30.0,  round_trip_efficiency_pct=48.0, capex_kwh_2024=45.0,  capex_kw_2024=1350.0, capex_kwh_2030_projected=22.0,  technology_readiness_level=3, cycle_life=3000,  self_discharge_pct_day=0.08, footprint_m2_mwh=10.0),
+    ]
+
+    # ── Projects (20 records) ─────────────────────────────────────────────
+    projects: List[LDESXProjectRecord] = [
+        LDESXProjectRecord(project_id="LDESX-001", project_name="SA Iron-Air Grid Battery Stage 1",    developer="Form Energy AU",          state="SA",  technology="Iron-Air Battery",   capacity_mw=50.0,  duration_h=100.0, energy_capacity_mwh=5000.0,  capex_m=180.0,  status="Development",  expected_cod="2027", grid_service="Seasonal Storage",   policy_support="CIS"),
+        LDESXProjectRecord(project_id="LDESX-002", project_name="NSW Vanadium Flow Complex",           developer="Largo Clean Energy",      state="NSW", technology="Flow Battery VRF",   capacity_mw=100.0, duration_h=10.0,  energy_capacity_mwh=1000.0,  capex_m=280.0,  status="Permitted",    expected_cod="2026", grid_service="Capacity Firming",   policy_support="CEFC"),
+        LDESXProjectRecord(project_id="LDESX-003", project_name="Broken Hill CAES Project",           developer="Hydrostor AU",            state="NSW", technology="Compressed Air",     capacity_mw=200.0, duration_h=20.0,  energy_capacity_mwh=4000.0,  capex_m=320.0,  status="Development",  expected_cod="2028", grid_service="Arbitrage",          policy_support="ARENA"),
+        LDESXProjectRecord(project_id="LDESX-004", project_name="Victorian Gravity Tower",            developer="Energy Vault AU",         state="VIC", technology="Gravity Storage",    capacity_mw=80.0,  duration_h=8.0,   energy_capacity_mwh=640.0,   capex_m=128.0,  status="Concept",      expected_cod="2029", grid_service="Capacity Firming",   policy_support="State Govt"),
+        LDESXProjectRecord(project_id="LDESX-005", project_name="Kidston Pumped Hydro Stage 2",       developer="Genex Power",             state="QLD", technology="Pumped Hydro New",   capacity_mw=250.0, duration_h=24.0,  energy_capacity_mwh=6000.0,  capex_m=875.0,  status="Construction", expected_cod="2026", grid_service="Seasonal Storage",   policy_support="CEFC"),
+        LDESXProjectRecord(project_id="LDESX-006", project_name="Eyre Peninsula Liquid Air",          developer="Highview Power AU",       state="SA",  technology="Liquid Air",         capacity_mw=50.0,  duration_h=12.0,  energy_capacity_mwh=600.0,   capex_m=210.0,  status="Development",  expected_cod="2028", grid_service="Capacity Firming",   policy_support="ARENA"),
+        LDESXProjectRecord(project_id="LDESX-007", project_name="Pilbara Iron-Air Microgrid",         developer="Iron Energy WA",          state="WA",  technology="Iron-Air Battery",   capacity_mw=20.0,  duration_h=100.0, energy_capacity_mwh=2000.0,  capex_m=72.0,   status="Concept",      expected_cod="2029", grid_service="Black Start",        policy_support="State Govt"),
+        LDESXProjectRecord(project_id="LDESX-008", project_name="Liddell Vanadium Flow",              developer="VRB Energy",              state="NSW", technology="Flow Battery VRF",   capacity_mw=200.0, duration_h=10.0,  energy_capacity_mwh=2000.0,  capex_m=560.0,  status="Permitted",    expected_cod="2026", grid_service="Arbitrage",          policy_support="CIS"),
+        LDESXProjectRecord(project_id="LDESX-009", project_name="Adelaide Hills Gravity Storage",     developer="Atlas Renewable Energy",  state="SA",  technology="Gravity Storage",    capacity_mw=40.0,  duration_h=8.0,   energy_capacity_mwh=320.0,   capex_m=64.0,   status="Concept",      expected_cod="2030", grid_service="Inertia",            policy_support="None"),
+        LDESXProjectRecord(project_id="LDESX-010", project_name="Talbingo Pumped Storage Expansion",  developer="Snowy Hydro",             state="NSW", technology="Pumped Hydro New",   capacity_mw=350.0, duration_h=24.0,  energy_capacity_mwh=8400.0,  capex_m=1225.0, status="Operating",    expected_cod="2024", grid_service="Seasonal Storage",   policy_support="CEFC"),
+        LDESXProjectRecord(project_id="LDESX-011", project_name="Darwin Hydrogen Storage Hub",        developer="Territory Generation",   state="NT",  technology="Hydrogen Storage",   capacity_mw=30.0,  duration_h=720.0, energy_capacity_mwh=21600.0, capex_m=324.0,  status="Concept",      expected_cod="2031", grid_service="Seasonal Storage",   policy_support="ARENA"),
+        LDESXProjectRecord(project_id="LDESX-012", project_name="Waubra Thermal TES Project",         developer="Graphite Energy",         state="VIC", technology="Thermal TES",        capacity_mw=120.0, duration_h=14.0,  energy_capacity_mwh=1680.0,  capex_m=42.0,   status="Construction", expected_cod="2025", grid_service="Capacity Firming",   policy_support="State Govt"),
+        LDESXProjectRecord(project_id="LDESX-013", project_name="QLD NaS Battery Farm",               developer="NGK Insulators AU",       state="QLD", technology="Sodium-Sulfur",      capacity_mw=50.0,  duration_h=6.0,   energy_capacity_mwh=300.0,   capex_m=120.0,  status="Development",  expected_cod="2027", grid_service="Frequency Control",  policy_support="None"),
+        LDESXProjectRecord(project_id="LDESX-014", project_name="WA Iron-Chrome Flow Pilot",          developer="ESS Inc AU",              state="WA",  technology="Iron-Chrome Flow",   capacity_mw=10.0,  duration_h=10.0,  energy_capacity_mwh=100.0,   capex_m=15.0,   status="Operating",    expected_cod="2024", grid_service="Arbitrage",          policy_support="ARENA"),
+        LDESXProjectRecord(project_id="LDESX-015", project_name="Tasmanian CAES Cavern",              developer="Hydro Tasmania",          state="TAS", technology="Compressed Air",     capacity_mw=150.0, duration_h=20.0,  energy_capacity_mwh=3000.0,  capex_m=240.0,  status="Permitted",    expected_cod="2028", grid_service="Black Start",        policy_support="CEFC"),
+        LDESXProjectRecord(project_id="LDESX-016", project_name="Zinc-Air Long Duration Pilot",       developer="Zinc8 Energy AU",         state="VIC", technology="Zinc-Air Battery",   capacity_mw=5.0,   duration_h=50.0,  energy_capacity_mwh=250.0,   capex_m=16.3,   status="Development",  expected_cod="2027", grid_service="Capacity Firming",   policy_support="ARENA"),
+        LDESXProjectRecord(project_id="LDESX-017", project_name="Spencer Gulf LAES Plant",            developer="Highview Power AU",       state="SA",  technology="Liquid Air",         capacity_mw=100.0, duration_h=12.0,  energy_capacity_mwh=1200.0,  capex_m=420.0,  status="Concept",      expected_cod="2030", grid_service="Seasonal Storage",   policy_support="State Govt"),
+        LDESXProjectRecord(project_id="LDESX-018", project_name="Murray-Darling Pumped Hydro",        developer="EnergyAustralia",         state="VIC", technology="Pumped Hydro New",   capacity_mw=500.0, duration_h=24.0,  energy_capacity_mwh=12000.0, capex_m=1750.0, status="Concept",      expected_cod="2032", grid_service="Seasonal Storage",   policy_support="CIS"),
+        LDESXProjectRecord(project_id="LDESX-019", project_name="Geelong CO2 Storage Demo",           developer="Malta Inc AU",            state="VIC", technology="CO2-based Storage",  capacity_mw=25.0,  duration_h=12.0,  energy_capacity_mwh=300.0,   capex_m=54.0,   status="Concept",      expected_cod="2030", grid_service="Arbitrage",          policy_support="ARENA"),
+        LDESXProjectRecord(project_id="LDESX-020", project_name="Roxby Downs Zinc Hybrid Storage",    developer="ZincNyx Energy",          state="SA",  technology="Zinc Hybrid Battery", capacity_mw=15.0,  duration_h=8.0,   energy_capacity_mwh=120.0,   capex_m=11.5,   status="Development",  expected_cod="2028", grid_service="Capacity Firming",   policy_support="None"),
+    ]
+
+    # ── Economics (30 records: 5 techs × 6 years 2024-2030) ──────────────
+    _econ_base = [
+        # technology,               lcoes_2024, capex_2024, rev_2024, cycles, irr,  payback, grid_val
+        ("Iron-Air Battery",         200.0,      20.0,       145.0,   8.0,   8.5,  14.0,    55.0),
+        ("Pumped Hydro New",         155.0,     150.0,       165.0,  200.0,  9.2,  12.0,    70.0),
+        ("Flow Battery VRF",         310.0,     280.0,       140.0,  250.0,  7.8,  15.5,    50.0),
+        ("Liquid Air (LAES)",        265.0,     350.0,       130.0,  120.0,  7.2,  16.0,    45.0),
+        ("Hydrogen Storage",         380.0,      15.0,       110.0,   10.0,  5.5,  20.0,    80.0),
+    ]
+    economics: List[LDESXEconomicsRecord] = []
+    for yr_idx, year in enumerate(range(2024, 2030)):
+        for (tech, lcoes_base, capex_base, rev_base, cycles, irr_base, payback_base, gval_base) in _econ_base:
+            decline = 1.0 - yr_idx * 0.055
+            capex_decline = 1.0 - yr_idx * 0.06
+            economics.append(LDESXEconomicsRecord(
+                year=year,
+                technology=tech,
+                lcoes_aud_per_mwh=round(lcoes_base * decline, 1),
+                capex_kwh=round(capex_base * capex_decline, 1),
+                revenue_potential_aud_per_kw_year=round(rev_base * (1.0 + yr_idx * 0.03), 1),
+                annual_cycles=cycles,
+                irr_pct=round(irr_base + yr_idx * 0.4, 2),
+                payback_years=round(payback_base - yr_idx * 0.5, 1),
+                grid_value_aud_per_mwh=round(gval_base * (1.0 + yr_idx * 0.04), 1),
+            ))
+
+    # ── Grid Value (20 records) ───────────────────────────────────────────
+    grid_value: List[LDESXGridValueRecord] = [
+        LDESXGridValueRecord(service_type="Capacity Firming",    region="SA",  annual_value_m_per_gw=185.0, avg_utilisation_pct=72.0, duration_required_h=12.0, market_volume_gw=2.5, addressable_revenue_m=462.5),
+        LDESXGridValueRecord(service_type="Capacity Firming",    region="NSW", annual_value_m_per_gw=160.0, avg_utilisation_pct=68.0, duration_required_h=10.0, market_volume_gw=4.0, addressable_revenue_m=640.0),
+        LDESXGridValueRecord(service_type="Capacity Firming",    region="QLD", annual_value_m_per_gw=170.0, avg_utilisation_pct=65.0, duration_required_h=10.0, market_volume_gw=3.5, addressable_revenue_m=595.0),
+        LDESXGridValueRecord(service_type="Seasonal Arbitrage",  region="SA",  annual_value_m_per_gw=120.0, avg_utilisation_pct=45.0, duration_required_h=72.0, market_volume_gw=1.8, addressable_revenue_m=216.0),
+        LDESXGridValueRecord(service_type="Seasonal Arbitrage",  region="VIC", annual_value_m_per_gw=110.0, avg_utilisation_pct=42.0, duration_required_h=48.0, market_volume_gw=2.2, addressable_revenue_m=242.0),
+        LDESXGridValueRecord(service_type="Frequency Control",   region="SA",  annual_value_m_per_gw=95.0,  avg_utilisation_pct=30.0, duration_required_h=4.0,  market_volume_gw=0.8, addressable_revenue_m=76.0),
+        LDESXGridValueRecord(service_type="Frequency Control",   region="QLD", annual_value_m_per_gw=88.0,  avg_utilisation_pct=28.0, duration_required_h=4.0,  market_volume_gw=1.0, addressable_revenue_m=88.0),
+        LDESXGridValueRecord(service_type="Black Start",         region="SA",  annual_value_m_per_gw=55.0,  avg_utilisation_pct=5.0,  duration_required_h=8.0,  market_volume_gw=0.4, addressable_revenue_m=22.0),
+        LDESXGridValueRecord(service_type="Black Start",         region="NSW", annual_value_m_per_gw=48.0,  avg_utilisation_pct=5.0,  duration_required_h=8.0,  market_volume_gw=0.5, addressable_revenue_m=24.0),
+        LDESXGridValueRecord(service_type="Voltage Support",     region="SA",  annual_value_m_per_gw=40.0,  avg_utilisation_pct=15.0, duration_required_h=6.0,  market_volume_gw=0.6, addressable_revenue_m=24.0),
+        LDESXGridValueRecord(service_type="Voltage Support",     region="VIC", annual_value_m_per_gw=35.0,  avg_utilisation_pct=12.0, duration_required_h=6.0,  market_volume_gw=0.8, addressable_revenue_m=28.0),
+        LDESXGridValueRecord(service_type="Spinning Reserve",    region="NSW", annual_value_m_per_gw=70.0,  avg_utilisation_pct=22.0, duration_required_h=4.0,  market_volume_gw=1.2, addressable_revenue_m=84.0),
+        LDESXGridValueRecord(service_type="Spinning Reserve",    region="QLD", annual_value_m_per_gw=65.0,  avg_utilisation_pct=20.0, duration_required_h=4.0,  market_volume_gw=1.0, addressable_revenue_m=65.0),
+        LDESXGridValueRecord(service_type="Capacity Firming",    region="WA",  annual_value_m_per_gw=145.0, avg_utilisation_pct=60.0, duration_required_h=10.0, market_volume_gw=1.5, addressable_revenue_m=217.5),
+        LDESXGridValueRecord(service_type="Seasonal Arbitrage",  region="NSW", annual_value_m_per_gw=105.0, avg_utilisation_pct=40.0, duration_required_h=48.0, market_volume_gw=3.0, addressable_revenue_m=315.0),
+        LDESXGridValueRecord(service_type="Seasonal Arbitrage",  region="QLD", annual_value_m_per_gw=100.0, avg_utilisation_pct=38.0, duration_required_h=48.0, market_volume_gw=2.5, addressable_revenue_m=250.0),
+        LDESXGridValueRecord(service_type="Frequency Control",   region="VIC", annual_value_m_per_gw=80.0,  avg_utilisation_pct=25.0, duration_required_h=4.0,  market_volume_gw=1.2, addressable_revenue_m=96.0),
+        LDESXGridValueRecord(service_type="Black Start",         region="QLD", annual_value_m_per_gw=45.0,  avg_utilisation_pct=5.0,  duration_required_h=8.0,  market_volume_gw=0.6, addressable_revenue_m=27.0),
+        LDESXGridValueRecord(service_type="Voltage Support",     region="NSW", annual_value_m_per_gw=32.0,  avg_utilisation_pct=10.0, duration_required_h=6.0,  market_volume_gw=1.0, addressable_revenue_m=32.0),
+        LDESXGridValueRecord(service_type="Spinning Reserve",    region="VIC", annual_value_m_per_gw=60.0,  avg_utilisation_pct=18.0, duration_required_h=4.0,  market_volume_gw=1.4, addressable_revenue_m=84.0),
+    ]
+
+    # ── Policies (15 records) ─────────────────────────────────────────────
+    policies: List[LDESXPolicyRecord] = [
+        LDESXPolicyRecord(policy_name="Capacity Investment Scheme (CIS)",          jurisdiction="Federal",  policy_type="Capacity Auction",  target_gw=6.0,  budget_m=6800.0, duration_focus_h=8.0,   projects_supported=25,  implementation_year=2023, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="ARENA LDES Demonstration Program",          jurisdiction="Federal",  policy_type="Grant",             target_gw=0.5,  budget_m=500.0,  duration_focus_h=12.0,  projects_supported=12,  implementation_year=2022, expiry_year=2027),
+        LDESXPolicyRecord(policy_name="CEFC Long Duration Storage Mandate",        jurisdiction="Federal",  policy_type="Loan",              target_gw=2.0,  budget_m=2000.0, duration_focus_h=10.0,  projects_supported=18,  implementation_year=2023, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="SA Energy Storage Target",                  jurisdiction="SA",       policy_type="Mandate",           target_gw=1.0,  budget_m=800.0,  duration_focus_h=8.0,   projects_supported=8,   implementation_year=2022, expiry_year=2028),
+        LDESXPolicyRecord(policy_name="NSW Electricity Infrastructure Roadmap",    jurisdiction="NSW",      policy_type="Revenue Floor",     target_gw=2.0,  budget_m=3200.0, duration_focus_h=6.0,   projects_supported=15,  implementation_year=2021, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="VIC Big Battery 2030 Program",              jurisdiction="VIC",      policy_type="Grant",             target_gw=0.8,  budget_m=640.0,  duration_focus_h=8.0,   projects_supported=6,   implementation_year=2023, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="QLD Renewable Energy Zone Support",         jurisdiction="QLD",      policy_type="Grant",             target_gw=1.5,  budget_m=900.0,  duration_focus_h=6.0,   projects_supported=10,  implementation_year=2022, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="US IRA Storage Tax Credit (reference)",     jurisdiction="USA",      policy_type="Tax Credit",        target_gw=50.0, budget_m=80000.0,duration_focus_h=4.0,   projects_supported=200, implementation_year=2023, expiry_year=2032),
+        LDESXPolicyRecord(policy_name="EU Innovation Fund LDES Stream",            jurisdiction="EU",       policy_type="Grant",             target_gw=10.0, budget_m=5000.0, duration_focus_h=8.0,   projects_supported=40,  implementation_year=2024, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="UK Capacity Market Long Duration Premium",  jurisdiction="UK",       policy_type="Capacity Auction",  target_gw=3.0,  budget_m=2500.0, duration_focus_h=6.0,   projects_supported=20,  implementation_year=2024, expiry_year=2034),
+        LDESXPolicyRecord(policy_name="WA Whole of System Plan Storage",           jurisdiction="WA",       policy_type="Mandate",           target_gw=0.6,  budget_m=480.0,  duration_focus_h=8.0,   projects_supported=5,   implementation_year=2023, expiry_year=2030),
+        LDESXPolicyRecord(policy_name="TAS Renewable Hydrogen & Storage Fund",     jurisdiction="TAS",      policy_type="Grant",             target_gw=0.2,  budget_m=120.0,  duration_focus_h=24.0,  projects_supported=3,   implementation_year=2023, expiry_year=2027),
+        LDESXPolicyRecord(policy_name="Federal Revenue Guarantee Scheme",          jurisdiction="Federal",  policy_type="Revenue Floor",     target_gw=3.0,  budget_m=4500.0, duration_focus_h=10.0,  projects_supported=20,  implementation_year=2024, expiry_year=2033),
+        LDESXPolicyRecord(policy_name="NT Remote Storage Grant Program",           jurisdiction="NT",       policy_type="Grant",             target_gw=0.1,  budget_m=80.0,   duration_focus_h=12.0,  projects_supported=4,   implementation_year=2023, expiry_year=2027),
+        LDESXPolicyRecord(policy_name="ACT Zero Carbon Transition Storage",        jurisdiction="ACT",      policy_type="Grant",             target_gw=0.05, budget_m=40.0,   duration_focus_h=8.0,   projects_supported=2,   implementation_year=2022, expiry_year=2026),
+    ]
+
+    # ── Scenarios (24 records: 2025-2040 × 2 scenarios) ──────────────────
+    _scenario_data = [
+        # year, base_gw, high_gw, base_gwh, high_gwh, base_pct, high_pct, base_dom, high_dom, base_inv, high_inv, base_fired, high_fired, base_curt, high_curt
+        (2025,  1.2,  1.5,  12.0,  18.0, 5.0,  7.0,  "Pumped Hydro New", "Pumped Hydro New", 1.2, 2.0, 32.0, 38.0, 1.5, 2.8),
+        (2026,  1.8,  2.5,  22.0,  35.0, 6.5,  9.5,  "Pumped Hydro New", "Iron-Air Battery", 1.8, 3.5, 36.0, 43.0, 2.2, 4.5),
+        (2027,  2.8,  4.2,  38.0,  62.0, 8.0,  13.0, "Pumped Hydro New", "Iron-Air Battery", 2.5, 5.5, 41.0, 50.0, 3.5, 7.0),
+        (2028,  4.0,  6.5,  60.0, 110.0, 10.0, 17.0, "Flow Battery VRF", "Iron-Air Battery", 3.8, 8.5, 47.0, 57.0, 5.5, 11.0),
+        (2029,  5.5,  9.5,  90.0, 175.0, 13.0, 22.0, "Flow Battery VRF", "Iron-Air Battery", 5.5, 12.5, 53.0, 65.0, 8.0, 16.5),
+        (2030,  7.5, 13.5, 130.0, 280.0, 16.0, 28.0, "Iron-Air Battery", "Iron-Air Battery", 7.8, 18.0, 60.0, 74.0, 11.5, 24.0),
+        (2031,  9.5, 17.0, 180.0, 380.0, 19.0, 34.0, "Iron-Air Battery", "Iron-Air Battery", 9.5, 22.0, 65.0, 80.0, 15.0, 31.0),
+        (2032, 12.0, 22.0, 240.0, 510.0, 22.0, 41.0, "Iron-Air Battery", "Hydrogen Storage", 12.0, 28.0, 70.0, 85.0, 19.0, 39.5),
+        (2033, 15.0, 27.0, 310.0, 650.0, 25.0, 47.0, "Iron-Air Battery", "Hydrogen Storage", 14.5, 33.0, 74.0, 88.0, 23.5, 48.0),
+        (2034, 18.5, 33.0, 400.0, 820.0, 28.0, 53.0, "Hydrogen Storage", "Hydrogen Storage", 17.0, 38.0, 78.0, 91.0, 28.0, 57.0),
+        (2035, 22.0, 40.0, 510.0, 1050.0,32.0, 60.0, "Hydrogen Storage", "Hydrogen Storage", 20.0, 45.0, 82.0, 94.0, 33.5, 67.0),
+        (2036, 26.0, 47.0, 640.0, 1320.0,36.0, 66.0, "Hydrogen Storage", "Hydrogen Storage", 22.5, 50.0, 85.0, 96.0, 39.0, 77.0),
+        (2037, 30.0, 55.0, 780.0, 1640.0,40.0, 72.0, "Hydrogen Storage", "Hydrogen Storage", 25.0, 55.0, 88.0, 97.0, 44.5, 87.0),
+        (2038, 34.5, 62.0, 940.0, 1970.0,44.0, 77.0, "Hydrogen Storage", "Hydrogen Storage", 27.0, 58.0, 90.0, 98.0, 50.5, 97.5),
+        (2039, 39.0, 69.0, 1120.0,2320.0,48.0, 82.0, "Hydrogen Storage", "Hydrogen Storage", 29.0, 61.0, 92.0, 99.0, 56.5,108.0),
+        (2040, 44.0, 77.0, 1340.0,2750.0,52.0, 87.0, "Hydrogen Storage", "Hydrogen Storage", 31.0, 65.0, 94.0, 99.5, 63.0,120.0),
+    ]
+    scenarios: List[LDESXScenarioRecord] = []
+    for (yr, base_gw, high_gw, base_gwh, high_gwh, base_pct, high_pct,
+         base_dom, high_dom, base_inv, high_inv, base_fired, high_fired, base_curt, high_curt) in _scenario_data:
+        scenarios.append(LDESXScenarioRecord(year=yr, scenario="Base", installed_capacity_gw=base_gw, energy_stored_gwh=base_gwh, pct_of_storage_fleet=base_pct, dominant_technology=base_dom, annual_investment_b=base_inv, firmed_renewable_pct=base_fired, curtailment_avoided_twh=base_curt))
+        scenarios.append(LDESXScenarioRecord(year=yr, scenario="High LDES", installed_capacity_gw=high_gw, energy_stored_gwh=high_gwh, pct_of_storage_fleet=high_pct, dominant_technology=high_dom, annual_investment_b=high_inv, firmed_renewable_pct=high_fired, curtailment_avoided_twh=high_curt))
+
+    # ── Summary ───────────────────────────────────────────────────────────
+    total_pipeline_mwh = sum(p.energy_capacity_mwh for p in projects)
+    current_lcoes = [e.lcoes_aud_per_mwh for e in economics if e.year == 2024]
+    avg_lcoes = round(sum(current_lcoes) / len(current_lcoes), 1) if current_lcoes else 0.0
+    min_lcoes_rec = min((e for e in economics if e.year == 2024), key=lambda x: x.lcoes_aud_per_mwh, default=None)
+    base_2030 = next((s.installed_capacity_gw for s in scenarios if s.year == 2030 and s.scenario == "Base"), 0.0)
+
+    summary = {
+        "total_technologies": len(technologies),
+        "total_projects": len(projects),
+        "total_pipeline_mwh": round(total_pipeline_mwh, 0),
+        "avg_lcoes_current_aud_mwh": avg_lcoes,
+        "most_economic_technology": min_lcoes_rec.technology if min_lcoes_rec else "Pumped Hydro New",
+        "projected_2030_capacity_gw": base_2030,
+    }
+
+    _ldesx_cache.update(LDESXDashboard(
+        technologies=technologies,
+        projects=projects,
+        economics=economics,
+        grid_value=grid_value,
+        policies=policies,
+        scenarios=scenarios,
+        summary=summary,
+    ).model_dump())
+    return LDESXDashboard(**_ldesx_cache)
