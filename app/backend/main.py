@@ -68665,3 +68665,1123 @@ def get_community_energy_storage_dashboard():
         }
     ).model_dump())
     return _cest_cache
+
+
+# ---------------------------------------------------------------------------
+# NEM Generation Mix Transition Analytics  (Sprint 98a)
+# ---------------------------------------------------------------------------
+
+class NEGMGenerationRecord(BaseModel):
+    gen_id: str
+    technology: str
+    region: str
+    capacity_gw: float
+    energy_twh_pa: float
+    capacity_factor_pct: float
+    emissions_intensity_tco2_per_mwh: float
+    fuel_cost_dolpermwh: float
+    lcoe_dolpermwh: float
+    retirement_year: Optional[int]
+    new_entrant_potential_gw: float
+
+
+class NEGMTransitionRecord(BaseModel):
+    transition_id: str
+    region: str
+    year: int
+    black_coal_gw: float
+    brown_coal_gw: float
+    gas_gw: float
+    hydro_gw: float
+    wind_gw: float
+    solar_utility_gw: float
+    solar_rooftop_gw: float
+    battery_gw: float
+    pumped_hydro_gw: float
+    other_renewables_gw: float
+    total_capacity_gw: float
+    renewable_share_pct: float
+    emissions_intensity_tco2_per_mwh: float
+
+
+class NEGMRetirementRecord(BaseModel):
+    retirement_id: str
+    asset_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    retirement_year: int
+    replacement_technology: str
+    replacement_capacity_mw: float
+    reliability_impact: str
+    carbon_reduction_mt_pa: float
+    economic_life_remaining_years: int
+    owner: str
+
+
+class NEGMInvestmentRecord(BaseModel):
+    investment_id: str
+    technology: str
+    region: str
+    year_announced: int
+    capacity_mw: float
+    capex_m: float
+    lcoe_dolpermwh: float
+    expected_cod_year: int
+    developer: str
+    contract_status: str
+    grid_connection_cost_m: float
+
+
+class NEGMDispatchShareRecord(BaseModel):
+    dispatch_id: str
+    region: str
+    month: int
+    year: int
+    wind_pct: float
+    solar_utility_pct: float
+    solar_rooftop_pct: float
+    hydro_pct: float
+    gas_pct: float
+    coal_pct: float
+    battery_pct: float
+    pumped_hydro_pct: float
+    other_pct: float
+    max_renewable_penetration_pct: float
+    min_renewable_penetration_pct: float
+
+
+class NEGMScenarioRecord(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    year: int
+    total_capacity_gw: float
+    renewable_share_pct: float
+    emissions_mt_co2e: float
+    avg_wholesale_price_dolpermwh: float
+    battery_storage_gw: float
+    annual_investment_bn: float
+    reliability_met: bool
+
+
+class NEGMDashboard(BaseModel):
+    generation_fleet: List[NEGMGenerationRecord]
+    transition_records: List[NEGMTransitionRecord]
+    retirements: List[NEGMRetirementRecord]
+    investments: List[NEGMInvestmentRecord]
+    dispatch_shares: List[NEGMDispatchShareRecord]
+    scenarios: List[NEGMScenarioRecord]
+    summary: dict
+
+
+_negm_cache: dict = {}
+
+
+@app.get("/api/nem-generation-mix/dashboard")
+def get_negm_dashboard():
+    import random
+    if _negm_cache:
+        return _negm_cache
+
+    rng = random.Random(20240301)
+
+    # ---- Generation Fleet (26 records: 13 technologies × 2 regions) ----
+    tech_data = [
+        # technology,                   region, cap_gw, twh_pa, cf_pct, ei,   fuel,  lcoe,  retire, newent
+        ("Black Coal",        "NSW",  10.5,  70.0,  76.0, 0.90,  8.0,  45.0, 2035,  0.0),
+        ("Black Coal",        "QLD",   7.2,  48.0,  76.0, 0.90,  8.0,  45.0, 2033,  0.0),
+        ("Brown Coal",        "VIC",   4.8,  30.0,  71.0, 1.10,  2.0,  38.0, 2028,  0.0),
+        ("Brown Coal",        "SA",    0.5,   2.8,  64.0, 1.05,  2.5,  40.0, 2026,  0.0),
+        ("Gas CCGT",          "NSW",   2.1,  10.0,  54.0, 0.45, 55.0,  90.0, 2040,  1.5),
+        ("Gas CCGT",          "VIC",   1.5,   7.5,  57.0, 0.45, 54.0,  88.0, 2042,  1.2),
+        ("Gas OCGT",          "QLD",   1.8,   3.5,  22.0, 0.58, 70.0, 130.0, 2045,  2.0),
+        ("Gas OCGT",          "SA",    0.9,   1.8,  23.0, 0.58, 70.0, 132.0, 2045,  1.0),
+        ("Gas Steam",         "NSW",   0.6,   1.5,  29.0, 0.60, 65.0, 120.0, 2030,  0.0),
+        ("Gas Steam",         "VIC",   0.4,   1.0,  29.0, 0.60, 64.0, 118.0, 2029,  0.0),
+        ("Hydro",             "NSW",   3.5,  12.0,  39.0, 0.00,  0.5,  50.0, None,  0.8),
+        ("Hydro",             "VIC",   3.2,  11.0,  39.0, 0.00,  0.5,  50.0, None,  0.6),
+        ("Wind Onshore",      "SA",    2.8,   8.5,  35.0, 0.00,  0.0,  55.0, None,  8.0),
+        ("Wind Onshore",      "VIC",   3.5,  10.5,  34.0, 0.00,  0.0,  54.0, None, 10.0),
+        ("Solar Utility",     "QLD",   4.2,   8.0,  22.0, 0.00,  0.0,  45.0, None, 15.0),
+        ("Solar Utility",     "NSW",   3.1,   5.8,  21.0, 0.00,  0.0,  46.0, None, 12.0),
+        ("Solar Rooftop",     "QLD",   5.5,   7.0,  15.0, 0.00,  0.0,  99.0, None,  6.0),
+        ("Solar Rooftop",     "NSW",   4.8,   6.5,  15.0, 0.00,  0.0, 100.0, None,  5.5),
+        ("Battery",           "SA",    0.8,   0.9,  13.0, 0.00,  0.0,  80.0, None, 10.0),
+        ("Battery",           "VIC",   0.5,   0.6,  14.0, 0.00,  0.0,  82.0, None,  8.0),
+        ("Pumped Hydro",      "NSW",   1.2,   2.5,  24.0, 0.00,  0.5,  65.0, None,  3.0),
+        ("Pumped Hydro",      "VIC",   0.9,   1.8,  23.0, 0.00,  0.5,  65.0, None,  2.5),
+        ("Biomass",           "QLD",   0.3,   2.1,  80.0, 0.05, 25.0,  95.0, 2040,  0.4),
+        ("Biomass",           "NSW",   0.2,   1.4,  80.0, 0.05, 25.0,  95.0, 2040,  0.3),
+        ("Diesel",            "SA",    0.1,   0.2,  23.0, 0.72,200.0, 320.0, 2032,  0.0),
+        ("Diesel",            "QLD",   0.2,   0.3,  17.0, 0.72,195.0, 310.0, 2030,  0.0),
+    ]
+    generation_fleet = []
+    for i, (tech, region, cap, twh, cf, ei, fuel, lcoe, retire, newent) in enumerate(tech_data):
+        generation_fleet.append(NEGMGenerationRecord(
+            gen_id=f"NEGM-GEN-{i+1:03d}",
+            technology=tech,
+            region=region,
+            capacity_gw=round(cap + rng.uniform(-0.05, 0.05), 2),
+            energy_twh_pa=round(twh + rng.uniform(-0.5, 0.5), 1),
+            capacity_factor_pct=round(cf + rng.uniform(-0.5, 0.5), 1),
+            emissions_intensity_tco2_per_mwh=round(ei + rng.uniform(-0.01, 0.01), 3),
+            fuel_cost_dolpermwh=round(fuel + rng.uniform(-1.0, 1.0), 1),
+            lcoe_dolpermwh=round(lcoe + rng.uniform(-2.0, 2.0), 1),
+            retirement_year=retire,
+            new_entrant_potential_gw=round(newent + rng.uniform(0, 0.2), 1),
+        ))
+
+    # ---- Transition Records (50 records: 5 regions × 10 years 2024-2033) ----
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    transition_records = []
+    t_idx = 1
+    for region in regions:
+        # Base values per region
+        base = {
+            "NSW": dict(bc=10.5, brn=0.0, gas=2.7, hyd=3.5, wind=1.5, suty=3.1, srft=4.8, bat=0.3, php=1.2, oth=0.2, ei=0.72),
+            "VIC": dict(bc=0.0, brn=4.8, gas=1.9, hyd=3.2, wind=3.5, suty=2.0, srft=3.2, bat=0.5, php=0.9, oth=0.3, ei=0.85),
+            "QLD": dict(bc=7.2, brn=0.0, gas=2.7, hyd=0.8, wind=1.2, suty=4.2, srft=5.5, bat=0.4, php=0.3, oth=0.2, ei=0.78),
+            "SA":  dict(bc=0.0, brn=0.5, gas=1.8, hyd=0.2, wind=2.8, suty=1.5, srft=1.8, bat=0.8, php=0.0, oth=0.1, ei=0.30),
+            "TAS": dict(bc=0.0, brn=0.0, gas=0.6, hyd=2.6, wind=0.8, suty=0.2, srft=0.3, bat=0.1, php=0.4, oth=0.1, ei=0.15),
+        }[region]
+        for yr_offset, year in enumerate(range(2024, 2034)):
+            bc = max(0.0, round(base["bc"] - yr_offset * rng.uniform(0.3, 0.6), 2))
+            brn = max(0.0, round(base["brn"] - yr_offset * rng.uniform(0.2, 0.4), 2))
+            gas = max(0.0, round(base["gas"] - yr_offset * rng.uniform(0.05, 0.15), 2))
+            hyd = round(base["hyd"] + yr_offset * rng.uniform(0.02, 0.06), 2)
+            wind = round(base["wind"] + yr_offset * rng.uniform(0.2, 0.5), 2)
+            suty = round(base["suty"] + yr_offset * rng.uniform(0.3, 0.7), 2)
+            srft = round(base["srft"] + yr_offset * rng.uniform(0.2, 0.4), 2)
+            bat = round(base["bat"] + yr_offset * rng.uniform(0.1, 0.3), 2)
+            php = round(base["php"] + yr_offset * rng.uniform(0.05, 0.15), 2)
+            oth = round(base["oth"] + yr_offset * rng.uniform(0.01, 0.03), 2)
+            total = round(bc + brn + gas + hyd + wind + suty + srft + bat + php + oth, 2)
+            ren = round((hyd + wind + suty + srft + bat + php + oth) / max(total, 0.01) * 100, 1)
+            ei = round(base["ei"] - yr_offset * rng.uniform(0.02, 0.05), 3)
+            transition_records.append(NEGMTransitionRecord(
+                transition_id=f"NEGM-TRN-{t_idx:03d}",
+                region=region,
+                year=year,
+                black_coal_gw=bc,
+                brown_coal_gw=brn,
+                gas_gw=gas,
+                hydro_gw=hyd,
+                wind_gw=wind,
+                solar_utility_gw=suty,
+                solar_rooftop_gw=srft,
+                battery_gw=bat,
+                pumped_hydro_gw=php,
+                other_renewables_gw=oth,
+                total_capacity_gw=total,
+                renewable_share_pct=ren,
+                emissions_intensity_tco2_per_mwh=max(0.05, ei),
+            ))
+            t_idx += 1
+
+    # ---- Retirement Records (20 records: coal/gas plants 2024-2035) ----
+    retirement_data = [
+        ("NEGM-RET-001", "Eraring Power Station U1",     "Black Coal", "NSW", 720,  2025, "Wind Onshore",   800,  "High",   4.5, 5,  "Origin Energy"),
+        ("NEGM-RET-002", "Eraring Power Station U2",     "Black Coal", "NSW", 720,  2025, "Solar Utility",  800,  "High",   4.5, 5,  "Origin Energy"),
+        ("NEGM-RET-003", "Eraring Power Station U3",     "Black Coal", "NSW", 720,  2026, "Battery",        600,  "Medium", 4.5, 4,  "Origin Energy"),
+        ("NEGM-RET-004", "Eraring Power Station U4",     "Black Coal", "NSW", 720,  2026, "Pumped Hydro",   600,  "Medium", 4.5, 4,  "Origin Energy"),
+        ("NEGM-RET-005", "Loy Yang A Unit 1",            "Brown Coal", "VIC", 560,  2028, "Wind Onshore",   600,  "High",   3.8, 4,  "AGL Energy"),
+        ("NEGM-RET-006", "Loy Yang A Unit 2",            "Brown Coal", "VIC", 560,  2028, "Solar Utility",  700,  "High",   3.8, 4,  "AGL Energy"),
+        ("NEGM-RET-007", "Loy Yang A Unit 3",            "Brown Coal", "VIC", 560,  2029, "Battery",        500,  "Medium", 3.8, 3,  "AGL Energy"),
+        ("NEGM-RET-008", "Loy Yang B Unit 1",            "Brown Coal", "VIC", 500,  2030, "Wind Onshore",   600,  "Medium", 3.4, 6,  "ENGIE"),
+        ("NEGM-RET-009", "Callide C Unit 3",             "Black Coal", "QLD", 460,  2030, "Solar Utility",  500,  "Medium", 3.0, 6,  "CS Energy"),
+        ("NEGM-RET-010", "Callide C Unit 4",             "Black Coal", "QLD", 460,  2030, "Battery",        400,  "Low",    3.0, 6,  "CS Energy"),
+        ("NEGM-RET-011", "Tarong Power Station U1",      "Black Coal", "QLD", 350,  2031, "Wind Onshore",   400,  "Medium", 2.2, 7,  "CS Energy"),
+        ("NEGM-RET-012", "Tarong Power Station U2",      "Black Coal", "QLD", 350,  2031, "Solar Utility",  450,  "Low",    2.2, 7,  "CS Energy"),
+        ("NEGM-RET-013", "Torrens Island A",             "Gas Steam",  "SA",  200,  2024, "Battery",        250,  "Low",    0.8, 0,  "AGL Energy"),
+        ("NEGM-RET-014", "Torrens Island B",             "Gas Steam",  "SA",  200,  2025, "Wind Onshore",   300,  "Low",    0.8, 1,  "AGL Energy"),
+        ("NEGM-RET-015", "Newport Power Station",        "Gas Steam",  "VIC", 500,  2025, "Battery",        400,  "Medium", 1.9, 1,  "AGL Energy"),
+        ("NEGM-RET-016", "Anglesea Power Station",       "Brown Coal", "VIC", 160,  2024, "Solar Utility",  200,  "Low",    1.0, 0,  "ALCOA"),
+        ("NEGM-RET-017", "Playford B Power Station",     "Brown Coal", "SA",  240,  2026, "Wind Onshore",   300,  "Medium", 1.5, 2,  "ENGIE"),
+        ("NEGM-RET-018", "Hazelwood Power Station",      "Brown Coal", "VIC", 1600, 2027, "Wind Onshore",  1800,  "High",  10.5, 3,  "ENGIE"),
+        ("NEGM-RET-019", "Vales Point B Unit 5",         "Black Coal", "NSW", 660,  2029, "Pumped Hydro",   700,  "Medium", 4.2, 5,  "Delta Electricity"),
+        ("NEGM-RET-020", "Vales Point B Unit 6",         "Black Coal", "NSW", 660,  2030, "Solar Utility",  800,  "Low",    4.2, 6,  "Delta Electricity"),
+    ]
+    retirements = [NEGMRetirementRecord(
+        retirement_id=r[0], asset_name=r[1], technology=r[2], region=r[3],
+        capacity_mw=r[4], retirement_year=r[5], replacement_technology=r[6],
+        replacement_capacity_mw=r[7], reliability_impact=r[8],
+        carbon_reduction_mt_pa=r[9], economic_life_remaining_years=r[10], owner=r[11]
+    ) for r in retirement_data]
+
+    # ---- Investment Records (30 records: new wind/solar/battery projects) ----
+    investment_data = [
+        ("NEGM-INV-001", "Wind Onshore",   "NSW", 2022, 1000, 1800,  55.0, 2025, "AGL Energy",       "PPA",      45.0),
+        ("NEGM-INV-002", "Solar Utility",  "QLD", 2022,  500,  550,  44.0, 2025, "Origin Energy",    "PPA",      22.0),
+        ("NEGM-INV-003", "Battery",        "SA",  2022,  250,  350,  80.0, 2024, "Tesla / AGL",      "Merchant", 12.0),
+        ("NEGM-INV-004", "Wind Onshore",   "VIC", 2023, 1200, 2100,  54.0, 2026, "Tilt Renewables",  "CIS",      55.0),
+        ("NEGM-INV-005", "Solar Utility",  "NSW", 2023,  800,  880,  45.0, 2026, "Neoen",            "PPA",      35.0),
+        ("NEGM-INV-006", "Pumped Hydro",   "NSW", 2020, 2000, 6000,  65.0, 2029, "AEMO / Snowy",     "CIS",     180.0),
+        ("NEGM-INV-007", "Wind Onshore",   "SA",  2023,  600, 1050,  56.0, 2026, "ENGIE",            "Merchant",  28.0),
+        ("NEGM-INV-008", "Solar Utility",  "QLD", 2023, 1500, 1650,  43.0, 2026, "BHP / Neoen",      "PPA",      62.0),
+        ("NEGM-INV-009", "Battery",        "VIC", 2023,  300,  420,  82.0, 2025, "AusNet",           "CIS",      15.0),
+        ("NEGM-INV-010", "Wind Onshore",   "QLD", 2023,  900, 1575,  55.0, 2027, "Acciona",          "CIS",      42.0),
+        ("NEGM-INV-011", "Solar Utility",  "SA",  2023,  600,  660,  46.0, 2026, "Neoen",            "PPA",      28.0),
+        ("NEGM-INV-012", "Battery",        "NSW", 2024,  500,  700,  78.0, 2026, "AGL / Macquarie",  "Merchant",  25.0),
+        ("NEGM-INV-013", "Wind Onshore",   "TAS", 2023,  400,  700,  57.0, 2026, "Hydro Tasmania",   "Merchant",  20.0),
+        ("NEGM-INV-014", "Solar Utility",  "NSW", 2024, 1200, 1320,  44.0, 2027, "EDF Renewables",   "CIS",      52.0),
+        ("NEGM-INV-015", "Pumped Hydro",   "QLD", 2022, 2000, 5800,  64.0, 2030, "Qld Govt",         "CIS",     170.0),
+        ("NEGM-INV-016", "Wind Onshore",   "NSW", 2024, 1500, 2625,  53.0, 2027, "Squadron Energy",  "PPA",      68.0),
+        ("NEGM-INV-017", "Solar Utility",  "VIC", 2024,  750,  825,  45.0, 2027, "Lightsource BP",   "CIS",      33.0),
+        ("NEGM-INV-018", "Battery",        "QLD", 2024,  400,  560,  81.0, 2026, "ENGIE",            "Merchant",  20.0),
+        ("NEGM-INV-019", "Wind Onshore",   "VIC", 2024, 2000, 3500,  54.0, 2028, "Amp Energy",       "CIS",      90.0),
+        ("NEGM-INV-020", "Solar Utility",  "SA",  2024,  900,  990,  44.0, 2027, "Clean Energy Fin", "PPA",      40.0),
+        ("NEGM-INV-021", "Battery",        "SA",  2024,  150,  210,  83.0, 2025, "Neoen",            "RERT",      8.0),
+        ("NEGM-INV-022", "Wind Onshore",   "QLD", 2024, 1100, 1925,  55.0, 2027, "CWP Renewables",   "CIS",      50.0),
+        ("NEGM-INV-023", "Solar Utility",  "QLD", 2024, 2000, 2200,  43.0, 2028, "Sun Cable",        "PPA",      85.0),
+        ("NEGM-INV-024", "Pumped Hydro",   "VIC", 2024,  300,  900,  66.0, 2030, "AGL",              "Merchant",  30.0),
+        ("NEGM-INV-025", "Wind Onshore",   "SA",  2024,  750, 1313,  56.0, 2027, "Tilt Renewables",  "PPA",      35.0),
+        ("NEGM-INV-026", "Solar Utility",  "NSW", 2025,  600,  660,  46.0, 2028, "Neoen",            "CIS",      28.0),
+        ("NEGM-INV-027", "Battery",        "VIC", 2025,  600,  840,  80.0, 2027, "Cbus / AusNet",    "CIS",      30.0),
+        ("NEGM-INV-028", "Wind Onshore",   "TAS", 2025,  500,  875,  56.0, 2028, "Hydro Tasmania",   "CIS",      24.0),
+        ("NEGM-INV-029", "Solar Utility",  "VIC", 2025, 1000, 1100,  45.0, 2028, "Origin",           "PPA",      44.0),
+        ("NEGM-INV-030", "Battery",        "NSW", 2025,  800, 1120,  79.0, 2027, "Macquarie Asset",  "Merchant",  40.0),
+    ]
+    investments = [NEGMInvestmentRecord(
+        investment_id=iv[0], technology=iv[1], region=iv[2], year_announced=iv[3],
+        capacity_mw=iv[4], capex_m=iv[5], lcoe_dolpermwh=iv[6], expected_cod_year=iv[7],
+        developer=iv[8], contract_status=iv[9], grid_connection_cost_m=iv[10]
+    ) for iv in investment_data]
+
+    # ---- Dispatch Share Records (60 records: 5 regions × 12 months) ----
+    dispatch_shares = []
+    d_idx = 1
+    # Seasonal solar & wind variation by month (index 1-12)
+    solar_season  = [0.8, 0.9, 1.1, 1.1, 0.9, 0.7, 0.8, 1.0, 1.2, 1.3, 1.2, 0.9]
+    wind_season   = [1.2, 1.1, 1.0, 0.9, 1.1, 1.3, 1.4, 1.2, 0.9, 0.8, 0.9, 1.1]
+    region_base_dispatch = {
+        "NSW": dict(wind=6,  su=5,  sr=8, hyd=12, gas=18, coal=42, bat=2, php=4, oth=3),
+        "VIC": dict(wind=14, su=7,  sr=9, hyd=13, gas=16, coal=26, bat=3, php=5, oth=7),
+        "QLD": dict(wind=5,  su=12, sr=15, hyd=3, gas=20, coal=38, bat=2, php=1, oth=4),
+        "SA":  dict(wind=40, su=12, sr=14, hyd=2, gas=20, coal=3,  bat=5, php=0, oth=4),
+        "TAS": dict(wind=12, su=2,  sr=4,  hyd=68, gas=8, coal=0,  bat=1, php=4, oth=1),
+    }
+    for region in regions:
+        b = region_base_dispatch[region]
+        for month in range(1, 13):
+            sf = solar_season[month - 1]
+            wf = wind_season[month - 1]
+            wind_pct  = round(min(b["wind"] * wf + rng.uniform(-1.5, 1.5), 60.0), 1)
+            su_pct    = round(min(b["su"] * sf + rng.uniform(-1.0, 1.0), 35.0), 1)
+            sr_pct    = round(min(b["sr"] * sf + rng.uniform(-1.5, 1.5), 40.0), 1)
+            hyd_pct   = round(b["hyd"] + rng.uniform(-2.0, 2.0), 1)
+            bat_pct   = round(max(0.5, b["bat"] + rng.uniform(-0.5, 0.5)), 1)
+            php_pct   = round(max(0.0, b["php"] + rng.uniform(-0.5, 0.5)), 1)
+            oth_pct   = round(max(0.5, b["oth"] + rng.uniform(-0.5, 0.5)), 1)
+            ren_sub   = wind_pct + su_pct + sr_pct + hyd_pct + bat_pct + php_pct + oth_pct
+            rem       = max(0.0, 100.0 - ren_sub)
+            gas_share = round(b["gas"] / max(b["gas"] + b["coal"], 1) * rem, 1)
+            coal_pct  = round(max(0.0, rem - gas_share), 1)
+            gas_pct   = round(gas_share, 1)
+            max_ren   = round(ren_sub + rng.uniform(3.0, 10.0), 1)
+            min_ren   = round(max(5.0, ren_sub - rng.uniform(5.0, 15.0)), 1)
+            dispatch_shares.append(NEGMDispatchShareRecord(
+                dispatch_id=f"NEGM-DSP-{d_idx:03d}",
+                region=region,
+                month=month,
+                year=2024,
+                wind_pct=wind_pct,
+                solar_utility_pct=su_pct,
+                solar_rooftop_pct=sr_pct,
+                hydro_pct=hyd_pct,
+                gas_pct=gas_pct,
+                coal_pct=coal_pct,
+                battery_pct=bat_pct,
+                pumped_hydro_pct=php_pct,
+                other_pct=oth_pct,
+                max_renewable_penetration_pct=min(max_ren, 99.0),
+                min_renewable_penetration_pct=min_ren,
+            ))
+            d_idx += 1
+
+    # ---- Scenario Records (20 records: 4 scenarios × 5 years) ----
+    scenario_data = [
+        # name,                  yr,   cap_gw, ren_pct, emit, price, batt,  inv,  rel
+        ("Current Policies",    2025, 68.0,  38.0,  175.0, 95.0,  2.5,  12.0, True),
+        ("Current Policies",    2030, 75.0,  48.0,  148.0, 98.0,  5.0,  14.0, True),
+        ("Current Policies",    2035, 82.0,  58.0,  120.0, 102.0, 9.0,  16.0, True),
+        ("Current Policies",    2040, 90.0,  67.0,   95.0, 108.0,14.0,  18.0, True),
+        ("Current Policies",    2050, 105.0, 79.0,   55.0, 115.0,20.0,  20.0, True),
+        ("Net Zero 2050",       2025,  70.0, 41.0,  168.0,  98.0,  3.0,  14.0, True),
+        ("Net Zero 2050",       2030,  85.0, 62.0,  118.0, 100.0,  9.0,  20.0, True),
+        ("Net Zero 2050",       2035, 102.0, 78.0,   72.0, 105.0, 16.0,  26.0, True),
+        ("Net Zero 2050",       2040, 118.0, 88.0,   35.0, 110.0, 24.0,  28.0, True),
+        ("Net Zero 2050",       2050, 140.0,100.0,    2.0, 105.0, 38.0,  30.0, True),
+        ("Accelerated",         2025,  72.0, 44.0,  158.0,  96.0,  4.0,  18.0, True),
+        ("Accelerated",         2030,  92.0, 72.0,   98.0,  98.0, 14.0,  28.0, True),
+        ("Accelerated",         2035, 115.0, 88.0,   48.0, 102.0, 22.0,  34.0, True),
+        ("Accelerated",         2040, 135.0, 96.0,   15.0, 100.0, 32.0,  35.0, True),
+        ("Accelerated",         2050, 155.0,100.0,    0.5, 95.0,  48.0,  30.0, True),
+        ("Delayed",             2025,  67.0, 34.0,  188.0,  92.0,  1.5,   9.0, True),
+        ("Delayed",             2030,  71.0, 40.0,  162.0,  95.0,  3.0,  11.0, True),
+        ("Delayed",             2035,  76.0, 49.0,  138.0, 100.0,  6.0,  13.0, False),
+        ("Delayed",             2040,  83.0, 58.0,  115.0, 108.0,  9.0,  15.0, False),
+        ("Delayed",             2050,  95.0, 71.0,   78.0, 118.0, 14.0,  17.0, True),
+    ]
+    s_idx = 1
+    scenarios = []
+    for s in scenario_data:
+        scenarios.append(NEGMScenarioRecord(
+            scenario_id=f"NEGM-SCN-{s_idx:03d}",
+            scenario_name=s[0], year=s[1], total_capacity_gw=s[2],
+            renewable_share_pct=s[3], emissions_mt_co2e=s[4],
+            avg_wholesale_price_dolpermwh=s[5], battery_storage_gw=s[6],
+            annual_investment_bn=s[7], reliability_met=s[8],
+        ))
+        s_idx += 1
+
+    # ---- Summary ----
+    total_nem_capacity_gw = round(sum(g.capacity_gw for g in generation_fleet), 1)
+    current_renewable_share_pct = round(
+        sum(g.capacity_gw for g in generation_fleet
+            if g.technology in {"Wind Onshore", "Solar Utility", "Solar Rooftop", "Hydro", "Battery", "Pumped Hydro", "Biomass"})
+        / max(total_nem_capacity_gw, 0.01) * 100, 1
+    )
+    annual_retirement_gw = round(sum(r.capacity_mw for r in retirements if r.retirement_year in {2024, 2025}) / 1000, 2)
+    annual_investment_gw = round(sum(i.capacity_mw for i in investments if i.expected_cod_year in {2025, 2026}) / 1000, 2)
+    projected_renewable_2030_pct = next(
+        (s.renewable_share_pct for s in scenarios if s.scenario_name == "Net Zero 2050" and s.year == 2030), 62.0
+    )
+
+    _negm_cache.update(NEGMDashboard(
+        generation_fleet=generation_fleet,
+        transition_records=transition_records,
+        retirements=retirements,
+        investments=investments,
+        dispatch_shares=dispatch_shares,
+        scenarios=scenarios,
+        summary={
+            "total_nem_capacity_gw": total_nem_capacity_gw,
+            "current_renewable_share_pct": current_renewable_share_pct,
+            "annual_retirement_gw": annual_retirement_gw,
+            "annual_investment_gw": annual_investment_gw,
+            "projected_renewable_2030_pct": projected_renewable_2030_pct,
+        }
+    ).model_dump())
+
+
+# ---------------------------------------------------------------------------
+# Sprint 98b — Consumer Energy Bill Affordability Analytics (CEBA)
+# ---------------------------------------------------------------------------
+
+class CEBAHouseholdRecord(BaseModel):
+    household_id: str
+    postcode: str
+    state: str
+    income_quintile: int
+    dwelling_type: str
+    household_size: int
+    annual_electricity_kwh: float
+    annual_gas_gj: float
+    annual_electricity_bill_aud: float
+    annual_gas_bill_aud: float
+    energy_burden_pct: float
+    hardship_indicator: bool
+    concession_holder: bool
+    solar_owner: bool
+    battery_owner: bool
+    ev_owner: bool
+
+
+class CEBARetailerOfferRecord(BaseModel):
+    offer_id: str
+    retailer_name: str
+    state: str
+    tariff_type: str
+    annual_bill_typical_aud: float
+    usage_rate_c_per_kwh: float
+    daily_supply_charge_c: float
+    solar_feed_in_tariff_c: float
+    discount_pct: float
+    contract_type: str
+    green_energy_pct: float
+    concession_discount_aud: float
+
+
+class CEBAHardshipRecord(BaseModel):
+    hardship_id: str
+    retailer: str
+    state: str
+    quarter: str
+    customers_on_hardship_program: int
+    new_customers_qtd: int
+    resolved_customers_qtd: int
+    average_debt_aud: float
+    payment_plan_customers: int
+    disconnections: int
+    reconnections: int
+    avg_time_to_resolve_days: float
+
+
+class CEBAAffordabilityIndexRecord(BaseModel):
+    index_id: str
+    region: str
+    year: int
+    quarter: str
+    median_bill_aud: float
+    p10_bill_aud: float
+    p90_bill_aud: float
+    income_benchmark_aud: float
+    affordability_ratio: float
+    bill_stress_pct: float
+    yoy_change_pct: float
+    inflation_contribution_pct: float
+    wholesale_contribution_pct: float
+    network_contribution_pct: float
+
+
+class CEBAInterventionRecord(BaseModel):
+    intervention_id: str
+    program_name: str
+    jurisdiction: str
+    intervention_type: str
+    value_per_household_aud: float
+    num_households_eligible: int
+    uptake_rate_pct: float
+    annual_cost_m: float
+    effectiveness_rating: float
+    target_group: str
+
+
+class CEBABillComponentRecord(BaseModel):
+    component_id: str
+    state: str
+    year: int
+    component: str
+    value_c_per_kwh: float
+    pct_of_bill: float
+    yoy_change_pct: float
+    regulatory_or_market: str
+
+
+class CEBADashboard(BaseModel):
+    households: list[CEBAHouseholdRecord]
+    retailer_offers: list[CEBARetailerOfferRecord]
+    hardship_records: list[CEBAHardshipRecord]
+    affordability_index: list[CEBAAffordabilityIndexRecord]
+    interventions: list[CEBAInterventionRecord]
+    bill_components: list[CEBABillComponentRecord]
+    summary: dict
+
+
+_ceba_cache: dict = {}
+
+
+@app.get("/api/consumer-energy-affordability/dashboard")
+def get_consumer_energy_affordability_dashboard():
+    if _ceba_cache:
+        return _ceba_cache
+
+    import random
+    rng = random.Random(20240901)
+
+    states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    dwelling_types = ["House", "Apartment", "Townhouse"]
+    postcodes_by_state = {
+        "NSW": ["2000", "2010", "2020", "2150", "2200", "2500", "2750", "2800"],
+        "VIC": ["3000", "3010", "3020", "3150", "3200", "3350", "3550", "3800"],
+        "QLD": ["4000", "4010", "4100", "4300", "4500", "4700", "4810", "4870"],
+        "SA":  ["5000", "5010", "5040", "5090", "5100", "5160", "5600", "5700"],
+        "WA":  ["6000", "6010", "6050", "6100", "6150", "6230", "6430", "6700"],
+    }
+
+    # Electricity usage and bill by quintile (kWh/yr, $base)
+    quintile_params = {
+        1: (3800, 1380, 14.0, True,  True,  False, False, False),
+        2: (4500, 1620, 11.0, False, True,  False, False, False),
+        3: (5200, 1860,  8.5, False, False, True,  False, False),
+        4: (6100, 2060,  6.5, False, False, True,  True,  False),
+        5: (7400, 2300,  5.2, False, False, False, True,  True),
+    }
+
+    households: list[CEBAHouseholdRecord] = []
+    h_idx = 1
+    # 8 households per quintile = 40 total
+    for quintile in range(1, 6):
+        kwh_base, bill_base, burden_base, hardship_flag, concession_flag, solar_flag, battery_flag, ev_flag = quintile_params[quintile]
+        for i in range(8):
+            state = states[(h_idx - 1) % len(states)]
+            postcode = rng.choice(postcodes_by_state[state])
+            dwelling = rng.choice(dwelling_types)
+            hh_size = rng.randint(1, 5)
+            elec_kwh = round(kwh_base * rng.uniform(0.85, 1.15), 0)
+            gas_gj = round(rng.uniform(5.0, 35.0), 1)
+            elec_bill = round(bill_base * rng.uniform(0.88, 1.12), 2)
+            gas_bill = round(gas_gj * rng.uniform(18, 26), 2)
+            burden = round(burden_base * rng.uniform(0.82, 1.18), 1)
+            burden = max(5.0, min(25.0, burden))
+            hardship = hardship_flag and rng.random() < 0.35
+            concession = concession_flag and rng.random() < 0.6
+            solar = solar_flag and rng.random() < 0.55
+            battery = battery_flag and solar and rng.random() < 0.4
+            ev = ev_flag and rng.random() < 0.3
+            households.append(CEBAHouseholdRecord(
+                household_id=f"CEBA-HH-{h_idx:04d}",
+                postcode=postcode,
+                state=state,
+                income_quintile=quintile,
+                dwelling_type=dwelling,
+                household_size=hh_size,
+                annual_electricity_kwh=elec_kwh,
+                annual_gas_gj=gas_gj,
+                annual_electricity_bill_aud=elec_bill,
+                annual_gas_bill_aud=gas_bill,
+                energy_burden_pct=burden,
+                hardship_indicator=hardship,
+                concession_holder=concession,
+                solar_owner=solar,
+                battery_owner=battery,
+                ev_owner=ev,
+            ))
+            h_idx += 1
+
+    # --- Retailer Offers: 5 retailers × 5 states = 25 ---
+    retailers = ["AGL", "Origin Energy", "EnergyAustralia", "Red Energy", "Alinta Energy"]
+    tariff_types = ["Flat", "TOU", "Demand", "EV", "Flat"]
+    contract_types = ["No-lock", "1yr", "2yr", "No-lock", "1yr"]
+    retailer_offers: list[CEBARetailerOfferRecord] = []
+    o_idx = 1
+    for r_i, retailer in enumerate(retailers):
+        for s_i, state in enumerate(states):
+            tariff = tariff_types[r_i]
+            usage_rate = round(rng.uniform(22.0, 38.0), 2)
+            supply_charge = round(rng.uniform(80.0, 130.0), 2)
+            fit = round(rng.uniform(5.0, 12.0), 2) if r_i in (2, 3, 4) else 0.0
+            discount = round(rng.uniform(0.0, 25.0), 1)
+            bill = round(rng.uniform(800, 2400), 2)
+            green_pct = round(rng.uniform(0.0, 100.0), 1)
+            concession_disc = round(rng.uniform(50.0, 350.0), 2)
+            retailer_offers.append(CEBARetailerOfferRecord(
+                offer_id=f"CEBA-OFF-{o_idx:03d}",
+                retailer_name=retailer,
+                state=state,
+                tariff_type=tariff,
+                annual_bill_typical_aud=bill,
+                usage_rate_c_per_kwh=usage_rate,
+                daily_supply_charge_c=supply_charge,
+                solar_feed_in_tariff_c=fit,
+                discount_pct=discount,
+                contract_type=contract_types[r_i],
+                green_energy_pct=green_pct,
+                concession_discount_aud=concession_disc,
+            ))
+            o_idx += 1
+
+    # --- Hardship Records: 5 retailers × 6 quarters = 30 ---
+    quarters = ["Q1-2023", "Q2-2023", "Q3-2023", "Q4-2023", "Q1-2024", "Q2-2024"]
+    hardship_records: list[CEBAHardshipRecord] = []
+    hd_idx = 1
+    for retailer in retailers:
+        base_on_prog = rng.randint(8000, 45000)
+        for q_i, quarter in enumerate(quarters):
+            on_prog = int(base_on_prog * rng.uniform(0.92, 1.08))
+            new_cust = int(on_prog * rng.uniform(0.06, 0.14))
+            resolved = int(on_prog * rng.uniform(0.05, 0.12))
+            avg_debt = round(rng.uniform(800, 3500), 2)
+            payment_plan = int(on_prog * rng.uniform(0.55, 0.85))
+            disconn = int(on_prog * rng.uniform(0.005, 0.025))
+            reconn = int(disconn * rng.uniform(0.6, 0.95))
+            avg_days = round(rng.uniform(30, 180), 1)
+            hardship_records.append(CEBAHardshipRecord(
+                hardship_id=f"CEBA-HS-{hd_idx:03d}",
+                retailer=retailer,
+                state=rng.choice(states),
+                quarter=quarter,
+                customers_on_hardship_program=on_prog,
+                new_customers_qtd=new_cust,
+                resolved_customers_qtd=resolved,
+                average_debt_aud=avg_debt,
+                payment_plan_customers=payment_plan,
+                disconnections=disconn,
+                reconnections=reconn,
+                avg_time_to_resolve_days=avg_days,
+            ))
+            hd_idx += 1
+
+    # --- Affordability Index: 5 states × 4 quarters 2024 = 20 ---
+    quarters_2024 = ["Q1-2024", "Q2-2024", "Q3-2024", "Q4-2024"]
+    median_bill_base = {"NSW": 1620, "VIC": 1490, "QLD": 1580, "SA": 1780, "WA": 1420}
+    income_bench = {"NSW": 82000, "VIC": 78000, "QLD": 74000, "SA": 68000, "WA": 86000}
+    affordability_index: list[CEBAAffordabilityIndexRecord] = []
+    ai_idx = 1
+    for state in states:
+        for q_i, quarter in enumerate(quarters_2024):
+            med_bill = round(median_bill_base[state] * (1 + q_i * 0.015) * rng.uniform(0.96, 1.04), 2)
+            p10 = round(med_bill * rng.uniform(0.45, 0.58), 2)
+            p90 = round(med_bill * rng.uniform(1.65, 2.05), 2)
+            inc_bench = income_bench[state]
+            aff_ratio = round(med_bill / inc_bench * 100, 2)
+            bill_stress = round(rng.uniform(8.0, 28.0), 1)
+            yoy = round(rng.uniform(-2.0, 12.0), 1)
+            inflation_c = round(rng.uniform(1.0, 4.0), 1)
+            wholesale_c = round(rng.uniform(-1.0, 5.0), 1)
+            network_c = round(rng.uniform(0.5, 3.5), 1)
+            affordability_index.append(CEBAAffordabilityIndexRecord(
+                index_id=f"CEBA-AI-{ai_idx:03d}",
+                region=state,
+                year=2024,
+                quarter=quarter,
+                median_bill_aud=med_bill,
+                p10_bill_aud=p10,
+                p90_bill_aud=p90,
+                income_benchmark_aud=inc_bench,
+                affordability_ratio=aff_ratio,
+                bill_stress_pct=bill_stress,
+                yoy_change_pct=yoy,
+                inflation_contribution_pct=inflation_c,
+                wholesale_contribution_pct=wholesale_c,
+                network_contribution_pct=network_c,
+            ))
+            ai_idx += 1
+
+    # --- Interventions: 15 records across jurisdictions ---
+    interventions_data = [
+        ("Energy Bill Relief Fund", "Federal", "Rebate", 500, 5800000, 78.0, 2900.0, 4.1, "All households"),
+        ("Low Income Household Rebate NSW", "State: NSW", "Concession", 285, 420000, 62.0, 119.7, 3.8, "Pension/concession holders"),
+        ("Victorian Energy Upgrades", "State: VIC", "Efficiency", 1200, 380000, 44.0, 456.0, 4.5, "Low-income households"),
+        ("Queensland Electricity Rebate", "State: QLD", "Rebate", 372, 2100000, 91.0, 781.2, 4.6, "Residential customers"),
+        ("SA Retailer Energy Productivity Scheme", "State: SA", "Efficiency", 800, 55000, 31.0, 44.0, 3.9, "Low-income renters"),
+        ("WA Hardship Assistance Fund", "State: WA", "Hardship Fund", 650, 48000, 55.0, 31.2, 4.0, "Hardship customers"),
+        ("TAS Energy Saver Loan Scheme", "State: TAS", "Efficiency", 4500, 12000, 28.0, 54.0, 4.2, "Low-income homeowners"),
+        ("ACT Energy Support Program", "State: ACT", "Concession", 400, 22000, 71.0, 8.8, 4.3, "Concession card holders"),
+        ("NT Power Water Hardship Policy", "State: NT", "Hardship Fund", 730, 8500, 66.0, 6.2, 3.7, "Remote/hardship customers"),
+        ("Solar for Low Income Households", "Federal", "Solar Subsidy", 3500, 180000, 18.0, 630.0, 4.4, "Low-income homeowners"),
+        ("Energy Audit Program", "Federal", "Audit", 250, 95000, 42.0, 23.75, 3.6, "High energy users"),
+        ("Embedded Network Customer Protection", "State: VIC", "Concession", 180, 75000, 55.0, 13.5, 3.4, "Embedded network customers"),
+        ("Commercial Tenant Energy Rebate", "State: NSW", "Rebate", 320, 35000, 38.0, 11.2, 3.3, "Small business tenants"),
+        ("Battery Storage Subsidy Program", "State: SA", "Solar Subsidy", 4000, 28000, 24.0, 112.0, 4.0, "Solar households"),
+        ("National Energy Hardship Fund", "Federal", "Hardship Fund", 900, 130000, 61.0, 117.0, 4.7, "Identified hardship customers"),
+    ]
+    interventions: list[CEBAInterventionRecord] = []
+    for iv_idx, iv in enumerate(interventions_data, 1):
+        interventions.append(CEBAInterventionRecord(
+            intervention_id=f"CEBA-IV-{iv_idx:03d}",
+            program_name=iv[0],
+            jurisdiction=iv[1],
+            intervention_type=iv[2],
+            value_per_household_aud=iv[3],
+            num_households_eligible=iv[4],
+            uptake_rate_pct=iv[5],
+            annual_cost_m=iv[6],
+            effectiveness_rating=iv[7],
+            target_group=iv[8],
+        ))
+
+    # --- Bill Components: 5 states × 8 components = 40 ---
+    components = [
+        "Wholesale Energy", "Network Charges", "Environmental Levies",
+        "Retail Margin", "Metering", "GST", "Ancillary Services", "Carbon Costs",
+    ]
+    component_params = {
+        "Wholesale Energy":      {"NSW": (8.2, 32.0), "VIC": (7.9, 31.0), "QLD": (8.5, 33.0), "SA": (9.1, 34.0), "WA": (7.4, 30.0), "r_or_m": "Market"},
+        "Network Charges":       {"NSW": (9.5, 38.0), "VIC": (8.8, 35.0), "QLD": (9.2, 36.0), "SA": (10.2, 40.0), "WA": (8.5, 34.0), "r_or_m": "Regulatory"},
+        "Environmental Levies":  {"NSW": (2.1,  8.0), "VIC": (2.3,  9.0), "QLD": (1.8,  7.0), "SA": (2.5,  9.5), "WA": (1.5,  6.0), "r_or_m": "Regulatory"},
+        "Retail Margin":         {"NSW": (2.8, 11.0), "VIC": (2.6, 10.0), "QLD": (2.9, 11.5), "SA": (3.2, 12.0), "WA": (2.4,  9.5), "r_or_m": "Market"},
+        "Metering":              {"NSW": (0.8,  3.0), "VIC": (0.9,  3.5), "QLD": (0.7,  2.8), "SA": (0.8,  3.0), "WA": (0.7,  2.8), "r_or_m": "Regulatory"},
+        "GST":                   {"NSW": (2.2,  8.5), "VIC": (2.1,  8.2), "QLD": (2.2,  8.6), "SA": (2.4,  9.0), "WA": (2.0,  7.9), "r_or_m": "Regulatory"},
+        "Ancillary Services":    {"NSW": (0.5,  1.9), "VIC": (0.6,  2.2), "QLD": (0.4,  1.7), "SA": (0.7,  2.6), "WA": (0.4,  1.6), "r_or_m": "Market"},
+        "Carbon Costs":          {"NSW": (0.3,  1.2), "VIC": (0.4,  1.5), "QLD": (0.3,  1.1), "SA": (0.4,  1.5), "WA": (0.2,  0.9), "r_or_m": "Regulatory"},
+    }
+    bill_components: list[CEBABillComponentRecord] = []
+    bc_idx = 1
+    for state in states:
+        for comp in components:
+            params = component_params[comp]
+            base_val, base_pct = params[state]
+            val = round(base_val * rng.uniform(0.93, 1.07), 2)
+            pct = round(base_pct * rng.uniform(0.93, 1.07), 1)
+            yoy = round(rng.uniform(-3.0, 12.0), 1)
+            r_or_m = params["r_or_m"]
+            bill_components.append(CEBABillComponentRecord(
+                component_id=f"CEBA-BC-{bc_idx:03d}",
+                state=state,
+                year=2024,
+                component=comp,
+                value_c_per_kwh=val,
+                pct_of_bill=pct,
+                yoy_change_pct=yoy,
+                regulatory_or_market=r_or_m,
+            ))
+            bc_idx += 1
+
+    # --- Summary ---
+    all_bills = [h.annual_electricity_bill_aud + h.annual_gas_bill_aud for h in households]
+    all_bills_sorted = sorted(all_bills)
+    n = len(all_bills_sorted)
+    national_median = round(all_bills_sorted[n // 2], 2)
+    avg_burden = round(sum(h.energy_burden_pct for h in households) / len(households), 2)
+    pct_bill_stress = round(sum(1 for h in households if h.energy_burden_pct > 10) / len(households) * 100, 1)
+    total_hardship = sum(r.customers_on_hardship_program for r in hardship_records if r.quarter == "Q2-2024")
+    total_intervention_value = round(sum(iv.annual_cost_m for iv in interventions), 1)
+
+    _ceba_cache.update(CEBADashboard(
+        households=households,
+        retailer_offers=retailer_offers,
+        hardship_records=hardship_records,
+        affordability_index=affordability_index,
+        interventions=interventions,
+        bill_components=bill_components,
+        summary={
+            "national_median_bill_aud": national_median,
+            "avg_energy_burden_pct": avg_burden,
+            "pct_in_bill_stress": pct_bill_stress,
+            "total_hardship_customers": total_hardship,
+            "total_intervention_value_m": total_intervention_value,
+        }
+    ).model_dump())
+    return _ceba_cache
+    return _negm_cache
+
+# ---------------------------------------------------------------------------
+# Sprint 98c — Grid Forming Inverter Technology Analytics (GFIAX)
+# ---------------------------------------------------------------------------
+
+class GFIAXTechnologyRecord(BaseModel):
+    tech_id: str
+    technology_name: str
+    control_type: str
+    manufacturer: str
+    power_rating_kw: float
+    response_time_ms: float
+    inertia_equivalent_mws: float
+    fault_ride_through: bool
+    black_start_capable: bool
+    fcas_capable: bool
+    commercial_availability: str
+
+
+class GFIAXDeploymentRecord(BaseModel):
+    deployment_id: str
+    asset_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    commissioning_year: int
+    location: str
+    application: str
+    inertia_contribution_mws: float
+    system_strength_mva: float
+    grid_code_compliance: bool
+    dnsp_or_tnsp: str
+    project_cost_m: float
+
+
+class GFIAXSystemStrengthRecord(BaseModel):
+    strength_id: str
+    region: str
+    measurement_point: str
+    short_circuit_ratio: float
+    fault_level_mva: float
+    inertia_total_mws: float
+    ibr_penetration_pct: float
+    system_strength_status: str
+    aemo_requirement_mva: float
+    gap_mva: float
+    remediation_required: bool
+
+
+class GFIAXPerformanceRecord(BaseModel):
+    perf_id: str
+    deployment_id: str
+    event_type: str
+    event_date: str
+    response_time_ms: float
+    frequency_nadir_hz: float
+    rocof_hz_per_s: float
+    voltage_recovery_ms: float
+    performance_rating: str
+    comparison_vs_gfl_pct: float
+
+
+class GFIAXCostBenefitRecord(BaseModel):
+    cb_id: str
+    region: str
+    scenario: str
+    gfm_capacity_mw: float
+    gfm_cost_m: float
+    system_strength_services_saved_m: float
+    fcas_savings_m: float
+    reliability_benefit_m: float
+    total_benefit_m: float
+    bcr: float
+    optimal_gfm_pct: float
+
+
+class GFIAXRegulatoryRecord(BaseModel):
+    reg_id: str
+    jurisdiction: str
+    requirement_name: str
+    requirement_type: str
+    requirement_value: float
+    unit: str
+    current_compliance_pct: float
+    implementation_date: str
+    enforcement_body: str
+    penalty_dolpermw_per_year: float
+
+
+class GFIAXDashboard(BaseModel):
+    technologies: list[GFIAXTechnologyRecord]
+    deployments: list[GFIAXDeploymentRecord]
+    system_strength: list[GFIAXSystemStrengthRecord]
+    performance: list[GFIAXPerformanceRecord]
+    cost_benefits: list[GFIAXCostBenefitRecord]
+    regulatory: list[GFIAXRegulatoryRecord]
+    summary: dict
+
+
+_gfiax_cache: dict = {}
+
+
+@app.get("/api/grid-forming-inverter-x/dashboard", response_model=GFIAXDashboard, dependencies=[Depends(verify_api_key)])
+def get_gfiax_dashboard():
+    if _gfiax_cache:
+        return _gfiax_cache
+
+    import random
+    rng = random.Random(20240901)
+
+    # --- Technologies: 10 records ---
+    tech_data = [
+        ("Grid-Forming VSM", "GFM", "ABB", 50000, 20, 4.5, True, True, True, "Available"),
+        ("Droop-Control GFM", "GFM", "Siemens Energy", 30000, 25, 3.2, True, False, True, "Available"),
+        ("Matching Control", "GFM", "GE Vernova", 40000, 18, 5.0, True, True, True, "Development"),
+        ("Virtual Oscillator", "GFM", "SMA Solar", 10000, 15, 2.8, True, False, True, "Research"),
+        ("Synchronous Condenser SC250", "Synchronous", "WEG", 0, 200, 8.5, True, True, False, "Available"),
+        ("Synchronous Condenser SC125", "Synchronous", "Andritz Hydro", 0, 180, 5.0, True, True, False, "Available"),
+        ("Synchronous Generator (Gas Peaker)", "Synchronous", "GE Vernova", 150000, 500, 12.0, True, True, False, "Available"),
+        ("Grid-Forming Battery Inverter", "GFM", "Tesla Energy", 100000, 12, 3.8, True, True, True, "Available"),
+        ("Droop-Hybrid GFM/GFL", "GFM", "Fluence", 75000, 22, 3.0, True, False, True, "Development"),
+        ("Grid-Following IBR (Baseline)", "GFL", "Sungrow", 50000, 80, 0.0, False, False, True, "Available"),
+    ]
+    technologies = []
+    for i, t in enumerate(tech_data, 1):
+        technologies.append(GFIAXTechnologyRecord(
+            tech_id=f"GFIAX-TECH-{i:03d}",
+            technology_name=t[0],
+            control_type=t[1],
+            manufacturer=t[2],
+            power_rating_kw=t[3],
+            response_time_ms=round(t[4] * rng.uniform(0.9, 1.1), 1),
+            inertia_equivalent_mws=round(t[5] * rng.uniform(0.92, 1.08), 2),
+            fault_ride_through=t[6],
+            black_start_capable=t[7],
+            fcas_capable=t[8],
+            commercial_availability=t[9],
+        ))
+
+    # --- Deployments: 20 records across NEM regions 2020–2025 ---
+    deployment_data = [
+        ("Hornsdale GFM BESS", "Grid-Forming VSM", "SA", 150.0, 2021, "Jamestown SA", "Battery Storage", 6.0, 320.0, True, "ElectraNet", 280.0),
+        ("Darlington Point Solar GFM", "Droop-Control GFM", "NSW", 200.0, 2022, "Darlington Point NSW", "Solar Farm", 8.0, 410.0, True, "TransGrid", 180.0),
+        ("Bulgana Green Power Hub GFM", "Grid-Forming VSM", "VIC", 204.0, 2021, "Bulgana VIC", "Wind Farm", 9.2, 380.0, True, "AusNet", 310.0),
+        ("Wandoan South BESS GFM", "Droop-Control GFM", "QLD", 100.0, 2022, "Wandoan QLD", "Battery Storage", 4.0, 290.0, True, "Powerlink", 160.0),
+        ("Neoen SA Synchronous Condenser", "Synchronous Condenser SC250", "SA", 0.0, 2020, "Tailem Bend SA", "Synchronous Condenser", 8.5, 250.0, True, "ElectraNet", 55.0),
+        ("AGL Liddell Syncon", "Synchronous Condenser SC125", "NSW", 0.0, 2023, "Muswellbrook NSW", "Synchronous Condenser", 5.0, 125.0, True, "TransGrid", 45.0),
+        ("Snowy Hydro GFM Upgrade", "Grid-Forming Battery Inverter", "NSW", 330.0, 2024, "Tumut NSW", "Battery Storage", 13.0, 580.0, True, "TransGrid", 420.0),
+        ("QLD BESS GFM Stage 2", "Grid-Forming Battery Inverter", "QLD", 150.0, 2023, "Caloundra QLD", "Battery Storage", 6.0, 310.0, True, "Powerlink", 230.0),
+        ("WA Syncon Kalgoorlie", "Synchronous Condenser SC250", "WA", 0.0, 2022, "Kalgoorlie WA", "Synchronous Condenser", 8.5, 250.0, True, "Western Power", 58.0),
+        ("VIC Big Battery GFM", "Grid-Forming VSM", "VIC", 300.0, 2023, "Moorabool VIC", "Battery Storage", 12.5, 490.0, True, "AusNet", 510.0),
+        ("Stubbo Solar Farm GFM", "Droop-Hybrid GFM/GFL", "NSW", 400.0, 2024, "Mudgee NSW", "Solar Farm", 16.0, 650.0, True, "TransGrid", 380.0),
+        ("Coopers Gap Wind GFM", "Droop-Control GFM", "QLD", 453.0, 2020, "Coopers Gap QLD", "Wind Farm", 18.0, 720.0, True, "Powerlink", 340.0),
+        ("SA Syncon Robertstown", "Synchronous Condenser SC125", "SA", 0.0, 2021, "Robertstown SA", "Synchronous Condenser", 5.0, 125.0, True, "ElectraNet", 42.0),
+        ("TAS GFM Battery Heemskirk", "Grid-Forming VSM", "TAS", 250.0, 2025, "Heemskirk TAS", "Battery Storage", 10.0, 410.0, True, "TasNetworks", 360.0),
+        ("Murray Bridge GFM Solar", "Matching Control", "SA", 120.0, 2024, "Murray Bridge SA", "Solar Farm", 4.5, 220.0, True, "ElectraNet", 145.0),
+        ("Emerald Wind Farm GFM", "Grid-Forming Battery Inverter", "QLD", 180.0, 2025, "Emerald QLD", "Wind Farm", 7.5, 340.0, True, "Powerlink", 250.0),
+        ("Mortlake GFM Syncon", "Synchronous Condenser SC250", "VIC", 0.0, 2023, "Mortlake VIC", "Synchronous Condenser", 8.5, 250.0, True, "AusNet", 60.0),
+        ("Central-West Orana GFM", "Droop-Control GFM", "NSW", 500.0, 2025, "Dubbo NSW", "Wind Farm", 20.0, 800.0, True, "TransGrid", 620.0),
+        ("WA Merredin GFM BESS", "Grid-Forming VSM", "WA", 100.0, 2024, "Merredin WA", "Battery Storage", 4.0, 200.0, True, "Western Power", 155.0),
+        ("TAS Marinus Link GFM", "Grid-Forming Battery Inverter", "TAS", 200.0, 2025, "Devonport TAS", "Battery Storage", 8.0, 380.0, True, "TasNetworks", 280.0),
+    ]
+    deployments = []
+    for i, d in enumerate(deployment_data, 1):
+        deployments.append(GFIAXDeploymentRecord(
+            deployment_id=f"GFIAX-DEP-{i:03d}",
+            asset_name=d[0],
+            technology=d[1],
+            region=d[2],
+            capacity_mw=d[3],
+            commissioning_year=d[4],
+            location=d[5],
+            application=d[6],
+            inertia_contribution_mws=d[7],
+            system_strength_mva=d[8],
+            grid_code_compliance=d[9],
+            dnsp_or_tnsp=d[10],
+            project_cost_m=d[11],
+        ))
+
+    # --- System Strength: 15 records (3 per NEM region) ---
+    strength_data = [
+        ("SA", "Davenport 275kV", 1.8, 820, 420, 71.5, "Deficient", 1200, 380, True),
+        ("SA", "Tailem Bend 275kV", 2.4, 1080, 510, 68.2, "Marginal", 1200, 120, False),
+        ("SA", "Robertstown 275kV", 2.1, 950, 480, 69.8, "Marginal", 1100, 150, True),
+        ("VIC", "Moorabool 500kV", 3.2, 2400, 890, 55.3, "Adequate", 2200, 0, False),
+        ("VIC", "Heywood 500kV", 2.6, 1950, 720, 58.1, "Marginal", 2000, 50, True),
+        ("VIC", "Loy Yang 500kV", 3.8, 2850, 1040, 48.7, "Adequate", 2500, 0, False),
+        ("NSW", "TransGrid 330kV Jindera", 2.9, 2100, 780, 52.4, "Adequate", 2000, 0, False),
+        ("NSW", "Transgrid 330kV Darlington", 2.5, 1850, 680, 57.6, "Marginal", 2000, 150, True),
+        ("NSW", "Transgrid 330kV Mt Piper", 3.5, 2600, 960, 46.8, "Adequate", 2400, 0, False),
+        ("QLD", "Powerlink 275kV Tarong", 3.1, 2300, 840, 50.2, "Adequate", 2200, 0, False),
+        ("QLD", "Powerlink 275kV Greenbank", 2.7, 2000, 730, 54.8, "Marginal", 2100, 100, False),
+        ("QLD", "Powerlink 275kV Wandoan", 1.9, 860, 380, 74.1, "Deficient", 1500, 640, True),
+        ("TAS", "TasNetworks 220kV George Town", 4.1, 3100, 1100, 38.5, "Adequate", 2800, 0, False),
+        ("TAS", "TasNetworks 220kV Waddamana", 3.6, 2700, 980, 42.3, "Adequate", 2500, 0, False),
+        ("WA", "Western Power 330kV Muja", 2.3, 1050, 460, 65.9, "Marginal", 1400, 350, True),
+    ]
+    system_strength = []
+    for i, s in enumerate(strength_data, 1):
+        system_strength.append(GFIAXSystemStrengthRecord(
+            strength_id=f"GFIAX-SS-{i:03d}",
+            region=s[0],
+            measurement_point=s[1],
+            short_circuit_ratio=round(s[2] * rng.uniform(0.97, 1.03), 2),
+            fault_level_mva=round(s[3] * rng.uniform(0.97, 1.03), 0),
+            inertia_total_mws=round(s[4] * rng.uniform(0.97, 1.03), 0),
+            ibr_penetration_pct=round(s[5] * rng.uniform(0.97, 1.03), 1),
+            system_strength_status=s[6],
+            aemo_requirement_mva=float(s[7]),
+            gap_mva=round(s[8] * rng.uniform(0.97, 1.03), 0),
+            remediation_required=s[9],
+        ))
+
+    # --- Performance Events: 25 records ---
+    event_types = ["Frequency Nadir", "Voltage Dip", "Phase Jump", "Black Start Test", "FCAS Response"]
+    perf_ratings = ["Excellent", "Good", "Acceptable", "Poor"]
+    perf_data = [
+        ("GFIAX-DEP-001", "Frequency Nadir", "2023-06-15", 22, 49.72, 0.8, 180, "Excellent", 42),
+        ("GFIAX-DEP-001", "FCAS Response", "2023-09-20", 18, 49.85, 0.5, 120, "Excellent", 45),
+        ("GFIAX-DEP-002", "Voltage Dip", "2023-04-10", 28, 49.90, 0.3, 210, "Good", 38),
+        ("GFIAX-DEP-002", "Frequency Nadir", "2024-01-22", 25, 49.68, 0.9, 195, "Good", 35),
+        ("GFIAX-DEP-003", "Phase Jump", "2023-07-08", 20, 49.80, 0.6, 150, "Excellent", 50),
+        ("GFIAX-DEP-003", "Black Start Test", "2024-03-15", 35, 49.95, 0.2, 280, "Good", 30),
+        ("GFIAX-DEP-004", "Frequency Nadir", "2023-08-30", 30, 49.65, 1.0, 240, "Acceptable", 25),
+        ("GFIAX-DEP-005", "FCAS Response", "2022-11-12", 200, 49.88, 0.4, 400, "Good", 20),
+        ("GFIAX-DEP-006", "Frequency Nadir", "2024-02-18", 185, 49.75, 0.7, 380, "Good", 22),
+        ("GFIAX-DEP-007", "Black Start Test", "2024-05-10", 15, 49.95, 0.2, 130, "Excellent", 55),
+        ("GFIAX-DEP-008", "Voltage Dip", "2023-10-25", 20, 49.82, 0.5, 170, "Excellent", 48),
+        ("GFIAX-DEP-009", "FCAS Response", "2023-03-14", 195, 49.87, 0.4, 410, "Good", 18),
+        ("GFIAX-DEP-010", "Frequency Nadir", "2024-06-20", 18, 49.70, 0.8, 165, "Excellent", 52),
+        ("GFIAX-DEP-010", "Phase Jump", "2024-08-15", 22, 49.84, 0.5, 180, "Excellent", 47),
+        ("GFIAX-DEP-011", "Frequency Nadir", "2024-07-05", 28, 49.66, 0.95, 220, "Good", 38),
+        ("GFIAX-DEP-012", "Voltage Dip", "2021-12-10", 30, 49.78, 0.7, 250, "Acceptable", 28),
+        ("GFIAX-DEP-013", "FCAS Response", "2022-04-18", 190, 49.86, 0.4, 390, "Good", 21),
+        ("GFIAX-DEP-014", "Black Start Test", "2025-02-22", 16, 49.94, 0.2, 140, "Excellent", 58),
+        ("GFIAX-DEP-015", "Phase Jump", "2024-09-30", 24, 49.79, 0.65, 200, "Good", 40),
+        ("GFIAX-DEP-016", "Frequency Nadir", "2025-01-15", 20, 49.71, 0.85, 175, "Excellent", 46),
+        ("GFIAX-DEP-017", "FCAS Response", "2023-11-28", 198, 49.89, 0.35, 395, "Excellent", 26),
+        ("GFIAX-DEP-018", "Voltage Dip", "2025-03-10", 26, 49.81, 0.6, 215, "Good", 37),
+        ("GFIAX-DEP-019", "Frequency Nadir", "2024-10-05", 22, 49.73, 0.78, 185, "Excellent", 44),
+        ("GFIAX-DEP-020", "Black Start Test", "2025-04-20", 17, 49.96, 0.18, 145, "Excellent", 56),
+        ("GFIAX-DEP-004", "Voltage Dip", "2023-12-01", 32, 49.83, 0.55, 260, "Acceptable", 22),
+    ]
+    performance = []
+    for i, p in enumerate(perf_data, 1):
+        performance.append(GFIAXPerformanceRecord(
+            perf_id=f"GFIAX-PERF-{i:03d}",
+            deployment_id=p[0],
+            event_type=p[1],
+            event_date=p[2],
+            response_time_ms=round(p[3] * rng.uniform(0.95, 1.05), 1),
+            frequency_nadir_hz=round(p[4] * rng.uniform(0.999, 1.001), 3),
+            rocof_hz_per_s=round(p[5] * rng.uniform(0.95, 1.05), 3),
+            voltage_recovery_ms=round(p[6] * rng.uniform(0.95, 1.05), 0),
+            performance_rating=p[7],
+            comparison_vs_gfl_pct=round(p[8] * rng.uniform(0.92, 1.08), 1),
+        ))
+
+    # --- Cost-Benefit: 20 records (4 regions × 5 scenarios) ---
+    regions_cb = ["SA", "VIC", "NSW", "QLD"]
+    scenarios = ["No GFM", "10% GFM", "30% GFM", "50% GFM", "100% GFM"]
+    cb_params = {
+        "SA":  {"base_mw": 3500, "cost_per_mw": 1.2, "ss_savings": 45, "fcas": 28, "rel": 18},
+        "VIC": {"base_mw": 8000, "cost_per_mw": 1.1, "ss_savings": 85, "fcas": 55, "rel": 35},
+        "NSW": {"base_mw": 12000, "cost_per_mw": 1.0, "ss_savings": 110, "fcas": 72, "rel": 48},
+        "QLD": {"base_mw": 10000, "cost_per_mw": 1.05, "ss_savings": 95, "fcas": 62, "rel": 40},
+    }
+    scenario_pcts = {"No GFM": 0, "10% GFM": 10, "30% GFM": 30, "50% GFM": 50, "100% GFM": 100}
+    cost_benefits = []
+    cb_idx = 1
+    for reg in regions_cb:
+        params = cb_params[reg]
+        for scen in scenarios:
+            pct = scenario_pcts[scen]
+            gfm_mw = round(params["base_mw"] * pct / 100, 0)
+            cost = round(gfm_mw * params["cost_per_mw"] / 1000, 1)
+            ss_saved = round(params["ss_savings"] * pct / 100 * rng.uniform(0.9, 1.1), 1)
+            fcas_saved = round(params["fcas"] * pct / 100 * rng.uniform(0.9, 1.1), 1)
+            rel_ben = round(params["rel"] * pct / 100 * rng.uniform(0.9, 1.1), 1)
+            total_ben = round(ss_saved + fcas_saved + rel_ben, 1)
+            bcr = round(total_ben / max(cost, 0.01), 2)
+            cost_benefits.append(GFIAXCostBenefitRecord(
+                cb_id=f"GFIAX-CB-{cb_idx:03d}",
+                region=reg,
+                scenario=scen,
+                gfm_capacity_mw=gfm_mw,
+                gfm_cost_m=cost,
+                system_strength_services_saved_m=ss_saved,
+                fcas_savings_m=fcas_saved,
+                reliability_benefit_m=rel_ben,
+                total_benefit_m=total_ben,
+                bcr=bcr if pct > 0 else 0.0,
+                optimal_gfm_pct=30.0,
+            ))
+            cb_idx += 1
+
+    # --- Regulatory: 12 records ---
+    reg_data = [
+        ("NEM/National", "Minimum System Strength (Fault Level)", "Technical Standard", 1200.0, "MVA", 72.5, "2022-07-01", "AEMO", 15000.0),
+        ("NEM/National", "IBR Grid Code Compliance AS4777", "Grid Code", 1.0, "Binary", 85.0, "2021-01-01", "AEMC", 8000.0),
+        ("NEM/National", "Inertia Minimum Threshold NEM-wide", "Market Rule", 23000.0, "MWs", 78.0, "2023-01-01", "AEMO", 20000.0),
+        ("SA", "SA System Strength Remediation Plan", "Planning Requirement", 1200.0, "MVA", 68.0, "2023-07-01", "ElectraNet", 25000.0),
+        ("SA", "SA Minimum Fault Level 275kV Busbars", "Technical Standard", 800.0, "MVA", 65.0, "2022-01-01", "AEMO/ElectraNet", 18000.0),
+        ("QLD", "QLD North System Strength Requirement", "Planning Requirement", 1500.0, "MVA", 71.0, "2024-01-01", "Powerlink", 20000.0),
+        ("VIC", "VIC Heywood Interconnector Strength", "Technical Standard", 2000.0, "MVA", 82.0, "2022-07-01", "AusNet/AEMO", 15000.0),
+        ("NSW", "NSW REZ Connection System Strength", "Planning Requirement", 2000.0, "MVA", 76.0, "2024-07-01", "TransGrid", 18000.0),
+        ("WA/SWIS", "WA SWIS Fault Level Requirement", "Grid Code", 1400.0, "MVA", 74.0, "2023-01-01", "Western Power", 12000.0),
+        ("NEM/National", "GFM Capability Registration (IBR)", "Market Rule", 1.0, "Binary", 55.0, "2025-01-01", "AEMC", 30000.0),
+        ("NEM/National", "Fast Frequency Response Capability", "Technical Standard", 0.5, "Hz/s ROCOF limit", 80.0, "2022-07-01", "AEMO", 10000.0),
+        ("NEM/National", "Black Start Obligation (IBR)", "Market Rule", 1.0, "Binary", 45.0, "2026-01-01", "AEMO/AEMC", 35000.0),
+    ]
+    regulatory = []
+    for i, r in enumerate(reg_data, 1):
+        regulatory.append(GFIAXRegulatoryRecord(
+            reg_id=f"GFIAX-REG-{i:03d}",
+            jurisdiction=r[0],
+            requirement_name=r[1],
+            requirement_type=r[2],
+            requirement_value=r[3],
+            unit=r[4],
+            current_compliance_pct=round(r[5] * rng.uniform(0.97, 1.03), 1),
+            implementation_date=r[6],
+            enforcement_body=r[7],
+            penalty_dolpermw_per_year=r[8],
+        ))
+
+    # --- Summary ---
+    gfm_deployments = [d for d in deployments if d.capacity_mw > 0]
+    total_gfm_mw = sum(d.capacity_mw for d in gfm_deployments)
+    regions_with_deficiency = len(set(s.region for s in system_strength if s.system_strength_status == "Deficient"))
+    all_scr = [s.short_circuit_ratio for s in system_strength]
+    avg_scr = round(sum(all_scr) / len(all_scr), 2)
+
+    _gfiax_cache.update(GFIAXDashboard(
+        technologies=technologies,
+        deployments=deployments,
+        system_strength=system_strength,
+        performance=performance,
+        cost_benefits=cost_benefits,
+        regulatory=regulatory,
+        summary={
+            "total_gfm_capacity_gw": round(total_gfm_mw / 1000, 3),
+            "regions_with_deficiency": regions_with_deficiency,
+            "avg_scr_nem": avg_scr,
+            "gfm_deployments_count": len(gfm_deployments),
+            "total_inertia_mws": round(sum(s.inertia_total_mws for s in system_strength), 0),
+        }
+    ).model_dump())
+    return _gfiax_cache

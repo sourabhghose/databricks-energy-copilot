@@ -339,6 +339,8 @@ import GreenAmmoniaExportAnalytics from './pages/GreenAmmoniaExportAnalytics'
 import ElectricityExportCableAnalytics from './pages/ElectricityExportCableAnalytics'
 import IndustrialDecarbonisationAnalytics from './pages/IndustrialDecarbonisationAnalytics'
 import CommunityEnergyStorageAnalytics from './pages/CommunityEnergyStorageAnalytics'
+import NEMGenerationMixAnalytics from './pages/NEMGenerationMixAnalytics'
+import ConsumerEnergyAffordabilityAnalytics from './pages/ConsumerEnergyAffordabilityAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -602,6 +604,8 @@ const NAV_ITEMS = [
   { to: '/electricity-export-cable', label: 'Electricity Export Cable', Icon: Radio },
   { to: '/industrial-decarbonisation', label: 'Industrial Decarbonisation', Icon: Factory },
   { to: '/community-energy-storage', label: 'Community Energy Storage', Icon: Users },
+  { to: '/nem-generation-mix', label: 'NEM Generation Mix', Icon: BarChart2 },
+  { to: '/consumer-energy-affordability', label: 'Consumer Energy Affordability', Icon: Heart },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -940,6 +944,8 @@ export default function App() {
               <Route path="/electricity-export-cable" element={<ElectricityExportCableAnalytics />} />
               <Route path="/industrial-decarbonisation" element={<IndustrialDecarbonisationAnalytics />} />
               <Route path="/community-energy-storage" element={<CommunityEnergyStorageAnalytics />} />
+              <Route path="/nem-generation-mix" element={<NEMGenerationMixAnalytics />} />
+              <Route path="/consumer-energy-affordability" element={<ConsumerEnergyAffordabilityAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

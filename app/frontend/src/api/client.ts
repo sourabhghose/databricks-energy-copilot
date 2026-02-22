@@ -16127,3 +16127,321 @@ export interface CESTDashboard {
 
 export const getCommunityEnergyStorageDashboard = (): Promise<CESTDashboard> =>
   get<CESTDashboard>('/api/community-energy-storage/dashboard');
+
+// ---------------------------------------------------------------------------
+// NEM Generation Mix Transition Analytics  (Sprint 98a)
+// ---------------------------------------------------------------------------
+
+export interface NEGMGenerationRecord {
+  gen_id: string
+  technology: string
+  region: string
+  capacity_gw: number
+  energy_twh_pa: number
+  capacity_factor_pct: number
+  emissions_intensity_tco2_per_mwh: number
+  fuel_cost_dolpermwh: number
+  lcoe_dolpermwh: number
+  retirement_year: number | null
+  new_entrant_potential_gw: number
+}
+
+export interface NEGMTransitionRecord {
+  transition_id: string
+  region: string
+  year: number
+  black_coal_gw: number
+  brown_coal_gw: number
+  gas_gw: number
+  hydro_gw: number
+  wind_gw: number
+  solar_utility_gw: number
+  solar_rooftop_gw: number
+  battery_gw: number
+  pumped_hydro_gw: number
+  other_renewables_gw: number
+  total_capacity_gw: number
+  renewable_share_pct: number
+  emissions_intensity_tco2_per_mwh: number
+}
+
+export interface NEGMRetirementRecord {
+  retirement_id: string
+  asset_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  retirement_year: number
+  replacement_technology: string
+  replacement_capacity_mw: number
+  reliability_impact: string
+  carbon_reduction_mt_pa: number
+  economic_life_remaining_years: number
+  owner: string
+}
+
+export interface NEGMInvestmentRecord {
+  investment_id: string
+  technology: string
+  region: string
+  year_announced: number
+  capacity_mw: number
+  capex_m: number
+  lcoe_dolpermwh: number
+  expected_cod_year: number
+  developer: string
+  contract_status: string
+  grid_connection_cost_m: number
+}
+
+export interface NEGMDispatchShareRecord {
+  dispatch_id: string
+  region: string
+  month: number
+  year: number
+  wind_pct: number
+  solar_utility_pct: number
+  solar_rooftop_pct: number
+  hydro_pct: number
+  gas_pct: number
+  coal_pct: number
+  battery_pct: number
+  pumped_hydro_pct: number
+  other_pct: number
+  max_renewable_penetration_pct: number
+  min_renewable_penetration_pct: number
+}
+
+export interface NEGMScenarioRecord {
+  scenario_id: string
+  scenario_name: string
+  year: number
+  total_capacity_gw: number
+  renewable_share_pct: number
+  emissions_mt_co2e: number
+  avg_wholesale_price_dolpermwh: number
+  battery_storage_gw: number
+  annual_investment_bn: number
+  reliability_met: boolean
+}
+
+export interface NEGMDashboard {
+  generation_fleet: NEGMGenerationRecord[]
+  transition_records: NEGMTransitionRecord[]
+  retirements: NEGMRetirementRecord[]
+  investments: NEGMInvestmentRecord[]
+  dispatch_shares: NEGMDispatchShareRecord[]
+  scenarios: NEGMScenarioRecord[]
+  summary: Record<string, number>
+}
+
+export const getNEMGenerationMixDashboard = (): Promise<NEGMDashboard> =>
+  get<NEGMDashboard>('/api/nem-generation-mix/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 98b — Consumer Energy Bill Affordability Analytics (CEBA)
+// ---------------------------------------------------------------------------
+
+export interface CEBAHouseholdRecord {
+  household_id: string
+  postcode: string
+  state: string
+  income_quintile: number
+  dwelling_type: string
+  household_size: number
+  annual_electricity_kwh: number
+  annual_gas_gj: number
+  annual_electricity_bill_aud: number
+  annual_gas_bill_aud: number
+  energy_burden_pct: number
+  hardship_indicator: boolean
+  concession_holder: boolean
+  solar_owner: boolean
+  battery_owner: boolean
+  ev_owner: boolean
+}
+
+export interface CEBARetailerOfferRecord {
+  offer_id: string
+  retailer_name: string
+  state: string
+  tariff_type: string
+  annual_bill_typical_aud: number
+  usage_rate_c_per_kwh: number
+  daily_supply_charge_c: number
+  solar_feed_in_tariff_c: number
+  discount_pct: number
+  contract_type: string
+  green_energy_pct: number
+  concession_discount_aud: number
+}
+
+export interface CEBAHardshipRecord {
+  hardship_id: string
+  retailer: string
+  state: string
+  quarter: string
+  customers_on_hardship_program: number
+  new_customers_qtd: number
+  resolved_customers_qtd: number
+  average_debt_aud: number
+  payment_plan_customers: number
+  disconnections: number
+  reconnections: number
+  avg_time_to_resolve_days: number
+}
+
+export interface CEBAAffordabilityIndexRecord {
+  index_id: string
+  region: string
+  year: number
+  quarter: string
+  median_bill_aud: number
+  p10_bill_aud: number
+  p90_bill_aud: number
+  income_benchmark_aud: number
+  affordability_ratio: number
+  bill_stress_pct: number
+  yoy_change_pct: number
+  inflation_contribution_pct: number
+  wholesale_contribution_pct: number
+  network_contribution_pct: number
+}
+
+export interface CEBAInterventionRecord {
+  intervention_id: string
+  program_name: string
+  jurisdiction: string
+  intervention_type: string
+  value_per_household_aud: number
+  num_households_eligible: number
+  uptake_rate_pct: number
+  annual_cost_m: number
+  effectiveness_rating: number
+  target_group: string
+}
+
+export interface CEBABillComponentRecord {
+  component_id: string
+  state: string
+  year: number
+  component: string
+  value_c_per_kwh: number
+  pct_of_bill: number
+  yoy_change_pct: number
+  regulatory_or_market: string
+}
+
+export interface CEBADashboard {
+  households: CEBAHouseholdRecord[]
+  retailer_offers: CEBARetailerOfferRecord[]
+  hardship_records: CEBAHardshipRecord[]
+  affordability_index: CEBAAffordabilityIndexRecord[]
+  interventions: CEBAInterventionRecord[]
+  bill_components: CEBABillComponentRecord[]
+  summary: Record<string, number>
+}
+
+export const getConsumerEnergyAffordabilityDashboard = (): Promise<CEBADashboard> =>
+  get<CEBADashboard>('/api/consumer-energy-affordability/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 98c — Grid Forming Inverter Technology Analytics (GFIAX)
+// ---------------------------------------------------------------------------
+
+export interface GFIAXTechnologyRecord {
+  tech_id: string
+  technology_name: string
+  control_type: string
+  manufacturer: string
+  power_rating_kw: number
+  response_time_ms: number
+  inertia_equivalent_mws: number
+  fault_ride_through: boolean
+  black_start_capable: boolean
+  fcas_capable: boolean
+  commercial_availability: string
+}
+
+export interface GFIAXDeploymentRecord {
+  deployment_id: string
+  asset_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  commissioning_year: number
+  location: string
+  application: string
+  inertia_contribution_mws: number
+  system_strength_mva: number
+  grid_code_compliance: boolean
+  dnsp_or_tnsp: string
+  project_cost_m: number
+}
+
+export interface GFIAXSystemStrengthRecord {
+  strength_id: string
+  region: string
+  measurement_point: string
+  short_circuit_ratio: number
+  fault_level_mva: number
+  inertia_total_mws: number
+  ibr_penetration_pct: number
+  system_strength_status: string
+  aemo_requirement_mva: number
+  gap_mva: number
+  remediation_required: boolean
+}
+
+export interface GFIAXPerformanceRecord {
+  perf_id: string
+  deployment_id: string
+  event_type: string
+  event_date: string
+  response_time_ms: number
+  frequency_nadir_hz: number
+  rocof_hz_per_s: number
+  voltage_recovery_ms: number
+  performance_rating: string
+  comparison_vs_gfl_pct: number
+}
+
+export interface GFIAXCostBenefitRecord {
+  cb_id: string
+  region: string
+  scenario: string
+  gfm_capacity_mw: number
+  gfm_cost_m: number
+  system_strength_services_saved_m: number
+  fcas_savings_m: number
+  reliability_benefit_m: number
+  total_benefit_m: number
+  bcr: number
+  optimal_gfm_pct: number
+}
+
+export interface GFIAXRegulatoryRecord {
+  reg_id: string
+  jurisdiction: string
+  requirement_name: string
+  requirement_type: string
+  requirement_value: number
+  unit: string
+  current_compliance_pct: number
+  implementation_date: string
+  enforcement_body: string
+  penalty_dolpermw_per_year: number
+}
+
+export interface GFIAXDashboard {
+  technologies: GFIAXTechnologyRecord[]
+  deployments: GFIAXDeploymentRecord[]
+  system_strength: GFIAXSystemStrengthRecord[]
+  performance: GFIAXPerformanceRecord[]
+  cost_benefits: GFIAXCostBenefitRecord[]
+  regulatory: GFIAXRegulatoryRecord[]
+  summary: Record<string, number>
+}
+
+export const getGridFormingInverterXDashboard = (): Promise<GFIAXDashboard> =>
+  get<GFIAXDashboard>('/api/grid-forming-inverter-x/dashboard')

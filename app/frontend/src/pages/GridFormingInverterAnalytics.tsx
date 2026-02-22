@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Zap } from 'lucide-react'
+import { Cpu } from 'lucide-react'
 import {
-  getGridFormingInverterDashboard,
-  GFIDashboard,
-  GFIInverterRecord,
-  GFISystemStrengthRecord,
-  GFIFaultRideRecord,
-  GFIIbrPenetrationRecord,
+  getGridFormingInverterXDashboard,
+  GFIAXDashboard,
+  GFIAXSystemStrengthRecord,
+  GFIAXDeploymentRecord,
 } from '../api/client'
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -19,6 +15,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LineChart,
+  Line,
   ReferenceLine,
 } from 'recharts'
 
@@ -49,40 +47,15 @@ function KpiCard({
   )
 }
 
-// ── Technology badge ──────────────────────────────────────────────────────────
+// ── Badge ─────────────────────────────────────────────────────────────────────
 
-const TECH_STYLES: Record<string, { bg: string; text: string }> = {
-  BESS:  { bg: '#1e40af33', text: '#60a5fa' },
-  WIND:  { bg: '#14532d33', text: '#4ade80' },
-  SOLAR: { bg: '#78350f33', text: '#fbbf24' },
-  HVDC:  { bg: '#581c8733', text: '#c084fc' },
-}
-
-const INVERTER_STYLES: Record<string, { bg: string; text: string }> = {
-  GRID_FORMING:   { bg: '#14532d33', text: '#4ade80' },
-  GRID_FOLLOWING: { bg: '#37415133', text: '#9ca3af' },
-}
-
-const STRENGTH_STYLES: Record<string, { bg: string; text: string }> = {
-  ADEQUATE:   { bg: '#14532d33', text: '#4ade80' },
-  MARGINAL:   { bg: '#78350f33', text: '#fbbf24' },
-  INADEQUATE: { bg: '#7f1d1d33', text: '#f87171' },
-}
-
-const SEVERITY_STYLES: Record<string, { bg: string; text: string }> = {
-  EXTREME:  { bg: '#7f1d1d33', text: '#f87171' },
-  SEVERE:   { bg: '#9a3412' + '33', text: '#fb923c' },
-  MODERATE: { bg: '#78350f33', text: '#fbbf24' },
-  MILD:     { bg: '#14532d33', text: '#4ade80' },
-}
-
-const FAULT_TYPE_STYLES: Record<string, { bg: string; text: string }> = {
-  VOLTAGE_DIP:         { bg: '#7f1d1d33', text: '#f87171' },
-  FREQUENCY_DEVIATION: { bg: '#78350f33', text: '#fbbf24' },
-  ISLANDING:           { bg: '#1e3a8a33', text: '#93c5fd' },
-}
-
-function Badge({ label, style }: { label: string; style: { bg: string; text: string } }) {
+function Badge({
+  label,
+  style,
+}: {
+  label: string
+  style: { bg: string; text: string }
+}) {
   return (
     <span
       className="inline-block px-2 py-0.5 rounded text-xs font-semibold"
@@ -93,6 +66,18 @@ function Badge({ label, style }: { label: string; style: { bg: string; text: str
   )
 }
 
+const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+  Adequate:  { bg: '#14532d33', text: '#4ade80' },
+  Marginal:  { bg: '#78350f33', text: '#fbbf24' },
+  Deficient: { bg: '#7f1d1d33', text: '#f87171' },
+}
+
+const AVAIL_STYLES: Record<string, { bg: string; text: string }> = {
+  Available:   { bg: '#14532d33', text: '#4ade80' },
+  Development: { bg: '#1e3a8a33', text: '#60a5fa' },
+  Research:    { bg: '#581c8733', text: '#c084fc' },
+}
+
 function BoolIcon({ value }: { value: boolean }) {
   return (
     <span style={{ color: value ? '#4ade80' : '#f87171' }} className="font-bold text-sm">
@@ -101,53 +86,207 @@ function BoolIcon({ value }: { value: boolean }) {
   )
 }
 
-// ── Inverter Fleet Table ──────────────────────────────────────────────────────
+// ── System Strength Chart ─────────────────────────────────────────────────────
 
-function InverterFleetTable({ fleet }: { fleet: GFIInverterRecord[] }) {
+function SystemStrengthChart({ data }: { data: GFIAXSystemStrengthRecord[] }) {
+  const chartData = data.map((s) => ({
+    name: s.region + '\n' + s.measurement_point.split(' ').slice(0, 2).join(' '),
+    label: s.measurement_point.substring(0, 22),
+    current: Math.round(s.fault_level_mva),
+    requirement: s.aemo_requirement_mva,
+    status: s.system_strength_status,
+  }))
+
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-        Inverter Fleet Registry
+        System Strength: Current Fault Level vs AEMO Requirement (MVA)
+      </h2>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 60, left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: '#9ca3af', fontSize: 9 }}
+            angle={-40}
+            textAnchor="end"
+            interval={0}
+          />
+          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} unit=" MVA" />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
+            labelStyle={{ color: '#e5e7eb' }}
+            itemStyle={{ color: '#9ca3af' }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+          <Bar dataKey="current" name="Current Fault Level" fill="#60a5fa" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="requirement" name="AEMO Requirement" fill="#f87171" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// ── GFM Capacity by Technology ────────────────────────────────────────────────
+
+function GfmCapacityByTechnology({ deployments }: { deployments: GFIAXDeploymentRecord[] }) {
+  const techMap: Record<string, number> = {}
+  for (const d of deployments) {
+    if (d.capacity_mw > 0) {
+      techMap[d.technology] = (techMap[d.technology] ?? 0) + d.capacity_mw
+    }
+  }
+  const chartData = Object.entries(techMap)
+    .map(([tech, mw]) => ({ tech: tech.length > 22 ? tech.substring(0, 22) + '…' : tech, mw: Math.round(mw) }))
+    .sort((a, b) => b.mw - a.mw)
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
+        GFM Deployment Capacity by Technology (MW)
+      </h2>
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 11 }} unit=" MW" />
+          <YAxis type="category" dataKey="tech" tick={{ fill: '#9ca3af', fontSize: 10 }} width={160} />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
+            labelStyle={{ color: '#e5e7eb' }}
+            itemStyle={{ color: '#9ca3af' }}
+          />
+          <Bar dataKey="mw" name="Capacity (MW)" fill="#4ade80" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// ── Cost-Benefit BCR by Scenario ──────────────────────────────────────────────
+
+function CostBenefitBcrChart({ costBenefits }: { costBenefits: GFIAXDashboard['cost_benefits'] }) {
+  const scenarios = ['No GFM', '10% GFM', '30% GFM', '50% GFM', '100% GFM']
+  const regions = ['SA', 'VIC', 'NSW', 'QLD']
+  const colors = ['#f87171', '#60a5fa', '#4ade80', '#fbbf24']
+
+  const chartData = scenarios.map((scen) => {
+    const row: Record<string, string | number> = { scenario: scen }
+    for (const reg of regions) {
+      const rec = costBenefits.find((cb) => cb.region === reg && cb.scenario === scen)
+      row[reg] = rec ? rec.bcr : 0
+    }
+    return row
+  })
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
+        Cost-Benefit Analysis: BCR by GFM Penetration Scenario
+      </h2>
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis dataKey="scenario" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} label={{ value: 'BCR', angle: -90, position: 'insideLeft', fill: '#6b7280', fontSize: 11 }} />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
+            labelStyle={{ color: '#e5e7eb' }}
+            itemStyle={{ color: '#9ca3af' }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+          <ReferenceLine y={1} stroke="#fbbf24" strokeDasharray="4 2" label={{ value: 'BCR=1 (Break-even)', fill: '#fbbf24', fontSize: 10 }} />
+          {regions.map((reg, i) => (
+            <Bar key={reg} dataKey={reg} name={reg} fill={colors[i]} radius={[3, 3, 0, 0]} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// ── Performance Comparison Chart ──────────────────────────────────────────────
+
+function PerformanceComparisonChart({ performance }: { performance: GFIAXDashboard['performance'] }) {
+  const byEventType: Record<string, { gfm: number[]; gfl_implied: number[] }> = {}
+  for (const p of performance) {
+    if (!byEventType[p.event_type]) byEventType[p.event_type] = { gfm: [], gfl_implied: [] }
+    byEventType[p.event_type].gfm.push(p.response_time_ms)
+    // GFL implied from comparison_vs_gfl_pct: GFM is faster by comparison_vs_gfl_pct%
+    byEventType[p.event_type].gfl_implied.push(p.response_time_ms * (1 + p.comparison_vs_gfl_pct / 100))
+  }
+
+  const chartData = Object.entries(byEventType).map(([evType, vals]) => {
+    const avgGfm = Math.round(vals.gfm.reduce((a, b) => a + b, 0) / vals.gfm.length)
+    const avgGfl = Math.round(vals.gfl_implied.reduce((a, b) => a + b, 0) / vals.gfl_implied.length)
+    return { event: evType.length > 16 ? evType.substring(0, 16) + '…' : evType, gfm_ms: avgGfm, gfl_ms: avgGfl }
+  })
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
+        Performance Comparison: GFM vs GFL Average Response Time (ms)
+      </h2>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis dataKey="event" tick={{ fill: '#9ca3af', fontSize: 10 }} />
+          <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} unit=" ms" />
+          <Tooltip
+            contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
+            labelStyle={{ color: '#e5e7eb' }}
+            itemStyle={{ color: '#9ca3af' }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
+          <Bar dataKey="gfm_ms" name="GFM (ms)" fill="#4ade80" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="gfl_ms" name="GFL (ms)" fill="#f87171" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// ── System Strength Status Table ──────────────────────────────────────────────
+
+function SystemStrengthTable({ data }: { data: GFIAXSystemStrengthRecord[] }) {
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
+        System Strength Status by Region / Measurement Point
       </h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-gray-300">
           <thead>
             <tr className="text-xs text-gray-500 uppercase border-b border-gray-700">
-              <th className="text-left pb-2 pr-3">Asset Name</th>
               <th className="text-left pb-2 pr-3">Region</th>
-              <th className="text-left pb-2 pr-3">Technology</th>
-              <th className="text-left pb-2 pr-3">Inverter Type</th>
-              <th className="text-right pb-2 pr-3">Capacity (MW)</th>
-              <th className="text-right pb-2 pr-3">SCR Contrib.</th>
-              <th className="text-right pb-2 pr-3">Synth. Inertia (MWs)</th>
-              <th className="text-center pb-2 pr-3">FRT</th>
-              <th className="text-center pb-2 pr-3">V-Sup</th>
-              <th className="text-center pb-2">F-Resp</th>
+              <th className="text-left pb-2 pr-3">Measurement Point</th>
+              <th className="text-right pb-2 pr-3">SCR</th>
+              <th className="text-right pb-2 pr-3">Fault Level (MVA)</th>
+              <th className="text-right pb-2 pr-3">AEMO Req (MVA)</th>
+              <th className="text-right pb-2 pr-3">Gap (MVA)</th>
+              <th className="text-right pb-2 pr-3">IBR Pen. %</th>
+              <th className="text-left pb-2 pr-3">Status</th>
+              <th className="text-center pb-2">Remediation</th>
             </tr>
           </thead>
           <tbody>
-            {fleet.map((a) => (
-              <tr key={a.asset_id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                <td className="py-2 pr-3 font-medium text-white">{a.asset_name}</td>
-                <td className="py-2 pr-3 text-gray-400">{a.region}</td>
+            {data.map((s) => (
+              <tr key={s.strength_id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                <td className="py-2 pr-3 font-medium text-white">{s.region}</td>
+                <td className="py-2 pr-3 text-gray-400 text-xs">{s.measurement_point}</td>
+                <td className="py-2 pr-3 text-right font-mono text-blue-400">{s.short_circuit_ratio.toFixed(1)}</td>
+                <td className="py-2 pr-3 text-right">{s.fault_level_mva.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right text-gray-400">{s.aemo_requirement_mva.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right" style={{ color: s.gap_mva > 0 ? '#f87171' : '#4ade80' }}>
+                  {s.gap_mva > 0 ? `−${s.gap_mva}` : '✓'}
+                </td>
+                <td className="py-2 pr-3 text-right text-amber-400">{s.ibr_penetration_pct.toFixed(1)}%</td>
                 <td className="py-2 pr-3">
                   <Badge
-                    label={a.technology}
-                    style={TECH_STYLES[a.technology] ?? { bg: '#37415133', text: '#9ca3af' }}
+                    label={s.system_strength_status}
+                    style={STATUS_STYLES[s.system_strength_status] ?? { bg: '#37415133', text: '#9ca3af' }}
                   />
                 </td>
-                <td className="py-2 pr-3">
-                  <Badge
-                    label={a.inverter_type.replace('_', ' ')}
-                    style={INVERTER_STYLES[a.inverter_type] ?? { bg: '#37415133', text: '#9ca3af' }}
-                  />
-                </td>
-                <td className="py-2 pr-3 text-right">{a.capacity_mw.toLocaleString()}</td>
-                <td className="py-2 pr-3 text-right">{a.scr_contribution.toFixed(1)}</td>
-                <td className="py-2 pr-3 text-right">{a.inertia_synthetic_mws}</td>
-                <td className="py-2 pr-3 text-center"><BoolIcon value={a.fault_ride_through} /></td>
-                <td className="py-2 pr-3 text-center"><BoolIcon value={a.voltage_support} /></td>
-                <td className="py-2 text-center"><BoolIcon value={a.frequency_response} /></td>
+                <td className="py-2 text-center"><BoolIcon value={s.remediation_required} /></td>
               </tr>
             ))}
           </tbody>
@@ -157,259 +296,48 @@ function InverterFleetTable({ fleet }: { fleet: GFIInverterRecord[] }) {
   )
 }
 
-// ── System Strength Panel ─────────────────────────────────────────────────────
+// ── GFM Deployments Table ─────────────────────────────────────────────────────
 
-const REGIONS = ['SA1', 'VIC1', 'NSW1', 'QLD1', 'TAS1']
-
-function SystemStrengthPanel({ data }: { data: GFISystemStrengthRecord[] }) {
-  const [activeRegion, setActiveRegion] = useState('SA1')
-
-  const regionData = data.filter((d) => d.region === activeRegion)
-  const latest = regionData[regionData.length - 1]
-
-  const scrChartData = latest
-    ? [
-        { name: 'Minimum SCR', value: latest.scr_minimum, fill: '#f87171' },
-        { name: 'Actual SCR', value: latest.scr_actual, fill: latest.scr_actual >= latest.scr_comfortable ? '#4ade80' : latest.scr_actual >= latest.scr_minimum ? '#fbbf24' : '#f87171' },
-        { name: 'Comfortable SCR', value: latest.scr_comfortable, fill: '#60a5fa' },
-      ]
-    : []
+function GfmDeploymentsTable({ deployments }: { deployments: GFIAXDeploymentRecord[] }) {
+  const sorted = [...deployments]
+    .filter((d) => d.capacity_mw > 0)
+    .sort((a, b) => b.capacity_mw - a.capacity_mw)
+    .slice(0, 12)
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-        System Strength (Short Circuit Ratio)
-      </h2>
-
-      {/* Region tabs */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {REGIONS.map((r) => (
-          <button
-            key={r}
-            onClick={() => setActiveRegion(r)}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-              activeRegion === r
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-            }`}
-          >
-            {r}
-          </button>
-        ))}
-      </div>
-
-      {latest && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* SCR Bar Chart */}
-          <div>
-            <p className="text-xs text-gray-500 mb-2">SCR Comparison — {latest.date}</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={scrChartData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis type="number" domain={[0, 5]} tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} width={110} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
-                  labelStyle={{ color: '#e5e7eb' }}
-                  itemStyle={{ color: '#9ca3af' }}
-                />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {scrChartData.map((entry, index) => (
-                    <rect key={index} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Stats Panel */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">System Strength Status</span>
-              <Badge
-                label={latest.strength_status}
-                style={STRENGTH_STYLES[latest.strength_status] ?? { bg: '#37415133', text: '#9ca3af' }}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">IBR Penetration</span>
-              <span className="text-xl font-bold text-amber-400">{latest.ibr_penetration_pct}%</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">Synchronous Generation</span>
-              <span className="text-sm font-semibold text-white">{latest.synchronous_mw.toLocaleString()} MW</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">IBR Generation</span>
-              <span className="text-sm font-semibold text-white">{latest.ibr_mw.toLocaleString()} MW</span>
-            </div>
-            {latest.risk_event !== 'None' && (
-              <div className="bg-yellow-900/30 border border-yellow-700/50 rounded p-2">
-                <p className="text-xs text-yellow-400 font-medium">Risk Event</p>
-                <p className="text-xs text-yellow-300 mt-1">{latest.risk_event}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── IBR Penetration Trend ─────────────────────────────────────────────────────
-
-function getSSIColor(ssi: number): string {
-  if (ssi > 3) return '#4ade80'
-  if (ssi > 1.8) return '#fbbf24'
-  return '#f87171'
-}
-
-function IbrPenetrationTrend({ data }: { data: GFIIbrPenetrationRecord[] }) {
-  const [selectedRegion, setSelectedRegion] = useState('SA1')
-
-  const regionData = data
-    .filter((d) => d.region === selectedRegion)
-    .sort((a, b) => a.year - b.year)
-
-  return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">
-          IBR Penetration & System Strength Trend (2020–2030)
-        </h2>
-        <select
-          value={selectedRegion}
-          onChange={(e) => setSelectedRegion(e.target.value)}
-          className="bg-gray-700 text-gray-200 text-xs rounded px-2 py-1 border border-gray-600"
-        >
-          {REGIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        {/* IBR Penetration lines */}
-        <div>
-          <p className="text-xs text-gray-500 mb-2">IBR Penetration % vs GFM % of IBR</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={regionData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="year" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-              <YAxis domain={[0, 100]} tick={{ fill: '#9ca3af', fontSize: 11 }} unit="%" />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
-                labelStyle={{ color: '#e5e7eb' }}
-                itemStyle={{ color: '#9ca3af' }}
-              />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-              <Line
-                type="monotone"
-                dataKey="ibr_penetration_pct"
-                name="IBR Penetration %"
-                stroke="#f87171"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="gfm_pct_of_ibr"
-                name="GFM % of IBR"
-                stroke="#4ade80"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* System Strength Index */}
-        <div>
-          <p className="text-xs text-gray-500 mb-2">System Strength Index (SSI) — green &gt;3, yellow 1.8–3, red &lt;1.8</p>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={regionData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="year" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-              <YAxis domain={[0, 5.5]} tick={{ fill: '#9ca3af', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 6 }}
-                labelStyle={{ color: '#e5e7eb' }}
-                itemStyle={{ color: '#9ca3af' }}
-              />
-              <ReferenceLine y={3} stroke="#4ade80" strokeDasharray="4 2" label={{ value: 'Comfortable', fill: '#4ade80', fontSize: 10 }} />
-              <ReferenceLine y={1.8} stroke="#fbbf24" strokeDasharray="4 2" label={{ value: 'Marginal', fill: '#fbbf24', fontSize: 10 }} />
-              <Line
-                type="monotone"
-                dataKey="system_strength_index"
-                name="SSI"
-                stroke="#60a5fa"
-                strokeWidth={2}
-                dot={(props: { cx: number; cy: number; payload: GFIIbrPenetrationRecord }) => (
-                  <circle
-                    key={`dot-${props.payload.year}`}
-                    cx={props.cx}
-                    cy={props.cy}
-                    r={4}
-                    fill={getSSIColor(props.payload.system_strength_index)}
-                    stroke="none"
-                  />
-                )}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Fault Ride-Through Events Table ───────────────────────────────────────────
-
-function FaultRideThroughTable({ events }: { events: GFIFaultRideRecord[] }) {
-  return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-        Fault Ride-Through Events
+        GFM Deployments Summary (Top 12 by Capacity)
       </h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-gray-300">
           <thead>
             <tr className="text-xs text-gray-500 uppercase border-b border-gray-700">
-              <th className="text-left pb-2 pr-3">Event ID</th>
-              <th className="text-left pb-2 pr-3">Date</th>
+              <th className="text-left pb-2 pr-3">Asset Name</th>
               <th className="text-left pb-2 pr-3">Region</th>
-              <th className="text-left pb-2 pr-3">Fault Type</th>
-              <th className="text-left pb-2 pr-3">Severity</th>
-              <th className="text-right pb-2 pr-3">GFM Resp (ms)</th>
-              <th className="text-right pb-2 pr-3">GFL Resp (ms)</th>
-              <th className="text-center pb-2 pr-3">GFM Rode</th>
-              <th className="text-right pb-2 pr-3">Gen Lost (MW)</th>
-              <th className="text-right pb-2">Freq Nadir (Hz)</th>
+              <th className="text-left pb-2 pr-3">Technology</th>
+              <th className="text-left pb-2 pr-3">Application</th>
+              <th className="text-right pb-2 pr-3">Capacity (MW)</th>
+              <th className="text-right pb-2 pr-3">Inertia (MWs)</th>
+              <th className="text-right pb-2 pr-3">Sys Str. (MVA)</th>
+              <th className="text-right pb-2 pr-3">Year</th>
+              <th className="text-right pb-2 pr-3">Cost ($M)</th>
+              <th className="text-center pb-2">GC Comply</th>
             </tr>
           </thead>
           <tbody>
-            {events.map((e) => (
-              <tr key={e.event_id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
-                <td className="py-2 pr-3 font-mono text-gray-400 text-xs">{e.event_id}</td>
-                <td className="py-2 pr-3 text-gray-400">{e.date}</td>
-                <td className="py-2 pr-3 text-white font-medium">{e.region}</td>
-                <td className="py-2 pr-3">
-                  <Badge
-                    label={e.fault_type.replace(/_/g, ' ')}
-                    style={FAULT_TYPE_STYLES[e.fault_type] ?? { bg: '#37415133', text: '#9ca3af' }}
-                  />
-                </td>
-                <td className="py-2 pr-3">
-                  <Badge
-                    label={e.severity}
-                    style={SEVERITY_STYLES[e.severity] ?? { bg: '#37415133', text: '#9ca3af' }}
-                  />
-                </td>
-                <td className="py-2 pr-3 text-right font-mono text-green-400">{e.gfm_response_ms}</td>
-                <td className="py-2 pr-3 text-right font-mono text-orange-400">{e.gfl_response_ms}</td>
-                <td className="py-2 pr-3 text-center"><BoolIcon value={e.gfm_rode_through} /></td>
-                <td className="py-2 pr-3 text-right text-red-400">{e.generation_lost_mw}</td>
-                <td className="py-2 text-right text-amber-400">{e.frequency_nadir_hz.toFixed(1)}</td>
+            {sorted.map((d) => (
+              <tr key={d.deployment_id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                <td className="py-2 pr-3 font-medium text-white text-xs">{d.asset_name}</td>
+                <td className="py-2 pr-3 text-gray-400">{d.region}</td>
+                <td className="py-2 pr-3 text-blue-400 text-xs">{d.technology.length > 20 ? d.technology.substring(0, 20) + '…' : d.technology}</td>
+                <td className="py-2 pr-3 text-gray-400 text-xs">{d.application}</td>
+                <td className="py-2 pr-3 text-right text-green-400 font-semibold">{d.capacity_mw.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right text-blue-300">{d.inertia_contribution_mws.toFixed(1)}</td>
+                <td className="py-2 pr-3 text-right">{d.system_strength_mva.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right text-gray-400">{d.commissioning_year}</td>
+                <td className="py-2 pr-3 text-right text-amber-400">${d.project_cost_m}M</td>
+                <td className="py-2 text-center"><BoolIcon value={d.grid_code_compliance} /></td>
               </tr>
             ))}
           </tbody>
@@ -422,12 +350,12 @@ function FaultRideThroughTable({ events }: { events: GFIFaultRideRecord[] }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function GridFormingInverterAnalytics() {
-  const [data, setData] = useState<GFIDashboard | null>(null)
+  const [data, setData] = useState<GFIAXDashboard | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getGridFormingInverterDashboard()
+    getGridFormingInverterXDashboard()
       .then(setData)
       .catch((err) => setError(err.message ?? 'Failed to load dashboard'))
       .finally(() => setLoading(false))
@@ -436,7 +364,7 @@ export default function GridFormingInverterAnalytics() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-400 text-sm animate-pulse">Loading Grid-Forming Inverter Analytics...</div>
+        <div className="text-gray-400 text-sm animate-pulse">Loading Grid-Forming Inverter Technology Analytics...</div>
       </div>
     )
   }
@@ -449,70 +377,72 @@ export default function GridFormingInverterAnalytics() {
     )
   }
 
-  const summary = data.summary as Record<string, number | string>
+  const s = data.summary
 
   return (
     <div className="min-h-screen bg-gray-900 text-white px-4 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-yellow-500/10 rounded-lg">
-          <Zap className="text-yellow-400" size={24} />
+        <div className="p-2 bg-blue-500/10 rounded-lg">
+          <Cpu className="text-blue-400" size={24} />
         </div>
         <div>
           <h1 className="text-xl font-bold text-white">
-            Grid-Forming Inverter &amp; System Strength
+            Grid Forming Inverter Technology Analytics
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            GFM vs GFL inverter performance, system strength requirements, fault ride-through and IBR penetration analytics
+            GFM technology deployments, system strength, performance benchmarking, cost-benefit analysis and regulatory compliance across the NEM
           </p>
         </div>
       </div>
 
-      {/* KPI Summary Cards */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
-          label="Total Tracked Assets"
-          value={String(summary.total_assets ?? 10)}
-          sub="Across all NEM regions"
-        />
-        <KpiCard
-          label="Grid-Forming Inverters"
-          value={String(summary.grid_forming_count ?? 0)}
-          sub={`${summary.grid_following_count ?? 0} grid-following`}
+          label="Total GFM Capacity"
+          value={(s.total_gfm_capacity_gw as number).toFixed(2)}
+          unit="GW"
+          sub={`${s.gfm_deployments_count} GFM deployments`}
           valueColor="#4ade80"
         />
         <KpiCard
-          label="SA IBR Penetration"
-          value={`${summary.sa_current_ibr_penetration_pct ?? 0}%`}
-          sub="South Australia"
-          valueColor="#f87171"
+          label="Regions with Deficiency"
+          value={String(s.regions_with_deficiency)}
+          sub="System strength deficient"
+          valueColor={(s.regions_with_deficiency as number) > 0 ? '#f87171' : '#4ade80'}
         />
-        <div className="bg-gray-800 rounded-lg p-4 flex flex-col gap-1">
-          <span className="text-xs text-gray-400 uppercase tracking-wide">SA System Strength</span>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge
-              label={String(summary.sa_system_strength_status ?? 'UNKNOWN')}
-              style={
-                STRENGTH_STYLES[String(summary.sa_system_strength_status)] ??
-                { bg: '#37415133', text: '#9ca3af' }
-              }
-            />
-          </div>
-          <span className="text-xs text-gray-500">GFM ride-through rate: {summary.gfm_ride_through_rate_pct}%</span>
-        </div>
+        <KpiCard
+          label="Avg SCR (NEM)"
+          value={(s.avg_scr_nem as number).toFixed(2)}
+          sub="Short circuit ratio"
+          valueColor={(s.avg_scr_nem as number) >= 3 ? '#4ade80' : (s.avg_scr_nem as number) >= 1.8 ? '#fbbf24' : '#f87171'}
+        />
+        <KpiCard
+          label="Total System Inertia"
+          value={((s.total_inertia_mws as number) / 1000).toFixed(1)}
+          unit="GWs"
+          sub="Across measured points"
+          valueColor="#60a5fa"
+        />
       </div>
 
-      {/* Inverter Fleet Table */}
-      <InverterFleetTable fleet={data.inverter_fleet} />
-
-      {/* System Strength + IBR Penetration side by side on wide screens */}
+      {/* System Strength Charts side by side */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <SystemStrengthPanel data={data.system_strength} />
-        <IbrPenetrationTrend data={data.ibr_penetration} />
+        <SystemStrengthChart data={data.system_strength} />
+        <GfmCapacityByTechnology deployments={data.deployments} />
       </div>
 
-      {/* Fault Ride-Through Events */}
-      <FaultRideThroughTable events={data.fault_ride_through_events} />
+      {/* Cost-Benefit and Performance side by side */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <CostBenefitBcrChart costBenefits={data.cost_benefits} />
+        <PerformanceComparisonChart performance={data.performance} />
+      </div>
+
+      {/* System Strength Status Table */}
+      <SystemStrengthTable data={data.system_strength} />
+
+      {/* GFM Deployments Table */}
+      <GfmDeploymentsTable deployments={data.deployments} />
     </div>
   )
 }

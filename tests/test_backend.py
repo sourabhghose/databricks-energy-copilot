@@ -12586,3 +12586,137 @@ class TestCommunityEnergyStorageDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNEMGenerationMixDashboard:
+    URL = "/api/nem-generation-mix/dashboard"
+    HEADERS = {"Authorization": "Bearer test-token"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_generation_fleet_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["generation_fleet"]) >= 20
+
+    def test_transition_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["transition_records"]) >= 40
+
+    def test_retirements_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["retirements"]) >= 15
+
+    def test_investments_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["investments"]) >= 25
+
+    def test_dispatch_shares_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["dispatch_shares"]) >= 50
+
+    def test_scenarios_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["scenarios"]) >= 16
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_nem_capacity_gw" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ---------------------------------------------------------------------------
+# Sprint 98b — Consumer Energy Bill Affordability Analytics (CEBA)
+# ---------------------------------------------------------------------------
+
+class TestConsumerEnergyAffordabilityDashboard:
+    URL = "/api/consumer-energy-affordability/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_households_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["households"]) >= 30
+
+    def test_retailer_offers_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["retailer_offers"]) >= 20
+
+    def test_hardship_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["hardship_records"]) >= 24
+
+    def test_affordability_index_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["affordability_index"]) >= 15
+
+    def test_interventions_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["interventions"]) >= 12
+
+    def test_bill_components_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["bill_components"]) >= 30
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "national_median_bill_aud" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ---------------------------------------------------------------------------
+# Sprint 98c — Grid Forming Inverter Technology Analytics (GFIAX)
+# ---------------------------------------------------------------------------
+
+class TestGridFormingInverterDashboard:
+    URL = "/api/grid-forming-inverter-x/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_technologies_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["technologies"]) >= 8
+
+    def test_deployments_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["deployments"]) >= 15
+
+    def test_system_strength_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["system_strength"]) >= 12
+
+    def test_performance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["performance"]) >= 20
+
+    def test_cost_benefits_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["cost_benefits"]) >= 16
+
+    def test_regulatory_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["regulatory"]) >= 10
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_gfm_capacity_gw" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
