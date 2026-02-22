@@ -75147,3 +75147,1489 @@ def get_digital_energy_twin_dashboard():
     ).model_dump())
 
     return _deta_cache
+
+
+# ── Sprint 104a: Electricity Network Protection System Analytics ─────────────
+
+from pydantic import BaseModel as _BM
+from typing import List as _List, Dict as _Dict, Any as _Any, Optional as _Opt
+
+class ENPARelayRecord(_BM):
+    relay_id: str
+    relay_name: str
+    relay_type: str
+    location: str
+    region: str
+    voltage_level_kv: float
+    manufacturer: str
+    model: str
+    commissioning_year: int
+    last_tested_date: str
+    test_result: str
+    operating_time_ms: float
+    setting_zone: str
+    coordinated_with: str
+    condition: str
+    replacement_due_year: int
+
+class ENPAFaultRecord(_BM):
+    fault_id: str
+    fault_date: str
+    fault_location: str
+    fault_type: str
+    voltage_level_kv: float
+    region: str
+    fault_current_ka: float
+    fault_impedance_ohm: float
+    clearing_time_ms: float
+    primary_protection_operated: bool
+    backup_protection_operated: bool
+    correct_operation: bool
+    breaker_failure: bool
+    affected_load_mw: float
+    outage_duration_hours: float
+    restoration_method: str
+
+class ENPACoordinationRecord(_BM):
+    coord_id: str
+    protection_zone: str
+    upstream_device: str
+    downstream_device: str
+    selectivity_margin_ms: float
+    grading_margin_ms: float
+    coordination_status: str
+    fault_level_ka: float
+    setting_current_a: float
+    time_multiplier: float
+    last_review_date: str
+    ibr_impact_assessed: bool
+    arc_flash_incident_energy_kj_m2: float
+
+class ENPAPerformanceRecord(_BM):
+    perf_id: str
+    region: str
+    year: int
+    quarter: int
+    num_correct_operations: int
+    num_incorrect_operations: int
+    num_failures_to_trip: int
+    num_spurious_trips: int
+    correct_operation_pct: float
+    avg_clearing_time_ms: float
+    p95_clearing_time_ms: float
+    n1_compliance_pct: float
+    loss_of_supply_events: int
+    reliability_index_saidi: float
+
+class ENPASettingRecord(_BM):
+    setting_id: str
+    relay_id: str
+    setting_parameter: str
+    current_value: float
+    unit: str
+    design_basis: str
+    last_updated_date: str
+    updated_by: str
+    reason_for_change: str
+    simulation_validated: bool
+    ibr_penetration_at_update_pct: float
+    pending_review: bool
+
+class ENPAMaintenanceRecord(_BM):
+    maint_id: str
+    relay_id: str
+    maintenance_type: str
+    scheduled_date: str
+    completed_date: str
+    technician: str
+    result: str
+    findings: str
+    corrective_action: str
+    downtime_hours: float
+    cost_aud: float
+    next_due_date: str
+
+class ENPADashboard(_BM):
+    relays: _List[ENPARelayRecord]
+    faults: _List[ENPAFaultRecord]
+    coordination: _List[ENPACoordinationRecord]
+    performance: _List[ENPAPerformanceRecord]
+    settings: _List[ENPASettingRecord]
+    maintenance: _List[ENPAMaintenanceRecord]
+    summary: _Dict[str, _Any]
+
+_enpa_cache: _Dict[str, _Any] = {}
+
+@app.get("/api/network-protection-system/dashboard")
+def get_enpa_dashboard():
+    import random
+    if _enpa_cache:
+        return _enpa_cache
+
+    rng = random.Random(20240104)
+
+    relay_types = ["Overcurrent", "Distance", "Differential", "Busbar",
+                   "Under-frequency", "Overvoltage", "Reverse Power", "Earth Fault"]
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    conditions = ["Good", "Fair", "Poor", "Critical"]
+    test_results = ["Pass", "Fail", "Conditional"]
+    manufacturers = ["ABB", "Siemens", "GE", "Schneider", "SEL", "Alstom"]
+    models_map = {
+        "ABB": ["REF615", "REL670", "RET630"],
+        "Siemens": ["7SJ85", "7SD82", "7UT85"],
+        "GE": ["D60", "L90", "T60"],
+        "Schneider": ["Sepam 80", "Micom P443", "Micom P341"],
+        "SEL": ["SEL-311C", "SEL-421", "SEL-487E"],
+        "Alstom": ["P142", "P545", "P845"],
+    }
+    voltage_levels = [66.0, 110.0, 220.0, 330.0, 500.0]
+    locations = [
+        "Sydney South SS", "Melbourne North SS", "Brisbane West SS", "Adelaide Central SS",
+        "Hobart Main SS", "Newcastle SS", "Geelong SS", "Townsville SS",
+        "Port Augusta SS", "Launceston SS", "Wagga Wagga SS", "Ballarat SS",
+        "Rockhampton SS", "Whyalla SS", "Devonport SS", "Tamworth SS",
+        "Bendigo SS", "Mackay SS", "Mount Gambier SS", "Burnie SS",
+        "Orange SS", "Shepparton SS", "Gladstone SS", "Renmark SS", "Burnie East SS",
+    ]
+    zones = ["Zone 1", "Zone 2", "Zone 3", "Zone 4", "Zone 5"]
+
+    relays = []
+    for i in range(25):
+        mfr = rng.choice(manufacturers)
+        rl = ENPARelayRecord(
+            relay_id=f"REL-{i+1:04d}",
+            relay_name=f"Protection Relay {i+1}",
+            relay_type=rng.choice(relay_types),
+            location=locations[i % len(locations)],
+            region=rng.choice(regions),
+            voltage_level_kv=rng.choice(voltage_levels),
+            manufacturer=mfr,
+            model=rng.choice(models_map[mfr]),
+            commissioning_year=rng.randint(2005, 2022),
+            last_tested_date=f"202{rng.randint(2,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            test_result=rng.choices(test_results, weights=[0.75, 0.1, 0.15])[0],
+            operating_time_ms=round(rng.uniform(20.0, 120.0), 1),
+            setting_zone=rng.choice(zones),
+            coordinated_with=f"REL-{rng.randint(1,25):04d}",
+            condition=rng.choices(conditions, weights=[0.45, 0.30, 0.15, 0.10])[0],
+            replacement_due_year=rng.randint(2025, 2035),
+        )
+        relays.append(rl)
+
+    fault_types = ["Phase-Phase", "Phase-Ground", "Three-Phase", "Double Phase-Ground", "Flashover"]
+    restoration_methods = [
+        "Auto-reclose", "Manual switching", "Feeder transfer", "Mobile generation", "Load shedding"
+    ]
+    fault_locations = [
+        "Transmission Line TL-101", "Busbar BB-203", "Power Transformer TR-305",
+        "Cable CB-407", "Overhead Line OHL-509", "Generator Step-Up GSU-611",
+        "Shunt Capacitor SC-713", "Reactor RX-815", "Distribution Feeder DF-917",
+        "Interconnector IC-119",
+    ]
+
+    faults = []
+    for i in range(20):
+        yr = rng.randint(2022, 2024)
+        mo = rng.randint(1, 12)
+        dy = rng.randint(1, 28)
+        ppo = rng.random() > 0.1
+        bpo = not ppo and rng.random() > 0.3
+        correct = ppo or bpo
+        faults.append(ENPAFaultRecord(
+            fault_id=f"FLT-{i+1:04d}",
+            fault_date=f"{yr}-{mo:02d}-{dy:02d}",
+            fault_location=rng.choice(fault_locations),
+            fault_type=rng.choice(fault_types),
+            voltage_level_kv=rng.choice(voltage_levels),
+            region=rng.choice(regions),
+            fault_current_ka=round(rng.uniform(1.5, 25.0), 2),
+            fault_impedance_ohm=round(rng.uniform(0.01, 2.5), 3),
+            clearing_time_ms=round(rng.uniform(40.0, 200.0), 1),
+            primary_protection_operated=ppo,
+            backup_protection_operated=bpo,
+            correct_operation=correct,
+            breaker_failure=rng.random() < 0.08,
+            affected_load_mw=round(rng.uniform(5.0, 450.0), 1),
+            outage_duration_hours=round(rng.uniform(0.1, 8.0), 2),
+            restoration_method=rng.choice(restoration_methods),
+        ))
+
+    coord_statuses = ["Coordinated", "Marginal", "Miscoordinated"]
+    protection_zones_list = [
+        "NSW-Zone-A", "NSW-Zone-B", "VIC-Zone-A", "VIC-Zone-B",
+        "QLD-Zone-A", "QLD-Zone-B", "SA-Zone-A", "SA-Zone-B",
+        "TAS-Zone-A", "NSW-VIC-Tie", "VIC-SA-Tie", "QLD-NSW-Tie",
+        "NSW-Zone-C", "VIC-Zone-C", "QLD-Zone-C",
+    ]
+    upstream_devices = ["CB-U101", "CB-U202", "CB-U303", "CB-U404", "CB-U505"]
+    downstream_devices = ["CB-D101", "CB-D202", "CB-D303", "CB-D404", "CB-D505"]
+
+    coordination = []
+    for i in range(15):
+        coordination.append(ENPACoordinationRecord(
+            coord_id=f"COORD-{i+1:04d}",
+            protection_zone=protection_zones_list[i % len(protection_zones_list)],
+            upstream_device=rng.choice(upstream_devices),
+            downstream_device=rng.choice(downstream_devices),
+            selectivity_margin_ms=round(rng.uniform(100.0, 400.0), 1),
+            grading_margin_ms=round(rng.uniform(150.0, 500.0), 1),
+            coordination_status=rng.choices(coord_statuses, weights=[0.60, 0.25, 0.15])[0],
+            fault_level_ka=round(rng.uniform(5.0, 30.0), 2),
+            setting_current_a=round(rng.uniform(200.0, 2000.0), 0),
+            time_multiplier=round(rng.uniform(0.05, 1.0), 3),
+            last_review_date=f"202{rng.randint(2,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            ibr_impact_assessed=rng.random() > 0.35,
+            arc_flash_incident_energy_kj_m2=round(rng.uniform(1.0, 40.0), 2),
+        ))
+
+    perf_counter = 1
+    performance = []
+    for region in regions:
+        for quarter in range(1, 5):
+            correct_ops = rng.randint(85, 150)
+            incorrect_ops = rng.randint(0, 8)
+            fail_trip = rng.randint(0, 5)
+            spurious = rng.randint(0, 6)
+            total = correct_ops + incorrect_ops + fail_trip
+            cor_pct = round(correct_ops / total * 100, 2) if total > 0 else 100.0
+            performance.append(ENPAPerformanceRecord(
+                perf_id=f"PERF-{perf_counter:04d}",
+                region=region,
+                year=2024,
+                quarter=quarter,
+                num_correct_operations=correct_ops,
+                num_incorrect_operations=incorrect_ops,
+                num_failures_to_trip=fail_trip,
+                num_spurious_trips=spurious,
+                correct_operation_pct=cor_pct,
+                avg_clearing_time_ms=round(rng.uniform(55.0, 110.0), 1),
+                p95_clearing_time_ms=round(rng.uniform(120.0, 200.0), 1),
+                n1_compliance_pct=round(rng.uniform(92.0, 99.9), 2),
+                loss_of_supply_events=rng.randint(0, 4),
+                reliability_index_saidi=round(rng.uniform(10.0, 80.0), 2),
+            ))
+            perf_counter += 1
+
+    setting_params = [
+        "Pickup Current", "Time Multiplier", "Impedance Zone",
+        "Voltage Threshold", "Frequency Threshold",
+    ]
+    units_map = {
+        "Pickup Current": "A", "Time Multiplier": "pu",
+        "Impedance Zone": "Ohm", "Voltage Threshold": "pu", "Frequency Threshold": "Hz",
+    }
+    engineers = ["J. Smith", "A. Nguyen", "B. Patel", "C. Williams", "D. Chen"]
+    reasons = [
+        "IBR penetration increase", "Load growth", "Equipment replacement",
+        "Coordination review", "Annual calibration", "Post-fault analysis",
+    ]
+
+    settings_records = []
+    for i in range(20):
+        relay = relays[i % len(relays)]
+        sp = rng.choice(setting_params)
+        settings_records.append(ENPASettingRecord(
+            setting_id=f"SET-{i+1:04d}",
+            relay_id=relay.relay_id,
+            setting_parameter=sp,
+            current_value=round(rng.uniform(0.05, 2500.0), 3),
+            unit=units_map[sp],
+            design_basis=f"Protection Study PS-{rng.randint(100,999)}",
+            last_updated_date=f"202{rng.randint(2,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            updated_by=rng.choice(engineers),
+            reason_for_change=rng.choice(reasons),
+            simulation_validated=rng.random() > 0.2,
+            ibr_penetration_at_update_pct=round(rng.uniform(15.0, 65.0), 1),
+            pending_review=rng.random() < 0.25,
+        ))
+
+    maint_types = [
+        "Routine Test", "Commissioning", "Corrective",
+        "Injection Test", "Software Update", "Calibration",
+    ]
+    maint_results = ["Pass", "Fail", "Deferred"]
+    technicians = ["T. Jones", "M. Kumar", "L. Brown", "S. Zhang", "R. Okafor"]
+    findings_list = [
+        "No defects found", "Contact wear noted", "Timing drift 2ms", "Software outdated",
+        "Minor insulation degradation", "Calibration drift detected", "All parameters nominal",
+        "Firmware update required", "Trip coil resistance high",
+    ]
+    corrective_actions = [
+        "None required", "Contacts replaced", "Recalibrated", "Firmware updated",
+        "Scheduled for replacement", "Insulation treatment applied",
+    ]
+
+    maintenance = []
+    for i in range(15):
+        relay = relays[i % len(relays)]
+        sched = f"202{rng.randint(3,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}"
+        comp = f"202{rng.randint(3,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}"
+        maintenance.append(ENPAMaintenanceRecord(
+            maint_id=f"MAINT-{i+1:04d}",
+            relay_id=relay.relay_id,
+            maintenance_type=rng.choice(maint_types),
+            scheduled_date=sched,
+            completed_date=comp,
+            technician=rng.choice(technicians),
+            result=rng.choices(maint_results, weights=[0.75, 0.1, 0.15])[0],
+            findings=rng.choice(findings_list),
+            corrective_action=rng.choice(corrective_actions),
+            downtime_hours=round(rng.uniform(0.5, 8.0), 2),
+            cost_aud=round(rng.uniform(800.0, 12000.0), 2),
+            next_due_date=f"202{rng.randint(5,6)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+        ))
+
+    total_relays = len(relays)
+    correct_ops_total = sum(p.num_correct_operations for p in performance)
+    total_ops = sum(
+        p.num_correct_operations + p.num_incorrect_operations + p.num_failures_to_trip
+        for p in performance
+    )
+    correct_operation_rate_pct = round(correct_ops_total / total_ops * 100, 2) if total_ops > 0 else 0.0
+    avg_fault_clearing_ms = round(sum(f.clearing_time_ms for f in faults) / len(faults), 1)
+    miscoordinated_zones = sum(1 for c in coordination if c.coordination_status == "Miscoordinated")
+    maintenance_overdue_count = sum(1 for m in maintenance if m.result == "Deferred")
+
+    _enpa_cache.update(ENPADashboard(
+        relays=relays,
+        faults=faults,
+        coordination=coordination,
+        performance=performance,
+        settings=settings_records,
+        maintenance=maintenance,
+        summary={
+            "total_relays": total_relays,
+            "correct_operation_rate_pct": correct_operation_rate_pct,
+            "avg_fault_clearing_ms": avg_fault_clearing_ms,
+            "miscoordinated_zones": miscoordinated_zones,
+            "maintenance_overdue_count": maintenance_overdue_count,
+        },
+    ).model_dump())
+
+
+# ===========================================================================
+# Pumped Hydro Dispatch Optimisation Analytics (PHDA) — Sprint 104b
+# ===========================================================================
+
+class PHDAStationRecord(BaseModel):
+    station_id: str
+    station_name: str
+    owner: str
+    region: str
+    turbine_capacity_mw: float
+    pump_capacity_mw: float
+    upper_reservoir_gl: float
+    lower_reservoir_gl: float
+    head_m: float
+    efficiency_turbine_pct: float
+    efficiency_pump_pct: float
+    round_trip_efficiency_pct: float
+    min_level_gl: float
+    max_level_gl: float
+    response_time_seconds: int
+    black_start_capable: bool
+    fcas_capable: bool
+    commissioning_year: int
+    status: str  # Operating, Construction, Planned
+
+
+class PHDAStorageLevelRecord(BaseModel):
+    level_id: str
+    station_id: str
+    date: str
+    hour: int
+    upper_level_gl: float
+    upper_level_pct: float
+    lower_level_gl: float
+    lower_level_pct: float
+    net_storage_gl: float
+    inflow_gl: float
+    evaporation_gl: float
+    spill_gl: float
+    energy_stored_mwh: float
+    weeks_storage_at_avg_dispatch: float
+
+
+class PHDADispatchRecord(BaseModel):
+    dispatch_id: str
+    station_id: str
+    date: str
+    hour: int
+    mode: str  # Generating, Pumping, Standby, FCAS
+    power_mw: float
+    energy_mwh: float
+    spot_price_dolpermwh: float
+    fcas_price_dolpmw: float
+    revenue_aud: float
+    water_value_dolpermwh: float
+    opportunity_cost_aud: float
+    storage_before_gl: float
+    storage_after_gl: float
+
+
+class PHDAWaterValueRecord(BaseModel):
+    wv_id: str
+    station_id: str
+    date: str
+    storage_level_pct: float
+    water_value_dolpermwh: float
+    scenario: str  # Wet, Dry, Median, Current
+    marginal_value_dolpergl: float
+    drought_risk_pct: float
+    storage_horizon_weeks: float
+    inflow_forecast_gl: float
+    price_forecast_dolpermwh: float
+
+
+class PHDAOptimisationRecord(BaseModel):
+    opt_id: str
+    station_id: str
+    optimisation_period: str
+    strategy: str  # Myopic, STOCHASTIC, DP-Based, ML-Predicted, Perfect Foresight
+    annual_revenue_m: float
+    avg_water_value_dolpermwh: float
+    cycles_pa: float
+    capacity_factor_pct: float
+    pump_utilisation_pct: float
+    missed_opportunity_pct: float
+    sharpe_ratio: float
+
+
+class PHDAProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    region: str
+    developer: str
+    upper_reservoir_location: str
+    lower_reservoir_location: str
+    turbine_capacity_mw: float
+    pump_capacity_mw: float
+    storage_gwh: float
+    head_m: float
+    construction_cost_bn: float
+    commissioning_year: int
+    stage: str  # Pre-FEED, FEED, Approved, Construction, Operating
+    environmental_approval: bool
+    water_licence_secured: bool
+    grid_connection_agreed: bool
+
+
+class PHDADashboard(BaseModel):
+    stations: list[PHDAStationRecord]
+    storage_levels: list[PHDAStorageLevelRecord]
+    dispatch_records: list[PHDADispatchRecord]
+    water_values: list[PHDAWaterValueRecord]
+    optimisations: list[PHDAOptimisationRecord]
+    projects: list[PHDAProjectRecord]
+    summary: dict
+
+
+_phda_cache: dict = {}
+
+
+@app.get("/api/pumped-hydro-dispatch/dashboard")
+def get_pumped_hydro_dispatch_dashboard():
+    import random
+    if _phda_cache:
+        return _phda_cache
+
+    rng = random.Random(20240101)
+
+    # -----------------------------------------------------------------------
+    # 8 Station records
+    # -----------------------------------------------------------------------
+    stations = [
+        PHDAStationRecord(
+            station_id="TUMUT3",
+            station_name="Tumut 3",
+            owner="Snowy Hydro",
+            region="NSW",
+            turbine_capacity_mw=1500.0,
+            pump_capacity_mw=600.0,
+            upper_reservoir_gl=4798.0,
+            lower_reservoir_gl=1130.0,
+            head_m=150.0,
+            efficiency_turbine_pct=90.5,
+            efficiency_pump_pct=88.0,
+            round_trip_efficiency_pct=79.6,
+            min_level_gl=100.0,
+            max_level_gl=4798.0,
+            response_time_seconds=90,
+            black_start_capable=True,
+            fcas_capable=True,
+            commissioning_year=1973,
+            status="Operating",
+        ),
+        PHDAStationRecord(
+            station_id="WIVENHOE",
+            station_name="Wivenhoe Power Station",
+            owner="CS Energy",
+            region="QLD",
+            turbine_capacity_mw=500.0,
+            pump_capacity_mw=420.0,
+            upper_reservoir_gl=1165.0,
+            lower_reservoir_gl=310.0,
+            head_m=115.0,
+            efficiency_turbine_pct=89.0,
+            efficiency_pump_pct=86.5,
+            round_trip_efficiency_pct=77.0,
+            min_level_gl=30.0,
+            max_level_gl=1165.0,
+            response_time_seconds=120,
+            black_start_capable=True,
+            fcas_capable=True,
+            commissioning_year=1984,
+            status="Operating",
+        ),
+        PHDAStationRecord(
+            station_id="SHOALHAVEN",
+            station_name="Shoalhaven",
+            owner="EnergyAustralia",
+            region="NSW",
+            turbine_capacity_mw=240.0,
+            pump_capacity_mw=200.0,
+            upper_reservoir_gl=1450.0,
+            lower_reservoir_gl=350.0,
+            head_m=480.0,
+            efficiency_turbine_pct=91.0,
+            efficiency_pump_pct=89.0,
+            round_trip_efficiency_pct=81.0,
+            min_level_gl=40.0,
+            max_level_gl=1450.0,
+            response_time_seconds=60,
+            black_start_capable=False,
+            fcas_capable=True,
+            commissioning_year=1977,
+            status="Operating",
+        ),
+        PHDAStationRecord(
+            station_id="HUME",
+            station_name="Hume Power Station",
+            owner="Snowy Hydro",
+            region="NSW",
+            turbine_capacity_mw=58.0,
+            pump_capacity_mw=0.0,
+            upper_reservoir_gl=3038.0,
+            lower_reservoir_gl=0.0,
+            head_m=54.0,
+            efficiency_turbine_pct=87.0,
+            efficiency_pump_pct=0.0,
+            round_trip_efficiency_pct=0.0,
+            min_level_gl=50.0,
+            max_level_gl=3038.0,
+            response_time_seconds=180,
+            black_start_capable=False,
+            fcas_capable=False,
+            commissioning_year=1927,
+            status="Operating",
+        ),
+        PHDAStationRecord(
+            station_id="BLOWERING",
+            station_name="Blowering Power Station",
+            owner="Snowy Hydro",
+            region="NSW",
+            turbine_capacity_mw=80.0,
+            pump_capacity_mw=0.0,
+            upper_reservoir_gl=1631.0,
+            lower_reservoir_gl=0.0,
+            head_m=168.0,
+            efficiency_turbine_pct=88.5,
+            efficiency_pump_pct=0.0,
+            round_trip_efficiency_pct=0.0,
+            min_level_gl=80.0,
+            max_level_gl=1631.0,
+            response_time_seconds=120,
+            black_start_capable=False,
+            fcas_capable=False,
+            commissioning_year=1968,
+            status="Operating",
+        ),
+        PHDAStationRecord(
+            station_id="SNOWY20-MAIN",
+            station_name="Snowy 2.0 Main Station",
+            owner="Snowy Hydro",
+            region="NSW",
+            turbine_capacity_mw=2000.0,
+            pump_capacity_mw=2000.0,
+            upper_reservoir_gl=2984.0,
+            lower_reservoir_gl=3063.0,
+            head_m=700.0,
+            efficiency_turbine_pct=92.0,
+            efficiency_pump_pct=90.5,
+            round_trip_efficiency_pct=83.3,
+            min_level_gl=200.0,
+            max_level_gl=3063.0,
+            response_time_seconds=45,
+            black_start_capable=True,
+            fcas_capable=True,
+            commissioning_year=2029,
+            status="Construction",
+        ),
+        PHDAStationRecord(
+            station_id="BORUMBA",
+            station_name="Borumba Pumped Hydro",
+            owner="Queensland Government",
+            region="QLD",
+            turbine_capacity_mw=2000.0,
+            pump_capacity_mw=2000.0,
+            upper_reservoir_gl=1600.0,
+            lower_reservoir_gl=250.0,
+            head_m=650.0,
+            efficiency_turbine_pct=91.5,
+            efficiency_pump_pct=89.5,
+            round_trip_efficiency_pct=82.0,
+            min_level_gl=25.0,
+            max_level_gl=1600.0,
+            response_time_seconds=50,
+            black_start_capable=True,
+            fcas_capable=True,
+            commissioning_year=2032,
+            status="Planned",
+        ),
+        PHDAStationRecord(
+            station_id="PIONEER-BURDEKIN",
+            station_name="Pioneer-Burdekin PHES",
+            owner="Queensland Government",
+            region="QLD",
+            turbine_capacity_mw=5000.0,
+            pump_capacity_mw=5000.0,
+            upper_reservoir_gl=5200.0,
+            lower_reservoir_gl=1800.0,
+            head_m=900.0,
+            efficiency_turbine_pct=91.0,
+            efficiency_pump_pct=89.0,
+            round_trip_efficiency_pct=81.0,
+            min_level_gl=180.0,
+            max_level_gl=5200.0,
+            response_time_seconds=40,
+            black_start_capable=True,
+            fcas_capable=True,
+            commissioning_year=2035,
+            status="Planned",
+        ),
+    ]
+
+    # -----------------------------------------------------------------------
+    # 40 Storage level records (5 operating stations x 8 time periods)
+    # -----------------------------------------------------------------------
+    operating_station_ids = ["TUMUT3", "WIVENHOE", "SHOALHAVEN", "HUME", "BLOWERING"]
+    max_levels = {
+        "TUMUT3": 4798.0,
+        "WIVENHOE": 1165.0,
+        "SHOALHAVEN": 1450.0,
+        "HUME": 3038.0,
+        "BLOWERING": 1631.0,
+    }
+    periods = [
+        ("2024-01-15", 12),
+        ("2024-03-15", 12),
+        ("2024-05-15", 12),
+        ("2024-07-15", 12),
+        ("2024-08-15", 6),
+        ("2024-09-15", 12),
+        ("2024-11-15", 12),
+        ("2024-12-31", 18),
+    ]
+
+    storage_levels = []
+    for p_idx, (date, hour) in enumerate(periods):
+        for s_idx, sid in enumerate(operating_station_ids):
+            max_gl = max_levels[sid]
+            season_factor = 0.55 + 0.35 * abs((p_idx - 3.5) / 3.5)
+            noise = rng.uniform(-0.08, 0.08)
+            upper_pct = round(min(max(season_factor + noise, 0.1), 0.98) * 100, 1)
+            upper_gl = round(max_gl * upper_pct / 100, 1)
+            lower_pct = round(rng.uniform(20.0, 60.0), 1)
+            lower_gl_val = round(max_gl * 0.25 * lower_pct / 100, 1)
+            net_storage = round(upper_gl - lower_gl_val, 1)
+            energy_stored = round(net_storage * rng.uniform(0.4, 0.8), 1)
+            storage_levels.append(PHDAStorageLevelRecord(
+                level_id=f"LVL-{p_idx:02d}-{sid}",
+                station_id=sid,
+                date=date,
+                hour=hour,
+                upper_level_gl=upper_gl,
+                upper_level_pct=upper_pct,
+                lower_level_gl=lower_gl_val,
+                lower_level_pct=lower_pct,
+                net_storage_gl=net_storage,
+                inflow_gl=round(rng.uniform(0.5, 15.0), 2),
+                evaporation_gl=round(rng.uniform(0.05, 0.8), 3),
+                spill_gl=round(rng.uniform(0.0, 2.0), 2),
+                energy_stored_mwh=energy_stored,
+                weeks_storage_at_avg_dispatch=round(energy_stored / max(rng.uniform(50, 300), 1) * 7, 1),
+            ))
+
+    # -----------------------------------------------------------------------
+    # 48 Dispatch records (3 stations x 16 events)
+    # -----------------------------------------------------------------------
+    dispatch_station_ids = ["TUMUT3", "WIVENHOE", "SHOALHAVEN"]
+    dispatch_modes = ["Generating", "Pumping", "Standby", "FCAS"]
+    mode_weights = [0.45, 0.30, 0.10, 0.15]
+    dispatch_records = []
+    for d_idx in range(48):
+        sid = dispatch_station_ids[d_idx % 3]
+        date = f"2024-{(d_idx // 6 + 1):02d}-{(d_idx % 28 + 1):02d}"
+        hour = rng.randint(0, 23)
+        mode = rng.choices(dispatch_modes, weights=mode_weights)[0]
+        if mode == "Generating":
+            power = round(rng.uniform(200, 1400), 1)
+            spot = round(rng.uniform(80, 450), 2)
+            rev = round(power * spot * 0.5 / 1000, 2)
+        elif mode == "Pumping":
+            power = round(rng.uniform(-500, -50), 1)
+            spot = round(rng.uniform(20, 80), 2)
+            rev = round(power * spot * 0.5 / 1000, 2)
+        elif mode == "FCAS":
+            power = round(rng.uniform(50, 300), 1)
+            spot = round(rng.uniform(10, 50), 2)
+            rev = round(rng.uniform(5000, 80000), 2)
+        else:
+            power = 0.0
+            spot = round(rng.uniform(50, 200), 2)
+            rev = 0.0
+        energy = round(power * 0.5, 2)
+        fcas_price = round(rng.uniform(0, 500), 2) if mode == "FCAS" else 0.0
+        wv = round(rng.uniform(50, 250), 2)
+        opp_cost = round(abs(energy) * wv * rng.uniform(0.05, 0.25), 2)
+        storage_before = round(rng.uniform(100, 800), 1)
+        storage_after = round(storage_before + (power * 0.5 * rng.uniform(-0.002, 0.002)), 1)
+        dispatch_records.append(PHDADispatchRecord(
+            dispatch_id=f"DISP-{d_idx + 1:04d}",
+            station_id=sid,
+            date=date,
+            hour=hour,
+            mode=mode,
+            power_mw=power,
+            energy_mwh=energy,
+            spot_price_dolpermwh=spot,
+            fcas_price_dolpmw=fcas_price,
+            revenue_aud=rev,
+            water_value_dolpermwh=wv,
+            opportunity_cost_aud=opp_cost,
+            storage_before_gl=storage_before,
+            storage_after_gl=storage_after,
+        ))
+
+    # -----------------------------------------------------------------------
+    # 20 Water value records (4 stations x 5 scenarios/dates)
+    # -----------------------------------------------------------------------
+    wv_stations = ["TUMUT3", "WIVENHOE", "SHOALHAVEN", "SNOWY20-MAIN"]
+    scenarios = ["Wet", "Dry", "Median", "Current", "Dry"]
+    wv_dates = ["2024-03-01", "2024-06-01", "2024-09-01", "2024-12-01", "2025-03-01"]
+    water_values = []
+    for wv_idx in range(20):
+        sid = wv_stations[wv_idx % 4]
+        scenario = scenarios[wv_idx % 5]
+        date = wv_dates[wv_idx % 5]
+        storage_pct = round(rng.uniform(15, 95), 1)
+        if scenario == "Wet":
+            wv_val = round(rng.uniform(30, 90), 2)
+        elif scenario == "Dry":
+            wv_val = round(rng.uniform(150, 350), 2)
+        else:
+            wv_val = round(rng.uniform(80, 180), 2)
+        water_values.append(PHDAWaterValueRecord(
+            wv_id=f"WV-{wv_idx + 1:04d}",
+            station_id=sid,
+            date=date,
+            storage_level_pct=storage_pct,
+            water_value_dolpermwh=wv_val,
+            scenario=scenario,
+            marginal_value_dolpergl=round(wv_val * rng.uniform(0.8, 1.2), 2),
+            drought_risk_pct=round(rng.uniform(5, 60), 1) if scenario in ("Dry", "Current") else round(rng.uniform(1, 15), 1),
+            storage_horizon_weeks=round(rng.uniform(4, 52), 1),
+            inflow_forecast_gl=round(rng.uniform(5, 200), 1),
+            price_forecast_dolpermwh=round(rng.uniform(60, 180), 2),
+        ))
+
+    # -----------------------------------------------------------------------
+    # 15 Optimisation records (5 stations x 3 strategies)
+    # -----------------------------------------------------------------------
+    opt_stations = ["TUMUT3", "WIVENHOE", "SHOALHAVEN", "SNOWY20-MAIN", "BORUMBA"]
+    strategies = ["Myopic", "STOCHASTIC", "DP-Based"]
+    optimisations = []
+    for o_idx in range(15):
+        sid = opt_stations[o_idx % 5]
+        strategy = strategies[o_idx % 3]
+        if strategy == "STOCHASTIC":
+            rev = round(rng.uniform(60, 170), 2)
+            missed = round(rng.uniform(5, 15), 1)
+        elif strategy == "DP-Based":
+            rev = round(rng.uniform(55, 160), 2)
+            missed = round(rng.uniform(8, 20), 1)
+        else:
+            rev = round(rng.uniform(40, 130), 2)
+            missed = round(rng.uniform(15, 35), 1)
+        optimisations.append(PHDAOptimisationRecord(
+            opt_id=f"OPT-{o_idx + 1:04d}",
+            station_id=sid,
+            optimisation_period="FY2024",
+            strategy=strategy,
+            annual_revenue_m=rev,
+            avg_water_value_dolpermwh=round(rng.uniform(60, 200), 2),
+            cycles_pa=round(rng.uniform(80, 250), 1),
+            capacity_factor_pct=round(rng.uniform(15, 55), 1),
+            pump_utilisation_pct=round(rng.uniform(10, 50), 1),
+            missed_opportunity_pct=missed,
+            sharpe_ratio=round(rng.uniform(0.8, 3.5), 2),
+        ))
+
+    # -----------------------------------------------------------------------
+    # 12 Project records
+    # -----------------------------------------------------------------------
+    projects = [
+        PHDAProjectRecord(
+            project_id="PROJ-001",
+            project_name="Snowy 2.0",
+            region="NSW",
+            developer="Snowy Hydro",
+            upper_reservoir_location="Lake Tantangara",
+            lower_reservoir_location="Lake Eucumbene",
+            turbine_capacity_mw=2000.0,
+            pump_capacity_mw=2000.0,
+            storage_gwh=350.0,
+            head_m=700.0,
+            construction_cost_bn=12.0,
+            commissioning_year=2029,
+            stage="Construction",
+            environmental_approval=True,
+            water_licence_secured=True,
+            grid_connection_agreed=True,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-002",
+            project_name="Borumba Dam PHES",
+            region="QLD",
+            developer="Queensland Government",
+            upper_reservoir_location="Upper Borumba Reservoir",
+            lower_reservoir_location="Borumba Dam",
+            turbine_capacity_mw=2000.0,
+            pump_capacity_mw=2000.0,
+            storage_gwh=48.0,
+            head_m=650.0,
+            construction_cost_bn=14.4,
+            commissioning_year=2032,
+            stage="Approved",
+            environmental_approval=True,
+            water_licence_secured=True,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-003",
+            project_name="Pioneer-Burdekin PHES",
+            region="QLD",
+            developer="Queensland Government",
+            upper_reservoir_location="Pioneer Valley Upper Site",
+            lower_reservoir_location="Burdekin River",
+            turbine_capacity_mw=5000.0,
+            pump_capacity_mw=5000.0,
+            storage_gwh=600.0,
+            head_m=900.0,
+            construction_cost_bn=18.0,
+            commissioning_year=2035,
+            stage="FEED",
+            environmental_approval=False,
+            water_licence_secured=False,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-004",
+            project_name="Oven Mountain PHES",
+            region="NSW",
+            developer="AGL Energy",
+            upper_reservoir_location="Oven Mountain Upper",
+            lower_reservoir_location="Mann River",
+            turbine_capacity_mw=300.0,
+            pump_capacity_mw=300.0,
+            storage_gwh=7.2,
+            head_m=600.0,
+            construction_cost_bn=1.2,
+            commissioning_year=2028,
+            stage="Approved",
+            environmental_approval=True,
+            water_licence_secured=True,
+            grid_connection_agreed=True,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-005",
+            project_name="Lake Lyell PHES Expansion",
+            region="NSW",
+            developer="Origin Energy",
+            upper_reservoir_location="Lake Lyell",
+            lower_reservoir_location="Cox River",
+            turbine_capacity_mw=400.0,
+            pump_capacity_mw=400.0,
+            storage_gwh=9.6,
+            head_m=550.0,
+            construction_cost_bn=1.8,
+            commissioning_year=2030,
+            stage="Pre-FEED",
+            environmental_approval=False,
+            water_licence_secured=False,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-006",
+            project_name="Cethana PHES",
+            region="TAS",
+            developer="Hydro Tasmania",
+            upper_reservoir_location="Lake Cethana",
+            lower_reservoir_location="Forth River",
+            turbine_capacity_mw=750.0,
+            pump_capacity_mw=750.0,
+            storage_gwh=15.0,
+            head_m=400.0,
+            construction_cost_bn=3.2,
+            commissioning_year=2031,
+            stage="FEED",
+            environmental_approval=True,
+            water_licence_secured=True,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-007",
+            project_name="Blue Lake PHES",
+            region="NSW",
+            developer="Akaysha Energy",
+            upper_reservoir_location="Blue Lake Upper",
+            lower_reservoir_location="Geehi Reservoir",
+            turbine_capacity_mw=1000.0,
+            pump_capacity_mw=1000.0,
+            storage_gwh=24.0,
+            head_m=750.0,
+            construction_cost_bn=4.5,
+            commissioning_year=2033,
+            stage="Pre-FEED",
+            environmental_approval=False,
+            water_licence_secured=False,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-008",
+            project_name="Kidston PHES",
+            region="QLD",
+            developer="Genex Power",
+            upper_reservoir_location="K1 Pit (Upper)",
+            lower_reservoir_location="K2 Pit (Lower)",
+            turbine_capacity_mw=250.0,
+            pump_capacity_mw=250.0,
+            storage_gwh=2.0,
+            head_m=190.0,
+            construction_cost_bn=0.8,
+            commissioning_year=2026,
+            stage="Construction",
+            environmental_approval=True,
+            water_licence_secured=True,
+            grid_connection_agreed=True,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-009",
+            project_name="Hawks Nest PHES",
+            region="VIC",
+            developer="EnergyAustralia",
+            upper_reservoir_location="Omeo Valley Upper",
+            lower_reservoir_location="Mitta Mitta River",
+            turbine_capacity_mw=500.0,
+            pump_capacity_mw=500.0,
+            storage_gwh=12.0,
+            head_m=680.0,
+            construction_cost_bn=2.5,
+            commissioning_year=2031,
+            stage="Pre-FEED",
+            environmental_approval=False,
+            water_licence_secured=False,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-010",
+            project_name="Cultana PHES",
+            region="SA",
+            developer="Electranet",
+            upper_reservoir_location="Cultana Upper Reservoir",
+            lower_reservoir_location="Spencer Gulf",
+            turbine_capacity_mw=225.0,
+            pump_capacity_mw=225.0,
+            storage_gwh=1.7,
+            head_m=700.0,
+            construction_cost_bn=1.1,
+            commissioning_year=2030,
+            stage="FEED",
+            environmental_approval=False,
+            water_licence_secured=False,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-011",
+            project_name="Tantangara-Blowering Link",
+            region="NSW",
+            developer="Snowy Hydro",
+            upper_reservoir_location="Lake Tantangara",
+            lower_reservoir_location="Blowering Reservoir",
+            turbine_capacity_mw=600.0,
+            pump_capacity_mw=600.0,
+            storage_gwh=120.0,
+            head_m=800.0,
+            construction_cost_bn=5.5,
+            commissioning_year=2036,
+            stage="Pre-FEED",
+            environmental_approval=False,
+            water_licence_secured=False,
+            grid_connection_agreed=False,
+        ),
+        PHDAProjectRecord(
+            project_id="PROJ-012",
+            project_name="Limondale PHES",
+            region="NSW",
+            developer="Sunraysia Solar Farm",
+            upper_reservoir_location="Limondale Upper",
+            lower_reservoir_location="Murray River Channel",
+            turbine_capacity_mw=200.0,
+            pump_capacity_mw=200.0,
+            storage_gwh=2.4,
+            head_m=120.0,
+            construction_cost_bn=0.7,
+            commissioning_year=2028,
+            stage="Approved",
+            environmental_approval=True,
+            water_licence_secured=False,
+            grid_connection_agreed=True,
+        ),
+    ]
+
+    # -----------------------------------------------------------------------
+    # Summary
+    # -----------------------------------------------------------------------
+    total_gen_gw = round(sum(s.turbine_capacity_mw for s in stations) / 1000, 3)
+    total_storage_gwh = round(sum(p.storage_gwh for p in projects), 1)
+    operating_stations_list = [s for s in stations if s.status == "Operating"]
+    rte_values = [s.round_trip_efficiency_pct for s in operating_stations_list if s.round_trip_efficiency_pct > 0]
+    avg_rte = round(sum(rte_values) / len(rte_values), 1) if rte_values else 0.0
+    pipeline_gw = round(
+        sum(s.turbine_capacity_mw for s in stations if s.status in ("Construction", "Planned")) / 1000, 3
+    )
+    wv_all = [r.water_value_dolpermwh for r in water_values]
+    avg_wv = round(sum(wv_all) / len(wv_all), 2) if wv_all else 0.0
+
+    _phda_cache.update(PHDADashboard(
+        stations=stations,
+        storage_levels=storage_levels,
+        dispatch_records=dispatch_records,
+        water_values=water_values,
+        optimisations=optimisations,
+        projects=projects,
+        summary={
+            "total_generating_capacity_gw": total_gen_gw,
+            "total_storage_gwh": total_storage_gwh,
+            "avg_round_trip_efficiency_pct": avg_rte,
+            "projects_pipeline_gw": pipeline_gw,
+            "avg_water_value_dolpermwh": avg_wv,
+        },
+    ).model_dump())
+    return _phda_cache
+
+
+# ===========================================================================
+# Sprint 104c — Electricity Retail Market Design Analytics (ERMD)
+# ===========================================================================
+
+class ERMDDefaultOfferRecord(BaseModel):
+    offer_id: str
+    state: str
+    network_area: str
+    distributor: str
+    determination_year: int
+    dmo_rate_dollar_pa: float
+    vdo_rate_dollar_pa: float
+    standing_offer_rate_dollar_pa: float
+    market_offer_best_dollar_pa: float
+    regulated_offer_savings_vs_standing_pct: float
+    cost_components_breakdown: str
+    retailer_count_active: int
+    switching_rate_pct: float
+
+
+class ERMDPriceCapRecord(BaseModel):
+    cap_id: str
+    jurisdiction: str
+    year: int
+    price_cap_type: str
+    residential_flat_c_per_kwh: float
+    residential_peak_c_per_kwh: float
+    residential_offpeak_c_per_kwh: float
+    smc_c_per_day: float
+    cap_vs_market_median_pct: float
+    compliance_rate_pct: float
+    consumer_benefit_m: float
+    regulator: str
+    review_date: str
+
+
+class ERMDMarketOfferRecord(BaseModel):
+    offer_id: str
+    retailer: str
+    state: str
+    tariff_type: str
+    product_name: str
+    conditional_discount_pct: float
+    unconditional_discount_pct: float
+    usage_rate_c_per_kwh: float
+    supply_charge_c_per_day: float
+    annual_bill_typical_aud: float
+    solarfeed_in_tariff_c: float
+    conditional_on: str
+    green_pct: float
+    contract_term_months: int
+
+
+class ERMDTransitionRecord(BaseModel):
+    transition_id: str
+    reform_name: str
+    reform_type: str
+    jurisdiction: str
+    implementation_date: str
+    outcome: str
+    consumer_impact_dollar_pa: float
+    switching_increase_pct: float
+    price_change_pct: float
+    regulator_assessment: str
+    current_phase: str
+
+
+class ERMDConsumerSegmentRecord(BaseModel):
+    segment_id: str
+    segment_name: str
+    state: str
+    customer_count_k: float
+    on_standing_offer_pct: float
+    on_default_offer_pct: float
+    on_market_offer_pct: float
+    on_concession_pct: float
+    avg_annual_bill_aud: float
+    overpaying_vs_best_aud: float
+    savings_potential_aud: float
+    digital_engagement_pct: float
+    switching_in_12m_pct: float
+
+
+class ERMDComplianceRecord(BaseModel):
+    compliance_id: str
+    retailer: str
+    state: str
+    year: int
+    quarter: str
+    complaints_per_1000_customers: float
+    billing_accuracy_pct: float
+    standing_offer_compliance_pct: float
+    dmo_compliance_pct: float
+    marketing_complaints: int
+    hardship_breaches: int
+    financial_penalty_m: float
+    regulatory_action: str
+
+
+class ERMDDashboard(BaseModel):
+    default_offers: list[ERMDDefaultOfferRecord]
+    price_caps: list[ERMDPriceCapRecord]
+    market_offers: list[ERMDMarketOfferRecord]
+    transitions: list[ERMDTransitionRecord]
+    consumer_segments: list[ERMDConsumerSegmentRecord]
+    compliance: list[ERMDComplianceRecord]
+    summary: dict
+
+
+_ermd_cache: dict = {}
+
+
+@app.get("/api/retail-market-design/dashboard")
+def get_retail_market_design_dashboard():
+    import random
+    if _ermd_cache:
+        return _ermd_cache
+
+    rng = random.Random(20240301)
+
+    # ------------------------------------------------------------------
+    # 20 Default Offer Records — 5 states × 4 network areas
+    # ------------------------------------------------------------------
+    states_networks = [
+        ("NSW", "Ausgrid", "Ausgrid Distribution", "Endeavour Energy", "Ausgrid Distribution"),
+        ("NSW", "Endeavour Energy", "Endeavour Energy", "Ausgrid", "Endeavour Energy"),
+        ("NSW", "Essential Energy", "Essential Energy", "Essential Energy", "Essential Energy"),
+        ("VIC", "AusNet Services", "AusNet Services", "AusNet Services", "AusNet Services"),
+        ("VIC", "CitiPower", "CitiPower", "CitiPower", "CitiPower"),
+        ("VIC", "Jemena", "Jemena", "Jemena", "Jemena"),
+        ("VIC", "Powercor", "Powercor", "Powercor", "Powercor"),
+        ("QLD", "Energex", "Energex (now Ergon/Energex)", "Energex", "Energex"),
+        ("QLD", "Ergon Energy", "Ergon Energy", "Ergon Energy", "Ergon Energy"),
+        ("SA", "SA Power Networks", "SA Power Networks", "SA Power Networks", "SA Power Networks"),
+        ("SA", "ElectraNet", "ElectraNet", "SA Power Networks", "ElectraNet"),
+        ("ACT", "Evoenergy", "Evoenergy", "Evoenergy", "Evoenergy"),
+        ("NSW", "Transgrid", "Transgrid", "Ausgrid", "Transgrid"),
+        ("VIC", "United Energy", "United Energy", "United Energy", "United Energy"),
+        ("QLD", "Powerlink", "Powerlink", "Energex", "Powerlink"),
+        ("SA", "ETSA Utilities", "ElectraNet", "SA Power Networks", "ETSA Utilities"),
+        ("ACT", "ActewAGL", "Evoenergy", "Evoenergy", "ActewAGL"),
+        ("NSW", "Delta Electricity", "Essential Energy", "Ausgrid", "Delta"),
+        ("VIC", "SP AusNet", "AusNet Services", "AusNet Services", "SP AusNet"),
+        ("QLD", "Energex North", "Energex", "Ergon Energy", "Energex North"),
+    ]
+
+    default_offers = []
+    for i, (state, network, dist, _, _) in enumerate(states_networks):
+        dmo = round(rng.uniform(1200, 2000), 2)
+        vdo = round(dmo * rng.uniform(0.88, 1.05), 2) if state == "VIC" else 0.0
+        standing = round(dmo * rng.uniform(1.05, 1.25), 2)
+        best_market = round(dmo * rng.uniform(0.70, 0.92), 2)
+        savings_pct = round((standing - best_market) / standing * 100, 1)
+        wholesale_pct = round(rng.uniform(28, 38), 1)
+        network_pct = round(rng.uniform(35, 48), 1)
+        env_pct = round(rng.uniform(5, 12), 1)
+        retail_pct = round(100 - wholesale_pct - network_pct - env_pct, 1)
+        breakdown = (
+            f'{{"wholesale":{wholesale_pct},"network":{network_pct},'
+            f'"environmental":{env_pct},"retail":{retail_pct}}}'
+        )
+        default_offers.append(ERMDDefaultOfferRecord(
+            offer_id=f"DMO-{i+1:03d}",
+            state=state,
+            network_area=network,
+            distributor=dist,
+            determination_year=rng.choice([2022, 2023, 2024]),
+            dmo_rate_dollar_pa=dmo,
+            vdo_rate_dollar_pa=vdo,
+            standing_offer_rate_dollar_pa=standing,
+            market_offer_best_dollar_pa=best_market,
+            regulated_offer_savings_vs_standing_pct=savings_pct,
+            cost_components_breakdown=breakdown,
+            retailer_count_active=rng.randint(8, 22),
+            switching_rate_pct=round(rng.uniform(12, 28), 1),
+        ))
+
+    # ------------------------------------------------------------------
+    # 20 Price Cap Records — 4 jurisdictions × 5 years
+    # ------------------------------------------------------------------
+    jurisdictions = ["NSW", "VIC", "QLD", "SA"]
+    cap_types = {
+        "NSW": "Default Market Offer",
+        "VIC": "Victorian Default Offer",
+        "QLD": "Price Cap",
+        "SA": "Default Market Offer",
+    }
+    regulators = {
+        "NSW": "AER",
+        "VIC": "ESC",
+        "QLD": "QCA",
+        "SA": "AER",
+    }
+
+    price_caps = []
+    cap_idx = 1
+    for jur in jurisdictions:
+        for yr in range(2020, 2025):
+            flat_base = {"NSW": 26.5, "VIC": 24.8, "QLD": 28.2, "SA": 30.1}[jur]
+            flat = round(flat_base + (yr - 2020) * rng.uniform(0.4, 1.2) + rng.uniform(-0.5, 0.5), 2)
+            peak = round(flat * rng.uniform(1.25, 1.55), 2)
+            offpeak = round(flat * rng.uniform(0.60, 0.80), 2)
+            smc = round(rng.uniform(80, 130), 2)
+            price_caps.append(ERMDPriceCapRecord(
+                cap_id=f"CAP-{cap_idx:03d}",
+                jurisdiction=jur,
+                year=yr,
+                price_cap_type=cap_types[jur],
+                residential_flat_c_per_kwh=flat,
+                residential_peak_c_per_kwh=peak,
+                residential_offpeak_c_per_kwh=offpeak,
+                smc_c_per_day=smc,
+                cap_vs_market_median_pct=round(rng.uniform(-8, 12), 1),
+                compliance_rate_pct=round(rng.uniform(91, 99.5), 1),
+                consumer_benefit_m=round(rng.uniform(50, 420), 1),
+                regulator=regulators[jur],
+                review_date=f"{yr}-06-01",
+            ))
+            cap_idx += 1
+
+    # ------------------------------------------------------------------
+    # 30 Market Offer Records — 6 retailers × 5 states
+    # ------------------------------------------------------------------
+    retailers = ["AGL", "Origin Energy", "EnergyAustralia", "Red Energy", "Alinta Energy", "Powershop"]
+    tariff_types = ["Flat", "TOU", "Demand", "Seasonal"]
+    conditionals = ["Direct Debit", "Online Account", "Paperless", "None"]
+    offer_states = ["NSW", "VIC", "QLD", "SA", "ACT"]
+
+    market_offers = []
+    mo_idx = 1
+    for ret in retailers:
+        for st in offer_states:
+            ttype = rng.choice(tariff_types)
+            cond_disc = round(rng.uniform(5, 20), 1)
+            uncond_disc = round(rng.uniform(0, 12), 1)
+            usage = round(rng.uniform(22, 34), 2)
+            supply = round(rng.uniform(85, 130), 2)
+            annual = round(rng.uniform(1100, 1900), 0)
+            fit = round(rng.uniform(3, 12), 1)
+            green = round(rng.uniform(0, 100), 1)
+            term = rng.choice([0, 12, 24])
+            market_offers.append(ERMDMarketOfferRecord(
+                offer_id=f"MO-{mo_idx:03d}",
+                retailer=ret,
+                state=st,
+                tariff_type=ttype,
+                product_name=f"{ret} {ttype} Saver {st}",
+                conditional_discount_pct=cond_disc,
+                unconditional_discount_pct=uncond_disc,
+                usage_rate_c_per_kwh=usage,
+                supply_charge_c_per_day=supply,
+                annual_bill_typical_aud=annual,
+                solarfeed_in_tariff_c=fit,
+                conditional_on=rng.choice(conditionals),
+                green_pct=green,
+                contract_term_months=term,
+            ))
+            mo_idx += 1
+
+    # ------------------------------------------------------------------
+    # 15 Transition Records — key retail market reforms 2018-2024
+    # ------------------------------------------------------------------
+    reforms = [
+        ("Default Market Offer Introduction", "Pricing", "NSW", "2019-07-01", "Positive", -180.0, 4.2, -8.5, "AER", "Active"),
+        ("Victorian Default Offer", "Pricing", "VIC", "2019-07-01", "Positive", -210.0, 5.1, -9.8, "ESC", "Active"),
+        ("Reference Price Disclosure", "Consumer Protection", "National", "2019-07-01", "Positive", -95.0, 2.8, -4.2, "AER", "Active"),
+        ("Embedded Networks Reform", "Structural", "National", "2020-01-01", "Mixed", -45.0, 1.2, -2.1, "AER", "Active"),
+        ("Mandatory Concession Notification", "Consumer Protection", "VIC", "2020-07-01", "Positive", -120.0, 0.5, 0.0, "ESC", "Active"),
+        ("Energy Made Easy Upgrade", "Digital", "National", "2021-01-01", "Positive", -60.0, 3.5, -1.5, "AER", "Active"),
+        ("Retailer of Last Resort Reform", "Structural", "National", "2021-07-01", "Neutral", 0.0, 0.0, 0.5, "AER", "Active"),
+        ("Solar Feed-in Tariff Review", "Pricing", "VIC", "2022-01-01", "Mixed", 35.0, -0.8, 2.2, "ESC", "Review"),
+        ("Hardship Program Enhancement", "Consumer Protection", "National", "2022-07-01", "Positive", -80.0, 0.3, 0.0, "AER", "Active"),
+        ("DMO Year 5 Determination", "Pricing", "NSW", "2023-07-01", "Positive", -140.0, 2.9, -6.1, "AER", "Active"),
+        ("Flexible Exports Trial", "Digital", "SA", "2023-01-01", "Positive", -55.0, 1.8, -2.8, "AER", "Active"),
+        ("Standing Offer Cap Extension", "Pricing", "QLD", "2023-07-01", "Positive", -165.0, 3.3, -7.4, "QCA", "Active"),
+        ("EV Smart Charging Tariffs", "Pricing", "National", "2024-01-01", "Positive", -90.0, 2.1, -3.9, "AER", "Active"),
+        ("Consumer Data Right Energy", "Digital", "National", "2024-07-01", "Mixed", -30.0, 5.8, -1.2, "AER", "Legislated"),
+        ("Demand Management Incentive Scheme", "Structural", "National", "2024-07-01", "Positive", -75.0, 1.5, -2.5, "AER", "Active"),
+    ]
+
+    transitions = []
+    for i, (name, rtype, jur, impl, outcome, impact, sw_inc, price_chg, reg, phase) in enumerate(reforms):
+        transitions.append(ERMDTransitionRecord(
+            transition_id=f"TR-{i+1:03d}",
+            reform_name=name,
+            reform_type=rtype,
+            jurisdiction=jur,
+            implementation_date=impl,
+            outcome=outcome,
+            consumer_impact_dollar_pa=impact,
+            switching_increase_pct=sw_inc,
+            price_change_pct=price_chg,
+            regulator_assessment=reg,
+            current_phase=phase,
+        ))
+
+    # ------------------------------------------------------------------
+    # 20 Consumer Segment Records — 4 states × 5 segments
+    # ------------------------------------------------------------------
+    segments = [
+        "Vulnerable Households",
+        "High-Income Households",
+        "Small Business",
+        "Renters",
+        "Solar Owners",
+    ]
+    seg_states = ["NSW", "VIC", "QLD", "SA"]
+    consumer_segments = []
+    cs_idx = 1
+    for st in seg_states:
+        for seg in segments:
+            cust_k = round(rng.uniform(50, 800), 1)
+            standing_pct = round(rng.uniform(8, 30), 1)
+            default_pct = round(rng.uniform(5, 20), 1)
+            market_pct = round(100 - standing_pct - default_pct, 1)
+            concession_pct = round(rng.uniform(5, 35) if "Vulnerable" in seg else rng.uniform(0, 8), 1)
+            avg_bill = round(rng.uniform(1200, 2200), 0)
+            overpaying = round(rng.uniform(100, 600), 0)
+            savings = round(overpaying * rng.uniform(0.6, 0.9), 0)
+            digital = round(rng.uniform(20, 85), 1)
+            switching_12m = round(rng.uniform(5, 25), 1)
+            consumer_segments.append(ERMDConsumerSegmentRecord(
+                segment_id=f"SEG-{cs_idx:03d}",
+                segment_name=seg,
+                state=st,
+                customer_count_k=cust_k,
+                on_standing_offer_pct=standing_pct,
+                on_default_offer_pct=default_pct,
+                on_market_offer_pct=market_pct,
+                on_concession_pct=concession_pct,
+                avg_annual_bill_aud=avg_bill,
+                overpaying_vs_best_aud=overpaying,
+                savings_potential_aud=savings,
+                digital_engagement_pct=digital,
+                switching_in_12m_pct=switching_12m,
+            ))
+            cs_idx += 1
+
+    # ------------------------------------------------------------------
+    # 24 Compliance Records — 4 retailers × 6 quarters 2023-2024
+    # ------------------------------------------------------------------
+    comp_retailers = ["AGL", "Origin Energy", "EnergyAustralia", "Red Energy"]
+    quarters = ["2023-Q1", "2023-Q2", "2023-Q3", "2023-Q4", "2024-Q1", "2024-Q2"]
+    reg_actions = ["None", "Warning", "Infringement", "Court Action"]
+    compliance_records = []
+    cr_idx = 1
+    for ret in comp_retailers:
+        for qtr in quarters:
+            year = int(qtr[:4])
+            complaints = round(rng.uniform(0.8, 6.5), 2)
+            billing_acc = round(rng.uniform(95.0, 99.8), 1)
+            so_comp = round(rng.uniform(92, 100), 1)
+            dmo_comp = round(rng.uniform(94, 100), 1)
+            mkt_comp = rng.randint(0, 45)
+            hardship = rng.randint(0, 12)
+            penalty = round(rng.uniform(0, 2.5), 2) if hardship > 5 or mkt_comp > 30 else 0.0
+            action = rng.choice(reg_actions[:2]) if penalty == 0 else rng.choice(reg_actions[1:3])
+            compliance_records.append(ERMDComplianceRecord(
+                compliance_id=f"COMP-{cr_idx:03d}",
+                retailer=ret,
+                state="National",
+                year=year,
+                quarter=qtr,
+                complaints_per_1000_customers=complaints,
+                billing_accuracy_pct=billing_acc,
+                standing_offer_compliance_pct=so_comp,
+                dmo_compliance_pct=dmo_comp,
+                marketing_complaints=mkt_comp,
+                hardship_breaches=hardship,
+                financial_penalty_m=penalty,
+                regulatory_action=action,
+            ))
+            cr_idx += 1
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    all_dmo = [r.dmo_rate_dollar_pa for r in default_offers if r.dmo_rate_dollar_pa > 0]
+    national_avg_dmo = round(sum(all_dmo) / len(all_dmo), 2) if all_dmo else 0.0
+    all_market = [r.annual_bill_typical_aud for r in market_offers]
+    avg_market = round(sum(all_market) / len(all_market), 2) if all_market else 0.0
+    best_market_bill = round(min(all_market), 2) if all_market else 0.0
+    savings_switching = round(national_avg_dmo - best_market_bill, 2)
+    all_standing_pct = [r.on_standing_offer_pct for r in consumer_segments]
+    avg_standing_pct = round(sum(all_standing_pct) / len(all_standing_pct), 1) if all_standing_pct else 0.0
+    all_overpay = [r.overpaying_vs_best_aud * r.customer_count_k for r in consumer_segments]
+    total_overpay_m = round(sum(all_overpay) / 1000, 1)
+
+    _ermd_cache.update(ERMDDashboard(
+        default_offers=default_offers,
+        price_caps=price_caps,
+        market_offers=market_offers,
+        transitions=transitions,
+        consumer_segments=consumer_segments,
+        compliance=compliance_records,
+        summary={
+            "national_avg_dmo_aud": national_avg_dmo,
+            "avg_market_offer_aud": avg_market,
+            "savings_switching_to_best_aud": savings_switching,
+            "customers_on_standing_offer_pct": avg_standing_pct,
+            "total_consumer_overpayment_m": total_overpay_m,
+        },
+    ).model_dump())
+    return _ermd_cache

@@ -18092,3 +18092,349 @@ export interface DETADashboard {
 
 export const getDigitalEnergyTwinDashboard = (): Promise<DETADashboard> =>
   get<DETADashboard>('/api/digital-energy-twin/dashboard')
+
+export interface ENPARelayRecord {
+  relay_id: string
+  relay_name: string
+  relay_type: string
+  location: string
+  region: string
+  voltage_level_kv: number
+  manufacturer: string
+  model: string
+  commissioning_year: number
+  last_tested_date: string
+  test_result: string
+  operating_time_ms: number
+  setting_zone: string
+  coordinated_with: string
+  condition: string
+  replacement_due_year: number
+}
+
+export interface ENPAFaultRecord {
+  fault_id: string
+  fault_date: string
+  fault_location: string
+  fault_type: string
+  voltage_level_kv: number
+  region: string
+  fault_current_ka: number
+  fault_impedance_ohm: number
+  clearing_time_ms: number
+  primary_protection_operated: boolean
+  backup_protection_operated: boolean
+  correct_operation: boolean
+  breaker_failure: boolean
+  affected_load_mw: number
+  outage_duration_hours: number
+  restoration_method: string
+}
+
+export interface ENPACoordinationRecord {
+  coord_id: string
+  protection_zone: string
+  upstream_device: string
+  downstream_device: string
+  selectivity_margin_ms: number
+  grading_margin_ms: number
+  coordination_status: string
+  fault_level_ka: number
+  setting_current_a: number
+  time_multiplier: number
+  last_review_date: string
+  ibr_impact_assessed: boolean
+  arc_flash_incident_energy_kj_m2: number
+}
+
+export interface ENPAPerformanceRecord {
+  perf_id: string
+  region: string
+  year: number
+  quarter: number
+  num_correct_operations: number
+  num_incorrect_operations: number
+  num_failures_to_trip: number
+  num_spurious_trips: number
+  correct_operation_pct: number
+  avg_clearing_time_ms: number
+  p95_clearing_time_ms: number
+  n1_compliance_pct: number
+  loss_of_supply_events: number
+  reliability_index_saidi: number
+}
+
+export interface ENPASettingRecord {
+  setting_id: string
+  relay_id: string
+  setting_parameter: string
+  current_value: number
+  unit: string
+  design_basis: string
+  last_updated_date: string
+  updated_by: string
+  reason_for_change: string
+  simulation_validated: boolean
+  ibr_penetration_at_update_pct: number
+  pending_review: boolean
+}
+
+export interface ENPAMaintenanceRecord {
+  maint_id: string
+  relay_id: string
+  maintenance_type: string
+  scheduled_date: string
+  completed_date: string
+  technician: string
+  result: string
+  findings: string
+  corrective_action: string
+  downtime_hours: number
+  cost_aud: number
+  next_due_date: string
+}
+
+export interface ENPADashboard {
+  relays: ENPARelayRecord[]
+  faults: ENPAFaultRecord[]
+  coordination: ENPACoordinationRecord[]
+  performance: ENPAPerformanceRecord[]
+  settings: ENPASettingRecord[]
+  maintenance: ENPAMaintenanceRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getNetworkProtectionSystemDashboard = (): Promise<ENPADashboard> =>
+  get<ENPADashboard>('/api/network-protection-system/dashboard')
+
+// ---------------------------------------------------------------------------
+// Pumped Hydro Dispatch Optimisation Analytics (PHDA) — Sprint 104b
+// ---------------------------------------------------------------------------
+
+export interface PHDAStationRecord {
+  station_id: string
+  station_name: string
+  owner: string
+  region: string
+  turbine_capacity_mw: number
+  pump_capacity_mw: number
+  upper_reservoir_gl: number
+  lower_reservoir_gl: number
+  head_m: number
+  efficiency_turbine_pct: number
+  efficiency_pump_pct: number
+  round_trip_efficiency_pct: number
+  min_level_gl: number
+  max_level_gl: number
+  response_time_seconds: number
+  black_start_capable: boolean
+  fcas_capable: boolean
+  commissioning_year: number
+  status: string
+}
+
+export interface PHDAStorageLevelRecord {
+  level_id: string
+  station_id: string
+  date: string
+  hour: number
+  upper_level_gl: number
+  upper_level_pct: number
+  lower_level_gl: number
+  lower_level_pct: number
+  net_storage_gl: number
+  inflow_gl: number
+  evaporation_gl: number
+  spill_gl: number
+  energy_stored_mwh: number
+  weeks_storage_at_avg_dispatch: number
+}
+
+export interface PHDADispatchRecord {
+  dispatch_id: string
+  station_id: string
+  date: string
+  hour: number
+  mode: string
+  power_mw: number
+  energy_mwh: number
+  spot_price_dolpermwh: number
+  fcas_price_dolpmw: number
+  revenue_aud: number
+  water_value_dolpermwh: number
+  opportunity_cost_aud: number
+  storage_before_gl: number
+  storage_after_gl: number
+}
+
+export interface PHDAWaterValueRecord {
+  wv_id: string
+  station_id: string
+  date: string
+  storage_level_pct: number
+  water_value_dolpermwh: number
+  scenario: string
+  marginal_value_dolpergl: number
+  drought_risk_pct: number
+  storage_horizon_weeks: number
+  inflow_forecast_gl: number
+  price_forecast_dolpermwh: number
+}
+
+export interface PHDAOptimisationRecord {
+  opt_id: string
+  station_id: string
+  optimisation_period: string
+  strategy: string
+  annual_revenue_m: number
+  avg_water_value_dolpermwh: number
+  cycles_pa: number
+  capacity_factor_pct: number
+  pump_utilisation_pct: number
+  missed_opportunity_pct: number
+  sharpe_ratio: number
+}
+
+export interface PHDAProjectRecord {
+  project_id: string
+  project_name: string
+  region: string
+  developer: string
+  upper_reservoir_location: string
+  lower_reservoir_location: string
+  turbine_capacity_mw: number
+  pump_capacity_mw: number
+  storage_gwh: number
+  head_m: number
+  construction_cost_bn: number
+  commissioning_year: number
+  stage: string
+  environmental_approval: boolean
+  water_licence_secured: boolean
+  grid_connection_agreed: boolean
+}
+
+export interface PHDADashboard {
+  stations: PHDAStationRecord[]
+  storage_levels: PHDAStorageLevelRecord[]
+  dispatch_records: PHDADispatchRecord[]
+  water_values: PHDAWaterValueRecord[]
+  optimisations: PHDAOptimisationRecord[]
+  projects: PHDAProjectRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getPumpedHydroDispatchDashboard = (): Promise<PHDADashboard> =>
+  get<PHDADashboard>('/api/pumped-hydro-dispatch/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 104c — Electricity Retail Market Design Analytics (ERMD)
+// ---------------------------------------------------------------------------
+
+export interface ERMDDefaultOfferRecord {
+  offer_id: string
+  state: string
+  network_area: string
+  distributor: string
+  determination_year: number
+  dmo_rate_dollar_pa: number
+  vdo_rate_dollar_pa: number
+  standing_offer_rate_dollar_pa: number
+  market_offer_best_dollar_pa: number
+  regulated_offer_savings_vs_standing_pct: number
+  cost_components_breakdown: string
+  retailer_count_active: number
+  switching_rate_pct: number
+}
+
+export interface ERMDPriceCapRecord {
+  cap_id: string
+  jurisdiction: string
+  year: number
+  price_cap_type: string
+  residential_flat_c_per_kwh: number
+  residential_peak_c_per_kwh: number
+  residential_offpeak_c_per_kwh: number
+  smc_c_per_day: number
+  cap_vs_market_median_pct: number
+  compliance_rate_pct: number
+  consumer_benefit_m: number
+  regulator: string
+  review_date: string
+}
+
+export interface ERMDMarketOfferRecord {
+  offer_id: string
+  retailer: string
+  state: string
+  tariff_type: string
+  product_name: string
+  conditional_discount_pct: number
+  unconditional_discount_pct: number
+  usage_rate_c_per_kwh: number
+  supply_charge_c_per_day: number
+  annual_bill_typical_aud: number
+  solarfeed_in_tariff_c: number
+  conditional_on: string
+  green_pct: number
+  contract_term_months: number
+}
+
+export interface ERMDTransitionRecord {
+  transition_id: string
+  reform_name: string
+  reform_type: string
+  jurisdiction: string
+  implementation_date: string
+  outcome: string
+  consumer_impact_dollar_pa: number
+  switching_increase_pct: number
+  price_change_pct: number
+  regulator_assessment: string
+  current_phase: string
+}
+
+export interface ERMDConsumerSegmentRecord {
+  segment_id: string
+  segment_name: string
+  state: string
+  customer_count_k: number
+  on_standing_offer_pct: number
+  on_default_offer_pct: number
+  on_market_offer_pct: number
+  on_concession_pct: number
+  avg_annual_bill_aud: number
+  overpaying_vs_best_aud: number
+  savings_potential_aud: number
+  digital_engagement_pct: number
+  switching_in_12m_pct: number
+}
+
+export interface ERMDComplianceRecord {
+  compliance_id: string
+  retailer: string
+  state: string
+  year: number
+  quarter: string
+  complaints_per_1000_customers: number
+  billing_accuracy_pct: number
+  standing_offer_compliance_pct: number
+  dmo_compliance_pct: number
+  marketing_complaints: number
+  hardship_breaches: number
+  financial_penalty_m: number
+  regulatory_action: string
+}
+
+export interface ERMDDashboard {
+  default_offers: ERMDDefaultOfferRecord[]
+  price_caps: ERMDPriceCapRecord[]
+  market_offers: ERMDMarketOfferRecord[]
+  transitions: ERMDTransitionRecord[]
+  consumer_segments: ERMDConsumerSegmentRecord[]
+  compliance: ERMDComplianceRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getRetailMarketDesignDashboard = (): Promise<ERMDDashboard> =>
+  get<ERMDDashboard>('/api/retail-market-design/dashboard')

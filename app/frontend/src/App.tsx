@@ -79,6 +79,7 @@ import {
   Ship,
   CheckCircle,
   Monitor,
+  ShoppingBag,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -358,6 +359,9 @@ import WaveTidalOceanAnalytics from './pages/WaveTidalOceanAnalytics'
 import ReactivePowerVoltageAnalytics from './pages/ReactivePowerVoltageAnalytics'
 import BatteryRevenueStackAnalytics from './pages/BatteryRevenueStackAnalytics'
 import DigitalEnergyTwinAnalytics from './pages/DigitalEnergyTwinAnalytics'
+import NetworkProtectionSystemAnalytics from './pages/NetworkProtectionSystemAnalytics'
+import PumpedHydroDispatchAnalytics from './pages/PumpedHydroDispatchAnalytics'
+import RetailMarketDesignAnalytics from './pages/RetailMarketDesignAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -638,6 +642,9 @@ const NAV_ITEMS = [
   { to: '/reactive-power-voltage', label: 'Reactive Power & Voltage', Icon: Zap },
   { to: '/battery-revenue-stack', label: 'Battery Revenue Stack', Icon: Battery },
   { to: '/digital-energy-twin', label: 'Digital Energy Twin', Icon: Monitor },
+  { to: '/network-protection-system', label: 'Network Protection System', Icon: ShieldCheck },
+  { to: '/pumped-hydro-dispatch', label: 'Pumped Hydro Dispatch', Icon: Droplets },
+  { to: '/retail-market-design', label: 'Retail Market Design', Icon: ShoppingBag },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -993,6 +1000,9 @@ export default function App() {
               <Route path="/reactive-power-voltage" element={<ReactivePowerVoltageAnalytics />} />
               <Route path="/battery-revenue-stack" element={<BatteryRevenueStackAnalytics />} />
               <Route path="/digital-energy-twin" element={<DigitalEnergyTwinAnalytics />} />
+              <Route path="/network-protection-system" element={<NetworkProtectionSystemAnalytics />} />
+              <Route path="/pumped-hydro-dispatch" element={<PumpedHydroDispatchAnalytics />} />
+              <Route path="/retail-market-design" element={<RetailMarketDesignAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

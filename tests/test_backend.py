@@ -13356,3 +13356,129 @@ class TestDigitalEnergyTwinDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNetworkProtectionSystemDashboard:
+    URL = "/api/network-protection-system/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_relays_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["relays"]) >= 20
+
+    def test_faults_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["faults"]) >= 15
+
+    def test_coordination_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["coordination"]) >= 12
+
+    def test_performance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["performance"]) >= 15
+
+    def test_settings_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["settings"]) >= 15
+
+    def test_maintenance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["maintenance"]) >= 12
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "correct_operation_rate_pct" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestPumpedHydroDispatchDashboard:
+    URL = "/api/pumped-hydro-dispatch/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_stations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["stations"]) >= 6
+
+    def test_storage_levels_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["storage_levels"]) >= 30
+
+    def test_dispatch_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["dispatch_records"]) >= 36
+
+    def test_water_values_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["water_values"]) >= 15
+
+    def test_optimisations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["optimisations"]) >= 12
+
+    def test_projects_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["projects"]) >= 10
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_storage_gwh" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestRetailMarketDesignDashboard:
+    URL = "/api/retail-market-design/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_default_offers_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["default_offers"]) >= 15
+
+    def test_price_caps_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["price_caps"]) >= 15
+
+    def test_market_offers_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["market_offers"]) >= 24
+
+    def test_transitions_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["transitions"]) >= 12
+
+    def test_consumer_segments_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["consumer_segments"]) >= 15
+
+    def test_compliance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["compliance"]) >= 18
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "national_avg_dmo_aud" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
