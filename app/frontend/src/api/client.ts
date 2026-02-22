@@ -17100,3 +17100,331 @@ export interface OICSDashboard {
 
 export const getOTICSCyberSecurityDashboard = (): Promise<OICSDashboard> =>
   get<OICSDashboard>('/api/ot-ics-cyber-security/dashboard')
+
+export interface STPAOutlookRecord {
+  outlook_id: string
+  region: string
+  run_date: string
+  period: string
+  assessment_period_start: string
+  assessment_period_end: string
+  surplus_mw: number
+  reserve_requirement_mw: number
+  scheduled_capacity_mw: number
+  forecast_demand_mw: number
+  reliability_status: string
+  probability_lrc_pct: number
+  triggered_rert: boolean
+  required_reserves_mw: number
+}
+
+export interface STPASupplyRecord {
+  supply_id: string
+  region: string
+  run_date: string
+  assessment_hour: number
+  available_generation_mw: number
+  forced_outages_mw: number
+  planned_outages_mw: number
+  interconnector_import_mw: number
+  demand_response_mw: number
+  scheduled_total_mw: number
+  forecast_demand_mw: number
+  reserve_mw: number
+  reserve_pct: number
+  LOR_level: string
+}
+
+export interface STPAOutageRecord {
+  outage_id: string
+  region: string
+  unit_name: string
+  technology: string
+  capacity_mw: number
+  outage_type: string
+  start_date: string
+  end_date: string
+  return_date: string
+  reliability_impact: string
+  replacement_source: string
+  surplus_impact_mw: number
+}
+
+export interface STPADemandForecastRecord {
+  forecast_id: string
+  region: string
+  forecast_date: string
+  period_start: string
+  forecast_50_mw: number
+  forecast_10_mw: number
+  forecast_90_mw: number
+  actual_mw: number
+  forecast_error_mw: number
+  peak_flag: boolean
+  weather_driver: string
+  temperature_c: number
+}
+
+export interface STPAInterconnectorRecord {
+  ic_id: string
+  interconnector: string
+  run_date: string
+  period: string
+  max_import_mw: number
+  max_export_mw: number
+  scheduled_flow_mw: number
+  contribution_to_reserves_mw: number
+  congested: boolean
+  constraint_binding: boolean
+  flow_direction: string
+}
+
+export interface STPARERTRecord {
+  rert_id: string
+  region: string
+  activation_date: string
+  stage: string
+  trigger_lor_level: string
+  contracted_mw: number
+  activated_mw: number
+  provider_type: string
+  activation_cost_m: number
+  duration_hours: number
+  effectiveness_pct: number
+  avoided_energy_unserved_mwh: number
+}
+
+export interface STPADashboard {
+  outlooks: STPAOutlookRecord[]
+  supply_records: STPASupplyRecord[]
+  outages: STPAOutageRecord[]
+  demand_forecasts: STPADemandForecastRecord[]
+  interconnector_records: STPAInterconnectorRecord[]
+  rert_activations: STPARERTRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getSTPASAAdequacyDashboard = (): Promise<STPADashboard> =>
+  get<STPADashboard>('/api/stpasa-adequacy/dashboard')
+
+// ---------------------------------------------------------------------------
+// SPRINT 101b — Generator Performance Standards Compliance Analytics
+// ---------------------------------------------------------------------------
+
+export interface GPSCGeneratorRecord {
+  gen_id: string
+  generator_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  registered_date: string
+  gps_classification: string
+  compliance_status: string
+  overall_compliance_score_pct: number
+  active_exemptions: number
+  performance_standard_version: string
+  last_audit_date: string
+  aemo_registered: boolean
+}
+
+export interface GPSCPerformanceStandardRecord {
+  standard_id: string
+  gen_id: string
+  generator_name: string
+  standard_category: string
+  requirement_value: number
+  unit: string
+  measured_value: number
+  compliance: boolean
+  test_date: string
+  test_method: string
+  deviation_pct: number
+  remediation_required: boolean
+  remediation_deadline: string
+}
+
+export interface GPSCIncidentRecord {
+  incident_id: string
+  gen_id: string
+  generator_name: string
+  incident_date: string
+  incident_type: string
+  standard_category: string
+  severity: string
+  causal_factor: string
+  operational_impact_mw: number
+  market_impact_dolpermwh: number
+  aemo_notified: boolean
+  resolved: boolean
+  resolution_date: string
+  penalty_aud: number
+}
+
+export interface GPSCTestResultRecord {
+  test_id: string
+  gen_id: string
+  generator_name: string
+  test_date: string
+  test_type: string
+  standard_tested: string
+  pass_fail: string
+  measured_value: number
+  required_value: number
+  deviation_pct: number
+  tester_name: string
+  report_submitted: boolean
+  corrective_action: string
+}
+
+export interface GPSCExemptionRecord {
+  exemption_id: string
+  gen_id: string
+  generator_name: string
+  exemption_type: string
+  standard_category: string
+  exemption_reason: string
+  approved_date: string
+  expiry_date: string
+  conditions: string
+  aemo_approved: boolean
+  regulatory_basis: string
+  alternative_arrangement: string
+}
+
+export interface GPSCComplianceTrendRecord {
+  trend_id: string
+  region: string
+  year: number
+  quarter: number
+  num_generators: number
+  compliant_pct: number
+  non_compliant_pct: number
+  under_review_pct: number
+  new_incidents: number
+  resolved_incidents: number
+  total_penalties_m: number
+  most_common_breach: string
+  avg_compliance_score: number
+}
+
+export interface GPSCDashboard {
+  generators: GPSCGeneratorRecord[]
+  performance_standards: GPSCPerformanceStandardRecord[]
+  incidents: GPSCIncidentRecord[]
+  test_results: GPSCTestResultRecord[]
+  exemptions: GPSCExemptionRecord[]
+  compliance_trends: GPSCComplianceTrendRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getGeneratorPerformanceStandardsDashboard = (): Promise<GPSCDashboard> =>
+  get<GPSCDashboard>('/api/generator-performance-standards/dashboard')
+
+// ── Biomass & Bioenergy Analytics ──────────────────────────────────────────
+
+export interface BIOEPlantRecord {
+  plant_id: string
+  plant_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  annual_generation_gwh: number
+  feedstock_type: string
+  feedstock_capacity_kt_pa: number
+  heat_rate_gj_per_mwh: number
+  capacity_factor_pct: number
+  owner: string
+  commissioning_year: number
+  lret_accredited: boolean
+  dispatch_type: string
+  status: string
+}
+
+export interface BIOEFeedstockRecord {
+  feedstock_id: string
+  plant_id: string
+  feedstock_category: string
+  annual_volume_kt: number
+  moisture_content_pct: number
+  energy_content_gj_per_tonne: number
+  cost_dollar_per_gj: number
+  supply_security: string
+  distance_to_plant_km: number
+  sustainability_certified: boolean
+  carbon_intensity_tco2_per_mwh: number
+}
+
+export interface BIOEGenerationRecord {
+  gen_id: string
+  plant_id: string
+  year: number
+  month: number
+  generation_mwh: number
+  capacity_factor_pct: number
+  feedstock_consumed_kt: number
+  heat_rate_actual_gj_per_mwh: number
+  availability_pct: number
+  revenue_m: number
+  lret_revenue_m: number
+  carbon_cost_m: number
+  net_margin_m: number
+  co2_abatement_t: number
+}
+
+export interface BIOEEconomicsRecord {
+  econ_id: string
+  plant_id: string
+  scenario: string
+  lcoe_dolpermwh: number
+  capex_m: number
+  opex_m_pa: number
+  feedstock_cost_m_pa: number
+  carbon_revenue_m_pa: number
+  lret_revenue_m_pa: number
+  total_revenue_m_pa: number
+  npv_m: number
+  irr_pct: number
+  breakeven_price_dolpermwh: number
+}
+
+export interface BIOEBiogasRecord {
+  biogas_id: string
+  project_name: string
+  project_type: string
+  state: string
+  gas_production_m3_pa: number
+  electricity_capacity_kw: number
+  heat_capacity_kw_th: number
+  biomethane_injection_gj_pa: number
+  carbon_credits_accu_pa: number
+  tipping_fee_dollar_per_tonne: number
+  gate_fee_dollar_per_gj: number
+  status: string
+}
+
+export interface BIOESustainabilityRecord {
+  sustain_id: string
+  plant_id: string
+  certification_standard: string
+  land_use_change: boolean
+  biodiversity_impact: string
+  water_use_kl_per_mwh: number
+  air_quality_nox_kg_per_mwh: number
+  particulates_kg_per_mwh: number
+  lifecycle_co2_tco2_per_mwh: number
+  co2_vs_coal_reduction_pct: number
+  local_employment_fte: number
+}
+
+export interface BIOEDashboard {
+  plants: BIOEPlantRecord[]
+  feedstocks: BIOEFeedstockRecord[]
+  generation_records: BIOEGenerationRecord[]
+  economics: BIOEEconomicsRecord[]
+  biogas_projects: BIOEBiogasRecord[]
+  sustainability: BIOESustainabilityRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getBiomassBioenergyDashboard = (): Promise<BIOEDashboard> =>
+  get<BIOEDashboard>('/api/biomass-bioenergy/dashboard')

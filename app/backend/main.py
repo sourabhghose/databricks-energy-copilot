@@ -71920,3 +71920,1035 @@ def get_ot_ics_cyber_security_dashboard(api_key: str = Depends(verify_api_key)):
         }
     ).model_dump())
     return _oics_cache
+
+
+# ---------------------------------------------------------------------------
+# STPASA Adequacy Analytics  (Sprint 101a)
+# ---------------------------------------------------------------------------
+
+class STPAOutlookRecord(BaseModel):
+    outlook_id: str
+    region: str
+    run_date: str
+    period: str
+    assessment_period_start: str
+    assessment_period_end: str
+    surplus_mw: float
+    reserve_requirement_mw: float
+    scheduled_capacity_mw: float
+    forecast_demand_mw: float
+    reliability_status: str
+    probability_lrc_pct: float
+    triggered_rert: bool
+    required_reserves_mw: float
+
+
+class STPASupplyRecord(BaseModel):
+    supply_id: str
+    region: str
+    run_date: str
+    assessment_hour: int
+    available_generation_mw: float
+    forced_outages_mw: float
+    planned_outages_mw: float
+    interconnector_import_mw: float
+    demand_response_mw: float
+    scheduled_total_mw: float
+    forecast_demand_mw: float
+    reserve_mw: float
+    reserve_pct: float
+    LOR_level: str
+
+
+class STPAOutageRecord(BaseModel):
+    outage_id: str
+    region: str
+    unit_name: str
+    technology: str
+    capacity_mw: float
+    outage_type: str
+    start_date: str
+    end_date: str
+    return_date: str
+    reliability_impact: str
+    replacement_source: str
+    surplus_impact_mw: float
+
+
+class STPADemandForecastRecord(BaseModel):
+    forecast_id: str
+    region: str
+    forecast_date: str
+    period_start: str
+    forecast_50_mw: float
+    forecast_10_mw: float
+    forecast_90_mw: float
+    actual_mw: float
+    forecast_error_mw: float
+    peak_flag: bool
+    weather_driver: str
+    temperature_c: float
+
+
+class STPAInterconnectorRecord(BaseModel):
+    ic_id: str
+    interconnector: str
+    run_date: str
+    period: str
+    max_import_mw: float
+    max_export_mw: float
+    scheduled_flow_mw: float
+    contribution_to_reserves_mw: float
+    congested: bool
+    constraint_binding: bool
+    flow_direction: str
+
+
+class STPARERTRecord(BaseModel):
+    rert_id: str
+    region: str
+    activation_date: str
+    stage: str
+    trigger_lor_level: str
+    contracted_mw: float
+    activated_mw: float
+    provider_type: str
+    activation_cost_m: float
+    duration_hours: float
+    effectiveness_pct: float
+    avoided_energy_unserved_mwh: float
+
+
+class STPADashboard(BaseModel):
+    outlooks: List[STPAOutlookRecord] = []
+    supply_records: List[STPASupplyRecord] = []
+    outages: List[STPAOutageRecord] = []
+    demand_forecasts: List[STPADemandForecastRecord] = []
+    interconnector_records: List[STPAInterconnectorRecord] = []
+    rert_activations: List[STPARERTRecord] = []
+    summary: dict = {}
+
+
+_stpa_cache: dict = {}
+
+
+@app.get("/api/stpasa-adequacy/dashboard")
+def get_stpasa_adequacy_dashboard():
+    import random
+    if _stpa_cache:
+        return _stpa_cache
+
+    rng = random.Random(42)
+
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    run_periods = [
+        ("2024-01-15", "Next 2 days", "2024-01-16", "2024-01-17"),
+        ("2024-01-15", "Day 3-7", "2024-01-18", "2024-01-22"),
+        ("2024-01-15", "Week 2", "2024-01-23", "2024-01-29"),
+        ("2024-01-16", "Next 2 days", "2024-01-17", "2024-01-18"),
+        ("2024-01-16", "Day 3-7", "2024-01-19", "2024-01-23"),
+    ]
+    reliability_statuses = ["Adequate", "Adequate", "Adequate", "Marginal", "LOR1", "LOR2", "LOR3"]
+
+    outlooks: List[STPAOutlookRecord] = []
+    for i, region in enumerate(regions):
+        for j, (run_date, period, ps, pe) in enumerate(run_periods):
+            status = reliability_statuses[(i + j) % len(reliability_statuses)]
+            sched_cap = round(rng.uniform(6000.0, 14000.0), 1)
+            demand = round(rng.uniform(5000.0, 12000.0), 1)
+            reserve_req = round(demand * rng.uniform(0.05, 0.15), 1)
+            surplus = round(sched_cap - demand - reserve_req, 1) if status in ("Adequate", "Marginal") else round(rng.uniform(-500.0, 50.0), 1)
+            prob_lrc = round(rng.uniform(0.1, 8.0) if status == "Adequate" else rng.uniform(8.0, 35.0), 2)
+            triggered = status in ("LOR2", "LOR3")
+            outlooks.append(STPAOutlookRecord(
+                outlook_id=f"STPA-OTL-{i*5+j+1:03d}",
+                region=region,
+                run_date=run_date,
+                period=period,
+                assessment_period_start=ps,
+                assessment_period_end=pe,
+                surplus_mw=surplus,
+                reserve_requirement_mw=reserve_req,
+                scheduled_capacity_mw=sched_cap,
+                forecast_demand_mw=demand,
+                reliability_status=status,
+                probability_lrc_pct=prob_lrc,
+                triggered_rert=triggered,
+                required_reserves_mw=reserve_req,
+            ))
+
+    assessment_hours = [6, 7, 9, 12, 15, 17, 18, 20]
+    lor_levels = ["None", "None", "None", "None", "None", "LOR1", "LOR2", "LOR3"]
+    supply_records: List[STPASupplyRecord] = []
+    for i, region in enumerate(regions):
+        for j, hour in enumerate(assessment_hours):
+            avail_gen = round(rng.uniform(5500.0, 13500.0), 1)
+            forced_out = round(rng.uniform(0.0, 800.0), 1)
+            planned_out = round(rng.uniform(0.0, 600.0), 1)
+            ic_import = round(rng.uniform(-200.0, 1200.0), 1)
+            dr_mw = round(rng.uniform(0.0, 300.0), 1)
+            sched_total = round(avail_gen - forced_out - planned_out + max(ic_import, 0.0) + dr_mw, 1)
+            demand = round(rng.uniform(4800.0, 11500.0), 1)
+            reserve = round(sched_total - demand, 1)
+            reserve_pct = round((reserve / demand) * 100.0, 2) if demand > 0 else 0.0
+            lor_lvl = lor_levels[(i + j) % len(lor_levels)]
+            supply_records.append(STPASupplyRecord(
+                supply_id=f"STPA-SUP-{i*8+j+1:03d}",
+                region=region,
+                run_date="2024-01-15",
+                assessment_hour=hour,
+                available_generation_mw=avail_gen,
+                forced_outages_mw=forced_out,
+                planned_outages_mw=planned_out,
+                interconnector_import_mw=ic_import,
+                demand_response_mw=dr_mw,
+                scheduled_total_mw=sched_total,
+                forecast_demand_mw=demand,
+                reserve_mw=reserve,
+                reserve_pct=reserve_pct,
+                LOR_level=lor_lvl,
+            ))
+
+    technologies = ["Black Coal", "Brown Coal", "Gas CCGT", "Gas OCGT", "Wind", "Solar", "Hydro", "Battery"]
+    outage_types = ["Forced", "Forced", "Planned", "Planned", "Partial"]
+    impacts = ["Low", "Medium", "High"]
+    sources = ["Gas OCGT", "Interconnector", "Demand Response", "Wind", "Hydro"]
+    unit_names = [
+        "Loy Yang A U1", "Eraring U2", "Callide C U3", "Pelican Point U1", "Yallourn U4",
+        "Bayswater U3", "Torrens Island B U5", "Mortlake U1", "Swanbank E", "Mackay Gas",
+        "Tarong North U1", "Kogan Creek U1", "Gladstone U4", "Hazelwood U3", "Playford B U2",
+        "Snowy Murray U4", "Gordon Dam U2", "Kareeya U2", "Dartmouth U1", "Eildon U2",
+    ]
+    outages: List[STPAOutageRecord] = []
+    for i in range(20):
+        region = regions[i % len(regions)]
+        tech = technologies[i % len(technologies)]
+        o_type = outage_types[i % len(outage_types)]
+        impact = impacts[i % len(impacts)]
+        cap = round(rng.uniform(100.0, 800.0), 1)
+        start_day = rng.randint(1, 10)
+        end_day = start_day + rng.randint(1, 14)
+        return_day = end_day + rng.randint(0, 5)
+        outages.append(STPAOutageRecord(
+            outage_id=f"STPA-OUT-{i+1:03d}",
+            region=region,
+            unit_name=unit_names[i % len(unit_names)],
+            technology=tech,
+            capacity_mw=cap,
+            outage_type=o_type,
+            start_date=f"2024-01-{start_day:02d}",
+            end_date=f"2024-01-{min(end_day, 31):02d}",
+            return_date=f"2024-01-{min(return_day, 31):02d}",
+            reliability_impact=impact,
+            replacement_source=sources[i % len(sources)],
+            surplus_impact_mw=round(-cap * rng.uniform(0.5, 1.0), 1),
+        ))
+
+    weather_drivers = ["Normal", "Normal", "Hot", "Cold", "Extreme Heat", "Extreme Cold"]
+    demand_forecasts: List[STPADemandForecastRecord] = []
+    for i, region in enumerate(regions):
+        for j in range(6):
+            forecast_date = f"2024-01-{15+j:02d}"
+            period_start = f"2024-01-{15+j:02d}T16:30:00"
+            base_demand = rng.uniform(4000.0, 11000.0)
+            p50 = round(base_demand, 1)
+            p10 = round(base_demand * rng.uniform(1.05, 1.20), 1)
+            p90 = round(base_demand * rng.uniform(0.80, 0.95), 1)
+            actual = round(base_demand * rng.uniform(0.95, 1.10), 1)
+            error = round(actual - p50, 1)
+            peak = (j == 2 or j == 4)
+            weather = weather_drivers[(i + j) % len(weather_drivers)]
+            temp = round(rng.uniform(15.0, 42.0), 1) if weather in ("Hot", "Extreme Heat") else round(rng.uniform(5.0, 25.0), 1)
+            demand_forecasts.append(STPADemandForecastRecord(
+                forecast_id=f"STPA-DFC-{i*6+j+1:03d}",
+                region=region,
+                forecast_date=forecast_date,
+                period_start=period_start,
+                forecast_50_mw=p50,
+                forecast_10_mw=p10,
+                forecast_90_mw=p90,
+                actual_mw=actual,
+                forecast_error_mw=error,
+                peak_flag=peak,
+                weather_driver=weather,
+                temperature_c=temp,
+            ))
+
+    interconnectors = ["VIC-NSW", "NSW-QLD", "VIC-SA", "VIC-TAS", "NSW-SA"]
+    ic_periods = ["Next 2 days", "Day 3-7", "Week 2", "2024-01-16 AM", "2024-01-16 PM"]
+    flow_directions = ["Import", "Export", "Zero"]
+    ic_records: List[STPAInterconnectorRecord] = []
+    for i, ic in enumerate(interconnectors):
+        for j, period in enumerate(ic_periods):
+            max_imp = round(rng.uniform(500.0, 1800.0), 1)
+            max_exp = round(rng.uniform(400.0, 1600.0), 1)
+            sched_flow = round(rng.uniform(-max_exp, max_imp), 1)
+            contrib = round(abs(sched_flow) * rng.uniform(0.1, 0.4), 1)
+            congested = rng.random() < 0.25
+            binding = congested or rng.random() < 0.15
+            direction = "Import" if sched_flow > 50 else ("Export" if sched_flow < -50 else "Zero")
+            ic_records.append(STPAInterconnectorRecord(
+                ic_id=f"STPA-IC-{i*5+j+1:03d}",
+                interconnector=ic,
+                run_date="2024-01-15",
+                period=period,
+                max_import_mw=max_imp,
+                max_export_mw=max_exp,
+                scheduled_flow_mw=sched_flow,
+                contribution_to_reserves_mw=contrib,
+                congested=congested,
+                constraint_binding=binding,
+                flow_direction=direction,
+            ))
+
+    rert_stages = ["Pre-activation", "Stage 1", "Stage 2", "Stage 3"]
+    lor_triggers = ["LOR1", "LOR2", "LOR3"]
+    provider_types = ["Demand Response", "Generator", "Interconnector"]
+    rert_activations: List[STPARERTRecord] = []
+    for i in range(10):
+        region = regions[i % len(regions)]
+        stage = rert_stages[i % len(rert_stages)]
+        trigger = lor_triggers[i % len(lor_triggers)]
+        provider = provider_types[i % len(provider_types)]
+        contracted = round(rng.uniform(50.0, 500.0), 1)
+        activated = round(contracted * rng.uniform(0.5, 1.0), 1)
+        cost = round(rng.uniform(0.1, 3.5), 3)
+        duration = round(rng.uniform(0.5, 8.0), 1)
+        effectiveness = round(rng.uniform(60.0, 98.0), 1)
+        avoided = round(activated * duration * rng.uniform(0.6, 0.9), 1)
+        month = rng.randint(1, 11)
+        day = rng.randint(1, 28)
+        rert_activations.append(STPARERTRecord(
+            rert_id=f"STPA-RERT-{i+1:03d}",
+            region=region,
+            activation_date=f"2024-{month:02d}-{day:02d}",
+            stage=stage,
+            trigger_lor_level=trigger,
+            contracted_mw=contracted,
+            activated_mw=activated,
+            provider_type=provider,
+            activation_cost_m=cost,
+            duration_hours=duration,
+            effectiveness_pct=effectiveness,
+            avoided_energy_unserved_mwh=avoided,
+        ))
+
+    regions_with_lor = sum(1 for o in outlooks if o.reliability_status in ("LOR1", "LOR2", "LOR3"))
+    total_surplus = round(sum(o.surplus_mw for o in outlooks if o.surplus_mw > 0), 1)
+    avg_reserve_pct = round(sum(s.reserve_pct for s in supply_records) / len(supply_records), 2) if supply_records else 0.0
+    rert_ytd = len(rert_activations)
+    max_demand_forecast = round(max(d.forecast_10_mw for d in demand_forecasts), 1) if demand_forecasts else 0.0
+
+    _stpa_cache.update(STPADashboard(
+        outlooks=outlooks,
+        supply_records=supply_records,
+        outages=outages,
+        demand_forecasts=demand_forecasts,
+        interconnector_records=ic_records,
+        rert_activations=rert_activations,
+        summary={
+            "regions_with_lor": regions_with_lor,
+            "total_surplus_mw": total_surplus,
+            "avg_reserve_pct": avg_reserve_pct,
+            "rert_activations_ytd": rert_ytd,
+            "max_demand_forecast_mw": max_demand_forecast,
+        }
+    ).model_dump())
+    return _stpa_cache
+
+
+# ---------------------------------------------------------------------------
+# SPRINT 101b — Generator Performance Standards Compliance Analytics
+# ---------------------------------------------------------------------------
+
+class GPSCGeneratorRecord(BaseModel):
+    gen_id: str
+    generator_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    registered_date: str
+    gps_classification: str  # Scheduled, Semi-Scheduled, Non-Scheduled
+    compliance_status: str   # Compliant, Non-Compliant, Under Review, Exempt
+    overall_compliance_score_pct: float
+    active_exemptions: int
+    performance_standard_version: str
+    last_audit_date: str
+    aemo_registered: bool
+
+
+class GPSCPerformanceStandardRecord(BaseModel):
+    standard_id: str
+    gen_id: str
+    generator_name: str
+    standard_category: str  # Reactive Power, Voltage Control, Frequency Response, Fault Ride Through, Active Power Control, Protection, Disturbance Ride Through
+    requirement_value: float
+    unit: str
+    measured_value: float
+    compliance: bool
+    test_date: str
+    test_method: str  # Simulation, Field Test, Monitoring
+    deviation_pct: float
+    remediation_required: bool
+    remediation_deadline: str
+
+
+class GPSCIncidentRecord(BaseModel):
+    incident_id: str
+    gen_id: str
+    generator_name: str
+    incident_date: str
+    incident_type: str   # GPS Breach, Near Miss, Exceedance, Test Failure, Monitoring Gap
+    standard_category: str
+    severity: str        # Minor, Moderate, Major, Critical
+    causal_factor: str
+    operational_impact_mw: float
+    market_impact_dolpermwh: float
+    aemo_notified: bool
+    resolved: bool
+    resolution_date: str
+    penalty_aud: float
+
+
+class GPSCTestResultRecord(BaseModel):
+    test_id: str
+    gen_id: str
+    generator_name: str
+    test_date: str
+    test_type: str         # Commissioning, Periodic, Post-incident, Triggered
+    standard_tested: str
+    pass_fail: str         # Pass, Fail, Conditional Pass
+    measured_value: float
+    required_value: float
+    deviation_pct: float
+    tester_name: str
+    report_submitted: bool
+    corrective_action: str
+
+
+class GPSCExemptionRecord(BaseModel):
+    exemption_id: str
+    gen_id: str
+    generator_name: str
+    exemption_type: str    # Temporary, Permanent, Conditional
+    standard_category: str
+    exemption_reason: str
+    approved_date: str
+    expiry_date: str
+    conditions: str
+    aemo_approved: bool
+    regulatory_basis: str
+    alternative_arrangement: str
+
+
+class GPSCComplianceTrendRecord(BaseModel):
+    trend_id: str
+    region: str
+    year: int
+    quarter: int
+    num_generators: int
+    compliant_pct: float
+    non_compliant_pct: float
+    under_review_pct: float
+    new_incidents: int
+    resolved_incidents: int
+    total_penalties_m: float
+    most_common_breach: str
+    avg_compliance_score: float
+
+
+class GPSCDashboard(BaseModel):
+    generators: List[GPSCGeneratorRecord]
+    performance_standards: List[GPSCPerformanceStandardRecord]
+    incidents: List[GPSCIncidentRecord]
+    test_results: List[GPSCTestResultRecord]
+    exemptions: List[GPSCExemptionRecord]
+    compliance_trends: List[GPSCComplianceTrendRecord]
+    summary: dict
+
+
+_gpsc_cache: dict = {}
+
+
+@app.get("/api/generator-performance-standards/dashboard")
+def get_gpsc_dashboard():
+    import random
+    if _gpsc_cache:
+        return _gpsc_cache
+
+    rng = random.Random(20240101)
+
+    technologies = ["Black Coal", "Brown Coal", "CCGT", "OCGT", "Wind", "Solar PV", "Hydro", "Battery Storage", "Biomass", "Gas Steam"]
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    ps_versions = ["GPS v4.0 (2022)", "GPS v3.2 (2019)", "GPS v4.1 (2023)"]
+    classifications = ["Scheduled", "Semi-Scheduled", "Non-Scheduled"]
+    statuses = ["Compliant", "Compliant", "Compliant", "Compliant", "Non-Compliant", "Under Review", "Exempt"]
+
+    gen_names_base = [
+        "Liddell Power Station", "Bayswater Power Station", "Eraring Energy",
+        "Callide C Power Station", "Stanwell Power Station", "Tarong Power Station",
+        "Hazelwood Power Station", "Loy Yang A", "Loy Yang B",
+        "Torrens Island Power Station", "Pelican Point Power Station", "Hallett Power Station",
+        "Gordon Hydro", "Rowallan Hydro", "Darwin GT",
+        "Lake Bonney Wind Farm", "Hornsdale Wind Farm", "Snowtown Wind Farm",
+        "Darlington Point Solar", "Bango Wind Farm",
+    ]
+
+    generators: List[GPSCGeneratorRecord] = []
+    for i, name in enumerate(gen_names_base):
+        region = regions[i % len(regions)]
+        tech = technologies[i % len(technologies)]
+        cls = classifications[i % len(classifications)]
+        status = statuses[i % len(statuses)]
+        score = round(rng.uniform(72.0, 99.5), 1) if status != "Non-Compliant" else round(rng.uniform(42.0, 68.0), 1)
+        exemptions_count = rng.randint(0, 2) if status in ("Exempt", "Under Review") else 0
+        month = rng.randint(1, 12)
+        reg_year = rng.randint(2005, 2020)
+        audit_year = rng.randint(2022, 2024)
+        audit_month = rng.randint(1, 12)
+        generators.append(GPSCGeneratorRecord(
+            gen_id=f"GPSC-GEN-{i+1:03d}",
+            generator_name=name,
+            technology=tech,
+            region=region,
+            capacity_mw=round(rng.uniform(100.0, 2000.0), 1),
+            registered_date=f"{reg_year}-{month:02d}-01",
+            gps_classification=cls,
+            compliance_status=status,
+            overall_compliance_score_pct=score,
+            active_exemptions=exemptions_count,
+            performance_standard_version=ps_versions[i % len(ps_versions)],
+            last_audit_date=f"{audit_year}-{audit_month:02d}-15",
+            aemo_registered=True,
+        ))
+
+    categories = ["Reactive Power", "Voltage Control", "Frequency Response", "Fault Ride Through",
+                  "Active Power Control", "Protection", "Disturbance Ride Through"]
+    test_methods = ["Simulation", "Field Test", "Monitoring"]
+    units_map = {
+        "Reactive Power": "MVAr",
+        "Voltage Control": "pu",
+        "Frequency Response": "Hz/s",
+        "Fault Ride Through": "s",
+        "Active Power Control": "MW/min",
+        "Protection": "ms",
+        "Disturbance Ride Through": "s",
+    }
+
+    performance_standards: List[GPSCPerformanceStandardRecord] = []
+    for i in range(40):
+        gen = generators[i % len(generators)]
+        cat = categories[i % len(categories)]
+        unit = units_map[cat]
+        req_val = round(rng.uniform(0.5, 100.0), 2)
+        dev = round(rng.uniform(-15.0, 15.0), 2)
+        meas_val = round(req_val * (1 + dev / 100.0), 2)
+        compliant = abs(dev) <= 8.0
+        rem_required = not compliant
+        t_year = rng.randint(2022, 2024)
+        t_month = rng.randint(1, 12)
+        rem_year = t_year + 1
+        performance_standards.append(GPSCPerformanceStandardRecord(
+            standard_id=f"GPSC-PS-{i+1:03d}",
+            gen_id=gen.gen_id,
+            generator_name=gen.generator_name,
+            standard_category=cat,
+            requirement_value=req_val,
+            unit=unit,
+            measured_value=meas_val,
+            compliance=compliant,
+            test_date=f"{t_year}-{t_month:02d}-10",
+            test_method=test_methods[i % len(test_methods)],
+            deviation_pct=dev,
+            remediation_required=rem_required,
+            remediation_deadline=f"{rem_year}-{t_month:02d}-10" if rem_required else "",
+        ))
+
+    incident_types = ["GPS Breach", "Near Miss", "Exceedance", "Test Failure", "Monitoring Gap"]
+    severities = ["Minor", "Moderate", "Major", "Critical"]
+    causal_factors = [
+        "Equipment aging", "Control system fault", "Incorrect settings", "Protection relay failure",
+        "Communication loss", "Software bug", "Operator error", "Grid disturbance",
+        "Maintenance oversight", "Vegetation contact",
+    ]
+
+    incidents: List[GPSCIncidentRecord] = []
+    for i in range(15):
+        gen = generators[i % len(generators)]
+        inc_year = rng.randint(2022, 2024)
+        inc_month = rng.randint(1, 12)
+        inc_day = rng.randint(1, 28)
+        res_year = inc_year + (1 if inc_month > 10 else 0)
+        res_month = (inc_month % 12) + 1
+        resolved = rng.random() < 0.75
+        penalty = round(rng.uniform(5000, 250000), 0) if rng.random() < 0.6 else 0.0
+        sev = severities[i % len(severities)]
+        incidents.append(GPSCIncidentRecord(
+            incident_id=f"GPSC-INC-{i+1:03d}",
+            gen_id=gen.gen_id,
+            generator_name=gen.generator_name,
+            incident_date=f"{inc_year}-{inc_month:02d}-{inc_day:02d}",
+            incident_type=incident_types[i % len(incident_types)],
+            standard_category=categories[i % len(categories)],
+            severity=sev,
+            causal_factor=causal_factors[i % len(causal_factors)],
+            operational_impact_mw=round(rng.uniform(0.0, 300.0), 1),
+            market_impact_dolpermwh=round(rng.uniform(0.0, 50.0), 2),
+            aemo_notified=True,
+            resolved=resolved,
+            resolution_date=f"{res_year}-{res_month:02d}-15" if resolved else "",
+            penalty_aud=penalty,
+        ))
+
+    test_types = ["Commissioning", "Periodic", "Post-incident", "Triggered"]
+    testers = ["AEMO Compliance Team", "GHD Advisory", "AECOM Technical", "WSP Engineering", "Jacobs Group"]
+
+    test_results: List[GPSCTestResultRecord] = []
+    for i in range(25):
+        gen = generators[i % len(generators)]
+        t_year = rng.randint(2022, 2024)
+        t_month = rng.randint(1, 12)
+        req_val = round(rng.uniform(1.0, 100.0), 2)
+        dev = round(rng.uniform(-12.0, 12.0), 2)
+        meas_val = round(req_val * (1 + dev / 100.0), 2)
+        pf = "Pass" if abs(dev) < 5.0 else ("Conditional Pass" if abs(dev) < 10.0 else "Fail")
+        test_results.append(GPSCTestResultRecord(
+            test_id=f"GPSC-TEST-{i+1:03d}",
+            gen_id=gen.gen_id,
+            generator_name=gen.generator_name,
+            test_date=f"{t_year}-{t_month:02d}-20",
+            test_type=test_types[i % len(test_types)],
+            standard_tested=categories[i % len(categories)],
+            pass_fail=pf,
+            measured_value=meas_val,
+            required_value=req_val,
+            deviation_pct=dev,
+            tester_name=testers[i % len(testers)],
+            report_submitted=rng.random() < 0.9,
+            corrective_action="None required" if pf == "Pass" else "Recalibrate control system and retest within 90 days",
+        ))
+
+    exemption_types = ["Temporary", "Permanent", "Conditional"]
+    reg_bases = ["NER clause 5.3.4", "NER clause 5.7.3", "AEMC Rule Determination 2019", "GPS Interim Arrangement 2021"]
+    exemption_reasons = [
+        "Legacy plant pre-dating GPS requirements",
+        "Technology limitation — equipment upgrade scheduled",
+        "Transition period for new GPS version compliance",
+        "Commercially impractical to retrofit existing assets",
+        "Grid conditions make full compliance hazardous",
+    ]
+
+    exemptions: List[GPSCExemptionRecord] = []
+    for i in range(10):
+        gen = generators[i % len(generators)]
+        app_year = rng.randint(2020, 2023)
+        app_month = rng.randint(1, 12)
+        exp_year = app_year + rng.randint(1, 3)
+        exemptions.append(GPSCExemptionRecord(
+            exemption_id=f"GPSC-EX-{i+1:03d}",
+            gen_id=gen.gen_id,
+            generator_name=gen.generator_name,
+            exemption_type=exemption_types[i % len(exemption_types)],
+            standard_category=categories[i % len(categories)],
+            exemption_reason=exemption_reasons[i % len(exemption_reasons)],
+            approved_date=f"{app_year}-{app_month:02d}-01",
+            expiry_date=f"{exp_year}-{app_month:02d}-01",
+            conditions="Annual compliance monitoring and reporting required",
+            aemo_approved=True,
+            regulatory_basis=reg_bases[i % len(reg_bases)],
+            alternative_arrangement="Increased monitoring frequency with quarterly reporting to AEMO",
+        ))
+
+    breach_categories = ["Reactive Power", "Fault Ride Through", "Voltage Control", "Frequency Response", "Protection"]
+
+    compliance_trends: List[GPSCComplianceTrendRecord] = []
+    trend_id = 1
+    for region in regions:
+        for quarter in range(1, 5):
+            compliant_pct = round(rng.uniform(78.0, 96.0), 1)
+            non_compliant_pct = round(rng.uniform(2.0, 12.0), 1)
+            under_review_pct = round(100.0 - compliant_pct - non_compliant_pct, 1)
+            compliance_trends.append(GPSCComplianceTrendRecord(
+                trend_id=f"GPSC-TREND-{trend_id:03d}",
+                region=region,
+                year=2024,
+                quarter=quarter,
+                num_generators=rng.randint(18, 55),
+                compliant_pct=compliant_pct,
+                non_compliant_pct=non_compliant_pct,
+                under_review_pct=max(0.0, under_review_pct),
+                new_incidents=rng.randint(0, 5),
+                resolved_incidents=rng.randint(0, 4),
+                total_penalties_m=round(rng.uniform(0.0, 3.5), 3),
+                most_common_breach=breach_categories[trend_id % len(breach_categories)],
+                avg_compliance_score=round(rng.uniform(82.0, 97.0), 1),
+            ))
+            trend_id += 1
+
+    non_compliant_count = sum(1 for g in generators if g.compliance_status == "Non-Compliant")
+    overall_pct = round(
+        sum(g.overall_compliance_score_pct for g in generators) / len(generators), 2
+    )
+    total_penalties = round(sum(inc.penalty_aud for inc in incidents) / 1_000_000, 3)
+
+    _gpsc_cache.update(GPSCDashboard(
+        generators=generators,
+        performance_standards=performance_standards,
+        incidents=incidents,
+        test_results=test_results,
+        exemptions=exemptions,
+        compliance_trends=compliance_trends,
+        summary={
+            "total_registered_generators": len(generators),
+            "overall_compliance_pct": overall_pct,
+            "active_non_compliant": non_compliant_count,
+            "total_penalties_m": total_penalties,
+            "most_common_breach_category": "Reactive Power",
+        },
+    ).model_dump())
+    return _gpsc_cache
+
+# ============================================================
+# Sprint 101c — Biomass & Bioenergy Analytics
+# ============================================================
+
+class BIOEPlantRecord(BaseModel):
+    plant_id: str
+    plant_name: str
+    technology: str  # Dedicated Biomass, Co-firing, Landfill Gas, Sewage Biogas, Agricultural Waste, Sugar Mill Bagasse, Forest Residue, MSW Gasification
+    state: str
+    capacity_mw: float
+    annual_generation_gwh: float
+    feedstock_type: str
+    feedstock_capacity_kt_pa: float
+    heat_rate_gj_per_mwh: float
+    capacity_factor_pct: float
+    owner: str
+    commissioning_year: int
+    lret_accredited: bool
+    dispatch_type: str  # Scheduled, Semi-Scheduled
+    status: str  # Operating, Construction, Planned
+
+
+class BIOEFeedstockRecord(BaseModel):
+    feedstock_id: str
+    plant_id: str
+    feedstock_category: str  # Agricultural Residue, Forestry Residue, Energy Crops, Organic Waste, Landfill Gas, Sewage Gas, Industrial Waste
+    annual_volume_kt: float
+    moisture_content_pct: float
+    energy_content_gj_per_tonne: float
+    cost_dollar_per_gj: float
+    supply_security: str  # Firm, Moderate, Variable
+    distance_to_plant_km: float
+    sustainability_certified: bool
+    carbon_intensity_tco2_per_mwh: float
+
+
+class BIOEGenerationRecord(BaseModel):
+    gen_id: str
+    plant_id: str
+    year: int
+    month: int
+    generation_mwh: float
+    capacity_factor_pct: float
+    feedstock_consumed_kt: float
+    heat_rate_actual_gj_per_mwh: float
+    availability_pct: float
+    revenue_m: float
+    lret_revenue_m: float
+    carbon_cost_m: float
+    net_margin_m: float
+    co2_abatement_t: float
+
+
+class BIOEEconomicsRecord(BaseModel):
+    econ_id: str
+    plant_id: str
+    scenario: str  # Current, High Carbon Price, Low Feedstock Cost, Carbon Capture Added, Co-firing 30%, Biomethane
+    lcoe_dolpermwh: float
+    capex_m: float
+    opex_m_pa: float
+    feedstock_cost_m_pa: float
+    carbon_revenue_m_pa: float
+    lret_revenue_m_pa: float
+    total_revenue_m_pa: float
+    npv_m: float
+    irr_pct: float
+    breakeven_price_dolpermwh: float
+
+
+class BIOEBiogasRecord(BaseModel):
+    biogas_id: str
+    project_name: str
+    project_type: str  # Landfill Gas, Sewage Treatment, Food Waste AD, Agricultural AD, Industrial
+    state: str
+    gas_production_m3_pa: float
+    electricity_capacity_kw: float
+    heat_capacity_kw_th: float
+    biomethane_injection_gj_pa: float
+    carbon_credits_accu_pa: float
+    tipping_fee_dollar_per_tonne: float
+    gate_fee_dollar_per_gj: float
+    status: str  # Operating, Construction, Planned
+
+
+class BIOESustainabilityRecord(BaseModel):
+    sustain_id: str
+    plant_id: str
+    certification_standard: str  # FSC, PEFC, ISO 13065, RED II, REC, None
+    land_use_change: bool
+    biodiversity_impact: str  # Positive, Neutral, Negative
+    water_use_kl_per_mwh: float
+    air_quality_nox_kg_per_mwh: float
+    particulates_kg_per_mwh: float
+    lifecycle_co2_tco2_per_mwh: float
+    co2_vs_coal_reduction_pct: float
+    local_employment_fte: int
+
+
+class BIOEDashboard(BaseModel):
+    plants: List[BIOEPlantRecord]
+    feedstocks: List[BIOEFeedstockRecord]
+    generation_records: List[BIOEGenerationRecord]
+    economics: List[BIOEEconomicsRecord]
+    biogas_projects: List[BIOEBiogasRecord]
+    sustainability: List[BIOESustainabilityRecord]
+    summary: dict
+
+
+_bioe_cache: dict = {}
+
+
+@app.get("/api/biomass-bioenergy/dashboard")
+def get_biomass_bioenergy_dashboard() -> BIOEDashboard:
+    import random
+
+    if _bioe_cache:
+        return BIOEDashboard(**_bioe_cache)
+
+    rng = random.Random(20240301)
+
+    technologies = [
+        "Dedicated Biomass", "Co-firing", "Landfill Gas", "Sewage Biogas",
+        "Agricultural Waste", "Sugar Mill Bagasse", "Forest Residue", "MSW Gasification",
+    ]
+    states = ["QLD", "NSW", "VIC", "SA", "WA", "TAS"]
+    owners = [
+        "Origin Energy", "AGL Energy", "CS Energy", "Stanwell", "Pacific Energy",
+        "Sustainability Victoria", "Southern Cross Austereo", "ReNu Energy",
+        "Greentech Capital", "WastePower Australia",
+    ]
+
+    plant_data = [
+        ("BIOE-P001", "Mackay Sugar Bagasse Plant", "Sugar Mill Bagasse", "QLD", 33.0, 210.0, "Sugarcane Bagasse", 480.0, 10.2, 72.5, "Wilmar Sugar", 2005, True, "Scheduled", "Operating"),
+        ("BIOE-P002", "Condong Sugar Mill Power", "Sugar Mill Bagasse", "NSW", 30.0, 195.0, "Sugarcane Bagasse", 440.0, 10.5, 74.2, "MSF Sugar", 2006, True, "Scheduled", "Operating"),
+        ("BIOE-P003", "Glenbrook Forest Biomass", "Forest Residue", "VIC", 20.0, 140.0, "Forestry Residue", 320.0, 12.1, 80.0, "Greentech Capital", 2015, True, "Scheduled", "Operating"),
+        ("BIOE-P004", "Ararat Wind-Biomass Hybrid", "Dedicated Biomass", "VIC", 15.0, 98.0, "Agricultural Waste", 220.0, 13.5, 74.5, "AGL Energy", 2017, True, "Scheduled", "Operating"),
+        ("BIOE-P005", "Swanbank Landfill Gas", "Landfill Gas", "QLD", 8.0, 56.0, "Landfill Gas", 45.0, 9.8, 80.0, "ReNu Energy", 2003, True, "Scheduled", "Operating"),
+        ("BIOE-P006", "Eastern Creek LFG Power", "Landfill Gas", "NSW", 12.0, 85.0, "Landfill Gas", 68.0, 9.5, 81.0, "Pacific Energy", 2004, True, "Scheduled", "Operating"),
+        ("BIOE-P007", "Malabar Sewage Biogas", "Sewage Biogas", "NSW", 6.5, 42.0, "Sewage Gas", 32.0, 9.2, 73.7, "Sydney Water", 2010, True, "Scheduled", "Operating"),
+        ("BIOE-P008", "Bolivar WWTP Biogas", "Sewage Biogas", "SA", 5.0, 32.0, "Sewage Gas", 24.0, 9.4, 73.1, "SA Water", 2012, True, "Scheduled", "Operating"),
+        ("BIOE-P009", "Loy Yang Co-firing", "Co-firing", "VIC", 50.0, 290.0, "Agricultural Waste", 680.0, 9.6, 66.3, "AGL Energy", 2019, True, "Semi-Scheduled", "Operating"),
+        ("BIOE-P010", "Callide Co-firing Project", "Co-firing", "QLD", 40.0, 235.0, "Forest Residue", 550.0, 9.8, 67.2, "CS Energy", 2020, True, "Semi-Scheduled", "Operating"),
+        ("BIOE-P011", "Townsville MSW Gasification", "MSW Gasification", "QLD", 10.0, 68.0, "Municipal Solid Waste", 120.0, 14.2, 77.7, "WastePower Australia", 2022, True, "Scheduled", "Operating"),
+        ("BIOE-P012", "Parkes Agri Waste Power", "Agricultural Waste", "NSW", 7.5, 49.0, "Crop Residues", 180.0, 13.8, 74.6, "Origin Energy", 2018, True, "Scheduled", "Operating"),
+        ("BIOE-P013", "Kwinana Biomass Plant", "Dedicated Biomass", "WA", 25.0, 162.0, "Forestry Residue", 380.0, 12.5, 74.0, "Southern Cross Austereo", 2021, True, "Scheduled", "Operating"),
+        ("BIOE-P014", "Bell Bay Biomass TAS", "Dedicated Biomass", "TAS", 40.0, 280.0, "Forestry Residue", 600.0, 11.8, 80.0, "Stanwell", 2016, True, "Scheduled", "Operating"),
+        ("BIOE-P015", "Yarwun Sugarcane Power", "Sugar Mill Bagasse", "QLD", 28.0, 180.0, "Sugarcane Bagasse", 410.0, 10.6, 73.4, "Rio Tinto", 2008, True, "Scheduled", "Operating"),
+    ]
+
+    plants: List[BIOEPlantRecord] = []
+    for row in plant_data:
+        plants.append(BIOEPlantRecord(
+            plant_id=row[0], plant_name=row[1], technology=row[2], state=row[3],
+            capacity_mw=row[4], annual_generation_gwh=row[5], feedstock_type=row[6],
+            feedstock_capacity_kt_pa=row[7], heat_rate_gj_per_mwh=row[8],
+            capacity_factor_pct=row[9], owner=row[10], commissioning_year=row[11],
+            lret_accredited=row[12], dispatch_type=row[13], status=row[14],
+        ))
+
+    feedstock_categories = [
+        "Agricultural Residue", "Forestry Residue", "Energy Crops",
+        "Organic Waste", "Landfill Gas", "Sewage Gas", "Industrial Waste",
+    ]
+    supply_securities = ["Firm", "Moderate", "Variable"]
+    feedstock_raw = [
+        ("BIOE-F001", "BIOE-P001", "Agricultural Residue", 480.0, 48.0, 8.5, 3.2, "Firm", 15.0, True, 0.18),
+        ("BIOE-F002", "BIOE-P001", "Industrial Waste", 90.0, 55.0, 7.8, 2.8, "Variable", 8.0, False, 0.22),
+        ("BIOE-F003", "BIOE-P002", "Agricultural Residue", 440.0, 46.0, 8.6, 3.1, "Firm", 12.0, True, 0.17),
+        ("BIOE-F004", "BIOE-P002", "Energy Crops", 60.0, 40.0, 10.2, 4.5, "Moderate", 35.0, True, 0.15),
+        ("BIOE-F005", "BIOE-P003", "Forestry Residue", 320.0, 35.0, 11.5, 5.2, "Moderate", 80.0, True, 0.12),
+        ("BIOE-F006", "BIOE-P003", "Industrial Waste", 40.0, 30.0, 9.8, 3.8, "Variable", 20.0, False, 0.20),
+        ("BIOE-F007", "BIOE-P004", "Agricultural Residue", 220.0, 50.0, 8.2, 3.5, "Moderate", 45.0, True, 0.19),
+        ("BIOE-F008", "BIOE-P005", "Landfill Gas", 45.0, 0.0, 22.0, 1.5, "Firm", 2.0, False, 0.08),
+        ("BIOE-F009", "BIOE-P006", "Landfill Gas", 68.0, 0.0, 22.0, 1.4, "Firm", 1.5, False, 0.07),
+        ("BIOE-F010", "BIOE-P007", "Sewage Gas", 32.0, 0.0, 21.5, 1.2, "Firm", 0.5, False, 0.06),
+        ("BIOE-F011", "BIOE-P008", "Sewage Gas", 24.0, 0.0, 21.8, 1.3, "Firm", 0.5, False, 0.06),
+        ("BIOE-F012", "BIOE-P009", "Agricultural Residue", 500.0, 42.0, 9.0, 4.0, "Moderate", 60.0, True, 0.16),
+        ("BIOE-F013", "BIOE-P009", "Forestry Residue", 180.0, 33.0, 11.2, 5.0, "Variable", 120.0, True, 0.13),
+        ("BIOE-F014", "BIOE-P010", "Forestry Residue", 400.0, 32.0, 11.5, 4.8, "Moderate", 95.0, True, 0.12),
+        ("BIOE-F015", "BIOE-P010", "Agricultural Residue", 150.0, 45.0, 8.8, 3.6, "Variable", 50.0, False, 0.18),
+        ("BIOE-F016", "BIOE-P011", "Organic Waste", 120.0, 60.0, 7.5, 2.0, "Firm", 5.0, False, 0.25),
+        ("BIOE-F017", "BIOE-P012", "Agricultural Residue", 180.0, 52.0, 8.0, 3.0, "Moderate", 30.0, True, 0.20),
+        ("BIOE-F018", "BIOE-P013", "Forestry Residue", 380.0, 35.0, 11.8, 5.5, "Moderate", 70.0, True, 0.11),
+        ("BIOE-F019", "BIOE-P014", "Forestry Residue", 600.0, 30.0, 12.2, 5.0, "Firm", 50.0, True, 0.10),
+        ("BIOE-F020", "BIOE-P015", "Agricultural Residue", 410.0, 47.0, 8.4, 3.3, "Firm", 10.0, True, 0.18),
+    ]
+
+    feedstocks: List[BIOEFeedstockRecord] = []
+    for row in feedstock_raw:
+        feedstocks.append(BIOEFeedstockRecord(
+            feedstock_id=row[0], plant_id=row[1], feedstock_category=row[2],
+            annual_volume_kt=row[3], moisture_content_pct=row[4],
+            energy_content_gj_per_tonne=row[5], cost_dollar_per_gj=row[6],
+            supply_security=row[7], distance_to_plant_km=row[8],
+            sustainability_certified=row[9], carbon_intensity_tco2_per_mwh=row[10],
+        ))
+
+    generation_records: List[BIOEGenerationRecord] = []
+    gen_id = 1
+    gen_plant_ids = ["BIOE-P001", "BIOE-P002", "BIOE-P003", "BIOE-P004", "BIOE-P005",
+                     "BIOE-P006", "BIOE-P007", "BIOE-P008", "BIOE-P009"]
+    gen_plant_cap = [33.0, 30.0, 20.0, 15.0, 8.0, 12.0, 6.5, 5.0, 50.0]
+    for pid, cap in zip(gen_plant_ids, gen_plant_cap):
+        for year in [2021, 2022, 2023, 2024]:
+            cf = round(rng.uniform(65.0, 82.0), 1)
+            gen_mwh = round(cap * cf / 100 * 8760, 0)
+            feedstock_kt = round(gen_mwh * rng.uniform(0.28, 0.38) / 1000, 1)
+            hr_actual = round(rng.uniform(9.4, 14.5), 2)
+            avail = round(rng.uniform(88.0, 97.0), 1)
+            rev = round(gen_mwh * rng.uniform(85.0, 130.0) / 1_000_000, 3)
+            lret_rev = round(gen_mwh * rng.uniform(25.0, 45.0) / 1_000_000, 3)
+            carbon_cost = round(gen_mwh * rng.uniform(2.0, 8.0) / 1_000_000, 3)
+            net_margin = round(rev + lret_rev - carbon_cost - (feedstock_kt * rng.uniform(8.0, 20.0)), 3)
+            co2_abatement = round(gen_mwh * rng.uniform(0.75, 0.95), 0)
+            generation_records.append(BIOEGenerationRecord(
+                gen_id=f"BIOE-GEN-{gen_id:04d}",
+                plant_id=pid, year=year, month=rng.randint(1, 12),
+                generation_mwh=gen_mwh, capacity_factor_pct=cf,
+                feedstock_consumed_kt=feedstock_kt, heat_rate_actual_gj_per_mwh=hr_actual,
+                availability_pct=avail, revenue_m=rev, lret_revenue_m=lret_rev,
+                carbon_cost_m=carbon_cost, net_margin_m=net_margin,
+                co2_abatement_t=co2_abatement,
+            ))
+            gen_id += 1
+
+    scenarios = ["Current", "High Carbon Price", "Low Feedstock Cost", "Carbon Capture Added", "Co-firing 30%", "Biomethane"]
+    econ_plant_ids = ["BIOE-P001", "BIOE-P003", "BIOE-P009", "BIOE-P010", "BIOE-P013", "BIOE-P014"]
+    econ_base_lcoe = [95.0, 110.0, 88.0, 92.0, 105.0, 100.0]
+    economics: List[BIOEEconomicsRecord] = []
+    econ_id = 1
+    for pid, base_lcoe in zip(econ_plant_ids, econ_base_lcoe):
+        for scenario in scenarios:
+            if scenario == "Current":
+                lcoe = round(base_lcoe, 1)
+                carbon_rev = round(rng.uniform(1.5, 4.0), 3)
+            elif scenario == "High Carbon Price":
+                lcoe = round(base_lcoe * 0.92, 1)
+                carbon_rev = round(rng.uniform(4.0, 8.0), 3)
+            elif scenario == "Low Feedstock Cost":
+                lcoe = round(base_lcoe * 0.85, 1)
+                carbon_rev = round(rng.uniform(1.5, 4.0), 3)
+            elif scenario == "Carbon Capture Added":
+                lcoe = round(base_lcoe * 1.18, 1)
+                carbon_rev = round(rng.uniform(6.0, 12.0), 3)
+            elif scenario == "Co-firing 30%":
+                lcoe = round(base_lcoe * 0.78, 1)
+                carbon_rev = round(rng.uniform(2.0, 5.0), 3)
+            else:  # Biomethane
+                lcoe = round(base_lcoe * 1.05, 1)
+                carbon_rev = round(rng.uniform(3.0, 7.0), 3)
+            capex = round(rng.uniform(40.0, 200.0), 1)
+            opex = round(rng.uniform(3.0, 15.0), 3)
+            feedstock_cost = round(rng.uniform(5.0, 25.0), 3)
+            lret_rev = round(rng.uniform(4.0, 18.0), 3)
+            total_rev = round(lret_rev + carbon_rev + rng.uniform(8.0, 30.0), 3)
+            npv = round(rng.uniform(-20.0, 80.0), 2)
+            irr = round(rng.uniform(4.0, 18.0), 2)
+            breakeven = round(lcoe * rng.uniform(0.85, 1.05), 1)
+            economics.append(BIOEEconomicsRecord(
+                econ_id=f"BIOE-ECON-{econ_id:04d}",
+                plant_id=pid, scenario=scenario, lcoe_dolpermwh=lcoe,
+                capex_m=capex, opex_m_pa=opex, feedstock_cost_m_pa=feedstock_cost,
+                carbon_revenue_m_pa=carbon_rev, lret_revenue_m_pa=lret_rev,
+                total_revenue_m_pa=total_rev, npv_m=npv, irr_pct=irr,
+                breakeven_price_dolpermwh=breakeven,
+            ))
+            econ_id += 1
+
+    biogas_raw = [
+        ("BIOE-BG001", "Swanbank LFG Expansion", "Landfill Gas", "QLD", 12_500_000.0, 2800.0, 1200.0, 0.0, 3500.0, 0.0, 2.5, "Operating"),
+        ("BIOE-BG002", "Lucas Heights LFG", "Landfill Gas", "NSW", 9_800_000.0, 2200.0, 800.0, 0.0, 2800.0, 0.0, 2.2, "Operating"),
+        ("BIOE-BG003", "Malabar WWTP Biogas", "Sewage Treatment", "NSW", 6_200_000.0, 1400.0, 600.0, 18_000.0, 1200.0, 0.0, 3.1, "Operating"),
+        ("BIOE-BG004", "Bolivar WWTP Biogas", "Sewage Treatment", "SA", 4_800_000.0, 1100.0, 450.0, 14_000.0, 950.0, 0.0, 3.0, "Operating"),
+        ("BIOE-BG005", "Werribee Biogas Project", "Sewage Treatment", "VIC", 5_500_000.0, 1250.0, 520.0, 16_000.0, 1100.0, 0.0, 2.9, "Operating"),
+        ("BIOE-BG006", "Ipswich Food Waste AD", "Food Waste AD", "QLD", 3_200_000.0, 750.0, 350.0, 9_500.0, 800.0, 85.0, 4.2, "Operating"),
+        ("BIOE-BG007", "Dandenong Food Waste", "Food Waste AD", "VIC", 2_800_000.0, 620.0, 280.0, 8_200.0, 700.0, 80.0, 4.0, "Construction"),
+        ("BIOE-BG008", "Darling Downs Agri AD", "Agricultural AD", "QLD", 4_500_000.0, 1050.0, 420.0, 12_800.0, 1050.0, 65.0, 3.8, "Operating"),
+        ("BIOE-BG009", "Murray Bridge Agri AD", "Agricultural AD", "SA", 3_600_000.0, 850.0, 360.0, 10_500.0, 880.0, 60.0, 3.6, "Operating"),
+        ("BIOE-BG010", "Wodonga Agri Biogas", "Agricultural AD", "VIC", 3_100_000.0, 720.0, 300.0, 9_200.0, 760.0, 58.0, 3.5, "Operating"),
+        ("BIOE-BG011", "Port Adelaide Industrial", "Industrial", "SA", 7_200_000.0, 1650.0, 700.0, 0.0, 1800.0, 0.0, 2.0, "Planned"),
+        ("BIOE-BG012", "Bunbury LFG Station", "Landfill Gas", "WA", 8_400_000.0, 1900.0, 700.0, 0.0, 2400.0, 0.0, 2.3, "Operating"),
+    ]
+
+    biogas_projects: List[BIOEBiogasRecord] = []
+    for row in biogas_raw:
+        biogas_projects.append(BIOEBiogasRecord(
+            biogas_id=row[0], project_name=row[1], project_type=row[2], state=row[3],
+            gas_production_m3_pa=row[4], electricity_capacity_kw=row[5],
+            heat_capacity_kw_th=row[6], biomethane_injection_gj_pa=row[7],
+            carbon_credits_accu_pa=row[8], tipping_fee_dollar_per_tonne=row[9],
+            gate_fee_dollar_per_gj=row[10], status=row[11],
+        ))
+
+    cert_standards = ["FSC", "PEFC", "ISO 13065", "RED II", "REC", "None"]
+    sustain_raw = [
+        ("BIOE-S001", "BIOE-P001", "REC", False, "Neutral", 1.2, 0.8, 0.05, 0.18, 80.0, 45),
+        ("BIOE-S002", "BIOE-P002", "REC", False, "Neutral", 1.1, 0.75, 0.04, 0.17, 81.0, 38),
+        ("BIOE-S003", "BIOE-P003", "FSC", False, "Positive", 0.9, 0.6, 0.03, 0.12, 87.0, 55),
+        ("BIOE-S004", "BIOE-P004", "ISO 13065", False, "Neutral", 1.4, 0.9, 0.06, 0.19, 79.0, 32),
+        ("BIOE-S005", "BIOE-P005", "None", False, "Neutral", 0.5, 0.4, 0.02, 0.08, 92.0, 12),
+        ("BIOE-S006", "BIOE-P006", "None", False, "Neutral", 0.6, 0.45, 0.025, 0.07, 93.0, 15),
+        ("BIOE-S007", "BIOE-P007", "None", False, "Positive", 0.4, 0.35, 0.018, 0.06, 94.0, 8),
+        ("BIOE-S008", "BIOE-P008", "None", False, "Positive", 0.4, 0.38, 0.019, 0.06, 94.0, 7),
+        ("BIOE-S009", "BIOE-P009", "PEFC", False, "Neutral", 1.3, 0.85, 0.055, 0.16, 83.0, 62),
+        ("BIOE-S010", "BIOE-P010", "PEFC", False, "Neutral", 1.2, 0.82, 0.05, 0.12, 87.0, 58),
+        ("BIOE-S011", "BIOE-P011", "None", False, "Negative", 1.8, 1.2, 0.09, 0.25, 73.0, 25),
+        ("BIOE-S012", "BIOE-P012", "ISO 13065", False, "Neutral", 1.5, 0.95, 0.065, 0.20, 78.0, 28),
+        ("BIOE-S013", "BIOE-P013", "FSC", False, "Positive", 0.95, 0.65, 0.035, 0.11, 88.0, 70),
+        ("BIOE-S014", "BIOE-P014", "FSC", False, "Positive", 0.85, 0.58, 0.028, 0.10, 90.0, 85),
+        ("BIOE-S015", "BIOE-P015", "REC", False, "Neutral", 1.15, 0.78, 0.042, 0.18, 80.0, 42),
+    ]
+
+    sustainability: List[BIOESustainabilityRecord] = []
+    for row in sustain_raw:
+        sustainability.append(BIOESustainabilityRecord(
+            sustain_id=row[0], plant_id=row[1], certification_standard=row[2],
+            land_use_change=row[3], biodiversity_impact=row[4],
+            water_use_kl_per_mwh=row[5], air_quality_nox_kg_per_mwh=row[6],
+            particulates_kg_per_mwh=row[7], lifecycle_co2_tco2_per_mwh=row[8],
+            co2_vs_coal_reduction_pct=row[9], local_employment_fte=row[10],
+        ))
+
+    total_capacity_mw = round(sum(p.capacity_mw for p in plants), 1)
+    total_gen_gwh = round(sum(p.annual_generation_gwh for p in plants), 1)
+    avg_cf = round(sum(p.capacity_factor_pct for p in plants) / len(plants), 2)
+    total_co2_abatement_kt = round(sum(g.co2_abatement_t for g in generation_records) / 1000, 1)
+    lret_certs_k = round(sum(g.lret_revenue_m for g in generation_records) * 1000 / 35.0, 0)
+
+    _bioe_cache.update(BIOEDashboard(
+        plants=plants,
+        feedstocks=feedstocks,
+        generation_records=generation_records,
+        economics=economics,
+        biogas_projects=biogas_projects,
+        sustainability=sustainability,
+        summary={
+            "total_biomass_capacity_mw": total_capacity_mw,
+            "annual_generation_gwh": total_gen_gwh,
+            "avg_capacity_factor_pct": avg_cf,
+            "total_co2_abatement_kt": total_co2_abatement_kt,
+            "lret_certificates_issued_k": lret_certs_k,
+        },
+    ).model_dump())
+    return _bioe_cache

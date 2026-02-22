@@ -77,6 +77,7 @@ import {
   Truck,
   Grid,
   Ship,
+  CheckCircle,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -347,6 +348,9 @@ import WindFarmWakeAnalytics from './pages/WindFarmWakeAnalytics'
 import MarketBiddingStrategyAnalytics from './pages/MarketBiddingStrategyAnalytics'
 import SolarPVSoilingAnalytics from './pages/SolarPVSoilingAnalytics'
 import OTICSCyberSecurityAnalytics from './pages/OTICSCyberSecurityAnalytics'
+import STPASAAdequacyAnalytics from './pages/STPASAAdequacyAnalytics'
+import GeneratorPerformanceStandardsAnalytics from './pages/GeneratorPerformanceStandardsAnalytics'
+import BiomassBioenergyAnalytics from './pages/BiomassBioenergyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -367,6 +371,7 @@ const NAV_ITEMS = [
   { to: '/bess',             label: 'Battery Storage',  Icon: Battery        },
   { to: '/trading-desk',    label: 'Trading Desk',     Icon: DollarSign     },
   { to: '/sustainability',  label: 'Sustainability',   Icon: Leaf            },
+  { to: '/biomass-bioenergy', label: 'Biomass & Bioenergy', Icon: Leaf       },
   { to: '/merit-order',     label: 'Merit Order',      Icon: TrendingUp      },
   { to: '/ml-dashboard',   label: 'ML Models',        Icon: Brain           },
   { to: '/data-catalog',  label: 'Data Catalog',     Icon: Database        },
@@ -618,6 +623,8 @@ const NAV_ITEMS = [
   { to: '/market-bidding-strategy', label: 'Market Bidding Strategy Analytics', Icon: Target },
   { to: '/solar-pv-soiling',  label: 'Solar PV Soiling & Performance', Icon: Sun },
   { to: '/ot-ics-cyber-security', label: 'OT/ICS Energy Cyber Security', Icon: Lock },
+  { to: '/stpasa-adequacy', label: 'STPASA Adequacy', Icon: AlertTriangle },
+  { to: '/generator-performance-standards', label: 'Generator GPS Compliance', Icon: CheckCircle },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -964,6 +971,9 @@ export default function App() {
               <Route path="/market-bidding-strategy" element={<MarketBiddingStrategyAnalytics />} />
               <Route path="/solar-pv-soiling"  element={<SolarPVSoilingAnalytics />} />
               <Route path="/ot-ics-cyber-security" element={<OTICSCyberSecurityAnalytics />} />
+              <Route path="/stpasa-adequacy" element={<STPASAAdequacyAnalytics />} />
+              <Route path="/generator-performance-standards" element={<GeneratorPerformanceStandardsAnalytics />} />
+              <Route path="/biomass-bioenergy" element={<BiomassBioenergyAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
