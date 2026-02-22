@@ -78,6 +78,7 @@ import {
   Grid,
   Ship,
   CheckCircle,
+  Monitor,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -354,6 +355,9 @@ import BiomassBioenergyAnalytics from './pages/BiomassBioenergyAnalytics'
 import ElectricityFrequencyPerformanceAnalytics from './pages/ElectricityFrequencyPerformanceAnalytics'
 import LGCMarketAnalytics from './pages/LGCMarketAnalytics'
 import WaveTidalOceanAnalytics from './pages/WaveTidalOceanAnalytics'
+import ReactivePowerVoltageAnalytics from './pages/ReactivePowerVoltageAnalytics'
+import BatteryRevenueStackAnalytics from './pages/BatteryRevenueStackAnalytics'
+import DigitalEnergyTwinAnalytics from './pages/DigitalEnergyTwinAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -631,6 +635,9 @@ const NAV_ITEMS = [
   { to: '/electricity-frequency-performance', label: 'Electricity Frequency Performance', Icon: Activity },
   { to: '/lgc-market',                        label: 'LGC Market Analytics',               Icon: Award    },
   { to: '/wave-tidal-ocean', label: 'Wave & Tidal Ocean Energy', Icon: Waves },
+  { to: '/reactive-power-voltage', label: 'Reactive Power & Voltage', Icon: Zap },
+  { to: '/battery-revenue-stack', label: 'Battery Revenue Stack', Icon: Battery },
+  { to: '/digital-energy-twin', label: 'Digital Energy Twin', Icon: Monitor },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -983,6 +990,9 @@ export default function App() {
               <Route path="/electricity-frequency-performance" element={<ElectricityFrequencyPerformanceAnalytics />} />
               <Route path="/lgc-market"                      element={<LGCMarketAnalytics />}                       />
               <Route path="/wave-tidal-ocean" element={<WaveTidalOceanAnalytics />} />
+              <Route path="/reactive-power-voltage" element={<ReactivePowerVoltageAnalytics />} />
+              <Route path="/battery-revenue-stack" element={<BatteryRevenueStackAnalytics />} />
+              <Route path="/digital-energy-twin" element={<DigitalEnergyTwinAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

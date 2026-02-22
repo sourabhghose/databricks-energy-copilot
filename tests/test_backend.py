@@ -13230,3 +13230,129 @@ class TestWaveTidalOceanDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestReactivePowerVoltageDashboard:
+    URL = "/api/reactive-power-voltage/dashboard"
+    HEADERS = {"x-api-key": "test"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_voltage_profiles_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["voltage_profiles"]) >= 24
+
+    def test_reactive_devices_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["reactive_devices"]) >= 15
+
+    def test_reactive_flows_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["reactive_flows"]) >= 20
+
+    def test_voltage_events_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["voltage_events"]) >= 12
+
+    def test_constraints_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["constraints"]) >= 10
+
+    def test_generator_capabilities_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["generator_capabilities"]) >= 15
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_reactive_support_mvar" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestBatteryRevenueStackDashboard:
+    URL = "/api/battery-revenue-stack/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_assets_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["assets"]) >= 12
+
+    def test_revenue_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["revenue_records"]) >= 30
+
+    def test_dispatch_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["dispatch_records"]) >= 40
+
+    def test_optimisations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["optimisations"]) >= 28
+
+    def test_market_conditions_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["market_conditions"]) >= 15
+
+    def test_projections_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["projections"]) >= 24
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_fleet_capacity_mw" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestDigitalEnergyTwinDashboard:
+    URL = "/api/digital-energy-twin/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_twins_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["twins"]) >= 10
+
+    def test_data_streams_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["data_streams"]) >= 24
+
+    def test_simulations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["simulations"]) >= 15
+
+    def test_predictions_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["predictions"]) >= 20
+
+    def test_integrations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["integrations"]) >= 18
+
+    def test_roi_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["roi_records"]) >= 18
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_annual_benefit_m" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

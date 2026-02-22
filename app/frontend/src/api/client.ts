@@ -17753,3 +17753,342 @@ export interface WTOEDashboard {
 
 export const getWaveTidalOceanDashboard = (): Promise<WTOEDashboard> =>
   get<WTOEDashboard>('/api/wave-tidal-ocean/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 103a — Power System Reactive Power & Voltage Management Analytics
+// ---------------------------------------------------------------------------
+
+export interface PSRPVoltageProfileRecord {
+  profile_id: string
+  region: string
+  bus_name: string
+  voltage_level_kv: number
+  measurement_date: string
+  hour: number
+  voltage_pu: number
+  voltage_kv: number
+  reactive_power_mvar: number
+  power_factor: number
+  voltage_status: string
+  q_support_source: string
+  contingency_margin_pu: number
+}
+
+export interface PSRPReactiveDeviceRecord {
+  device_id: string
+  device_name: string
+  technology: string
+  location: string
+  region: string
+  rating_mvar_cap: number
+  rating_mvar_ind: number
+  availability_pct: number
+  commissioning_year: number
+  response_time_ms: number
+  automatic_control: boolean
+  dispatch_status: string
+  annual_cost_m: number
+}
+
+export interface PSRPReactivePowerFlowRecord {
+  flow_id: string
+  region: string
+  date: string
+  hour: number
+  reactive_generation_mvar: number
+  reactive_absorption_mvar: number
+  reactive_load_mvar: number
+  reactive_losses_mvar: number
+  net_reactive_mvar: number
+  reactive_import_mvar: number
+  reactive_export_mvar: number
+  system_pf: number
+  ibr_reactive_contribution_mvar: number
+}
+
+export interface PSRPVoltageEventRecord {
+  event_id: string
+  event_date: string
+  region: string
+  bus_name: string
+  event_type: string
+  pre_event_voltage_pu: number
+  min_max_voltage_pu: number
+  duration_seconds: number
+  reactive_deficit_mvar: number
+  load_affected_mw: number
+  corrective_action: string
+  market_impact_m: number
+}
+
+export interface PSRPConstraintRecord {
+  constraint_id: string
+  constraint_name: string
+  constraint_type: string
+  region: string
+  bound_type: string
+  rhs_value: number
+  unit: string
+  binding_frequency_pct: number
+  avg_shadow_price_dolpermvar: number
+  annual_cost_m: number
+  mitigation_option: string
+  scheduled_mitigation_year: number
+}
+
+export interface PSRPCapabilityRecord {
+  capability_id: string
+  generator_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  q_cap_mvar: number
+  q_ind_mvar: number
+  power_factor_lead: number
+  power_factor_lag: number
+  automatic_voltage_regulation: boolean
+  droop_setting_pct: number
+  reactive_compliance: boolean
+  age_years: number
+}
+
+export interface PSRPDashboard {
+  voltage_profiles: PSRPVoltageProfileRecord[]
+  reactive_devices: PSRPReactiveDeviceRecord[]
+  reactive_flows: PSRPReactivePowerFlowRecord[]
+  voltage_events: PSRPVoltageEventRecord[]
+  constraints: PSRPConstraintRecord[]
+  generator_capabilities: PSRPCapabilityRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getReactivePowerVoltageDashboard = (): Promise<PSRPDashboard> =>
+  get<PSRPDashboard>('/api/reactive-power-voltage/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 103b – Battery Revenue Stack Optimisation Analytics (BRSO)
+// ---------------------------------------------------------------------------
+
+export interface BRSOAssetRecord {
+  asset_id: string
+  asset_name: string
+  owner: string
+  region: string
+  capacity_mw: number
+  energy_mwh: number
+  duration_hours: number
+  technology: string
+  commissioning_year: number
+  connection_type: string
+  primary_revenue_stream: string
+  secondary_revenue_stream: string
+  tertiary_revenue_stream: string
+  round_trip_efficiency_pct: number
+  cycles_pa: number
+  dod_pct: number
+  degradation_rate_pct_pa: number
+  remaining_life_years: number
+}
+
+export interface BRSORevenueRecord {
+  revenue_id: string
+  asset_id: string
+  year: number
+  month: number
+  fcas_raise_mwh: number
+  fcas_lower_mwh: number
+  fcas_revenue_m: number
+  wholesale_arb_mwh: number
+  wholesale_revenue_m: number
+  network_support_revenue_m: number
+  capacity_payment_m: number
+  vpp_aggregation_m: number
+  ancillary_other_m: number
+  total_revenue_m: number
+  total_cost_m: number
+  net_margin_m: number
+  revenue_per_mwh: number
+}
+
+export interface BRSODispatchRecord {
+  dispatch_id: string
+  asset_id: string
+  date: string
+  hour: number
+  dispatch_mode: string
+  power_mw: number
+  energy_mwh: number
+  fcas_service: string
+  spot_price_dolpermwh: number
+  fcas_price_dolpmw: number
+  revenue_aud: number
+  soc_start_pct: number
+  soc_end_pct: number
+  opportunity_cost_aud: number
+}
+
+export interface BRSOOptimisationRecord {
+  opt_id: string
+  asset_id: string
+  scenario: string
+  total_revenue_m_pa: number
+  fcas_share_pct: number
+  arb_share_pct: number
+  network_share_pct: number
+  cycles_pa: number
+  degradation_pa_pct: number
+  lcoe_dolpermwh: number
+  irr_pct: number
+  optimal_strategy: boolean
+}
+
+export interface BRSOMarketConditionRecord {
+  condition_id: string
+  region: string
+  year: number
+  quarter: number
+  avg_spot_price_dolpermwh: number
+  spot_volatility_pct: number
+  fcas_raise_avg_price: number
+  fcas_lower_avg_price: number
+  negative_price_hours: number
+  price_spike_hours: number
+  battery_competition_index: number
+  grid_scale_battery_gw: number
+  optimal_duration_hours: number
+}
+
+export interface BRSOProjectionRecord {
+  projection_id: string
+  asset_id: string
+  year: number
+  projected_revenue_m: number
+  fcas_revenue_m: number
+  arb_revenue_m: number
+  network_revenue_m: number
+  degradation_cost_m: number
+  opex_m: number
+  net_cashflow_m: number
+  cumulative_npv_m: number
+  irr_to_date_pct: number
+  market_revenue_per_mwh: number
+}
+
+export interface BRSODashboard {
+  assets: BRSOAssetRecord[]
+  revenue_records: BRSORevenueRecord[]
+  dispatch_records: BRSODispatchRecord[]
+  optimisations: BRSOOptimisationRecord[]
+  market_conditions: BRSOMarketConditionRecord[]
+  projections: BRSOProjectionRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getBatteryRevenueStackDashboard = (): Promise<BRSODashboard> =>
+  get<BRSODashboard>('/api/battery-revenue-stack/dashboard')
+
+// ---------------------------------------------------------------------------
+// Digital Energy Twin Analytics  (Sprint 103c)
+// ---------------------------------------------------------------------------
+
+export interface DETATwinRecord {
+  twin_id: string
+  twin_name: string
+  asset_type: string
+  asset_owner: string
+  region: string
+  physical_capacity_mw: number
+  twin_maturity: string
+  data_streams_count: number
+  update_frequency_seconds: number
+  accuracy_pct: number
+  vendor: string
+  deployment_year: number
+  roi_m_pa: number
+  use_cases: string
+}
+
+export interface DETADataStreamRecord {
+  stream_id: string
+  twin_id: string
+  stream_name: string
+  sensor_type: string
+  data_frequency_hz: number
+  data_volume_gb_pa: number
+  latency_ms: number
+  data_quality_pct: number
+  ml_model_attached: boolean
+  anomaly_detection: boolean
+  last_calibration_date: string
+  uptime_pct: number
+}
+
+export interface DETASimulationRecord {
+  sim_id: string
+  twin_id: string
+  simulation_type: string
+  run_date: string
+  duration_seconds: number
+  scenarios_tested: number
+  accuracy_vs_physical_pct: number
+  actionable_insights: number
+  cost_avoided_m: number
+  downtime_avoided_hours: number
+  energy_optimised_mwh: number
+}
+
+export interface DETAPredictiveRecord {
+  pred_id: string
+  twin_id: string
+  asset_component: string
+  prediction_type: string
+  prediction_horizon_days: number
+  confidence_pct: number
+  predicted_event_date: string
+  actual_event_date: string
+  prediction_accuracy: boolean
+  false_positive: boolean
+  maintenance_cost_aud: number
+  prevented_outage_mw: number
+  prevented_revenue_loss_m: number
+}
+
+export interface DETAIntegrationRecord {
+  integ_id: string
+  twin_id: string
+  system_integrated: string
+  integration_type: string
+  data_latency_ms: number
+  integration_status: string
+  value_delivered: string
+  implementation_cost_m: number
+}
+
+export interface DETAROIRecord {
+  roi_id: string
+  twin_id: string
+  year: number
+  maintenance_saving_m: number
+  unplanned_outage_saving_m: number
+  energy_optimisation_m: number
+  opex_reduction_m: number
+  capex_deferral_m: number
+  total_benefit_m: number
+  twin_opex_m: number
+  net_benefit_m: number
+  roi_pct: number
+  payback_years: number
+}
+
+export interface DETADashboard {
+  twins: DETATwinRecord[]
+  data_streams: DETADataStreamRecord[]
+  simulations: DETASimulationRecord[]
+  predictions: DETAPredictiveRecord[]
+  integrations: DETAIntegrationRecord[]
+  roi_records: DETAROIRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getDigitalEnergyTwinDashboard = (): Promise<DETADashboard> =>
+  get<DETADashboard>('/api/digital-energy-twin/dashboard')

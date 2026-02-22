@@ -74096,3 +74096,1054 @@ def get_wave_tidal_ocean_dashboard():
         },
     ).model_dump())
     return _lgca_cache
+
+# ===========================================================================
+# Sprint 103a — Power System Reactive Power & Voltage Management Analytics
+# ===========================================================================
+
+class PSRPVoltageProfileRecord(BaseModel):
+    profile_id: str
+    region: str
+    bus_name: str
+    voltage_level_kv: float
+    measurement_date: str
+    hour: int
+    voltage_pu: float
+    voltage_kv: float
+    reactive_power_mvar: float
+    power_factor: float
+    voltage_status: str
+    q_support_source: str
+    contingency_margin_pu: float
+
+class PSRPReactiveDeviceRecord(BaseModel):
+    device_id: str
+    device_name: str
+    technology: str
+    location: str
+    region: str
+    rating_mvar_cap: float
+    rating_mvar_ind: float
+    availability_pct: float
+    commissioning_year: int
+    response_time_ms: float
+    automatic_control: bool
+    dispatch_status: str
+    annual_cost_m: float
+
+class PSRPReactivePowerFlowRecord(BaseModel):
+    flow_id: str
+    region: str
+    date: str
+    hour: int
+    reactive_generation_mvar: float
+    reactive_absorption_mvar: float
+    reactive_load_mvar: float
+    reactive_losses_mvar: float
+    net_reactive_mvar: float
+    reactive_import_mvar: float
+    reactive_export_mvar: float
+    system_pf: float
+    ibr_reactive_contribution_mvar: float
+
+class PSRPVoltageEventRecord(BaseModel):
+    event_id: str
+    event_date: str
+    region: str
+    bus_name: str
+    event_type: str
+    pre_event_voltage_pu: float
+    min_max_voltage_pu: float
+    duration_seconds: float
+    reactive_deficit_mvar: float
+    load_affected_mw: float
+    corrective_action: str
+    market_impact_m: float
+
+class PSRPConstraintRecord(BaseModel):
+    constraint_id: str
+    constraint_name: str
+    constraint_type: str
+    region: str
+    bound_type: str
+    rhs_value: float
+    unit: str
+    binding_frequency_pct: float
+    avg_shadow_price_dolpermvar: float
+    annual_cost_m: float
+    mitigation_option: str
+    scheduled_mitigation_year: int
+
+class PSRPCapabilityRecord(BaseModel):
+    capability_id: str
+    generator_name: str
+    technology: str
+    region: str
+    capacity_mw: float
+    q_cap_mvar: float
+    q_ind_mvar: float
+    power_factor_lead: float
+    power_factor_lag: float
+    automatic_voltage_regulation: bool
+    droop_setting_pct: float
+    reactive_compliance: bool
+    age_years: int
+
+class PSRPDashboard(BaseModel):
+    voltage_profiles: list[PSRPVoltageProfileRecord]
+    reactive_devices: list[PSRPReactiveDeviceRecord]
+    reactive_flows: list[PSRPReactivePowerFlowRecord]
+    voltage_events: list[PSRPVoltageEventRecord]
+    constraints: list[PSRPConstraintRecord]
+    generator_capabilities: list[PSRPCapabilityRecord]
+    summary: dict
+
+_psrp_cache: dict = {}
+
+@app.get("/api/reactive-power-voltage/dashboard")
+def get_reactive_power_voltage_dashboard():
+    import random
+    if _psrp_cache:
+        return _psrp_cache
+
+    rng = random.Random(20240315)
+
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    buses_per_region = {
+        "NSW": ["Sydney 330kV", "Newcastle 132kV", "Wagga 220kV"],
+        "VIC": ["Melbourne 500kV", "Geelong 220kV", "Ballarat 132kV"],
+        "QLD": ["Brisbane 275kV", "Rockhampton 132kV", "Townsville 132kV"],
+        "SA":  ["Adelaide 275kV", "Port Augusta 132kV", "Tailem Bend 275kV"],
+        "TAS": ["Hobart 220kV", "Launceston 110kV", "George Town 220kV"],
+    }
+    kv_map = {
+        "Sydney 330kV": 330.0, "Newcastle 132kV": 132.0, "Wagga 220kV": 220.0,
+        "Melbourne 500kV": 500.0, "Geelong 220kV": 220.0, "Ballarat 132kV": 132.0,
+        "Brisbane 275kV": 275.0, "Rockhampton 132kV": 132.0, "Townsville 132kV": 132.0,
+        "Adelaide 275kV": 275.0, "Port Augusta 132kV": 132.0, "Tailem Bend 275kV": 275.0,
+        "Hobart 220kV": 220.0, "Launceston 110kV": 110.0, "George Town 220kV": 220.0,
+    }
+    voltage_statuses = ["Normal", "Normal", "Normal", "High", "Low", "Critical High", "Critical Low"]
+    q_sources = ["Generator", "SVC", "STATCOM", "Capacitor Bank", "Reactor", "Synchronous Condenser"]
+    dates = ["2024-07-15", "2024-01-22"]
+    hours = [9, 20]
+
+    profiles = []
+    pid = 1
+    for region in regions:
+        for bus in buses_per_region[region]:
+            for di, d in enumerate(dates):
+                status = rng.choice(voltage_statuses)
+                vpu = rng.uniform(0.92, 1.08)
+                if status in ("Critical High",):
+                    vpu = rng.uniform(1.07, 1.12)
+                elif status in ("Critical Low",):
+                    vpu = rng.uniform(0.88, 0.93)
+                kv_nom = kv_map[bus]
+                profiles.append(PSRPVoltageProfileRecord(
+                    profile_id=f"VP-{pid:04d}",
+                    region=region,
+                    bus_name=bus,
+                    voltage_level_kv=kv_nom,
+                    measurement_date=d,
+                    hour=hours[di],
+                    voltage_pu=round(vpu, 4),
+                    voltage_kv=round(vpu * kv_nom, 2),
+                    reactive_power_mvar=round(rng.uniform(-150, 350), 1),
+                    power_factor=round(rng.uniform(0.92, 1.00), 4),
+                    voltage_status=status,
+                    q_support_source=rng.choice(q_sources),
+                    contingency_margin_pu=round(rng.uniform(0.02, 0.10), 4),
+                ))
+                pid += 1
+
+    device_defs = [
+        ("RD-001", "Torrens Island SVC #1",   "SVC",                  "Torrens Island",  "SA",  150.0, 50.0,  98.5, 2005, 30.0,  True,  "Active",      3.8),
+        ("RD-002", "Kogan Creek STATCOM",      "STATCOM",              "Kogan Creek",     "QLD", 100.0, 60.0,  96.2, 2016, 5.0,   True,  "Active",      2.5),
+        ("RD-003", "Heywood SVC",              "SVC",                  "Heywood",         "VIC", 200.0, 75.0,  97.8, 2000, 25.0,  True,  "Active",      4.2),
+        ("RD-004", "Loy Yang Syncon #1",       "Synchronous Condenser","Loy Yang",        "VIC", 0.0,   250.0, 94.1, 1990, 500.0, True,  "Active",      5.1),
+        ("RD-005", "Loy Yang Syncon #2",       "Synchronous Condenser","Loy Yang",        "VIC", 0.0,   250.0, 92.3, 1990, 500.0, True,  "Standby",     5.1),
+        ("RD-006", "Robertstown SVC",          "SVC",                  "Robertstown",     "SA",  120.0, 40.0,  99.0, 2010, 28.0,  True,  "Active",      3.1),
+        ("RD-007", "Moorabool STATCOM",        "STATCOM",              "Moorabool",       "VIC", 80.0,  80.0,  98.9, 2019, 4.0,   True,  "Active",      2.2),
+        ("RD-008", "South Pine Cap Bank",      "Capacitor Bank",       "South Pine",      "QLD", 60.0,  0.0,   99.5, 2008, 200.0, False, "Active",      0.8),
+        ("RD-009", "Transgrid Reactor NSW",    "Shunt Reactor",        "Sydney West",     "NSW", 0.0,   100.0, 98.0, 2012, 150.0, True,  "Active",      1.5),
+        ("RD-010", "ElectraNet SVC SA",        "SVC",                  "Para",            "SA",  180.0, 60.0,  97.5, 2007, 32.0,  True,  "Active",      4.0),
+        ("RD-011", "Basslink Phase Shifter",   "Phase Shifter",        "George Town",     "TAS", 0.0,   0.0,   95.6, 2006, 100.0, True,  "Active",      2.9),
+        ("RD-012", "Hazelwood Syncon",         "Synchronous Condenser","Morwell",         "VIC", 0.0,   180.0, 88.0, 1985, 600.0, True,  "Maintenance", 4.5),
+        ("RD-013", "Bayswater Cap Bank #1",    "Capacitor Bank",       "Bayswater",       "NSW", 40.0,  0.0,   99.8, 2015, 250.0, False, "Active",      0.6),
+        ("RD-014", "Bayswater Cap Bank #2",    "Capacitor Bank",       "Bayswater",       "NSW", 40.0,  0.0,   99.6, 2015, 250.0, False, "Active",      0.6),
+        ("RD-015", "Moomba STATCOM",           "STATCOM",              "Moomba",          "SA",  50.0,  50.0,  97.0, 2021, 3.5,   True,  "Active",      1.8),
+        ("RD-016", "Bulli Creek SVC",          "SVC",                  "Bulli Creek",     "QLD", 160.0, 55.0,  98.2, 2003, 27.0,  True,  "Active",      3.5),
+        ("RD-017", "Launceston Cap Bank",      "Capacitor Bank",       "Launceston",      "TAS", 30.0,  0.0,   99.9, 2009, 300.0, False, "Standby",     0.4),
+        ("RD-018", "Newcastle Reactor",        "Shunt Reactor",        "Newcastle",       "NSW", 0.0,   80.0,  97.8, 2011, 180.0, True,  "Active",      1.2),
+        ("RD-019", "Townsville SVC",           "SVC",                  "Townsville",      "QLD", 130.0, 45.0,  96.8, 2014, 30.0,  True,  "Active",      3.2),
+        ("RD-020", "SA Syncon Project",        "Synchronous Condenser","Davenport",       "SA",  0.0,   200.0, 99.0, 2022, 450.0, True,  "Active",      6.5),
+    ]
+    reactive_devices = [PSRPReactiveDeviceRecord(
+        device_id=d[0], device_name=d[1], technology=d[2], location=d[3], region=d[4],
+        rating_mvar_cap=d[5], rating_mvar_ind=d[6], availability_pct=d[7],
+        commissioning_year=d[8], response_time_ms=d[9], automatic_control=d[10],
+        dispatch_status=d[11], annual_cost_m=d[12],
+    ) for d in device_defs]
+
+    flow_dates = ["2024-01-15", "2024-04-10", "2024-07-20", "2024-10-05", "2024-12-01"]
+    flows = []
+    fid = 1
+    for region in regions:
+        for di, fd in enumerate(flow_dates):
+            rg = rng.uniform(200, 800)
+            ra = rng.uniform(50, 300)
+            rl = rng.uniform(300, 700)
+            rlos = rng.uniform(10, 60)
+            rimp = rng.uniform(0, 100)
+            rexp = rng.uniform(0, 100)
+            flows.append(PSRPReactivePowerFlowRecord(
+                flow_id=f"RF-{fid:04d}",
+                region=region,
+                date=fd,
+                hour=rng.choice([8, 12, 16, 20]),
+                reactive_generation_mvar=round(rg, 1),
+                reactive_absorption_mvar=round(ra, 1),
+                reactive_load_mvar=round(rl, 1),
+                reactive_losses_mvar=round(rlos, 1),
+                net_reactive_mvar=round(rg - ra - rl - rlos, 1),
+                reactive_import_mvar=round(rimp, 1),
+                reactive_export_mvar=round(rexp, 1),
+                system_pf=round(rng.uniform(0.93, 0.99), 4),
+                ibr_reactive_contribution_mvar=round(rng.uniform(10, 150), 1),
+            ))
+            fid += 1
+
+    event_defs = [
+        ("EVT-001","2022-01-28","SA",  "Adelaide 275kV",    "Under-voltage",              0.968, 0.891, 420.0,  180.0, 850.0,  "Emergency SVC dispatch + load shedding",   12.5),
+        ("EVT-002","2022-06-14","VIC", "Melbourne 500kV",   "Voltage Collapse Near-miss", 0.975, 0.882, 180.0,  310.0, 1200.0, "Syncon start + fast VAr injection",        28.3),
+        ("EVT-003","2022-08-05","NSW", "Sydney 330kV",      "Over-voltage",               1.042, 1.085, 90.0,   -120.0,400.0,  "Reactor switching + generator trim",        5.2),
+        ("EVT-004","2022-11-19","QLD", "Brisbane 275kV",    "Under-voltage",              0.961, 0.922, 600.0,  220.0, 950.0,  "Capacitor bank switching",                  9.8),
+        ("EVT-005","2023-02-10","SA",  "Tailem Bend 275kV", "VAr Deficiency",             0.952, 0.934, 1800.0, 290.0, 340.0,  "SVC boost + STATCOM redispatch",           15.1),
+        ("EVT-006","2023-05-22","VIC", "Geelong 220kV",     "Capacitor Switching",        1.018, 1.055, 30.0,   -80.0, 120.0,  "Automatic tap changer adjustment",          2.1),
+        ("EVT-007","2023-07-07","TAS", "Hobart 220kV",      "Under-voltage",              0.974, 0.941, 240.0,  145.0, 280.0,  "Basslink reactive support + cap bank",      4.7),
+        ("EVT-008","2023-09-15","NSW", "Newcastle 132kV",   "Load Rejection",             1.012, 1.068, 60.0,   -95.0, 180.0,  "Reactor insertion + AVR adjustment",        3.3),
+        ("EVT-009","2023-11-30","QLD", "Townsville 132kV",  "Under-voltage",              0.958, 0.919, 900.0,  185.0, 410.0,  "SVC dispatch + emergency load control",     8.6),
+        ("EVT-010","2024-01-19","SA",  "Port Augusta 132kV","Voltage Collapse Near-miss", 0.941, 0.872, 420.0,  380.0, 650.0,  "Emergency Syncon + FCAS activation",       35.8),
+        ("EVT-011","2024-03-04","VIC", "Ballarat 132kV",    "Under-voltage",              0.963, 0.931, 360.0,  210.0, 520.0,  "Capacitor bank + generator AVR boost",      7.4),
+        ("EVT-012","2024-05-18","NSW", "Wagga 220kV",       "VAr Deficiency",             0.956, 0.938, 2400.0, 265.0, 390.0,  "STATCOM redispatch + load reduction",      11.2),
+        ("EVT-013","2024-07-11","QLD", "Rockhampton 132kV", "Under-voltage",              0.969, 0.927, 480.0,  175.0, 310.0,  "SVC + capacitor bank auto-switch",          6.9),
+        ("EVT-014","2024-09-25","SA",  "Adelaide 275kV",    "VAr Deficiency",             0.955, 0.937, 1200.0, 245.0, 720.0,  "STATCOM full dispatch + wind VAr boost",   14.3),
+        ("EVT-015","2024-11-08","VIC", "Loy Yang 500kV",    "Over-voltage",               1.051, 1.092, 45.0,   -140.0,580.0,  "Reactor switch + generation curtailment",   4.8),
+    ]
+    voltage_events = [PSRPVoltageEventRecord(
+        event_id=e[0], event_date=e[1], region=e[2], bus_name=e[3], event_type=e[4],
+        pre_event_voltage_pu=e[5], min_max_voltage_pu=e[6], duration_seconds=e[7],
+        reactive_deficit_mvar=e[8], load_affected_mw=e[9], corrective_action=e[10],
+        market_impact_m=e[11],
+    ) for e in event_defs]
+
+    constraint_defs = [
+        ("CON-001","N-S QLD Reactive Limit",       "Reactive",               "QLD","Upper",  500.0,"MVAr", 34.5, 18.50, 6.3,  "STATCOM at Bulli Creek expansion",         2026),
+        ("CON-002","SA Voltage Floor Constraint",  "Voltage",                "SA", "Lower",  0.94, "pu",   58.2, 42.10, 14.8, "New Syncon at Davenport (underway)",        2025),
+        ("CON-003","VIC North-South VAr Import",   "Reactive",               "VIC","Upper",  350.0,"MVAr", 28.1, 14.20, 4.9,  "Moorabool STATCOM Stage 2",                2027),
+        ("CON-004","Heywood Reactive Ceiling",     "Thermal-Reactive Coupled","VIC","Upper", 420.0,"MVAr", 45.6, 22.80, 8.1,  "Line upgrade + SVC replacement",           2028),
+        ("CON-005","NSW Metro VAr Deficit",        "Reactive",               "NSW","Lower", -200.0,"MVAr", 22.3, 11.50, 3.7,  "Capacitor bank expansion Western Sydney",  2026),
+        ("CON-006","SA Kirchhoff Q Balance",       "Q-Capability",           "SA", "Lower", -150.0,"MVAr", 62.4, 38.90, 12.4, "IBR Q-priority dispatch modification",      2025),
+        ("CON-007","TAS Voltage Ceiling",          "Voltage",                "TAS","Upper",  1.06, "pu",   18.9, 9.30,  2.8,  "Reactor bank at Hobart substation",        2026),
+        ("CON-008","QLD NQ Reactive Floor",        "Reactive",               "QLD","Lower", -100.0,"MVAr", 41.2, 19.70, 6.8,  "Townsville SVC upgrade",                   2027),
+        ("CON-009","NSW Snowy Export Reactive",    "Reactive",               "NSW","Upper",  600.0,"MVAr", 31.7, 16.40, 5.5,  "HumeLink reactive management protocol",    2026),
+        ("CON-010","VIC-SA Interconnect Q-Limit",  "Thermal-Reactive Coupled","SA", "Upper", 320.0,"MVAr", 52.8, 31.60, 10.2, "ElectraNet VAr compensation upgrade",       2027),
+        ("CON-011","SA South VAr Deficit",         "Q-Capability",           "SA", "Lower", -80.0, "MVAr", 47.3, 25.20, 7.9,  "Syncon at Adelaide South",                 2028),
+        ("CON-012","NSW Central West Reactive",    "Reactive",               "NSW","Upper",  450.0,"MVAr", 26.5, 13.80, 4.2,  "REZ reactive equipment package",           2026),
+    ]
+    constraints = [PSRPConstraintRecord(
+        constraint_id=c[0], constraint_name=c[1], constraint_type=c[2], region=c[3],
+        bound_type=c[4], rhs_value=c[5], unit=c[6], binding_frequency_pct=c[7],
+        avg_shadow_price_dolpermvar=c[8], annual_cost_m=c[9], mitigation_option=c[10],
+        scheduled_mitigation_year=c[11],
+    ) for c in constraint_defs]
+
+    gen_capability_defs = [
+        ("GC-001","Eraring PS",          "Black Coal",  "NSW", 2880.0, 720.0,  480.0, 0.96, 0.85, True,  4.0,  True,  45),
+        ("GC-002","Bayswater PS",        "Black Coal",  "NSW", 2640.0, 660.0,  440.0, 0.96, 0.85, True,  4.0,  True,  42),
+        ("GC-003","Loy Yang A",          "Brown Coal",  "VIC", 2210.0, 550.0,  370.0, 0.95, 0.84, True,  5.0,  True,  39),
+        ("GC-004","Loy Yang B",          "Brown Coal",  "VIC", 1000.0, 250.0,  165.0, 0.95, 0.84, True,  5.0,  False, 35),
+        ("GC-005","Callide C",           "Black Coal",  "QLD", 1680.0, 420.0,  280.0, 0.96, 0.85, True,  4.0,  True,  22),
+        ("GC-006","Tarong PS",           "Black Coal",  "QLD", 1400.0, 350.0,  235.0, 0.96, 0.85, True,  4.0,  True,  38),
+        ("GC-007","Torrens Island B",    "Gas OCGT",    "SA",  480.0,  192.0,  100.0, 0.90, 0.85, True,  5.0,  True,  52),
+        ("GC-008","Pelican Point",       "Gas CCGT",    "SA",  487.0,  195.0,  105.0, 0.92, 0.85, True,  4.0,  True,  24),
+        ("GC-009","Snowy 2.0",           "Pumped Hydro","NSW", 2000.0, 800.0,  600.0, 0.95, 0.90, True,  3.0,  True,  2),
+        ("GC-010","Tumut 3",             "Hydro",       "NSW", 1500.0, 600.0,  450.0, 0.97, 0.90, True,  3.0,  True,  55),
+        ("GC-011","Basslink (Tas end)",  "Hydro",       "TAS", 500.0,  200.0,  130.0, 0.96, 0.90, True,  4.0,  True,  20),
+        ("GC-012","Macarthur Wind",      "Wind",        "VIC", 420.0,  168.0,  105.0, 0.93, 0.93, True,  0.0,  True,  12),
+        ("GC-013","Coopers Gap Wind",    "Wind",        "QLD", 453.0,  181.0,  113.0, 0.93, 0.93, True,  0.0,  True,  5),
+        ("GC-014","Hornsdale Power Res", "Battery",     "SA",  150.0,  60.0,   60.0,  1.00, 1.00, True,  0.0,  True,  7),
+        ("GC-015","Neoen BESS VIC",      "Battery",     "VIC", 300.0,  120.0,  120.0, 1.00, 1.00, True,  0.0,  True,  4),
+        ("GC-016","Callide B",           "Black Coal",  "QLD", 700.0,  175.0,  115.0, 0.95, 0.84, True,  5.0,  False, 48),
+        ("GC-017","Newport PS",          "Gas OCGT",    "VIC", 500.0,  175.0,  90.0,  0.91, 0.84, True,  5.0,  False, 50),
+        ("GC-018","Uranquinty",          "Gas OCGT",    "NSW", 664.0,  232.0,  120.0, 0.92, 0.85, True,  4.0,  True,  17),
+        ("GC-019","Origin Mortlake",     "Gas OCGT",    "VIC", 566.0,  198.0,  105.0, 0.91, 0.85, True,  4.0,  True,  15),
+        ("GC-020","AGL Torrens Island A","Gas OCGT",    "SA",  400.0,  160.0,  82.0,  0.90, 0.84, False, 5.0,  False, 55),
+    ]
+    generator_capabilities = [PSRPCapabilityRecord(
+        capability_id=g[0], generator_name=g[1], technology=g[2], region=g[3],
+        capacity_mw=g[4], q_cap_mvar=g[5], q_ind_mvar=g[6],
+        power_factor_lead=g[7], power_factor_lag=g[8],
+        automatic_voltage_regulation=g[9], droop_setting_pct=g[10],
+        reactive_compliance=g[11], age_years=g[12],
+    ) for g in gen_capability_defs]
+
+    regions_with_issues = len(set(
+        p.region for p in profiles
+        if p.voltage_status in ("Critical High", "Critical Low", "Low", "High")
+    ))
+    total_reactive_support = round(sum(d.rating_mvar_cap + d.rating_mvar_ind for d in reactive_devices), 1)
+    avg_pf = round(sum(f.system_pf for f in flows) / len(flows), 4)
+    binding_count = len([c for c in constraints if c.binding_frequency_pct >= 25.0])
+    annual_cost = round(sum(c.annual_cost_m for c in constraints), 2)
+
+    _psrp_cache.update(PSRPDashboard(
+        voltage_profiles=profiles,
+        reactive_devices=reactive_devices,
+        reactive_flows=flows,
+        voltage_events=voltage_events,
+        constraints=constraints,
+        generator_capabilities=generator_capabilities,
+        summary={
+            "regions_with_voltage_issues": regions_with_issues,
+            "total_reactive_support_mvar": total_reactive_support,
+            "avg_system_pf": avg_pf,
+            "binding_constraints_count": binding_count,
+            "annual_reactive_cost_m": annual_cost,
+        },
+    ).model_dump())
+    return _psrp_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 103b – Battery Revenue Stack Optimisation Analytics (BRSO)
+# ---------------------------------------------------------------------------
+
+class BRSOAssetRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    owner: str
+    region: str
+    capacity_mw: float
+    energy_mwh: float
+    duration_hours: float
+    technology: str          # NMC | LFP | Vanadium Flow | Zinc-Bromine
+    commissioning_year: int
+    connection_type: str     # Transmission | Distribution | Behind-meter
+    primary_revenue_stream: str
+    secondary_revenue_stream: str
+    tertiary_revenue_stream: str
+    round_trip_efficiency_pct: float
+    cycles_pa: int
+    dod_pct: float
+    degradation_rate_pct_pa: float
+    remaining_life_years: float
+
+
+class BRSORevenueRecord(BaseModel):
+    revenue_id: str
+    asset_id: str
+    year: int
+    month: int
+    fcas_raise_mwh: float
+    fcas_lower_mwh: float
+    fcas_revenue_m: float
+    wholesale_arb_mwh: float
+    wholesale_revenue_m: float
+    network_support_revenue_m: float
+    capacity_payment_m: float
+    vpp_aggregation_m: float
+    ancillary_other_m: float
+    total_revenue_m: float
+    total_cost_m: float
+    net_margin_m: float
+    revenue_per_mwh: float
+
+
+class BRSODispatchRecord(BaseModel):
+    dispatch_id: str
+    asset_id: str
+    date: str
+    hour: int
+    dispatch_mode: str       # Charging | Discharging | Standby | FCAS Enabled
+    power_mw: float
+    energy_mwh: float
+    fcas_service: str        # Reg Raise | Reg Lower | 6s Raise | 6s Lower | 60s Raise | 60s Lower | None
+    spot_price_dolpermwh: float
+    fcas_price_dolpmw: float
+    revenue_aud: float
+    soc_start_pct: float
+    soc_end_pct: float
+    opportunity_cost_aud: float
+
+
+class BRSOOptimisationRecord(BaseModel):
+    opt_id: str
+    asset_id: str
+    scenario: str            # Arb Only | FCAS Only | Arb+Reg FCAS | Arb+All FCAS | Full Stack | Network+FCAS | VPP
+    total_revenue_m_pa: float
+    fcas_share_pct: float
+    arb_share_pct: float
+    network_share_pct: float
+    cycles_pa: int
+    degradation_pa_pct: float
+    lcoe_dolpermwh: float
+    irr_pct: float
+    optimal_strategy: bool
+
+
+class BRSOMarketConditionRecord(BaseModel):
+    condition_id: str
+    region: str
+    year: int
+    quarter: int
+    avg_spot_price_dolpermwh: float
+    spot_volatility_pct: float
+    fcas_raise_avg_price: float
+    fcas_lower_avg_price: float
+    negative_price_hours: int
+    price_spike_hours: int
+    battery_competition_index: float
+    grid_scale_battery_gw: float
+    optimal_duration_hours: float
+
+
+class BRSOProjectionRecord(BaseModel):
+    projection_id: str
+    asset_id: str
+    year: int
+    projected_revenue_m: float
+    fcas_revenue_m: float
+    arb_revenue_m: float
+    network_revenue_m: float
+    degradation_cost_m: float
+    opex_m: float
+    net_cashflow_m: float
+    cumulative_npv_m: float
+    irr_to_date_pct: float
+    market_revenue_per_mwh: float
+
+
+class BRSODashboard(BaseModel):
+    assets: list[BRSOAssetRecord]
+    revenue_records: list[BRSORevenueRecord]
+    dispatch_records: list[BRSODispatchRecord]
+    optimisations: list[BRSOOptimisationRecord]
+    market_conditions: list[BRSOMarketConditionRecord]
+    projections: list[BRSOProjectionRecord]
+    summary: dict
+
+
+_brso_cache: dict = {}
+
+
+@app.get("/api/battery-revenue-stack/dashboard")
+def get_battery_revenue_stack_dashboard():
+    import random
+    if _brso_cache:
+        return _brso_cache
+
+    rng = random.Random(20240310)
+
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    technologies = ["NMC", "LFP", "Vanadium Flow", "Zinc-Bromine"]
+    connection_types = ["Transmission", "Distribution", "Behind-meter"]
+    revenue_streams = ["FCAS Raise", "FCAS Lower", "Wholesale Arb", "Network Support", "VPP Aggregation", "Capacity Payment"]
+    scenarios = ["Arb Only", "FCAS Only", "Arb+Reg FCAS", "Arb+All FCAS", "Full Stack", "Network+FCAS", "VPP"]
+    dispatch_modes = ["Charging", "Discharging", "Standby", "FCAS Enabled"]
+    fcas_services = ["Reg Raise", "Reg Lower", "6s Raise", "6s Lower", "60s Raise", "60s Lower", "None"]
+    owners = ["Neoen", "AGL Energy", "Origin Energy", "Tesla Energy", "ENGIE", "Amp Energy", "Akaysha Energy", "BHP Energy"]
+
+    asset_defs = [
+        ("BATT-001", "Hornsdale Power Reserve",     "Neoen",           "SA",  150, 194,  1.3, "NMC",           2017, "Transmission"),
+        ("BATT-002", "Victorian Big Battery",       "Neoen",           "VIC", 300, 450,  1.5, "LFP",           2021, "Transmission"),
+        ("BATT-003", "Waratah Super Battery",       "AGL Energy",      "NSW", 500, 1000, 2.0, "LFP",           2023, "Transmission"),
+        ("BATT-004", "Torrens Island BESS",         "AGL Energy",      "SA",  250, 500,  2.0, "LFP",           2022, "Transmission"),
+        ("BATT-005", "Gannawarra Energy Storage",   "Edify Energy",    "VIC",  50, 100,  2.0, "NMC",           2019, "Distribution"),
+        ("BATT-006", "Lake Bonney BESS",            "ENGIE",           "SA",   25,  52,  2.1, "NMC",           2020, "Distribution"),
+        ("BATT-007", "Dalrymple North BESS",        "ElectraNet",      "SA",   30,  8,   0.3, "LFP",           2018, "Transmission"),
+        ("BATT-008", "Wallgrove Grid Battery",      "Ausgrid",         "NSW",  50, 200,  4.0, "LFP",           2021, "Distribution"),
+        ("BATT-009", "Broken Hill BESS",            "Amp Energy",      "NSW",  30, 120,  4.0, "Vanadium Flow", 2022, "Distribution"),
+        ("BATT-010", "QLD Grid Battery 1",          "Origin Energy",   "QLD", 100, 200,  2.0, "LFP",           2023, "Transmission"),
+        ("BATT-011", "Tesla Megapack SA",           "Tesla Energy",    "SA",   80, 160,  2.0, "NMC",           2022, "Transmission"),
+        ("BATT-012", "ENGIE Collie Battery",        "ENGIE",           "WA",  200, 800,  4.0, "LFP",           2024, "Transmission"),
+        ("BATT-013", "Akaysha Glencore BESS",       "Akaysha Energy",  "NSW", 150, 300,  2.0, "LFP",           2024, "Transmission"),
+        ("BATT-014", "Zinc-Bromine Pilot QLD",      "Amp Energy",      "QLD",  10, 100, 10.0, "Zinc-Bromine",  2023, "Behind-meter"),
+        ("BATT-015", "TAS Hydro Support Battery",   "Hydro Tasmania",  "TAS",  50, 200,  4.0, "LFP",           2022, "Transmission"),
+    ]
+
+    assets = []
+    for a in asset_defs:
+        aid, name, owner, reg, cap, en, dur, tech, yr, conn = a
+        rte = rng.uniform(83, 93)
+        cycles = rng.randint(280, 500)
+        dod = rng.uniform(80, 95)
+        deg = rng.uniform(1.5, 3.5)
+        life = rng.uniform(6, 14)
+        pri, sec, ter = rng.sample(revenue_streams, 3)
+        assets.append(BRSOAssetRecord(
+            asset_id=aid, asset_name=name, owner=owner, region=reg,
+            capacity_mw=float(cap), energy_mwh=float(en), duration_hours=float(dur),
+            technology=tech, commissioning_year=yr, connection_type=conn,
+            primary_revenue_stream=pri, secondary_revenue_stream=sec, tertiary_revenue_stream=ter,
+            round_trip_efficiency_pct=round(rte, 2), cycles_pa=cycles,
+            dod_pct=round(dod, 1), degradation_rate_pct_pa=round(deg, 2),
+            remaining_life_years=round(life, 1),
+        ))
+
+    # 36 revenue records: 6 assets × 6 months (Jan–Jun 2024)
+    rev_asset_ids = ["BATT-001", "BATT-002", "BATT-003", "BATT-004", "BATT-010", "BATT-013"]
+    revenue_records = []
+    for idx, aid in enumerate(rev_asset_ids):
+        asset_cap = [150, 300, 500, 250, 100, 150][idx]
+        for month in range(1, 7):
+            rid = f"REV-{aid}-2024-{month:02d}"
+            fcas_r = rng.uniform(50, 300) * asset_cap / 100
+            fcas_l = rng.uniform(30, 200) * asset_cap / 100
+            fcas_rev = round(rng.uniform(0.4, 2.5) * asset_cap / 100, 4)
+            arb_mwh = rng.uniform(100, 500) * asset_cap / 100
+            arb_rev = round(rng.uniform(0.3, 1.8) * asset_cap / 100, 4)
+            net_rev = round(rng.uniform(0.05, 0.3) * asset_cap / 100, 4)
+            cap_pay = round(rng.uniform(0.02, 0.15) * asset_cap / 100, 4)
+            vpp = round(rng.uniform(0.01, 0.1) * asset_cap / 100, 4)
+            anc = round(rng.uniform(0.005, 0.05) * asset_cap / 100, 4)
+            total_rev = round(fcas_rev + arb_rev + net_rev + cap_pay + vpp + anc, 4)
+            total_cost = round(total_rev * rng.uniform(0.3, 0.55), 4)
+            net_margin = round(total_rev - total_cost, 4)
+            rev_per_mwh = round(total_rev * 1e6 / max(arb_mwh + fcas_r + fcas_l, 1), 2)
+            revenue_records.append(BRSORevenueRecord(
+                revenue_id=rid, asset_id=aid, year=2024, month=month,
+                fcas_raise_mwh=round(fcas_r, 2), fcas_lower_mwh=round(fcas_l, 2),
+                fcas_revenue_m=fcas_rev, wholesale_arb_mwh=round(arb_mwh, 2),
+                wholesale_revenue_m=arb_rev, network_support_revenue_m=net_rev,
+                capacity_payment_m=cap_pay, vpp_aggregation_m=vpp,
+                ancillary_other_m=anc, total_revenue_m=total_rev,
+                total_cost_m=total_cost, net_margin_m=net_margin,
+                revenue_per_mwh=rev_per_mwh,
+            ))
+
+    # 48 dispatch records: 3 assets × 16 intervals
+    disp_assets = ["BATT-001", "BATT-002", "BATT-003"]
+    disp_dates = ["2024-07-15", "2024-07-16"]
+    dispatch_records = []
+    disp_counter = 1
+    for aid in disp_assets:
+        cap_mw = {"BATT-001": 150, "BATT-002": 300, "BATT-003": 500}[aid]
+        for di in range(16):
+            date = disp_dates[di % 2]
+            hour = (di * 3) % 24
+            mode = rng.choice(dispatch_modes)
+            power = rng.uniform(0, cap_mw) if mode != "Standby" else 0.0
+            energy = round(power * 0.5, 3)
+            svc = rng.choice(fcas_services) if mode == "FCAS Enabled" else "None"
+            spot = rng.uniform(-50, 600)
+            fcas_p = rng.uniform(0, 250) if svc != "None" else 0.0
+            if mode == "Discharging":
+                revenue = round(power * spot / 2000, 4)
+            elif mode == "FCAS Enabled":
+                revenue = round(power * fcas_p / 2000, 4)
+            else:
+                revenue = round(-power * abs(spot) / 2000 if mode == "Charging" else 0.0, 4)
+            soc_s = rng.uniform(20, 80)
+            soc_e = min(100, max(0, soc_s + (rng.uniform(-15, 15))))
+            opp = round(rng.uniform(0, 500), 2)
+            dispatch_records.append(BRSODispatchRecord(
+                dispatch_id=f"DISP-{disp_counter:04d}", asset_id=aid,
+                date=date, hour=hour, dispatch_mode=mode,
+                power_mw=round(power, 2), energy_mwh=energy,
+                fcas_service=svc, spot_price_dolpermwh=round(spot, 2),
+                fcas_price_dolpmw=round(fcas_p, 2), revenue_aud=revenue,
+                soc_start_pct=round(soc_s, 1), soc_end_pct=round(soc_e, 1),
+                opportunity_cost_aud=opp,
+            ))
+            disp_counter += 1
+
+    # 35 optimisation records: 5 assets × 7 scenarios
+    opt_assets = ["BATT-001", "BATT-002", "BATT-003", "BATT-004", "BATT-010"]
+    optimisations = []
+    opt_counter = 1
+    for aid in opt_assets:
+        cap = {"BATT-001": 150, "BATT-002": 300, "BATT-003": 500, "BATT-004": 250, "BATT-010": 100}[aid]
+        best_irr = 0.0
+        best_oid = None
+        opt_rows = []
+        for scen in scenarios:
+            oid = f"OPT-{opt_counter:04d}"
+            fcas_sh = rng.uniform(10, 70)
+            arb_sh = rng.uniform(10, 60)
+            net_sh = max(0, 100 - fcas_sh - arb_sh)
+            total_rev = round(rng.uniform(0.8, 3.5) * cap / 100, 4)
+            cyc = rng.randint(200, 450)
+            deg = round(rng.uniform(1.5, 3.0), 2)
+            lcoe = round(rng.uniform(60, 180), 2)
+            irr = round(rng.uniform(4, 18), 2)
+            opt_rows.append(dict(
+                opt_id=oid, asset_id=aid, scenario=scen,
+                total_revenue_m_pa=total_rev, fcas_share_pct=round(fcas_sh, 1),
+                arb_share_pct=round(arb_sh, 1), network_share_pct=round(net_sh, 1),
+                cycles_pa=cyc, degradation_pa_pct=deg, lcoe_dolpermwh=lcoe,
+                irr_pct=irr, optimal_strategy=False,
+            ))
+            if irr > best_irr:
+                best_irr = irr
+                best_oid = oid
+            opt_counter += 1
+        for row in opt_rows:
+            row["optimal_strategy"] = (row["opt_id"] == best_oid)
+            optimisations.append(BRSOOptimisationRecord(**row))
+
+    # 20 market condition records: 5 regions × 4 quarters 2024
+    market_conditions = []
+    mc_counter = 1
+    for reg in regions:
+        for q in range(1, 5):
+            cid = f"MC-{mc_counter:04d}"
+            avg_spot = rng.uniform(60, 180)
+            vol = rng.uniform(15, 55)
+            fcas_r = rng.uniform(8, 80)
+            fcas_l = rng.uniform(5, 60)
+            neg_hrs = rng.randint(30, 300)
+            spike_hrs = rng.randint(5, 80)
+            comp = rng.uniform(0.2, 1.0)
+            batt_gw = rng.uniform(0.5, 5.0)
+            opt_dur = rng.uniform(1.5, 4.0)
+            market_conditions.append(BRSOMarketConditionRecord(
+                condition_id=cid, region=reg, year=2024, quarter=q,
+                avg_spot_price_dolpermwh=round(avg_spot, 2),
+                spot_volatility_pct=round(vol, 1),
+                fcas_raise_avg_price=round(fcas_r, 2),
+                fcas_lower_avg_price=round(fcas_l, 2),
+                negative_price_hours=neg_hrs, price_spike_hours=spike_hrs,
+                battery_competition_index=round(comp, 3),
+                grid_scale_battery_gw=round(batt_gw, 2),
+                optimal_duration_hours=round(opt_dur, 1),
+            ))
+            mc_counter += 1
+
+    # 30 projection records: 5 assets × 6 years 2024-2029
+    proj_assets = ["BATT-001", "BATT-002", "BATT-003", "BATT-004", "BATT-010"]
+    projections = []
+    proj_counter = 1
+    for aid in proj_assets:
+        cap = {"BATT-001": 150, "BATT-002": 300, "BATT-003": 500, "BATT-004": 250, "BATT-010": 100}[aid]
+        cumulative_npv = 0.0
+        for yr in range(2024, 2030):
+            decay = 1 - 0.025 * (yr - 2024)
+            proj_rev = round(rng.uniform(3.0, 8.0) * cap / 100 * decay, 4)
+            fcas_r_m = round(proj_rev * rng.uniform(0.3, 0.6), 4)
+            arb_m = round(proj_rev * rng.uniform(0.2, 0.45), 4)
+            net_m = round(proj_rev - fcas_r_m - arb_m, 4)
+            deg_cost = round(rng.uniform(0.05, 0.3) * cap / 100, 4)
+            opex = round(rng.uniform(0.1, 0.4) * cap / 100, 4)
+            ncf = round(proj_rev - deg_cost - opex, 4)
+            cumulative_npv = round(cumulative_npv + ncf / (1.08 ** (yr - 2023)), 4)
+            irr_td = round(rng.uniform(6, 16), 2)
+            rev_mwh = round(proj_rev * 1e6 / (cap * 365 * 2), 2)
+            projections.append(BRSOProjectionRecord(
+                projection_id=f"PROJ-{proj_counter:04d}", asset_id=aid, year=yr,
+                projected_revenue_m=proj_rev, fcas_revenue_m=fcas_r_m,
+                arb_revenue_m=arb_m, network_revenue_m=net_m,
+                degradation_cost_m=deg_cost, opex_m=opex,
+                net_cashflow_m=ncf, cumulative_npv_m=cumulative_npv,
+                irr_to_date_pct=irr_td, market_revenue_per_mwh=rev_mwh,
+            ))
+            proj_counter += 1
+
+    total_cap = round(sum(a.capacity_mw for a in assets), 1)
+    fcas_shares = [r.fcas_revenue_m / r.total_revenue_m * 100 for r in revenue_records if r.total_revenue_m > 0]
+    avg_fcas_share = round(sum(fcas_shares) / len(fcas_shares), 2) if fcas_shares else 0.0
+    best_irr = round(max(o.irr_pct for o in optimisations), 2)
+    total_annual_rev = round(sum(r.total_revenue_m for r in revenue_records), 4)
+    opt_dur_avg = round(sum(m.optimal_duration_hours for m in market_conditions) / len(market_conditions), 1)
+
+    _brso_cache.update(BRSODashboard(
+        assets=assets,
+        revenue_records=revenue_records,
+        dispatch_records=dispatch_records,
+        optimisations=optimisations,
+        market_conditions=market_conditions,
+        projections=projections,
+        summary={
+            "total_fleet_capacity_mw": total_cap,
+            "avg_fcas_share_pct": avg_fcas_share,
+            "best_irr_pct": best_irr,
+            "total_annual_revenue_m": total_annual_rev,
+            "optimal_duration_hours": opt_dur_avg,
+        },
+    ).model_dump())
+    return _brso_cache
+
+
+# ---------------------------------------------------------------------------
+# DIGITAL ENERGY TWIN ANALYTICS  (Sprint 103c)
+# ---------------------------------------------------------------------------
+
+class DETATwinRecord(BaseModel):
+    twin_id: str
+    twin_name: str
+    asset_type: str
+    asset_owner: str
+    region: str
+    physical_capacity_mw: float
+    twin_maturity: str
+    data_streams_count: int
+    update_frequency_seconds: int
+    accuracy_pct: float
+    vendor: str
+    deployment_year: int
+    roi_m_pa: float
+    use_cases: str
+
+
+class DETADataStreamRecord(BaseModel):
+    stream_id: str
+    twin_id: str
+    stream_name: str
+    sensor_type: str
+    data_frequency_hz: float
+    data_volume_gb_pa: float
+    latency_ms: float
+    data_quality_pct: float
+    ml_model_attached: bool
+    anomaly_detection: bool
+    last_calibration_date: str
+    uptime_pct: float
+
+
+class DETASimulationRecord(BaseModel):
+    sim_id: str
+    twin_id: str
+    simulation_type: str
+    run_date: str
+    duration_seconds: int
+    scenarios_tested: int
+    accuracy_vs_physical_pct: float
+    actionable_insights: int
+    cost_avoided_m: float
+    downtime_avoided_hours: float
+    energy_optimised_mwh: float
+
+
+class DETAPredictiveRecord(BaseModel):
+    pred_id: str
+    twin_id: str
+    asset_component: str
+    prediction_type: str
+    prediction_horizon_days: int
+    confidence_pct: float
+    predicted_event_date: str
+    actual_event_date: str
+    prediction_accuracy: bool
+    false_positive: bool
+    maintenance_cost_aud: float
+    prevented_outage_mw: float
+    prevented_revenue_loss_m: float
+
+
+class DETAIntegrationRecord(BaseModel):
+    integ_id: str
+    twin_id: str
+    system_integrated: str
+    integration_type: str
+    data_latency_ms: float
+    integration_status: str
+    value_delivered: str
+    implementation_cost_m: float
+
+
+class DETAROIRecord(BaseModel):
+    roi_id: str
+    twin_id: str
+    year: int
+    maintenance_saving_m: float
+    unplanned_outage_saving_m: float
+    energy_optimisation_m: float
+    opex_reduction_m: float
+    capex_deferral_m: float
+    total_benefit_m: float
+    twin_opex_m: float
+    net_benefit_m: float
+    roi_pct: float
+    payback_years: float
+
+
+class DETADashboard(BaseModel):
+    twins: list[DETATwinRecord]
+    data_streams: list[DETADataStreamRecord]
+    simulations: list[DETASimulationRecord]
+    predictions: list[DETAPredictiveRecord]
+    integrations: list[DETAIntegrationRecord]
+    roi_records: list[DETAROIRecord]
+    summary: dict
+
+
+_deta_cache: dict = {}
+
+
+@app.get("/api/digital-energy-twin/dashboard")
+def get_digital_energy_twin_dashboard():
+    import random
+    if _deta_cache:
+        return _deta_cache
+
+    rng = random.Random(20240315)
+
+    asset_types = [
+        "Wind Farm", "Solar Farm", "Battery Storage", "Gas Plant",
+        "Transmission Line", "Substation", "Distribution Network", "Microgrid",
+    ]
+    maturity_levels = [
+        "Level 1-Descriptive",
+        "Level 2-Diagnostic",
+        "Level 3-Predictive",
+        "Level 4-Prescriptive",
+    ]
+    vendors = [
+        "GE Digital", "Siemens", "ABB", "Bentley Systems",
+        "AVEVA", "IBM", "Honeywell", "PTC",
+    ]
+    regions = ["NSW", "QLD", "VIC", "SA", "WA", "TAS"]
+    owners = [
+        "Origin Energy", "AGL", "EnergyAustralia", "Snowy Hydro",
+        "Transgrid", "ElectraNet", "Endeavour Energy", "Ausnet Services",
+    ]
+    use_case_pool = [
+        "predictive maintenance", "load optimisation", "fault detection",
+        "performance benchmarking", "capacity planning", "virtual commissioning",
+        "training simulation", "regulatory reporting",
+    ]
+
+    twins = []
+    twin_ids = [f"DT-{i:03d}" for i in range(1, 13)]
+    twin_asset_types = [
+        "Wind Farm", "Solar Farm", "Battery Storage", "Gas Plant",
+        "Transmission Line", "Substation", "Distribution Network", "Microgrid",
+        "Wind Farm", "Solar Farm", "Battery Storage", "Gas Plant",
+    ]
+    twin_maturity_seq = [
+        "Level 1-Descriptive", "Level 2-Diagnostic", "Level 3-Predictive", "Level 4-Prescriptive",
+        "Level 2-Diagnostic", "Level 3-Predictive", "Level 1-Descriptive", "Level 4-Prescriptive",
+        "Level 3-Predictive", "Level 2-Diagnostic", "Level 4-Prescriptive", "Level 3-Predictive",
+    ]
+    twin_names = [
+        "Bungala One Wind Twin", "Darlington Point Solar Twin", "Hornsdale BESS Twin",
+        "Tallawarra Gas Twin", "EnergyConnect Twin", "Dapto Substation Twin",
+        "Hunter Valley Dist Twin", "Broken Hill Microgrid Twin", "Sapphire Wind Twin",
+        "Sun Cable Solar Twin", "Gannawarra BESS Twin", "Mortlake Gas Twin",
+    ]
+    capacities = [135.0, 275.0, 150.0, 435.0, 900.0, 330.0, 120.0, 13.0,
+                  270.0, 1800.0, 50.0, 550.0]
+
+    for i, tid in enumerate(twin_ids):
+        ucs = rng.sample(use_case_pool, k=rng.randint(3, 6))
+        twins.append(DETATwinRecord(
+            twin_id=tid,
+            twin_name=twin_names[i],
+            asset_type=twin_asset_types[i],
+            asset_owner=rng.choice(owners),
+            region=rng.choice(regions),
+            physical_capacity_mw=capacities[i],
+            twin_maturity=twin_maturity_seq[i],
+            data_streams_count=rng.randint(4, 18),
+            update_frequency_seconds=rng.choice([1, 5, 10, 30, 60]),
+            accuracy_pct=round(rng.uniform(91.0, 99.5), 2),
+            vendor=rng.choice(vendors),
+            deployment_year=rng.randint(2019, 2023),
+            roi_m_pa=round(rng.uniform(0.8, 12.5), 3),
+            use_cases=", ".join(ucs),
+        ))
+
+    sensor_types = [
+        "Power Meter", "Vibration", "Temperature", "Weather",
+        "Camera", "Acoustic", "Electrical Quality", "Protection",
+    ]
+    data_streams = []
+    ds_counter = 1
+    for tid in twin_ids:
+        n_streams = rng.randint(2, 4)
+        for _ in range(n_streams):
+            st = rng.choice(sensor_types)
+            data_streams.append(DETADataStreamRecord(
+                stream_id=f"DS-{ds_counter:04d}",
+                twin_id=tid,
+                stream_name=f"{st} Stream {ds_counter}",
+                sensor_type=st,
+                data_frequency_hz=rng.choice([0.1, 1.0, 10.0, 50.0, 100.0]),
+                data_volume_gb_pa=round(rng.uniform(0.5, 250.0), 2),
+                latency_ms=round(rng.uniform(2.0, 500.0), 1),
+                data_quality_pct=round(rng.uniform(88.0, 99.8), 2),
+                ml_model_attached=rng.choice([True, False]),
+                anomaly_detection=rng.choice([True, True, False]),
+                last_calibration_date=f"202{rng.randint(2,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+                uptime_pct=round(rng.uniform(92.0, 99.9), 2),
+            ))
+            ds_counter += 1
+
+    # ensure at least 30 streams
+    while len(data_streams) < 30:
+        st = rng.choice(sensor_types)
+        tid = rng.choice(twin_ids)
+        data_streams.append(DETADataStreamRecord(
+            stream_id=f"DS-{ds_counter:04d}",
+            twin_id=tid,
+            stream_name=f"{st} Stream {ds_counter}",
+            sensor_type=st,
+            data_frequency_hz=rng.choice([0.1, 1.0, 10.0, 50.0]),
+            data_volume_gb_pa=round(rng.uniform(0.5, 200.0), 2),
+            latency_ms=round(rng.uniform(2.0, 400.0), 1),
+            data_quality_pct=round(rng.uniform(88.0, 99.8), 2),
+            ml_model_attached=rng.choice([True, False]),
+            anomaly_detection=rng.choice([True, False]),
+            last_calibration_date=f"202{rng.randint(2,4)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            uptime_pct=round(rng.uniform(92.0, 99.9), 2),
+        ))
+        ds_counter += 1
+
+    sim_types = [
+        "Fault Analysis", "Load Flow", "Optimisation",
+        "Predictive Maintenance", "What-if", "Monte Carlo",
+    ]
+    simulations = []
+    sim_counter = 1
+    for i in range(20):
+        tid = rng.choice(twin_ids)
+        yr = rng.randint(2022, 2024)
+        mo = rng.randint(1, 12)
+        dy = rng.randint(1, 28)
+        simulations.append(DETASimulationRecord(
+            sim_id=f"SIM-{sim_counter:04d}",
+            twin_id=tid,
+            simulation_type=rng.choice(sim_types),
+            run_date=f"{yr}-{mo:02d}-{dy:02d}",
+            duration_seconds=rng.randint(30, 7200),
+            scenarios_tested=rng.randint(5, 500),
+            accuracy_vs_physical_pct=round(rng.uniform(87.0, 99.2), 2),
+            actionable_insights=rng.randint(1, 15),
+            cost_avoided_m=round(rng.uniform(0.05, 5.5), 3),
+            downtime_avoided_hours=round(rng.uniform(0.5, 120.0), 2),
+            energy_optimised_mwh=round(rng.uniform(10.0, 5000.0), 1),
+        ))
+        sim_counter += 1
+
+    pred_types = [
+        "Failure", "Degradation", "Maintenance Window",
+        "Performance Drop", "Life End",
+    ]
+    components = [
+        "Main Transformer", "Circuit Breaker", "Turbine Blade",
+        "Inverter", "Battery Cell", "Protection Relay",
+        "Cable Joint", "Busbar", "Generator Winding",
+    ]
+    predictions = []
+    pred_counter = 1
+    for i in range(25):
+        tid = rng.choice(twin_ids)
+        horizon = rng.randint(7, 365)
+        conf = round(rng.uniform(65.0, 98.0), 2)
+        acc = conf >= 80.0 and rng.random() < 0.75
+        fp = not acc and rng.random() < 0.4
+        yr = rng.randint(2022, 2024)
+        mo = rng.randint(1, 12)
+        dy = rng.randint(1, 28)
+        act_dy = min(dy + rng.randint(-5, 10), 28)
+        predictions.append(DETAPredictiveRecord(
+            pred_id=f"PRED-{pred_counter:04d}",
+            twin_id=tid,
+            asset_component=rng.choice(components),
+            prediction_type=rng.choice(pred_types),
+            prediction_horizon_days=horizon,
+            confidence_pct=conf,
+            predicted_event_date=f"{yr}-{mo:02d}-{dy:02d}",
+            actual_event_date=f"{yr}-{mo:02d}-{max(1, act_dy):02d}",
+            prediction_accuracy=acc,
+            false_positive=fp,
+            maintenance_cost_aud=round(rng.uniform(5000, 500000), 0),
+            prevented_outage_mw=round(rng.uniform(0.0, 200.0), 1),
+            prevented_revenue_loss_m=round(rng.uniform(0.0, 8.0), 3),
+        ))
+        pred_counter += 1
+
+    systems = [
+        "SCADA", "EMS", "DERMS", "Market System",
+        "GIS", "CMMS", "Weather API", "ML Platform", "Digital Marketplace",
+    ]
+    integ_types = ["Real-time", "Batch", "API", "Streaming"]
+    integ_statuses = ["Live", "Testing", "Planned"]
+    integrations = []
+    integ_counter = 1
+    key_twins = twin_ids[:6]
+    for tid in key_twins:
+        for sys in rng.sample(systems, k=4):
+            integrations.append(DETAIntegrationRecord(
+                integ_id=f"INTEG-{integ_counter:04d}",
+                twin_id=tid,
+                system_integrated=sys,
+                integration_type=rng.choice(integ_types),
+                data_latency_ms=round(rng.uniform(5.0, 2000.0), 1),
+                integration_status=rng.choice(integ_statuses),
+                value_delivered=rng.choice([
+                    "Real-time monitoring", "Automated alerts", "Optimised dispatch",
+                    "Maintenance scheduling", "Asset health scoring", "Market participation",
+                    "Regulatory compliance", "Energy forecasting",
+                ]),
+                implementation_cost_m=round(rng.uniform(0.05, 2.5), 3),
+            ))
+            integ_counter += 1
+
+    roi_records = []
+    roi_counter = 1
+    roi_twins = twin_ids[:4]
+    for tid in roi_twins:
+        for yr in range(2020, 2026):
+            ms = round(rng.uniform(0.2, 3.5), 3)
+            uo = round(rng.uniform(0.1, 2.0), 3)
+            eo = round(rng.uniform(0.05, 1.5), 3)
+            or_ = round(rng.uniform(0.05, 1.0), 3)
+            cd = round(rng.uniform(0.0, 2.0), 3)
+            tb = round(ms + uo + eo + or_ + cd, 3)
+            to = round(rng.uniform(0.15, 0.8), 3)
+            nb = round(tb - to, 3)
+            roi_pct = round((nb / to) * 100, 2) if to > 0 else 0.0
+            py = round(to / nb, 2) if nb > 0 else 99.0
+            roi_records.append(DETAROIRecord(
+                roi_id=f"ROI-{roi_counter:04d}",
+                twin_id=tid,
+                year=yr,
+                maintenance_saving_m=ms,
+                unplanned_outage_saving_m=uo,
+                energy_optimisation_m=eo,
+                opex_reduction_m=or_,
+                capex_deferral_m=cd,
+                total_benefit_m=tb,
+                twin_opex_m=to,
+                net_benefit_m=nb,
+                roi_pct=roi_pct,
+                payback_years=py,
+            ))
+            roi_counter += 1
+
+    total_annual_benefit = round(sum(r.net_benefit_m for r in roi_records if r.year == 2024), 3)
+    avg_roi = round(sum(r.roi_pct for r in roi_records) / len(roi_records), 2)
+    maturity_vals = {"Level 1-Descriptive": 1, "Level 2-Diagnostic": 2,
+                     "Level 3-Predictive": 3, "Level 4-Prescriptive": 4}
+    avg_maturity = round(sum(maturity_vals.get(t.twin_maturity, 2) for t in twins) / len(twins), 2)
+    prevented = sum(1 for p in predictions if p.prediction_accuracy and not p.false_positive)
+
+    _deta_cache.update(DETADashboard(
+        twins=twins,
+        data_streams=data_streams,
+        simulations=simulations,
+        predictions=predictions,
+        integrations=integrations,
+        roi_records=roi_records,
+        summary={
+            "total_twins_deployed": len(twins),
+            "avg_twin_maturity_level": avg_maturity,
+            "total_annual_benefit_m": total_annual_benefit,
+            "avg_roi_pct": avg_roi,
+            "predicted_failures_prevented": prevented,
+        },
+    ).model_dump())
+
+    return _deta_cache
