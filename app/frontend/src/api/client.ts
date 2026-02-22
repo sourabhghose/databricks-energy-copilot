@@ -15559,3 +15559,276 @@ export interface CISCDashboard {
 }
 export const getCapacityInvestmentSchemeDashboard = (): Promise<CISCDashboard> =>
   get<CISCDashboard>('/api/capacity-investment-scheme/dashboard');
+
+// =============================================================================
+// SPRINT 96a — Electricity Demand Flexibility Market Analytics
+// =============================================================================
+export interface EDFMFlexibilityProviderRecord {
+  provider_id: string;
+  provider_name: string;
+  provider_type: string;
+  region: string;
+  enrolled_capacity_mw: number;
+  activated_capacity_mw: number;
+  activation_rate_pct: number;
+  avg_response_time_mins: number;
+  num_customers: number;
+  technologies: string;
+}
+export interface EDFMActivationEventRecord {
+  event_id: string;
+  event_date: string;
+  trigger_type: string;
+  region: string;
+  requested_mw: number;
+  delivered_mw: number;
+  delivery_rate_pct: number;
+  duration_mins: number;
+  spot_price_dolpermwh: number;
+  payment_per_mw_activated: number;
+}
+export interface EDFMMarketProductRecord {
+  product_id: string;
+  product_name: string;
+  market_type: string;
+  gate_closure_min_before: number;
+  min_duration_mins: number;
+  max_duration_mins: number;
+  payment_mechanism: string;
+  min_response_mw: number;
+  avg_clearing_price_dolpermwh: number;
+}
+export interface EDFMCustomerSegmentRecord {
+  segment_id: string;
+  segment_name: string;
+  sector: string;
+  num_sites: number;
+  avg_load_kw: number;
+  flex_potential_kw_per_site: number;
+  participation_rate_pct: number;
+  barriers: string;
+  avg_payment_dolpermwh_activated: number;
+}
+export interface EDFMForecastRecord {
+  forecast_id: string;
+  year: number;
+  scenario: string;
+  total_flex_capacity_gw: number;
+  residential_mw: number;
+  commercial_mw: number;
+  industrial_mw: number;
+  ev_mw: number;
+  battery_mw: number;
+  activated_events_per_year: number;
+}
+export interface EDFMNetworkBenefitRecord {
+  benefit_id: string;
+  network_area: string;
+  benefit_type: string;
+  annual_benefit_m: number;
+  deferred_capex_m: number;
+  flex_contribution_mw: number;
+  years_deferred: number;
+}
+export interface EDFMDashboard {
+  providers: EDFMFlexibilityProviderRecord[];
+  activation_events: EDFMActivationEventRecord[];
+  market_products: EDFMMarketProductRecord[];
+  customer_segments: EDFMCustomerSegmentRecord[];
+  forecasts: EDFMForecastRecord[];
+  network_benefits: EDFMNetworkBenefitRecord[];
+  summary: Record<string, number>;
+}
+export const getDemandFlexibilityMarketDashboard = (): Promise<EDFMDashboard> =>
+  get<EDFMDashboard>('/api/demand-flexibility-market/dashboard');
+
+// ---------------------------------------------------------------------------
+// Sprint 96b — Energy Asset Life Extension Analytics (EALX)
+// ---------------------------------------------------------------------------
+export interface EALXAssetRecord {
+  asset_id: string;
+  asset_name: string;
+  technology: string;
+  owner: string;
+  region: string;
+  capacity_mw: number;
+  commissioning_year: number;
+  original_life_years: number;
+  current_age_years: number;
+  extended_life_years: number;
+  extension_cost_m: number;
+  annual_om_cost_m: number;
+  heat_rate_gj_per_mwh: number;
+  capacity_factor_pct: number;
+  status: string;
+}
+export interface EALXDegradationRecord {
+  degradation_id: string;
+  asset_id: string;
+  component: string;
+  condition_score: number;
+  remaining_life_years: number;
+  replacement_cost_m: number;
+  last_inspection_date: string;
+  failure_probability_pct: number;
+  recommended_action: string;
+}
+export interface EALXEconomicsRecord {
+  economics_id: string;
+  asset_id: string;
+  year: number;
+  revenue_m: number;
+  fuel_cost_m: number;
+  om_cost_m: number;
+  carbon_cost_m: number;
+  extension_capex_m: number;
+  gross_margin_m: number;
+  npv_continue_m: number;
+  npv_retire_m: number;
+  optimal_decision: string;
+}
+export interface EALXMarketValueRecord {
+  value_id: string;
+  asset_id: string;
+  valuation_method: string;
+  base_case_m: number;
+  upside_m: number;
+  downside_m: number;
+  key_assumption: string;
+  discount_rate_pct: number;
+  carbon_price_assumption_dolpertonne: number;
+}
+export interface EALXRetirementRiskRecord {
+  risk_id: string;
+  asset_name: string;
+  risk_type: string;
+  probability_pct: number;
+  impact_severity: string;
+  mitigation_measure: string;
+  residual_risk_pct: number;
+}
+export interface EALXReplacementNeedRecord {
+  need_id: string;
+  region: string;
+  retiring_asset_mw: number;
+  replacement_technology: string;
+  replacement_capacity_mw: number;
+  lead_time_years: number;
+  estimated_cost_m: number;
+  timeline_year: number;
+  reliability_gap_mw: number;
+  gap_severity: string;
+}
+export interface EALXDashboard {
+  assets: EALXAssetRecord[];
+  degradation_records: EALXDegradationRecord[];
+  economics: EALXEconomicsRecord[];
+  market_values: EALXMarketValueRecord[];
+  retirement_risks: EALXRetirementRiskRecord[];
+  replacement_needs: EALXReplacementNeedRecord[];
+  summary: Record<string, number>;
+}
+export const getEnergyAssetLifeExtensionDashboard = (): Promise<EALXDashboard> =>
+  get<EALXDashboard>('/api/energy-asset-life-extension/dashboard');
+
+// ---------------------------------------------------------------------------
+// GREEN AMMONIA EXPORT ANALYTICS — TypeScript interfaces (Sprint 96c)
+// ---------------------------------------------------------------------------
+
+export interface GAEXProductionRecord {
+  project_id: string;
+  project_name: string;
+  state: string;
+  developer: string;
+  production_route: string;
+  electrolyser_capacity_mw: number;
+  renewable_capacity_mw: number;
+  ammonia_capacity_ktpa: number;
+  water_requirement_ml_pa: number;
+  port_name: string;
+  capex_m: number;
+  opex_m_pa: number;
+  fid_year: number;
+  first_production_year: number;
+  project_status: string;
+}
+
+export interface GAEXCostRecord {
+  cost_id: string;
+  project_id: string;
+  year: number;
+  lcoa_dolpertonne: number;
+  renewable_electricity_cost_dolpermwh: number;
+  electrolyser_cost_dolperkw: number;
+  nitrogen_separation_cost_dolpertonne: number;
+  haber_bosch_cost_dolpertonne: number;
+  export_logistics_cost_dolpertonne: number;
+  carbon_offset_cost_dolpertonne: number;
+  total_cash_cost_dolpertonne: number;
+}
+
+export interface GAEXMarketRecord {
+  market_id: string;
+  destination_country: string;
+  demand_ktpa_2030: number;
+  demand_ktpa_2040: number;
+  application: string;
+  contract_type: string;
+  price_dolpertonne: number;
+  market_share_pct: number;
+  competitor_countries: string;
+}
+
+export interface GAEXLogisticsRecord {
+  logistics_id: string;
+  port_name: string;
+  state: string;
+  storage_capacity_kt: number;
+  loading_rate_ktpd: number;
+  berths_available: number;
+  distance_to_japan_km: number;
+  distance_to_korea_km: number;
+  distance_to_europe_km: number;
+  infrastructure_status: string;
+  capex_upgrade_m: number;
+}
+
+export interface GAEXTradeFlowRecord {
+  flow_id: string;
+  year: number;
+  scenario: string;
+  australia_export_mtpa: number;
+  japan_import_mtpa: number;
+  korea_import_mtpa: number;
+  europe_import_mtpa: number;
+  global_market_size_mtpa: number;
+  australia_market_share_pct: number;
+  avg_price_dolpertonne: number;
+  revenue_bn: number;
+}
+
+export interface GAEXPolicyRecord {
+  policy_id: string;
+  policy_name: string;
+  jurisdiction: string;
+  policy_type: string;
+  value_m: number;
+  announcement_date: string;
+  implementation_date: string;
+  status: string;
+  beneficiary: string;
+  description: string;
+}
+
+export interface GAEXDashboard {
+  projects: GAEXProductionRecord[];
+  cost_records: GAEXCostRecord[];
+  markets: GAEXMarketRecord[];
+  logistics: GAEXLogisticsRecord[];
+  trade_flows: GAEXTradeFlowRecord[];
+  policies: GAEXPolicyRecord[];
+  summary: Record<string, number>;
+}
+
+export const getGreenAmmoniaExportDashboard = (): Promise<GAEXDashboard> =>
+  get<GAEXDashboard>('/api/green-ammonia-export/dashboard');

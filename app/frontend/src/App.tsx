@@ -76,6 +76,7 @@ import {
   Smartphone,
   Truck,
   Grid,
+  Ship,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -332,6 +333,9 @@ import CleanEnergyFinanceAnalytics from './pages/CleanEnergyFinanceAnalytics'
 import NuclearEnergyEconomicsAnalytics from './pages/NuclearEnergyEconomicsAnalytics'
 import BehindMeterCommercialAnalytics from './pages/BehindMeterCommercialAnalytics'
 import CapacityInvestmentSchemeAnalytics from './pages/CapacityInvestmentSchemeAnalytics'
+import DemandFlexibilityMarketAnalytics from './pages/DemandFlexibilityMarketAnalytics'
+import EnergyAssetLifeExtensionAnalytics from './pages/EnergyAssetLifeExtensionAnalytics'
+import GreenAmmoniaExportAnalytics from './pages/GreenAmmoniaExportAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -589,6 +593,9 @@ const NAV_ITEMS = [
   { to: '/clean-energy-finance', label: 'Clean Energy Finance', Icon: DollarSign },
   { to: '/behind-meter-commercial', label: 'BTM Commercial Analytics', Icon: Building2 },
   { to: '/capacity-investment-scheme', label: 'CIS Analytics', Icon: Award },
+  { to: '/demand-flexibility-market', label: 'Demand Flexibility Market', Icon: Sliders },
+  { to: '/energy-asset-life-extension', label: 'Asset Life Extension', Icon: Wrench },
+  { to: '/green-ammonia-export', label: 'Green Ammonia Export', Icon: Ship },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -921,6 +928,9 @@ export default function App() {
               <Route path="/nuclear-energy-economics" element={<NuclearEnergyEconomicsAnalytics />} />
               <Route path="/behind-meter-commercial" element={<BehindMeterCommercialAnalytics />} />
               <Route path="/capacity-investment-scheme" element={<CapacityInvestmentSchemeAnalytics />} />
+              <Route path="/demand-flexibility-market" element={<DemandFlexibilityMarketAnalytics />} />
+              <Route path="/energy-asset-life-extension" element={<EnergyAssetLifeExtensionAnalytics />} />
+              <Route path="/green-ammonia-export" element={<GreenAmmoniaExportAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

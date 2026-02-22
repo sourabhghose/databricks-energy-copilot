@@ -66842,3 +66842,971 @@ def get_cisc_dashboard():
         }
     )
     return _cisc_cache
+
+
+# =============================================================================
+# SPRINT 96a — Electricity Demand Flexibility Market Analytics
+# =============================================================================
+
+class EDFMFlexibilityProviderRecord(BaseModel):
+    provider_id: str
+    provider_name: str
+    provider_type: str  # Aggregator, Retailer, DNSP, Large Consumer, VPP, Industrial
+    region: str
+    enrolled_capacity_mw: float
+    activated_capacity_mw: float
+    activation_rate_pct: float
+    avg_response_time_mins: float
+    num_customers: int
+    technologies: str  # comma-separated: DER, HVAC, EWH, EV, Battery, Industrial
+
+class EDFMActivationEventRecord(BaseModel):
+    event_id: str
+    event_date: str
+    trigger_type: str  # Price Spike, Reliability, Network Constraint, Frequency, Test
+    region: str
+    requested_mw: float
+    delivered_mw: float
+    delivery_rate_pct: float
+    duration_mins: int
+    spot_price_dolpermwh: float
+    payment_per_mw_activated: float
+
+class EDFMMarketProductRecord(BaseModel):
+    product_id: str
+    product_name: str
+    market_type: str  # RERT, DAFM, VDAFM, Emergency Reserve, Ancillary
+    gate_closure_min_before: int
+    min_duration_mins: int
+    max_duration_mins: int
+    payment_mechanism: str
+    min_response_mw: float
+    avg_clearing_price_dolpermwh: float
+
+class EDFMCustomerSegmentRecord(BaseModel):
+    segment_id: str
+    segment_name: str
+    sector: str  # Residential, Commercial, Industrial
+    num_sites: int
+    avg_load_kw: float
+    flex_potential_kw_per_site: float
+    participation_rate_pct: float
+    barriers: str  # comma-separated
+    avg_payment_dolpermwh_activated: float
+
+class EDFMForecastRecord(BaseModel):
+    forecast_id: str
+    year: int
+    scenario: str  # Base, High DER, High Industrial, Policy Push
+    total_flex_capacity_gw: float
+    residential_mw: float
+    commercial_mw: float
+    industrial_mw: float
+    ev_mw: float
+    battery_mw: float
+    activated_events_per_year: int
+
+class EDFMNetworkBenefitRecord(BaseModel):
+    benefit_id: str
+    network_area: str
+    benefit_type: str  # Peak Demand Reduction, Network Deferral, Congestion Relief, Voltage Support
+    annual_benefit_m: float
+    deferred_capex_m: float
+    flex_contribution_mw: float
+    years_deferred: int
+
+class EDFMDashboard(BaseModel):
+    providers: list[EDFMFlexibilityProviderRecord]
+    activation_events: list[EDFMActivationEventRecord]
+    market_products: list[EDFMMarketProductRecord]
+    customer_segments: list[EDFMCustomerSegmentRecord]
+    forecasts: list[EDFMForecastRecord]
+    network_benefits: list[EDFMNetworkBenefitRecord]
+    summary: dict
+
+_edfm_cache: EDFMDashboard | None = None
+
+@app.get("/api/demand-flexibility-market/dashboard")
+def get_demand_flexibility_market_dashboard():
+    global _edfm_cache
+    if _edfm_cache is not None:
+        return _edfm_cache
+
+    import random
+    rng = random.Random(20240101)
+
+    # ---- Providers (20 records) ----
+    provider_types = ["Aggregator", "Retailer", "DNSP", "Large Consumer", "VPP", "Industrial"]
+    regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    tech_pools = [
+        "DER, HVAC, EWH",
+        "EV, Battery",
+        "HVAC, Industrial",
+        "DER, Battery, EV",
+        "EWH, HVAC",
+        "Industrial, Battery",
+        "DER, HVAC, EWH, EV",
+        "Battery, DER",
+    ]
+    provider_names = [
+        "FlexEnergy AU", "GridFlex Systems", "AGL Flex", "Origin Demand", "EnergyAustralia DR",
+        "ActewAGL Flex", "PowerPlus Aggregator", "Smart Grid AU", "Ausnet Flex", "Endeavour DR",
+        "Jemena Demand", "Essential Energy Flex", "TasNetworks DR", "ElectraNet Flex", "SAPN Demand",
+        "Ergon Flex", "Energex DR", "Virtual Power Labs", "Industrial Flex Co", "CleanDR Australia",
+    ]
+    providers = []
+    for i, name in enumerate(provider_names):
+        ptype = provider_types[i % len(provider_types)]
+        region = regions[i % len(regions)]
+        enrolled = round(rng.uniform(20, 400), 1)
+        act_rate = round(rng.uniform(55, 95), 1)
+        activated = round(enrolled * act_rate / 100, 1)
+        providers.append(EDFMFlexibilityProviderRecord(
+            provider_id=f"EDFM-P-{i+1:03d}",
+            provider_name=name,
+            provider_type=ptype,
+            region=region,
+            enrolled_capacity_mw=enrolled,
+            activated_capacity_mw=activated,
+            activation_rate_pct=act_rate,
+            avg_response_time_mins=round(rng.uniform(2, 30), 1),
+            num_customers=rng.randint(50, 15000),
+            technologies=rng.choice(tech_pools),
+        ))
+
+    # ---- Activation Events (40 records, 2022-2024) ----
+    trigger_types = ["Price Spike", "Reliability", "Network Constraint", "Frequency", "Test"]
+    event_dates = []
+    for yr in [2022, 2023, 2024]:
+        for mo in range(1, 13):
+            # two events per month to ensure pool >= 40
+            event_dates.append(f"{yr}-{mo:02d}-{rng.randint(1,14):02d}")
+            event_dates.append(f"{yr}-{mo:02d}-{rng.randint(15,28):02d}")
+    # pick 40 unique dates
+    event_dates = sorted(rng.sample(event_dates, 40))
+    activation_events = []
+    for i, edate in enumerate(event_dates):
+        ttype = trigger_types[i % len(trigger_types)]
+        region = regions[i % len(regions)]
+        req_mw = round(rng.uniform(50, 800), 1)
+        dr = round(rng.uniform(70, 98), 1)
+        del_mw = round(req_mw * dr / 100, 1)
+        spot = round(rng.uniform(200, 15000), 0)
+        pay = round(rng.uniform(50, 500), 0)
+        activation_events.append(EDFMActivationEventRecord(
+            event_id=f"EDFM-E-{i+1:03d}",
+            event_date=edate,
+            trigger_type=ttype,
+            region=region,
+            requested_mw=req_mw,
+            delivered_mw=del_mw,
+            delivery_rate_pct=dr,
+            duration_mins=rng.randint(15, 240),
+            spot_price_dolpermwh=spot,
+            payment_per_mw_activated=pay,
+        ))
+
+    # ---- Market Products (8 records) ----
+    market_types = ["RERT", "DAFM", "VDAFM", "Emergency Reserve", "Ancillary"]
+    payment_mechs = ["Availability + Activation", "Activation Only", "Capacity Payment", "Spot-linked", "Fixed Tender"]
+    product_defs = [
+        ("RERT Tranche 1", "RERT", 3360, 30, 480, "Availability + Activation", 10.0, 320.0),
+        ("RERT Tranche 2", "RERT", 10080, 30, 240, "Availability + Activation", 5.0, 185.0),
+        ("RERT Tranche 3", "RERT", 43200, 60, 480, "Availability + Activation", 5.0, 120.0),
+        ("DAFM Standard", "DAFM", 1440, 60, 360, "Activation Only", 20.0, 280.0),
+        ("VDAFM Fast", "VDAFM", 60, 15, 120, "Spot-linked", 5.0, 450.0),
+        ("Emergency Reserve", "Emergency Reserve", 0, 30, 240, "Capacity Payment", 50.0, 600.0),
+        ("FCAS Demand", "Ancillary", 5, 5, 60, "Spot-linked", 1.0, 520.0),
+        ("Network Relief Product", "DAFM", 720, 30, 180, "Fixed Tender", 15.0, 200.0),
+    ]
+    market_products = []
+    for i, (pname, mtype, gc, mind, maxd, pmech, minr, acp) in enumerate(product_defs):
+        market_products.append(EDFMMarketProductRecord(
+            product_id=f"EDFM-MP-{i+1:03d}",
+            product_name=pname,
+            market_type=mtype,
+            gate_closure_min_before=gc,
+            min_duration_mins=mind,
+            max_duration_mins=maxd,
+            payment_mechanism=pmech,
+            min_response_mw=minr,
+            avg_clearing_price_dolpermwh=acp,
+        ))
+
+    # ---- Customer Segments (12 records: 4 sectors × 3 states) ----
+    sectors = ["Residential", "Commercial", "Industrial"]
+    states = ["NSW", "VIC", "QLD", "SA"]
+    segment_defs = [
+        # sector, state, num_sites, avg_load_kw, flex_pot, part_rate, barriers, pay
+        ("Residential", "NSW", 420000, 4.2, 1.8, 12.0, "Awareness, Complexity, Trust", 95.0),
+        ("Residential", "VIC", 380000, 3.9, 1.6, 14.0, "Awareness, Bill Savings", 90.0),
+        ("Residential", "QLD", 310000, 4.8, 2.1, 11.0, "Awareness, Heat, Comfort", 100.0),
+        ("Residential", "SA", 140000, 4.1, 2.3, 18.0, "Trust, Complexity", 105.0),
+        ("Commercial", "NSW", 18000, 85.0, 28.0, 22.0, "Contractual, Metering, Process", 180.0),
+        ("Commercial", "VIC", 16500, 78.0, 25.0, 24.0, "Metering, Complexity", 170.0),
+        ("Commercial", "QLD", 12000, 90.0, 31.0, 19.0, "Process, Contractual", 190.0),
+        ("Commercial", "SA", 6200, 72.0, 22.0, 28.0, "Metering, Staff", 175.0),
+        ("Industrial", "NSW", 480, 2800.0, 850.0, 35.0, "Production Risk, Contractual", 280.0),
+        ("Industrial", "VIC", 420, 2400.0, 720.0, 38.0, "Production Risk, Process", 265.0),
+        ("Industrial", "QLD", 350, 3100.0, 920.0, 32.0, "Production Risk, Metering", 295.0),
+        ("Industrial", "SA", 180, 2200.0, 680.0, 41.0, "Contractual, Awareness", 270.0),
+    ]
+    customer_segments = []
+    for i, (sector, state, num_sites, avg_load, flex_pot, part_rate, barriers, pay) in enumerate(segment_defs):
+        customer_segments.append(EDFMCustomerSegmentRecord(
+            segment_id=f"EDFM-CS-{i+1:03d}",
+            segment_name=f"{sector} - {state}",
+            sector=sector,
+            num_sites=num_sites,
+            avg_load_kw=avg_load,
+            flex_potential_kw_per_site=flex_pot,
+            participation_rate_pct=part_rate,
+            barriers=barriers,
+            avg_payment_dolpermwh_activated=pay,
+        ))
+
+    # ---- Forecasts (20 records: 5 years × 4 scenarios) ----
+    scenarios = ["Base", "High DER", "High Industrial", "Policy Push"]
+    forecasts = []
+    fid = 1
+    for year in range(2025, 2030):
+        yr_idx = year - 2025
+        for scenario in scenarios:
+            if scenario == "Base":
+                tot = round(2.5 + yr_idx * 0.4, 2)
+                res = round(400 + yr_idx * 80, 0)
+                com = round(600 + yr_idx * 100, 0)
+                ind = round(800 + yr_idx * 120, 0)
+                ev = round(200 + yr_idx * 150, 0)
+                bat = round(500 + yr_idx * 200, 0)
+                events = 45 + yr_idx * 5
+            elif scenario == "High DER":
+                tot = round(2.8 + yr_idx * 0.6, 2)
+                res = round(600 + yr_idx * 150, 0)
+                com = round(700 + yr_idx * 120, 0)
+                ind = round(750 + yr_idx * 100, 0)
+                ev = round(400 + yr_idx * 250, 0)
+                bat = round(800 + yr_idx * 350, 0)
+                events = 55 + yr_idx * 8
+            elif scenario == "High Industrial":
+                tot = round(3.0 + yr_idx * 0.5, 2)
+                res = round(350 + yr_idx * 60, 0)
+                com = round(550 + yr_idx * 80, 0)
+                ind = round(1200 + yr_idx * 200, 0)
+                ev = round(180 + yr_idx * 100, 0)
+                bat = round(450 + yr_idx * 150, 0)
+                events = 50 + yr_idx * 6
+            else:  # Policy Push
+                tot = round(3.5 + yr_idx * 0.8, 2)
+                res = round(700 + yr_idx * 180, 0)
+                com = round(850 + yr_idx * 160, 0)
+                ind = round(1000 + yr_idx * 180, 0)
+                ev = round(500 + yr_idx * 300, 0)
+                bat = round(1000 + yr_idx * 450, 0)
+                events = 70 + yr_idx * 12
+            forecasts.append(EDFMForecastRecord(
+                forecast_id=f"EDFM-F-{fid:03d}",
+                year=year,
+                scenario=scenario,
+                total_flex_capacity_gw=tot,
+                residential_mw=res,
+                commercial_mw=com,
+                industrial_mw=ind,
+                ev_mw=ev,
+                battery_mw=bat,
+                activated_events_per_year=events,
+            ))
+            fid += 1
+
+    # ---- Network Benefits (15 records: 5 areas × 3 benefit types) ----
+    network_areas = ["Sydney North", "Melbourne West", "Brisbane South", "Adelaide Metro", "Snowy Region"]
+    benefit_types = ["Peak Demand Reduction", "Network Deferral", "Congestion Relief", "Voltage Support"]
+    benefit_combos = [
+        (area, btype)
+        for area in network_areas
+        for btype in benefit_types[:3]
+    ]
+    network_benefits = []
+    for i, (area, btype) in enumerate(benefit_combos):
+        annual_b = round(rng.uniform(5, 80), 1)
+        cap_def = round(rng.uniform(20, 400), 1)
+        flex_mw = round(rng.uniform(15, 200), 1)
+        yrs_def = rng.randint(3, 12)
+        network_benefits.append(EDFMNetworkBenefitRecord(
+            benefit_id=f"EDFM-NB-{i+1:03d}",
+            network_area=area,
+            benefit_type=btype,
+            annual_benefit_m=annual_b,
+            deferred_capex_m=cap_def,
+            flex_contribution_mw=flex_mw,
+            years_deferred=yrs_def,
+        ))
+
+    # ---- Summary ----
+    total_enrolled_mw = round(sum(p.enrolled_capacity_mw for p in providers), 1)
+    total_activation_events = len(activation_events)
+    avg_delivery_rate = round(sum(e.delivery_rate_pct for e in activation_events) / len(activation_events), 1)
+    total_network_benefit_m = round(sum(nb.annual_benefit_m for nb in network_benefits), 1)
+    projected_2029 = max(f.total_flex_capacity_gw for f in forecasts if f.year == 2029 and f.scenario == "Policy Push")
+
+    _edfm_cache = EDFMDashboard(
+        providers=providers,
+        activation_events=activation_events,
+        market_products=market_products,
+        customer_segments=customer_segments,
+        forecasts=forecasts,
+        network_benefits=network_benefits,
+        summary={
+            "total_enrolled_mw": total_enrolled_mw,
+            "total_activation_events": total_activation_events,
+            "avg_delivery_rate_pct": avg_delivery_rate,
+            "total_network_benefit_m": total_network_benefit_m,
+            "projected_flex_capacity_2029_gw": projected_2029,
+        }
+    )
+    return _edfm_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 96b — Energy Asset Life Extension Analytics (EALX)
+# ---------------------------------------------------------------------------
+from typing import Optional
+
+class EALXAssetRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    technology: str          # Coal | Gas OCGT | Gas CCGT | Gas Steam | Diesel | Hydro
+    owner: str
+    region: str
+    capacity_mw: float
+    commissioning_year: int
+    original_life_years: int
+    current_age_years: int
+    extended_life_years: int
+    extension_cost_m: float
+    annual_om_cost_m: float
+    heat_rate_gj_per_mwh: float
+    capacity_factor_pct: float
+    status: str              # Operating | Life Extended | Retirement Planned | Retired
+
+class EALXDegradationRecord(BaseModel):
+    degradation_id: str
+    asset_id: str
+    component: str           # Turbine | Boiler | Generator | Cooling System | Controls | Transformer
+    condition_score: float   # 0-100
+    remaining_life_years: float
+    replacement_cost_m: float
+    last_inspection_date: str
+    failure_probability_pct: float
+    recommended_action: str  # Monitor | Overhaul | Replace | Retire
+
+class EALXEconomicsRecord(BaseModel):
+    economics_id: str
+    asset_id: str
+    year: int
+    revenue_m: float
+    fuel_cost_m: float
+    om_cost_m: float
+    carbon_cost_m: float
+    extension_capex_m: float
+    gross_margin_m: float
+    npv_continue_m: float
+    npv_retire_m: float
+    optimal_decision: str    # Continue | Retire | Extend
+
+class EALXMarketValueRecord(BaseModel):
+    value_id: str
+    asset_id: str
+    valuation_method: str    # DCF | Replacement Cost | Market Comparable | Option Value
+    base_case_m: float
+    upside_m: float
+    downside_m: float
+    key_assumption: str
+    discount_rate_pct: float
+    carbon_price_assumption_dolpertonne: float
+
+class EALXRetirementRiskRecord(BaseModel):
+    risk_id: str
+    asset_name: str
+    risk_type: str           # Financial | Technical | Regulatory | Community | Security of Supply
+    probability_pct: float
+    impact_severity: str     # Low | Medium | High | Critical
+    mitigation_measure: str
+    residual_risk_pct: float
+
+class EALXReplacementNeedRecord(BaseModel):
+    need_id: str
+    region: str
+    retiring_asset_mw: float
+    replacement_technology: str
+    replacement_capacity_mw: float
+    lead_time_years: int
+    estimated_cost_m: float
+    timeline_year: int
+    reliability_gap_mw: float
+    gap_severity: str        # None | Minor | Moderate | Severe
+
+class EALXDashboard(BaseModel):
+    assets: list[EALXAssetRecord]
+    degradation_records: list[EALXDegradationRecord]
+    economics: list[EALXEconomicsRecord]
+    market_values: list[EALXMarketValueRecord]
+    retirement_risks: list[EALXRetirementRiskRecord]
+    replacement_needs: list[EALXReplacementNeedRecord]
+    summary: dict
+
+_ealx_cache: Optional[EALXDashboard] = None
+
+@app.get("/api/energy-asset-life-extension/dashboard")
+def get_ealx_dashboard():
+    import random
+    global _ealx_cache
+    if _ealx_cache is not None:
+        return _ealx_cache
+
+    rng = random.Random(20240101)
+
+    # ---- Asset Records (20 assets across NEM regions) ----
+    asset_defs = [
+        # (name, technology, owner, region, cap_mw, comm_year, orig_life, status)
+        ("Eraring Power Station",     "Coal",      "Origin Energy",    "NSW", 2880, 1982, 40, "Retirement Planned"),
+        ("Bayswater Power Station",   "Coal",      "AGL Energy",       "NSW", 2640, 1985, 40, "Life Extended"),
+        ("Loy Yang A",                "Coal",      "AGL Energy",       "VIC", 2210, 1984, 50, "Life Extended"),
+        ("Loy Yang B",                "Coal",      "ENGIE",            "VIC", 1000, 1993, 40, "Operating"),
+        ("Yallourn Power Station",    "Coal",      "EnergyAustralia",  "VIC",  480, 1974, 50, "Retired"),
+        ("Tarong Power Station",      "Coal",      "CS Energy",        "QLD", 1400, 1984, 45, "Operating"),
+        ("Callide B",                 "Coal",      "CS Energy",        "QLD",  700, 1988, 40, "Retirement Planned"),
+        ("Gladstone Power Station",   "Coal",      "NRG Energy",       "QLD", 1680, 1976, 50, "Life Extended"),
+        ("Northern Power Station",    "Coal",      "Alinta Energy",    "SA",   520, 1985, 40, "Retired"),
+        ("Pelican Point Power",       "Gas CCGT",  "ENGIE",            "SA",   478, 2000, 30, "Operating"),
+        ("Torrens Island A",          "Gas Steam", "AGL Energy",       "SA",   480, 1967, 50, "Life Extended"),
+        ("Torrens Island B",          "Gas Steam", "AGL Energy",       "SA",   800, 1976, 45, "Retirement Planned"),
+        ("Swanbank E",                "Gas CCGT",  "CS Energy",        "QLD",  385, 2002, 30, "Operating"),
+        ("Darling Downs Power",       "Gas CCGT",  "Origin Energy",    "QLD",  630, 2010, 30, "Operating"),
+        ("Tallawarra Power Station",  "Gas CCGT",  "EnergyAustralia",  "NSW",  435, 2009, 30, "Operating"),
+        ("Colongra Gas Turbines",     "Gas OCGT",  "AGL Energy",       "NSW",  667, 2009, 25, "Operating"),
+        ("Snowy 1",                   "Hydro",     "Snowy Hydro",      "NSW", 2100, 1974, 60, "Life Extended"),
+        ("Gordon Power Station",      "Hydro",     "Hydro Tasmania",   "TAS", 432,  1978, 60, "Life Extended"),
+        ("Callide C",                 "Coal",      "CS Energy / IG",   "QLD", 900,  2001, 40, "Operating"),
+        ("Valley Power Peakers",      "Gas OCGT",  "EnergyAustralia",  "VIC", 300,  2002, 25, "Retirement Planned"),
+    ]
+
+    assets = []
+    for i, (name, tech, owner, region, cap, comm, orig_life, status) in enumerate(asset_defs):
+        age = 2024 - comm
+        if tech == "Coal":
+            hr = round(rng.uniform(9.5, 12.5), 2)
+            cf = round(rng.uniform(40, 75), 1)
+        elif tech in ("Gas CCGT",):
+            hr = round(rng.uniform(6.5, 8.0), 2)
+            cf = round(rng.uniform(25, 65), 1)
+        elif tech in ("Gas OCGT", "Gas Steam"):
+            hr = round(rng.uniform(10.0, 14.0), 2)
+            cf = round(rng.uniform(10, 40), 1)
+        else:  # Hydro, Diesel
+            hr = round(rng.uniform(3.5, 5.0), 2)
+            cf = round(rng.uniform(20, 55), 1)
+
+        ext_life = orig_life + rng.randint(5, 15)
+        ext_cost = round(rng.uniform(50, 500), 1)
+        om_cost = round(cap * rng.uniform(0.02, 0.05), 1)
+        assets.append(EALXAssetRecord(
+            asset_id=f"EALX-A-{i+1:03d}",
+            asset_name=name,
+            technology=tech,
+            owner=owner,
+            region=region,
+            capacity_mw=float(cap),
+            commissioning_year=comm,
+            original_life_years=orig_life,
+            current_age_years=age,
+            extended_life_years=ext_life,
+            extension_cost_m=ext_cost,
+            annual_om_cost_m=om_cost,
+            heat_rate_gj_per_mwh=hr,
+            capacity_factor_pct=cf,
+            status=status,
+        ))
+
+    # ---- Degradation Records (20 assets × 3 components = 60) ----
+    component_sets = [
+        ["Turbine", "Boiler", "Generator"],
+        ["Turbine", "Cooling System", "Controls"],
+        ["Generator", "Transformer", "Controls"],
+        ["Boiler", "Turbine", "Transformer"],
+        ["Turbine", "Generator", "Boiler"],
+    ]
+    actions = ["Monitor", "Overhaul", "Replace", "Retire"]
+    inspection_dates = [
+        "2023-03-15", "2023-06-22", "2023-09-10", "2023-11-28",
+        "2024-01-15", "2024-03-20", "2024-05-08", "2024-07-14",
+    ]
+    degradation_records = []
+    d_id = 1
+    for asset in assets:
+        age_factor = min(asset.current_age_years / 50, 1.0)
+        comps = component_sets[d_id % len(component_sets)]
+        for comp in comps:
+            base_score = rng.uniform(20, 95)
+            score = round(max(5, base_score - age_factor * 30 + rng.uniform(-10, 10)), 1)
+            rem_life = round(max(0.5, (100 - score) * 0.3 + rng.uniform(0, 5)), 1)
+            repl_cost = round(rng.uniform(10, 150), 1)
+            fail_prob = round(max(1, min(95, (100 - score) * 0.8 + rng.uniform(-5, 5))), 1)
+            if score < 30:
+                action = "Retire"
+            elif score < 50:
+                action = rng.choice(["Replace", "Retire"])
+            elif score < 70:
+                action = rng.choice(["Overhaul", "Replace"])
+            else:
+                action = "Monitor"
+            degradation_records.append(EALXDegradationRecord(
+                degradation_id=f"EALX-D-{d_id:03d}",
+                asset_id=asset.asset_id,
+                component=comp,
+                condition_score=score,
+                remaining_life_years=rem_life,
+                replacement_cost_m=repl_cost,
+                last_inspection_date=rng.choice(inspection_dates),
+                failure_probability_pct=fail_prob,
+                recommended_action=action,
+            ))
+            d_id += 1
+
+    # ---- Economics Records (10 key assets × 4 years 2025-2028 = 40) ----
+    key_asset_ids = [a.asset_id for a in assets[:10]]
+    economics = []
+    e_id = 1
+    for asset_id in key_asset_ids:
+        asset = next(a for a in assets if a.asset_id == asset_id)
+        for yr in range(2025, 2029):
+            price_per_mwh = rng.uniform(60, 130)
+            gen_mwh = asset.capacity_mw * asset.capacity_factor_pct / 100 * 8760
+            revenue = round(gen_mwh * price_per_mwh / 1e6, 1)
+            fuel_cost = round(gen_mwh * asset.heat_rate_gj_per_mwh * rng.uniform(3, 15) / 1e6, 1)
+            om_cost_yr = round(asset.annual_om_cost_m * rng.uniform(0.9, 1.2), 1)
+            carbon_cost = round(gen_mwh * rng.uniform(0.7, 1.0) * rng.uniform(30, 75) / 1e6, 1)
+            ext_capex = round(asset.extension_cost_m / 10 * rng.uniform(0.5, 1.5) if yr == 2025 else 0, 1)
+            gm = round(revenue - fuel_cost - om_cost_yr - carbon_cost - ext_capex, 1)
+            npv_cont = round(gm * rng.uniform(3, 6), 1)
+            npv_ret = round(rng.uniform(-50, 200), 1)
+            decision = "Continue" if npv_cont > npv_ret else ("Extend" if gm > 0 else "Retire")
+            economics.append(EALXEconomicsRecord(
+                economics_id=f"EALX-E-{e_id:03d}",
+                asset_id=asset_id,
+                year=yr,
+                revenue_m=revenue,
+                fuel_cost_m=fuel_cost,
+                om_cost_m=om_cost_yr,
+                carbon_cost_m=carbon_cost,
+                extension_capex_m=ext_capex,
+                gross_margin_m=gm,
+                npv_continue_m=npv_cont,
+                npv_retire_m=npv_ret,
+                optimal_decision=decision,
+            ))
+            e_id += 1
+
+    # ---- Market Valuations (15 records — different methods for key assets) ----
+    valuation_methods = ["DCF", "Replacement Cost", "Market Comparable", "Option Value"]
+    key_assumptions = [
+        "Carbon price $50/t flat", "Carbon price $75/t escalating",
+        "Baseload demand growth 2%pa", "High renewable penetration",
+        "Gas price $10/GJ", "Gas price $15/GJ long-term",
+        "Closure by 2030 mandated", "Life extension approved",
+    ]
+    market_values = []
+    for i in range(15):
+        asset = assets[i % 10]
+        method = valuation_methods[i % len(valuation_methods)]
+        base = round(rng.uniform(50, 800), 1)
+        market_values.append(EALXMarketValueRecord(
+            value_id=f"EALX-V-{i+1:03d}",
+            asset_id=asset.asset_id,
+            valuation_method=method,
+            base_case_m=base,
+            upside_m=round(base * rng.uniform(1.2, 1.8), 1),
+            downside_m=round(base * rng.uniform(0.3, 0.7), 1),
+            key_assumption=rng.choice(key_assumptions),
+            discount_rate_pct=round(rng.uniform(6, 12), 1),
+            carbon_price_assumption_dolpertonne=round(rng.uniform(20, 100), 1),
+        ))
+
+    # ---- Retirement Risks (10 assets × 3 risk types = 30) ----
+    risk_types = ["Financial", "Technical", "Regulatory", "Community", "Security of Supply"]
+    severities = ["Low", "Medium", "High", "Critical"]
+    mitigations = [
+        "Establish decommissioning fund reserve",
+        "Accelerate major overhaul programme",
+        "Engage regulator for compliance pathway",
+        "Community transition fund and local employment",
+        "Procure replacement firming capacity",
+        "Dual-fuel capability upgrade",
+        "Enhanced predictive maintenance programme",
+        "Secure long-term gas supply contract",
+        "Install backup transformer on critical units",
+        "Coordinate with AEMO on retirement timing",
+    ]
+    retirement_risks = []
+    r_id = 1
+    for asset in assets[:10]:
+        for rt in rng.sample(risk_types, 3):
+            prob = round(rng.uniform(10, 85), 1)
+            sev = rng.choice(severities)
+            residual = round(prob * rng.uniform(0.2, 0.6), 1)
+            retirement_risks.append(EALXRetirementRiskRecord(
+                risk_id=f"EALX-R-{r_id:03d}",
+                asset_name=asset.asset_name,
+                risk_type=rt,
+                probability_pct=prob,
+                impact_severity=sev,
+                mitigation_measure=rng.choice(mitigations),
+                residual_risk_pct=residual,
+            ))
+            r_id += 1
+
+    # ---- Replacement Needs (4 regions × 3 timelines = 12) ----
+    regions_rep = ["NSW", "VIC", "QLD", "SA"]
+    rep_techs = ["Utility Solar + BESS", "Offshore Wind", "Gas CCGT (Hydrogen-Ready)", "Pumped Hydro", "Onshore Wind + BESS"]
+    replacement_needs = []
+    n_id = 1
+    for reg in regions_rep:
+        region_assets = [a for a in assets if a.region == reg]
+        retiring_mw = sum(a.capacity_mw for a in region_assets if "Retirement" in a.status or "Retired" in a.status)
+        for tl_yr in [2026, 2028, 2031]:
+            rep_tech = rng.choice(rep_techs)
+            rep_cap = round(retiring_mw * rng.uniform(0.5, 1.3), 0) if retiring_mw > 0 else round(rng.uniform(200, 800), 0)
+            lead = rng.randint(3, 8)
+            est_cost = round(rep_cap * rng.uniform(1.5, 3.5), 1)
+            gap = round(max(0, retiring_mw - rep_cap * rng.uniform(0.7, 1.1)), 0)
+            if gap == 0:
+                sev = "None"
+            elif gap < 200:
+                sev = "Minor"
+            elif gap < 500:
+                sev = "Moderate"
+            else:
+                sev = "Severe"
+            replacement_needs.append(EALXReplacementNeedRecord(
+                need_id=f"EALX-N-{n_id:03d}",
+                region=reg,
+                retiring_asset_mw=round(retiring_mw, 1),
+                replacement_technology=rep_tech,
+                replacement_capacity_mw=rep_cap,
+                lead_time_years=lead,
+                estimated_cost_m=est_cost,
+                timeline_year=tl_yr,
+                reliability_gap_mw=gap,
+                gap_severity=sev,
+            ))
+            n_id += 1
+
+    # ---- Summary ----
+    at_risk = sum(a.capacity_mw for a in assets if a.status in ("Retirement Planned", "Life Extended")) / 1000
+    ret_5yr = len([a for a in assets if a.status == "Retirement Planned"])
+    avg_age = round(sum(a.current_age_years for a in assets) / len(assets), 1)
+    total_ext_inv = round(sum(a.extension_cost_m for a in assets if a.status == "Life Extended"), 1)
+    rel_gap = round(sum(n.reliability_gap_mw for n in replacement_needs), 0)
+
+    _ealx_cache = EALXDashboard(
+        assets=assets,
+        degradation_records=degradation_records,
+        economics=economics,
+        market_values=market_values,
+        retirement_risks=retirement_risks,
+        replacement_needs=replacement_needs,
+        summary={
+            "total_at_risk_capacity_gw": round(at_risk, 2),
+            "assets_retirement_planned_5yr": ret_5yr,
+            "avg_asset_age_years": avg_age,
+            "total_extension_investment_m": total_ext_inv,
+            "reliability_gap_mw": rel_gap,
+        }
+    )
+    return _ealx_cache
+
+# ---------------------------------------------------------------------------
+# GREEN AMMONIA EXPORT ANALYTICS  (Sprint 96c — GAEX)
+# ---------------------------------------------------------------------------
+
+class GAEXProductionRecord(BaseModel):
+    project_id: str
+    project_name: str
+    state: str
+    developer: str
+    production_route: str
+    electrolyser_capacity_mw: float
+    renewable_capacity_mw: float
+    ammonia_capacity_ktpa: float
+    water_requirement_ml_pa: float
+    port_name: str
+    capex_m: float
+    opex_m_pa: float
+    fid_year: int
+    first_production_year: int
+    project_status: str
+
+
+class GAEXCostRecord(BaseModel):
+    cost_id: str
+    project_id: str
+    year: int
+    lcoa_dolpertonne: float
+    renewable_electricity_cost_dolpermwh: float
+    electrolyser_cost_dolperkw: float
+    nitrogen_separation_cost_dolpertonne: float
+    haber_bosch_cost_dolpertonne: float
+    export_logistics_cost_dolpertonne: float
+    carbon_offset_cost_dolpertonne: float
+    total_cash_cost_dolpertonne: float
+
+
+class GAEXMarketRecord(BaseModel):
+    market_id: str
+    destination_country: str
+    demand_ktpa_2030: float
+    demand_ktpa_2040: float
+    application: str
+    contract_type: str
+    price_dolpertonne: float
+    market_share_pct: float
+    competitor_countries: str
+
+
+class GAEXLogisticsRecord(BaseModel):
+    logistics_id: str
+    port_name: str
+    state: str
+    storage_capacity_kt: float
+    loading_rate_ktpd: float
+    berths_available: int
+    distance_to_japan_km: int
+    distance_to_korea_km: int
+    distance_to_europe_km: int
+    infrastructure_status: str
+    capex_upgrade_m: float
+
+
+class GAEXTradeFlowRecord(BaseModel):
+    flow_id: str
+    year: int
+    scenario: str
+    australia_export_mtpa: float
+    japan_import_mtpa: float
+    korea_import_mtpa: float
+    europe_import_mtpa: float
+    global_market_size_mtpa: float
+    australia_market_share_pct: float
+    avg_price_dolpertonne: float
+    revenue_bn: float
+
+
+class GAEXPolicyRecord(BaseModel):
+    policy_id: str
+    policy_name: str
+    jurisdiction: str
+    policy_type: str
+    value_m: float
+    announcement_date: str
+    implementation_date: str
+    status: str
+    beneficiary: str
+    description: str
+
+
+class GAEXDashboard(BaseModel):
+    projects: list[GAEXProductionRecord]
+    cost_records: list[GAEXCostRecord]
+    markets: list[GAEXMarketRecord]
+    logistics: list[GAEXLogisticsRecord]
+    trade_flows: list[GAEXTradeFlowRecord]
+    policies: list[GAEXPolicyRecord]
+    summary: dict
+
+
+_gaex_cache: dict = {}
+
+
+@app.get("/api/green-ammonia-export/dashboard")
+def get_gaex_dashboard():
+    import random
+    if _gaex_cache:
+        return _gaex_cache
+
+    rng = random.Random(20240101)
+
+    # ---- Production Projects (12 total: 4 per state QLD/WA/SA) ----
+    project_data = [
+        # QLD
+        ("GAEX-P-001", "Central Queensland Green Ammonia Hub", "QLD", "Squadron Energy", "Haber-Bosch + Green H2", 400, 1200, 300, 1800, "Gladstone", 2800, 120, 2026, 2029, "FEED"),
+        ("GAEX-P-002", "Townsville Ammonia Export Terminal", "QLD", "ATCO Australia", "Haber-Bosch + Green H2", 250, 750, 180, 1100, "Townsville", 1900, 80, 2027, 2030, "Pre-FEED"),
+        ("GAEX-P-003", "North Queensland Renewable Ammonia", "QLD", "H2U Enterprises", "Direct Electrolysis-Ammonia", 150, 450, 100, 620, "Townsville", 1200, 55, 2028, 2031, "Pre-FEED"),
+        ("GAEX-P-004", "Gladstone Green Chemicals Complex", "QLD", "Fortescue Future Industries", "Haber-Bosch + Green H2", 1000, 3000, 750, 4600, "Gladstone", 6500, 280, 2025, 2028, "FID"),
+        # WA
+        ("GAEX-P-005", "Pilbara Hydrogen & Ammonia Project", "WA", "Fortescue Future Industries", "Haber-Bosch + Green H2", 800, 2400, 600, 3700, "Port Hedland", 5200, 220, 2025, 2028, "Construction"),
+        ("GAEX-P-006", "Asian Renewable Energy Hub Ammonia", "WA", "AREH Consortium", "Haber-Bosch + Green H2", 1500, 5000, 1000, 6200, "Dampier", 9800, 420, 2026, 2029, "FEED"),
+        ("GAEX-P-007", "Mid-West Green Ammonia", "WA", "Infinite Blue Energy", "Direct Electrolysis-Ammonia", 120, 360, 80, 500, "Geraldton", 980, 42, 2028, 2031, "Pre-FEED"),
+        ("GAEX-P-008", "Karratha Ammonia Export Hub", "WA", "Origin Energy", "Haber-Bosch + Green H2", 600, 1800, 450, 2800, "Port Hedland", 3900, 165, 2027, 2030, "Pre-FEED"),
+        # SA
+        ("GAEX-P-009", "Port Augusta Green Ammonia Precinct", "SA", "BP Australia", "Haber-Bosch + Green H2", 300, 900, 220, 1350, "Port Augusta", 2100, 92, 2027, 2030, "Pre-FEED"),
+        ("GAEX-P-010", "Whyalla H2 & Ammonia Hub", "SA", "GFG Alliance", "Haber-Bosch + Green H2", 200, 600, 150, 920, "Port Pirie", 1600, 68, 2028, 2031, "Pre-FEED"),
+        ("GAEX-P-011", "South Australian Renewable Ammonia", "SA", "Beach Energy", "Direct Electrolysis-Ammonia", 80, 240, 55, 340, "Port Augusta", 720, 30, 2029, 2032, "Pre-FEED"),
+        ("GAEX-P-012", "Eyre Peninsula Ammonia Terminal", "SA", "APA Group", "Haber-Bosch + Green H2", 180, 540, 130, 800, "Port Lincoln", 1400, 58, 2028, 2031, "Pre-FEED"),
+    ]
+    projects = [GAEXProductionRecord(
+        project_id=p[0], project_name=p[1], state=p[2], developer=p[3],
+        production_route=p[4], electrolyser_capacity_mw=p[5], renewable_capacity_mw=p[6],
+        ammonia_capacity_ktpa=p[7], water_requirement_ml_pa=p[8], port_name=p[9],
+        capex_m=p[10], opex_m_pa=p[11], fid_year=p[12], first_production_year=p[13],
+        project_status=p[14]
+    ) for p in project_data]
+
+    # ---- Cost Records (9 projects × 4 years = 36 records) ----
+    cost_project_ids = [p[0] for p in project_data[:9]]
+    cost_years = [2025, 2027, 2029, 2030]
+    # LCOA starts high and declines (learning curve)
+    base_lcoa = {"2025": 860, "2027": 720, "2029": 590, "2030": 510}
+    cost_records = []
+    c_id = 1
+    for pid in cost_project_ids:
+        for yr in cost_years:
+            lcoa = round(base_lcoa[str(yr)] * rng.uniform(0.88, 1.12), 1)
+            re_cost = round(rng.uniform(25, 55) if yr <= 2027 else rng.uniform(18, 40), 1)
+            el_cost = round(rng.uniform(600, 900) if yr <= 2027 else rng.uniform(400, 650), 0)
+            n2_cost = round(rng.uniform(15, 30), 1)
+            hb_cost = round(rng.uniform(30, 60), 1)
+            log_cost = round(rng.uniform(40, 80), 1)
+            co_cost = round(rng.uniform(5, 20), 1)
+            total_cash = round(lcoa * 0.68, 1)
+            cost_records.append(GAEXCostRecord(
+                cost_id=f"GAEX-C-{c_id:03d}",
+                project_id=pid,
+                year=yr,
+                lcoa_dolpertonne=lcoa,
+                renewable_electricity_cost_dolpermwh=re_cost,
+                electrolyser_cost_dolperkw=el_cost,
+                nitrogen_separation_cost_dolpertonne=n2_cost,
+                haber_bosch_cost_dolpertonne=hb_cost,
+                export_logistics_cost_dolpertonne=log_cost,
+                carbon_offset_cost_dolpertonne=co_cost,
+                total_cash_cost_dolpertonne=total_cash,
+            ))
+            c_id += 1
+
+    # ---- Market Records (10 records) ----
+    market_data = [
+        ("GAEX-M-001", "Japan", 3500, 8000, "Hydrogen Carrier", "Long-term Offtake", 680, 28.5, "Middle East, Chile"),
+        ("GAEX-M-002", "Japan", 1200, 3000, "Power Generation", "Long-term Offtake", 720, 10.2, "Middle East, Norway"),
+        ("GAEX-M-003", "South Korea", 2800, 6500, "Hydrogen Carrier", "Long-term Offtake", 670, 22.1, "Middle East, USA"),
+        ("GAEX-M-004", "South Korea", 900, 2200, "Marine Fuel", "Spot", 640, 7.5, "Norway, Chile"),
+        ("GAEX-M-005", "Germany", 1800, 5000, "Industrial Feedstock", "Long-term Offtake", 720, 14.8, "Norway, Canada"),
+        ("GAEX-M-006", "Netherlands", 1500, 4200, "Fertiliser", "Long-term Offtake", 650, 12.4, "Morocco, Egypt"),
+        ("GAEX-M-007", "India", 4000, 12000, "Fertiliser", "Spot", 550, 32.0, "Middle East, Russia"),
+        ("GAEX-M-008", "China", 5000, 15000, "Industrial Feedstock", "LOI", 580, 38.5, "Middle East, Chile"),
+        ("GAEX-M-009", "Singapore", 600, 1800, "Marine Fuel", "Spot", 700, 4.9, "Japan, Middle East"),
+        ("GAEX-M-010", "Taiwan", 800, 2500, "Power Generation", "Long-term Offtake", 690, 6.5, "Middle East, USA"),
+    ]
+    markets = [GAEXMarketRecord(
+        market_id=m[0], destination_country=m[1], demand_ktpa_2030=m[2], demand_ktpa_2040=m[3],
+        application=m[4], contract_type=m[5], price_dolpertonne=m[6],
+        market_share_pct=m[7], competitor_countries=m[8]
+    ) for m in market_data]
+
+    # ---- Logistics Records (8 records) ----
+    logistics_data = [
+        ("GAEX-L-001", "Gladstone", "QLD", 120, 4.5, 3, 7800, 8200, 19500, "Upgrade Required", 380),
+        ("GAEX-L-002", "Townsville", "QLD", 60, 2.0, 2, 7500, 7900, 19800, "Upgrade Required", 220),
+        ("GAEX-L-003", "Port Hedland", "WA", 200, 6.0, 4, 6900, 7300, 18200, "Upgrade Required", 520),
+        ("GAEX-L-004", "Dampier", "WA", 80, 2.8, 2, 7000, 7400, 18400, "Greenfield", 650),
+        ("GAEX-L-005", "Geraldton", "WA", 40, 1.5, 1, 7600, 8000, 19200, "Greenfield", 180),
+        ("GAEX-L-006", "Port Augusta", "SA", 50, 1.8, 2, 8400, 8800, 18800, "Greenfield", 290),
+        ("GAEX-L-007", "Darwin", "NT", 30, 1.2, 1, 6200, 6600, 20500, "Greenfield", 410),
+        ("GAEX-L-008", "Port Lincoln", "SA", 25, 0.9, 1, 8600, 9000, 18600, "Greenfield", 155),
+    ]
+    logistics = [GAEXLogisticsRecord(
+        logistics_id=l[0], port_name=l[1], state=l[2], storage_capacity_kt=l[3],
+        loading_rate_ktpd=l[4], berths_available=l[5], distance_to_japan_km=l[6],
+        distance_to_korea_km=l[7], distance_to_europe_km=l[8],
+        infrastructure_status=l[9], capex_upgrade_m=l[10]
+    ) for l in logistics_data]
+
+    # ---- Trade Flow Records (5 years × 4 scenarios = 20 records) ----
+    scenarios = ["Base", "High Demand", "Policy Push", "Low Demand"]
+    trade_years = [2025, 2026, 2027, 2028, 2030]
+    tf_id = 1
+    trade_flows = []
+    scenario_multipliers = {"Base": 1.0, "High Demand": 1.5, "Policy Push": 1.3, "Low Demand": 0.6}
+    for scenario in scenarios:
+        mul = scenario_multipliers[scenario]
+        for i, yr in enumerate(trade_years):
+            growth = 1 + i * 0.25
+            au_exp = round(0.5 * mul * growth, 2)
+            jp_imp = round(au_exp * 0.38, 2)
+            kr_imp = round(au_exp * 0.28, 2)
+            eu_imp = round(au_exp * 0.18, 2)
+            global_sz = round(8 + i * 2.5, 1)
+            mkt_share = round(au_exp / global_sz * 100, 1)
+            avg_price = round(680 - i * 15 + rng.uniform(-20, 20), 0)
+            revenue = round(au_exp * avg_price / 1000, 2)
+            trade_flows.append(GAEXTradeFlowRecord(
+                flow_id=f"GAEX-TF-{tf_id:03d}",
+                year=yr, scenario=scenario,
+                australia_export_mtpa=au_exp,
+                japan_import_mtpa=jp_imp,
+                korea_import_mtpa=kr_imp,
+                europe_import_mtpa=eu_imp,
+                global_market_size_mtpa=global_sz,
+                australia_market_share_pct=mkt_share,
+                avg_price_dolpertonne=avg_price,
+                revenue_bn=revenue,
+            ))
+            tf_id += 1
+
+    # ---- Policy Records (15 records) ----
+    policy_data = [
+        ("GAEX-POL-001", "Hydrogen Headstart Program", "Federal", "Grant", 2000, "2023-05-01", "2024-01-01", "Active", "Green Ammonia Producers", "ARENA flagship $2bn grant for first-mover hydrogen/ammonia exporters"),
+        ("GAEX-POL-002", "CEFC Green Hydrogen Financing", "Federal", "Grant", 3000, "2022-11-01", "2023-06-01", "Active", "Project Developers", "CEFC $3bn low-cost debt finance for green hydrogen and ammonia projects"),
+        ("GAEX-POL-003", "ARENA Hydrogen Feasibility Program", "Federal", "Grant", 500, "2021-08-01", "2022-01-01", "Active", "Feasibility Studies", "Funding feasibility studies for large-scale hydrogen/ammonia projects"),
+        ("GAEX-POL-004", "National Hydrogen Strategy", "Federal", "Target", 0, "2019-11-01", "2020-01-01", "Active", "Industry", "Target: Australia as top 3 global hydrogen/ammonia exporter by 2030"),
+        ("GAEX-POL-005", "Technology Investment Roadmap", "Federal", "Grant", 1200, "2020-09-01", "2021-07-01", "Active", "Clean Energy Sector", "Clean hydrogen as one of 5 priority low-emission technologies"),
+        ("GAEX-POL-006", "Japan-Australia Hydrogen Supply Chain Agreement", "International", "Trade Agreement", 0, "2020-01-10", "2021-01-01", "Active", "Australian Exporters", "Framework for hydrogen and ammonia supply chain cooperation with Japan"),
+        ("GAEX-POL-007", "Korea-Australia Green Hydrogen Alliance", "International", "Trade Agreement", 0, "2022-05-22", "2023-01-01", "Active", "Australian Exporters", "MOU for large-scale green ammonia supply to Korea's steel and power sectors"),
+        ("GAEX-POL-008", "QLD Hydrogen Industry Strategy", "State", "Grant", 750, "2021-06-01", "2022-01-01", "Active", "QLD Projects", "QLD government strategy with $750m support for hydrogen and ammonia exports via Gladstone"),
+        ("GAEX-POL-009", "WA Hydrogen Strategy", "State", "Grant", 820, "2020-08-01", "2021-01-01", "Active", "WA Projects", "WA government $820m support for Pilbara and Mid-West green ammonia hubs"),
+        ("GAEX-POL-010", "SA Hydrogen Action Plan", "State", "Grant", 580, "2021-09-01", "2022-03-01", "Active", "SA Projects", "SA government $580m for Port Augusta and Whyalla green ammonia precincts"),
+        ("GAEX-POL-011", "Critical Minerals & Clean Energy Export Hubs", "Federal", "Grant", 1500, "2022-10-01", "2023-07-01", "Active", "Export Hubs", "DISR $1.5bn to develop integrated clean energy and ammonia export hubs"),
+        ("GAEX-POL-012", "Guarantee of Origin Scheme", "Federal", "Regulation", 0, "2023-02-01", "2025-07-01", "Active", "All Producers", "Federal certification scheme to label and guarantee green ammonia origin and emissions"),
+        ("GAEX-POL-013", "EU CBAM Ammonia Provisions", "International", "Regulation", 0, "2023-10-01", "2026-01-01", "Announced", "Exporters to EU", "Carbon Border Adjustment Mechanism includes ammonia — favours low-emission Australian product"),
+        ("GAEX-POL-014", "Safeguard Mechanism Reform for Ammonia", "Federal", "Regulation", 0, "2023-07-01", "2024-01-01", "Active", "Industrial Emitters", "Declining baselines for existing ammonia producers to incentivise green transition"),
+        ("GAEX-POL-015", "Northern Australia Clean Fuels Program", "Federal", "Grant", 800, "2024-03-01", "2024-09-01", "Active", "NT/QLD Projects", "$800m targeted at clean ammonia projects in Northern Australia including Darwin export hub"),
+    ]
+    policies = [GAEXPolicyRecord(
+        policy_id=p[0], policy_name=p[1], jurisdiction=p[2], policy_type=p[3],
+        value_m=p[4], announcement_date=p[5], implementation_date=p[6],
+        status=p[7], beneficiary=p[8], description=p[9]
+    ) for p in policy_data]
+
+    # ---- Summary ----
+    total_capacity_mtpa = round(sum(p.ammonia_capacity_ktpa for p in projects) / 1000, 2)
+    operating_count = sum(1 for p in projects if p.project_status == "Operating")
+    fid_count = sum(1 for p in projects if p.project_status in ("FID", "Construction"))
+    lcoa_2030_records = [c.lcoa_dolpertonne for c in cost_records if c.year == 2030]
+    avg_lcoa_2030 = round(sum(lcoa_2030_records) / len(lcoa_2030_records), 1) if lcoa_2030_records else 0
+    total_policy_bn = round(sum(p.value_m for p in policies) / 1000, 2)
+
+    _gaex_cache.update(GAEXDashboard(
+        projects=projects,
+        cost_records=cost_records,
+        markets=markets,
+        logistics=logistics,
+        trade_flows=trade_flows,
+        policies=policies,
+        summary={
+            "total_project_capacity_mtpa": total_capacity_mtpa,
+            "operating_projects": operating_count,
+            "fid_projects": fid_count,
+            "avg_lcoa_2030": avg_lcoa_2030,
+            "total_policy_support_bn": total_policy_bn,
+        }
+    ).model_dump())
+    return _gaex_cache
