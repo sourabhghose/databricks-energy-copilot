@@ -19526,3 +19526,267 @@ export interface ESTCDashboard {
 
 export const getEnergyStorageTechComparisonDashboard = (): Promise<ESTCDashboard> =>
   get<ESTCDashboard>('/api/energy-storage-technology-comparison/dashboard')
+
+// ── Sprint 108a: Power-to-X Economics Analytics (P2XE) ──────────────────────
+
+export interface P2XEProductRecord {
+  product: string
+  pathway: string
+  technology_readiness_level: number
+  energy_input_gj_per_tonne: number
+  electricity_fraction_pct: number
+  water_intensity_kl_per_tonne: number
+  co2_intensity_tco2_per_tonne: number
+}
+
+export interface P2XECostRecord {
+  year: number
+  product: string
+  production_cost_per_gj: number
+  lcox_aud_per_tonne: number
+  electricity_cost_share_pct: number
+  capex_aud_per_kw: number
+  opex_aud_per_tonne_year: number
+  fossil_parity_aud_per_tonne: number
+  cost_gap_pct: number
+}
+
+export interface P2XEProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  state: string
+  product: string
+  electrolyser_mw: number
+  renewable_source: string
+  capex_m: number
+  expected_production_tpa: number
+  offtake_agreement: boolean
+  target_export_market: string
+  status: string
+}
+
+export interface P2XEMarketRecord {
+  market: string
+  product: string
+  current_demand_mtpa: number
+  projected_2030_mtpa: number
+  australian_share_pct: number
+  contract_price_aud_per_tonne: number
+  price_trend: string
+  key_importers: string
+}
+
+export interface P2XEElectrolyserRecord {
+  technology: string
+  vendor: string
+  efficiency_kwh_per_kg_h2: number
+  lifetime_years: number
+  stack_replacement_years: number
+  capex_aud_per_kw: number
+  capex_2030_projection: number
+  degradation_rate_pct_year: number
+  operating_temp_c: number
+  pressure_bar: number
+}
+
+export interface P2XEScenarioRecord {
+  year: number
+  scenario: string
+  product: string
+  australia_production_mtpa: number
+  export_revenue_b: number
+  jobs_created: number
+  electrolyser_capacity_gw: number
+  renewable_energy_consumed_twh: number
+}
+
+export interface P2XEDashboard {
+  products: P2XEProductRecord[]
+  cost_trajectories: P2XECostRecord[]
+  projects: P2XEProjectRecord[]
+  markets: P2XEMarketRecord[]
+  electrolysers: P2XEElectrolyserRecord[]
+  scenarios: P2XEScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getPowerToXEconomicsDashboard = (): Promise<P2XEDashboard> =>
+  get<P2XEDashboard>('/api/power-to-x-economics/dashboard')
+
+// ── Sprint 108b: Electricity Market Microstructure Analytics (EMMS) ──────────
+
+export interface EMMSBidSpreadRecord {
+  settlement_date: string
+  region: string
+  interval_type: string
+  avg_bid_price_mwh: number
+  avg_offer_price_mwh: number
+  bid_offer_spread_mwh: number
+  volume_traded_mwh: number
+  participant_count: number
+  price_formation_type: string
+}
+
+export interface EMMSLiquidityRecord {
+  date_month: string
+  region: string
+  market_depth_mw: number
+  bid_stack_depth_mw: number
+  offer_stack_depth_mw: number
+  avg_cleared_volume_mw: number
+  turnover_ratio: number
+  herfindahl_index: number
+  competitive_threshold_pct: number
+}
+
+export interface EMMSPriceFormationRecord {
+  event_date: string
+  region: string
+  dispatch_interval: string
+  settlement_price_mwh: number
+  marginal_generator: string
+  marginal_fuel: string
+  constraint_binding: boolean
+  constraint_name: string
+  demand_mw: number
+  renewable_pct: number
+}
+
+export interface EMMSParticipantActivityRecord {
+  participant: string
+  market_type: string
+  region: string
+  rebids_per_day: number
+  avg_rebid_time_mins_before_dispatch: number
+  strategic_rebid_pct: number
+  declared_availability_mw: number
+  actual_generation_mw: number
+  availability_factor: number
+}
+
+export interface EMMSPredispatchRecord {
+  forecast_datetime: string
+  region: string
+  forecast_price_mwh: number
+  actual_price_mwh: number
+  absolute_error_mwh: number
+  pct_error: number
+  demand_forecast_mw: number
+  actual_demand_mw: number
+  forecast_type: string
+}
+
+export interface EMMSSettlementRecord {
+  settlement_date: string
+  region: string
+  pool_revenue_m: number
+  mrq_revenue_m: number
+  settlement_residue_m: number
+  prudential_call_m: number
+  spot_payments_m: number
+  average_spot_price_mwh: number
+  high_price_intervals: number
+  low_price_intervals: number
+}
+
+export interface EMMSDashboard {
+  bid_spreads: EMMSBidSpreadRecord[]
+  liquidity: EMMSLiquidityRecord[]
+  price_formation: EMMSPriceFormationRecord[]
+  participant_activity: EMMSParticipantActivityRecord[]
+  predispatch_accuracy: EMMSPredispatchRecord[]
+  settlement: EMMSSettlementRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getElectricityMarketMicrostructureDashboard = (): Promise<EMMSDashboard> =>
+  get<EMMSDashboard>('/api/electricity-market-microstructure/dashboard')
+
+// ── Sprint 108c: Grid Decarbonisation Pathway Analytics (GDPA) ────────────────
+
+export interface GDPAEmissionsRecord {
+  quarter: string
+  region: string
+  total_emissions_mtco2: number
+  grid_intensity_kgco2_per_mwh: number
+  renewable_pct: number
+  coal_pct: number
+  gas_pct: number
+  hydro_pct: number
+  storage_contribution_pct: number
+  yoy_change_pct: number
+}
+
+export interface GDPARenewableRecord {
+  year: number
+  technology: string
+  installed_capacity_mw: number
+  generation_gwh: number
+  capacity_factor_pct: number
+  curtailment_pct: number
+  new_capacity_added_mw: number
+}
+
+export interface GDPAPathwayRecord {
+  year: number
+  scenario: string
+  renewable_pct: number
+  coal_pct: number
+  gas_pct: number
+  storage_gwh: number
+  grid_intensity_kgco2_per_mwh: number
+  demand_gwh: number
+  investment_required_b: number
+}
+
+export interface GDPAStrandedAssetRecord {
+  asset_id: string
+  asset_name: string
+  technology: string
+  owner: string
+  state: string
+  capacity_mw: number
+  current_age_years: number
+  economic_life_years: number
+  stranded_year_scenario_base: number
+  stranded_year_scenario_az: number
+  stranded_value_m: number
+  book_value_m: number
+  stranded_risk: string
+}
+
+export interface GDPAPolicyRecord {
+  policy_name: string
+  policy_type: string
+  target: string
+  budget_b: number
+  expected_capacity_mw: number
+  expected_emissions_reduction_mtco2: number
+  implementation_year: number
+  expiry_year: number
+  region: string
+}
+
+export interface GDPAInvestmentRecord {
+  year: number
+  sector: string
+  investment_required_b: number
+  committed_b: number
+  gap_b: number
+  private_share_pct: number
+  public_share_pct: number
+}
+
+export interface GDPADashboard {
+  emissions: GDPAEmissionsRecord[]
+  renewables: GDPARenewableRecord[]
+  pathways: GDPAPathwayRecord[]
+  stranded_assets: GDPAStrandedAssetRecord[]
+  policies: GDPAPolicyRecord[]
+  investments: GDPAInvestmentRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getGridDecarbonisationPathwayDashboard = (): Promise<GDPADashboard> =>
+  get<GDPADashboard>('/api/grid-decarbonisation-pathway/dashboard')

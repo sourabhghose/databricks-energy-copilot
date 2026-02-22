@@ -80645,3 +80645,1040 @@ def get_estc_dashboard():
     ).model_dump())
 
     return ESTCDashboard(**_estc_cache)
+
+
+# ============================================================
+# Sprint 108a — Power-to-X Economics Analytics (P2XE)
+# ============================================================
+
+class P2XEProductRecord(BaseModel):
+    product: str
+    pathway: str
+    technology_readiness_level: int
+    energy_input_gj_per_tonne: float
+    electricity_fraction_pct: float
+    water_intensity_kl_per_tonne: float
+    co2_intensity_tco2_per_tonne: float
+
+class P2XECostRecord(BaseModel):
+    year: int
+    product: str
+    production_cost_per_gj: float
+    lcox_aud_per_tonne: float
+    electricity_cost_share_pct: float
+    capex_aud_per_kw: float
+    opex_aud_per_tonne_year: float
+    fossil_parity_aud_per_tonne: float
+    cost_gap_pct: float
+
+class P2XEProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    state: str
+    product: str
+    electrolyser_mw: float
+    renewable_source: str
+    capex_m: float
+    expected_production_tpa: float
+    offtake_agreement: bool
+    target_export_market: str
+    status: str
+
+class P2XEMarketRecord(BaseModel):
+    market: str
+    product: str
+    current_demand_mtpa: float
+    projected_2030_mtpa: float
+    australian_share_pct: float
+    contract_price_aud_per_tonne: float
+    price_trend: str
+    key_importers: str
+
+class P2XEElectrolyserRecord(BaseModel):
+    technology: str
+    vendor: str
+    efficiency_kwh_per_kg_h2: float
+    lifetime_years: int
+    stack_replacement_years: int
+    capex_aud_per_kw: float
+    capex_2030_projection: float
+    degradation_rate_pct_year: float
+    operating_temp_c: float
+    pressure_bar: float
+
+class P2XEScenarioRecord(BaseModel):
+    year: int
+    scenario: str
+    product: str
+    australia_production_mtpa: float
+    export_revenue_b: float
+    jobs_created: int
+    electrolyser_capacity_gw: float
+    renewable_energy_consumed_twh: float
+
+class P2XEDashboard(BaseModel):
+    products: List[P2XEProductRecord]
+    cost_trajectories: List[P2XECostRecord]
+    projects: List[P2XEProjectRecord]
+    markets: List[P2XEMarketRecord]
+    electrolysers: List[P2XEElectrolyserRecord]
+    scenarios: List[P2XEScenarioRecord]
+    summary: dict
+
+_p2xe_cache: dict = {}
+
+@app.get("/api/power-to-x-economics/dashboard", response_model=P2XEDashboard, dependencies=[Depends(verify_api_key)])
+def get_p2xe_dashboard():
+    import random
+    if _p2xe_cache:
+        return P2XEDashboard(**_p2xe_cache)
+
+    # ------------------------------------------------------------------
+    # Products (18 records)
+    # ------------------------------------------------------------------
+    product_data = [
+        # product, pathway, trl, energy_gj_t, elec_pct, water_kl_t, co2_t_t
+        ("Green Hydrogen",       "PEM Electrolysis",               8, 180.0, 99.5,  9.0,  0.0),
+        ("Green Hydrogen",       "Alkaline Electrolysis",          9, 210.0, 99.0, 10.5,  0.0),
+        ("Green Hydrogen",       "SOEC High-Temp Electrolysis",    6, 140.0, 98.0,  8.0,  0.0),
+        ("Green Ammonia",        "Haber-Bosch + Green H2",         8, 280.0, 72.0, 15.0,  0.0),
+        ("Green Ammonia",        "Electrochemical Synthesis",      4, 260.0, 95.0, 12.0,  0.0),
+        ("E-Methanol",           "CO2 Hydrogenation + Green H2",   7, 220.0, 68.0,  0.8, -1.4),
+        ("E-Methanol",           "Direct Air Capture + H2",        5, 250.0, 70.0,  1.0, -1.4),
+        ("E-Kerosene",           "Fischer-Tropsch + DAC",          6, 380.0, 60.0,  1.5, -3.1),
+        ("E-Kerosene",           "Methanol-to-Jet",                5, 350.0, 58.0,  1.2, -2.8),
+        ("Green Steel DRI-EAF", "H2-DRI + Electric Arc Furnace",  8, 120.0, 55.0,  0.5,  0.2),
+        ("Green Steel DRI-EAF", "Molten Oxide Electrolysis",      4, 110.0, 90.0,  0.3,  0.1),
+        ("E-Methane",            "Sabatier + DAC + Green H2",      7, 200.0, 65.0,  2.0, -2.0),
+        ("E-Methane",            "Biological Methanation",         5, 220.0, 60.0,  3.0, -1.8),
+        ("Green Ethylene",       "Ethanol Dehydration + Green H2", 5, 310.0, 62.0,  0.9, -1.2),
+        ("Green Ethylene",       "CO2 Electroreduction",           3, 280.0, 88.0,  0.7, -1.5),
+        ("Electrofuel Aviation", "Power-to-Liquid FT",             6, 400.0, 58.0,  1.6, -3.2),
+        ("Electrofuel Aviation", "Alcohol-to-Jet",                 5, 360.0, 55.0,  1.3, -2.9),
+        ("Green Hydrogen",       "AEM Electrolysis",               5, 165.0, 99.2,  8.5,  0.0),
+    ]
+    products: List[P2XEProductRecord] = []
+    for row in product_data:
+        (prod, path, trl, eng, elec, water, co2) = row
+        products.append(P2XEProductRecord(
+            product=prod,
+            pathway=path,
+            technology_readiness_level=trl,
+            energy_input_gj_per_tonne=eng,
+            electricity_fraction_pct=elec,
+            water_intensity_kl_per_tonne=water,
+            co2_intensity_tco2_per_tonne=co2,
+        ))
+
+    # ------------------------------------------------------------------
+    # Cost trajectories (36 records: 2023-2030 × 4 products + extras)
+    # ------------------------------------------------------------------
+    # (year, product, prod_cost_gj, lcox_t, elec_share, capex_kw, opex_t_yr, fossil_parity, gap_pct)
+    cost_data = [
+        (2023, "Green Hydrogen",      18.2, 9800.0, 72.0, 2200.0, 310.0,  1800.0, 444.0),
+        (2024, "Green Hydrogen",      16.5, 8700.0, 70.0, 1950.0, 290.0,  1900.0, 358.0),
+        (2025, "Green Hydrogen",      14.8, 7600.0, 68.0, 1750.0, 270.0,  1950.0, 290.0),
+        (2026, "Green Hydrogen",      13.2, 6800.0, 66.0, 1580.0, 252.0,  2000.0, 240.0),
+        (2027, "Green Hydrogen",      11.8, 5900.0, 64.0, 1400.0, 235.0,  2050.0, 188.0),
+        (2028, "Green Hydrogen",      10.5, 5100.0, 62.0, 1230.0, 218.0,  2100.0, 143.0),
+        (2029, "Green Hydrogen",       9.2, 4400.0, 60.0, 1090.0, 202.0,  2150.0,  105.0),
+        (2030, "Green Hydrogen",       8.0, 3800.0, 58.0,  960.0, 188.0,  2200.0,   72.7),
+        (2023, "Green Ammonia",        8.4, 1250.0, 55.0, 2400.0, 420.0,   400.0,  212.5),
+        (2024, "Green Ammonia",        7.8, 1150.0, 54.0, 2200.0, 395.0,   420.0,  173.8),
+        (2025, "Green Ammonia",        7.2, 1060.0, 53.0, 2000.0, 370.0,   440.0,  140.9),
+        (2026, "Green Ammonia",        6.7,  970.0, 52.0, 1820.0, 348.0,   460.0,  110.9),
+        (2027, "Green Ammonia",        6.2,  890.0, 51.0, 1650.0, 326.0,   480.0,   85.4),
+        (2028, "Green Ammonia",        5.8,  810.0, 50.0, 1490.0, 306.0,   500.0,   62.0),
+        (2029, "Green Ammonia",        5.4,  740.0, 49.0, 1340.0, 287.0,   520.0,   42.3),
+        (2030, "Green Ammonia",        5.0,  680.0, 48.0, 1200.0, 268.0,   540.0,   25.9),
+        (2023, "E-Methanol",          10.2, 1650.0, 60.0, 2600.0, 480.0,   500.0,  230.0),
+        (2024, "E-Methanol",           9.5, 1520.0, 59.0, 2380.0, 450.0,   520.0,  192.3),
+        (2025, "E-Methanol",           8.8, 1390.0, 58.0, 2180.0, 422.0,   540.0,  157.4),
+        (2026, "E-Methanol",           8.2, 1270.0, 57.0, 1990.0, 396.0,   560.0,  126.8),
+        (2027, "E-Methanol",           7.6, 1160.0, 56.0, 1820.0, 372.0,   580.0,  100.0),
+        (2028, "E-Methanol",           7.0, 1060.0, 55.0, 1660.0, 349.0,   600.0,   76.7),
+        (2029, "E-Methanol",           6.5,  970.0, 54.0, 1510.0, 328.0,   620.0,   56.5),
+        (2030, "E-Methanol",           6.0,  880.0, 53.0, 1370.0, 308.0,   640.0,   37.5),
+        (2023, "Green Steel DRI-EAF", 14.5, 1400.0, 50.0, 1800.0, 220.0,   700.0,  100.0),
+        (2024, "Green Steel DRI-EAF", 13.8, 1320.0, 49.0, 1680.0, 210.0,   720.0,   83.3),
+        (2025, "Green Steel DRI-EAF", 13.0, 1240.0, 48.0, 1570.0, 200.0,   740.0,   67.6),
+        (2026, "Green Steel DRI-EAF", 12.3, 1165.0, 47.0, 1470.0, 191.0,   760.0,   53.3),
+        (2027, "Green Steel DRI-EAF", 11.6, 1095.0, 46.0, 1380.0, 182.0,   780.0,   40.4),
+        (2028, "Green Steel DRI-EAF", 10.9, 1028.0, 45.0, 1290.0, 174.0,   800.0,   28.5),
+        (2029, "Green Steel DRI-EAF", 10.3,  965.0, 44.0, 1210.0, 166.0,   820.0,   17.7),
+        (2030, "Green Steel DRI-EAF",  9.7,  905.0, 43.0, 1130.0, 159.0,   840.0,    7.7),
+        (2024, "E-Kerosene",          22.0, 4200.0, 62.0, 3200.0, 580.0,  1100.0,  281.8),
+        (2026, "E-Kerosene",          19.5, 3600.0, 60.0, 2850.0, 540.0,  1150.0,  213.0),
+        (2028, "E-Kerosene",          17.0, 3000.0, 58.0, 2500.0, 500.0,  1200.0,  150.0),
+        (2030, "E-Kerosene",          14.5, 2400.0, 56.0, 2150.0, 460.0,  1250.0,   92.0),
+    ]
+    cost_trajectories: List[P2XECostRecord] = []
+    for row in cost_data:
+        (yr, prod, pgj, lcox, esh, cpx, opx, fp, gap) = row
+        cost_trajectories.append(P2XECostRecord(
+            year=yr,
+            product=prod,
+            production_cost_per_gj=pgj,
+            lcox_aud_per_tonne=lcox,
+            electricity_cost_share_pct=esh,
+            capex_aud_per_kw=cpx,
+            opex_aud_per_tonne_year=opx,
+            fossil_parity_aud_per_tonne=fp,
+            cost_gap_pct=gap,
+        ))
+
+    # ------------------------------------------------------------------
+    # Projects (20 records)
+    # ------------------------------------------------------------------
+    project_data = [
+        ("P001", "Port Bonython Hydrogen Hub",      "Hydrogen Utility Co",      "SA",  "Green Hydrogen",       250.0, "Hybrid",  1200.0,  18000.0, True,  "Japan",         "Construction"),
+        ("P002", "Pilbara Green Ammonia Project",   "FMG Future Industries",    "WA",  "Green Ammonia",        500.0, "Solar",   2800.0,  250000.0, True, "South Korea",   "FID"),
+        ("P003", "Yara Freemantle Ammonia",         "Yara Clean Ammonia",       "WA",  "Green Ammonia",        120.0, "Wind",     620.0,   80000.0, True, "Europe",        "Operating"),
+        ("P004", "Tasmania Green Hydrogen Export",  "Hydro Tasmania",           "TAS", "Green Hydrogen",        80.0, "Wind",     420.0,    6000.0, False, "Singapore",    "Development"),
+        ("P005", "Hunter Valley H2 Valley",         "Amp Energy",               "NSW", "Green Hydrogen",       200.0, "Hybrid",   980.0,   14500.0, False, "Japan",        "Development"),
+        ("P006", "Whyalla Green Steel",             "GFG Alliance",             "SA",  "Green Steel DRI-EAF", 350.0, "Hybrid",  2100.0, 1200000.0, True, "Domestic",     "FID"),
+        ("P007", "Glenbrook e-Methanol Plant",      "Carbon Recycling Intl",    "NSW", "E-Methanol",           60.0, "Solar",    380.0,   45000.0, False, "Shipping",     "Development"),
+        ("P008", "Murchison Renewable Hydrogen",    "CWP Global",               "WA",  "Green Hydrogen",      5000.0, "Wind",  26000.0,  350000.0, True, "Europe",        "Development"),
+        ("P009", "Asian Renewable Energy Hub",      "InterContinental Energy",  "WA",  "Green Ammonia",      14000.0, "Hybrid", 36000.0, 1750000.0, True, "Asia",         "Development"),
+        ("P010", "Origin Hydrogen SA",              "Origin Energy",            "SA",  "Green Hydrogen",        50.0, "Solar",    280.0,    3600.0, False, "Domestic",     "Development"),
+        ("P011", "Queensland e-Fuel Hub",           "Queensland Govt",          "QLD", "E-Kerosene",            80.0, "Solar",   520.0,   25000.0, False, "Aviation",     "Development"),
+        ("P012", "AquaHydrex Alkaline Demo",        "AquaHydrex",              "VIC", "Green Hydrogen",         5.0, "Wind",      28.0,     380.0, False, "Domestic",     "Operating"),
+        ("P013", "Bell Bay Powerfuels",             "Fortescue Future",         "TAS", "E-Methanol",           50.0, "Wind",     320.0,   38000.0, True, "Shipping",      "Construction"),
+        ("P014", "Onslow Hydrogen Backbone",        "BP Australia",             "WA",  "Green Hydrogen",       300.0, "Solar",   1450.0,   22000.0, True, "Japan",        "Development"),
+        ("P015", "Gladstone Green Ammonia",         "Incitec Pivot",            "QLD", "Green Ammonia",        180.0, "Hybrid",   920.0,  120000.0, True, "Asia",         "FID"),
+        ("P016", "NT Sun-Cable H2 Link",            "Sun Cable",               "NT",  "Green Hydrogen",       400.0, "Solar",   1980.0,   29000.0, False, "Singapore",    "Development"),
+        ("P017", "Newcastle DRI Steel Pilot",       "BlueScope Steel",          "NSW", "Green Steel DRI-EAF",  40.0, "Hybrid",   280.0,  500000.0, False, "Domestic",    "Development"),
+        ("P018", "Collie Green Hydrogen Valley",    "ATCO Australia",           "WA",  "Green Hydrogen",        10.0, "Solar",    65.0,     750.0, False, "Domestic",    "Operating"),
+        ("P019", "MacGen Hydrogen Blend",           "Macquarie Generation",     "NSW", "Green Hydrogen",        20.0, "Wind",    110.0,    1500.0, False, "Domestic",    "Construction"),
+        ("P020", "Parmelia Green Ammonia",          "BOC Australia",            "WA",  "Green Ammonia",         30.0, "Solar",   185.0,   20000.0, True, "South Korea",  "Development"),
+    ]
+    projects: List[P2XEProjectRecord] = []
+    for row in project_data:
+        (pid, name, dev, state, prod, mw, ren, capex, prod_tpa, offtake, mkt, status) = row
+        projects.append(P2XEProjectRecord(
+            project_id=pid,
+            project_name=name,
+            developer=dev,
+            state=state,
+            product=prod,
+            electrolyser_mw=mw,
+            renewable_source=ren,
+            capex_m=capex,
+            expected_production_tpa=prod_tpa,
+            offtake_agreement=offtake,
+            target_export_market=mkt,
+            status=status,
+        ))
+
+    # ------------------------------------------------------------------
+    # Markets (25 records)
+    # ------------------------------------------------------------------
+    market_data = [
+        # market, product, curr_demand, proj2030, aus_share_pct, contract_price, trend, importers
+        ("Japan",       "Green Hydrogen",       0.002, 0.30, 15.0, 9200.0, "Rising",   "JERA, Kawasaki"),
+        ("Japan",       "Green Ammonia",        0.05,  0.80, 12.0, 1050.0, "Rising",   "Sumitomo, IHI"),
+        ("South Korea", "Green Hydrogen",       0.001, 0.20, 10.0, 9500.0, "Rising",   "POSCO, KOGAS"),
+        ("South Korea", "Green Ammonia",        0.03,  0.50, 12.0, 1080.0, "Rising",   "KEPCO, Samsung"),
+        ("Europe",      "Green Hydrogen",       0.05,  1.50,  5.0, 8800.0, "Rising",   "Germany, Netherlands"),
+        ("Europe",      "Green Ammonia",        0.10,  2.00,  8.0,  980.0, "Rising",   "CF Industries, OCI"),
+        ("Europe",      "E-Methanol",           0.01,  0.40,  6.0, 1600.0, "Rising",   "Maersk, Stena"),
+        ("Europe",      "E-Kerosene",           0.002, 0.25,  4.0, 4500.0, "Rising",   "Lufthansa, Air France"),
+        ("Singapore",   "Green Hydrogen",       0.001, 0.10, 20.0, 9000.0, "Stable",   "Sembcorp, EMA"),
+        ("Singapore",   "Green Ammonia",        0.01,  0.15, 18.0,  990.0, "Stable",   "Jurong Port"),
+        ("India",       "Green Hydrogen",       0.005, 0.80,  3.0, 7500.0, "Rising",   "NTPC, Reliance"),
+        ("India",       "Green Ammonia",        0.08,  1.20,  5.0,  850.0, "Rising",   "IFFCO, EIL"),
+        ("Domestic",    "Green Hydrogen",       0.001, 0.05, 100.0,8500.0, "Rising",   "BOC, Coregas"),
+        ("Domestic",    "Green Steel DRI-EAF",  0.0,   2.50, 100.0,1200.0, "Stable",   "BlueScope, Whyalla"),
+        ("Domestic",    "E-Methanol",           0.0,   0.10, 100.0,1400.0, "Rising",   "Shipping operators"),
+        ("Shipping",    "E-Methanol",           0.05,  1.20,  6.0, 1550.0, "Rising",   "Maersk, CMA CGM"),
+        ("Shipping",    "Green Ammonia",        0.01,  0.60,  8.0,  920.0, "Rising",   "Maersk, MAN Energy"),
+        ("Aviation",    "E-Kerosene",           0.001, 0.30,  4.0, 4200.0, "Rising",   "Qantas, Virgin"),
+        ("China",       "Green Hydrogen",       0.10,  2.00,  2.0, 6800.0, "Stable",   "CNOOC, Sinopec"),
+        ("China",       "Green Ammonia",        0.20,  1.50,  4.0,  780.0, "Declining","Sinochem"),
+        ("Middle East", "Green Hydrogen",       0.001, 0.40,  2.0, 7200.0, "Stable",   "Neom, Aramco"),
+        ("Middle East", "Green Ammonia",        0.02,  0.60,  3.0,  870.0, "Stable",   "ACWA Power"),
+        ("USA",         "Green Hydrogen",       0.01,  0.80,  2.0, 8200.0, "Rising",   "Air Products, Plug Power"),
+        ("USA",         "E-Methanol",           0.005, 0.20,  3.0, 1480.0, "Rising",   "Carbon Recycling Intl"),
+        ("Taiwan",      "Green Ammonia",        0.01,  0.25, 10.0,  960.0, "Rising",   "Formosa Plastics"),
+    ]
+    markets: List[P2XEMarketRecord] = []
+    for row in market_data:
+        (mkt, prod, curr, proj, aus_share, price, trend, importers) = row
+        markets.append(P2XEMarketRecord(
+            market=mkt,
+            product=prod,
+            current_demand_mtpa=curr,
+            projected_2030_mtpa=proj,
+            australian_share_pct=aus_share,
+            contract_price_aud_per_tonne=price,
+            price_trend=trend,
+            key_importers=importers,
+        ))
+
+    # ------------------------------------------------------------------
+    # Electrolysers (20 records)
+    # ------------------------------------------------------------------
+    electrolyser_data = [
+        # tech, vendor, eff_kwh/kgH2, lifetime, stack_replace, capex2024, capex2030, degrad, temp_c, pres_bar
+        ("PEM",      "Nel Hydrogen",          54.0, 20, 7,  1800.0, 900.0,  1.0, 70.0,  30.0),
+        ("PEM",      "ITM Power",             56.0, 20, 7,  1850.0, 920.0,  1.2, 65.0,  35.0),
+        ("PEM",      "Siemens Silyzer",       53.0, 20, 8,  2000.0, 980.0,  0.9, 60.0,  30.0),
+        ("PEM",      "Cummins HyLYZER",       55.0, 20, 7,  1900.0, 950.0,  1.1, 65.0,  32.0),
+        ("PEM",      "Plug Power",            57.0, 18, 6,  1750.0, 870.0,  1.3, 70.0,  28.0),
+        ("Alkaline", "Nel Hydrogen",          65.0, 30, 10, 1200.0, 700.0,  0.5, 80.0,  1.0),
+        ("Alkaline", "ThyssenKrupp nucera",   63.0, 30, 10, 1100.0, 650.0,  0.4, 85.0,  1.0),
+        ("Alkaline", "De Nora",               66.0, 30, 12, 1250.0, 720.0,  0.6, 78.0,  1.0),
+        ("Alkaline", "McPhy Energy",          67.0, 25, 10, 1300.0, 740.0,  0.7, 75.0,  1.2),
+        ("Alkaline", "Green Hydrogen Systems",64.0, 30, 10, 1150.0, 680.0,  0.5, 80.0,  1.0),
+        ("SOEC",     "Topsoe",                40.0, 15, 5,  3000.0, 1500.0, 2.0, 850.0, 1.0),
+        ("SOEC",     "Bloom Energy",          42.0, 15, 5,  3200.0, 1600.0, 2.2, 800.0, 1.0),
+        ("SOEC",     "Sunfire",               41.0, 15, 5,  3100.0, 1550.0, 2.1, 830.0, 1.0),
+        ("SOEC",     "Haldor Topsoe",         39.0, 15, 5,  3050.0, 1520.0, 1.9, 850.0, 1.2),
+        ("SOEC",     "Elcogen",               43.0, 12, 4,  3400.0, 1700.0, 2.5, 780.0, 1.0),
+        ("AEM",      "Enapter",               58.0, 10, 5,  2200.0, 1100.0, 1.5, 50.0,  35.0),
+        ("AEM",      "Hydroma",               60.0, 10, 5,  2300.0, 1150.0, 1.6, 55.0,  30.0),
+        ("AEM",      "Ionomr Innovations",    59.0, 12, 5,  2250.0, 1120.0, 1.4, 52.0,  32.0),
+        ("AEM",      "H2BUSTER",              62.0, 10, 4,  2400.0, 1180.0, 1.8, 58.0,  28.0),
+        ("AEM",      "Aemion+",               61.0, 11, 5,  2350.0, 1160.0, 1.7, 56.0,  30.0),
+    ]
+    electrolysers: List[P2XEElectrolyserRecord] = []
+    for row in electrolyser_data:
+        (tech, vendor, eff, life, stack, capex24, capex30, deg, temp, pres) = row
+        electrolysers.append(P2XEElectrolyserRecord(
+            technology=tech,
+            vendor=vendor,
+            efficiency_kwh_per_kg_h2=eff,
+            lifetime_years=life,
+            stack_replacement_years=stack,
+            capex_aud_per_kw=capex24,
+            capex_2030_projection=capex30,
+            degradation_rate_pct_year=deg,
+            operating_temp_c=temp,
+            pressure_bar=pres,
+        ))
+
+    # ------------------------------------------------------------------
+    # Scenarios (24 records: 2025-2040 × 2 scenarios × 3 products)
+    # ------------------------------------------------------------------
+    # year, scenario, product, aus_prod_mtpa, export_rev_b, jobs, elec_gw, ren_twh
+    scenario_data = [
+        (2025, "Base",       "Green Hydrogen",       0.005, 0.04,    800,  0.3,   1.6),
+        (2025, "Optimistic", "Green Hydrogen",       0.010, 0.09,   1500,  0.6,   3.2),
+        (2025, "Base",       "Green Ammonia",        0.10,  0.10,   1200,  0.4,   2.5),
+        (2025, "Optimistic", "Green Ammonia",        0.20,  0.21,   2200,  0.8,   5.0),
+        (2025, "Base",       "Green Steel DRI-EAF",  1.0,   1.20,   8000,  0.5,   3.0),
+        (2025, "Optimistic", "Green Steel DRI-EAF",  1.5,   1.80,  11000,  0.7,   4.5),
+        (2027, "Base",       "Green Hydrogen",       0.05,  0.43,   3500,  2.5,  12.5),
+        (2027, "Optimistic", "Green Hydrogen",       0.12,  1.04,   7500,  5.8,  29.0),
+        (2027, "Base",       "Green Ammonia",        0.35,  0.35,   3800,  1.4,   8.8),
+        (2027, "Optimistic", "Green Ammonia",        0.70,  0.70,   7200,  2.8,  17.5),
+        (2027, "Base",       "Green Steel DRI-EAF",  3.0,   3.60,  18000,  1.5,   9.0),
+        (2027, "Optimistic", "Green Steel DRI-EAF",  5.0,   6.00,  28000,  2.5,  15.0),
+        (2030, "Base",       "Green Hydrogen",       0.30,  2.50,  15000, 14.0,  70.0),
+        (2030, "Optimistic", "Green Hydrogen",       0.70,  5.90,  32000, 32.0, 160.0),
+        (2030, "Base",       "Green Ammonia",        1.50,  1.50,  14000,  6.0,  37.5),
+        (2030, "Optimistic", "Green Ammonia",        3.00,  3.00,  26000, 12.0,  75.0),
+        (2030, "Green Steel DRI-EAF", "Base",        0.0,   0.0,       0,  0.0,   0.0),
+        (2030, "Base",       "Green Steel DRI-EAF",  8.0,   9.60,  40000,  4.0,  24.0),
+        (2030, "Optimistic", "Green Steel DRI-EAF", 14.0,  16.80,  65000,  7.0,  42.0),
+        (2035, "Base",       "Green Hydrogen",       1.50, 11.40,  55000, 65.0, 325.0),
+        (2035, "Optimistic", "Green Hydrogen",       3.50, 26.60, 115000,145.0, 725.0),
+        (2040, "Base",       "Green Hydrogen",       5.00, 34.00, 120000,220.0,1100.0),
+        (2040, "Optimistic", "Green Hydrogen",      10.00, 68.00, 220000,440.0,2200.0),
+        (2040, "Base",       "Green Ammonia",        8.00,  7.20,  55000, 32.0, 200.0),
+    ]
+    scenarios: List[P2XEScenarioRecord] = []
+    for row in scenario_data:
+        (yr, scen, prod, aus_prod, rev, jobs, elec_gw, ren_twh) = row
+        scenarios.append(P2XEScenarioRecord(
+            year=yr,
+            scenario=scen,
+            product=prod,
+            australia_production_mtpa=aus_prod,
+            export_revenue_b=rev,
+            jobs_created=jobs,
+            electrolyser_capacity_gw=elec_gw,
+            renewable_energy_consumed_twh=ren_twh,
+        ))
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    total_projects = len(projects)
+    total_electrolyser_capacity_mw = round(sum(p.electrolyser_mw for p in projects), 1)
+
+    # Avg green H2 cost (LCOX) in 2024 converted from AUD/tonne to AUD/kg
+    # Green H2 molar mass ~2 g/mol, so 1 tonne = 1000 kg
+    h2_2024 = next((c for c in cost_trajectories if c.year == 2024 and c.product == "Green Hydrogen"), None)
+    avg_green_h2_cost_aud_per_kg = round(h2_2024.lcox_aud_per_tonne / 1000.0, 2) if h2_2024 else 8.7
+
+    # Cheapest electrolyser by 2030 capex projection
+    cheapest_elec = min(electrolysers, key=lambda e: e.capex_2030_projection)
+    cheapest_electrolyser_tech = f"{cheapest_elec.technology} ({cheapest_elec.vendor})"
+
+    # Largest export market by projected 2030 demand
+    largest_market_rec = max(markets, key=lambda m: m.projected_2030_mtpa)
+    largest_export_market = f"{largest_market_rec.market} ({largest_market_rec.product})"
+
+    # Projected 2030 export revenue (sum Base scenario across products)
+    base_2030_scenarios = [s for s in scenarios if s.year == 2030 and s.scenario == "Base"]
+    projected_2030_export_revenue_b = round(sum(s.export_revenue_b for s in base_2030_scenarios), 2)
+
+    summary = {
+        "total_projects": total_projects,
+        "total_electrolyser_capacity_mw": total_electrolyser_capacity_mw,
+        "avg_green_h2_cost_aud_per_kg": avg_green_h2_cost_aud_per_kg,
+        "cheapest_electrolyser_tech": cheapest_electrolyser_tech,
+        "largest_export_market": largest_export_market,
+        "projected_2030_export_revenue_b": projected_2030_export_revenue_b,
+    }
+
+    _p2xe_cache.update(P2XEDashboard(
+        products=products,
+        cost_trajectories=cost_trajectories,
+        projects=projects,
+        markets=markets,
+        electrolysers=electrolysers,
+        scenarios=scenarios,
+        summary=summary,
+    ).model_dump())
+
+    return P2XEDashboard(**_p2xe_cache)
+
+# ============================================================
+# Sprint 108b — Electricity Market Microstructure Analytics (EMMS)
+# ============================================================
+
+class EMMSBidSpreadRecord(BaseModel):
+    settlement_date: str
+    region: str
+    interval_type: str
+    avg_bid_price_mwh: float
+    avg_offer_price_mwh: float
+    bid_offer_spread_mwh: float
+    volume_traded_mwh: float
+    participant_count: int
+    price_formation_type: str
+
+
+class EMMSLiquidityRecord(BaseModel):
+    date_month: str
+    region: str
+    market_depth_mw: float
+    bid_stack_depth_mw: float
+    offer_stack_depth_mw: float
+    avg_cleared_volume_mw: float
+    turnover_ratio: float
+    herfindahl_index: float
+    competitive_threshold_pct: float
+
+
+class EMMSPriceFormationRecord(BaseModel):
+    event_date: str
+    region: str
+    dispatch_interval: str
+    settlement_price_mwh: float
+    marginal_generator: str
+    marginal_fuel: str
+    constraint_binding: bool
+    constraint_name: str
+    demand_mw: float
+    renewable_pct: float
+
+
+class EMMSParticipantActivityRecord(BaseModel):
+    participant: str
+    market_type: str
+    region: str
+    rebids_per_day: float
+    avg_rebid_time_mins_before_dispatch: float
+    strategic_rebid_pct: float
+    declared_availability_mw: float
+    actual_generation_mw: float
+    availability_factor: float
+
+
+class EMMSPredispatchRecord(BaseModel):
+    forecast_datetime: str
+    region: str
+    forecast_price_mwh: float
+    actual_price_mwh: float
+    absolute_error_mwh: float
+    pct_error: float
+    demand_forecast_mw: float
+    actual_demand_mw: float
+    forecast_type: str
+
+
+class EMMSSettlementRecord(BaseModel):
+    settlement_date: str
+    region: str
+    pool_revenue_m: float
+    mrq_revenue_m: float
+    settlement_residue_m: float
+    prudential_call_m: float
+    spot_payments_m: float
+    average_spot_price_mwh: float
+    high_price_intervals: int
+    low_price_intervals: int
+
+
+class EMMSDashboard(BaseModel):
+    bid_spreads: List[EMMSBidSpreadRecord]
+    liquidity: List[EMMSLiquidityRecord]
+    price_formation: List[EMMSPriceFormationRecord]
+    participant_activity: List[EMMSParticipantActivityRecord]
+    predispatch_accuracy: List[EMMSPredispatchRecord]
+    settlement: List[EMMSSettlementRecord]
+    summary: dict
+
+
+_emms_cache: dict = {}
+
+
+@app.get("/api/electricity-market-microstructure/dashboard", response_model=EMMSDashboard, dependencies=[Depends(verify_api_key)])
+def get_emms_dashboard():
+    import random
+    if _emms_cache:
+        return EMMSDashboard(**_emms_cache)
+
+    rng = random.Random(108)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    interval_types = ["5min", "30min", "daily"]
+    price_formation_types = ["Competitive", "Near-Monopoly", "VoLL", "Negative"]
+    fuels = ["Coal", "Gas", "Wind", "Solar", "Hydro", "Battery", "Diesel"]
+    market_types = ["Generator", "Retailer", "Intermediary", "Trader"]
+    forecast_types = ["P30", "P10", "P90"]
+    participants = [
+        "AGL Energy", "Origin Energy", "EnergyAustralia", "Snowy Hydro",
+        "CS Energy", "Stanwell", "Alinta Energy", "Tilt Renewables",
+        "Neoen", "APA Group", "Flow Power", "Sunset Power",
+        "Glencore Energy", "Lumo Energy", "Diamond Energy", "Infigen Energy",
+        "Pacific Hydro", "Engie", "Shell Energy", "ReAmped Energy",
+        "Evoenergy", "Simply Energy", "Red Energy", "Powershop",
+        "PowerDirect", "Momentum Energy", "1st Energy", "Dodo Power",
+        "Sumo Power", "Amaysim Energy",
+    ]
+    generators = [
+        "Bayswater PS", "Eraring PS", "Callide C", "Loy Yang A",
+        "Tarong PS", "Gladstone PS", "Torrens Island A", "Hazelwood PS",
+        "Loy Yang B", "Millmerran PS", "Mount Piper PS", "Swanbank E",
+        "Pelican Point", "Oakey", "Kareeya HS", "Wivenhoe PS",
+        "Darlington Point Solar", "Bungala Solar", "Snowtown Wind",
+        "Sapphire Wind",
+    ]
+    constraint_names = [
+        "N>>N-Q_MNSP1", "V>>V-S_MNSP1", "Q>>Q_SYSTEM_NORMAL",
+        "N>>NIL_ROCOF", "S>>S_HYDBV_LOSS", "None",
+    ]
+
+    base_dates = [
+        f"2024-{m:02d}-{d:02d}"
+        for m in range(1, 7)
+        for d in [5, 15, 25]
+    ]
+
+    bid_spreads: List[EMMSBidSpreadRecord] = []
+    for i in range(30):
+        region = regions[i % len(regions)]
+        bid = round(rng.uniform(20, 80), 2)
+        offer = round(bid + rng.uniform(5, 40), 2)
+        bid_spreads.append(EMMSBidSpreadRecord(
+            settlement_date=base_dates[i % len(base_dates)],
+            region=region,
+            interval_type=rng.choice(interval_types),
+            avg_bid_price_mwh=bid,
+            avg_offer_price_mwh=offer,
+            bid_offer_spread_mwh=round(offer - bid, 2),
+            volume_traded_mwh=round(rng.uniform(500, 5000), 1),
+            participant_count=rng.randint(8, 25),
+            price_formation_type=rng.choice(price_formation_types),
+        ))
+
+    months = [f"2024-{m:02d}" for m in range(1, 13)] + [f"2025-{m:02d}" for m in range(1, 6)]
+    liquidity: List[EMMSLiquidityRecord] = []
+    for i in range(25):
+        region = regions[i % len(regions)]
+        depth = round(rng.uniform(3000, 12000), 1)
+        liquidity.append(EMMSLiquidityRecord(
+            date_month=months[i % len(months)],
+            region=region,
+            market_depth_mw=depth,
+            bid_stack_depth_mw=round(depth * rng.uniform(0.4, 0.6), 1),
+            offer_stack_depth_mw=round(depth * rng.uniform(0.4, 0.6), 1),
+            avg_cleared_volume_mw=round(rng.uniform(800, 3500), 1),
+            turnover_ratio=round(rng.uniform(1.5, 4.5), 3),
+            herfindahl_index=round(rng.uniform(0.05, 0.35), 4),
+            competitive_threshold_pct=round(rng.uniform(60, 95), 1),
+        ))
+
+    dispatch_intervals = [f"{h:02d}:{m:02d}" for h in range(0, 24) for m in [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]]
+    price_formation: List[EMMSPriceFormationRecord] = []
+    for i in range(20):
+        region = regions[i % len(regions)]
+        fuel = rng.choice(fuels)
+        price_formation.append(EMMSPriceFormationRecord(
+            event_date=base_dates[i % len(base_dates)],
+            region=region,
+            dispatch_interval=dispatch_intervals[rng.randint(0, len(dispatch_intervals) - 1)],
+            settlement_price_mwh=round(rng.uniform(-50, 300), 2),
+            marginal_generator=rng.choice(generators),
+            marginal_fuel=fuel,
+            constraint_binding=rng.choice([True, False]),
+            constraint_name=rng.choice(constraint_names),
+            demand_mw=round(rng.uniform(4000, 14000), 1),
+            renewable_pct=round(rng.uniform(10, 75), 1),
+        ))
+
+    participant_activity: List[EMMSParticipantActivityRecord] = []
+    for i in range(30):
+        p = participants[i % len(participants)]
+        decl = round(rng.uniform(100, 2000), 1)
+        actual = round(decl * rng.uniform(0.6, 1.0), 1)
+        participant_activity.append(EMMSParticipantActivityRecord(
+            participant=p,
+            market_type=rng.choice(market_types),
+            region=rng.choice(regions),
+            rebids_per_day=round(rng.uniform(1, 25), 1),
+            avg_rebid_time_mins_before_dispatch=round(rng.uniform(2, 55), 1),
+            strategic_rebid_pct=round(rng.uniform(5, 65), 1),
+            declared_availability_mw=decl,
+            actual_generation_mw=actual,
+            availability_factor=round(actual / decl, 3),
+        ))
+
+    hourly_datetimes = [
+        f"2024-06-15T{h:02d}:00:00" for h in range(24)
+    ]
+    predispatch_accuracy: List[EMMSPredispatchRecord] = []
+    for i in range(24):
+        region = regions[i % len(regions)]
+        forecast = round(rng.uniform(30, 200), 2)
+        actual = round(forecast + rng.uniform(-40, 40), 2)
+        abs_err = round(abs(actual - forecast), 2)
+        pct_err = round(abs_err / max(abs(forecast), 1) * 100, 2)
+        demand_f = round(rng.uniform(5000, 13000), 1)
+        predispatch_accuracy.append(EMMSPredispatchRecord(
+            forecast_datetime=hourly_datetimes[i],
+            region=region,
+            forecast_price_mwh=forecast,
+            actual_price_mwh=actual,
+            absolute_error_mwh=abs_err,
+            pct_error=pct_err,
+            demand_forecast_mw=demand_f,
+            actual_demand_mw=round(demand_f + rng.uniform(-300, 300), 1),
+            forecast_type=rng.choice(forecast_types),
+        ))
+
+    settlement_dates = [f"2024-{m:02d}-01" for m in range(1, 7)] + \
+                       [f"2024-{m:02d}-01" for m in range(7, 13)] + \
+                       [f"2025-{m:02d}-01" for m in range(1, 9)]
+    settlement: List[EMMSSettlementRecord] = []
+    for i in range(20):
+        region = regions[i % len(regions)]
+        pool_rev = round(rng.uniform(50, 400), 2)
+        settlement.append(EMMSSettlementRecord(
+            settlement_date=settlement_dates[i % len(settlement_dates)],
+            region=region,
+            pool_revenue_m=pool_rev,
+            mrq_revenue_m=round(rng.uniform(1, 20), 2),
+            settlement_residue_m=round(rng.uniform(0.5, 15), 2),
+            prudential_call_m=round(rng.uniform(0, 10), 2),
+            spot_payments_m=round(pool_rev * rng.uniform(0.8, 1.1), 2),
+            average_spot_price_mwh=round(rng.uniform(40, 180), 2),
+            high_price_intervals=rng.randint(0, 48),
+            low_price_intervals=rng.randint(0, 24),
+        ))
+
+    avg_spread = round(sum(r.bid_offer_spread_mwh for r in bid_spreads) / len(bid_spreads), 2)
+    avg_pd_error = round(sum(r.pct_error for r in predispatch_accuracy) / len(predispatch_accuracy), 2)
+    region_depth = {}
+    for r in liquidity:
+        region_depth[r.region] = region_depth.get(r.region, 0) + r.market_depth_mw
+    most_liquid_region = max(region_depth, key=lambda k: region_depth[k])
+    fuel_counts: dict = {}
+    for r in price_formation:
+        fuel_counts[r.marginal_fuel] = fuel_counts.get(r.marginal_fuel, 0) + 1
+    most_competitive_fuel = max(fuel_counts, key=lambda k: fuel_counts[k])
+    total_pool_revenue_m = round(sum(r.pool_revenue_m for r in settlement), 2)
+    strategic_rebid_avg = round(sum(r.strategic_rebid_pct for r in participant_activity) / len(participant_activity), 2)
+
+    summary = {
+        "avg_bid_offer_spread_mwh": avg_spread,
+        "avg_predispatch_error_pct": avg_pd_error,
+        "most_liquid_region": most_liquid_region,
+        "most_competitive_fuel": most_competitive_fuel,
+        "total_pool_revenue_m": total_pool_revenue_m,
+        "strategic_rebid_pct_avg": strategic_rebid_avg,
+    }
+
+    _emms_cache.update(EMMSDashboard(
+        bid_spreads=bid_spreads,
+        liquidity=liquidity,
+        price_formation=price_formation,
+        participant_activity=participant_activity,
+        predispatch_accuracy=predispatch_accuracy,
+        settlement=settlement,
+        summary=summary,
+    ).model_dump())
+
+    return EMMSDashboard(**_emms_cache)
+
+# ============================================================
+# Sprint 108c — Grid Decarbonisation Pathway Analytics (GDPA)
+# ============================================================
+
+class GDPAEmissionsRecord(BaseModel):
+    quarter: str
+    region: str
+    total_emissions_mtco2: float
+    grid_intensity_kgco2_per_mwh: float
+    renewable_pct: float
+    coal_pct: float
+    gas_pct: float
+    hydro_pct: float
+    storage_contribution_pct: float
+    yoy_change_pct: float
+
+
+class GDPARenewableRecord(BaseModel):
+    year: int
+    technology: str
+    installed_capacity_mw: float
+    generation_gwh: float
+    capacity_factor_pct: float
+    curtailment_pct: float
+    new_capacity_added_mw: float
+
+
+class GDPAPathwayRecord(BaseModel):
+    year: int
+    scenario: str
+    renewable_pct: float
+    coal_pct: float
+    gas_pct: float
+    storage_gwh: float
+    grid_intensity_kgco2_per_mwh: float
+    demand_gwh: float
+    investment_required_b: float
+
+
+class GDPAStrandedAssetRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    technology: str
+    owner: str
+    state: str
+    capacity_mw: float
+    current_age_years: int
+    economic_life_years: int
+    stranded_year_scenario_base: int
+    stranded_year_scenario_az: int
+    stranded_value_m: float
+    book_value_m: float
+    stranded_risk: str
+
+
+class GDPAPolicyRecord(BaseModel):
+    policy_name: str
+    policy_type: str
+    target: str
+    budget_b: float
+    expected_capacity_mw: float
+    expected_emissions_reduction_mtco2: float
+    implementation_year: int
+    expiry_year: int
+    region: str
+
+
+class GDPAInvestmentRecord(BaseModel):
+    year: int
+    sector: str
+    investment_required_b: float
+    committed_b: float
+    gap_b: float
+    private_share_pct: float
+    public_share_pct: float
+
+
+class GDPADashboard(BaseModel):
+    emissions: List[GDPAEmissionsRecord]
+    renewables: List[GDPARenewableRecord]
+    pathways: List[GDPAPathwayRecord]
+    stranded_assets: List[GDPAStrandedAssetRecord]
+    policies: List[GDPAPolicyRecord]
+    investments: List[GDPAInvestmentRecord]
+    summary: dict
+
+
+_gdpa_cache: dict = {}
+
+
+@app.get("/api/grid-decarbonisation-pathway/dashboard", response_model=GDPADashboard, dependencies=[Depends(verify_api_key)])
+def get_gdpa_dashboard():
+    import random
+    if _gdpa_cache:
+        return GDPADashboard(**_gdpa_cache)
+
+    rng = random.Random(20240301)
+
+    # ── Emissions records: 30 quarterly records 2020-2024 (6 quarters × 5 regions) ──
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    quarters = ["2020-Q1", "2020-Q2", "2020-Q3", "2020-Q4",
+                "2021-Q1", "2021-Q2", "2021-Q3", "2021-Q4",
+                "2022-Q1", "2022-Q2", "2022-Q3", "2022-Q4",
+                "2023-Q1", "2023-Q2", "2023-Q3", "2023-Q4",
+                "2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+
+    # Base intensity per region (2020) declining over time
+    region_intensity_base = {
+        "NSW1": 0.79, "QLD1": 0.82, "VIC1": 0.85,
+        "SA1": 0.35, "TAS1": 0.08,
+    }
+    region_renewable_base = {
+        "NSW1": 18.0, "QLD1": 16.0, "VIC1": 20.0,
+        "SA1": 48.0, "TAS1": 95.0,
+    }
+
+    emissions: List[GDPAEmissionsRecord] = []
+    # 30 records = 6 regions × 5 quarters (use first 5 regions × 6 quarters)
+    q_region_pairs = [(q, r) for q in quarters[:6] for r in regions][:30]
+    for q, region in q_region_pairs:
+        year_offset = int(q.split("-")[0]) - 2020
+        q_num = int(q.split("Q")[1])
+        progress = year_offset + (q_num - 1) / 4.0
+        intensity = region_intensity_base[region] * (1 - 0.04 * progress)
+        ren_pct = min(100.0, region_renewable_base[region] + 2.5 * progress)
+        coal_pct = max(0.0, (100 - ren_pct) * 0.70 * (1 - 0.05 * progress))
+        gas_pct = max(0.0, (100 - ren_pct - coal_pct) * 0.85)
+        hydro_pct = max(0.0, min(8.0, 100 - ren_pct - coal_pct - gas_pct))
+        storage_pct = round(rng.uniform(0.5, 3.5), 2)
+        total_ems = round(intensity * rng.uniform(2800, 4200) * 0.001, 2)
+        yoy = round(rng.uniform(-8.0, -1.5), 2)
+        emissions.append(GDPAEmissionsRecord(
+            quarter=q,
+            region=region,
+            total_emissions_mtco2=total_ems,
+            grid_intensity_kgco2_per_mwh=round(intensity + rng.uniform(-0.03, 0.03), 3),
+            renewable_pct=round(ren_pct + rng.uniform(-1.0, 1.0), 1),
+            coal_pct=round(coal_pct, 1),
+            gas_pct=round(gas_pct, 1),
+            hydro_pct=round(hydro_pct, 1),
+            storage_contribution_pct=storage_pct,
+            yoy_change_pct=yoy,
+        ))
+
+    # ── Renewable records: 25 records = 5 years × 5 technologies ──
+    technologies = [
+        "Large Solar", "Wind Onshore", "Wind Offshore",
+        "Small Solar", "Hydro",
+    ]
+    tech_capacity_base = {
+        "Large Solar": 6500, "Wind Onshore": 9200, "Wind Offshore": 0,
+        "Small Solar": 14000, "Hydro": 8800,
+    }
+    tech_cf = {
+        "Large Solar": 28.0, "Wind Onshore": 32.0, "Wind Offshore": 40.0,
+        "Small Solar": 17.0, "Hydro": 38.0,
+    }
+    renewables: List[GDPARenewableRecord] = []
+    for yr in range(2020, 2025):
+        for tech in technologies:
+            yr_offset = yr - 2020
+            added = rng.uniform(200, 1800) if tech != "Wind Offshore" else rng.uniform(0, 200) * yr_offset
+            installed = tech_capacity_base[tech] + added * yr_offset
+            cf = tech_cf[tech] + rng.uniform(-2.0, 2.0)
+            generation = installed * cf / 100 * 8760 / 1000
+            curtailment = rng.uniform(1.0, 12.0) if tech in ("Large Solar", "Wind Onshore") else rng.uniform(0.0, 3.0)
+            renewables.append(GDPARenewableRecord(
+                year=yr,
+                technology=tech,
+                installed_capacity_mw=round(installed, 1),
+                generation_gwh=round(generation, 1),
+                capacity_factor_pct=round(cf, 1),
+                curtailment_pct=round(curtailment, 2),
+                new_capacity_added_mw=round(added, 1),
+            ))
+
+    # ── Pathway records: 24 records = 8 years × 3 scenarios ──
+    pathway_years = [2025, 2026, 2027, 2028, 2029, 2030, 2040, 2050]
+    scenarios = ["Stated Policies", "Net Zero 2050", "Accelerated"]
+    # renewable_pct endpoints by scenario
+    scenario_targets = {
+        "Stated Policies": {2025: 38, 2030: 60, 2040: 75, 2050: 85},
+        "Net Zero 2050":   {2025: 42, 2030: 82, 2040: 90, 2050: 100},
+        "Accelerated":     {2025: 45, 2030: 90, 2040: 98, 2050: 100},
+    }
+    pathways: List[GDPAPathwayRecord] = []
+    for scenario in scenarios:
+        tgts = scenario_targets[scenario]
+        for yr in pathway_years:
+            # interpolate renewable_pct
+            if yr <= 2030:
+                frac = (yr - 2025) / 5.0
+                ren = tgts[2025] + (tgts[2030] - tgts[2025]) * frac
+            elif yr <= 2040:
+                frac = (yr - 2030) / 10.0
+                ren = tgts[2030] + (tgts[2040] - tgts[2030]) * frac
+            else:
+                frac = (yr - 2040) / 10.0
+                ren = tgts[2040] + (tgts[2050] - tgts[2040]) * frac
+            coal = max(0.0, (100 - ren) * 0.60 * (1 - (yr - 2025) / 50.0))
+            gas = max(0.0, 100 - ren - coal)
+            intensity = max(0.0, 0.52 * (1 - (ren - 36) / 100.0) * rng.uniform(0.9, 1.1))
+            storage = round(ren * rng.uniform(0.8, 1.4) * 2.0, 1)
+            demand = round(rng.uniform(195000, 280000) * (1 + 0.018 * (yr - 2025)), 0)
+            invest = round(rng.uniform(8, 35) * (1 + (ren - 38) / 100.0), 2)
+            pathways.append(GDPAPathwayRecord(
+                year=yr,
+                scenario=scenario,
+                renewable_pct=round(ren, 1),
+                coal_pct=round(coal, 1),
+                gas_pct=round(gas, 1),
+                storage_gwh=storage,
+                grid_intensity_kgco2_per_mwh=round(intensity, 3),
+                demand_gwh=demand,
+                investment_required_b=invest,
+            ))
+
+    # ── Stranded asset records: 20 ──
+    coal_plants = [
+        ("SA001", "Vales Point B",    "Coal", "Delta Energy",  "NSW", 1320, 52, 50, 2030, 2026),
+        ("SA002", "Bayswater PS",     "Coal", "AGL Energy",    "NSW", 2640, 48, 50, 2032, 2028),
+        ("SA003", "Liddell PS",       "Coal", "AGL Energy",    "NSW", 2000, 53, 50, 2023, 2023),
+        ("SA004", "Mt Piper PS",      "Coal", "EnergyAustralia","NSW",1400, 37, 50, 2040, 2033),
+        ("SA005", "Callide C",        "Coal", "CS Energy",     "QLD", 1680, 25, 50, 2042, 2035),
+        ("SA006", "Gladstone PS",     "Coal", "NRG Energy",    "QLD", 1680, 52, 50, 2030, 2027),
+        ("SA007", "Stanwell PS",      "Coal", "Stanwell Corp", "QLD", 1460, 40, 50, 2038, 2031),
+        ("SA008", "Tarong PS",        "Coal", "Stanwell Corp", "QLD", 1400, 38, 50, 2038, 2032),
+        ("SA009", "Hazelwood PS",     "Coal", "ENGIE",         "VIC", 1600, 55, 50, 2017, 2017),
+        ("SA010", "Loy Yang A",       "Coal", "AGL Energy",    "VIC", 2210, 50, 50, 2035, 2028),
+        ("SA011", "Loy Yang B",       "Coal", "ENGIE",         "VIC", 1000, 42, 50, 2040, 2032),
+        ("SA012", "Yallourn W",       "Coal", "EnergyAustralia","VIC", 1480, 52, 50, 2028, 2025),
+        ("SA013", "Playford B",       "Coal", "Enwave",        "SA",   240, 60, 50, 2022, 2022),
+        ("SA014", "Northern PS",      "Coal", "Alinta Energy", "SA",   546, 58, 50, 2016, 2016),
+        ("SA015", "Torrens Island B", "Gas CCGT","AGL Energy", "SA",   480, 50, 35, 2033, 2030),
+        ("SA016", "Pelican Point",    "Gas CCGT","Engie",      "SA",   479, 23, 35, 2038, 2033),
+        ("SA017", "Swanbank E",       "Gas CCGT","CS Energy",  "QLD",  385, 22, 35, 2040, 2036),
+        ("SA018", "Quarantine PS",    "Gas OCGT","AGL Energy", "SA",   235, 28, 30, 2036, 2032),
+        ("SA019", "Somerton PS",      "Gas OCGT","Alinta Energy","VIC", 150, 25, 30, 2038, 2034),
+        ("SA020", "Tamar Valley CCGT","Gas CCGT","Hydro Tas",  "TAS",  208, 17, 35, 2042, 2038),
+    ]
+    risk_map = {"Coal": "High", "Gas CCGT": "Medium", "Gas OCGT": "Low"}
+    stranded_assets: List[GDPAStrandedAssetRecord] = []
+    for row in coal_plants:
+        aid, name, tech, owner, state, cap, age, elife, base_yr, az_yr = row
+        book_val = round(cap * rng.uniform(0.3, 0.9), 1)
+        strand_val = round(book_val * rng.uniform(0.4, 0.9), 1)
+        stranded_assets.append(GDPAStrandedAssetRecord(
+            asset_id=aid,
+            asset_name=name,
+            technology=tech,
+            owner=owner,
+            state=state,
+            capacity_mw=float(cap),
+            current_age_years=age,
+            economic_life_years=elife,
+            stranded_year_scenario_base=base_yr,
+            stranded_year_scenario_az=az_yr,
+            stranded_value_m=strand_val,
+            book_value_m=book_val,
+            stranded_risk=risk_map.get(tech, "Medium"),
+        ))
+
+    # ── Policy records: 15 ──
+    policy_data = [
+        ("Capacity Investment Scheme", "CIS", "6 GW new clean firm capacity", 10.5, 6000, 12.0, 2023, 2030, "National"),
+        ("Contracts for Difference - Solar", "CfD", "3 GW large solar", 3.2, 3000, 6.5, 2024, 2035, "National"),
+        ("Contracts for Difference - Wind", "CfD", "4 GW onshore wind", 4.1, 4000, 8.2, 2024, 2035, "National"),
+        ("Renewable Energy Target (RET)", "RET", "33 TWh by 2030", 0.0, 15000, 35.0, 2020, 2030, "National"),
+        ("Safeguard Mechanism Reform", "Safeguard", "Reduce industrial emissions 5% pa", 0.0, 0, 140.0, 2023, 2030, "National"),
+        ("ARENA Hydrogen Grant Round 2", "ARENA Grant", "100 MW electrolysis", 0.8, 100, 0.8, 2024, 2028, "National"),
+        ("CEFC Clean Energy Debt", "CEFC Loan", "$10B low-cost debt for clean energy", 10.0, 8000, 18.0, 2020, 2030, "National"),
+        ("NSW Electricity Investment Roadmap", "SRO", "12 GW renewable by 2030", 2.5, 12000, 28.0, 2021, 2030, "NSW"),
+        ("Victoria Renewable Energy Target", "RET", "95% renewables by 2035", 1.8, 9000, 22.0, 2020, 2035, "VIC"),
+        ("Queensland Energy & Jobs Plan", "SRO", "70% renewable by 2032", 2.1, 7000, 18.0, 2022, 2032, "QLD"),
+        ("SA Battery Energy Storage", "ARENA Grant", "1 GWh grid storage", 0.6, 500, 2.0, 2023, 2027, "SA"),
+        ("Snowy 2.0 (CEFC backed)", "CEFC Loan", "2 GW pumped hydro", 4.0, 2000, 5.0, 2021, 2028, "NSW"),
+        ("Offshore Wind Area Declaration", "SRO", "8 GW offshore wind", 0.0, 8000, 20.0, 2023, 2035, "VIC"),
+        ("Rewiring the Nation", "CEFC Loan", "$20B transmission investment", 20.0, 0, 45.0, 2022, 2035, "National"),
+        ("Community Batteries Program", "ARENA Grant", "400 community batteries", 0.3, 400, 0.6, 2023, 2026, "National"),
+    ]
+    policies: List[GDPAPolicyRecord] = []
+    for row in policy_data:
+        pname, ptype, target, budget, cap_mw, ems_red, impl_yr, exp_yr, rgn = row
+        policies.append(GDPAPolicyRecord(
+            policy_name=pname,
+            policy_type=ptype,
+            target=target,
+            budget_b=budget,
+            expected_capacity_mw=float(cap_mw),
+            expected_emissions_reduction_mtco2=ems_red,
+            implementation_year=impl_yr,
+            expiry_year=exp_yr,
+            region=rgn,
+        ))
+
+    # ── Investment records: 20 records = 7 years × ~3 sectors per year, trimmed to 20 ──
+    inv_years = list(range(2024, 2031))  # 7 years
+    sectors = ["Generation", "Storage", "Transmission", "Distribution"]
+    # year × sector combinations = 28, take first 20
+    inv_pairs = [(y, s) for y in inv_years for s in sectors][:20]
+    sector_required_base = {
+        "Generation": 12.0, "Storage": 6.0,
+        "Transmission": 4.5, "Distribution": 3.5,
+    }
+    investments: List[GDPAInvestmentRecord] = []
+    for yr, sector in inv_pairs:
+        yr_mult = 1 + 0.12 * (yr - 2024)
+        req = round(sector_required_base[sector] * yr_mult * rng.uniform(0.85, 1.15), 2)
+        committed_frac = rng.uniform(0.35, 0.70)
+        committed = round(req * committed_frac, 2)
+        gap = round(req - committed, 2)
+        priv = round(rng.uniform(55, 80), 1)
+        pub = round(100 - priv, 1)
+        investments.append(GDPAInvestmentRecord(
+            year=yr,
+            sector=sector,
+            investment_required_b=req,
+            committed_b=committed,
+            gap_b=gap,
+            private_share_pct=priv,
+            public_share_pct=pub,
+        ))
+
+    # ── Summary ──
+    current_intensity = round(
+        sum(r.grid_intensity_kgco2_per_mwh for r in emissions if r.quarter.startswith("2024")) /
+        max(1, len([r for r in emissions if r.quarter.startswith("2024")])),
+        3
+    )
+    current_renewable_pct = round(
+        sum(r.renewable_pct for r in emissions if r.quarter.startswith("2024")) /
+        max(1, len([r for r in emissions if r.quarter.startswith("2024")])),
+        1
+    )
+    total_stranded_value_b = round(sum(a.stranded_value_m for a in stranded_assets) / 1000, 2)
+    total_policy_budget_b = round(sum(p.budget_b for p in policies), 2)
+    total_investment_gap_b = round(sum(i.gap_b for i in investments), 2)
+
+    summary = {
+        "current_grid_intensity_kgco2_per_mwh": current_intensity if current_intensity > 0 else 0.52,
+        "current_renewable_pct": current_renewable_pct if current_renewable_pct > 0 else 36.0,
+        "target_2030_renewable_pct": 82.0,
+        "total_stranded_value_b": total_stranded_value_b,
+        "total_policy_budget_b": total_policy_budget_b,
+        "total_investment_gap_b": total_investment_gap_b,
+    }
+
+    _gdpa_cache.update(GDPADashboard(
+        emissions=emissions,
+        renewables=renewables,
+        pathways=pathways,
+        stranded_assets=stranded_assets,
+        policies=policies,
+        investments=investments,
+        summary=summary,
+    ).model_dump())
+    return GDPADashboard(**_gdpa_cache)

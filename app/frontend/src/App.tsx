@@ -371,6 +371,9 @@ import OffshoreWindFinanceAnalytics from './pages/OffshoreWindFinanceAnalytics'
 import CarbonOffsetProjectAnalytics from './pages/CarbonOffsetProjectAnalytics'
 import PowerGridClimateResilienceAnalytics from './pages/PowerGridClimateResilienceAnalytics'
 import EnergyStorageTechComparisonAnalytics from './pages/EnergyStorageTechComparisonAnalytics'
+import PowerToXEconomicsAnalytics from './pages/PowerToXEconomicsAnalytics'
+import ElectricityMarketMicrostructureAnalytics from './pages/ElectricityMarketMicrostructureAnalytics'
+import GridDecarbonisationPathwayAnalytics from './pages/GridDecarbonisationPathwayAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -663,6 +666,9 @@ const NAV_ITEMS = [
   { to: '/hydrogen-refuelling-station', label: 'Hydrogen Refuelling Station Analytics', Icon: Fuel },
   { to: '/power-grid-climate-resilience', label: 'Power Grid Climate Resilience', Icon: CloudLightning },
   { to: '/energy-storage-tech-comparison', label: 'Storage Tech Comparison', Icon: Battery },
+  { to: '/power-to-x-economics', label: 'Power-to-X Economics', Icon: Zap },
+  { to: '/electricity-market-microstructure', label: 'Market Microstructure', Icon: BarChart2 },
+  { to: '/grid-decarbonisation-pathway', label: 'Grid Decarbonisation', Icon: TrendingDown },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1030,6 +1036,9 @@ export default function App() {
               <Route path="/carbon-offset-project"     element={<CarbonOffsetProjectAnalytics />}      />
               <Route path="/power-grid-climate-resilience" element={<PowerGridClimateResilienceAnalytics />} />
               <Route path="/energy-storage-tech-comparison" element={<EnergyStorageTechComparisonAnalytics />} />
+              <Route path="/power-to-x-economics" element={<PowerToXEconomicsAnalytics />} />
+              <Route path="/electricity-market-microstructure" element={<ElectricityMarketMicrostructureAnalytics />} />
+              <Route path="/grid-decarbonisation-pathway" element={<GridDecarbonisationPathwayAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -13871,3 +13871,166 @@ class TestESTCDashboard:
     def test_has_summary_key(self, client):
         r = client.get(self.URL, headers=self.HEADERS)
         assert "summary" in r.json()
+
+
+# ============================================================
+# Sprint 108a — Power-to-X Economics Analytics (P2XE)
+# ============================================================
+
+class TestP2XEDashboard:
+    URL = "/api/power-to-x-economics/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_returns_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_products(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "products" in r.json()
+
+    def test_products_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["products"]) == 18
+
+    def test_has_cost_trajectories(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "cost_trajectories" in r.json()
+
+    def test_cost_trajectories_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["cost_trajectories"]) == 36
+
+    def test_has_projects(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "projects" in r.json()
+
+    def test_has_markets(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "markets" in r.json()
+
+    def test_has_electrolysers(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "electrolysers" in r.json()
+
+    def test_has_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "scenarios" in r.json()
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "summary" in r.json()
+
+
+# ============================================================
+# Sprint 108b — Electricity Market Microstructure Analytics (EMMS)
+# ============================================================
+
+class TestEMMSDashboard:
+    URL = "/api/electricity-market-microstructure/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_returns_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_bid_spreads(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "bid_spreads" in r.json()
+
+    def test_bid_spreads_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["bid_spreads"]) == 30
+
+    def test_has_liquidity(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "liquidity" in r.json()
+
+    def test_liquidity_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["liquidity"]) == 25
+
+    def test_has_price_formation(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "price_formation" in r.json()
+
+    def test_has_participant_activity(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "participant_activity" in r.json()
+
+    def test_has_predispatch_accuracy(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "predispatch_accuracy" in r.json()
+
+    def test_has_settlement(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "settlement" in r.json()
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "summary" in r.json()
+
+
+# ===========================================================================
+# TestGDPADashboard — Sprint 108c: Grid Decarbonisation Pathway Analytics
+# ===========================================================================
+
+class TestGDPADashboard:
+    """Tests for GET /api/grid-decarbonisation-pathway/dashboard."""
+
+    URL = "/api/grid-decarbonisation-pathway/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_returns_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_emissions(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "emissions" in r.json()
+
+    def test_emissions_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["emissions"]) == 30
+
+    def test_has_renewables(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "renewables" in r.json()
+
+    def test_renewables_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["renewables"]) == 25
+
+    def test_has_pathways(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "pathways" in r.json()
+
+    def test_pathways_length(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["pathways"]) == 24
+
+    def test_has_stranded_assets(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "stranded_assets" in data
+        assert len(data["stranded_assets"]) == 20
+
+    def test_has_policies(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "policies" in r.json()
+
+    def test_has_investments(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "investments" in r.json()
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "current_grid_intensity_kgco2_per_mwh" in summary
+        assert "current_renewable_pct" in summary
+        assert "target_2030_renewable_pct" in summary
+        assert "total_stranded_value_b" in summary
+        assert "total_policy_budget_b" in summary
+        assert "total_investment_gap_b" in summary
