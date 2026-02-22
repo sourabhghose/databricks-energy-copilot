@@ -16774,3 +16774,329 @@ export interface WFWEDashboard {
 
 export const getWindFarmWakeDashboard = (): Promise<WFWEDashboard> =>
   get<WFWEDashboard>('/api/wind-farm-wake/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 100a — Electricity Market Bidding Strategy Analytics (EMBS)
+// ---------------------------------------------------------------------------
+
+export interface EMBSGeneratorBidRecord {
+  bid_id: string
+  generator_id: string
+  generator_name: string
+  technology: string
+  region: string
+  dispatch_interval: string
+  bid_band_1_mw: number
+  bid_band_1_price: number
+  bid_band_2_mw: number
+  bid_band_2_price: number
+  bid_band_3_mw: number
+  bid_band_3_price: number
+  bid_band_4_mw: number
+  bid_band_4_price: number
+  bid_band_5_mw: number
+  bid_band_5_price: number
+  total_max_avail_mw: number
+  rebid_count: number
+  spot_price_dolpermwh: number
+  dispatched_mw: number
+  revenue_m: number
+}
+
+export interface EMBSStrategicBehaviourRecord {
+  behaviour_id: string
+  generator_id: string
+  generator_name: string
+  technology: string
+  analysis_period: string
+  behaviour_type: string
+  evidence_events: number
+  price_impact_dolpermwh: number
+  market_power_index: number
+  hhi_contribution: number
+  regulatory_flag: boolean
+}
+
+export interface EMBSNashEquilibriumRecord {
+  eq_id: string
+  market_scenario: string
+  num_participants: number
+  dominant_strategy: string
+  equilibrium_price_dolpermwh: number
+  competitive_price_dolpermwh: number
+  markup_pct: number
+  consumer_surplus_m: number
+  producer_surplus_m: number
+  deadweight_loss_m: number
+  stability_score: number
+}
+
+export interface EMBSBidStackRecord {
+  stack_id: string
+  region: string
+  settlement_date: string
+  hour: number
+  cumulative_mw: number
+  marginal_price_dolpermwh: number
+  technology_mix_at_margin: string
+  cleared_price_dolpermwh: number
+  demand_mw: number
+  surplus_mw: number
+  price_setter_technology: string
+  competitive_price_dolpermwh: number
+  price_cost_markup_pct: number
+}
+
+export interface EMBSParticipantMetricRecord {
+  metric_id: string
+  participant_name: string
+  market_share_pct: number
+  capacity_factor_pct: number
+  avg_bid_price_dolpermwh: number
+  avg_dispatch_price_dolpermwh: number
+  price_cost_markup_pct: number
+  rebids_per_interval: number
+  strategic_rebid_ratio_pct: number
+  market_power_score: number
+  regulatory_investigations: number
+  revenue_m_pa: number
+}
+
+export interface EMBSAuctionOutcomeRecord {
+  outcome_id: string
+  date: string
+  region: string
+  auction_type: string
+  cleared_price_dolpermwh: number
+  competitive_benchmark_dolpermwh: number
+  efficiency_loss_pct: number
+  consumer_overcharge_m: number
+  largest_bidder_share_pct: number
+  num_active_bidders: number
+  effective_hhi: number
+  price_spike: boolean
+}
+
+export interface EMBSDashboard {
+  generator_bids: EMBSGeneratorBidRecord[]
+  strategic_behaviours: EMBSStrategicBehaviourRecord[]
+  nash_equilibria: EMBSNashEquilibriumRecord[]
+  bid_stacks: EMBSBidStackRecord[]
+  participant_metrics: EMBSParticipantMetricRecord[]
+  auction_outcomes: EMBSAuctionOutcomeRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getMarketBiddingStrategyDashboard = (): Promise<EMBSDashboard> =>
+  get<EMBSDashboard>('/api/market-bidding-strategy/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 100b — Solar PV Soiling & Performance Analytics
+// ---------------------------------------------------------------------------
+
+export interface SPSLFarmRecord {
+  farm_id: string
+  farm_name: string
+  state: string
+  technology: string
+  capacity_mwp: number
+  annual_irradiation_kwh_per_m2: number
+  avg_temperature_c: number
+  annual_dust_accumulation_g_per_m2: number
+  cleaning_frequency_per_year: number
+  soiling_loss_annual_pct: number
+  avg_performance_ratio_pct: number
+  degradation_rate_pct_pa: number
+  annual_generation_gwh: number
+}
+
+export interface SPSLSoilingRecord {
+  soiling_id: string
+  farm_id: string
+  measurement_date: string
+  days_since_last_clean: number
+  soiling_ratio: number
+  irradiance_wm2: number
+  power_loss_pct: number
+  dust_type: string
+  rainfall_mm_7day: number
+  wind_speed_avg_ms: number
+  relative_humidity_pct: number
+  temperature_c: number
+}
+
+export interface SPSLCleaningRecord {
+  cleaning_id: string
+  farm_id: string
+  cleaning_date: string
+  cleaning_method: string
+  panels_cleaned_count: number
+  water_used_litres: number
+  labour_hours: number
+  cost_aud: number
+  energy_recovery_kwh: number
+  pre_clean_soiling_ratio: number
+  post_clean_soiling_ratio: number
+  roi_days: number
+}
+
+export interface SPSLDegradationRecord {
+  deg_id: string
+  farm_id: string
+  year: number
+  lid_loss_pct: number
+  thermal_loss_pct: number
+  mechanical_loss_pct: number
+  soiling_annual_loss_pct: number
+  total_degradation_pct: number
+  p90_pr_pct: number
+  actual_vs_p50_pct: number
+  inverter_efficiency_pct: number
+  string_mismatch_loss_pct: number
+  availability_pct: number
+}
+
+export interface SPSLWeatherImpactRecord {
+  weather_id: string
+  farm_id: string
+  month: string
+  avg_ghi_kwh_m2: number
+  clearness_index: number
+  dust_storm_events: number
+  rainfall_mm: number
+  relative_humidity_pct: number
+  avg_wind_speed_ms: number
+  temperature_max_c: number
+  soiling_index: number
+  expected_soiling_loss_pct: number
+  actual_generation_mwh: number
+  pr_deviation_pct: number
+}
+
+export interface SPSLOptimisationRecord {
+  opt_id: string
+  farm_id: string
+  scenario_name: string
+  cleaning_cost_pa_aud: number
+  soiling_loss_pct: number
+  net_energy_gain_mwh: number
+  additional_revenue_aud: number
+  cost_benefit_ratio: number
+  co2_saving_tpa: number
+  water_saving_kl: number
+  optimal_cleaning_interval_days: number
+}
+
+export interface SPSLDashboard {
+  farms: SPSLFarmRecord[]
+  soiling_records: SPSLSoilingRecord[]
+  cleaning_records: SPSLCleaningRecord[]
+  degradation: SPSLDegradationRecord[]
+  weather_impacts: SPSLWeatherImpactRecord[]
+  optimisations: SPSLOptimisationRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getSolarPVSoilingDashboard = (): Promise<SPSLDashboard> =>
+  get<SPSLDashboard>('/api/solar-pv-soiling/dashboard')
+
+export interface OICSAssetRecord {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  criticality: string
+  sector: string
+  state: string
+  vendor: string
+  firmware_version: string
+  last_patched_date: string
+  internet_exposed: boolean
+  legacy_system: boolean
+  security_zone: string
+  vulnerability_count: number
+}
+
+export interface OICSIncidentRecord {
+  incident_id: string
+  incident_date: string
+  incident_type: string
+  affected_asset_type: string
+  severity: string
+  sector: string
+  detection_method: string
+  time_to_detect_hours: number
+  time_to_recover_hours: number
+  operational_impact: string
+  financial_impact_m: number
+  reported_to_acs: boolean
+}
+
+export interface OICSThreatRecord {
+  threat_id: string
+  threat_actor_category: string
+  target_sector: string
+  attack_vector: string
+  attack_technique: string
+  likelihood_pct: number
+  impact_severity: string
+  trend: string
+  threat_intelligence_source: string
+  mitigations_deployed: number
+}
+
+export interface OICSComplianceRecord {
+  compliance_id: string
+  framework: string
+  entity_name: string
+  sector: string
+  maturity_level: number
+  last_assessment_date: string
+  findings_critical: number
+  findings_high: number
+  findings_medium: number
+  remediation_plan_exists: boolean
+  target_maturity: number
+  compliance_score_pct: number
+}
+
+export interface OICSVulnerabilityRecord {
+  vuln_id: string
+  cve_id: string
+  asset_type: string
+  vendor: string
+  cvss_score: number
+  vulnerability_type: string
+  exploitation_in_wild: boolean
+  patch_available: boolean
+  days_unpatched: number
+  affected_assets_count: number
+  remediation_cost_m: number
+  business_impact: string
+}
+
+export interface OICSSecurityInvestmentRecord {
+  invest_id: string
+  entity_name: string
+  sector: string
+  investment_type: string
+  annual_spend_m: number
+  maturity_before: number
+  maturity_after: number
+  risk_reduction_pct: number
+  incidents_prevented_pa: number
+  roi_pct: number
+  implementation_year: number
+}
+
+export interface OICSDashboard {
+  assets: OICSAssetRecord[]
+  incidents: OICSIncidentRecord[]
+  threats: OICSThreatRecord[]
+  compliance: OICSComplianceRecord[]
+  vulnerabilities: OICSVulnerabilityRecord[]
+  security_investments: OICSSecurityInvestmentRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getOTICSCyberSecurityDashboard = (): Promise<OICSDashboard> =>
+  get<OICSDashboard>('/api/ot-ics-cyber-security/dashboard')

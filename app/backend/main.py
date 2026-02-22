@@ -70899,3 +70899,1024 @@ def get_wind_farm_wake_dashboard():
         }
     ).model_dump())
     return _wfwe_cache
+
+
+# ---------------------------------------------------------------------------
+# Sprint 100a — Electricity Market Bidding Strategy Analytics (EMBS)
+# ---------------------------------------------------------------------------
+
+class EMBSGeneratorBidRecord(BaseModel):
+    bid_id: str
+    generator_id: str
+    generator_name: str
+    technology: str
+    region: str
+    dispatch_interval: str
+    bid_band_1_mw: float
+    bid_band_1_price: float
+    bid_band_2_mw: float
+    bid_band_2_price: float
+    bid_band_3_mw: float
+    bid_band_3_price: float
+    bid_band_4_mw: float
+    bid_band_4_price: float
+    bid_band_5_mw: float
+    bid_band_5_price: float
+    total_max_avail_mw: float
+    rebid_count: int
+    spot_price_dolpermwh: float
+    dispatched_mw: float
+    revenue_m: float
+
+
+class EMBSStrategicBehaviourRecord(BaseModel):
+    behaviour_id: str
+    generator_id: str
+    generator_name: str
+    technology: str
+    analysis_period: str
+    behaviour_type: str  # Marginal Pricing, Capacity Withholding, Price Setting, Strategic Rebidding, Predatory Pricing, Competitive
+    evidence_events: int
+    price_impact_dolpermwh: float
+    market_power_index: float
+    hhi_contribution: float
+    regulatory_flag: bool
+
+
+class EMBSNashEquilibriumRecord(BaseModel):
+    eq_id: str
+    market_scenario: str
+    num_participants: int
+    dominant_strategy: str  # Price-Taking, Cournot, Bertrand, Stackelberg, Mixed
+    equilibrium_price_dolpermwh: float
+    competitive_price_dolpermwh: float
+    markup_pct: float
+    consumer_surplus_m: float
+    producer_surplus_m: float
+    deadweight_loss_m: float
+    stability_score: float
+
+
+class EMBSBidStackRecord(BaseModel):
+    stack_id: str
+    region: str
+    settlement_date: str
+    hour: int
+    cumulative_mw: float
+    marginal_price_dolpermwh: float
+    technology_mix_at_margin: str
+    cleared_price_dolpermwh: float
+    demand_mw: float
+    surplus_mw: float
+    price_setter_technology: str
+    competitive_price_dolpermwh: float
+    price_cost_markup_pct: float
+
+
+class EMBSParticipantMetricRecord(BaseModel):
+    metric_id: str
+    participant_name: str
+    market_share_pct: float
+    capacity_factor_pct: float
+    avg_bid_price_dolpermwh: float
+    avg_dispatch_price_dolpermwh: float
+    price_cost_markup_pct: float
+    rebids_per_interval: float
+    strategic_rebid_ratio_pct: float
+    market_power_score: float  # 0-100
+    regulatory_investigations: int
+    revenue_m_pa: float
+
+
+class EMBSAuctionOutcomeRecord(BaseModel):
+    outcome_id: str
+    date: str
+    region: str
+    auction_type: str  # Spot, Pre-dispatch, FCAS Raise, FCAS Lower
+    cleared_price_dolpermwh: float
+    competitive_benchmark_dolpermwh: float
+    efficiency_loss_pct: float
+    consumer_overcharge_m: float
+    largest_bidder_share_pct: float
+    num_active_bidders: int
+    effective_hhi: float
+    price_spike: bool
+
+
+class EMBSDashboard(BaseModel):
+    generator_bids: list[EMBSGeneratorBidRecord]
+    strategic_behaviours: list[EMBSStrategicBehaviourRecord]
+    nash_equilibria: list[EMBSNashEquilibriumRecord]
+    bid_stacks: list[EMBSBidStackRecord]
+    participant_metrics: list[EMBSParticipantMetricRecord]
+    auction_outcomes: list[EMBSAuctionOutcomeRecord]
+    summary: dict
+
+
+_embs_cache: dict = {}
+
+
+@app.get("/api/market-bidding-strategy/dashboard")
+def get_market_bidding_strategy_dashboard():
+    import random
+    if _embs_cache:
+        return _embs_cache
+
+    rng = random.Random(20240101)
+
+    generators = [
+        ("GEN-AGL-01", "AGL Loy Yang A", "Brown Coal", "VIC"),
+        ("GEN-AGL-02", "AGL Bayswater", "Black Coal", "NSW"),
+        ("GEN-ORI-01", "Origin Eraring", "Black Coal", "NSW"),
+        ("GEN-ORI-02", "Origin Mortlake", "Gas OCGT", "VIC"),
+        ("GEN-EA-01",  "EnergyAustralia Yallourn", "Brown Coal", "VIC"),
+        ("GEN-EA-02",  "EnergyAustralia Tallawarra", "Gas CCGT", "NSW"),
+        ("GEN-ALI-01", "Alinta Loy Yang B", "Brown Coal", "VIC"),
+        ("GEN-CS-01",  "CS Energy Callide C", "Black Coal", "QLD"),
+        ("GEN-CS-02",  "CS Energy Kogan Creek", "Black Coal", "QLD"),
+        ("GEN-SNO-01", "Snowy Hydro Tumut", "Hydro", "NSW"),
+    ]
+
+    dispatch_intervals = ["2024-01-15T08:30", "2024-01-15T14:00", "2024-01-15T18:30"]
+    regions = ["NSW", "VIC", "QLD", "SA"]
+
+    # --- Generator Bid Records (30: 10 generators × 3 intervals) ---
+    generator_bids = []
+    bid_idx = 1
+    for gen_id, gen_name, tech, region in generators:
+        base_price = {"Brown Coal": 30.0, "Black Coal": 50.0, "Gas OCGT": 80.0,
+                      "Gas CCGT": 60.0, "Hydro": 20.0}.get(tech, 50.0)
+        max_cap = rng.uniform(200, 1400)
+        for interval in dispatch_intervals:
+            spot = round(rng.uniform(60, 400), 2)
+            dispatched = round(max_cap * rng.uniform(0.4, 0.95), 1)
+            revenue = round(dispatched * spot * 0.001 * 0.5, 2)
+            generator_bids.append(EMBSGeneratorBidRecord(
+                bid_id=f"EMBS-BID-{bid_idx:03d}",
+                generator_id=gen_id,
+                generator_name=gen_name,
+                technology=tech,
+                region=region,
+                dispatch_interval=interval,
+                bid_band_1_mw=round(max_cap * 0.3, 1),
+                bid_band_1_price=round(base_price * rng.uniform(0.8, 1.0), 2),
+                bid_band_2_mw=round(max_cap * 0.2, 1),
+                bid_band_2_price=round(base_price * rng.uniform(1.0, 1.5), 2),
+                bid_band_3_mw=round(max_cap * 0.2, 1),
+                bid_band_3_price=round(base_price * rng.uniform(1.5, 3.0), 2),
+                bid_band_4_mw=round(max_cap * 0.15, 1),
+                bid_band_4_price=round(base_price * rng.uniform(3.0, 6.0), 2),
+                bid_band_5_mw=round(max_cap * 0.15, 1),
+                bid_band_5_price=round(base_price * rng.uniform(6.0, 15.0), 2),
+                total_max_avail_mw=round(max_cap, 1),
+                rebid_count=rng.randint(0, 8),
+                spot_price_dolpermwh=spot,
+                dispatched_mw=dispatched,
+                revenue_m=revenue,
+            ))
+            bid_idx += 1
+
+    # --- Strategic Behaviour Records (15) ---
+    behaviour_types = [
+        "Capacity Withholding", "Price Setting", "Strategic Rebidding",
+        "Marginal Pricing", "Predatory Pricing", "Competitive",
+    ]
+    strategic_behaviours = []
+    for i, (gen_id, gen_name, tech, region) in enumerate(generators):
+        btype = behaviour_types[i % len(behaviour_types)]
+        flag = btype in ("Capacity Withholding", "Price Setting", "Predatory Pricing")
+        strategic_behaviours.append(EMBSStrategicBehaviourRecord(
+            behaviour_id=f"EMBS-SB-{i+1:03d}",
+            generator_id=gen_id,
+            generator_name=gen_name,
+            technology=tech,
+            analysis_period="Q1-2024",
+            behaviour_type=btype,
+            evidence_events=rng.randint(2, 45),
+            price_impact_dolpermwh=round(rng.uniform(0, 120), 2),
+            market_power_index=round(rng.uniform(0.05, 0.85), 3),
+            hhi_contribution=round(rng.uniform(100, 1800), 1),
+            regulatory_flag=flag,
+        ))
+    # Add 5 more competitive records
+    for j in range(5):
+        g = generators[j % len(generators)]
+        strategic_behaviours.append(EMBSStrategicBehaviourRecord(
+            behaviour_id=f"EMBS-SB-{10+j+1:03d}",
+            generator_id=g[0],
+            generator_name=g[1],
+            technology=g[2],
+            analysis_period="Q2-2024",
+            behaviour_type="Competitive",
+            evidence_events=rng.randint(0, 5),
+            price_impact_dolpermwh=round(rng.uniform(0, 10), 2),
+            market_power_index=round(rng.uniform(0.01, 0.15), 3),
+            hhi_contribution=round(rng.uniform(50, 300), 1),
+            regulatory_flag=False,
+        ))
+
+    # --- Nash Equilibrium Records (8) ---
+    scenarios = [
+        ("Duopoly Coal-VIC", 2, "Cournot"),
+        ("Oligopoly NSW Peak", 4, "Stackelberg"),
+        ("Perfect Competition SA", 12, "Price-Taking"),
+        ("FCAS Narrow Market", 3, "Bertrand"),
+        ("Evening Peak QLD", 5, "Mixed"),
+        ("Shoulder Period NEM", 8, "Price-Taking"),
+        ("High Demand Summer", 3, "Cournot"),
+        ("Low Demand Spring", 10, "Bertrand"),
+    ]
+    nash_equilibria = []
+    for i, (scenario, n_part, strat) in enumerate(scenarios):
+        comp_price = round(rng.uniform(40, 80), 2)
+        markup = round(rng.uniform(0, 250), 1) if strat != "Price-Taking" else round(rng.uniform(0, 10), 1)
+        eq_price = round(comp_price * (1 + markup / 100), 2)
+        cs = round(rng.uniform(50, 500), 1)
+        ps = round(rng.uniform(30, 350), 1)
+        dwl = round(rng.uniform(0, 80), 1)
+        nash_equilibria.append(EMBSNashEquilibriumRecord(
+            eq_id=f"EMBS-EQ-{i+1:03d}",
+            market_scenario=scenario,
+            num_participants=n_part,
+            dominant_strategy=strat,
+            equilibrium_price_dolpermwh=eq_price,
+            competitive_price_dolpermwh=comp_price,
+            markup_pct=markup,
+            consumer_surplus_m=cs,
+            producer_surplus_m=ps,
+            deadweight_loss_m=dwl,
+            stability_score=round(rng.uniform(0.3, 1.0), 3),
+        ))
+
+    # --- Bid Stack Records (24: 4 regions × 6 time periods) ---
+    time_periods = ["06:00", "09:00", "12:00", "15:00", "18:00", "21:00"]
+    tech_at_margin = ["Black Coal", "Gas CCGT", "Gas OCGT", "Hydro", "Brown Coal", "Wind"]
+    bid_stacks = []
+    stack_idx = 1
+    for region in regions:
+        demand_base = {"NSW": 8000, "VIC": 5500, "QLD": 6500, "SA": 1500}.get(region, 5000)
+        for period in time_periods:
+            demand = round(demand_base * rng.uniform(0.7, 1.3), 0)
+            cleared = round(rng.uniform(50, 350), 2)
+            comp_price = round(cleared * rng.uniform(0.5, 0.85), 2)
+            markup = round((cleared - comp_price) / comp_price * 100, 1)
+            cumulative = round(demand * rng.uniform(1.0, 1.15), 0)
+            margin_price = round(rng.uniform(45, 200), 2)
+            tmarg = rng.choice(tech_at_margin)
+            price_setter = rng.choice(tech_at_margin)
+            bid_stacks.append(EMBSBidStackRecord(
+                stack_id=f"EMBS-BS-{stack_idx:03d}",
+                region=region,
+                settlement_date="2024-01-15",
+                hour=int(period.split(":")[0]),
+                cumulative_mw=cumulative,
+                marginal_price_dolpermwh=margin_price,
+                technology_mix_at_margin=tmarg,
+                cleared_price_dolpermwh=cleared,
+                demand_mw=demand,
+                surplus_mw=round(cumulative - demand, 0),
+                price_setter_technology=price_setter,
+                competitive_price_dolpermwh=comp_price,
+                price_cost_markup_pct=markup,
+            ))
+            stack_idx += 1
+
+    # --- Participant Metric Records (12) ---
+    participants = [
+        ("AGL Energy", 20.5, "Black/Brown Coal"),
+        ("Origin Energy", 17.3, "Black Coal/Gas"),
+        ("EnergyAustralia", 14.8, "Brown Coal/Gas"),
+        ("Alinta Energy", 7.2, "Brown Coal"),
+        ("CS Energy", 8.4, "Black Coal"),
+        ("Snowy Hydro", 9.1, "Hydro"),
+        ("Tilt Renewables", 3.5, "Wind/Solar"),
+        ("InterGen", 4.2, "Gas OCGT"),
+        ("Stanwell", 6.8, "Black Coal"),
+        ("Delta Electricity", 3.9, "Black Coal"),
+        ("Sunset Power", 2.1, "Gas OCGT"),
+        ("Pacific Hydro", 2.2, "Hydro"),
+    ]
+    participant_metrics = []
+    for i, (pname, mshare, _tech) in enumerate(participants):
+        avg_bid = round(rng.uniform(30, 150), 2)
+        avg_disp = round(rng.uniform(50, 300), 2)
+        pricecost = round((avg_disp - avg_bid) / avg_bid * 100, 1)
+        mpower = round(mshare * rng.uniform(1.5, 4.5), 1)
+        participant_metrics.append(EMBSParticipantMetricRecord(
+            metric_id=f"EMBS-PM-{i+1:03d}",
+            participant_name=pname,
+            market_share_pct=mshare,
+            capacity_factor_pct=round(rng.uniform(25, 85), 1),
+            avg_bid_price_dolpermwh=avg_bid,
+            avg_dispatch_price_dolpermwh=avg_disp,
+            price_cost_markup_pct=pricecost,
+            rebids_per_interval=round(rng.uniform(0.1, 3.5), 2),
+            strategic_rebid_ratio_pct=round(rng.uniform(5, 55), 1),
+            market_power_score=min(100.0, mpower),
+            regulatory_investigations=rng.randint(0, 5),
+            revenue_m_pa=round(mshare * rng.uniform(80, 200), 1),
+        ))
+
+    # --- Auction Outcome Records (20: 5 regions × 4 auction types) ---
+    all_regions = ["NSW", "VIC", "QLD", "SA", "TAS"]
+    auction_types = ["Spot", "Pre-dispatch", "FCAS Raise", "FCAS Lower"]
+    auction_outcomes = []
+    ao_idx = 1
+    for region in all_regions:
+        for atype in auction_types:
+            cleared = round(rng.uniform(40, 500), 2)
+            bench = round(cleared * rng.uniform(0.5, 0.9), 2)
+            eff_loss = round((cleared - bench) / bench * 100, 1)
+            overcharge = round(rng.uniform(0.5, 25), 2)
+            spike = cleared > 300
+            hhi = round(rng.uniform(800, 3500), 0)
+            auction_outcomes.append(EMBSAuctionOutcomeRecord(
+                outcome_id=f"EMBS-AO-{ao_idx:03d}",
+                date="2024-01-15",
+                region=region,
+                auction_type=atype,
+                cleared_price_dolpermwh=cleared,
+                competitive_benchmark_dolpermwh=bench,
+                efficiency_loss_pct=eff_loss,
+                consumer_overcharge_m=overcharge,
+                largest_bidder_share_pct=round(rng.uniform(15, 55), 1),
+                num_active_bidders=rng.randint(4, 18),
+                effective_hhi=hhi,
+                price_spike=spike,
+            ))
+            ao_idx += 1
+
+    # --- Summary ---
+    num_participants = len(participant_metrics)
+    avg_markup = round(sum(p.price_cost_markup_pct for p in participant_metrics) / num_participants, 1)
+    total_overcharge = round(sum(ao.consumer_overcharge_m for ao in auction_outcomes), 2)
+    most_strategic = max(participant_metrics, key=lambda p: p.market_power_score).participant_name
+    avg_hhi = round(sum(ao.effective_hhi for ao in auction_outcomes) / len(auction_outcomes), 0)
+
+    _embs_cache.update(EMBSDashboard(
+        generator_bids=generator_bids,
+        strategic_behaviours=strategic_behaviours,
+        nash_equilibria=nash_equilibria,
+        bid_stacks=bid_stacks,
+        participant_metrics=participant_metrics,
+        auction_outcomes=auction_outcomes,
+        summary={
+            "num_market_participants": num_participants,
+            "avg_price_cost_markup_pct": avg_markup,
+            "total_consumer_overcharge_m_pa": total_overcharge,
+            "most_strategic_participant": most_strategic,
+            "avg_effective_hhi": avg_hhi,
+        }
+    ).model_dump())
+    return _embs_cache
+
+# ---------------------------------------------------------------------------
+# Sprint 100b — Solar PV Soiling & Performance Analytics
+# ---------------------------------------------------------------------------
+
+class SPSLFarmRecord(BaseModel):
+    farm_id: str
+    farm_name: str
+    state: str
+    technology: str
+    capacity_mwp: float
+    annual_irradiation_kwh_per_m2: float
+    avg_temperature_c: float
+    annual_dust_accumulation_g_per_m2: float
+    cleaning_frequency_per_year: int
+    soiling_loss_annual_pct: float
+    avg_performance_ratio_pct: float
+    degradation_rate_pct_pa: float
+    annual_generation_gwh: float
+
+class SPSLSoilingRecord(BaseModel):
+    soiling_id: str
+    farm_id: str
+    measurement_date: str
+    days_since_last_clean: int
+    soiling_ratio: float
+    irradiance_wm2: float
+    power_loss_pct: float
+    dust_type: str
+    rainfall_mm_7day: float
+    wind_speed_avg_ms: float
+    relative_humidity_pct: float
+    temperature_c: float
+
+class SPSLCleaningRecord(BaseModel):
+    cleaning_id: str
+    farm_id: str
+    cleaning_date: str
+    cleaning_method: str
+    panels_cleaned_count: int
+    water_used_litres: float
+    labour_hours: float
+    cost_aud: float
+    energy_recovery_kwh: float
+    pre_clean_soiling_ratio: float
+    post_clean_soiling_ratio: float
+    roi_days: int
+
+class SPSLDegradationRecord(BaseModel):
+    deg_id: str
+    farm_id: str
+    year: int
+    lid_loss_pct: float
+    thermal_loss_pct: float
+    mechanical_loss_pct: float
+    soiling_annual_loss_pct: float
+    total_degradation_pct: float
+    p90_pr_pct: float
+    actual_vs_p50_pct: float
+    inverter_efficiency_pct: float
+    string_mismatch_loss_pct: float
+    availability_pct: float
+
+class SPSLWeatherImpactRecord(BaseModel):
+    weather_id: str
+    farm_id: str
+    month: str
+    avg_ghi_kwh_m2: float
+    clearness_index: float
+    dust_storm_events: int
+    rainfall_mm: float
+    relative_humidity_pct: float
+    avg_wind_speed_ms: float
+    temperature_max_c: float
+    soiling_index: float
+    expected_soiling_loss_pct: float
+    actual_generation_mwh: float
+    pr_deviation_pct: float
+
+class SPSLOptimisationRecord(BaseModel):
+    opt_id: str
+    farm_id: str
+    scenario_name: str
+    cleaning_cost_pa_aud: float
+    soiling_loss_pct: float
+    net_energy_gain_mwh: float
+    additional_revenue_aud: float
+    cost_benefit_ratio: float
+    co2_saving_tpa: float
+    water_saving_kl: float
+    optimal_cleaning_interval_days: int
+
+class SPSLDashboard(BaseModel):
+    farms: list[SPSLFarmRecord]
+    soiling_records: list[SPSLSoilingRecord]
+    cleaning_records: list[SPSLCleaningRecord]
+    degradation: list[SPSLDegradationRecord]
+    weather_impacts: list[SPSLWeatherImpactRecord]
+    optimisations: list[SPSLOptimisationRecord]
+    summary: dict
+
+_spsl_cache: dict = {}
+
+@app.get("/api/solar-pv-soiling/dashboard")
+def get_solar_pv_soiling_dashboard():
+    if _spsl_cache:
+        return _spsl_cache
+
+    import random
+    rng = random.Random(42)
+
+    farm_data = [
+        ("SPSL-F01", "Broken Hill Solar Farm",     "NSW", "Fixed Tilt",          200.0, 1980, 22.5, 85.0,  4, 2.8, 82.0, 0.45),
+        ("SPSL-F02", "Darling Downs Solar",        "QLD", "Single-Axis Tracking", 150.0, 2050, 24.0, 92.0,  6, 3.1, 79.5, 0.50),
+        ("SPSL-F03", "Riverland Solar",            "SA",  "Bifacial Fixed",        180.0, 1920, 20.8, 78.0,  5, 2.5, 84.5, 0.42),
+        ("SPSL-F04", "Pilbara Solar Project",      "WA",  "Bifacial Tracking",    220.0, 2200, 28.5, 120.0, 8, 4.2, 76.0, 0.55),
+        ("SPSL-F05", "Mildura Solar Park",         "VIC", "Single-Axis Tracking", 160.0, 1850, 19.5, 70.0,  4, 2.2, 85.5, 0.40),
+        ("SPSL-F06", "Longreach PV Station",       "QLD", "Dual-Axis",            120.0, 2100, 26.0, 110.0, 7, 3.8, 77.5, 0.52),
+        ("SPSL-F07", "Roxby Downs Solar",          "SA",  "Fixed Tilt",           140.0, 2000, 23.0, 95.0,  5, 3.0, 80.5, 0.48),
+        ("SPSL-F08", "Kalgoorlie Solar Station",   "WA",  "Single-Axis Tracking", 175.0, 2150, 27.0, 105.0, 6, 3.5, 78.0, 0.50),
+        ("SPSL-F09", "Moree Solar Farm",           "NSW", "Bifacial Fixed",        130.0, 1960, 21.5, 75.0,  4, 2.4, 83.0, 0.43),
+        ("SPSL-F10", "Sunraysia Solar",            "VIC", "Single-Axis Tracking", 190.0, 1870, 20.0, 68.0,  5, 2.1, 86.5, 0.38),
+        ("SPSL-F11", "Mt Isa Solar Hub",           "QLD", "Dual-Axis",            100.0, 2080, 25.5, 100.0, 6, 3.6, 75.0, 0.53),
+        ("SPSL-F12", "Nullarbor Solar Array",      "WA",  "Bifacial Tracking",    250.0, 2300, 29.0, 130.0, 9, 4.5, 88.0, 0.58),
+    ]
+
+    farms = []
+    for fd in farm_data:
+        fid, fname, state, tech, cap, irr, temp, dust, freq, loss, pr, deg = fd
+        gen = round(cap * pr / 100 * irr / 1000 * 0.9 * rng.uniform(0.95, 1.05), 2)
+        farms.append(SPSLFarmRecord(
+            farm_id=fid, farm_name=fname, state=state, technology=tech,
+            capacity_mwp=cap, annual_irradiation_kwh_per_m2=irr, avg_temperature_c=temp,
+            annual_dust_accumulation_g_per_m2=dust, cleaning_frequency_per_year=freq,
+            soiling_loss_annual_pct=loss, avg_performance_ratio_pct=pr,
+            degradation_rate_pct_pa=deg, annual_generation_gwh=gen,
+        ))
+
+    dust_types = ["Road Dust", "Agricultural", "Industrial", "Pollen", "Bird Droppings", "Mixed"]
+    soiling_records = []
+    sr_idx = 1
+    farm_ids_6 = [f.farm_id for f in farms[:6]]
+    for farm in farms[:6]:
+        for m in range(10):
+            days = 5 + m * 8 + rng.randint(0, 5)
+            ratio = round(max(0.92, 1.0 - days * rng.uniform(0.0005, 0.0012)), 4)
+            irr = round(rng.uniform(400, 950), 1)
+            soiling_records.append(SPSLSoilingRecord(
+                soiling_id=f"SPSL-SR-{sr_idx:03d}",
+                farm_id=farm.farm_id,
+                measurement_date=f"2024-{(m % 12) + 1:02d}-{rng.randint(1,28):02d}",
+                days_since_last_clean=days,
+                soiling_ratio=ratio,
+                irradiance_wm2=irr,
+                power_loss_pct=round((1.0 - ratio) * 100, 2),
+                dust_type=rng.choice(dust_types),
+                rainfall_mm_7day=round(rng.uniform(0, 15), 1),
+                wind_speed_avg_ms=round(rng.uniform(2, 12), 1),
+                relative_humidity_pct=round(rng.uniform(20, 75), 1),
+                temperature_c=round(rng.uniform(18, 42), 1),
+            ))
+            sr_idx += 1
+
+    cleaning_methods = ["Robotic Dry", "Manual Wet", "Automated Spray", "Rainfall-triggered", "Drone Assisted"]
+    cleaning_records = []
+    cr_idx = 1
+    for i in range(25):
+        farm = rng.choice(farms[:6])
+        method = rng.choice(cleaning_methods)
+        pre = round(rng.uniform(0.92, 0.97), 4)
+        post = round(rng.uniform(0.98, 1.0), 4)
+        panels = rng.randint(500, 5000)
+        water = round(rng.uniform(0, 2000) if method != "Robotic Dry" else 0, 1)
+        labour = round(rng.uniform(2, 24), 1)
+        cost = round(rng.uniform(1500, 25000), 2)
+        energy_rec = round(panels * farm.capacity_mwp / 10000 * (post - pre) * 100 * rng.uniform(0.8, 1.2), 1)
+        roi = int(cost / max(energy_rec * 80 / 365, 1))
+        cleaning_records.append(SPSLCleaningRecord(
+            cleaning_id=f"SPSL-CR-{cr_idx:03d}",
+            farm_id=farm.farm_id,
+            cleaning_date=f"2024-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}",
+            cleaning_method=method,
+            panels_cleaned_count=panels,
+            water_used_litres=water,
+            labour_hours=labour,
+            cost_aud=cost,
+            energy_recovery_kwh=energy_rec,
+            pre_clean_soiling_ratio=pre,
+            post_clean_soiling_ratio=post,
+            roi_days=roi,
+        ))
+        cr_idx += 1
+
+    degradation = []
+    deg_idx = 1
+    for farm in farms[:8]:
+        for yr in [2022, 2023, 2024]:
+            age = yr - 2020
+            lid = round(rng.uniform(0.5, 1.2), 2)
+            therm = round(rng.uniform(0.3, 0.8), 2)
+            mech = round(rng.uniform(0.1, 0.4), 2)
+            soil = round(farm.soiling_loss_annual_pct * rng.uniform(0.85, 1.15), 2)
+            total = round(lid + therm + mech + soil + age * farm.degradation_rate_pct_pa, 2)
+            p90_pr = round(farm.avg_performance_ratio_pct - total * 0.3 - rng.uniform(0.5, 2.0), 1)
+            degradation.append(SPSLDegradationRecord(
+                deg_id=f"SPSL-DG-{deg_idx:03d}",
+                farm_id=farm.farm_id,
+                year=yr,
+                lid_loss_pct=lid,
+                thermal_loss_pct=therm,
+                mechanical_loss_pct=mech,
+                soiling_annual_loss_pct=soil,
+                total_degradation_pct=total,
+                p90_pr_pct=p90_pr,
+                actual_vs_p50_pct=round(rng.uniform(-5, 5), 1),
+                inverter_efficiency_pct=round(rng.uniform(96, 98.5), 1),
+                string_mismatch_loss_pct=round(rng.uniform(0.1, 0.8), 2),
+                availability_pct=round(rng.uniform(97, 99.5), 1),
+            ))
+            deg_idx += 1
+
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+    weather_impacts = []
+    wi_idx = 1
+    for farm in farms[:6]:
+        for mi, mon in enumerate(months):
+            ghi = round(rng.uniform(120, 220), 1)
+            ci = round(rng.uniform(0.55, 0.72), 3)
+            dust_events = rng.randint(0, 4)
+            rain = round(rng.uniform(5, 60) if mi in [2, 3, 4] else rng.uniform(0, 20), 1)
+            soiling_idx = round(1.0 - dust_events * 0.015 - max(0, (20 - rain) / 200), 3)
+            exp_loss = round((1.0 - soiling_idx) * 100, 2)
+            gen_mwh = round(farm.capacity_mwp * ghi * ci * rng.uniform(0.95, 1.05), 1)
+            pr_dev = round(rng.uniform(-3, 3), 1)
+            weather_impacts.append(SPSLWeatherImpactRecord(
+                weather_id=f"SPSL-WI-{wi_idx:03d}",
+                farm_id=farm.farm_id,
+                month=mon,
+                avg_ghi_kwh_m2=ghi,
+                clearness_index=ci,
+                dust_storm_events=dust_events,
+                rainfall_mm=rain,
+                relative_humidity_pct=round(rng.uniform(25, 70), 1),
+                avg_wind_speed_ms=round(rng.uniform(3, 10), 1),
+                temperature_max_c=round(rng.uniform(22, 42), 1),
+                soiling_index=soiling_idx,
+                expected_soiling_loss_pct=exp_loss,
+                actual_generation_mwh=gen_mwh,
+                pr_deviation_pct=pr_dev,
+            ))
+            wi_idx += 1
+
+    scenarios = ["Current", "Cleaning 4x pa", "Cleaning 12x pa", "Robotic Daily"]
+    optimisations = []
+    op_idx = 1
+    for farm in farms[:6]:
+        for sc in scenarios:
+            if sc == "Current":
+                clean_cost = farm.cleaning_frequency_per_year * 8000
+                soil_loss = farm.soiling_loss_annual_pct
+            elif sc == "Cleaning 4x pa":
+                clean_cost = 4 * 8000
+                soil_loss = round(farm.soiling_loss_annual_pct * 0.75, 2)
+            elif sc == "Cleaning 12x pa":
+                clean_cost = 12 * 8000
+                soil_loss = round(farm.soiling_loss_annual_pct * 0.40, 2)
+            else:
+                clean_cost = 365 * 500
+                soil_loss = round(farm.soiling_loss_annual_pct * 0.15, 2)
+            baseline_loss = farm.soiling_loss_annual_pct
+            energy_gain = round((baseline_loss - soil_loss) / 100 * farm.annual_generation_gwh * 1000, 1)
+            rev = round(energy_gain * 80, 2)
+            cbr = round(rev / max(clean_cost, 1), 2)
+            co2 = round(energy_gain * 0.82, 1)
+            water_save = round(max(0, rng.uniform(50, 300)), 1)
+            interval = max(7, int(365 / max(farm.cleaning_frequency_per_year, 1)))
+            optimisations.append(SPSLOptimisationRecord(
+                opt_id=f"SPSL-OP-{op_idx:03d}",
+                farm_id=farm.farm_id,
+                scenario_name=sc,
+                cleaning_cost_pa_aud=float(clean_cost),
+                soiling_loss_pct=soil_loss,
+                net_energy_gain_mwh=energy_gain,
+                additional_revenue_aud=rev,
+                cost_benefit_ratio=cbr,
+                co2_saving_tpa=co2,
+                water_saving_kl=water_save,
+                optimal_cleaning_interval_days=interval,
+            ))
+            op_idx += 1
+
+    total_capacity = round(sum(f.capacity_mwp for f in farms), 1)
+    avg_soiling_loss = round(sum(f.soiling_loss_annual_pct for f in farms) / len(farms), 2)
+    total_energy_loss = round(sum(f.soiling_loss_annual_pct / 100 * f.annual_generation_gwh for f in farms), 2)
+    avg_clean_roi = int(sum(c.roi_days for c in cleaning_records) / len(cleaning_records))
+    best_opt_gain = round(max(o.net_energy_gain_mwh / max(o.cleaning_cost_pa_aud, 1) * 1000 for o in optimisations), 2)
+
+    _spsl_cache.update(SPSLDashboard(
+        farms=farms,
+        soiling_records=soiling_records,
+        cleaning_records=cleaning_records,
+        degradation=degradation,
+        weather_impacts=weather_impacts,
+        optimisations=optimisations,
+        summary={
+            "total_solar_capacity_mwp": total_capacity,
+            "avg_soiling_loss_pct": avg_soiling_loss,
+            "total_annual_energy_loss_gwh": total_energy_loss,
+            "avg_cleaning_roi_days": avg_clean_roi,
+            "best_optimisation_gain_pct": best_opt_gain,
+        }
+    ).model_dump())
+    return _spsl_cache
+
+
+# ---------------------------------------------------------------------------
+# OT/ICS Energy Cyber Security Analytics  (Sprint 100c)
+# ---------------------------------------------------------------------------
+
+class OICSAssetRecord(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_type: str
+    criticality: str
+    sector: str
+    state: str
+    vendor: str
+    firmware_version: str
+    last_patched_date: str
+    internet_exposed: bool
+    legacy_system: bool
+    security_zone: str
+    vulnerability_count: int
+
+class OICSIncidentRecord(BaseModel):
+    incident_id: str
+    incident_date: str
+    incident_type: str
+    affected_asset_type: str
+    severity: str
+    sector: str
+    detection_method: str
+    time_to_detect_hours: float
+    time_to_recover_hours: float
+    operational_impact: str
+    financial_impact_m: float
+    reported_to_acs: bool
+
+class OICSThreatRecord(BaseModel):
+    threat_id: str
+    threat_actor_category: str
+    target_sector: str
+    attack_vector: str
+    attack_technique: str
+    likelihood_pct: float
+    impact_severity: str
+    trend: str
+    threat_intelligence_source: str
+    mitigations_deployed: int
+
+class OICSComplianceRecord(BaseModel):
+    compliance_id: str
+    framework: str
+    entity_name: str
+    sector: str
+    maturity_level: int
+    last_assessment_date: str
+    findings_critical: int
+    findings_high: int
+    findings_medium: int
+    remediation_plan_exists: bool
+    target_maturity: int
+    compliance_score_pct: float
+
+class OICSVulnerabilityRecord(BaseModel):
+    vuln_id: str
+    cve_id: str
+    asset_type: str
+    vendor: str
+    cvss_score: float
+    vulnerability_type: str
+    exploitation_in_wild: bool
+    patch_available: bool
+    days_unpatched: int
+    affected_assets_count: int
+    remediation_cost_m: float
+    business_impact: str
+
+class OICSSecurityInvestmentRecord(BaseModel):
+    invest_id: str
+    entity_name: str
+    sector: str
+    investment_type: str
+    annual_spend_m: float
+    maturity_before: int
+    maturity_after: int
+    risk_reduction_pct: float
+    incidents_prevented_pa: int
+    roi_pct: float
+    implementation_year: int
+
+class OICSDashboard(BaseModel):
+    assets: List[OICSAssetRecord]
+    incidents: List[OICSIncidentRecord]
+    threats: List[OICSThreatRecord]
+    compliance: List[OICSComplianceRecord]
+    vulnerabilities: List[OICSVulnerabilityRecord]
+    security_investments: List[OICSSecurityInvestmentRecord]
+    summary: dict
+
+_oics_cache: dict = {}
+
+@app.get("/api/ot-ics-cyber-security/dashboard")
+def get_ot_ics_cyber_security_dashboard(api_key: str = Depends(verify_api_key)):
+    import random
+    if _oics_cache:
+        return _oics_cache
+
+    rng = random.Random(20241)
+
+    asset_types = ["SCADA", "DCS", "HMI", "RTU", "PLC", "Historian", "EMS", "DERMS", "Smart Meter Head-end", "Protection Relay"]
+    criticalities = ["Critical", "High", "Medium", "Low"]
+    sectors = ["Generation", "Transmission", "Distribution", "Retail", "Market"]
+    states = ["NSW", "VIC", "QLD", "SA", "WA", "TAS"]
+    vendors = ["Siemens", "ABB", "GE", "Schneider Electric", "Honeywell", "Emerson", "Rockwell", "OSIsoft", "Itron", "Landis+Gyr"]
+    security_zones = ["IT", "OT", "DMZ", "Field"]
+
+    assets: List[OICSAssetRecord] = []
+    for i in range(1, 26):
+        at = asset_types[(i - 1) % len(asset_types)]
+        crit = criticalities[rng.randint(0, 3)]
+        sec = sectors[rng.randint(0, 4)]
+        st = states[rng.randint(0, 5)]
+        vend = vendors[rng.randint(0, 9)]
+        zone = security_zones[rng.randint(0, 3)]
+        fw_maj = rng.randint(1, 5)
+        fw_min = rng.randint(0, 9)
+        yr = rng.randint(2020, 2024)
+        mo = rng.randint(1, 12)
+        dy = rng.randint(1, 28)
+        assets.append(OICSAssetRecord(
+            asset_id=f"OICS-ASSET-{i:03d}",
+            asset_name=f"{at} Unit {i:02d}",
+            asset_type=at,
+            criticality=crit,
+            sector=sec,
+            state=st,
+            vendor=vend,
+            firmware_version=f"v{fw_maj}.{fw_min}.{rng.randint(0, 99)}",
+            last_patched_date=f"{yr}-{mo:02d}-{dy:02d}",
+            internet_exposed=rng.random() < 0.25,
+            legacy_system=rng.random() < 0.40,
+            security_zone=zone,
+            vulnerability_count=rng.randint(0, 18),
+        ))
+
+    incident_types = ["Ransomware", "Phishing", "Insider Threat", "Intrusion", "Supply Chain", "DoS", "Unauthorised Access", "Data Exfiltration"]
+    severities = ["Critical", "High", "Medium", "Low", "Informational"]
+    detection_methods = ["SIEM Alert", "IDS/IPS", "Manual Review", "ASD Tip-off", "Vendor Alert", "Internal Audit", "Threat Intel Feed"]
+    operational_impacts = ["None", "Minor", "Moderate", "Significant", "Severe"]
+
+    incidents: List[OICSIncidentRecord] = []
+    for i in range(1, 21):
+        yr = rng.randint(2022, 2024)
+        mo = rng.randint(1, 12)
+        dy = rng.randint(1, 28)
+        inc_type = incident_types[rng.randint(0, 7)]
+        sev = severities[rng.randint(0, 4)]
+        sec = sectors[rng.randint(0, 4)]
+        at = asset_types[rng.randint(0, 9)]
+        det = detection_methods[rng.randint(0, 6)]
+        ttd = round(rng.uniform(0.5, 240.0), 1)
+        ttr = round(rng.uniform(1.0, 720.0), 1)
+        op_imp = operational_impacts[rng.randint(0, 4)]
+        fin_imp = round(rng.uniform(0.01, 15.0), 2)
+        incidents.append(OICSIncidentRecord(
+            incident_id=f"OICS-INC-{i:04d}",
+            incident_date=f"{yr}-{mo:02d}-{dy:02d}",
+            incident_type=inc_type,
+            affected_asset_type=at,
+            severity=sev,
+            sector=sec,
+            detection_method=det,
+            time_to_detect_hours=ttd,
+            time_to_recover_hours=ttr,
+            operational_impact=op_imp,
+            financial_impact_m=fin_imp,
+            reported_to_acs=rng.random() < 0.65,
+        ))
+
+    threat_actor_categories = ["Nation State", "Cybercriminal", "Insider", "Hacktivist", "Opportunistic"]
+    attack_vectors = ["Internet", "Supply Chain", "Phishing", "Physical", "Insider"]
+    attack_techniques = [
+        "Spearphishing with OT payload", "Modbus/DNP3 exploitation", "VPN credential stuffing",
+        "SCADA HMI bruteforce", "Firmware manipulation", "Living-off-the-land techniques",
+        "Remote access trojan", "SQL injection on historian", "USB drop campaign",
+        "Supply chain compromise", "Default credential exploitation", "Protocol replay attack",
+        "Lateral movement via IT-OT pivot", "Ransomware deployment", "Insider data theft",
+    ]
+    impact_severities = ["Critical", "High", "Medium", "Low"]
+    trends = ["Increasing", "Stable", "Decreasing"]
+    ti_sources = ["ASD", "CISA", "CERT-AU", "FS-ISAC", "Recorded Future", "Mandiant", "CrowdStrike"]
+
+    threats: List[OICSThreatRecord] = []
+    for i in range(1, 16):
+        tac = threat_actor_categories[(i - 1) % len(threat_actor_categories)]
+        t_sec = sectors[rng.randint(0, 4)]
+        av = attack_vectors[rng.randint(0, 4)]
+        tech = attack_techniques[(i - 1) % len(attack_techniques)]
+        lik = round(rng.uniform(5.0, 85.0), 1)
+        imp = impact_severities[rng.randint(0, 3)]
+        tr = trends[rng.randint(0, 2)]
+        ti = ti_sources[rng.randint(0, 6)]
+        mits = rng.randint(1, 8)
+        threats.append(OICSThreatRecord(
+            threat_id=f"OICS-THR-{i:03d}",
+            threat_actor_category=tac,
+            target_sector=t_sec,
+            attack_vector=av,
+            attack_technique=tech,
+            likelihood_pct=lik,
+            impact_severity=imp,
+            trend=tr,
+            threat_intelligence_source=ti,
+            mitigations_deployed=mits,
+        ))
+
+    frameworks = ["AESCSF", "IEC 62443", "NIST CSF", "ISO 27001", "SOCI Act", "NERC CIP", "ISM"]
+    entity_names = ["AusGrid", "TransGrid", "Engie Australia", "AGL Energy"]
+
+    compliance: List[OICSComplianceRecord] = []
+    comp_idx = 1
+    for entity in entity_names:
+        for fw in rng.sample(frameworks, 3):
+            mat = rng.randint(1, 4)
+            yr = rng.randint(2022, 2024)
+            mo = rng.randint(1, 12)
+            dy = rng.randint(1, 28)
+            crit_f = rng.randint(0, 5)
+            high_f = rng.randint(1, 12)
+            med_f = rng.randint(2, 20)
+            tgt = min(mat + rng.randint(1, 2), 5)
+            score = round(rng.uniform(45.0, 92.0), 1)
+            compliance.append(OICSComplianceRecord(
+                compliance_id=f"OICS-COMP-{comp_idx:03d}",
+                framework=fw,
+                entity_name=entity,
+                sector=sectors[rng.randint(0, 4)],
+                maturity_level=mat,
+                last_assessment_date=f"{yr}-{mo:02d}-{dy:02d}",
+                findings_critical=crit_f,
+                findings_high=high_f,
+                findings_medium=med_f,
+                remediation_plan_exists=rng.random() < 0.75,
+                target_maturity=tgt,
+                compliance_score_pct=score,
+            ))
+            comp_idx += 1
+
+    vuln_types = ["Buffer Overflow", "Authentication Bypass", "Unpatched Software", "Default Credentials", "Insecure Protocol", "Hardcoded Password"]
+    vuln_vendors = ["Siemens", "ABB", "GE", "Schneider Electric", "Honeywell", "Emerson", "Rockwell"]
+    business_impacts = ["Production loss", "Data integrity risk", "Remote code execution", "Lateral movement risk", "Denial of service", "Confidentiality breach"]
+
+    vulnerabilities: List[OICSVulnerabilityRecord] = []
+    cve_base = [
+        "CVE-2024-2340", "CVE-2024-1822", "CVE-2023-48675", "CVE-2023-36844", "CVE-2023-28771",
+        "CVE-2023-20198", "CVE-2022-44877", "CVE-2022-40684", "CVE-2022-30190", "CVE-2022-26134",
+        "CVE-2021-44228", "CVE-2021-34527", "CVE-2021-27101", "CVE-2020-14882", "CVE-2020-11022",
+        "CVE-2019-19781", "CVE-2019-11510", "CVE-2019-0708", "CVE-2018-13379", "CVE-2017-0144",
+    ]
+    for i in range(1, 21):
+        cve = cve_base[(i - 1) % len(cve_base)]
+        at = asset_types[rng.randint(0, 9)]
+        vend = vuln_vendors[rng.randint(0, 6)]
+        cvss = round(rng.uniform(4.0, 10.0), 1)
+        vt = vuln_types[rng.randint(0, 5)]
+        eow = rng.random() < 0.40
+        pa = rng.random() < 0.55
+        du = rng.randint(0, 730)
+        aac = rng.randint(1, 35)
+        rc = round(rng.uniform(0.01, 2.5), 2)
+        bi = business_impacts[rng.randint(0, 5)]
+        vulnerabilities.append(OICSVulnerabilityRecord(
+            vuln_id=f"OICS-VULN-{i:03d}",
+            cve_id=cve,
+            asset_type=at,
+            vendor=vend,
+            cvss_score=cvss,
+            vulnerability_type=vt,
+            exploitation_in_wild=eow,
+            patch_available=pa,
+            days_unpatched=du,
+            affected_assets_count=aac,
+            remediation_cost_m=rc,
+            business_impact=bi,
+        ))
+
+    investment_types = ["Monitoring", "Incident Response", "Patch Management", "Network Segmentation", "Training", "Threat Intel", "Vulnerability Management"]
+    invest_entities = ["AusGrid", "TransGrid", "Engie Australia", "AGL Energy", "Origin Energy"]
+
+    security_investments: List[OICSSecurityInvestmentRecord] = []
+    for i in range(1, 16):
+        entity = invest_entities[(i - 1) % len(invest_entities)]
+        inv_type = investment_types[(i - 1) % len(investment_types)]
+        sec = sectors[rng.randint(0, 4)]
+        spend = round(rng.uniform(0.5, 12.0), 2)
+        mat_b = rng.randint(1, 3)
+        mat_a = min(mat_b + rng.randint(1, 2), 5)
+        risk_red = round(rng.uniform(5.0, 45.0), 1)
+        inc_prev = rng.randint(0, 8)
+        roi = round(rng.uniform(20.0, 350.0), 1)
+        yr = rng.randint(2020, 2024)
+        security_investments.append(OICSSecurityInvestmentRecord(
+            invest_id=f"OICS-INV-{i:03d}",
+            entity_name=entity,
+            sector=sec,
+            investment_type=inv_type,
+            annual_spend_m=spend,
+            maturity_before=mat_b,
+            maturity_after=mat_a,
+            risk_reduction_pct=risk_red,
+            incidents_prevented_pa=inc_prev,
+            roi_pct=roi,
+            implementation_year=yr,
+        ))
+
+    total_critical_assets = sum(1 for a in assets if a.criticality == "Critical")
+    incidents_ytd = sum(1 for inc in incidents if inc.incident_date.startswith("2024"))
+    avg_compliance_score = round(sum(c.compliance_score_pct for c in compliance) / len(compliance), 1)
+    critical_vulns_unpatched = sum(
+        1 for v in vulnerabilities
+        if v.cvss_score >= 9.0 and not v.patch_available
+    )
+    total_security_investment = round(sum(s.annual_spend_m for s in security_investments), 2)
+
+    _oics_cache.update(OICSDashboard(
+        assets=assets,
+        incidents=incidents,
+        threats=threats,
+        compliance=compliance,
+        vulnerabilities=vulnerabilities,
+        security_investments=security_investments,
+        summary={
+            "total_critical_assets": total_critical_assets,
+            "incidents_ytd": incidents_ytd,
+            "avg_compliance_score_pct": avg_compliance_score,
+            "critical_vulnerabilities_unpatched": critical_vulns_unpatched,
+            "total_security_investment_m": total_security_investment,
+        }
+    ).model_dump())
+    return _oics_cache

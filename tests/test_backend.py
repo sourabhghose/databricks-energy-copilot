@@ -12846,3 +12846,129 @@ class TestWindFarmWakeDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestMarketBiddingStrategyDashboard:
+    URL = "/api/market-bidding-strategy/dashboard"
+    HEADERS = {"X-API-Key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_generator_bids_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["generator_bids"]) >= 24
+
+    def test_strategic_behaviours_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["strategic_behaviours"]) >= 12
+
+    def test_nash_equilibria_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["nash_equilibria"]) >= 6
+
+    def test_bid_stacks_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["bid_stacks"]) >= 18
+
+    def test_participant_metrics_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["participant_metrics"]) >= 10
+
+    def test_auction_outcomes_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["auction_outcomes"]) >= 15
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "avg_effective_hhi" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestSolarPVSoilingDashboard:
+    URL = "/api/solar-pv-soiling/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_farms_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["farms"]) >= 10
+
+    def test_soiling_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["soiling_records"]) >= 48
+
+    def test_cleaning_records_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["cleaning_records"]) >= 20
+
+    def test_degradation_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["degradation"]) >= 18
+
+    def test_weather_impacts_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["weather_impacts"]) >= 24
+
+    def test_optimisations_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["optimisations"]) >= 18
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "avg_soiling_loss_pct" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestOTICSCyberSecurityDashboard:
+    URL = "/api/ot-ics-cyber-security/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_assets_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["assets"]) >= 20
+
+    def test_incidents_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["incidents"]) >= 15
+
+    def test_threats_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["threats"]) >= 12
+
+    def test_compliance_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["compliance"]) >= 10
+
+    def test_vulnerabilities_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["vulnerabilities"]) >= 15
+
+    def test_security_investments_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["security_investments"]) >= 12
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert "total_critical_assets" in r.json()["summary"]
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

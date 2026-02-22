@@ -344,6 +344,9 @@ import ConsumerEnergyAffordabilityAnalytics from './pages/ConsumerEnergyAffordab
 import ElectricityPriceRiskAnalytics from './pages/ElectricityPriceRiskAnalytics'
 import EVFleetDepotAnalytics from './pages/EVFleetDepotAnalytics'
 import WindFarmWakeAnalytics from './pages/WindFarmWakeAnalytics'
+import MarketBiddingStrategyAnalytics from './pages/MarketBiddingStrategyAnalytics'
+import SolarPVSoilingAnalytics from './pages/SolarPVSoilingAnalytics'
+import OTICSCyberSecurityAnalytics from './pages/OTICSCyberSecurityAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -612,6 +615,9 @@ const NAV_ITEMS = [
   { to: '/electricity-price-risk', label: 'Electricity Price Risk Mgmt', Icon: Shield },
   { to: '/ev-fleet-depot',    label: 'EV Fleet Depot Charging',    Icon: Truck  },
   { to: '/wind-farm-wake',    label: 'Wind Farm Wake Analytics',   Icon: Wind   },
+  { to: '/market-bidding-strategy', label: 'Market Bidding Strategy Analytics', Icon: Target },
+  { to: '/solar-pv-soiling',  label: 'Solar PV Soiling & Performance', Icon: Sun },
+  { to: '/ot-ics-cyber-security', label: 'OT/ICS Energy Cyber Security', Icon: Lock },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -955,6 +961,9 @@ export default function App() {
               <Route path="/electricity-price-risk" element={<ElectricityPriceRiskAnalytics />} />
               <Route path="/ev-fleet-depot"    element={<EVFleetDepotAnalytics />}          />
               <Route path="/wind-farm-wake"    element={<WindFarmWakeAnalytics />}          />
+              <Route path="/market-bidding-strategy" element={<MarketBiddingStrategyAnalytics />} />
+              <Route path="/solar-pv-soiling"  element={<SolarPVSoilingAnalytics />} />
+              <Route path="/ot-ics-cyber-security" element={<OTICSCyberSecurityAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
