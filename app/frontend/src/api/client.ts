@@ -25555,3 +25555,208 @@ export interface NDFADashboard {
 }
 export const getNemDemandForecastingAccuracyDashboard = (): Promise<NDFADashboard> =>
   get<NDFADashboard>('/api/nem-demand-forecasting-accuracy/dashboard')
+
+// ── Power System Inertia Stability Analytics (PSIS) ──────────────────────
+export interface PSISInertiaLevel {
+  region: string
+  year: number
+  quarter: number
+  synchronous_inertia_mws: number
+  min_threshold_mws: number
+  contingency_inertia_mws: number
+  renewable_penetration_pct: number
+  risk_level: string
+}
+export interface PSISFrequencyEvent {
+  event_id: string
+  region: string
+  event_date: string
+  trigger: string
+  initial_frequency_hz: number
+  nadir_hz: number
+  recovery_hz: number
+  rocof_hz_s: number
+  ufls_activated: boolean
+  load_shed_mw: number
+}
+export interface PSISInertiaService {
+  provider: string
+  service_type: string
+  region: string
+  contracted_mws: number
+  delivered_mws: number
+  cost_aud_mws: number
+  availability_pct: number
+}
+export interface PSISStabilityMetric {
+  region: string
+  year: number
+  metric_name: string
+  value: number
+  unit: string
+  threshold: number
+  status: string
+}
+export interface PSISMitigationAction {
+  action_id: string
+  region: string
+  action_type: string
+  status: string
+  inertia_contribution_mws: number
+  cost_m_aud: number
+  commissioning_year: number
+}
+export interface PSISSummary {
+  avg_system_inertia_mws: number
+  min_inertia_recorded_mws: number
+  frequency_events_fy: number
+  ufls_activations_fy: number
+  total_contracted_inertia_services_mws: number
+}
+export interface PSISDashboard {
+  inertia_levels: PSISInertiaLevel[]
+  frequency_events: PSISFrequencyEvent[]
+  inertia_services: PSISInertiaService[]
+  stability_metrics: PSISStabilityMetric[]
+  mitigation_actions: PSISMitigationAction[]
+  summary: PSISSummary
+}
+export const getPowerSystemInertiaDashboard = (): Promise<PSISDashboard> =>
+  get<PSISDashboard>('/api/power-system-inertia/dashboard')
+
+// ── Electricity Network Investment Deferral Analytics (ENID) ─────────────
+export interface ENIDProject {
+  project_id: string
+  project_name: string
+  dnsp: string
+  region: string
+  project_type: string
+  traditional_capex_m: number
+  non_network_alternative: string
+  non_network_cost_m: number
+  deferral_years: number
+  npv_saving_m: number
+  approval_status: string
+}
+export interface ENIDDeferralTrend {
+  dnsp: string
+  year: number
+  deferred_capex_m: number
+  implemented_alternatives_m: number
+  avg_deferral_years: number
+  projects_deferred: number
+}
+export interface ENIDNonNetworkSolution {
+  solution_type: string
+  dnsp: string
+  year: number
+  capacity_mw: number
+  energy_mwh: number
+  capex_m: number
+  opex_m_pa: number
+  peak_reduction_mw: number
+  reliability_improvement_pct: number
+}
+export interface ENIDCostBenefit {
+  project_id: string
+  bcr: number
+  payback_years: number
+  carbon_saving_tco2: number
+  customer_bill_impact_aud: number
+  reliability_impact_saidi_min: number
+}
+export interface ENIDRegulatorDecision {
+  decision_id: string
+  dnsp: string
+  year: number
+  proposed_capex_m: number
+  approved_capex_m: number
+  non_network_requirement_m: number
+  rer_pct: number
+  aer_comment: string
+}
+export interface ENIDSummary {
+  total_deferred_capex_m: number
+  total_non_network_solutions_m: number
+  avg_npv_saving_per_project_m: number
+  total_peak_reduction_mw: number
+  projects_implemented: number
+}
+export interface ENIDDashboard {
+  projects: ENIDProject[]
+  deferral_trends: ENIDDeferralTrend[]
+  non_network_solutions: ENIDNonNetworkSolution[]
+  cost_benefits: ENIDCostBenefit[]
+  regulator_decisions: ENIDRegulatorDecision[]
+  summary: ENIDSummary
+}
+export const getElectricityNetworkInvestmentDeferralDashboard = (): Promise<ENIDDashboard> =>
+  get<ENIDDashboard>('/api/electricity-network-investment-deferral/dashboard')
+
+// ── Renewable Energy Zone Capacity Factor Analytics (REZC) ───────────────
+export interface REZCZone {
+  rez_id: string
+  rez_name: string
+  state: string
+  region: string
+  technology_mix: string
+  total_capacity_gw: number
+  pipeline_capacity_gw: number
+  transmission_limit_mw: number
+}
+export interface REZCCapacityFactor {
+  rez_id: string
+  technology: string
+  year: number
+  month: number
+  capacity_factor_pct: number
+  p10_cf_pct: number
+  p90_cf_pct: number
+  generation_gwh: number
+  curtailment_pct: number
+}
+export interface REZCHourlyPattern {
+  rez_id: string
+  technology: string
+  hour_of_day: number
+  season: string
+  avg_cf_pct: number
+  peak_cf_pct: number
+  min_cf_pct: number
+}
+export interface REZCTransmissionConstraint {
+  rez_id: string
+  year: number
+  quarter: number
+  constrained_hours: number
+  avg_curtailment_mw: number
+  revenue_foregone_m: number
+  constraint_cause: string
+}
+export interface REZCEconomics {
+  rez_id: string
+  technology: string
+  year: number
+  lcoe_aud_mwh: number
+  firming_cost_aud_mwh: number
+  grid_integration_cost_aud_mwh: number
+  effective_lcoe_aud_mwh: number
+  spot_revenue_aud_mwh: number
+}
+export interface REZCSummary {
+  total_installed_gw: number
+  avg_wind_cf_pct: number
+  avg_solar_cf_pct: number
+  total_curtailment_pct: number
+  best_performing_rez: string
+}
+export interface REZCDashboard {
+  zones: REZCZone[]
+  capacity_factors: REZCCapacityFactor[]
+  hourly_patterns: REZCHourlyPattern[]
+  transmission_constraints: REZCTransmissionConstraint[]
+  economics: REZCEconomics[]
+  summary: REZCSummary
+}
+export const getRezCapacityFactorDashboard = (): Promise<REZCDashboard> =>
+  get<REZCDashboard>('/api/rez-capacity-factor/dashboard')

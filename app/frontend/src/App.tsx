@@ -87,6 +87,7 @@ import {
   AlertCircle,
   Building,
   UserMinus,
+  PauseCircle,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -453,6 +454,9 @@ import EnergyAssetMaintenanceAnalytics from './pages/EnergyAssetMaintenanceAnaly
 import CoalSeamGasAnalytics from './pages/CoalSeamGasAnalytics'
 import EvBatteryTechnologyAnalytics from './pages/EvBatteryTechnologyAnalytics'
 import NemDemandForecastingAccuracyAnalytics from './pages/NemDemandForecastingAccuracyAnalytics'
+import PowerSystemInertiaAnalytics from './pages/PowerSystemInertiaAnalytics'
+import ElectricityNetworkInvestmentDeferralAnalytics from './pages/ElectricityNetworkInvestmentDeferralAnalytics'
+import RezCapacityFactorAnalytics from './pages/RezCapacityFactorAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -820,6 +824,9 @@ const NAV_ITEMS = [
   { to: '/coal-seam-gas', label: 'Coal Seam Gas', Icon: Flame },
   { to: '/ev-battery-technology', label: 'EV Battery Technology', Icon: Battery },
   { to: '/nem-demand-forecasting-accuracy', label: 'Demand Forecast Accuracy', Icon: Target },
+  { to: '/power-system-inertia', label: 'System Inertia', Icon: Activity },
+  { to: '/electricity-network-investment-deferral', label: 'Network Deferral', Icon: PauseCircle },
+  { to: '/rez-capacity-factor', label: 'REZ Capacity Factors', Icon: Wind },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1262,6 +1269,9 @@ export default function App() {
               <Route path="/coal-seam-gas" element={<CoalSeamGasAnalytics />} />
               <Route path="/ev-battery-technology" element={<EvBatteryTechnologyAnalytics />} />
               <Route path="/nem-demand-forecasting-accuracy" element={<NemDemandForecastingAccuracyAnalytics />} />
+              <Route path="/power-system-inertia" element={<PowerSystemInertiaAnalytics />} />
+              <Route path="/electricity-network-investment-deferral" element={<ElectricityNetworkInvestmentDeferralAnalytics />} />
+              <Route path="/rez-capacity-factor" element={<RezCapacityFactorAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

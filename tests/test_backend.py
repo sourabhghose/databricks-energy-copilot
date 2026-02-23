@@ -18746,3 +18746,182 @@ class TestNemDemandForecastingAccuracyDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestPowerSystemInertiaDashboard:
+    URL = "/api/power-system-inertia/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["inertia_levels", "frequency_events", "inertia_services",
+                    "stability_metrics", "mitigation_actions", "summary"]:
+            assert key in data
+
+    def test_inertia_levels_count(self):
+        # 5 regions × 4 years × 4 quarters = 80
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["inertia_levels"]) == 80
+
+    def test_frequency_events_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["frequency_events"]) == 30
+
+    def test_inertia_services_count(self):
+        # 4 service types × 5 regions = 20
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["inertia_services"]) == 20
+
+    def test_stability_metrics_count(self):
+        # 5 regions × 3 years × 4 metrics = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stability_metrics"]) == 60
+
+    def test_mitigation_actions_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["mitigation_actions"]) == 20
+
+    def test_summary_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "avg_system_inertia_mws" in summary
+        assert "min_inertia_recorded_mws" in summary
+        assert "frequency_events_fy" in summary
+        assert "ufls_activations_fy" in summary
+        assert "total_contracted_inertia_services_mws" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityNetworkInvestmentDeferralDashboard:
+    URL = "/api/electricity-network-investment-deferral/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["projects", "deferral_trends", "non_network_solutions", "cost_benefits", "regulator_decisions", "summary"]:
+            assert key in data
+
+    def test_projects_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 40
+
+    def test_deferral_trends_count(self):
+        # 10 DNSPs × 5 years = 50
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["deferral_trends"]) == 50
+
+    def test_non_network_solutions_count(self):
+        # 5 solution types × 10 DNSPs × 3 years = 150
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["non_network_solutions"]) == 150
+
+    def test_cost_benefits_count(self):
+        # one per project = 40
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_benefits"]) == 40
+
+    def test_regulator_decisions_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regulator_decisions"]) == 20
+
+    def test_summary_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_deferred_capex_m" in summary
+        assert "total_non_network_solutions_m" in summary
+        assert "avg_npv_saving_per_project_m" in summary
+        assert "total_peak_reduction_mw" in summary
+        assert "projects_implemented" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestRezCapacityFactorDashboard:
+    URL = "/api/rez-capacity-factor/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["zones", "capacity_factors", "hourly_patterns", "transmission_constraints", "economics", "summary"]:
+            assert key in data
+
+    def test_zones_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["zones"]) == 8
+
+    def test_capacity_factors_count(self):
+        # 8 REZs × 2 techs × 3 years × 12 months = 576
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["capacity_factors"]) == 576
+
+    def test_hourly_patterns_count(self):
+        # 8 REZs × 2 techs × 24 hours × 4 seasons = 1536
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["hourly_patterns"]) == 1536
+
+    def test_transmission_constraints_count(self):
+        # 8 REZs × 3 years × 4 quarters = 96
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["transmission_constraints"]) == 96
+
+    def test_economics_count(self):
+        # 8 REZs × 2 techs × 3 years = 48
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["economics"]) == 48
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_installed_gw" in summary
+        assert "avg_wind_cf_pct" in summary
+        assert "avg_solar_cf_pct" in summary
+        assert "total_curtailment_pct" in summary
+        assert "best_performing_rez" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
