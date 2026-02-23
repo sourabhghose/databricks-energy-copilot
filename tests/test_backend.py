@@ -16092,3 +16092,210 @@ class TestEDFMXDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestEnergyStorageMerchantRevenueDashboard
+# ===========================================================================
+
+class TestEnergyStorageMerchantRevenueDashboard:
+    URL = "/api/energy-storage-merchant-revenue/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_revenues_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "revenues" in data
+        assert len(data["revenues"]) >= 20
+
+    def test_revenue_stacks_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "revenue_stacks" in data
+        assert len(data["revenue_stacks"]) >= 20
+
+    def test_battery_economics_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "battery_economics" in data
+        assert len(data["battery_economics"]) >= 10
+
+    def test_price_spreads_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_spreads" in data
+        assert len(data["price_spreads"]) >= 50
+
+    def test_outlooks_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "outlooks" in data
+        assert len(data["outlooks"]) >= 30
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_storage_capacity_mw" in summary
+        assert "avg_irr_pct" in summary
+
+    def test_revenues_have_region(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for record in data["revenues"]:
+            assert "region" in record
+            assert record["region"] in {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}
+
+    def test_outlooks_have_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        scenarios_present = {o["scenario"] for o in data["outlooks"]}
+        assert "Base Case" in scenarios_present
+        assert "High Renewables" in scenarios_present
+        assert "Policy Support" in scenarios_present
+
+
+# ===========================================================================
+# TestINEAXDashboard  (Sprint 119c — Industrial Electrification Analytics)
+# ===========================================================================
+class TestINEAXDashboard:
+    """Tests for GET /api/industrial-electrification-x/dashboard."""
+
+    URL = "/api/industrial-electrification-x/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_sectors_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "sectors" in data
+        assert len(data["sectors"]) >= 30
+
+    def test_technologies_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "technologies" in data
+        assert len(data["technologies"]) >= 20
+
+    def test_demand_projections_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "demand_projections" in data
+        assert len(data["demand_projections"]) >= 45
+
+    def test_cost_barriers_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "cost_barriers" in data
+        assert len(data["cost_barriers"]) >= 15
+
+    def test_policy_support_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "policy_support" in data
+        assert len(data["policy_support"]) >= 10
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_electrification_potential_pj" in summary
+        assert "total_abatement_mtco2" in summary
+        assert "leading_sector" in summary
+        assert "projected_demand_increase_twh_2030" in summary
+        assert "top_technology" in summary
+
+    def test_sectors_have_regions(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        regions_found = {s["region"] for s in data["sectors"]}
+        for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+            assert region in regions_found
+
+    def test_demand_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        scenarios_found = {p["scenario"] for p in data["demand_projections"]}
+        for scenario in ["Base", "Accelerated", "Transformative"]:
+            assert scenario in scenarios_found
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestTransmissionAccessReformDashboard
+# ===========================================================================
+
+class TestTransmissionAccessReformDashboard:
+    URL = "/api/transmission-access-reform/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_reforms_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "reforms" in data
+        assert len(data["reforms"]) >= 15
+
+    def test_congestion_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "congestion" in data
+        assert len(data["congestion"]) >= 15
+
+    def test_access_rights_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "access_rights" in data
+        assert len(data["access_rights"]) >= 20
+
+    def test_price_impacts_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_impacts" in data
+        assert len(data["price_impacts"]) >= 40
+
+    def test_stakeholders_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "stakeholders" in data
+        assert len(data["stakeholders"]) >= 15
+
+    def test_timeline_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "timeline" in data
+        assert len(data["timeline"]) >= 25
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_reforms" in summary
+        assert "annual_congestion_cost_m" in summary
+        assert "active_consultations" in summary
+        assert "projected_consumer_benefit_m" in summary
+        assert "leading_reform" in summary
+
+    def test_price_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        scenarios_found = {p["scenario"] for p in data["price_impacts"]}
+        for scenario in ["Status Quo", "Full COGATI", "Partial Reform", "REZ Model"]:
+            assert scenario in scenarios_found

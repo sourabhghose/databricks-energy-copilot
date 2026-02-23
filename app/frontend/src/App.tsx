@@ -408,6 +408,9 @@ import ResidentialSolarSelfConsumptionAnalytics from './pages/ResidentialSolarSe
 import EnergyInfrastructureCyberThreatAnalytics from './pages/EnergyInfrastructureCyberThreatAnalytics'
 import WholesaleGasMarketAnalytics from './pages/WholesaleGasMarketAnalytics'
 import ElectricityDemandForecastingMLAnalytics from './pages/ElectricityDemandForecastingMLAnalytics'
+import EnergyStorageMerchantRevenueAnalytics from './pages/EnergyStorageMerchantRevenueAnalytics'
+import IndustrialElectrificationXAnalytics from './pages/IndustrialElectrificationXAnalytics'
+import TransmissionAccessReformAnalytics from './pages/TransmissionAccessReformAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -606,6 +609,7 @@ const NAV_ITEMS = [
   { to: '/extreme-weather-resilience', label: 'Extreme Weather Resilience', Icon: Tornado        },
   { to: '/spot-price-volatility-regime', label: 'Spot Price Volatility Regime', Icon: Activity  },
   { to: '/industrial-electrification', label: 'Industrial Electrification',   Icon: Zap        },
+  { to: '/industrial-electrification-x', label: 'Industrial Electrification X', Icon: Factory  },
   { to: '/offshore-wind-dev-analytics', label: 'Offshore Wind Dev Pipeline',  Icon: Wind       },
   { to: '/offshore-wind-finance',       label: 'Offshore Wind Finance',        Icon: Wind       },
   { to: '/carbon-offset-project',      label: 'Carbon Offset Projects',       Icon: Leaf       },
@@ -733,6 +737,8 @@ const NAV_ITEMS = [
   { to: '/energy-infrastructure-cyber-threat', label: 'Cyber Threat Analytics', Icon: Shield },
   { to: '/wholesale-gas-market', label: 'Wholesale Gas Market', Icon: Flame },
   { to: '/electricity-demand-forecasting-ml', label: 'Demand Forecast ML', Icon: Brain },
+  { to: '/energy-storage-merchant-revenue', label: 'Storage Merchant Revenue', Icon: DollarSign },
+  { to: '/transmission-access-reform', label: 'Transmission Access Reform', Icon: Network },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1133,6 +1139,9 @@ export default function App() {
               <Route path="/energy-infrastructure-cyber-threat" element={<EnergyInfrastructureCyberThreatAnalytics />} />
               <Route path="/wholesale-gas-market" element={<WholesaleGasMarketAnalytics />} />
               <Route path="/electricity-demand-forecasting-ml" element={<ElectricityDemandForecastingMLAnalytics />} />
+              <Route path="/energy-storage-merchant-revenue" element={<EnergyStorageMerchantRevenueAnalytics />} />
+              <Route path="/industrial-electrification-x" element={<IndustrialElectrificationXAnalytics />} />
+              <Route path="/transmission-access-reform" element={<TransmissionAccessReformAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

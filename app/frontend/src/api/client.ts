@@ -22774,3 +22774,185 @@ export interface EDFMXDashboard {
 
 export const getElectricityDemandForecastingMLXDashboard = (): Promise<EDFMXDashboard> =>
   get<EDFMXDashboard>('/api/electricity-demand-forecasting-ml-x/dashboard')
+
+// ── Industrial Electrification Analytics (INEAX) ──────────────────────────
+export interface INEAXSectorRecord {
+  sector: string
+  region: string
+  current_energy_pj: number
+  electrification_potential_pj: number
+  electrification_rate_pct: number
+  electricity_demand_increase_gwh: number
+  abatement_mtco2: number
+  cost_per_tonne_co2: number
+}
+export interface INEAXTechnology {
+  technology: string
+  sector: string
+  maturity: string
+  capex_m_per_unit: number
+  opex_k_per_yr: number
+  efficiency_gain_pct: number
+  deployment_2030_units: number
+  co2_reduction_mt_per_yr: number
+}
+export interface INEAXDemandProjection {
+  year: number
+  scenario: string
+  industrial_demand_twh: number
+  electrification_demand_twh: number
+  renewable_supply_pct: number
+  grid_peak_increase_gw: number
+}
+export interface INEAXCostBarrier {
+  barrier_name: string
+  sector: string
+  severity: string
+  estimated_cost_b: number
+  policy_support_required: string
+  timeline_to_overcome_yr: number
+}
+export interface INEAXPolicySupport {
+  program_name: string
+  administering_body: string
+  funding_m: number
+  eligible_sectors: string
+  electrification_focus: string
+  projects_funded: number
+  co2_reduction_target_mt: number
+}
+export interface INEAXDashboard {
+  sectors: INEAXSectorRecord[]
+  technologies: INEAXTechnology[]
+  demand_projections: INEAXDemandProjection[]
+  cost_barriers: INEAXCostBarrier[]
+  policy_support: INEAXPolicySupport[]
+  summary: Record<string, unknown>
+}
+export const getIndustrialElectrificationXDashboard = (): Promise<INEAXDashboard> =>
+  get<INEAXDashboard>('/api/industrial-electrification-x/dashboard')
+
+// ── Energy Storage Merchant Revenue Analytics ──────────────────────────────
+export interface ESMRRevenueRecord {
+  asset_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  energy_mwh: number
+  arbitrage_revenue_k: number
+  fcas_revenue_k: number
+  capacity_market_revenue_k: number
+  total_revenue_k: number
+  revenue_per_mw_k: number
+}
+export interface ESMRStackRecord {
+  revenue_stream: string
+  region: string
+  annual_value_k: number
+  market_share_pct: number
+  trend: string
+}
+export interface ESMRBatteryEconomics {
+  project_name: string
+  technology: string
+  capacity_mw: number
+  duration_hr: number
+  capex_m: number
+  opex_k_per_yr: number
+  irr_pct: number
+  payback_years: number
+  npv_m: number
+  lcoe_per_mwh: number
+}
+export interface ESMRPriceSpread {
+  month: string
+  region: string
+  avg_peak_price: number
+  avg_offpeak_price: number
+  spread_per_mwh: number
+  cycles_per_day: number
+  theoretical_revenue_k: number
+  actual_capture_pct: number
+}
+export interface ESMRMarketOutlook {
+  year: number
+  scenario: string
+  total_storage_gw: number
+  merchant_revenue_b: number
+  avg_irr_pct: number
+  capacity_factor_pct: number
+}
+export interface ESMRDashboard {
+  revenues: ESMRRevenueRecord[]
+  revenue_stacks: ESMRStackRecord[]
+  battery_economics: ESMRBatteryEconomics[]
+  price_spreads: ESMRPriceSpread[]
+  outlooks: ESMRMarketOutlook[]
+  summary: Record<string, unknown>
+}
+export const getEnergyStorageMerchantRevenueDashboard = (): Promise<ESMRDashboard> =>
+  get<ESMRDashboard>('/api/energy-storage-merchant-revenue/dashboard')
+
+// ── Transmission Access Reform Analytics ──────────────────────────────────
+export interface TARAReformTracker {
+  reform_name: string
+  status: string
+  region: string
+  start_year: number
+  expected_completion: number
+  estimated_benefit_m: number
+  generators_affected: number
+  rule_change_number: string
+}
+export interface TARACongestionData {
+  region_from: string
+  region_to: string
+  constraint_id: string
+  congestion_hours_yr: number
+  avg_congestion_cost_mwh: number
+  annual_congestion_cost_m: number
+  renewable_curtailment_pct: number
+  relief_under_reform_pct: number
+}
+export interface TARAAccessRight {
+  access_type: string
+  holder: string
+  region: string
+  capacity_mw: number
+  utilisation_pct: number
+  annual_fee_k: number
+  expiry_year: number
+}
+export interface TARAPriceImpact {
+  year: number
+  scenario: string
+  avg_spot_price_per_mwh: number
+  renewable_integration_pct: number
+  congestion_cost_m: number
+  consumer_benefit_m: number
+}
+export interface TARAStakeholder {
+  stakeholder: string
+  type: string
+  position: string
+  key_concern: string
+  submission_count: number
+}
+export interface TARARegulatoryTimeline {
+  milestone: string
+  reform_name: string
+  date: string
+  status: string
+  responsible_body: string
+}
+export interface TARADashboard {
+  reforms: TARAReformTracker[]
+  congestion: TARACongestionData[]
+  access_rights: TARAAccessRight[]
+  price_impacts: TARAPriceImpact[]
+  stakeholders: TARAStakeholder[]
+  timeline: TARARegulatoryTimeline[]
+  summary: Record<string, unknown>
+}
+export const getTransmissionAccessReformDashboard = (): Promise<TARADashboard> =>
+  get<TARADashboard>('/api/transmission-access-reform/dashboard')
