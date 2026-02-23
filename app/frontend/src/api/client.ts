@@ -27246,3 +27246,229 @@ export interface RSFTDashboard {
 }
 export const getRooftopSolarFeedInTariffDashboard = (): Promise<RSFTDashboard> =>
   get<RSFTDashboard>('/api/rooftop-solar-feed-in-tariff/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 141c — TWME: Tidal, Wave & Marine Energy Analytics
+// ---------------------------------------------------------------------------
+export interface TWMEResource {
+  site_id: string
+  site_name: string
+  state: string
+  resource_type: string
+  annual_energy_density_kwh_per_m2: number
+  potential_capacity_mw: number
+  water_depth_m: number
+  distance_from_shore_km: number
+  status: string
+  environmental_sensitivity: string
+}
+
+export interface TWMEProject {
+  project_id: string
+  project_name: string
+  site_id: string
+  developer: string
+  technology: string
+  capacity_kw: number
+  water_depth_m: number
+  capex_m_aud: number
+  lcoe_per_mwh: number
+  status: string
+}
+
+export interface TWMEProduction {
+  project_id: string
+  year: number
+  month: number
+  energy_output_mwh: number
+  capacity_factor_pct: number
+  availability_pct: number
+  significant_wave_height_m: number
+  tidal_velocity_ms: number
+}
+
+export interface TWMETechnology {
+  technology_name: string
+  technology_type: string
+  trl_level: number
+  global_installed_mw: number
+  australia_installed_kw: number
+  lcoe_range_low: number
+  lcoe_range_high: number
+  capacity_factor_low_pct: number
+  capacity_factor_high_pct: number
+  maturity_year: number
+}
+
+export interface TWMEInvestment {
+  year: number
+  funding_type: string
+  amount_m_aud: number
+  project_count: number
+  technology_type: string
+}
+
+export interface TWMESummary {
+  total_sites: number
+  total_projects: number
+  total_potential_mw: number
+  total_installed_kw: number
+  avg_lcoe_per_mwh: number
+  leading_technology: string
+  total_investment_m_aud: number
+}
+
+export interface TWMEDashboard {
+  resources: TWMEResource[]
+  projects: TWMEProject[]
+  production: TWMEProduction[]
+  technologies: TWMETechnology[]
+  investments: TWMEInvestment[]
+  summary: TWMESummary
+}
+
+export const getTidalWaveMarineEnergyDashboard = (): Promise<TWMEDashboard> =>
+  get<TWMEDashboard>('/api/tidal-wave-marine-energy/dashboard')
+export interface EWMLRegionLiquidity {
+  region: string
+  year: number
+  traded_volume_twh: number
+  physical_volume_twh: number
+  churn_ratio: number
+  bid_ask_spread_mwh: number
+  market_depth_mw: number
+  active_participants: number
+  hhi_index: number
+}
+export interface EWMLPriceFormation {
+  region: string
+  year: number
+  month: number
+  vwap_mwh: number
+  volume_weighted_median_mwh: number
+  price_volatility_pct: number
+  negative_price_pct: number
+  cap_price_hit_count: number
+  mcsp_count: number
+}
+export interface EWMLParticipant {
+  participant_id: string
+  participant_name: string
+  participant_type: string
+  region_presence: string
+  traded_volume_twh_2024: number
+  market_share_pct: number
+  net_position_twh: number
+  registered_capacity_mw: number
+}
+export interface EWMLForwardCurve {
+  product: string
+  contract_year: number
+  region: string
+  forward_price_mwh: number
+  basis_to_nsw: number
+  open_interest_twh: number
+  settlement_date_yr: number
+}
+export interface EWMLSettlement {
+  year: number
+  quarter: string
+  region: string
+  settlement_amount_m_aud: number
+  prudential_capital_m_aud: number
+  default_events: number
+  uplift_payments_m_aud: number
+}
+export interface EWMLSummary {
+  total_traded_volume_twh: number
+  avg_churn_ratio: number
+  avg_hhi: number
+  most_liquid_region: string
+  total_active_participants: number
+  avg_bid_ask_spread: number
+  total_settlement_m_aud: number
+}
+export interface EWMLDashboard {
+  region_liquidity: EWMLRegionLiquidity[]
+  price_formation: EWMLPriceFormation[]
+  participants: EWMLParticipant[]
+  forward_curve: EWMLForwardCurve[]
+  settlement: EWMLSettlement[]
+  summary: EWMLSummary
+}
+export const getElectricityWholesaleMarketLiquidityDashboard = (): Promise<EWMLDashboard> =>
+  get<EWMLDashboard>('/api/wholesale-market-liquidity/dashboard')
+
+// ---------------------------------------------------------------------------
+// GEPA — Geothermal Energy Potential Analytics
+// ---------------------------------------------------------------------------
+export interface GEPAResource {
+  resource_id: string
+  resource_name: string
+  state: string
+  resource_type: string
+  depth_km: number
+  temperature_c: number
+  gradient_c_per_km: number
+  potential_capacity_mw: number
+  estimated_area_km2: number
+  status: string
+}
+export interface GEPAProject {
+  project_id: string
+  project_name: string
+  resource_id: string
+  developer: string
+  capacity_mw_proposed: number
+  drilling_depth_km: number
+  capex_m_aud: number
+  lcoe_per_mwh: number
+  commissioning_year: number
+  status: string
+}
+export interface GEPATechnology {
+  technology_type: string
+  efficiency_pct: number
+  capacity_factor_pct: number
+  water_use_l_per_mwh: number
+  co2_intensity_gco2_per_kwh: number
+  maturity_level: string
+  suitable_temperature_range: string
+}
+export interface GEPACostCurve {
+  year: number
+  scenario: string
+  technology_type: string
+  lcoe_per_mwh: number
+  capex_per_kw: number
+  deployment_gw: number
+}
+export interface GEPAComparison {
+  metric: string
+  geothermal: number
+  coal: number
+  gas_peaker: number
+  large_solar: number
+  onshore_wind: number
+  offshore_wind: number
+  pumped_hydro: number
+}
+export interface GEPASummary {
+  total_potential_capacity_mw: number
+  active_projects: number
+  avg_gradient_c_per_km: number
+  best_resource_basin: string
+  lowest_lcoe_per_mwh: number
+  target_deployment_gw_2050: number
+  estimated_jobs_2050: number
+}
+export interface GEPADashboard {
+  resources: GEPAResource[]
+  projects: GEPAProject[]
+  technologies: GEPATechnology[]
+  cost_curves: GEPACostCurve[]
+  comparisons: GEPAComparison[]
+  summary: GEPASummary
+}
+export const getGeothermalEnergyPotentialDashboard = (): Promise<GEPADashboard> =>
+  get<GEPADashboard>('/api/geothermal-energy-potential/dashboard')

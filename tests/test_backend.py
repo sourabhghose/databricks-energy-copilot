@@ -20222,3 +20222,212 @@ class TestECMADashboard:
             assert "renewable_fraction_pct" in mg, (
                 f"Missing renewable_fraction_pct in microgrid {mg.get('microgrid_id')}"
             )
+
+
+# ===========================================================================
+# TestEWMLDashboard — Sprint 141a
+# ===========================================================================
+
+class TestEWMLDashboard:
+    """9 tests for GET /api/wholesale-market-liquidity/dashboard (EWML)."""
+
+    URL = "/api/wholesale-market-liquidity/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six expected top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("region_liquidity", "price_formation", "participants",
+                    "forward_curve", "settlement", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_region_liquidity_count(self):
+        """region_liquidity must contain exactly 15 records (5 regions × 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["region_liquidity"]) == 15
+
+    def test_price_formation_count(self):
+        """price_formation must contain exactly 60 records (5 regions × 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_formation"]) == 60
+
+    def test_participants_count(self):
+        """participants must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["participants"]) == 25
+
+    def test_forward_curve_count(self):
+        """forward_curve must contain exactly 36 records (6 products × 3 years × 2 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["forward_curve"]) == 36
+
+    def test_settlement_count(self):
+        """settlement must contain exactly 24 records (2 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["settlement"]) == 24
+
+    def test_summary_has_total_traded_volume_twh(self):
+        """summary must include total_traded_volume_twh field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_traded_volume_twh" in data["summary"]
+
+    def test_all_participants_have_traded_volume_twh_2024(self):
+        """Every participant record must include traded_volume_twh_2024."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for p in data["participants"]:
+            assert "traded_volume_twh_2024" in p, (
+                f"Missing traded_volume_twh_2024 in participant {p.get('participant_id')}"
+            )
+
+
+# ===========================================================================
+# TestTWMEDashboard — Tidal, Wave & Marine Energy Analytics  (Sprint 141c)
+# ===========================================================================
+
+class TestTWMEDashboard:
+    """9 tests for GET /api/tidal-wave-marine-energy/dashboard."""
+
+    URL = "/api/tidal-wave-marine-energy/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "resources" in data
+        assert "projects" in data
+        assert "production" in data
+        assert "technologies" in data
+        assert "investments" in data
+        assert "summary" in data
+
+    def test_resources_count(self):
+        """resources list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["resources"]) == 10
+
+    def test_projects_count(self):
+        """projects list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 12
+
+    def test_production_count(self):
+        """production list must contain exactly 36 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["production"]) == 36
+
+    def test_technologies_count(self):
+        """technologies list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["technologies"]) == 15
+
+    def test_investments_count(self):
+        """investments list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["investments"]) == 20
+
+    def test_summary_has_total_sites(self):
+        """summary must include a total_sites field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_sites" in data["summary"]
+
+    def test_all_projects_have_lcoe_per_mwh(self):
+        """Every project record must include lcoe_per_mwh."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for project in data["projects"]:
+            assert "lcoe_per_mwh" in project, (
+                f"Missing lcoe_per_mwh in project {project.get('project_id')}"
+            )
+
+
+class TestGEPADashboard:
+    """9 tests for GET /api/geothermal-energy-potential/dashboard."""
+
+    URL = "/api/geothermal-energy-potential/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "resources" in data
+        assert "projects" in data
+        assert "technologies" in data
+        assert "cost_curves" in data
+        assert "comparisons" in data
+        assert "summary" in data
+
+    def test_resources_count(self):
+        """resources list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["resources"]) == 12
+
+    def test_projects_count(self):
+        """projects list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 10
+
+    def test_technologies_count(self):
+        """technologies list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["technologies"]) == 20
+
+    def test_cost_curves_count(self):
+        """cost_curves list must contain exactly 30 records (5 years × 3 tech × 2 scenarios)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_curves"]) == 30
+
+    def test_comparisons_count(self):
+        """comparisons list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["comparisons"]) == 15
+
+    def test_summary_has_total_potential_capacity_mw(self):
+        """summary must have a total_potential_capacity_mw field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_potential_capacity_mw" in data["summary"]
+
+    def test_all_resources_have_potential_capacity_mw(self):
+        """Every resource record must include potential_capacity_mw."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for res in data["resources"]:
+            assert "potential_capacity_mw" in res, (
+                f"Missing potential_capacity_mw in resource {res.get('resource_id')}"
+            )

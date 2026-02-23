@@ -481,6 +481,9 @@ import RooftopSolarFeedInTariffAnalytics from './pages/RooftopSolarFeedInTariffA
 import LngExportAnalytics from './pages/LngExportAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 import EnergyCommunityMicrogridAnalytics from './pages/EnergyCommunityMicrogridAnalytics'
+import ElectricityWholesaleMarketLiquidityAnalytics from './pages/ElectricityWholesaleMarketLiquidityAnalytics'
+import TidalWaveMarineEnergyAnalytics from './pages/TidalWaveMarineEnergyAnalytics'
+import GeothermalEnergyAnalytics from './pages/GeothermalEnergyAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -872,6 +875,9 @@ const NAV_ITEMS = [
   { to: '/lng-export',        label: 'LNG Export',         Icon: Ship           },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
   { to: '/community-microgrids', label: 'Community Microgrids', Icon: HomeIcon },
+  { to: '/ewml-dashboard', label: 'Wholesale Liquidity', Icon: BarChart2 },
+  { to: '/marine-energy',  label: 'Marine Energy',      Icon: Waves     },
+  { to: '/geothermal-energy', label: 'Geothermal Energy', Icon: Thermometer },
 ]
 
 function Sidebar() {
@@ -1338,6 +1344,9 @@ export default function App() {
               <Route path="/lng-export"        element={<LngExportAnalytics />}  />
               <Route path="/settings"          element={<Settings />}            />
               <Route path="/community-microgrids" element={<EnergyCommunityMicrogridAnalytics />} />
+              <Route path="/ewml-dashboard" element={<ElectricityWholesaleMarketLiquidityAnalytics />} />
+              <Route path="/marine-energy"  element={<TidalWaveMarineEnergyAnalytics />}               />
+              <Route path="/geothermal-energy" element={<GeothermalEnergyAnalytics />} />
             </Routes>
           </main>
         </div>
