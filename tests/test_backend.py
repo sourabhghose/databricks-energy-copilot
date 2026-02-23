@@ -19699,3 +19699,187 @@ class TestTransmissionCongestionRevenueDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestElectricityMarketDesignReformDashboard — Sprint 138b
+# ===========================================================================
+
+class TestElectricityMarketDesignReformDashboard:
+    URL = "/api/electricity-market-design-reform/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["reforms", "implementation_progress", "market_impacts",
+                    "stakeholder_positions", "comparative_designs", "summary"]:
+            assert key in data
+
+    def test_reforms_count(self):
+        # 15 reform items defined in reform_data
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["reforms"]) == 15
+
+    def test_implementation_progress_count(self):
+        # 15 reforms × 3 years = 45
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["implementation_progress"]) == 45
+
+    def test_market_impacts_count(self):
+        # 15 reforms × 3 metrics each = 45
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_impacts"]) == 45
+
+    def test_stakeholder_positions_count(self):
+        # 10 reforms × 6 stakeholder types = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stakeholder_positions"]) == 60
+
+    def test_comparative_designs_count(self):
+        # 5 design elements × 6 jurisdictions = 30
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["comparative_designs"]) == 30
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_reforms_tracked" in summary
+        assert "implemented_reforms" in summary
+        assert "total_annual_benefit_m" in summary
+        assert "reforms_in_consultation" in summary
+        assert "highest_benefit_reform" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCarbonCaptureUtilisationDashboard:
+    URL = "/api/carbon-capture-utilisation/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert "capture_performance" in data
+        assert "storage_monitoring" in data
+        assert "cost_curves" in data
+        assert "policy_instruments" in data
+        assert "summary" in data
+
+    def test_projects_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 8
+
+    def test_capture_performance_has_records(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["capture_performance"]) > 0
+
+    def test_storage_monitoring_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["storage_monitoring"]) == 4
+
+    def test_cost_curves_has_records(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_curves"]) > 0
+
+    def test_policy_instruments_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["policy_instruments"]) == 25
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_capture_capacity_mtpa" in summary
+        assert "total_captured_to_date_mt" in summary
+        assert "avg_capture_cost_aud_tco2" in summary
+        assert "operating_projects" in summary
+        assert "total_storage_capacity_mt" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestGridScaleBatteryDegradationDashboard:
+    URL = "/api/grid-scale-battery-degradation/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["batteries", "health_metrics", "cycling_patterns", "degradation_models", "maintenance_events", "summary"]:
+            assert key in data, f"Missing key: {key}"
+
+    def test_batteries_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["batteries"]) == 8
+
+    def test_health_metrics_positive(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["health_metrics"]) > 0
+
+    def test_cycling_patterns_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 8 batteries × 3 years × 12 months = 288
+        assert len(data["cycling_patterns"]) == 288
+
+    def test_degradation_models_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 3 chemistries × 3 model types × 4 temperatures × 5 operating year points = 180
+        assert len(data["degradation_models"]) == 180
+
+    def test_maintenance_events_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["maintenance_events"]) == 25
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "avg_fleet_soh_pct" in summary
+        assert "total_capacity_loss_mwh" in summary
+        assert "oldest_battery_name" in summary
+        assert "highest_degradation_rate_pa_pct" in summary
+        assert "total_maintenance_cost_m" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

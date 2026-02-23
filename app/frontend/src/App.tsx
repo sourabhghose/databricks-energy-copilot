@@ -89,6 +89,7 @@ import {
   UserMinus,
   PauseCircle,
   Gavel,
+  Cloud,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -470,6 +471,9 @@ import HydrogenElectrolysisCostAnalytics from './pages/HydrogenElectrolysisCostA
 import ElectricityDemandElasticityAnalytics from './pages/ElectricityDemandElasticityAnalytics'
 import NuclearEnergyFeasibilityAnalytics from './pages/NuclearEnergyFeasibilityAnalytics'
 import TransmissionCongestionRevenueAnalytics from './pages/TransmissionCongestionRevenueAnalytics'
+import ElectricityMarketDesignReformAnalytics from './pages/ElectricityMarketDesignReformAnalytics'
+import CarbonCaptureUtilisationAnalytics from './pages/CarbonCaptureUtilisationAnalytics'
+import GridScaleBatteryDegradationAnalytics from './pages/GridScaleBatteryDegradationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -852,6 +856,9 @@ const NAV_ITEMS = [
   { to: '/electricity-demand-elasticity', label: 'Demand Elasticity', Icon: TrendingDown },
   { to: '/nuclear-energy-feasibility', label: 'Nuclear Feasibility', Icon: Atom },
   { to: '/transmission-congestion-revenue', label: 'Congestion Revenue', Icon: GitBranch },
+  { to: '/electricity-market-design-reform', label: 'Market Design Reform', Icon: BookOpen },
+  { to: '/carbon-capture-utilisation', label: 'Carbon Capture (CCUS)', Icon: Cloud },
+  { to: '/grid-scale-battery-degradation', label: 'Battery Degradation', Icon: Battery },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1309,6 +1316,9 @@ export default function App() {
               <Route path="/electricity-demand-elasticity" element={<ElectricityDemandElasticityAnalytics />} />
               <Route path="/nuclear-energy-feasibility" element={<NuclearEnergyFeasibilityAnalytics />} />
               <Route path="/transmission-congestion-revenue" element={<TransmissionCongestionRevenueAnalytics />} />
+              <Route path="/electricity-market-design-reform" element={<ElectricityMarketDesignReformAnalytics />} />
+              <Route path="/carbon-capture-utilisation" element={<CarbonCaptureUtilisationAnalytics />} />
+              <Route path="/grid-scale-battery-degradation" element={<GridScaleBatteryDegradationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

@@ -26595,3 +26595,212 @@ export interface TCRADashboard {
 }
 export const getTransmissionCongestionRevenueDashboard = (): Promise<TCRADashboard> =>
   get<TCRADashboard>('/api/transmission-congestion-revenue/dashboard')
+
+// ── Electricity Market Design Reform Analytics (EMDR) ─────────────────────
+export interface EMDRReform {
+  reform_id: string
+  reform_name: string
+  category: string
+  proponent: string
+  status: string
+  implementation_year: number
+  consumer_benefit_m_pa: number
+  complexity: string
+  reform_description: string
+}
+export interface EMDRImplementationProgress {
+  reform_id: string
+  year: number
+  progress_pct: number
+  milestone: string
+  stakeholder_support_pct: number
+  issues_raised: number
+}
+export interface EMDRMarketImpact {
+  reform_id: string
+  metric_name: string
+  baseline_value: number
+  projected_value: number
+  unit: string
+  confidence: string
+  timeframe_years: number
+}
+export interface EMDRStakeholderPosition {
+  reform_id: string
+  stakeholder_type: string
+  position: string
+  key_concern: string
+  influence_level: string
+}
+export interface EMDRComparativeDesign {
+  design_element: string
+  jurisdiction: string
+  design_type: string
+  pros: string
+  cons: string
+  applicability_to_nem: string
+}
+export interface EMDRSummary {
+  total_reforms_tracked: number
+  implemented_reforms: number
+  total_annual_benefit_m: number
+  reforms_in_consultation: number
+  highest_benefit_reform: string
+}
+export interface EMDRDashboard {
+  reforms: EMDRReform[]
+  implementation_progress: EMDRImplementationProgress[]
+  market_impacts: EMDRMarketImpact[]
+  stakeholder_positions: EMDRStakeholderPosition[]
+  comparative_designs: EMDRComparativeDesign[]
+  summary: EMDRSummary
+}
+export const getElectricityMarketDesignReformDashboard = (): Promise<EMDRDashboard> =>
+  get<EMDRDashboard>('/api/electricity-market-design-reform/dashboard')
+
+// ── Carbon Capture Utilisation Storage Analytics (CCUS) ───────────────────
+export interface CCUSProject {
+  project_id: string
+  project_name: string
+  state: string
+  sector: string
+  technology: string
+  status: string
+  capture_capacity_mtpa: number
+  storage_type: string
+  capex_b_aud: number
+  opex_m_pa: number
+  operator: string
+  commissioning_year: number
+}
+export interface CCUSCapturePerformance {
+  project_id: string
+  year: number
+  quarter: number
+  co2_captured_kt: number
+  capture_efficiency_pct: number
+  energy_penalty_pct: number
+  solvent_consumption_t_tco2: number
+  availability_pct: number
+  co2_avoided_kt: number
+}
+export interface CCUSStorageMonitoring {
+  storage_site_id: string
+  site_name: string
+  state: string
+  storage_type: string
+  total_capacity_mt: number
+  injected_to_date_mt: number
+  injection_rate_mt_pa: number
+  monitoring_wells: number
+  plume_area_km2: number
+  integrity_status: string
+}
+export interface CCUSCostCurve {
+  technology: string
+  sector: string
+  year: number
+  capture_cost_aud_tco2: number
+  transport_cost_aud_tco2: number
+  storage_cost_aud_tco2: number
+  total_cost_aud_tco2: number
+  vs_carbon_price_aud_tco2: number
+}
+export interface CCUSPolicyInstrument {
+  instrument: string
+  jurisdiction: string
+  annual_support_m: number
+  projects_supported: number
+  co2_incentivised_mt: number
+  cost_effectiveness_aud_tco2: number
+}
+export interface CCUSSummary {
+  total_capture_capacity_mtpa: number
+  total_captured_to_date_mt: number
+  avg_capture_cost_aud_tco2: number
+  operating_projects: number
+  total_storage_capacity_mt: number
+}
+export interface CCUSDashboard {
+  projects: CCUSProject[]
+  capture_performance: CCUSCapturePerformance[]
+  storage_monitoring: CCUSStorageMonitoring[]
+  cost_curves: CCUSCostCurve[]
+  policy_instruments: CCUSPolicyInstrument[]
+  summary: CCUSSummary
+}
+export const getCarbonCaptureUtilisationDashboard = (): Promise<CCUSDashboard> =>
+  get<CCUSDashboard>('/api/carbon-capture-utilisation/dashboard')
+
+// ── Grid-Scale Battery Degradation Analytics (GSBD) ──────────────────────
+export interface GSBDBattery {
+  battery_id: string
+  battery_name: string
+  region: string
+  chemistry: string
+  capacity_mwh: number
+  power_mw: number
+  commissioning_year: number
+  operating_years: number
+  manufacturer: string
+  warranty_soh_pct: number
+  warranty_years: number
+}
+export interface GSBDHealthMetric {
+  battery_id: string
+  year: number
+  quarter: number
+  state_of_health_pct: number
+  remaining_capacity_mwh: number
+  internal_resistance_mohm: number
+  calendar_degradation_pct: number
+  cycle_degradation_pct: number
+  temperature_avg_c: number
+  cycles_completed: number
+}
+export interface GSBDCyclingPattern {
+  battery_id: string
+  year: number
+  month: number
+  full_cycles: number
+  avg_dod_pct: number
+  charge_rate_avg_c: number
+  peak_temperature_c: number
+  high_stress_cycles: number
+}
+export interface GSBDDegradationModel {
+  chemistry: string
+  model_type: string
+  temperature_c: number
+  operating_years: number
+  predicted_soh_pct: number
+  lower_bound_pct: number
+  upper_bound_pct: number
+  key_driver: string
+}
+export interface GSBDMaintenanceEvent {
+  battery_id: string
+  event_date: string
+  event_type: string
+  affected_capacity_mwh: number
+  cost_m: number
+  soh_recovery_pct: number
+  downtime_hours: number
+}
+export interface GSBDSummary {
+  avg_fleet_soh_pct: number
+  total_capacity_loss_mwh: number
+  oldest_battery_name: string
+  highest_degradation_rate_pa_pct: number
+  total_maintenance_cost_m: number
+}
+export interface GSBDDashboard {
+  batteries: GSBDBattery[]
+  health_metrics: GSBDHealthMetric[]
+  cycling_patterns: GSBDCyclingPattern[]
+  degradation_models: GSBDDegradationModel[]
+  maintenance_events: GSBDMaintenanceEvent[]
+  summary: GSBDSummary
+}
+export const getGridScaleBatteryDegradationDashboard = (): Promise<GSBDDashboard> =>
+  get<GSBDDashboard>('/api/grid-scale-battery-degradation/dashboard')
