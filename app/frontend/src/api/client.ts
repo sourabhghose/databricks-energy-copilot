@@ -28724,3 +28724,264 @@ export interface EPFMDashboard {
 
 export const getElectricityPriceForecastingDashboard = (): Promise<EPFMDashboard> =>
   get<EPFMDashboard>('/api/electricity-price-forecasting/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 147a — Wind Farm Wake Effect & Turbine Performance Analytics (WFWT)
+// ---------------------------------------------------------------------------
+
+export interface WFWTFarm {
+  farm_id: string
+  farm_name: string
+  state: string
+  turbine_count: number
+  turbine_model: string
+  turbine_rated_mw: number
+  hub_height_m: number
+  rotor_diameter_m: number
+  installed_capacity_mw: number
+  avg_wind_speed_ms: number
+  gross_aep_gwh: number
+  net_aep_gwh: number
+  wake_loss_pct: number
+}
+
+export interface WFWTTurbine {
+  turbine_id: string
+  farm_id: string
+  row_position: string
+  wake_exposure_pct: number
+  annual_energy_mwh: number
+  capacity_factor_pct: number
+  availability_pct: number
+  p50_energy_mwh: number
+  yield_ratio_pct: number
+  fault_count_ytd: number
+}
+
+export interface WFWTPerformance {
+  farm_id: string
+  year: number
+  month: number
+  wind_speed_avg_ms: number
+  wind_speed_p90_ms: number
+  gross_output_mwh: number
+  net_output_mwh: number
+  wake_loss_mwh: number
+  availability_pct: number
+  curtailment_mwh: number
+}
+
+export interface WFWTOptimisation {
+  farm_id: string
+  optimisation_strategy: string
+  annual_aep_gain_mwh: number
+  implementation_cost_k_aud: number
+  payback_years: number
+  status: string
+}
+
+export interface WFWTFault {
+  turbine_id: string
+  fault_type: string
+  downtime_hrs: number
+  energy_lost_mwh: number
+  repair_cost_k_aud: number
+  year: number
+  severity: string
+}
+
+export interface WFWTSummary {
+  total_farms: number
+  total_turbines: number
+  avg_wake_loss_pct: number
+  total_net_aep_gwh: number
+  avg_availability_pct: number
+  best_performing_farm: string
+  total_optimisation_gain_mwh: number
+}
+
+export interface WFWTDashboard {
+  farms: WFWTFarm[]
+  turbines: WFWTTurbine[]
+  performance: WFWTPerformance[]
+  optimisation: WFWTOptimisation[]
+  faults: WFWTFault[]
+  summary: WFWTSummary
+}
+
+export const getWindFarmWakeTurbineDashboard = (): Promise<WFWTDashboard> =>
+  get<WFWTDashboard>('/api/wind-farm-wake-turbine/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 147c — ENALC: Electricity Network Asset Life Cycle Analytics
+// ---------------------------------------------------------------------------
+
+export interface ENALCAssetClass {
+  class_id: string
+  class_name: string
+  total_count: number
+  avg_age_years: number
+  design_life_years: number
+  pct_past_design_life: number
+  condition_score: number
+  replacement_priority: string
+  avg_replacement_cost_k_aud: number
+}
+
+export interface ENALCCondition {
+  asset_id: string
+  class_id: string
+  owner: string
+  age_years: number
+  condition_score: number
+  last_inspection_year: number
+  next_inspection_year: number
+  failure_probability_pct: number
+  risk_score: number
+  action_required: string
+}
+
+export interface ENALCReplacement {
+  project_id: string
+  class_id: string
+  owner: string
+  asset_count: number
+  replacement_year: number
+  capex_m_aud: number
+  benefit_m_aud: number
+  benefit_cost_ratio: number
+  regulatory_approved: boolean
+  priority: string
+  status: string
+}
+
+export interface ENALCReliabilityImpact {
+  owner: string
+  year: number
+  asset_related_saidi_mins: number
+  asset_related_saifi_count: number
+  forced_outage_rate_pct: number
+  asset_failure_events: number
+  unserved_energy_mwh: number
+  maintenance_cost_m_aud: number
+}
+
+export interface ENALCSpend {
+  owner: string
+  year: number
+  quarter: string
+  capex_m_aud: number
+  opex_m_aud: number
+  replacement_capex_m_aud: number
+  augmentation_capex_m_aud: number
+  condition_based_maint_m_aud: number
+  corrective_maint_m_aud: number
+}
+
+export interface ENALCSummary {
+  total_asset_count: number
+  avg_condition_score: number
+  pct_past_design_life: number
+  total_replacement_capex_pipeline_m_aud: number
+  critical_assets_count: number
+  avg_failure_probability_pct: number
+  total_spend_2024_m_aud: number
+}
+
+export interface ENALCDashboard {
+  asset_classes: ENALCAssetClass[]
+  conditions: ENALCCondition[]
+  replacements: ENALCReplacement[]
+  reliability_impact: ENALCReliabilityImpact[]
+  spend: ENALCSpend[]
+  summary: ENALCSummary
+}
+
+export const getNetworkAssetLifeCycleDashboard = (): Promise<ENALCDashboard> =>
+  get<ENALCDashboard>('/api/network-asset-life-cycle/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 147b — EPHPX: Energy Poverty & Hardship Program Analytics
+// ---------------------------------------------------------------------------
+
+export interface EPHPXRegion {
+  region_id: string
+  region_name: string
+  state: string
+  hardship_customers_k: number
+  hardship_rate_pct: number
+  avg_arrears_aud: number
+  avg_bill_aud: number
+  disconnection_rate_pct: number
+  reconnection_rate_pct: number
+  concession_eligibility_pct: number
+}
+
+export interface EPHPXProgram {
+  program_id: string
+  program_name: string
+  program_type: string
+  jurisdiction: string
+  beneficiaries_k: number
+  annual_benefit_aud: number
+  cost_m_aud: number
+  effectiveness_score: number
+  status: string
+}
+
+export interface EPHPXTrend {
+  region_id: string
+  year: number
+  quarter: string
+  hardship_customers_k: number
+  new_hardship_customers_k: number
+  exited_hardship_k: number
+  disconnections: number
+  reconnections: number
+  payment_plans_active_k: number
+  concession_payments_m_aud: number
+}
+
+export interface EPHPXAffordability {
+  income_decile: number
+  state: string
+  avg_energy_bill_aud: number
+  avg_income_aud: number
+  energy_affordability_ratio_pct: number
+  solar_ownership_pct: number
+  concession_receipt_pct: number
+  energy_stress_pct: number
+}
+
+export interface EPHPXRetailerCompliance {
+  retailer_name: string
+  year: number
+  hardship_policy_compliant: boolean
+  proactive_outreach_pct: number
+  payment_plan_offer_rate_pct: number
+  disconnection_before_hardship_pct: number
+  aer_audit_score: number
+  complaint_rate_per_1k: number
+}
+
+export interface EPHPXSummary {
+  total_hardship_customers_k: number
+  avg_hardship_rate_pct: number
+  total_program_cost_m_aud: number
+  total_beneficiaries_k: number
+  most_affected_state: string
+  avg_arrears_aud: number
+  total_disconnections_2024: number
+}
+
+export interface EPHPXDashboard {
+  regions: EPHPXRegion[]
+  programs: EPHPXProgram[]
+  trends: EPHPXTrend[]
+  affordability: EPHPXAffordability[]
+  retailer_compliance: EPHPXRetailerCompliance[]
+  summary: EPHPXSummary
+}
+
+export const getEnergyPovertyHardshipXDashboard = (): Promise<EPHPXDashboard> =>
+  get<EPHPXDashboard>('/api/energy-poverty-hardship-x/dashboard')

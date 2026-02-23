@@ -21529,3 +21529,245 @@ class TestEPFMDashboard:
             assert "mape_pct" in model, (
                 f"Missing mape_pct in model {model.get('model_id')}"
             )
+
+
+# ===========================================================================
+# TestWindFarmWakeTurbineDashboard  (Sprint 147a — WFWT)
+# ===========================================================================
+
+class TestWindFarmWakeTurbineDashboard:
+    """Tests for /api/wind-farm-wake-turbine/dashboard (WFWT — Sprint 147a)."""
+
+    URL = "/api/wind-farm-wake-turbine/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_dashboard_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("farms", "turbines", "performance", "optimisation", "faults", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_farms_count(self):
+        """farms list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["farms"]) == 10, (
+            f"Expected 10 farms, got {len(data['farms'])}"
+        )
+
+    def test_turbines_count(self):
+        """turbines list must contain exactly 50 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["turbines"]) == 50, (
+            f"Expected 50 turbines, got {len(data['turbines'])}"
+        )
+
+    def test_performance_count(self):
+        """performance list must contain exactly 60 records (5 farms x 3 years x 4 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["performance"]) == 60, (
+            f"Expected 60 performance records, got {len(data['performance'])}"
+        )
+
+    def test_optimisation_count(self):
+        """optimisation list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["optimisation"]) == 20, (
+            f"Expected 20 optimisation records, got {len(data['optimisation'])}"
+        )
+
+    def test_faults_count(self):
+        """faults list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["faults"]) == 30, (
+            f"Expected 30 faults, got {len(data['faults'])}"
+        )
+
+    def test_summary_has_avg_wake_loss_pct(self):
+        """summary must contain the avg_wake_loss_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_wake_loss_pct" in data["summary"], (
+            "Missing avg_wake_loss_pct in summary"
+        )
+
+    def test_all_farms_have_wake_loss_pct(self):
+        """Every farm record must include the wake_loss_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for farm in data["farms"]:
+            assert "wake_loss_pct" in farm, (
+                f"Missing wake_loss_pct in farm {farm.get('farm_id')}"
+            )
+
+
+# ===========================================================================
+# TestENALCDashboard — Sprint 147c: Electricity Network Asset Life Cycle Analytics
+# ===========================================================================
+
+class TestENALCDashboard:
+    """9 tests for GET /api/network-asset-life-cycle/dashboard."""
+
+    URL = "/api/network-asset-life-cycle/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("asset_classes", "conditions", "replacements",
+                    "reliability_impact", "spend", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_asset_classes_count(self):
+        """asset_classes list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["asset_classes"]) == 12, (
+            f"Expected 12 asset_classes, got {len(data['asset_classes'])}"
+        )
+
+    def test_conditions_count(self):
+        """conditions list must contain exactly 40 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["conditions"]) == 40, (
+            f"Expected 40 conditions, got {len(data['conditions'])}"
+        )
+
+    def test_replacements_count(self):
+        """replacements list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["replacements"]) == 30, (
+            f"Expected 30 replacements, got {len(data['replacements'])}"
+        )
+
+    def test_reliability_impact_count(self):
+        """reliability_impact list must contain exactly 24 records (8 owners × 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["reliability_impact"]) == 24, (
+            f"Expected 24 reliability_impact records, got {len(data['reliability_impact'])}"
+        )
+
+    def test_spend_count(self):
+        """spend list must contain exactly 36 records (3 owners × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["spend"]) == 36, (
+            f"Expected 36 spend records, got {len(data['spend'])}"
+        )
+
+    def test_summary_has_avg_condition_score(self):
+        """summary must contain avg_condition_score field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_condition_score" in data["summary"], (
+            "Missing avg_condition_score in summary"
+        )
+
+    def test_all_asset_classes_have_condition_score(self):
+        """Every asset_class record must include the condition_score field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for ac in data["asset_classes"]:
+            assert "condition_score" in ac, (
+                f"Missing condition_score in asset_class {ac.get('class_id')}"
+            )
+
+
+# ===========================================================================
+# TestEPHPXDashboard — Sprint 147b: Energy Poverty & Hardship Program Analytics
+# ===========================================================================
+
+class TestEPHPXDashboard:
+    """9 tests for GET /api/energy-poverty-hardship-x/dashboard."""
+
+    URL = "/api/energy-poverty-hardship-x/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("regions", "programs", "trends", "affordability",
+                    "retailer_compliance", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_regions_count(self):
+        """regions list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regions"]) == 10, (
+            f"Expected 10 regions, got {len(data['regions'])}"
+        )
+
+    def test_programs_count(self):
+        """programs list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["programs"]) == 20, (
+            f"Expected 20 programs, got {len(data['programs'])}"
+        )
+
+    def test_trends_count(self):
+        """trends list must contain exactly 60 records (5 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["trends"]) == 60, (
+            f"Expected 60 trends, got {len(data['trends'])}"
+        )
+
+    def test_affordability_count(self):
+        """affordability list must contain exactly 25 records (5 deciles × 5 states)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["affordability"]) == 25, (
+            f"Expected 25 affordability records, got {len(data['affordability'])}"
+        )
+
+    def test_retailer_compliance_count(self):
+        """retailer_compliance list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["retailer_compliance"]) == 20, (
+            f"Expected 20 retailer_compliance records, got {len(data['retailer_compliance'])}"
+        )
+
+    def test_summary_has_total_hardship_customers_k(self):
+        """summary must contain total_hardship_customers_k field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_hardship_customers_k" in data["summary"], (
+            "Missing total_hardship_customers_k in summary"
+        )
+
+    def test_all_programs_have_effectiveness_score(self):
+        """Every program record must include the effectiveness_score field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for prog in data["programs"]:
+            assert "effectiveness_score" in prog, (
+                f"Missing effectiveness_score in program {prog.get('program_id')}"
+            )

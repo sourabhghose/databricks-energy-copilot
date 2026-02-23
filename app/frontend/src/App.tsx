@@ -499,6 +499,9 @@ import RetailerFinancialHealthAnalytics from './pages/RetailerFinancialHealthAna
 import SolarFarmPerformanceAnalytics from './pages/SolarFarmPerformanceAnalytics'
 import GasNetworkPipelineAnalytics from './pages/GasNetworkPipelineAnalytics'
 import ElectricityPriceForecastingAnalytics from './pages/ElectricityPriceForecastingAnalytics'
+import NetworkAssetLifeCycleAnalytics from './pages/NetworkAssetLifeCycleAnalytics'
+import WindFarmWakeTurbineAnalytics from './pages/WindFarmWakeTurbineAnalytics'
+import EnergyPovertyHardshipXAnalytics from './pages/EnergyPovertyHardshipXAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -840,6 +843,7 @@ const NAV_ITEMS = [
   { to: '/utility-solar-farm-operations', label: 'Utility Solar Farm Operations', Icon: Sun },
   { to: '/wind-farm-wake-effect', label: 'Wind Farm Wake Effect & Layout Optimisation', Icon: Wind },
   { to: '/energy-poverty-hardship', label: 'Energy Poverty & Hardship Analytics', Icon: Heart },
+  { to: '/energy-poverty-hardship-x', label: 'Energy Hardship', Icon: Heart },
   { to: '/electricity-network-capital-investment', label: 'Electricity Network Capital Investment', Icon: Building },
   { to: '/gas-to-power-transition', label: 'Gas-to-Power Transition & Retirement', Icon: Flame },
   { to: '/carbon-offset-market', label: 'Australian Carbon Offset Market', Icon: Leaf },
@@ -908,6 +912,8 @@ const NAV_ITEMS = [
   { to: '/solar-farm-performance', label: 'Solar Farm Performance', Icon: Sun },
   { to: '/gas-network-pipeline', label: 'Gas Pipeline Network', Icon: GitBranch },
   { to: '/electricity-price-forecasting', label: 'Price Forecast Models', Icon: Target },
+  { to: '/network-asset-life-cycle', label: 'Asset Life Cycle', Icon: SettingsIcon },
+  { to: '/wind-farm-wake-turbine', label: 'Wind Farm Wake & Turbine', Icon: Wind },
 ]
 
 function Sidebar() {
@@ -1392,6 +1398,9 @@ export default function App() {
               <Route path="/solar-farm-performance" element={<SolarFarmPerformanceAnalytics />} />
               <Route path="/gas-network-pipeline" element={<GasNetworkPipelineAnalytics />} />
               <Route path="/electricity-price-forecasting" element={<ElectricityPriceForecastingAnalytics />} />
+              <Route path="/network-asset-life-cycle" element={<NetworkAssetLifeCycleAnalytics />} />
+              <Route path="/wind-farm-wake-turbine" element={<WindFarmWakeTurbineAnalytics />} />
+              <Route path="/energy-poverty-hardship-x" element={<EnergyPovertyHardshipXAnalytics />} />
             </Routes>
           </main>
         </div>
