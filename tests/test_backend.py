@@ -15117,3 +15117,201 @@ class TestNETIDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 114a — TestESPSDashboard
+# ===========================================================================
+
+class TestESPSDashboard:
+    URL = "/api/electricity-spot-price-seasonality/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_hourly_patterns(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hourly_patterns" in data
+        assert len(data["hourly_patterns"]) == 30
+
+    def test_has_day_type_patterns(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "day_type_patterns" in data
+        assert len(data["day_type_patterns"]) == 25
+
+    def test_has_monthly_trends(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "monthly_trends" in data
+        assert len(data["monthly_trends"]) == 30
+
+    def test_has_price_regimes(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_regimes" in data
+        assert len(data["price_regimes"]) == 20
+
+    def test_has_decomposition(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "decomposition" in data
+        assert len(data["decomposition"]) > 0
+
+    def test_has_forecasts(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "forecasts" in data
+        assert len(data["forecasts"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_price_summer_mwh" in summary
+        assert "avg_price_winter_mwh" in summary
+        assert "peak_hour_of_day" in summary
+        assert "trough_hour_of_day" in summary
+        assert "negative_price_hrs_ytd" in summary
+        assert "most_volatile_region" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 114b — TestGCCADashboard
+# ===========================================================================
+
+class TestGCCADashboard:
+    URL = "/api/grid-congestion-constraint/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_constraints(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "constraints" in data
+        assert len(data["constraints"]) == 25
+
+    def test_has_congestion_rents(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "congestion_rents" in data
+        assert len(data["congestion_rents"]) == 20
+
+    def test_has_curtailment(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "curtailment" in data
+        assert len(data["curtailment"]) == 25
+
+    def test_has_mlf_records(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "mlf_records" in data
+        assert len(data["mlf_records"]) == 20
+
+    def test_has_relief_projects(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "relief_projects" in data
+        assert len(data["relief_projects"]) > 0
+
+    def test_has_projections(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projections" in data
+        assert len(data["projections"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_constraints_active" in summary
+        assert "total_congestion_rent_ytd_m" in summary
+        assert "total_curtailment_ytd_gwh" in summary
+        assert "avg_mlf_value" in summary
+        assert "total_relief_investment_pipeline_m" in summary
+        assert "most_congested_corridor" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 114c — TestEMCCDashboard
+# ===========================================================================
+
+class TestEMCCDashboard:
+    URL = "/api/electricity-market-competition-concentration/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_hhi_records(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hhi_records" in data
+        assert len(data["hhi_records"]) == 25
+
+    def test_has_participants(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "participants" in data
+        assert len(data["participants"]) == 20
+
+    def test_has_market_power_events(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "market_power_events" in data
+        assert len(data["market_power_events"]) == 20
+
+    def test_has_retail_competition(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "retail_competition" in data
+        assert len(data["retail_competition"]) == 20
+
+    def test_has_manda_transactions(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "manda_transactions" in data
+        assert len(data["manda_transactions"]) > 0
+
+    def test_has_competition_trends(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "competition_trends" in data
+        assert len(data["competition_trends"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_generation_hhi" in summary
+        assert "avg_retail_hhi" in summary
+        assert "most_concentrated_region" in summary
+        assert "market_power_events_ytd" in summary
+        assert "largest_participant_share_pct" in summary
+        assert "market_contestability_trend" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

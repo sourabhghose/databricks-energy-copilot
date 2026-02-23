@@ -21220,3 +21220,320 @@ export interface NETIDashboard {
 
 export const getNationalEnergyTransitionInvestmentDashboard = (): Promise<NETIDashboard> =>
   get<NETIDashboard>('/api/national-energy-transition-investment/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 114a — Electricity Spot Price Seasonality Analytics (ESPS)
+// ---------------------------------------------------------------------------
+
+export interface ESPSHourlyRecord {
+  region: string
+  hour_of_day: number
+  season: string
+  year: number
+  avg_price_mwh: number
+  median_price_mwh: number
+  p10_price_mwh: number
+  p90_price_mwh: number
+  spike_frequency_pct: number
+  avg_demand_mw: number
+  avg_solar_mw: number
+  avg_wind_mw: number
+}
+
+export interface ESPSDayTypeRecord {
+  region: string
+  day_type: string
+  season: string
+  year: number
+  avg_price_mwh: number
+  peak_hour: number
+  trough_hour: number
+  price_volatility_pct: number
+  demand_factor: number
+  evening_ramp_magnitude_mwh: number
+  morning_ramp_magnitude_mwh: number
+}
+
+export interface ESPSMonthlyRecord {
+  year_month: string
+  region: string
+  avg_price_mwh: number
+  min_price_mwh: number
+  max_price_mwh: number
+  negative_price_hrs: number
+  voll_price_hrs: number
+  cumulative_avg_ytd_mwh: number
+  renewable_pct: number
+  coal_pct: number
+  gas_pct: number
+  temperature_anomaly_c: number
+}
+
+export interface ESPSRegimeRecord {
+  regime_id: string
+  region: string
+  start_date: string
+  end_date: string
+  regime_type: string
+  duration_days: number
+  avg_price_mwh: number
+  p95_price_mwh: number
+  total_energy_cost_m: number
+  primary_driver: string
+  renewable_share_pct: number
+}
+
+export interface ESPSDecompositionRecord {
+  year: number
+  region: string
+  trend_component_mwh: number
+  seasonal_component_mwh: number
+  residual_component_mwh: number
+  renewable_penetration_effect_mwh: number
+  demand_effect_mwh: number
+  fuel_cost_effect_mwh: number
+  policy_effect_mwh: number
+  long_run_avg_mwh: number
+}
+
+export interface ESPSForecastRecord {
+  year: number
+  region: string
+  scenario: string
+  forecast_avg_price_mwh: number
+  forecast_peak_price_mwh: number
+  forecast_negative_price_hrs: number
+  price_volatility_index: number
+  renewable_pct_forecast: number
+  structural_break_expected: boolean
+}
+
+export interface ESPSDashboard {
+  hourly_patterns: ESPSHourlyRecord[]
+  day_type_patterns: ESPSDayTypeRecord[]
+  monthly_trends: ESPSMonthlyRecord[]
+  price_regimes: ESPSRegimeRecord[]
+  decomposition: ESPSDecompositionRecord[]
+  forecasts: ESPSForecastRecord[]
+  summary: {
+    avg_price_summer_mwh: number
+    avg_price_winter_mwh: number
+    peak_hour_of_day: number
+    trough_hour_of_day: number
+    negative_price_hrs_ytd: number
+    most_volatile_region: string
+  }
+}
+
+export const getElectricitySpotPriceSeasonalityDashboard = (): Promise<ESPSDashboard> =>
+  get<ESPSDashboard>('/api/electricity-spot-price-seasonality/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 114b — Grid Congestion and Constraint Analytics (GCCA)
+// ---------------------------------------------------------------------------
+
+export interface GCCAConstraintRecord {
+  constraint_id: string
+  constraint_name: string
+  region_from: string
+  region_to: string
+  constraint_type: string
+  binding_frequency_pct: number
+  avg_shadow_price_mwh: number
+  total_cost_ytd_m: number
+  curtailment_mwh_ytd: number
+  relief_investment_m: number
+  relief_timeline_years: number
+  status: string
+}
+
+export interface GCCACongestionRentRecord {
+  year_month: string
+  region_from: string
+  region_to: string
+  import_limit_mw: number
+  export_limit_mw: number
+  actual_flow_mw: number
+  avg_price_from_mwh: number
+  avg_price_to_mwh: number
+  price_divergence_mwh: number
+  congestion_rent_m: number
+  utilisation_pct: number
+}
+
+export interface GCCACurtailmentRecord {
+  date_month: string
+  region: string
+  technology: string
+  curtailed_gwh: number
+  curtailed_pct_of_available: number
+  constraint_driven_pct: number
+  economic_curtailment_pct: number
+  lost_revenue_m: number
+  generator_count_affected: number
+  relief_measures_activated: number
+}
+
+export interface GCCAMLFRecord {
+  year: number
+  duid: string
+  generator_name: string
+  technology: string
+  region: string
+  connection_node: string
+  mlf_value: number
+  mlf_vs_prior_year_change: number
+  revenue_impact_m: number
+  investor_certainty_score: number
+  challenge_status: string
+}
+
+export interface GCCARelievRecord {
+  project_id: string
+  project_name: string
+  tnsp: string
+  region: string
+  relief_type: string
+  target_constraints: string
+  relief_capacity_mw: number
+  capex_m: number
+  rab_inclusion: boolean
+  expected_completion: string
+  congestion_benefit_m_year: number
+}
+
+export interface GCCAProjectionRecord {
+  year: number
+  region: string
+  scenario: string
+  congestion_cost_m: number
+  curtailment_twh: number
+  renewable_at_risk_mw: number
+  relief_investment_b: number
+  price_divergence_avg_mwh: number
+}
+
+export interface GCCADashboard {
+  constraints: GCCAConstraintRecord[]
+  congestion_rents: GCCACongestionRentRecord[]
+  curtailment: GCCACurtailmentRecord[]
+  mlf_records: GCCAMLFRecord[]
+  relief_projects: GCCARelievRecord[]
+  projections: GCCAProjectionRecord[]
+  summary: {
+    total_constraints_active: number
+    total_congestion_rent_ytd_m: number
+    total_curtailment_ytd_gwh: number
+    avg_mlf_value: number
+    total_relief_investment_pipeline_m: number
+    most_congested_corridor: string
+  }
+}
+
+export const getGridCongestionConstraintDashboard = (): Promise<GCCADashboard> =>
+  get<GCCADashboard>('/api/grid-congestion-constraint/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 114c — Electricity Market Competition and Concentration Analytics
+// ---------------------------------------------------------------------------
+
+export interface EMCCHHIRecord {
+  year_quarter: string
+  region: string
+  market_segment: string
+  hhi_score: number
+  cr3_pct: number
+  cr5_pct: number
+  dominant_entity: string
+  dominant_share_pct: number
+  number_of_participants: number
+  change_from_prior_year: number
+}
+
+export interface EMCCParticipantRecord {
+  participant_name: string
+  entity_type: string
+  regions: string[]
+  total_generation_mw: number
+  retail_customers_k: number
+  market_share_generation_pct: number
+  market_share_retail_pct: number
+  recent_acquisitions: string[]
+  vertical_integration_score: number
+  regulatory_flag: boolean
+}
+
+export interface EMCCMarketPowerRecord {
+  event_date: string
+  region: string
+  event_type: string
+  participant: string
+  duration_h: number
+  affected_volume_mwh: number
+  price_impact_mwh: number
+  regulatory_referral: boolean
+  penalty_m: number
+  investigation_outcome: string
+}
+
+export interface EMCCRetailRecord {
+  year: number
+  state: string
+  retailer: string
+  market_share_residential_pct: number
+  customer_count_k: number
+  churn_rate_pct: number
+  price_premium_vs_DMO_pct: number
+  complaints_per_1000: number
+  customer_satisfaction_pct: number
+  is_challenger: boolean
+  profitable: boolean
+}
+
+export interface EMCCMandARecord {
+  transaction_id: string
+  acquirer: string
+  target: string
+  year: number
+  sector: string
+  transaction_value_m: number
+  capacity_mw_or_customers_k: number
+  hhi_impact: number
+  regulatory_approval: string
+  conditions: string
+  competition_concern: string
+}
+
+export interface EMCCTrendRecord {
+  year: number
+  region: string
+  generation_hhi: number
+  retail_hhi: number
+  combined_hhi: number
+  market_power_incidents: number
+  pivotal_supplier_events: number
+  regulatory_interventions: number
+  new_entrants: number
+  exits: number
+  market_contestability_score: number
+}
+
+export interface EMCCDashboard {
+  hhi_records: EMCCHHIRecord[]
+  participants: EMCCParticipantRecord[]
+  market_power_events: EMCCMarketPowerRecord[]
+  retail_competition: EMCCRetailRecord[]
+  manda_transactions: EMCCMandARecord[]
+  competition_trends: EMCCTrendRecord[]
+  summary: {
+    avg_generation_hhi: number
+    avg_retail_hhi: number
+    most_concentrated_region: string
+    market_power_events_ytd: number
+    largest_participant_share_pct: number
+    market_contestability_trend: string
+  }
+}
+
+export const getElectricityMarketCompetitionConcentrationDashboard = (): Promise<EMCCDashboard> =>
+  get<EMCCDashboard>('/api/electricity-market-competition-concentration/dashboard')

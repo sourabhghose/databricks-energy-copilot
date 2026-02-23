@@ -82,8 +82,10 @@ import {
   ShoppingBag,
   Eye,
   Plug,
+  PieChart,
 } from 'lucide-react'
 
+import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
 import Home from './pages/Home'
 import LiveMarket from './pages/LiveMarket'
 import Forecasts from './pages/Forecasts'
@@ -391,6 +393,8 @@ import EVGridIntegrationV2GAnalytics from './pages/EVGridIntegrationV2GAnalytics
 import BiomethaneGasGridInjectionAnalytics from './pages/BiomethaneGasGridInjectionAnalytics'
 import ElectricityMarketForecastingAccuracyAnalytics from './pages/ElectricityMarketForecastingAccuracyAnalytics'
 import NationalEnergyTransitionInvestmentAnalytics from './pages/NationalEnergyTransitionInvestmentAnalytics'
+import ElectricitySpotPriceSeasonalityAnalytics from './pages/ElectricitySpotPriceSeasonalityAnalytics'
+import GridCongestionConstraintAnalytics from './pages/GridCongestionConstraintAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -701,6 +705,9 @@ const NAV_ITEMS = [
   { to: '/biomethane-gas-grid-injection',      label: 'Biomethane Gas Grid',        Icon: Leaf        },
   { to: '/electricity-market-forecasting-accuracy', label: 'Forecast Accuracy', Icon: Target      },
   { to: '/national-energy-transition-investment',  label: 'Energy Transition Investment', Icon: TrendingUp },
+  { to: '/electricity-spot-price-seasonality', label: 'Price Seasonality', Icon: BarChart2 },
+  { to: '/grid-congestion-constraint', label: 'Grid Congestion', Icon: GitBranch },
+  { to: '/electricity-market-competition-concentration', label: 'Market Competition', Icon: PieChart },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1086,6 +1093,9 @@ export default function App() {
               <Route path="/biomethane-gas-grid-injection" element={<BiomethaneGasGridInjectionAnalytics />} />
               <Route path="/electricity-market-forecasting-accuracy" element={<ElectricityMarketForecastingAccuracyAnalytics />} />
               <Route path="/national-energy-transition-investment" element={<NationalEnergyTransitionInvestmentAnalytics />} />
+              <Route path="/electricity-spot-price-seasonality" element={<ElectricitySpotPriceSeasonalityAnalytics />} />
+              <Route path="/grid-congestion-constraint" element={<GridCongestionConstraintAnalytics />} />
+              <Route path="/electricity-market-competition-concentration" element={<ElectricityMarketCompetitionConcentrationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
