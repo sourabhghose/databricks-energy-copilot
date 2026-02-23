@@ -83,6 +83,7 @@ import {
   Eye,
   Plug,
   PieChart,
+  AlertCircle,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -401,6 +402,9 @@ import ElectricityConsumerSwitchingChurnAnalytics from './pages/ElectricityConsu
 import NEMInertiaSynchronousCondenserAnalytics from './pages/NEMInertiaSynchronousCondenserAnalytics'
 import OffshoreWindLeasingSiteAnalytics from './pages/OffshoreWindLeasingSiteAnalytics'
 import ElectricityMarketRegulatoryAppealsAnalytics from './pages/ElectricityMarketRegulatoryAppealsAnalytics'
+import DistributedEnergyResourceManagementAnalytics from './pages/DistributedEnergyResourceManagementAnalytics'
+import MarketPriceFormationReviewAnalytics from './pages/MarketPriceFormationReviewAnalytics'
+import ResidentialSolarSelfConsumptionAnalytics from './pages/ResidentialSolarSelfConsumptionAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -720,6 +724,9 @@ const NAV_ITEMS = [
   { to: '/nem-inertia-synchronous-condenser', label: 'Inertia & Syncondensers', Icon: Activity },
   { to: '/offshore-wind-leasing-site', label: 'Offshore Wind Sites', Icon: Wind },
   { to: '/electricity-market-regulatory-appeals', label: 'Regulatory Appeals', Icon: Scale },
+  { to: '/distributed-energy-resource-management', label: 'DER Management', Icon: Sliders },
+  { to: '/market-price-formation-review', label: 'Price Formation Review', Icon: AlertCircle },
+  { to: '/residential-solar-self-consumption', label: 'Solar Self-Consumption', Icon: HomeIcon },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1114,6 +1121,9 @@ export default function App() {
               <Route path="/nem-inertia-synchronous-condenser" element={<NEMInertiaSynchronousCondenserAnalytics />} />
               <Route path="/offshore-wind-leasing-site" element={<OffshoreWindLeasingSiteAnalytics />} />
               <Route path="/electricity-market-regulatory-appeals" element={<ElectricityMarketRegulatoryAppealsAnalytics />} />
+              <Route path="/distributed-energy-resource-management" element={<DistributedEnergyResourceManagementAnalytics />} />
+              <Route path="/market-price-formation-review" element={<MarketPriceFormationReviewAnalytics />} />
+              <Route path="/residential-solar-self-consumption" element={<ResidentialSolarSelfConsumptionAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

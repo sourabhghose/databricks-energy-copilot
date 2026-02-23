@@ -22161,3 +22161,305 @@ export interface EMRDDashboard {
 
 export const getElectricityMarketRegulatoryAppealsDashboard = (): Promise<EMRDDashboard> =>
   get<EMRDDashboard>('/api/electricity-market-regulatory-appeals/dashboard')
+
+// ---- Sprint 117a: Distributed Energy Resource Management Analytics ----
+
+export interface DERMAssetRecord {
+  dnsp: string
+  state: string
+  der_type: string
+  total_assets: number
+  registered_derms_pct: number
+  controllable_assets_pct: number
+  avg_capacity_kw: number
+  total_capacity_mw: number
+  response_latency_ms: number
+  protocol: string
+}
+
+export interface DERMAggregatorRecord {
+  aggregator_name: string
+  business_type: string
+  state: string
+  registered_assets_count: number
+  controllable_capacity_mw: number
+  avg_response_time_s: number
+  fcas_certified: boolean
+  market_participation: string
+  revenue_m_year: number
+  customers_enrolled_k: number
+}
+
+export interface DERMDispatchRecord {
+  month: string
+  dnsp: string
+  dispatch_type: string
+  assets_dispatched: number
+  energy_dispatched_mwh: number
+  avg_dispatch_duration_min: number
+  response_success_rate_pct: number
+  revenue_per_event_aud: number
+  network_benefit_m: number
+}
+
+export interface DERMProgramRecord {
+  program_name: string
+  program_owner: string
+  state: string
+  program_type: string
+  participants_k: number
+  capacity_mw: number
+  outcomes_achieved: boolean
+  benefit_cost_ratio: number
+  annual_revenue_per_participant_aud: number
+  regulatory_status: string
+}
+
+export interface DERMInteroperabilityRecord {
+  standard_name: string
+  market_adoption_pct: number
+  der_types_supported: number
+  interoperability_score: number
+  mandate_status: string
+  compliance_cost_per_device_aud: number
+  cybersecurity_rating: number
+}
+
+export interface DERMProjectionRecord {
+  year: number
+  scenario: string
+  registered_ders_m: number
+  controllable_capacity_gw: number
+  annual_market_value_b: number
+  grid_services_revenue_b: number
+  network_deferral_b: number
+  consumer_benefit_aud_per_household: number
+  complexity_barrier_score: number
+}
+
+export interface DERMDashboard {
+  assets: DERMAssetRecord[]
+  aggregators: DERMAggregatorRecord[]
+  dispatch_events: DERMDispatchRecord[]
+  programs: DERMProgramRecord[]
+  interoperability: DERMInteroperabilityRecord[]
+  projections: DERMProjectionRecord[]
+  summary: {
+    total_controllable_capacity_mw: number
+    registered_aggregators: number
+    avg_dispatch_success_rate_pct: number
+    total_market_value_b: number
+    projected_2030_controllable_gw: number
+    leading_protocol: string
+  }
+}
+
+export const getDistributedEnergyResourceManagementDashboard = (): Promise<DERMDashboard> =>
+  get<DERMDashboard>('/api/distributed-energy-resource-management/dashboard')
+
+// ============================================================
+// Sprint 117b — Market Price Formation Review Analytics (MPFR)
+// ============================================================
+
+export interface MPFRPriceCapRecord {
+  year: number
+  region: string
+  market_price_cap_mwh: number
+  administered_price_cap_mwh: number
+  cumulative_price_threshold_mwh: number
+  low_reserve_trader_mwh: number
+  voll_mwh: number
+  apc_activations_count: number
+  apc_duration_hours: number
+  cpt_breaches_count: number
+  review_status: string
+}
+
+export interface MPFRScarcityRecord {
+  event_date: string
+  region: string
+  scarcity_type: string
+  duration_h: number
+  max_price_mwh: number
+  avg_price_during_mwh: number
+  demand_mw: number
+  reserves_mw: number
+  curtailment_mwh: number
+  cost_to_consumers_m: number
+  intervention_type: string
+}
+
+export interface MPFRVCRRecord {
+  state: string
+  customer_class: string
+  vcr_aud_per_mwh: number
+  vcr_aud_per_kw_event: number
+  survey_year: number
+  interruption_duration_h_studied: number
+  sample_size_k: number
+  methodology: string
+  last_updated: string
+  revision_reason: string
+}
+
+export interface MPFRReformRecord {
+  reform_id: string
+  reform_name: string
+  proponent: string
+  reform_type: string
+  consultation_stage: string
+  financial_impact_consumer_m: number
+  financial_impact_generator_m: number
+  implementation_year: number
+  outcome: string
+}
+
+export interface MPFRMarginalCostRecord {
+  quarter: string
+  region: string
+  avg_marginal_cost_mwh: number
+  fuel_cost_contribution_mwh: number
+  carbon_cost_contribution_mwh: number
+  capacity_adequacy_premium_mwh: number
+  renewable_suppression_mwh: number
+  scarcity_premium_mwh: number
+  actual_spot_price_mwh: number
+  markup_pct: number
+}
+
+export interface MPFRDemandSideRecord {
+  year: number
+  region: string
+  demand_response_capacity_mw: number
+  interruptible_contracts_mw: number
+  real_time_pricing_customers_k: number
+  dr_activated_events: number
+  dr_volume_mwh: number
+  price_responsiveness_elasticity: number
+  dr_cost_per_mwh_aud: number
+  demand_side_adequacy_pct: number
+}
+
+export interface MPFRDashboard {
+  price_caps: MPFRPriceCapRecord[]
+  scarcity_events: MPFRScarcityRecord[]
+  vcr_values: MPFRVCRRecord[]
+  reforms: MPFRReformRecord[]
+  marginal_costs: MPFRMarginalCostRecord[]
+  demand_side: MPFRDemandSideRecord[]
+  summary: {
+    current_mpc_mwh: number
+    total_apc_activations_ytd: number
+    total_scarcity_cost_m: number
+    avg_vcr_residential_aud_per_mwh: number
+    active_reforms_count: number
+    demand_response_capacity_mw: number
+  }
+}
+
+export const getMarketPriceFormationReviewDashboard = (): Promise<MPFRDashboard> =>
+  get<MPFRDashboard>('/api/market-price-formation-review/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 117c — Residential Solar Self-Consumption and Bill Analytics (RSSC)
+// ---------------------------------------------------------------------------
+
+export interface RSSCHouseholdRecord {
+  household_id: string
+  state: string
+  archetype: string
+  system_size_kw: number
+  battery_kwh: number
+  annual_generation_kwh: number
+  annual_consumption_kwh: number
+  self_consumption_rate_pct: number
+  self_sufficiency_pct: number
+  export_kwh: number
+  fit_earned_aud: number
+  electricity_bill_aud: number
+  bill_vs_no_solar_pct: number
+}
+
+export interface RSSCSelfConsumptionRecord {
+  season: string
+  hour_of_day: number
+  avg_generation_kw: number
+  avg_consumption_kw: number
+  avg_net_kw: number
+  self_consumption_at_hour_pct: number
+  storage_charging_kw: number
+  storage_discharging_kw: number
+  grid_import_kw: number
+}
+
+export interface RSSCEconomicsRecord {
+  state: string
+  system_size_kw: number
+  battery_included: boolean
+  battery_size_kwh: number
+  upfront_cost_aud: number
+  annual_bill_savings_aud: number
+  fit_revenue_aud: number
+  payback_years: number
+  irr_pct: number
+  npv_25yr_aud: number
+  self_consumption_rate_pct: number
+  co2_saved_tpa: number
+}
+
+export interface RSSCFITRecord {
+  state: string
+  retailer: string
+  fit_type: string
+  fit_rate_cents_kwh: number
+  network_feed_in_tariff: number
+  valid_from: string
+  valid_to: string
+  eligible_systems: string
+  max_system_kw: number
+  avg_export_kwh_per_household: number
+}
+
+export interface RSSCTechnologyRecord {
+  technology_option: string
+  state: string
+  self_consumption_pct: number
+  payback_years: number
+  ten_yr_npv_aud: number
+  annual_co2_saving_tpa: number
+  complexity_score: number
+  incentive_available: boolean
+}
+
+export interface RSSCProjectionRecord {
+  year: number
+  state: string
+  scenario: string
+  avg_self_consumption_pct: number
+  households_with_solar_m: number
+  households_with_battery_m: number
+  avg_annual_bill_savings_aud: number
+  grid_export_reduction_twh: number
+  network_benefit_m: number
+  co2_abated_mtpa: number
+}
+
+export interface RSSCDashboard {
+  households: RSSCHouseholdRecord[]
+  self_consumption_profile: RSSCSelfConsumptionRecord[]
+  economics: RSSCEconomicsRecord[]
+  fit_rates: RSSCFITRecord[]
+  technology_options: RSSCTechnologyRecord[]
+  projections: RSSCProjectionRecord[]
+  summary: {
+    avg_self_consumption_rate_pct: number
+    avg_payback_years: number
+    avg_annual_savings_aud: number
+    avg_fit_rate_cents_kwh: number
+    households_with_battery_m: number
+    projected_2030_self_consumption_pct: number
+  }
+}
+
+export const getResidentialSolarSelfConsumptionDashboard = (): Promise<RSSCDashboard> =>
+  get<RSSCDashboard>('/api/residential-solar-self-consumption/dashboard')
