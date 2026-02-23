@@ -17091,3 +17091,201 @@ class TestUtilitySolarFarmOperationsDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityNetworkCapitalInvestmentDashboard:
+    """Tests for /api/electricity-network-capital-investment/dashboard (ENCI -- Sprint 124c)."""
+
+    URL = "/api/electricity-network-capital-investment/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_http_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_network_spend_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "network_spend" in data
+        assert len(data["network_spend"]) == 70  # 10 businesses x 7 years
+
+    def test_project_categories_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "project_categories" in data
+        assert len(data["project_categories"]) == 60  # 6 categories x 10 businesses
+
+    def test_regulatory_determinations_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "regulatory_determinations" in data
+        assert len(data["regulatory_determinations"]) == 15
+
+    def test_smart_grid_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "smart_grid" in data
+        assert len(data["smart_grid"]) == 25  # 5 technologies x 5 businesses
+
+    def test_future_needs_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "future_needs" in data
+        assert len(data["future_needs"]) == 60  # 6 drivers x 10 years
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_capex_b" in summary
+        assert "total_smart_grid_investment_m" in summary
+        assert "highest_spend_network" in summary
+        assert "avg_wacc_pct" in summary
+        assert "future_investment_needed_b" in summary
+
+    def test_network_spend_fields(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        ns = data["network_spend"][0]
+        for field in [
+            "network_business", "network_type", "region", "year",
+            "capex_m", "opex_m", "total_network_spend_m",
+            "regulatory_allowance_m", "overspend_pct", "customer_numbers_k",
+        ]:
+            assert field in ns
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestWindFarmWakeEffectDashboard:
+    """Tests for /api/wind-farm-wake-effect-x/dashboard (WFWEX -- Sprint 124a)."""
+
+    URL = "/api/wind-farm-wake-effect-x/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_http_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_farms_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "farms" in data
+        assert len(data["farms"]) == 20
+
+    def test_wake_losses_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "wake_losses" in data
+        assert len(data["wake_losses"]) == 96  # 12 farms x 8 wind directions
+
+    def test_optimisations_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "optimisations" in data
+        assert len(data["optimisations"]) == 20
+
+    def test_performance_trends_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "performance_trends" in data
+        assert len(data["performance_trends"]) == 50  # 10 farms x 5 years
+
+    def test_technologies_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "technologies" in data
+        assert len(data["technologies"]) == 15
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_installed_capacity_gw" in summary
+        assert "avg_wake_loss_pct" in summary
+        assert "max_energy_gain_potential_gwh" in summary
+        assert "best_optimisation" in summary
+        assert "avg_capacity_factor_pct" in summary
+
+    def test_farm_fields(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        farm = data["farms"][0]
+        for field in [
+            "farm_name", "region", "operator", "turbine_model", "turbine_count",
+            "installed_capacity_mw", "hub_height_m", "rotor_diameter_m",
+            "avg_wind_speed_ms", "wake_loss_pct", "capacity_factor_pct",
+            "annual_generation_gwh",
+        ]:
+            assert field in farm
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestEnergyPovertyHardshipDashboard  (Sprint 124b — EPHA)
+# ===========================================================================
+
+class TestEnergyPovertyHardshipDashboard:
+    """9 tests for GET /api/energy-poverty-hardship/dashboard"""
+
+    URL = "/api/energy-poverty-hardship/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("hardship", "programs", "burden", "interventions", "trends", "summary"):
+            assert key in data
+
+    def test_hardship_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["hardship"]) == 49  # 7 regions × 7 years
+
+    def test_programs_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["programs"]) == 25
+
+    def test_burden_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["burden"]) == 30  # 6 household types × 5 regions
+
+    def test_interventions_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["interventions"]) == 20
+
+    def test_trends_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["trends"]) == 40  # 8 quarters × 5 regions
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_hardship_customers_k" in summary
+        assert "total_program_value_m" in summary
+        assert "highest_burden_segment" in summary
+        assert "avg_energy_burden_pct" in summary
+        assert "most_effective_intervention" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

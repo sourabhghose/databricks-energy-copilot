@@ -23703,3 +23703,209 @@ export interface USSODashboard {
 }
 export const getUtilitySolarFarmOperationsDashboard = (): Promise<USSODashboard> =>
   get<USSODashboard>('/api/utility-solar-farm-operations/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 124a — Wind Farm Wake Effect & Layout Optimisation Analytics (WFWEX)
+// ---------------------------------------------------------------------------
+export interface WFWEXFarmRecord {
+  farm_name: string
+  region: string
+  operator: string
+  turbine_model: string
+  turbine_count: number
+  installed_capacity_mw: number
+  hub_height_m: number
+  rotor_diameter_m: number
+  avg_wind_speed_ms: number
+  wake_loss_pct: number
+  capacity_factor_pct: number
+  annual_generation_gwh: number
+}
+export interface WFWEXWakeLoss {
+  farm_name: string
+  wind_direction: string
+  wind_speed_bin_ms: number
+  wake_loss_pct: number
+  affected_turbines: number
+  power_deficit_mw: number
+  annual_energy_loss_gwh: number
+}
+export interface WFWEXOptimisation {
+  farm_name: string
+  optimisation_type: string
+  current_wake_loss_pct: number
+  optimised_wake_loss_pct: number
+  energy_gain_gwh: number
+  revenue_gain_m: number
+  implementation_cost_m: number
+  payback_years: number
+}
+export interface WFWEXPerformanceTrend {
+  farm_name: string
+  year: number
+  capacity_factor_pct: number
+  wake_loss_pct: number
+  availability_pct: number
+  p50_achievement_pct: number
+  annual_generation_gwh: number
+}
+export interface WFWEXTechnology {
+  technology: string
+  category: string
+  accuracy_pct: number
+  cost_per_turbine_k: number
+  energy_uplift_pct: number
+  maturity: string
+  vendor: string
+}
+export interface WFWEXDashboard {
+  farms: WFWEXFarmRecord[]
+  wake_losses: WFWEXWakeLoss[]
+  optimisations: WFWEXOptimisation[]
+  performance_trends: WFWEXPerformanceTrend[]
+  technologies: WFWEXTechnology[]
+  summary: Record<string, unknown>
+}
+export const getWindFarmWakeEffectDashboard = (): Promise<WFWEXDashboard> =>
+  get<WFWEXDashboard>('/api/wind-farm-wake-effect-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 124b — Energy Poverty & Hardship Program Analytics (EPHA)
+// ---------------------------------------------------------------------------
+export interface EPHAHardshipRecord {
+  region: string
+  year: number
+  customers_in_hardship_k: number
+  hardship_rate_pct: number
+  avg_debt_per_customer: number
+  debt_waiver_m: number
+  payment_plan_count_k: number
+  disconnection_count_k: number
+  reconnection_rate_pct: number
+}
+
+export interface EPHAConcessionProgram {
+  program_name: string
+  jurisdiction: string
+  program_type: string
+  annual_value_m: number
+  recipients_k: number
+  avg_benefit_per_household: number
+  eligibility_criteria: string
+  status: string
+}
+
+export interface EPHAEnergyBurden {
+  household_type: string
+  region: string
+  avg_annual_energy_cost: number
+  avg_household_income: number
+  energy_burden_pct: number
+  access_to_solar_pct: number
+  smart_meter_pct: number
+  digital_literacy_pct: number
+}
+
+export interface EPHAIntervention {
+  intervention: string
+  provider: string
+  region: string
+  participants_k: number
+  avg_bill_reduction_pct: number
+  total_benefit_m: number
+  cost_per_participant: number
+  success_rate_pct: number
+}
+
+export interface EPHATrend {
+  quarter: string
+  region: string
+  avg_residential_bill: number
+  median_household_income: number
+  energy_burden_pct: number
+  concession_recipients_k: number
+  complaint_rate_per_1000: number
+}
+
+export interface EPHADashboard {
+  hardship: EPHAHardshipRecord[]
+  programs: EPHAConcessionProgram[]
+  burden: EPHAEnergyBurden[]
+  interventions: EPHAIntervention[]
+  trends: EPHATrend[]
+  summary: Record<string, unknown>
+}
+
+export const getEnergyPovertyHardshipDashboard = (): Promise<EPHADashboard> =>
+  get<EPHADashboard>('/api/energy-poverty-hardship/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 124c — Electricity Network Capital Investment Analytics (ENCI)
+// ---------------------------------------------------------------------------
+
+export interface ENCINetworkSpend {
+  network_business: string
+  network_type: string
+  region: string
+  year: number
+  capex_m: number
+  opex_m: number
+  total_network_spend_m: number
+  regulatory_allowance_m: number
+  overspend_pct: number
+  customer_numbers_k: number
+}
+
+export interface ENCIProjectCategory {
+  category: string
+  network_business: string
+  year: number
+  capex_m: number
+  project_count: number
+  avg_project_size_m: number
+  completion_rate_pct: number
+}
+
+export interface ENCIRegulatoryDetermination {
+  network_business: string
+  regulatory_period: string
+  allowed_revenue_m: number
+  actual_revenue_m: number
+  wacc_pct: number
+  regulatory_asset_base_m: number
+  efficiency_factor_pct: number
+  consumer_benefit_m: number
+}
+
+export interface ENCISmartGridInvestment {
+  technology: string
+  network_business: string
+  investment_m: number
+  deployment_year: number
+  customers_impacted_k: number
+  reliability_improvement_min: number
+  opex_savings_m: number
+  payback_years: number
+}
+
+export interface ENCIFutureNeed {
+  need_driver: string
+  region: string
+  year: number
+  required_investment_m: number
+  deferrable_by_demand_management_m: number
+  net_required_m: number
+  priority: string
+}
+
+export interface ENCIDashboard {
+  network_spend: ENCINetworkSpend[]
+  project_categories: ENCIProjectCategory[]
+  regulatory_determinations: ENCIRegulatoryDetermination[]
+  smart_grid: ENCISmartGridInvestment[]
+  future_needs: ENCIFutureNeed[]
+  summary: Record<string, unknown>
+}
+
+export const getElectricityNetworkCapitalInvestmentDashboard = (): Promise<ENCIDashboard> =>
+  get<ENCIDashboard>('/api/electricity-network-capital-investment/dashboard')

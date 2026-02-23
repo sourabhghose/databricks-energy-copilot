@@ -84,6 +84,7 @@ import {
   Plug,
   PieChart,
   AlertCircle,
+  Building,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -423,6 +424,9 @@ import EnergyTransitionFinanceXAnalytics from './pages/EnergyTransitionFinanceXA
 import NemFrequencyControlAnalytics from './pages/NemFrequencyControlAnalytics'
 import BatterySecondLifeAnalytics from './pages/BatterySecondLifeAnalytics'
 import UtilitySolarFarmOperationsAnalytics from './pages/UtilitySolarFarmOperationsAnalytics'
+import WindFarmWakeEffectAnalytics from './pages/WindFarmWakeEffectAnalytics'
+import EnergyPovertyHardshipAnalytics from './pages/EnergyPovertyHardshipAnalytics'
+import ElectricityNetworkCapitalInvestmentAnalytics from './pages/ElectricityNetworkCapitalInvestmentAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -763,6 +767,9 @@ const NAV_ITEMS = [
   { to: '/nem-frequency-control', label: 'NEM Frequency Control', Icon: Activity },
   { to: '/battery-second-life', label: 'Battery Second Life & Circular Economy', Icon: RefreshCw },
   { to: '/utility-solar-farm-operations', label: 'Utility Solar Farm Operations', Icon: Sun },
+  { to: '/wind-farm-wake-effect', label: 'Wind Farm Wake Effect & Layout Optimisation', Icon: Wind },
+  { to: '/energy-poverty-hardship', label: 'Energy Poverty & Hardship Analytics', Icon: Heart },
+  { to: '/electricity-network-capital-investment', label: 'Electricity Network Capital Investment', Icon: Building },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1178,6 +1185,9 @@ export default function App() {
               <Route path="/nem-frequency-control" element={<NemFrequencyControlAnalytics />} />
               <Route path="/battery-second-life" element={<BatterySecondLifeAnalytics />} />
               <Route path="/utility-solar-farm-operations" element={<UtilitySolarFarmOperationsAnalytics />} />
+              <Route path="/wind-farm-wake-effect" element={<WindFarmWakeEffectAnalytics />} />
+              <Route path="/energy-poverty-hardship" element={<EnergyPovertyHardshipAnalytics />} />
+              <Route path="/electricity-network-capital-investment" element={<ElectricityNetworkCapitalInvestmentAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
