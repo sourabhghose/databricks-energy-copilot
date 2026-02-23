@@ -395,6 +395,9 @@ import ElectricityMarketForecastingAccuracyAnalytics from './pages/ElectricityMa
 import NationalEnergyTransitionInvestmentAnalytics from './pages/NationalEnergyTransitionInvestmentAnalytics'
 import ElectricitySpotPriceSeasonalityAnalytics from './pages/ElectricitySpotPriceSeasonalityAnalytics'
 import GridCongestionConstraintAnalytics from './pages/GridCongestionConstraintAnalytics'
+import RenewableEnergyZoneDevelopmentAnalytics from './pages/RenewableEnergyZoneDevelopmentAnalytics'
+import BatteryStorageDegradationLifetimeAnalytics from './pages/BatteryStorageDegradationLifetimeAnalytics'
+import ElectricityConsumerSwitchingChurnAnalytics from './pages/ElectricityConsumerSwitchingChurnAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -708,6 +711,9 @@ const NAV_ITEMS = [
   { to: '/electricity-spot-price-seasonality', label: 'Price Seasonality', Icon: BarChart2 },
   { to: '/grid-congestion-constraint', label: 'Grid Congestion', Icon: GitBranch },
   { to: '/electricity-market-competition-concentration', label: 'Market Competition', Icon: PieChart },
+  { to: '/renewable-energy-zone-development', label: 'REZ Development', Icon: Map },
+  { to: '/battery-storage-degradation-lifetime', label: 'Battery Degradation', Icon: Battery },
+  { to: '/electricity-consumer-switching-churn', label: 'Consumer Switching', Icon: Users },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1096,6 +1102,9 @@ export default function App() {
               <Route path="/electricity-spot-price-seasonality" element={<ElectricitySpotPriceSeasonalityAnalytics />} />
               <Route path="/grid-congestion-constraint" element={<GridCongestionConstraintAnalytics />} />
               <Route path="/electricity-market-competition-concentration" element={<ElectricityMarketCompetitionConcentrationAnalytics />} />
+              <Route path="/renewable-energy-zone-development" element={<RenewableEnergyZoneDevelopmentAnalytics />} />
+              <Route path="/battery-storage-degradation-lifetime" element={<BatteryStorageDegradationLifetimeAnalytics />} />
+              <Route path="/electricity-consumer-switching-churn" element={<ElectricityConsumerSwitchingChurnAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

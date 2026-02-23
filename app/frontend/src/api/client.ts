@@ -21537,3 +21537,306 @@ export interface EMCCDashboard {
 
 export const getElectricityMarketCompetitionConcentrationDashboard = (): Promise<EMCCDashboard> =>
   get<EMCCDashboard>('/api/electricity-market-competition-concentration/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 115a — Renewable Energy Zone Development Analytics (REZD)
+// ---------------------------------------------------------------------------
+
+export interface REZDZoneRecord {
+  rez_id: string
+  rez_name: string
+  state: string
+  region: string
+  rez_type: string
+  total_area_km2: number
+  renewable_potential_mw_solar: number
+  renewable_potential_mw_wind: number
+  designated_capacity_mw: number
+  transmission_limit_mw: number
+  registered_projects_count: number
+  development_stage: string
+  estimated_completion: string
+}
+
+export interface REZDProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  rez_id: string
+  technology: string
+  capacity_mw: number
+  connection_capacity_mw: number
+  status: string
+  cis_award: boolean
+  access_rights_mw: number
+  queue_position: number
+  expected_export_twh_year: number
+  employment_construction: number
+}
+
+export interface REZDTransmissionRecord {
+  rez_id: string
+  transmission_project: string
+  tnsp: string
+  existing_capacity_mw: number
+  augmented_capacity_mw: number
+  augmentation_cost_m: number
+  completion_year: number
+  regulatory_approval_status: string
+  rab_value_m: number
+  annual_revenue_m: number
+  benefit_cost_ratio: number
+}
+
+export interface REZDAccessRecord {
+  rez_id: string
+  quarter: string
+  total_access_rights_mw: number
+  traded_rights_mw: number
+  access_price_aud_per_mw_year: number
+  unallocated_rights_mw: number
+  queue_depth_mw: number
+  congestion_events: number
+  curtailment_pct: number
+  secondary_market_volume_mw: number
+}
+
+export interface REZDPerformanceRecord {
+  rez_id: string
+  year: number
+  capacity_factor_solar_pct: number
+  capacity_factor_wind_pct: number
+  generation_gwh: number
+  curtailment_gwh: number
+  revenue_m: number
+  grid_connection_reliability_pct: number
+  jobs_operational: number
+  community_benefit_fund_m: number
+}
+
+export interface REZDForecastRecord {
+  year: number
+  state: string
+  rez_count_active: number
+  total_capacity_mw: number
+  generation_twh: number
+  transmission_utilisation_pct: number
+  investment_b: number
+  jobs_supported: number
+  lcoe_avg_aud_per_mwh: number
+}
+
+export interface REZDDashboard {
+  zones: REZDZoneRecord[]
+  projects: REZDProjectRecord[]
+  transmission: REZDTransmissionRecord[]
+  access_rights: REZDAccessRecord[]
+  performance: REZDPerformanceRecord[]
+  forecasts: REZDForecastRecord[]
+  summary: {
+    total_rez_designated_capacity_mw: number
+    total_projects_in_queue: number
+    total_transmission_augmentation_m: number
+    avg_curtailment_pct: number
+    projected_2030_generation_twh: number
+    total_employment_construction: number
+  }
+}
+
+export const getRenewableEnergyZoneDevelopmentDashboard = (): Promise<REZDDashboard> =>
+  get<REZDDashboard>('/api/renewable-energy-zone-development/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 115b — Battery Storage Degradation and Lifetime Analytics (BSDL)
+// ---------------------------------------------------------------------------
+
+export interface BSDLDegradationRecord {
+  asset_id: string
+  asset_name: string
+  chemistry: string
+  install_year: number
+  initial_capacity_mwh: number
+  current_capacity_mwh: number
+  capacity_retained_pct: number
+  cycles_completed: number
+  calendar_age_years: number
+  avg_dod_pct: number
+  avg_temperature_c: number
+  degradation_mode: string
+  degradation_rate_pct_year: number
+}
+
+export interface BSDLCurveRecord {
+  chemistry: string
+  cycle_count: number
+  calendar_years: number
+  capacity_retained_pct: number
+  internal_resistance_increase_pct: number
+  power_fade_pct: number
+  temperature_c: number
+  dod_pct: number
+  test_condition: string
+}
+
+export interface BSDLAugmentRecord {
+  asset_id: string
+  asset_name: string
+  augmentation_trigger_pct: number
+  augmentation_year: number
+  cells_replaced_pct: number
+  augmentation_cost_m: number
+  capacity_restored_mwh: number
+  expected_life_extension_years: number
+  total_lifetime_cycles: number
+  cost_per_cycle_aud: number
+  augmentation_type: string
+}
+
+export interface BSDLSecondLifeRecord {
+  asset_id: string
+  original_technology: string
+  original_use: string
+  eol_capacity_pct: number
+  second_life_application: string
+  second_life_duration_years: number
+  repurposing_cost_m: number
+  second_life_value_m: number
+  recycling_alternative_cost_m: number
+  carbon_benefit_tco2: number
+}
+
+export interface BSDLEconomicsRecord {
+  year: number
+  chemistry: string
+  replacement_strategy: string
+  capex_mwh: number
+  augmentation_cost_mwh: number
+  eol_disposal_cost_mwh: number
+  second_life_credit_mwh: number
+  total_lifetime_cost_mwh: number
+  lcoe_storage_aud_per_mwh: number
+  optimal_replacement_cycle_years: number
+}
+
+export interface BSDLProjectionRecord {
+  year: number
+  chemistry: string
+  avg_cycle_life: number
+  avg_calendar_life_years: number
+  degradation_rate_pct_year: number
+  replacement_cost_mwh: number
+  augmentation_feasibility_pct: number
+  second_life_market_size_gwh: number
+  recycling_rate_pct: number
+}
+
+export interface BSDLDashboard {
+  degradation: BSDLDegradationRecord[]
+  curves: BSDLCurveRecord[]
+  augmentation: BSDLAugmentRecord[]
+  second_life: BSDLSecondLifeRecord[]
+  economics: BSDLEconomicsRecord[]
+  projections: BSDLProjectionRecord[]
+  summary: {
+    avg_capacity_retained_pct: number
+    avg_degradation_rate_pct_year: number
+    best_chemistry_longevity: string
+    total_augmentation_projects: number
+    second_life_market_size_gwh: number
+    avg_lcoe_storage_aud_per_mwh: number
+  }
+}
+
+export const getBatteryStorageDegradationLifetimeDashboard = (): Promise<BSDLDashboard> =>
+  get<BSDLDashboard>('/api/battery-storage-degradation-lifetime/dashboard')
+
+export interface ECSCSwitchingRecord {
+  year_quarter: string
+  state: string
+  total_switches_k: number
+  switching_rate_pct: number
+  from_retailer: string
+  to_retailer: string
+  reason: string
+  switch_duration_days: number
+  digital_switch_pct: number
+  comparison_site_initiated_pct: number
+}
+
+export interface ECSCRetailerRecord {
+  retailer: string
+  state: string
+  year: number
+  gross_churn_rate_pct: number
+  net_churn_rate_pct: number
+  new_customer_acquisitions_k: number
+  customer_satisfaction_nps: number
+  price_competitiveness_rank: number
+  green_product_share_pct: number
+  complaint_rate_per_1000: number
+  customer_lifetime_value_aud: number
+}
+
+export interface ECSCBarrierRecord {
+  barrier_type: string
+  affected_customers_pct: number
+  avg_saving_foregone_aud: number
+  policy_intervention_available: boolean
+  intervention_effectiveness_pct: number
+}
+
+export interface ECSCPriceRecord {
+  quarter: string
+  state: string
+  avg_dmo_rate_cts_kwh: number
+  avg_best_offer_cts_kwh: number
+  saving_potential_aud_year: number
+  engaged_customers_pct: number
+  comparison_site_visits_m: number
+  median_annual_bill_aud: number
+  inflation_adjusted_change_pct: number
+}
+
+export interface ECSCSegmentRecord {
+  segment: string
+  state: string
+  switching_rate_pct: number
+  avg_saving_aud: number
+  barrier_count: number
+  engagement_score: number
+  policy_support_needed: boolean
+  retailer_targeting_intensity: number
+}
+
+export interface ECSCTrendRecord {
+  year: number
+  state: string
+  switching_rate_pct: number
+  market_concentration_hhi: number
+  challenger_share_pct: number
+  digital_switch_pct: number
+  green_tariff_uptake_pct: number
+  default_offer_customers_pct: number
+  complaint_rate_per_1000: number
+  consumer_confidence_index: number
+}
+
+export interface ECSCDashboard {
+  switching: ECSCSwitchingRecord[]
+  retailer_churn: ECSCRetailerRecord[]
+  barriers: ECSCBarrierRecord[]
+  price_comparison: ECSCPriceRecord[]
+  segments: ECSCSegmentRecord[]
+  trends: ECSCTrendRecord[]
+  summary: {
+    avg_switching_rate_pct: number
+    avg_annual_saving_potential_aud: number
+    highest_churn_retailer: string
+    lowest_barrier_segment: string
+    digital_switch_pct_latest: number
+    default_offer_customers_pct: number
+  }
+}
+
+export const getElectricityConsumerSwitchingChurnDashboard = (): Promise<ECSCDashboard> =>
+  get<ECSCDashboard>('/api/electricity-consumer-switching-churn/dashboard')

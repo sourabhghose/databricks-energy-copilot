@@ -15315,3 +15315,193 @@ class TestEMCCDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# Sprint 115a — TestREZDDashboard
+# ===========================================================================
+
+class TestREZDDashboard:
+    URL = "/api/renewable-energy-zone-development/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_zones(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "zones" in data
+        assert len(data["zones"]) == 20
+
+    def test_has_projects(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert len(data["projects"]) == 25
+
+    def test_has_transmission(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "transmission" in data
+        assert len(data["transmission"]) == 15
+
+    def test_has_access_rights(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "access_rights" in data
+        assert len(data["access_rights"]) == 20
+
+    def test_has_performance(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "performance" in data
+        assert len(data["performance"]) > 0
+
+    def test_has_forecasts(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "forecasts" in data
+        assert len(data["forecasts"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_rez_designated_capacity_mw" in summary
+        assert "total_projects_in_queue" in summary
+        assert "total_transmission_augmentation_m" in summary
+        assert "avg_curtailment_pct" in summary
+        assert "projected_2030_generation_twh" in summary
+        assert "total_employment_construction" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestBSDLDashboard:
+    URL = "/api/battery-storage-degradation-lifetime/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_degradation(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "degradation" in data
+        assert len(data["degradation"]) == 25
+
+    def test_has_curves(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "curves" in data
+        assert len(data["curves"]) == 30
+
+    def test_has_augmentation(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "augmentation" in data
+        assert len(data["augmentation"]) == 15
+
+    def test_has_second_life(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "second_life" in data
+        assert len(data["second_life"]) == 15
+
+    def test_has_economics(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "economics" in data
+        assert len(data["economics"]) > 0
+
+    def test_has_projections(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projections" in data
+        assert len(data["projections"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_capacity_retained_pct" in summary
+        assert "avg_degradation_rate_pct_year" in summary
+        assert "best_chemistry_longevity" in summary
+        assert "total_augmentation_projects" in summary
+        assert "second_life_market_size_gwh" in summary
+        assert "avg_lcoe_storage_aud_per_mwh" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestECSCDashboard:
+    URL = "/api/electricity-consumer-switching-churn/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_switching(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "switching" in data
+        assert len(data["switching"]) == 25
+
+    def test_has_retailer_churn(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "retailer_churn" in data
+        assert len(data["retailer_churn"]) == 20
+
+    def test_has_barriers(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "barriers" in data
+        assert len(data["barriers"]) == 15
+
+    def test_has_price_comparison(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_comparison" in data
+        assert len(data["price_comparison"]) == 24
+
+    def test_has_segments(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "segments" in data
+        assert len(data["segments"]) > 0
+
+    def test_has_trends(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "trends" in data
+        assert len(data["trends"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_switching_rate_pct" in summary
+        assert "avg_annual_saving_potential_aud" in summary
+        assert "highest_churn_retailer" in summary
+        assert "lowest_barrier_segment" in summary
+        assert "digital_switch_pct_latest" in summary
+        assert "default_offer_customers_pct" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
