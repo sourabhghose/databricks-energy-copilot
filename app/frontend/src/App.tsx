@@ -405,6 +405,9 @@ import ElectricityMarketRegulatoryAppealsAnalytics from './pages/ElectricityMark
 import DistributedEnergyResourceManagementAnalytics from './pages/DistributedEnergyResourceManagementAnalytics'
 import MarketPriceFormationReviewAnalytics from './pages/MarketPriceFormationReviewAnalytics'
 import ResidentialSolarSelfConsumptionAnalytics from './pages/ResidentialSolarSelfConsumptionAnalytics'
+import EnergyInfrastructureCyberThreatAnalytics from './pages/EnergyInfrastructureCyberThreatAnalytics'
+import WholesaleGasMarketAnalytics from './pages/WholesaleGasMarketAnalytics'
+import ElectricityDemandForecastingMLAnalytics from './pages/ElectricityDemandForecastingMLAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -727,6 +730,9 @@ const NAV_ITEMS = [
   { to: '/distributed-energy-resource-management', label: 'DER Management', Icon: Sliders },
   { to: '/market-price-formation-review', label: 'Price Formation Review', Icon: AlertCircle },
   { to: '/residential-solar-self-consumption', label: 'Solar Self-Consumption', Icon: HomeIcon },
+  { to: '/energy-infrastructure-cyber-threat', label: 'Cyber Threat Analytics', Icon: Shield },
+  { to: '/wholesale-gas-market', label: 'Wholesale Gas Market', Icon: Flame },
+  { to: '/electricity-demand-forecasting-ml', label: 'Demand Forecast ML', Icon: Brain },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1124,6 +1130,9 @@ export default function App() {
               <Route path="/distributed-energy-resource-management" element={<DistributedEnergyResourceManagementAnalytics />} />
               <Route path="/market-price-formation-review" element={<MarketPriceFormationReviewAnalytics />} />
               <Route path="/residential-solar-self-consumption" element={<ResidentialSolarSelfConsumptionAnalytics />} />
+              <Route path="/energy-infrastructure-cyber-threat" element={<EnergyInfrastructureCyberThreatAnalytics />} />
+              <Route path="/wholesale-gas-market" element={<WholesaleGasMarketAnalytics />} />
+              <Route path="/electricity-demand-forecasting-ml" element={<ElectricityDemandForecastingMLAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

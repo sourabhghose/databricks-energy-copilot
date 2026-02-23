@@ -15893,3 +15893,202 @@ class TestRSSCDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestEICTDashboard — Sprint 118a
+# ===========================================================================
+class TestEICTDashboard:
+    """Tests for the GET /api/energy-infrastructure-cyber-threat/dashboard endpoint."""
+
+    URL = "/api/energy-infrastructure-cyber-threat/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_threats(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "threats" in data
+        assert len(data["threats"]) == 20
+
+    def test_has_assets(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "assets" in data
+        assert len(data["assets"]) == 25
+
+    def test_has_incidents(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "incidents" in data
+        assert len(data["incidents"]) == 20
+
+    def test_has_compliance(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "compliance" in data
+        assert len(data["compliance"]) == 15
+
+    def test_has_investments(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "investments" in data
+        assert len(data["investments"]) == 20
+
+    def test_has_risk_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "risk_scenarios" in data
+        assert len(data["risk_scenarios"]) == 20
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_incidents_ytd" in summary
+        assert "avg_detection_time_h" in summary
+        assert "avg_compliance_score_pct" in summary
+        assert "total_cyber_spend_m" in summary
+        assert "critical_vulnerabilities_count" in summary
+        assert "high_risk_scenarios" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+# ===========================================================================
+# TestWGMADashboard
+# ===========================================================================
+class TestWGMADashboard:
+    """Tests for the GET /api/wholesale-gas-market/dashboard endpoint."""
+
+    URL = "/api/wholesale-gas-market/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_prices(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "prices" in data
+        assert len(data["prices"]) == 30
+
+    def test_has_supply(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "supply" in data
+        assert len(data["supply"]) == 25
+
+    def test_has_demand(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "demand" in data
+        assert len(data["demand"]) == 24
+
+    def test_has_pipelines(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "pipelines" in data
+        assert len(data["pipelines"]) == 20
+
+    def test_has_storage(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "storage" in data
+        assert len(data["storage"]) == 15
+
+    def test_has_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "scenarios" in data
+        assert len(data["scenarios"]) == 20
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_spot_price_gj" in summary
+        assert "total_east_coast_production_pj" in summary
+        assert "lng_export_share_pct" in summary
+        assert "pipeline_avg_utilisation_pct" in summary
+        assert "storage_avg_inventory_pct" in summary
+        assert "projected_2030_price_gj" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+# ===========================================================================
+# TestEDFMXDashboard  (Sprint 118c — Electricity Demand Forecasting ML)
+# ===========================================================================
+class TestEDFMXDashboard:
+    """Tests for GET /api/electricity-demand-forecasting-ml-x/dashboard."""
+
+    URL = "/api/electricity-demand-forecasting-ml-x/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_models(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "models" in data
+        assert len(data["models"]) == 20
+
+    def test_has_feature_importance(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "feature_importance" in data
+        assert len(data["feature_importance"]) == 25
+
+    def test_has_accuracy_records(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "accuracy_records" in data
+        assert len(data["accuracy_records"]) == 30
+
+    def test_has_structural_breaks(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "structural_breaks" in data
+        assert len(data["structural_breaks"]) == 15
+
+    def test_has_drift_monitoring(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "drift_monitoring" in data
+        assert len(data["drift_monitoring"]) == 20
+
+    def test_has_forecasts(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "forecasts" in data
+        assert len(data["forecasts"]) == 24
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "best_model_name" in summary
+        assert "best_model_mape_pct" in summary
+        assert "production_models_count" in summary
+        assert "models_with_drift" in summary
+        assert "structural_breaks_ytd" in summary
+        assert "avg_forecast_error_pct" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

@@ -22463,3 +22463,314 @@ export interface RSSCDashboard {
 
 export const getResidentialSolarSelfConsumptionDashboard = (): Promise<RSSCDashboard> =>
   get<RSSCDashboard>('/api/residential-solar-self-consumption/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 118a — Energy Infrastructure Cyber Threat Analytics (EICT)
+// ---------------------------------------------------------------------------
+export interface EICTThreatRecord {
+  threat_id: string
+  threat_category: string
+  target_sector: string
+  criticality: string
+  frequency_ytd: number
+  avg_detection_time_h: number
+  avg_response_time_h: number
+  financial_impact_m: number
+  incidents_prevented: number
+  controls_effective: boolean
+}
+
+export interface EICTAssetRecord {
+  asset_type: string
+  sector: string
+  total_assets: number
+  internet_exposed_pct: number
+  patched_current_pct: number
+  vulnerability_count: number
+  critical_vulnerability_count: number
+  monitoring_coverage_pct: number
+  mean_time_to_patch_days: number
+  compliance_score: number
+}
+
+export interface EICTIncidentRecord {
+  incident_id: string
+  incident_date: string
+  sector: string
+  incident_type: string
+  severity: number
+  discovery_method: string
+  resolution_days: number
+  financial_impact_m: number
+  operational_impact: string
+  reported_to_asd: boolean
+}
+
+export interface EICTComplianceRecord {
+  entity: string
+  sector: string
+  soci_registered: boolean
+  risk_management_program: boolean
+  last_audit_year: number
+  critical_asset_declared: number
+  soci_sector_rules_compliant_pct: number
+  cyber_security_incident_plan: boolean
+  supply_chain_risk_assessed: boolean
+  overseas_data_restriction_pct: number
+  compliance_score_pct: number
+}
+
+export interface EICTInvestmentRecord {
+  year: number
+  sector: string
+  cybersecurity_spend_m: number
+  it_security_pct: number
+  ot_security_pct: number
+  training_pct: number
+  incident_response_pct: number
+  compliance_pct: number
+  threat_intel_pct: number
+  spend_as_pct_of_revenue: number
+  benchmark_vs_sector_pct: number
+}
+
+export interface EICTRiskRecord {
+  risk_scenario: string
+  sector: string
+  likelihood_score: number
+  impact_score: number
+  risk_rating: string
+  current_controls: string
+  residual_risk: string
+  recommended_action: string
+  implementation_cost_m: number
+  risk_reduction_pct: number
+  regulatory_requirement: boolean
+}
+
+export interface EICTDashboard {
+  threats: EICTThreatRecord[]
+  assets: EICTAssetRecord[]
+  incidents: EICTIncidentRecord[]
+  compliance: EICTComplianceRecord[]
+  investments: EICTInvestmentRecord[]
+  risk_scenarios: EICTRiskRecord[]
+  summary: {
+    total_incidents_ytd: number
+    avg_detection_time_h: number
+    avg_compliance_score_pct: number
+    total_cyber_spend_m: number
+    critical_vulnerabilities_count: number
+    high_risk_scenarios: number
+  }
+}
+
+export const getEnergyInfrastructureCyberThreatDashboard = (): Promise<EICTDashboard> =>
+  get<EICTDashboard>('/api/energy-infrastructure-cyber-threat/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 118b — Wholesale Gas Market Analytics (WGMA)
+// ---------------------------------------------------------------------------
+
+export interface WGMAPriceRecord {
+  date_month: string
+  hub: string
+  price_gj: number
+  month_high_gj: number
+  month_low_gj: number
+  traded_volume_pj: number
+  contract_type: string
+  lng_netback_gj: number
+  coal_price_equivalent_gj: number
+  gas_vs_coal_spread_gj: number
+}
+
+export interface WGMASupplyRecord {
+  basin: string
+  producer: string
+  state: string
+  production_pj_year: number
+  reserves_pj: number
+  reserve_life_years: number
+  lng_export_pct: number
+  domestic_supply_pct: number
+  decline_rate_pct_year: number
+  capex_per_pj: number
+  field_type: string
+  status: string
+}
+
+export interface WGMADemandRecord {
+  quarter: string
+  sector: string
+  state: string
+  demand_pj: number
+  price_gj: number
+  demand_growth_pct: number
+  weather_normalised_pct: number
+  interruptible_share_pct: number
+}
+
+export interface WGMAPipelineRecord {
+  pipeline_name: string
+  operator: string
+  from_location: string
+  to_location: string
+  length_km: number
+  capacity_tj_day: number
+  utilisation_pct: number
+  contracted_tj_day: number
+  spot_tj_day: number
+  tariff_gj: number
+  expansion_underway: boolean
+  regulation_type: string
+}
+
+export interface WGMAStorageRecord {
+  storage_name: string
+  operator: string
+  state: string
+  storage_type: string
+  working_gas_pj: number
+  deliverability_tj_day: number
+  injection_rate_tj_day: number
+  inventory_pct: number
+  seasonal_role: string
+  tariff_gj: number
+}
+
+export interface WGMAScenarioRecord {
+  year: number
+  scenario: string
+  east_coast_production_pj: number
+  lng_export_pj: number
+  domestic_demand_pj: number
+  gas_for_power_pj: number
+  price_gj: number
+  supply_security_score: number
+  transition_impact_pct: number
+}
+
+export interface WGMADashboard {
+  prices: WGMAPriceRecord[]
+  supply: WGMASupplyRecord[]
+  demand: WGMADemandRecord[]
+  pipelines: WGMAPipelineRecord[]
+  storage: WGMAStorageRecord[]
+  scenarios: WGMAScenarioRecord[]
+  summary: {
+    avg_spot_price_gj: number
+    total_east_coast_production_pj: number
+    lng_export_share_pct: number
+    pipeline_avg_utilisation_pct: number
+    storage_avg_inventory_pct: number
+    projected_2030_price_gj: number
+  }
+}
+
+export const getWholesaleGasMarketDashboard = (): Promise<WGMADashboard> =>
+  get<WGMADashboard>('/api/wholesale-gas-market/dashboard')
+
+// ===========================================================================
+// Sprint 118c — Electricity Demand Forecasting ML Model Analytics (EDFMX)
+// ===========================================================================
+
+export interface EDFMXModelRecord {
+  model_id: string
+  model_name: string
+  model_type: string
+  forecast_horizon: string
+  region: string
+  mape_pct: number
+  mae_mw: number
+  rmse_mw: number
+  r_squared: number
+  training_data_years: number
+  features_count: number
+  last_trained: string
+  inference_time_ms: number
+  in_production: boolean
+}
+
+export interface EDFMXFeatureRecord {
+  model_id: string
+  feature_name: string
+  feature_importance_pct: number
+  feature_type: string
+  data_source: string
+  lag_hours: number
+  missing_rate_pct: number
+}
+
+export interface EDFMXAccuracyRecord {
+  evaluation_date: string
+  model_id: string
+  region: string
+  horizon_type: string
+  mape_pct: number
+  mae_mw: number
+  bias_mw: number
+  peak_demand_error_pct: number
+  trough_demand_error_pct: number
+  extreme_event_accuracy_pct: number
+  data_points_evaluated: number
+}
+
+export interface EDFMXStructuralBreakRecord {
+  break_id: string
+  detection_date: string
+  region: string
+  break_type: string
+  magnitude_mw: number
+  direction: string
+  model_impact_mape_increase_pct: number
+  adaptation_lag_weeks: number
+  retrain_required: boolean
+}
+
+export interface EDFMXDriftRecord {
+  monitor_date: string
+  model_id: string
+  region: string
+  psi_score: number
+  data_drift_detected: boolean
+  concept_drift_detected: boolean
+  performance_degradation_pct: number
+  recommended_action: string
+  retraining_triggered: boolean
+}
+
+export interface EDFMXForecastRecord {
+  forecast_date: string
+  region: string
+  horizon_h: number
+  model_used: string
+  forecast_demand_mw: number
+  actual_demand_mw: number
+  absolute_error_mw: number
+  pct_error: number
+  temperature_c: number
+  renewable_pct_actual: number
+  ev_load_estimated_mw: number
+  was_peak_day: boolean
+}
+
+export interface EDFMXDashboard {
+  models: EDFMXModelRecord[]
+  feature_importance: EDFMXFeatureRecord[]
+  accuracy_records: EDFMXAccuracyRecord[]
+  structural_breaks: EDFMXStructuralBreakRecord[]
+  drift_monitoring: EDFMXDriftRecord[]
+  forecasts: EDFMXForecastRecord[]
+  summary: {
+    best_model_name: string
+    best_model_mape_pct: number
+    production_models_count: number
+    models_with_drift: number
+    structural_breaks_ytd: number
+    avg_forecast_error_pct: number
+  }
+}
+
+export const getElectricityDemandForecastingMLXDashboard = (): Promise<EDFMXDashboard> =>
+  get<EDFMXDashboard>('/api/electricity-demand-forecasting-ml-x/dashboard')
