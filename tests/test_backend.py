@@ -20431,3 +20431,219 @@ class TestGEPADashboard:
             assert "potential_capacity_mw" in res, (
                 f"Missing potential_capacity_mw in resource {res.get('resource_id')}"
             )
+
+
+# ===========================================================================
+# TestESAODashboard
+# ===========================================================================
+
+class TestESAODashboard:
+    """9 tests for GET /api/energy-storage-arbitrage/dashboard."""
+
+    URL = "/api/energy-storage-arbitrage/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "assets" in data
+        assert "daily_patterns" in data
+        assert "revenue" in data
+        assert "optimisation" in data
+        assert "spreads" in data
+        assert "summary" in data
+
+    def test_assets_count(self):
+        """assets list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["assets"]) == 10
+
+    def test_daily_patterns_count(self):
+        """daily_patterns list must contain exactly 60 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["daily_patterns"]) == 60
+
+    def test_revenue_count(self):
+        """revenue list must contain exactly 36 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["revenue"]) == 36
+
+    def test_optimisation_count(self):
+        """optimisation list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["optimisation"]) == 20
+
+    def test_spreads_count(self):
+        """spreads list must contain exactly 48 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["spreads"]) == 48
+
+    def test_summary_has_total_storage_mwh(self):
+        """summary must have a total_storage_mwh field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_storage_mwh" in data["summary"]
+
+    def test_all_assets_have_round_trip_efficiency_pct(self):
+        """Every asset record must include round_trip_efficiency_pct."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for asset in data["assets"]:
+            assert "round_trip_efficiency_pct" in asset, (
+                f"Missing round_trip_efficiency_pct in asset {asset.get('asset_id')}"
+            )
+
+
+# ===========================================================================
+# TestCBAMXDashboard — Sprint 142b
+# ===========================================================================
+
+class TestCBAMXDashboard:
+    """9 tests for GET /api/carbon-border-adjustment-x/dashboard."""
+
+    URL = "/api/carbon-border-adjustment-x/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "sectors" in data
+        assert "trade_flows" in data
+        assert "abatement" in data
+        assert "policies" in data
+        assert "financial_impact" in data
+        assert "summary" in data
+
+    def test_sectors_count(self):
+        """sectors list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["sectors"]) == 12
+
+    def test_trade_flows_count(self):
+        """trade_flows list must contain exactly 30 records (5 sectors × 6 destinations)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["trade_flows"]) == 30
+
+    def test_abatement_count(self):
+        """abatement list must contain exactly 24 records (4 sectors × 6 measures)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["abatement"]) == 24
+
+    def test_policies_count(self):
+        """policies list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["policies"]) == 20
+
+    def test_financial_impact_count(self):
+        """financial_impact list must contain exactly 30 records (5 sectors × 6 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["financial_impact"]) == 30
+
+    def test_summary_has_total_exports_at_risk_b_aud(self):
+        """summary must have a total_exports_at_risk_b_aud field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_exports_at_risk_b_aud" in data["summary"]
+
+    def test_all_sectors_have_carbon_intensity_tco2_per_t(self):
+        """Every sector record must include carbon_intensity_tco2_per_t."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for sector in data["sectors"]:
+            assert "carbon_intensity_tco2_per_t" in sector, (
+                f"Missing carbon_intensity_tco2_per_t in sector {sector.get('sector_id')}"
+            )
+
+
+# ===========================================================================
+# TestFCAPDashboard — Sprint 142c
+# ===========================================================================
+
+class TestFCAPDashboard:
+    """9 tests for GET /api/fcas-procurement/dashboard."""
+
+    URL = "/api/fcas-procurement/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "services" in data
+        assert "monthly" in data
+        assert "providers" in data
+        assert "regional_requirements" in data
+        assert "cost_trends" in data
+        assert "summary" in data
+
+    def test_services_count(self):
+        """services list must contain exactly 8 records (one per FCAS service)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["services"]) == 8
+
+    def test_monthly_count(self):
+        """monthly list must contain exactly 96 records (8 services × 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["monthly"]) == 96
+
+    def test_providers_count(self):
+        """providers list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["providers"]) == 25
+
+    def test_regional_requirements_count(self):
+        """regional_requirements list must contain exactly 60 records (5 regions × 4 services × 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regional_requirements"]) == 60
+
+    def test_cost_trends_count(self):
+        """cost_trends list must contain exactly 24 records (3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_trends"]) == 24
+
+    def test_summary_has_total_fcas_cost_m_aud_2024(self):
+        """summary must contain a total_fcas_cost_m_aud_2024 field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_fcas_cost_m_aud_2024" in data["summary"]
+
+    def test_all_services_have_procurement_cost_m_aud_2024(self):
+        """Every service record must include procurement_cost_m_aud_2024."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for svc in data["services"]:
+            assert "procurement_cost_m_aud_2024" in svc, (
+                f"Missing procurement_cost_m_aud_2024 in service {svc.get('service_id')}"
+            )

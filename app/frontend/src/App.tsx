@@ -484,6 +484,9 @@ import EnergyCommunityMicrogridAnalytics from './pages/EnergyCommunityMicrogridA
 import ElectricityWholesaleMarketLiquidityAnalytics from './pages/ElectricityWholesaleMarketLiquidityAnalytics'
 import TidalWaveMarineEnergyAnalytics from './pages/TidalWaveMarineEnergyAnalytics'
 import GeothermalEnergyAnalytics from './pages/GeothermalEnergyAnalytics'
+import EnergyStorageArbitrageAnalytics from './pages/EnergyStorageArbitrageAnalytics'
+import CarbonBorderAdjustmentXAnalytics from './pages/CarbonBorderAdjustmentXAnalytics'
+import FcasProcurementAnalytics from './pages/FcasProcurementAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -878,6 +881,9 @@ const NAV_ITEMS = [
   { to: '/ewml-dashboard', label: 'Wholesale Liquidity', Icon: BarChart2 },
   { to: '/marine-energy',  label: 'Marine Energy',      Icon: Waves     },
   { to: '/geothermal-energy', label: 'Geothermal Energy', Icon: Thermometer },
+  { to: '/storage-arbitrage', label: 'Storage Arbitrage', Icon: Zap },
+  { to: '/carbon-border-adjustment-x', label: 'Carbon Border (CBAM)', Icon: Globe2 },
+  { to: '/fcas-procurement', label: 'FCAS Procurement', Icon: Activity },
 ]
 
 function Sidebar() {
@@ -1347,6 +1353,9 @@ export default function App() {
               <Route path="/ewml-dashboard" element={<ElectricityWholesaleMarketLiquidityAnalytics />} />
               <Route path="/marine-energy"  element={<TidalWaveMarineEnergyAnalytics />}               />
               <Route path="/geothermal-energy" element={<GeothermalEnergyAnalytics />} />
+              <Route path="/storage-arbitrage" element={<EnergyStorageArbitrageAnalytics />} />
+              <Route path="/carbon-border-adjustment-x" element={<CarbonBorderAdjustmentXAnalytics />} />
+              <Route path="/fcas-procurement" element={<FcasProcurementAnalytics />} />
             </Routes>
           </main>
         </div>

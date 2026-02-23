@@ -27472,3 +27472,238 @@ export interface GEPADashboard {
 }
 export const getGeothermalEnergyPotentialDashboard = (): Promise<GEPADashboard> =>
   get<GEPADashboard>('/api/geothermal-energy-potential/dashboard')
+
+// ---------------------------------------------------------------------------
+// ESAO — Energy Storage Arbitrage Optimisation Analytics
+// ---------------------------------------------------------------------------
+export interface ESAOAsset {
+  asset_id: string
+  asset_name: string
+  region: string
+  technology: string
+  power_mw: number
+  energy_mwh: number
+  duration_hrs: number
+  round_trip_efficiency_pct: number
+  degradation_rate_pct_pa: number
+  commissioning_year: number
+}
+export interface ESAODailyPattern {
+  asset_id: string
+  month: number
+  peak_charge_hour: number
+  peak_discharge_hour: number
+  avg_charge_price_mwh: number
+  avg_discharge_price_mwh: number
+  spread_mwh: number
+  arbitrage_revenue_k_aud: number
+  cycles: number
+}
+export interface ESAORevenue {
+  asset_id: string
+  year: number
+  quarter: string
+  arbitrage_revenue_m_aud: number
+  fcas_revenue_m_aud: number
+  ancillary_revenue_m_aud: number
+  total_revenue_m_aud: number
+  operating_costs_m_aud: number
+  ebitda_m_aud: number
+}
+export interface ESAOOptimisation {
+  scenario_id: string
+  asset_id: string
+  optimisation_strategy: string
+  annual_revenue_m_aud: number
+  improvement_vs_naive_pct: number
+  cycles_pa: number
+  soc_avg_pct: number
+  degradation_cost_m_aud: number
+}
+export interface ESAOSpread {
+  region: string
+  year: number
+  month: number
+  p10_price_mwh: number
+  p90_price_mwh: number
+  price_spread_mwh: number
+  arbitrage_opportunity_hrs: number
+  negative_price_hrs: number
+  cap_price_hrs: number
+}
+export interface ESAOSummary {
+  total_storage_mwh: number
+  avg_round_trip_efficiency_pct: number
+  best_arbitrage_region: string
+  avg_annual_spread_mwh: number
+  total_revenue_m_aud_2024: number
+  best_optimisation_strategy: string
+  avg_payback_years: number
+}
+export interface ESAODashboard {
+  assets: ESAOAsset[]
+  daily_patterns: ESAODailyPattern[]
+  revenue: ESAORevenue[]
+  optimisation: ESAOOptimisation[]
+  spreads: ESAOSpread[]
+  summary: ESAOSummary
+}
+export const getEnergyStorageArbitrageDashboard = (): Promise<ESAODashboard> =>
+  get<ESAODashboard>('/api/energy-storage-arbitrage/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 142b — CBAMX: Carbon Border Adjustment Mechanism Analytics
+// ---------------------------------------------------------------------------
+export interface CBAMXSector {
+  sector_id: string
+  sector_name: string
+  product_category: string
+  australian_exports_b_aud: number
+  carbon_intensity_tco2_per_t: number
+  eu_cbam_applicable: boolean
+  uk_cbam_applicable: boolean
+  potential_cbam_cost_m_aud: number
+  abatement_potential_pct: number
+}
+export interface CBAMXTradeFlow {
+  sector_id: string
+  destination_country: string
+  export_volume_kt: number
+  export_value_m_aud: number
+  cbam_cost_m_aud: number
+  effective_carbon_price_aud: number
+  price_impact_pct: number
+  competitiveness_risk: string
+}
+export interface CBAMXAbatement {
+  sector_id: string
+  abatement_measure: string
+  emission_reduction_pct: number
+  capex_m_aud: number
+  opex_increase_pct: number
+  timeline_years: number
+  feasibility: string
+}
+export interface CBAMXPolicy {
+  policy_id: string
+  policy_name: string
+  jurisdiction: string
+  status: string
+  implementation_year: number
+  sectors_covered: string
+  carbon_price_benchmark_aud: number
+  revenue_use: string
+}
+export interface CBAMXFinancialImpact {
+  sector_id: string
+  year: number
+  cbam_cost_m_aud: number
+  abatement_investment_m_aud: number
+  net_trade_impact_m_aud: number
+  market_share_change_pct: number
+  jobs_at_risk: number
+}
+export interface CBAMXSummary {
+  total_exports_at_risk_b_aud: number
+  total_cbam_cost_m_aud: number
+  avg_carbon_intensity: number
+  most_exposed_sector: string
+  total_abatement_potential_pct: number
+  total_jobs_at_risk: number
+  policy_readiness_score: number
+}
+export interface CBAMXDashboard {
+  sectors: CBAMXSector[]
+  trade_flows: CBAMXTradeFlow[]
+  abatement: CBAMXAbatement[]
+  policies: CBAMXPolicy[]
+  financial_impact: CBAMXFinancialImpact[]
+  summary: CBAMXSummary
+}
+export const getCarbonBorderAdjustmentXDashboard = (): Promise<CBAMXDashboard> =>
+  get<CBAMXDashboard>('/api/carbon-border-adjustment-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 142c — FCAP: FCAS Procurement & Cost Analytics
+// ---------------------------------------------------------------------------
+
+export interface FCAPService {
+  service_id: string
+  service_name: string
+  service_type: string
+  direction: string
+  response_time_s: number
+  requirement_mw_2024: number
+  avg_price_per_mwh_2024: number
+  procurement_cost_m_aud_2024: number
+  primary_providers: string
+  shortage_events_2024: number
+}
+
+export interface FCAPMonthly {
+  service_id: string
+  year: number
+  month: number
+  requirement_mw: number
+  cleared_volume_mw: number
+  avg_price_mwh: number
+  max_price_mwh: number
+  procurement_cost_m_aud: number
+  shortage_flag: boolean
+}
+
+export interface FCAPProvider {
+  provider_id: string
+  provider_name: string
+  provider_type: string
+  region: string
+  enabled_capacity_mw: number
+  fcas_revenue_m_aud_2024: number
+  primary_service: string
+  market_share_pct: number
+  response_compliance_pct: number
+}
+
+export interface FCAPRegionalRequirement {
+  region: string
+  service_id: string
+  year: number
+  local_requirement_mw: number
+  imported_mw: number
+  locally_cleared_mw: number
+  cost_premium_pct: number
+}
+
+export interface FCAPCostTrend {
+  year: number
+  quarter: string
+  contingency_raise_cost_m_aud: number
+  contingency_lower_cost_m_aud: number
+  regulation_raise_cost_m_aud: number
+  regulation_lower_cost_m_aud: number
+  total_fcas_cost_m_aud: number
+  spot_market_cost_m_aud: number
+  fcas_as_pct_total: number
+}
+
+export interface FCAPSummary {
+  total_fcas_cost_m_aud_2024: number
+  most_expensive_service: string
+  highest_cost_region: string
+  total_providers: number
+  avg_compliance_pct: number
+  total_enabled_capacity_mw: number
+  cost_increase_yoy_pct: number
+}
+
+export interface FCAPDashboard {
+  services: FCAPService[]
+  monthly: FCAPMonthly[]
+  providers: FCAPProvider[]
+  regional_requirements: FCAPRegionalRequirement[]
+  cost_trends: FCAPCostTrend[]
+  summary: FCAPSummary
+}
+
+export const getFcasProcurementDashboard = (): Promise<FCAPDashboard> =>
+  get<FCAPDashboard>('/api/fcas-procurement/dashboard')
