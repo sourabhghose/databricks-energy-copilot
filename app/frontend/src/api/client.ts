@@ -27707,3 +27707,257 @@ export interface FCAPDashboard {
 
 export const getFcasProcurementDashboard = (): Promise<FCAPDashboard> =>
   get<FCAPDashboard>('/api/fcas-procurement/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 143a — EFOT: Electricity Futures & Options Trading Analytics
+// ---------------------------------------------------------------------------
+
+export interface EFOTContract {
+  contract_id: string
+  contract_type: string
+  region: string
+  delivery_year: number
+  settlement_month: number
+  strike_price_mwh: number
+  market_price_mwh: number
+  open_interest_mwh: number
+  volume_traded_mwh: number
+  implied_volatility_pct: number
+}
+
+export interface EFOTDailyOHLC {
+  contract_id: string
+  trade_date_offset: number
+  open_mwh: number
+  high_mwh: number
+  low_mwh: number
+  close_mwh: number
+  volume_mwh: number
+  vwap_mwh: number
+}
+
+export interface EFOTHedgingProgram {
+  program_id: string
+  participant_name: string
+  hedge_type: string
+  region: string
+  hedged_volume_twh: number
+  hedge_ratio_pct: number
+  avg_strike_mwh: number
+  portfolio_delta_mwh: number
+  mark_to_market_m_aud: number
+  var_95_m_aud: number
+}
+
+export interface EFOTMarketDepth {
+  region: string
+  contract_type: string
+  quarter: string
+  year: number
+  bid_volume_mwh: number
+  ask_volume_mwh: number
+  bid_ask_spread_mwh: number
+  market_maker_count: number
+  liquidity_score: number
+}
+
+export interface EFOTVolatility {
+  region: string
+  year: number
+  month: number
+  realised_vol_30d: number
+  implied_vol: number
+  vol_risk_premium_pct: number
+  skew: number
+  kurtosis: number
+}
+
+export interface EFOTSummary {
+  total_open_interest_twh: number
+  avg_implied_volatility_pct: number
+  most_liquid_region: string
+  total_hedging_volume_twh: number
+  avg_hedge_ratio_pct: number
+  var_95_portfolio_m_aud: number
+  active_contracts: number
+}
+
+export interface EFOTDashboard {
+  contracts: EFOTContract[]
+  daily_ohlc: EFOTDailyOHLC[]
+  hedging_programs: EFOTHedgingProgram[]
+  market_depth: EFOTMarketDepth[]
+  volatility: EFOTVolatility[]
+  summary: EFOTSummary
+}
+
+export const getElectricityFuturesOptionsDashboard = (): Promise<EFOTDashboard> =>
+  get<EFOTDashboard>('/api/electricity-futures-options/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 143b — RECSX: Renewable Energy Certificate (LGC/STC) Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface RECSXMarketPrice {
+  certificate_type: string
+  year: number
+  month: number
+  spot_price_aud: number
+  forward_price_aud: number
+  volume_traded_k: number
+  open_registry_k: number
+  cleared_registry_k: number
+  surplus_deficit_k: number
+}
+
+export interface RECSXCreation {
+  year: number
+  quarter: string
+  technology: string
+  lgcs_created_k: number
+  stcs_created_k: number
+  state: string
+}
+
+export interface RECSXLiability {
+  participant_id: string
+  participant_name: string
+  participant_type: string
+  lret_liability_mwh: number
+  sres_liability_units: number
+  lgcs_surrendered_k: number
+  stcs_surrendered_k: number
+  shortfall_charge_paid_m_aud: number
+  compliance_status: string
+}
+
+export interface RECSXProjectPipeline {
+  project_id: string
+  project_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  annual_lgcs_k: number
+  accreditation_status: string
+  commissioning_year: number
+  owner: string
+}
+
+export interface RECSXVoluntaryMarket {
+  year: number
+  quarter: string
+  market_segment: string
+  voluntary_lgcs_k: number
+  greenpower_sales_gwh: number
+  corporate_ppa_lgcs_k: number
+  govt_procurement_lgcs_k: number
+  international_offset_lgcs_k: number
+  total_voluntary_k: number
+}
+
+export interface RECSXSummary {
+  total_lgcs_created_2024_k: number
+  total_stcs_created_2024_k: number
+  current_lgc_price_aud: number
+  current_stc_price_aud: number
+  total_accredited_capacity_gw: number
+  lret_target_2030_twh: number
+  compliance_rate_pct: number
+}
+
+export interface RECSXDashboard {
+  market_prices: RECSXMarketPrice[]
+  creation: RECSXCreation[]
+  liability: RECSXLiability[]
+  project_pipeline: RECSXProjectPipeline[]
+  voluntary_market: RECSXVoluntaryMarket[]
+  summary: RECSXSummary
+}
+
+export const getRenewableEnergyCertificateXDashboard = (): Promise<RECSXDashboard> =>
+  get<RECSXDashboard>('/api/renewable-energy-certificatex/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 143c — DERMX: Distributed Energy Resource Management Analytics (X)
+// ---------------------------------------------------------------------------
+
+export interface DERMXAsset {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  region: string
+  capacity_kw: number
+  enrolled_customers: number
+  controllable_mw: number
+  response_time_s: number
+  aggregator: string
+  status: string
+}
+
+export interface DERMXDispatch {
+  asset_id: string
+  month: number
+  year: number
+  dispatch_events: number
+  avg_dispatch_mw: number
+  avg_duration_min: number
+  response_success_rate_pct: number
+  revenue_k_aud: number
+  customer_satisfaction_score: number
+}
+
+export interface DERMXGrid {
+  region: string
+  year: number
+  quarter: string
+  der_installed_mw: number
+  der_controllable_mw: number
+  network_deferral_benefit_m_aud: number
+  peak_coincidence_pct: number
+  curtailment_mwh: number
+  export_limit_events: number
+}
+
+export interface DERMXAggregator {
+  aggregator_id: string
+  aggregator_name: string
+  platform_type: string
+  enrolled_customers: number
+  total_capacity_mw: number
+  region_focus: string
+  market_participation: string
+  revenue_m_aud_2024: number
+  technology_partners: string
+}
+
+export interface DERMXRegulatory {
+  framework_id: string
+  framework_name: string
+  jurisdiction: string
+  category: string
+  status: string
+  applicable_year: number
+  impact: string
+}
+
+export interface DERMXSummary {
+  total_enrolled_customers: number
+  total_controllable_mw: number
+  avg_dispatch_success_rate_pct: number
+  total_network_deferral_m_aud: number
+  total_aggregators: number
+  best_performing_asset_type: string
+  total_der_revenue_m_aud: number
+}
+
+export interface DERMXDashboard {
+  assets: DERMXAsset[]
+  dispatch: DERMXDispatch[]
+  grid: DERMXGrid[]
+  aggregators: DERMXAggregator[]
+  regulatory: DERMXRegulatory[]
+  summary: DERMXSummary
+}
+
+export const getDistributedEnergyResourceManagementXDashboard = (): Promise<DERMXDashboard> =>
+  get<DERMXDashboard>('/api/distributed-energy-resource-management-x/dashboard')

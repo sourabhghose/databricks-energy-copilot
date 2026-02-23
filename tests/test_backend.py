@@ -20647,3 +20647,218 @@ class TestFCAPDashboard:
             assert "procurement_cost_m_aud_2024" in svc, (
                 f"Missing procurement_cost_m_aud_2024 in service {svc.get('service_id')}"
             )
+
+
+# ===========================================================================
+# TestEFOTDashboard — Sprint 143a
+# ===========================================================================
+
+class TestEFOTDashboard:
+    """9 tests for GET /api/electricity-futures-options/dashboard."""
+
+    URL = "/api/electricity-futures-options/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "contracts" in data
+        assert "daily_ohlc" in data
+        assert "hedging_programs" in data
+        assert "market_depth" in data
+        assert "volatility" in data
+        assert "summary" in data
+
+    def test_contracts_count(self):
+        """contracts list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["contracts"]) == 20
+
+    def test_daily_ohlc_count(self):
+        """daily_ohlc list must contain exactly 60 records (3 contracts × 20 days)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["daily_ohlc"]) == 60
+
+    def test_hedging_programs_count(self):
+        """hedging_programs list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["hedging_programs"]) == 15
+
+    def test_market_depth_count(self):
+        """market_depth list must contain exactly 30 records (3 regions × 5 types × 2 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_depth"]) == 30
+
+    def test_volatility_count(self):
+        """volatility list must contain exactly 24 records (4 regions × 3 years × 2 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["volatility"]) == 24
+
+    def test_summary_has_total_open_interest_twh(self):
+        """summary must contain a total_open_interest_twh field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_open_interest_twh" in data["summary"]
+
+    def test_all_contracts_have_implied_volatility_pct(self):
+        """Every contract record must include implied_volatility_pct."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for contract in data["contracts"]:
+            assert "implied_volatility_pct" in contract, (
+                f"Missing implied_volatility_pct in contract {contract.get('contract_id')}"
+            )
+
+
+# ===========================================================================
+# TestRECSXDashboard — Sprint 143b: RECSX Renewable Energy Certificate Analytics
+# ===========================================================================
+class TestRECSXDashboard:
+    """9 tests for GET /api/renewable-energy-certificatex/dashboard."""
+
+    URL = "/api/renewable-energy-certificatex/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "market_prices" in data
+        assert "creation" in data
+        assert "liability" in data
+        assert "project_pipeline" in data
+        assert "voluntary_market" in data
+        assert "summary" in data
+
+    def test_market_prices_count(self):
+        """market_prices list must contain exactly 60 records (LGC 5 years × 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_prices"]) == 60
+
+    def test_creation_count(self):
+        """creation list must contain exactly 36 records (3 years × 4 quarters × 3 technologies)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["creation"]) == 36
+
+    def test_liability_count(self):
+        """liability list must contain exactly 20 records (one per liable entity)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["liability"]) == 20
+
+    def test_project_pipeline_count(self):
+        """project_pipeline list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["project_pipeline"]) == 25
+
+    def test_voluntary_market_count(self):
+        """voluntary_market list must contain exactly 24 records (3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["voluntary_market"]) == 24
+
+    def test_summary_has_current_lgc_price_aud(self):
+        """summary must contain a current_lgc_price_aud field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "current_lgc_price_aud" in data["summary"]
+
+    def test_all_market_prices_have_spot_price_aud(self):
+        """Every market_prices record must include spot_price_aud."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for price in data["market_prices"]:
+            assert "spot_price_aud" in price, (
+                f"Missing spot_price_aud in market_prices record year={price.get('year')} month={price.get('month')}"
+            )
+
+
+# ===========================================================================
+# TestDERMXDashboard — Sprint 143c
+# ===========================================================================
+
+class TestDERMXDashboard:
+    """9 tests for GET /api/distributed-energy-resource-management-x/dashboard."""
+
+    URL = "/api/distributed-energy-resource-management-x/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys: assets, dispatch, grid, aggregators, regulatory, summary."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "assets" in data
+        assert "dispatch" in data
+        assert "grid" in data
+        assert "aggregators" in data
+        assert "regulatory" in data
+        assert "summary" in data
+
+    def test_assets_count(self):
+        """assets list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["assets"]) == 20
+
+    def test_dispatch_count(self):
+        """dispatch list must contain exactly 60 records (5 assets × 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["dispatch"]) == 60
+
+    def test_grid_count(self):
+        """grid list must contain exactly 30 records (5 regions × 6 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["grid"]) == 30
+
+    def test_aggregators_count(self):
+        """aggregators list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["aggregators"]) == 15
+
+    def test_regulatory_count(self):
+        """regulatory list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regulatory"]) == 25
+
+    def test_summary_has_total_controllable_mw(self):
+        """summary must contain a total_controllable_mw field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_controllable_mw" in data["summary"]
+
+    def test_all_assets_have_controllable_mw(self):
+        """Every asset record must include the controllable_mw field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for asset in data["assets"]:
+            assert "controllable_mw" in asset, (
+                f"Missing controllable_mw in asset {asset.get('asset_id')}"
+            )

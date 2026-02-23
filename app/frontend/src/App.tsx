@@ -487,6 +487,9 @@ import GeothermalEnergyAnalytics from './pages/GeothermalEnergyAnalytics'
 import EnergyStorageArbitrageAnalytics from './pages/EnergyStorageArbitrageAnalytics'
 import CarbonBorderAdjustmentXAnalytics from './pages/CarbonBorderAdjustmentXAnalytics'
 import FcasProcurementAnalytics from './pages/FcasProcurementAnalytics'
+import ElectricityFuturesOptionsAnalytics from './pages/ElectricityFuturesOptionsAnalytics'
+import RenewableEnergyCertificateXAnalytics from './pages/RenewableEnergyCertificateXAnalytics'
+import DistributedEnergyResourceManagementXAnalytics from './pages/DistributedEnergyResourceManagementXAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -884,6 +887,9 @@ const NAV_ITEMS = [
   { to: '/storage-arbitrage', label: 'Storage Arbitrage', Icon: Zap },
   { to: '/carbon-border-adjustment-x', label: 'Carbon Border (CBAM)', Icon: Globe2 },
   { to: '/fcas-procurement', label: 'FCAS Procurement', Icon: Activity },
+  { to: '/electricity-futures-options', label: 'Futures & Options', Icon: TrendingUp },
+  { to: '/rec-lgc-stc', label: 'REC LGC/STC Market', Icon: Award },
+  { to: '/der-management-x', label: 'DER Management', Icon: Grid },
 ]
 
 function Sidebar() {
@@ -1356,6 +1362,9 @@ export default function App() {
               <Route path="/storage-arbitrage" element={<EnergyStorageArbitrageAnalytics />} />
               <Route path="/carbon-border-adjustment-x" element={<CarbonBorderAdjustmentXAnalytics />} />
               <Route path="/fcas-procurement" element={<FcasProcurementAnalytics />} />
+              <Route path="/electricity-futures-options" element={<ElectricityFuturesOptionsAnalytics />} />
+              <Route path="/rec-lgc-stc" element={<RenewableEnergyCertificateXAnalytics />} />
+              <Route path="/der-management-x" element={<DistributedEnergyResourceManagementXAnalytics />} />
             </Routes>
           </main>
         </div>
