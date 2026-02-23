@@ -440,6 +440,9 @@ import ElectricityMarketPriceFormationAnalytics from './pages/ElectricityMarketP
 import RezAuctionCisAnalytics from './pages/RezAuctionCisAnalytics'
 import GridModernisationDigitalTwinAnalytics from './pages/GridModernisationDigitalTwinAnalytics'
 import EnergyMarketCreditRiskAnalytics from './pages/EnergyMarketCreditRiskAnalytics'
+import ElectricityConsumerBehaviourAnalytics from './pages/ElectricityConsumerBehaviourAnalytics'
+import ThermalCoalPowerTransitionAnalytics from './pages/ThermalCoalPowerTransitionAnalytics'
+import DemandResponseAggregatorAnalytics from './pages/DemandResponseAggregatorAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -795,6 +798,9 @@ const NAV_ITEMS = [
   { to: '/rez-auction-cis', label: 'REZ Auction & CIS Analytics', Icon: MapPin },
   { to: '/grid-modernisation-digital-twin', label: 'Grid Modernisation & Digital Twin', Icon: Monitor },
   { to: '/energy-market-credit-risk', label: 'Energy Market Participant Credit Risk', Icon: AlertTriangle },
+  { to: '/electricity-consumer-behaviour', label: 'Consumer Behaviour & Smart Home', Icon: HomeIcon },
+  { to: '/thermal-coal-power-transition', label: 'Thermal Coal Power Station Transition', Icon: Zap },
+  { to: '/demand-response-aggregator', label: 'Demand Response Aggregator Market', Icon: Users },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1225,6 +1231,9 @@ export default function App() {
               <Route path="/rez-auction-cis" element={<RezAuctionCisAnalytics />} />
               <Route path="/grid-modernisation-digital-twin" element={<GridModernisationDigitalTwinAnalytics />} />
               <Route path="/energy-market-credit-risk" element={<EnergyMarketCreditRiskAnalytics />} />
+              <Route path="/electricity-consumer-behaviour" element={<ElectricityConsumerBehaviourAnalytics />} />
+              <Route path="/thermal-coal-power-transition" element={<ThermalCoalPowerTransitionAnalytics />} />
+              <Route path="/demand-response-aggregator" element={<DemandResponseAggregatorAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

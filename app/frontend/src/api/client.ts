@@ -24755,3 +24755,218 @@ export interface EMCRXDashboard {
 
 export const getEnergyMarketCreditRiskDashboard = (): Promise<EMCRXDashboard> =>
   get<EMCRXDashboard>('/api/energy-market-credit-risk-x/dashboard')
+
+// ============================================================
+// Sprint 129b — Electricity Consumer Behaviour & Smart Home Analytics (ECBS)
+// ============================================================
+
+export interface ECBSConsumerSegment {
+  segment: string
+  region: string
+  population_pct: number
+  avg_annual_consumption_kwh: number
+  solar_adoption_pct: number
+  battery_adoption_pct: number
+  ev_ownership_pct: number
+  smart_meter_pct: number
+  time_of_use_tariff_pct: number
+  avg_bill_annual: number
+}
+
+export interface ECBSLoadProfile {
+  hour_of_day: number
+  day_type: string
+  season: string
+  region: string
+  avg_demand_kw: number
+  peak_demand_kw: number
+  flexible_load_pct: number
+}
+
+export interface ECBSSmartHomeTechnology {
+  technology: string
+  region: string
+  adoption_pct: number
+  load_shift_potential_kw: number
+  annual_savings_per_household: number
+  payback_years: number
+  consumer_satisfaction_pct: number
+  grid_benefit_per_device_m: number
+}
+
+export interface ECBSBehaviourIntervention {
+  intervention_type: string
+  region: string
+  participants_k: number
+  load_reduction_pct: number
+  bill_savings_pct: number
+  engagement_rate_pct: number
+  sustained_change_pct: number
+  cost_per_participant: number
+}
+
+export interface ECBSAdoptionTrend {
+  year: number
+  technology: string
+  region: string
+  adoption_pct: number
+  growth_rate_pct: number
+  market_size_m: number
+}
+
+export interface ECBSDashboard {
+  segments: ECBSConsumerSegment[]
+  load_profiles: ECBSLoadProfile[]
+  smart_home: ECBSSmartHomeTechnology[]
+  interventions: ECBSBehaviourIntervention[]
+  adoption_trends: ECBSAdoptionTrend[]
+  summary: Record<string, unknown>
+}
+
+export const getElectricityConsumerBehaviourDashboard = (): Promise<ECBSDashboard> =>
+  get<ECBSDashboard>('/api/electricity-consumer-behaviour/dashboard')
+
+// ---------------------------------------------------------------------------
+// DRAM — Demand Response Aggregator Market Analytics (Sprint 129a)
+// ---------------------------------------------------------------------------
+
+export interface DRAMAggregatorRecord {
+  aggregator_name: string
+  region: string
+  customer_type: string
+  enrolled_customers: number
+  registered_capacity_mw: number
+  actual_dispatched_mw: number
+  dispatch_success_rate_pct: number
+  revenue_per_mw_k: number
+  avg_response_time_min: number
+}
+
+export interface DRAMEventRecord {
+  event_date: string
+  region: string
+  trigger: string
+  called_mw: number
+  delivered_mw: number
+  delivery_rate_pct: number
+  duration_min: number
+  event_value_m: number
+  participants_activated: number
+}
+
+export interface DRAMCustomerSegment {
+  segment: string
+  region: string
+  enrolled_mw: number
+  avg_load_reduction_pct: number
+  willingness_to_curtail_pct: number
+  avg_incentive_per_kwh: number
+  retention_rate_pct: number
+  reason_for_participation: string
+}
+
+export interface DRAMProgramComparison {
+  program_name: string
+  administrator: string
+  region: string
+  enrolled_capacity_mw: number
+  activation_frequency_yr: number
+  payment_per_mw_avail: number
+  payment_per_mwh_delivered: number
+  cost_effectiveness_score: number
+}
+
+export interface DRAMProjection {
+  year: number
+  scenario: string
+  enrolled_capacity_gw: number
+  activated_events_per_yr: number
+  total_market_value_m: number
+  grid_benefit_m: number
+  participant_revenue_m: number
+}
+
+export interface DRAMDashboard {
+  aggregators: DRAMAggregatorRecord[]
+  events: DRAMEventRecord[]
+  segments: DRAMCustomerSegment[]
+  programs: DRAMProgramComparison[]
+  projections: DRAMProjection[]
+  summary: Record<string, unknown>
+}
+
+export const getDemandResponseAggregatorDashboard = (): Promise<DRAMDashboard> =>
+  get<DRAMDashboard>('/api/demand-response-aggregator/dashboard')
+
+// ── Thermal Coal Power Station Transition Analytics (TCPT) ──────────────────
+
+export interface TCPTStationRecord {
+  station_name: string
+  region: string
+  operator: string
+  fuel_type: string
+  installed_capacity_mw: number
+  current_capacity_mw: number
+  commission_year: number
+  announced_closure_year: number
+  capacity_factor_pct: number
+  heat_rate_gj_per_mwh: number
+  emissions_intensity_tco2_per_mwh: number
+  workers_direct: number
+  community_dependence: string
+}
+
+export interface TCPTClosureTimeline {
+  station_name: string
+  year: number
+  remaining_capacity_mw: number
+  annual_generation_gwh: number
+  cumulative_retired_mw: number
+  reliability_risk: string
+  replacement_progress_pct: number
+}
+
+export interface TCPTWorkerImpact {
+  station_name: string
+  region: string
+  direct_workers: number
+  indirect_workers: number
+  closure_year: number
+  retraining_program: string
+  redeployment_rate_pct: number
+  new_energy_jobs_created: number
+  transition_support_m: number
+}
+
+export interface TCPTReplacementPlan {
+  station_name: string
+  replacement_technology: string
+  capacity_mw: number
+  capex_m: number
+  expected_online_year: number
+  status: string
+  gap_mw: number
+}
+
+export interface TCPTEconomics {
+  station_name: string
+  year: number
+  srmc_per_mwh: number
+  coal_cost_per_gj: number
+  carbon_cost_per_mwh: number
+  spot_price_avg: number
+  profitability: string
+  estimated_life_extension_cost_m: number
+}
+
+export interface TCPTDashboard {
+  stations: TCPTStationRecord[]
+  closure_timeline: TCPTClosureTimeline[]
+  worker_impact: TCPTWorkerImpact[]
+  replacement_plan: TCPTReplacementPlan[]
+  economics: TCPTEconomics[]
+  summary: Record<string, unknown>
+}
+
+export const getThermalCoalPowerTransitionDashboard = (): Promise<TCPTDashboard> =>
+  get<TCPTDashboard>('/api/thermal-coal-power-transition/dashboard')

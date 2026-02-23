@@ -17830,7 +17830,7 @@ class TestElectricityMarketPriceFormationDashboard:
 
 class TestGridModernisationDigitalTwinDashboard:
     URL = "/api/grid-modernisation-digital-twin/dashboard"
-    HEADERS = {"x-api-key": API_KEY}
+    HEADERS = {"x-api-key": "test-secret-key"}
 
     def test_status_ok(self, client=client):
         r = client.get(self.URL, headers=self.HEADERS)
@@ -17996,6 +17996,185 @@ class TestEnergyMarketCreditRiskDashboard:
         assert "highest_risk_participant" in summary
         assert "stress_test_max_default_m" in summary
         assert "breach_events_ytd" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestElectricityConsumerBehaviourDashboard
+# ===========================================================================
+
+class TestElectricityConsumerBehaviourDashboard:
+    """9 tests for GET /api/electricity-consumer-behaviour/dashboard (ECBS)."""
+
+    URL = "/api/electricity-consumer-behaviour/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("segments", "load_profiles", "smart_home", "interventions", "adoption_trends", "summary"):
+            assert key in data
+
+    def test_segments_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["segments"]) == 25
+
+    def test_load_profiles_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["load_profiles"]) == 192
+
+    def test_smart_home_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["smart_home"]) == 25
+
+    def test_interventions_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["interventions"]) == 25
+
+    def test_adoption_trends_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["adoption_trends"]) == 66
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "avg_solar_adoption_pct" in summary
+        assert "avg_battery_adoption_pct" in summary
+        assert "most_effective_intervention" in summary
+        assert "peak_flexibility_pct" in summary
+        assert "fastest_growing_technology" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestThermalCoalPowerTransitionDashboard:
+    """9 tests for GET /api/thermal-coal-power-transition/dashboard (TCPT)."""
+
+    URL = "/api/thermal-coal-power-transition/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("stations", "closure_timeline", "worker_impact", "replacement_plan", "economics", "summary"):
+            assert key in data
+
+    def test_stations_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stations"]) == 12
+
+    def test_closure_timeline_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["closure_timeline"]) == 84
+
+    def test_worker_impact_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["worker_impact"]) == 12
+
+    def test_replacement_plan_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["replacement_plan"]) == 30
+
+    def test_economics_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["economics"]) == 60
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_remaining_capacity_gw" in summary
+        assert "stations_closed_by_2030" in summary
+        assert "total_workers_affected_k" in summary
+        assert "replacement_gap_mw" in summary
+        assert "co2_reduction_mt_by_2035" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestDemandResponseAggregatorDashboard
+# ===========================================================================
+
+class TestDemandResponseAggregatorDashboard:
+    """9 tests for GET /api/demand-response-aggregator/dashboard (DRAM)."""
+
+    URL = "/api/demand-response-aggregator/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("aggregators", "events", "segments", "programs", "projections", "summary"):
+            assert key in data
+
+    def test_aggregators_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["aggregators"]) == 25
+
+    def test_events_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["events"]) == 25
+
+    def test_segments_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["segments"]) == 25
+
+    def test_programs_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["programs"]) == 20
+
+    def test_projections_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projections"]) == 33
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_enrolled_capacity_gw" in summary
+        assert "avg_dispatch_success_pct" in summary
+        assert "total_events_2024" in summary
+        assert "market_value_m" in summary
+        assert "fastest_growing_segment" in summary
 
     def test_caching(self, client=client):
         r1 = client.get(self.URL, headers=self.HEADERS)
