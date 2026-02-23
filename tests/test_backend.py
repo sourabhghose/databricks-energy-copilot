@@ -20862,3 +20862,219 @@ class TestDERMXDashboard:
             assert "controllable_mw" in asset, (
                 f"Missing controllable_mw in asset {asset.get('asset_id')}"
             )
+
+
+# ===========================================================================
+# TestACMEDashboard — Sprint 144b
+# ===========================================================================
+
+class TestACMEDashboard:
+    """9 tests for GET /api/coal-mine-energy/dashboard."""
+
+    URL = "/api/coal-mine-energy/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys: mines, energy_profiles, emissions, renewables, transition, summary."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "mines" in data
+        assert "energy_profiles" in data
+        assert "emissions" in data
+        assert "renewables" in data
+        assert "transition" in data
+        assert "summary" in data
+
+    def test_mines_count(self):
+        """mines list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["mines"]) == 15
+
+    def test_energy_profiles_count(self):
+        """energy_profiles list must contain exactly 60 records (5 mines × 3 years × 4 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["energy_profiles"]) == 60
+
+    def test_emissions_count(self):
+        """emissions list must contain exactly 36 records (12 mines × 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["emissions"]) == 36
+
+    def test_renewables_count(self):
+        """renewables list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["renewables"]) == 20
+
+    def test_transition_count(self):
+        """transition list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["transition"]) == 25
+
+    def test_summary_has_total_energy_consumption_pj(self):
+        """summary must contain a total_energy_consumption_pj field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_energy_consumption_pj" in data["summary"]
+
+    def test_all_mines_have_electricity_consumption_gwh(self):
+        """Every mine record must include the electricity_consumption_gwh field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for mine in data["mines"]:
+            assert "electricity_consumption_gwh" in mine, (
+                f"Missing electricity_consumption_gwh in mine {mine.get('mine_id')}"
+            )
+
+
+# ===========================================================================
+# TestNFMSDashboard — Sprint 144a
+# ===========================================================================
+
+class TestNFMSDashboard:
+    """9 tests for GET /api/nem-five-minute-settlement/dashboard."""
+
+    URL = "/api/nem-five-minute-settlement/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys: intervals, generators, price_spikes, batteries, market_impact, summary."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "intervals" in data
+        assert "generators" in data
+        assert "price_spikes" in data
+        assert "batteries" in data
+        assert "market_impact" in data
+        assert "summary" in data
+
+    def test_intervals_count(self):
+        """intervals list must contain exactly 60 records (5 regions × 3 years × 4 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["intervals"]) == 60
+
+    def test_generators_count(self):
+        """generators list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["generators"]) == 25
+
+    def test_price_spikes_count(self):
+        """price_spikes list must contain exactly 30 records (5 regions × 3 years × 2 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_spikes"]) == 30
+
+    def test_batteries_count(self):
+        """batteries list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["batteries"]) == 20
+
+    def test_market_impact_count(self):
+        """market_impact list must contain exactly 24 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_impact"]) == 24
+
+    def test_summary_has_avg_price_divergence_mwh(self):
+        """summary must contain the avg_price_divergence_mwh field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_price_divergence_mwh" in data["summary"]
+
+    def test_all_generators_have_dispatch_efficiency_pct(self):
+        """Every generator record must include the dispatch_efficiency_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for gen in data["generators"]:
+            assert "dispatch_efficiency_pct" in gen, (
+                f"Missing dispatch_efficiency_pct in generator {gen.get('generator_id')}"
+            )
+
+
+# ===========================================================================
+# TestENCRDashboard — Sprint 144c
+# ===========================================================================
+
+class TestENCRDashboard:
+    """9 tests for GET /api/network-congestion-relief/dashboard."""
+
+    URL = "/api/network-congestion-relief/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys: zones, solutions, curtailment, financial, forecast, summary."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "zones" in data
+        assert "solutions" in data
+        assert "curtailment" in data
+        assert "financial" in data
+        assert "forecast" in data
+        assert "summary" in data
+
+    def test_zones_count(self):
+        """zones list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["zones"]) == 15
+
+    def test_solutions_count(self):
+        """solutions list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["solutions"]) == 30
+
+    def test_curtailment_count(self):
+        """curtailment list must contain exactly 36 records (3 zones × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["curtailment"]) == 36
+
+    def test_financial_count(self):
+        """financial list must contain exactly 24 records (2 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["financial"]) == 24
+
+    def test_forecast_count(self):
+        """forecast list must contain exactly 20 records (4 zones × 5 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["forecast"]) == 20
+
+    def test_summary_has_total_curtailed_gwh_2024(self):
+        """summary must contain a total_curtailed_gwh_2024 field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_curtailed_gwh_2024" in data["summary"]
+
+    def test_all_zones_have_energy_curtailed_gwh_pa(self):
+        """Every zone record must include the energy_curtailed_gwh_pa field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for zone in data["zones"]:
+            assert "energy_curtailed_gwh_pa" in zone, (
+                f"Missing energy_curtailed_gwh_pa in zone {zone.get('zone_id')}"
+            )

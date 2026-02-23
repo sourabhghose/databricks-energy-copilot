@@ -27961,3 +27961,259 @@ export interface DERMXDashboard {
 
 export const getDistributedEnergyResourceManagementXDashboard = (): Promise<DERMXDashboard> =>
   get<DERMXDashboard>('/api/distributed-energy-resource-management-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 144b — ACME: Australian Coal Mine Energy Analytics
+// ---------------------------------------------------------------------------
+
+export interface ACMEMine {
+  mine_id: string
+  mine_name: string
+  state: string
+  mine_type: string
+  owner: string
+  annual_production_mt: number
+  energy_consumption_pj: number
+  electricity_consumption_gwh: number
+  diesel_consumption_ml: number
+  onsite_renewables_mw: number
+  status: string
+}
+
+export interface ACMEEnergyProfile {
+  mine_id: string
+  year: number
+  month: number
+  electricity_gwh: number
+  diesel_ml: number
+  natural_gas_tj: number
+  lgh_gas_tj: number
+  renewable_fraction_pct: number
+  energy_cost_m_aud: number
+}
+
+export interface ACMEEmissions {
+  mine_id: string
+  year: number
+  scope1_co2e_kt: number
+  scope2_co2e_kt: number
+  fugitive_methane_kt: number
+  methane_drainage_rate_pct: number
+  safeguard_threshold_kt: number
+  above_threshold: boolean
+  abatement_projects: string
+}
+
+export interface ACMERenewable {
+  mine_id: string
+  technology: string
+  installed_capacity_mw: number
+  annual_generation_gwh: number
+  diesel_displaced_ml: number
+  capex_m_aud: number
+  payback_years: number
+  status: string
+}
+
+export interface ACMETransition {
+  mine_id: string
+  closure_year: number
+  rehabilitation_cost_m_aud: number
+  affected_workers: number
+  alternative_industry: string
+  state_support_m_aud: number
+  community_fund_m_aud: number
+  transition_status: string
+}
+
+export interface ACMESummary {
+  total_mines: number
+  total_energy_consumption_pj: number
+  avg_renewable_fraction_pct: number
+  total_scope1_emissions_mt: number
+  total_onsite_renewables_mw: number
+  mines_above_safeguard_threshold: number
+  total_transition_support_m_aud: number
+}
+
+export interface ACMEDashboard {
+  mines: ACMEMine[]
+  energy_profiles: ACMEEnergyProfile[]
+  emissions: ACMEEmissions[]
+  renewables: ACMERenewable[]
+  transition: ACMETransition[]
+  summary: ACMESummary
+}
+
+export const getCoalMineEnergyDashboard = (): Promise<ACMEDashboard> =>
+  get<ACMEDashboard>('/api/coal-mine-energy/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 144a — NFMS: NEM Five-Minute Settlement Analytics interfaces
+// ---------------------------------------------------------------------------
+export interface NFMSInterval {
+  region: string
+  settlement_period: string
+  year: number
+  month: number
+  avg_5min_price_mwh: number
+  avg_30min_rrp_mwh: number
+  price_divergence_mwh: number
+  dispatch_intervals_count: number
+  rebid_events: number
+}
+
+export interface NFMSGenerator {
+  generator_id: string
+  generator_name: string
+  region: string
+  technology: string
+  capacity_mw: number
+  rebid_frequency_per_day: number
+  fast_rebid_pct: number
+  revenue_change_pct_post_5ms: number
+  dispatch_efficiency_pct: number
+  adaption_status: string
+}
+
+export interface NFMSPriceSpike {
+  region: string
+  year: number
+  quarter: string
+  spike_count_above_300: number
+  spike_count_above_5000: number
+  spike_count_above_15000: number
+  avg_spike_duration_min: number
+  total_spike_revenue_m_aud: number
+  five_ms_spike_contribution_pct: number
+}
+
+export interface NFMSBattery {
+  asset_id: string
+  asset_name: string
+  region: string
+  power_mw: number
+  dispatch_cycles_per_day: number
+  avg_charge_price_mwh: number
+  avg_discharge_price_mwh: number
+  arbitrage_revenue_m_aud_2024: number
+  response_time_s: number
+  five_ms_benefit_vs_30ms_pct: number
+}
+
+export interface NFMSMarketImpact {
+  year: number
+  quarter: string
+  total_price_divergence_gwh: number
+  consumer_impact_m_aud: number
+  generator_benefit_m_aud: number
+  battery_benefit_m_aud: number
+  market_efficiency_score: number
+  reform_benefit_m_aud: number
+}
+
+export interface NFMSSummary {
+  avg_price_divergence_mwh: number
+  total_rebid_events_pa: number
+  batteries_benefited_count: number
+  consumer_savings_m_aud: number
+  generator_revenue_change_pct: number
+  reform_benefit_total_m_aud: number
+  most_impacted_region: string
+}
+
+export interface NFMSDashboard {
+  intervals: NFMSInterval[]
+  generators: NFMSGenerator[]
+  price_spikes: NFMSPriceSpike[]
+  batteries: NFMSBattery[]
+  market_impact: NFMSMarketImpact[]
+  summary: NFMSSummary
+}
+
+export const getNemFiveMinuteSettlementDashboard = (): Promise<NFMSDashboard> =>
+  get<NFMSDashboard>('/api/nem-five-minute-settlement/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 144c — ENCR: Electricity Network Congestion Relief Analytics
+// ---------------------------------------------------------------------------
+
+export interface ENCRZone {
+  zone_id: string
+  zone_name: string
+  region: string
+  zone_type: string
+  congestion_severity: string
+  annual_congestion_hours: number
+  energy_curtailed_gwh_pa: number
+  congestion_cost_m_aud_pa: number
+  relief_investment_m_aud: number
+  relief_status: string
+}
+
+export interface ENCRSolution {
+  solution_id: string
+  zone_id: string
+  solution_type: string
+  capacity_mw: number
+  cost_m_aud: number
+  energy_unlocked_gwh_pa: number
+  benefit_cost_ratio: number
+  implementation_year: number
+  status: string
+}
+
+export interface ENCRCurtailment {
+  zone_id: string
+  year: number
+  quarter: string
+  solar_curtailed_gwh: number
+  wind_curtailed_gwh: number
+  total_curtailed_gwh: number
+  curtailment_cost_m_aud: number
+  constraint_id: string
+  binding_hours: number
+}
+
+export interface ENCRFinancial {
+  region: string
+  year: number
+  quarter: string
+  congestion_uplift_m_aud: number
+  constraint_compensation_m_aud: number
+  loss_factor_adjustment_m_aud: number
+  total_congestion_cost_m_aud: number
+  consumer_cost_per_mwh: number
+}
+
+export interface ENCRForecast {
+  zone_id: string
+  year: number
+  forecast_curtailment_gwh: number
+  forecast_congestion_cost_m_aud: number
+  planned_relief_mw: number
+  residual_congestion_gwh: number
+  congestion_risk_score: number
+}
+
+export interface ENCRSummary {
+  total_zones: number
+  total_curtailed_gwh_2024: number
+  total_congestion_cost_m_aud_2024: number
+  total_relief_investment_m_aud: number
+  most_congested_zone: string
+  total_energy_unlocked_gwh_pa: number
+  avg_benefit_cost_ratio: number
+}
+
+export interface ENCRDashboard {
+  zones: ENCRZone[]
+  solutions: ENCRSolution[]
+  curtailment: ENCRCurtailment[]
+  financial: ENCRFinancial[]
+  forecast: ENCRForecast[]
+  summary: ENCRSummary
+}
+
+export const getNetworkCongestionReliefDashboard = (): Promise<ENCRDashboard> =>
+  get<ENCRDashboard>('/api/network-congestion-relief/dashboard')

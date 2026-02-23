@@ -490,6 +490,9 @@ import FcasProcurementAnalytics from './pages/FcasProcurementAnalytics'
 import ElectricityFuturesOptionsAnalytics from './pages/ElectricityFuturesOptionsAnalytics'
 import RenewableEnergyCertificateXAnalytics from './pages/RenewableEnergyCertificateXAnalytics'
 import DistributedEnergyResourceManagementXAnalytics from './pages/DistributedEnergyResourceManagementXAnalytics'
+import CoalMineEnergyAnalytics from './pages/CoalMineEnergyAnalytics'
+import NemFiveMinuteSettlementAnalytics from './pages/NemFiveMinuteSettlementAnalytics'
+import NetworkCongestionReliefAnalytics from './pages/NetworkCongestionReliefAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -890,6 +893,9 @@ const NAV_ITEMS = [
   { to: '/electricity-futures-options', label: 'Futures & Options', Icon: TrendingUp },
   { to: '/rec-lgc-stc', label: 'REC LGC/STC Market', Icon: Award },
   { to: '/der-management-x', label: 'DER Management', Icon: Grid },
+  { to: '/coal-mine-energy', label: 'Coal Mine Energy', Icon: Layers },
+  { to: '/nem-5min-settlement', label: '5-Min Settlement', Icon: Clock },
+  { to: '/network-congestion-relief', label: 'Congestion Relief', Icon: AlertTriangle },
 ]
 
 function Sidebar() {
@@ -1365,6 +1371,9 @@ export default function App() {
               <Route path="/electricity-futures-options" element={<ElectricityFuturesOptionsAnalytics />} />
               <Route path="/rec-lgc-stc" element={<RenewableEnergyCertificateXAnalytics />} />
               <Route path="/der-management-x" element={<DistributedEnergyResourceManagementXAnalytics />} />
+              <Route path="/coal-mine-energy" element={<CoalMineEnergyAnalytics />} />
+              <Route path="/nem-5min-settlement" element={<NemFiveMinuteSettlementAnalytics />} />
+              <Route path="/network-congestion-relief" element={<NetworkCongestionReliefAnalytics />} />
             </Routes>
           </main>
         </div>
