@@ -86,6 +86,7 @@ import {
   PieChart,
   AlertCircle,
   Building,
+  UserMinus,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -446,6 +447,9 @@ import DemandResponseAggregatorAnalytics from './pages/DemandResponseAggregatorA
 import EnergyCommodityTradingAnalytics from './pages/EnergyCommodityTradingAnalytics'
 import NetworkTariffDesignReformAnalytics from './pages/NetworkTariffDesignReformAnalytics'
 import HydrogenValleyClusterAnalytics from './pages/HydrogenValleyClusterAnalytics'
+import NemCongestionRentAnalytics from './pages/NemCongestionRentAnalytics'
+import ElectricityRetailerChurnAnalytics from './pages/ElectricityRetailerChurnAnalytics'
+import EnergyAssetMaintenanceAnalytics from './pages/EnergyAssetMaintenanceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -807,6 +811,9 @@ const NAV_ITEMS = [
   { to: '/energy-commodity-trading', label: 'Energy Commodity Trading Desk', Icon: TrendingUp },
   { to: '/network-tariff-design-reform', label: 'Network Tariff Design & Reform', Icon: Tag },
   { to: '/hydrogen-valley-cluster', label: 'Hydrogen Valley & Industrial Cluster', Icon: Layers },
+  { to: '/nem-congestion-rent', label: 'NEM Congestion Rent', Icon: Network },
+  { to: '/electricity-retailer-churn', label: 'Retailer Churn', Icon: UserMinus },
+  { to: '/energy-asset-maintenance', label: 'Asset Maintenance', Icon: Wrench },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1243,6 +1250,9 @@ export default function App() {
               <Route path="/energy-commodity-trading" element={<EnergyCommodityTradingAnalytics />} />
               <Route path="/network-tariff-design-reform" element={<NetworkTariffDesignReformAnalytics />} />
               <Route path="/hydrogen-valley-cluster" element={<HydrogenValleyClusterAnalytics />} />
+              <Route path="/nem-congestion-rent" element={<NemCongestionRentAnalytics />} />
+              <Route path="/electricity-retailer-churn" element={<ElectricityRetailerChurnAnalytics />} />
+              <Route path="/energy-asset-maintenance" element={<EnergyAssetMaintenanceAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

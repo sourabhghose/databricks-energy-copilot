@@ -18363,3 +18363,201 @@ class TestHydrogenValleyClusterDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNemCongestionRentDashboard:
+    URL = "/api/nem-congestion-rent/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("interconnectors", "constraints", "regional_basis", "distribution", "summary"):
+            assert key in data
+
+    def test_interconnectors_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 5 interconnectors × 3 years × 12 months = 180
+        assert len(data["interconnectors"]) == 180
+
+    def test_constraints_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 5 interconnectors × 2 directions = 10
+        assert len(data["constraints"]) == 10
+
+    def test_regional_basis_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 5 regions × 3 years × 12 months = 180
+        assert len(data["regional_basis"]) == 180
+
+    def test_distribution_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 3 years × 4 quarters = 12
+        assert len(data["distribution"]) == 12
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_congestion_rent_fy_m" in summary
+        assert "most_constrained_interconnector" in summary
+        assert "avg_bind_hours_per_month" in summary
+        assert "peak_shadow_price" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+    def test_first_interconnector_fields(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        first = data["interconnectors"][0]
+        for field in (
+            "interconnector_id",
+            "from_region",
+            "to_region",
+            "year",
+            "month",
+            "flow_mwh",
+            "congestion_rent_m",
+            "marginal_loss_factor",
+            "utilisation_pct",
+        ):
+            assert field in first
+
+
+# ---------------------------------------------------------------------------
+# Electricity Retailer Churn Analytics (ERCA)
+# ---------------------------------------------------------------------------
+
+class TestElectricityRetailerChurnDashboard:
+    URL = "/api/electricity-retailer-churn/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("retailers", "churn_trends", "switching_reasons", "segments", "price_sensitivity", "summary"):
+            assert key in data
+
+    def test_retailers_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 7 retailers × 5 regions = 35
+        assert len(data["retailers"]) == 35
+
+    def test_churn_trends_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 7 retailers × 3 years × 4 quarters = 84
+        assert len(data["churn_trends"]) == 84
+
+    def test_switching_reasons_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 6 reasons × 5 regions = 30
+        assert len(data["switching_reasons"]) == 30
+
+    def test_segments_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 3 segments × 7 retailers = 21
+        assert len(data["segments"]) == 21
+
+    def test_price_sensitivity_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        # 7 retailers × 3 years = 21
+        assert len(data["price_sensitivity"]) == 21
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_switches_fy_k" in summary
+        assert "avg_market_churn_rate_pct" in summary
+        assert "top_gaining_retailer" in summary
+        assert "top_losing_retailer" in summary
+        assert "avg_saving_on_switch_aud" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ============================================================
+# Sprint 131b — Energy Asset Maintenance Analytics (EAMA)
+# ============================================================
+
+class TestEnergyAssetMaintenanceDashboard:
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+    URL = "/api/energy-asset-maintenance/dashboard"
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("assets", "work_orders", "failure_records", "cost_trends", "reliability_metrics", "summary"):
+            assert key in data
+
+    def test_assets_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["assets"]) == 30
+
+    def test_work_orders_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["work_orders"]) == 40
+
+    def test_failure_records_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["failure_records"]) == 25
+
+    def test_cost_trends_count(self):
+        # 3 years × 4 quarters × 5 asset types = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_trends"]) == 60
+
+    def test_reliability_metrics_count(self):
+        # 5 asset types × 5 regions = 25
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["reliability_metrics"]) == 25
+
+    def test_summary_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_assets" in summary
+        assert "assets_critical_condition" in summary
+        assert "total_maintenance_cost_m_fy" in summary
+        assert "avg_asset_age_years" in summary
+        assert "open_work_orders" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

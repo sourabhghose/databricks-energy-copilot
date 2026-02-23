@@ -25191,3 +25191,175 @@ export interface HVCADashboard {
 
 export const getHydrogenValleyClusterDashboard = (): Promise<HVCADashboard> =>
   get<HVCADashboard>('/api/hydrogen-valley-cluster/dashboard')
+
+// ── NEM Congestion Rent Analytics (NCRA) ──────────────────────────────────
+export interface NCRAInterconnector {
+  interconnector_id: string
+  from_region: string
+  to_region: string
+  year: number
+  month: number
+  flow_mwh: number
+  congestion_rent_m: number
+  marginal_loss_factor: number
+  utilisation_pct: number
+}
+export interface NCRAConstraint {
+  constraint_id: string
+  interconnector_id: string
+  bind_hours: number
+  avg_shadow_price: number
+  total_congestion_rent_m: number
+  direction: string
+}
+export interface NCRARegionalBasis {
+  region: string
+  year: number
+  month: number
+  avg_regional_price: number
+  basis_to_nsw: number
+  net_congestion_rent_m: number
+}
+export interface NCRADistribution {
+  year: number
+  quarter: number
+  tnsp_share_m: number
+  market_participant_share_m: number
+  sra_holder_share_m: number
+  total_m: number
+}
+export interface NCRASummary {
+  total_congestion_rent_fy_m: number
+  most_constrained_interconnector: string
+  avg_bind_hours_per_month: number
+  peak_shadow_price: number
+}
+export interface NCRADashboard {
+  interconnectors: NCRAInterconnector[]
+  constraints: NCRAConstraint[]
+  regional_basis: NCRARegionalBasis[]
+  distribution: NCRADistribution[]
+  summary: NCRASummary
+}
+export const getNemCongestionRentDashboard = (): Promise<NCRADashboard> =>
+  get<NCRADashboard>('/api/nem-congestion-rent/dashboard')
+
+// ── Electricity Retailer Churn Analytics (ERCA) ───────────────────────────
+export interface ERCARetailer {
+  retailer_name: string
+  region: string
+  customer_count_k: number
+  market_share_pct: number
+  churn_rate_pct: number
+  avg_bill_aud: number
+  nps_score: number
+}
+export interface ERCAChurnTrend {
+  retailer_name: string
+  year: number
+  quarter: number
+  customers_gained_k: number
+  customers_lost_k: number
+  net_change_k: number
+  churn_rate_pct: number
+}
+export interface ERCASwitchingReason {
+  reason: string
+  region: string
+  count_pct: number
+  avg_saving_aud: number
+}
+export interface ERCASegment {
+  segment: string
+  retailer_name: string
+  customer_count_k: number
+  churn_rate_pct: number
+  avg_tenure_months: number
+}
+export interface ERCAPriceSensitivity {
+  retailer_name: string
+  year: number
+  price_change_pct: number
+  churn_response_pct: number
+  price_elasticity: number
+}
+export interface ERCASummary {
+  total_switches_fy_k: number
+  avg_market_churn_rate_pct: number
+  top_gaining_retailer: string
+  top_losing_retailer: string
+  avg_saving_on_switch_aud: number
+}
+export interface ERCADashboard {
+  retailers: ERCARetailer[]
+  churn_trends: ERCAChurnTrend[]
+  switching_reasons: ERCASwitchingReason[]
+  segments: ERCASegment[]
+  price_sensitivity: ERCAPriceSensitivity[]
+  summary: ERCASummary
+}
+export const getElectricityRetailerChurnDashboard = (): Promise<ERCADashboard> =>
+  get<ERCADashboard>('/api/electricity-retailer-churn/dashboard')
+
+// ── Energy Asset Maintenance Analytics (EAMA) ─────────────────────────────
+export interface EAMAAsset {
+  asset_id: string
+  asset_name: string
+  asset_type: string
+  region: string
+  age_years: number
+  condition_score: number
+  last_maintenance_date: string
+  next_planned_maintenance: string
+}
+export interface EAMAWorkOrder {
+  work_order_id: string
+  asset_id: string
+  maintenance_type: string
+  status: string
+  priority: string
+  estimated_cost_k: number
+  actual_cost_k: number
+  downtime_hours: number
+  completion_date: string
+}
+export interface EAMAFailureRecord {
+  asset_id: string
+  failure_date: string
+  failure_mode: string
+  impact_mw: number
+  repair_duration_hours: number
+  root_cause: string
+}
+export interface EAMACostTrend {
+  year: number
+  quarter: number
+  asset_type: string
+  planned_cost_m: number
+  unplanned_cost_m: number
+  total_cost_m: number
+}
+export interface EAMAReliabilityMetric {
+  asset_type: string
+  region: string
+  mtbf_days: number
+  mttr_hours: number
+  availability_pct: number
+}
+export interface EAMASummary {
+  total_assets: number
+  assets_critical_condition: number
+  total_maintenance_cost_m_fy: number
+  avg_asset_age_years: number
+  open_work_orders: number
+}
+export interface EAMADashboard {
+  assets: EAMAAsset[]
+  work_orders: EAMAWorkOrder[]
+  failure_records: EAMAFailureRecord[]
+  cost_trends: EAMACostTrend[]
+  reliability_metrics: EAMAReliabilityMetric[]
+  summary: EAMASummary
+}
+export const getEnergyAssetMaintenanceDashboard = (): Promise<EAMADashboard> =>
+  get<EAMADashboard>('/api/energy-asset-maintenance/dashboard')
