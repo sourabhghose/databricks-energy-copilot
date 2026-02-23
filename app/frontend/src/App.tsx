@@ -477,7 +477,10 @@ import GridScaleBatteryDegradationAnalytics from './pages/GridScaleBatteryDegrad
 import AustraliaElectricityExportAnalytics from './pages/AustraliaElectricityExportAnalytics'
 import DemandSideManagementProgramAnalytics from './pages/DemandSideManagementProgramAnalytics'
 import PowerGridTopologyAnalytics from './pages/PowerGridTopologyAnalytics'
+import RooftopSolarFeedInTariffAnalytics from './pages/RooftopSolarFeedInTariffAnalytics'
+import LngExportAnalytics from './pages/LngExportAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
+import EnergyCommunityMicrogridAnalytics from './pages/EnergyCommunityMicrogridAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -865,7 +868,10 @@ const NAV_ITEMS = [
   { to: '/electricity-export', label: 'Electricity Export', Icon: Globe },
   { to: '/dsm-programs',      label: 'DSM Programs',       Icon: Sliders        },
   { to: '/grid-topology',     label: 'Grid Topology',      Icon: GitBranch      },
+  { to: '/rooftop-solar-fit', label: 'Rooftop Solar FiT',  Icon: Sun            },
+  { to: '/lng-export',        label: 'LNG Export',         Icon: Ship           },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
+  { to: '/community-microgrids', label: 'Community Microgrids', Icon: HomeIcon },
 ]
 
 function Sidebar() {
@@ -1328,7 +1334,10 @@ export default function App() {
               <Route path="/electricity-export" element={<AustraliaElectricityExportAnalytics />} />
               <Route path="/dsm-programs"      element={<DemandSideManagementProgramAnalytics />} />
               <Route path="/grid-topology"     element={<PowerGridTopologyAnalytics />} />
+              <Route path="/rooftop-solar-fit" element={<RooftopSolarFeedInTariffAnalytics />} />
+              <Route path="/lng-export"        element={<LngExportAnalytics />}  />
               <Route path="/settings"          element={<Settings />}            />
+              <Route path="/community-microgrids" element={<EnergyCommunityMicrogridAnalytics />} />
             </Routes>
           </main>
         </div>

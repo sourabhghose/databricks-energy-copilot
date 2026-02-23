@@ -27022,3 +27022,227 @@ export interface PGTADashboard {
 }
 export const getPowerGridTopologyDashboard = (): Promise<PGTADashboard> =>
   get<PGTADashboard>('/api/power-grid-topology/dashboard')
+
+// ===========================================================================
+// ECMA — Energy Community & Microgrid Analytics  (Sprint 140a)
+// ===========================================================================
+
+export interface ECMAMicrogrid {
+  microgrid_id: string
+  microgrid_name: string
+  state: string
+  microgrid_type: string
+  solar_capacity_kw: number
+  wind_capacity_kw: number
+  battery_capacity_kwh: number
+  diesel_backup_kw: number
+  connected_households: number
+  annual_energy_kwh: number
+  renewable_fraction_pct: number
+  status: string
+}
+
+export interface ECMAEnergyFlow {
+  microgrid_id: string
+  month: number
+  year: number
+  solar_gen_kwh: number
+  wind_gen_kwh: number
+  battery_discharge_kwh: number
+  diesel_gen_kwh: number
+  grid_import_kwh: number
+  grid_export_kwh: number
+  load_kwh: number
+}
+
+export interface ECMAFinancial {
+  microgrid_id: string
+  capex_m_aud: number
+  opex_k_aud_pa: number
+  lcoe_per_kwh: number
+  payback_years: number
+  irr_pct: number
+  gov_grant_m_aud: number
+  customer_savings_k_aud_pa: number
+}
+
+export interface ECMAReliability {
+  microgrid_id: string
+  year: number
+  availability_pct: number
+  saidi_mins: number
+  unserved_energy_kwh: number
+  diesel_hours: number
+  islanding_events: number
+  grid_outage_hours_saved: number
+}
+
+export interface ECMACommunity {
+  community_name: string
+  state: string
+  population: number
+  indigenous_community: boolean
+  energy_poverty_index: number
+  electrification_pct: number
+  microgrid_id: string
+  program_funding: string
+}
+
+export interface ECMASummary {
+  total_microgrids: number
+  total_households_connected: number
+  avg_renewable_fraction_pct: number
+  total_solar_capacity_mw: number
+  total_battery_capacity_mwh: number
+  total_co2_saved_tpa: number
+  best_performing_microgrid: string
+}
+
+export interface ECMADashboard {
+  microgrids: ECMAMicrogrid[]
+  energy_flows: ECMAEnergyFlow[]
+  financials: ECMAFinancial[]
+  reliability: ECMAReliability[]
+  communities: ECMACommunity[]
+  summary: ECMASummary
+}
+
+export const getEnergyCommunityMicrogridDashboard = (): Promise<ECMADashboard> =>
+  get<ECMADashboard>('/api/energy-community-microgrid/dashboard')
+export interface LNGAProject {
+  project_id: string
+  project_name: string
+  state: string
+  operator: string
+  train_count: number
+  capacity_mtpa: number
+  status: string
+  first_cargo_year: number
+  offtake_countries: string
+  capex_b_aud: number
+  plateau_production_mtpa: number
+}
+export interface LNGAProduction {
+  project_id: string
+  year: number
+  month: number
+  production_mt: number
+  utilisation_pct: number
+  feed_gas_tj: number
+}
+export interface LNGAExportDestination {
+  destination_country: string
+  volume_mt_2024: number
+  volume_mt_2023: number
+  volume_mt_2022: number
+  contract_type: string
+  avg_price_usd_per_mmbtu: number
+  market_share_pct: number
+}
+export interface LNGAPrice {
+  year: number
+  month: number
+  jcc_price_usd: number
+  jkm_price_usd: number
+  nbp_price_usd: number
+  henry_hub_price_usd: number
+  australian_lng_netback_usd: number
+}
+export interface LNGAEmissions {
+  project_id: string
+  year: number
+  scope1_co2e_mt: number
+  flaring_co2e_kt: number
+  methane_leakage_pct: number
+  carbon_intensity_kgco2e_per_mj: number
+  abatement_projects: number
+}
+export interface LNGASummary {
+  total_capacity_mtpa: number
+  total_production_2024_mt: number
+  total_export_revenue_b_usd: number
+  avg_utilisation_pct: number
+  top_customer_country: string
+  total_scope1_emissions_mt: number
+  operating_projects: number
+}
+export interface LNGADashboard {
+  projects: LNGAProject[]
+  production: LNGAProduction[]
+  export_destinations: LNGAExportDestination[]
+  prices: LNGAPrice[]
+  emissions: LNGAEmissions[]
+  summary: LNGASummary
+}
+export const getLngExportDashboard = (): Promise<LNGADashboard> =>
+  get<LNGADashboard>('/api/lng-export/dashboard')
+export interface RSFTRegion {
+  region: string
+  installed_capacity_mw: number
+  system_count: number
+  avg_system_size_kw: number
+  penetration_pct_households: number
+  avg_fit_rate_c_per_kwh: number
+  export_control_active: boolean
+}
+export interface RSFTGrowthTrend {
+  region: string
+  year: number
+  month: number
+  new_installs: number
+  cumulative_capacity_mw: number
+  cumulative_systems: number
+  avg_size_kw_new_installs: number
+}
+export interface RSFTFitPolicy {
+  state: string
+  retailer: string
+  fit_rate_c_per_kwh: number
+  fit_type: string
+  applicable_from_year: number
+  max_system_size_kw: number
+  export_limit_kw: number
+  virtual_net_metering: boolean
+}
+export interface RSFTExportImpact {
+  region: string
+  year: number
+  month: number
+  solar_export_gwh: number
+  spot_price_during_solar_peak_mwh: number
+  negative_price_hours: number
+  curtailed_export_mwh: number
+  duck_curve_depth_mw: number
+}
+export interface RSFTHouseholdEconomics {
+  scenario_id: string
+  state: string
+  system_size_kw: number
+  battery_included: boolean
+  annual_generation_kwh: number
+  self_consumption_pct: number
+  grid_export_kwh: number
+  fit_revenue_aud: number
+  bill_savings_aud: number
+  payback_years: number
+  irr_pct: number
+}
+export interface RSFTSummary {
+  total_installed_capacity_gw: number
+  total_system_count: number
+  avg_penetration_pct: number
+  national_avg_fit_rate_c: number
+  total_annual_export_gwh: number
+  best_fit_state: string
+  avg_household_savings_aud: number
+}
+export interface RSFTDashboard {
+  regions: RSFTRegion[]
+  growth_trends: RSFTGrowthTrend[]
+  fit_policies: RSFTFitPolicy[]
+  export_impact: RSFTExportImpact[]
+  household_economics: RSFTHouseholdEconomics[]
+  summary: RSFTSummary
+}
+export const getRooftopSolarFeedInTariffDashboard = (): Promise<RSFTDashboard> =>
+  get<RSFTDashboard>('/api/rooftop-solar-feed-in-tariff/dashboard')

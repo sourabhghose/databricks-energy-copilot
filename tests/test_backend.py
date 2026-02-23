@@ -20046,3 +20046,179 @@ class TestPowerGridTopologyDashboard:
         data = r.json()
         for line in data["lines"]:
             assert "thermal_limit_mw" in line, f"Missing thermal_limit_mw in line {line.get('line_id')}"
+
+
+class TestRSFTDashboard:
+    """Sprint 140c — Rooftop Solar & Feed-in Tariff Analytics"""
+    URL = "/api/rooftop-solar-feed-in-tariff/dashboard"
+    HEADERS = {"X-API-Key": ""}
+
+    def test_status_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["regions", "growth_trends", "fit_policies", "export_impact", "household_economics", "summary"]:
+            assert key in data, f"Missing key: {key}"
+
+    def test_regions_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regions"]) == 5
+
+    def test_growth_trends_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["growth_trends"]) == 60
+
+    def test_fit_policies_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["fit_policies"]) == 20
+
+    def test_export_impact_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["export_impact"]) == 36
+
+    def test_household_economics_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["household_economics"]) == 25
+
+    def test_summary_has_total_installed_capacity_gw(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_installed_capacity_gw" in data["summary"]
+
+    def test_all_regions_have_avg_fit_rate_c_per_kwh(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for region in data["regions"]:
+            assert "avg_fit_rate_c_per_kwh" in region, f"Missing avg_fit_rate_c_per_kwh in region {region.get('region')}"
+
+
+class TestLNGADashboard:
+    URL = "/api/lng-export/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["projects", "production", "export_destinations", "prices", "emissions", "summary"]:
+            assert key in data, f"Missing key: {key}"
+
+    def test_projects_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 10
+
+    def test_production_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["production"]) == 120
+
+    def test_export_destinations_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["export_destinations"]) == 25
+
+    def test_prices_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["prices"]) == 48
+
+    def test_emissions_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["emissions"]) == 20
+
+    def test_summary_has_total_capacity_mtpa(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_capacity_mtpa" in data["summary"]
+
+    def test_all_projects_have_capacity_mtpa(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for project in data["projects"]:
+            assert "capacity_mtpa" in project, f"Missing capacity_mtpa in project {project.get('project_id')}"
+
+
+# ===========================================================================
+# TestECMADashboard — Energy Community & Microgrid Analytics  (Sprint 140a)
+# ===========================================================================
+
+class TestECMADashboard:
+    """9 tests for GET /api/energy-community-microgrid/dashboard."""
+
+    URL = "/api/energy-community-microgrid/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "microgrids" in data
+        assert "energy_flows" in data
+        assert "financials" in data
+        assert "reliability" in data
+        assert "communities" in data
+        assert "summary" in data
+
+    def test_microgrids_count(self):
+        """microgrids list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["microgrids"]) == 15
+
+    def test_energy_flows_count(self):
+        """energy_flows list must contain exactly 60 records (5 microgrids × 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["energy_flows"]) == 60
+
+    def test_financials_count(self):
+        """financials list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["financials"]) == 15
+
+    def test_reliability_count(self):
+        """reliability list must contain exactly 36 records (12 microgrids × 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["reliability"]) == 36
+
+    def test_communities_count(self):
+        """communities list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["communities"]) == 20
+
+    def test_summary_has_total_microgrids(self):
+        """summary must have a total_microgrids field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_microgrids" in data["summary"]
+
+    def test_all_microgrids_have_renewable_fraction_pct(self):
+        """Every microgrid record must include renewable_fraction_pct."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for mg in data["microgrids"]:
+            assert "renewable_fraction_pct" in mg, (
+                f"Missing renewable_fraction_pct in microgrid {mg.get('microgrid_id')}"
+            )
