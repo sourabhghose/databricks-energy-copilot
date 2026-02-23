@@ -14683,3 +14683,224 @@ class TestGEDADashboard:
             "exploration_status", "heat_flow_mw_per_m2", "permeability_millidarcy",
         ):
             assert field in rec
+
+# ===========================================================================
+# TestSTPAXDashboard — Solar Thermal Power Plant Analytics (Sprint 112a)
+# NOTE: STPA prefix collides with STPASA Adequacy (Sprint 101a) — using STPAX
+# ===========================================================================
+
+class TestSTPAXDashboard:
+    """Tests for GET /api/solar-thermal-power-plant-x/dashboard"""
+
+    URL = "/api/solar-thermal-power-plant-x/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_technologies(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "technologies" in data
+        assert len(data["technologies"]) == 15
+
+    def test_has_projects(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projects" in data
+        assert len(data["projects"]) == 20
+
+    def test_has_costs(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "costs" in data
+        assert len(data["costs"]) == 24
+
+    def test_has_storage(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "storage" in data
+        assert len(data["storage"]) == 20
+
+    def test_has_resources(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "resources" in data
+        assert len(data["resources"]) == 20
+
+    def test_has_dispatchability(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "dispatchability" in data
+        assert len(data["dispatchability"]) == 20
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_global_csp_mw" in summary
+        assert "total_projects_tracked" in summary
+        assert "cheapest_technology" in summary
+        assert "avg_storage_hours" in summary
+        assert "best_australian_dni_location" in summary
+        assert "projected_2030_lcoe_aud_per_mwh" in summary
+
+    def test_technology_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["technologies"][0]
+        for field in (
+            "technology", "vendor_examples", "efficiency_solar_to_electric_pct",
+            "operating_temp_c", "storage_capable", "max_storage_hours",
+            "land_use_m2_per_mw", "water_use_kl_per_mwh",
+            "capacity_factor_pct", "trl", "first_commercial_year",
+        ):
+            assert field in rec
+
+
+# ---------------------------------------------------------------------------
+# Sprint 112b — Energy Trading Algorithmic Strategy Analytics (ETAS)
+# ---------------------------------------------------------------------------
+
+class TestETASDashboard:
+    URL = "/api/energy-trading-algorithmic-strategy/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_200_status(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_strategies(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "strategies" in data
+        assert len(data["strategies"]) == 20
+
+    def test_has_performance(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "performance" in data
+        assert len(data["performance"]) == 24
+
+    def test_has_risk(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "risk" in data
+        assert len(data["risk"]) == 20
+
+    def test_has_market_signals(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "market_signals" in data
+        assert len(data["market_signals"]) == 30
+
+    def test_has_backtests(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "backtests" in data
+        assert len(data["backtests"]) == 20
+
+    def test_has_execution(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "execution" in data
+        assert len(data["execution"]) == 25
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_strategies" in summary
+        assert "avg_sharpe_ratio" in summary
+        assert "best_performing_strategy" in summary
+        assert "total_ytd_pnl_m" in summary
+        assert "avg_win_rate_pct" in summary
+        assert "avg_execution_slippage_bps" in summary
+
+    def test_strategy_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["strategies"][0]
+        for field in (
+            "strategy_id", "strategy_name", "strategy_type", "market",
+            "region", "avg_daily_positions", "avg_holding_period_hours",
+            "sharpe_ratio", "annualised_return_pct", "max_drawdown_pct",
+            "win_rate_pct", "live_since_year",
+        ):
+            assert field in rec
+
+
+# ---------------------------------------------------------------------------
+# Sprint 112c — EV Grid Integration and V2G Analytics (EVGI)
+# ---------------------------------------------------------------------------
+
+class TestEVGIDashboard:
+    URL = "/api/ev-grid-integration-v2g/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_200_status(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_fleet(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "fleet" in data
+        assert len(data["fleet"]) == 20
+
+    def test_has_charging(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "charging" in data
+        assert len(data["charging"]) == 30
+
+    def test_has_v2g(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "v2g" in data
+        assert len(data["v2g"]) == 20
+
+    def test_has_network_impact(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "network_impact" in data
+        assert len(data["network_impact"]) == 24
+
+    def test_has_infrastructure(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "infrastructure" in data
+        assert len(data["infrastructure"]) > 0
+
+    def test_has_projections(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projections" in data
+        assert len(data["projections"]) > 0
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_ev_fleet" in summary
+        assert "v2g_capable_vehicles" in summary
+        assert "avg_v2g_net_benefit_aud_per_vehicle" in summary
+        assert "total_charging_points" in summary
+        assert "projected_2030_ev_stock_m" in summary
+        assert "v2g_grid_support_potential_mw" in summary
+
+    def test_fleet_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["fleet"][0]
+        for field in (
+            "segment", "state", "year", "registered_count",
+            "avg_battery_kwh", "avg_daily_km", "home_charging_pct",
+            "public_charging_pct", "workplace_pct",
+            "v2g_capable_pct", "smart_charging_enrolled_pct",
+        ):
+            assert field in rec

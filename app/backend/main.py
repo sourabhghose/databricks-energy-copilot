@@ -84705,3 +84705,939 @@ def get_geda_dashboard():
         summary=summary,
     ).model_dump())
     return GEDADashboard(**_geda_cache)
+
+# ===========================================================================
+# Solar Thermal Power Plant Analytics  (Sprint 112a — STPAX prefix)
+# NOTE: STPA prefix already used by STPASA Adequacy (Sprint 101a)
+# ===========================================================================
+
+class STPAXTechnologyRecord(BaseModel):
+    technology: str
+    vendor_examples: str
+    efficiency_solar_to_electric_pct: float
+    operating_temp_c: float
+    storage_capable: bool
+    max_storage_hours: float
+    land_use_m2_per_mw: float
+    water_use_kl_per_mwh: float
+    capacity_factor_pct: float
+    trl: int
+    first_commercial_year: int
+
+class STPAXProjectRecord(BaseModel):
+    project_id: str
+    project_name: str
+    developer: str
+    country: str
+    state_or_region: str
+    technology: str
+    capacity_mw: float
+    storage_hours: float
+    status: str
+    year_commissioned: Optional[int]
+    capex_m: Optional[float]
+    lcoe_usd_per_mwh: Optional[float]
+    annual_generation_gwh: Optional[float]
+    dni_kwh_per_m2_year: float
+
+class STPAXCostRecord(BaseModel):
+    year: int
+    technology: str
+    capex_usd_per_kw: float
+    capex_aud_per_kw: float
+    lcoe_usd_per_mwh: float
+    lcoe_aud_per_mwh: float
+    storage_cost_adder_usd_per_kwh_capacity: float
+    capacity_factor_pct: float
+    learning_rate_pct: float
+
+class STPAXStorageRecord(BaseModel):
+    project_name: str
+    technology: str
+    storage_medium: str
+    storage_capacity_mwh: float
+    discharge_duration_h: float
+    round_trip_efficiency_pct: float
+    storage_cost_usd_per_kwh: float
+    operating_temp_c: float
+    freeze_risk: bool
+    cycling_capability: str
+
+class STPAXResourceRecord(BaseModel):
+    location: str
+    state: str
+    dni_kwh_per_m2_year: float
+    clearsky_days: int
+    optimal_tilt_deg: float
+    land_available_km2: float
+    water_availability: str
+    grid_distance_km: float
+    environmental_sensitivity: str
+    csp_potential_gw: float
+
+class STPAXDispatchabilityRecord(BaseModel):
+    year: int
+    region: str
+    storage_hours: float
+    avg_dispatch_price_aud_per_mwh: float
+    peak_capacity_value_aud_per_kw_year: float
+    firmness_factor_pct: float
+    capacity_credit_pct: float
+    revenue_premium_vs_pv_pct: float
+    LCOE_competitiveness_pct: float
+
+class STPAXDashboard(BaseModel):
+    technologies: List[STPAXTechnologyRecord]
+    projects: List[STPAXProjectRecord]
+    costs: List[STPAXCostRecord]
+    storage: List[STPAXStorageRecord]
+    resources: List[STPAXResourceRecord]
+    dispatchability: List[STPAXDispatchabilityRecord]
+    summary: dict
+
+_stpax_cache: dict = {}
+
+@app.get("/api/solar-thermal-power-plant-x/dashboard", response_model=STPAXDashboard, dependencies=[Depends(verify_api_key)])
+def get_stpax_dashboard():
+    import random
+    global _stpax_cache
+    if _stpax_cache:
+        return STPAXDashboard(**_stpax_cache)
+
+    rng = random.Random(20240601)
+
+    # ── Technologies (15 records) ────────────────────────────────────────────
+    tech_specs = [
+        ("Parabolic Trough",    "Abengoa, Acciona, SolarReserve",  15.5, 390,  True,  7.5, 40000, 3.2, 28.0, 9, 1984),
+        ("Parabolic Trough",    "Nexans, SENER, TSK",               16.2, 400,  True,  8.0, 38000, 3.0, 30.0, 9, 1990),
+        ("Parabolic Trough",    "Abengoa, Frenell",                 14.8, 380,  True,  6.0, 42000, 3.5, 27.0, 9, 2000),
+        ("Power Tower",         "BrightSource, SolarReserve",       18.5, 550,  True, 12.0, 45000, 2.8, 38.0, 9, 2007),
+        ("Power Tower",         "Abengoa, Atlantica Yield",         20.1, 565,  True, 15.0, 43000, 2.5, 42.0, 9, 2011),
+        ("Power Tower",         "Heliogen, Vast Solar",             21.0, 600,  True, 16.0, 40000, 2.2, 44.0, 8, 2020),
+        ("Linear Fresnel",      "Novatec, Areva Solar",             12.0, 270,  True,  4.0, 30000, 4.0, 22.0, 8, 2009),
+        ("Linear Fresnel",      "Industrial Solar, Frenell",        13.5, 300,  True,  5.0, 28000, 3.8, 24.0, 8, 2012),
+        ("Dish Stirling",       "Infinia, SunPower",                29.0, 750, False,  0.0, 55000, 0.1, 25.0, 7, 2010),
+        ("Dish Stirling",       "Stirling Energy Systems",          27.5, 720, False,  0.0, 60000, 0.0, 23.0, 7, 2008),
+        ("Hybrid PV-CSP",       "Abengoa, Masdar",                  22.0, 450,  True, 10.0, 35000, 2.0, 40.0, 7, 2015),
+        ("Hybrid PV-CSP",       "SolarReserve, BHP",                23.5, 480,  True, 12.0, 33000, 1.8, 43.0, 7, 2018),
+        ("Power Tower",         "Vast Solar, Australian Solar",     19.5, 540,  True, 14.0, 44000, 2.6, 40.0, 8, 2019),
+        ("Parabolic Trough",    "Aalborg CSP, TSK",                 15.0, 395,  True,  6.5, 39000, 3.1, 29.0, 9, 1995),
+        ("Linear Fresnel",      "Areva Solar, Vast Solar",          11.5, 260,  True,  3.0, 27000, 4.2, 20.0, 8, 2014),
+    ]
+    technologies: List[STPAXTechnologyRecord] = []
+    for row in tech_specs:
+        technologies.append(STPAXTechnologyRecord(
+            technology=row[0], vendor_examples=row[1],
+            efficiency_solar_to_electric_pct=row[2], operating_temp_c=row[3],
+            storage_capable=row[4], max_storage_hours=row[5],
+            land_use_m2_per_mw=row[6], water_use_kl_per_mwh=row[7],
+            capacity_factor_pct=row[8], trl=row[9], first_commercial_year=row[10],
+        ))
+
+    # ── Projects (20 records) ─────────────────────────────────────────────────
+    project_specs = [
+        ("STPAX-PRJ-001", "Ivanpah Solar",                "BrightSource/NRG",      "USA",      "California",       "Power Tower",       392.0, 0.0,   "Operating",   2014, 2200.0, 135.0, 1079.0, 2717.0),
+        ("STPAX-PRJ-002", "Solana Generating Station",    "Abengoa Solar",          "USA",      "Arizona",          "Parabolic Trough",  280.0, 6.0,   "Operating",   2013, 2000.0, 150.0,  778.0, 2580.0),
+        ("STPAX-PRJ-003", "Gemasolar",                    "Torresol Energy",        "Spain",    "Andalusia",        "Power Tower",        19.9,15.0,   "Operating",   2011,  419.0, 175.0,  110.0, 2172.0),
+        ("STPAX-PRJ-004", "Andasol 1",                    "Solar Millennium",       "Spain",    "Granada",          "Parabolic Trough",   50.0, 7.5,   "Operating",   2008,  300.0, 168.0,  179.0, 2136.0),
+        ("STPAX-PRJ-005", "Noor I",                       "ACWA Power",             "Morocco",  "Ouarzazate",       "Parabolic Trough",  160.0, 3.0,   "Operating",   2016,  960.0, 140.0,  485.0, 2635.0),
+        ("STPAX-PRJ-006", "Noor II",                      "ACWA Power",             "Morocco",  "Ouarzazate",       "Parabolic Trough",  200.0, 7.0,   "Operating",   2018, 1100.0, 138.0,  614.0, 2635.0),
+        ("STPAX-PRJ-007", "Noor III",                     "ACWA Power",             "Morocco",  "Ouarzazate",       "Power Tower",       150.0, 7.5,   "Operating",   2018, 1030.0, 142.0,  472.0, 2635.0),
+        ("STPAX-PRJ-008", "Crescent Dunes",               "SolarReserve",           "USA",      "Nevada",           "Power Tower",       110.0,10.0,   "Operating",   2015,  975.0, 165.0,  500.0, 2840.0),
+        ("STPAX-PRJ-009", "Atacama-1 Cerro Dominador",    "EDF Renewables",         "Chile",    "Atacama",          "Power Tower",       110.0,17.5,   "Operating",   2021,  950.0, 120.0,  410.0, 3300.0),
+        ("STPAX-PRJ-010", "DEWA IV CSP Tower",            "ACWA Power",             "UAE",      "Dubai",            "Power Tower",       100.0,15.0,   "Operating",   2022,  780.0, 110.0,  350.0, 2890.0),
+        ("STPAX-PRJ-011", "Shouhang Dunhuang Phase 2",    "Shouhang IHW",           "China",    "Gansu",            "Power Tower",       100.0,11.0,   "Operating",   2019,  680.0, 118.0,  360.0, 2580.0),
+        ("STPAX-PRJ-012", "Azure Sun Murchison",          "Azure Sun Energy",       "Australia","Western Australia","Power Tower",       150.0,14.0,   "Development", None,   850.0, 105.0,  None,  2380.0),
+        ("STPAX-PRJ-013", "Vast Solar Jemalong",          "Vast Solar",             "Australia","New South Wales",  "Power Tower",        1.1, 6.0,   "Operating",   2018,   18.0, 220.0,    4.0, 2150.0),
+        ("STPAX-PRJ-014", "Sundrop Farms CSP",            "Sundrop Farms",          "Australia","South Australia",  "Power Tower",        1.5, 6.0,   "Operating",   2016,   25.0, 250.0,    5.0, 2200.0),
+        ("STPAX-PRJ-015", "SolarReserve Kidston",         "SolarReserve/Genex",     "Australia","Queensland",       "Power Tower",       200.0,14.0,   "Development", None,  1200.0, 110.0,  None,  2050.0),
+        ("STPAX-PRJ-016", "Vast Solar Port Augusta",      "Vast Solar",             "Australia","South Australia",  "Power Tower",       100.0,12.0,   "Development", None,   650.0, 115.0,  None,  2350.0),
+        ("STPAX-PRJ-017", "Aurora Solar Energy Project",  "SolarReserve",           "Australia","South Australia",  "Power Tower",       150.0,14.0,   "Cancelled",   None,   None,  None,   None,  2280.0),
+        ("STPAX-PRJ-018", "Likana Solar (Chile)",         "Acciona",                "Chile",    "Atacama",          "Parabolic Trough",  390.0, 9.0,   "Concept",     None,  2200.0, 100.0,  None,  3400.0),
+        ("STPAX-PRJ-019", "NEOM Red Sea CSP",             "ACWA Power",             "Saudi Arabia","NEOM",          "Power Tower",       400.0,15.0,   "Development", None,  2400.0, 105.0,  None,  2950.0),
+        ("STPAX-PRJ-020", "Delingha 50MW Fresnel",        "SUPCON Solar",           "China",    "Qinghai",          "Linear Fresnel",     50.0, 6.0,   "Operating",   2019,   300.0, 130.0,  144.0, 2400.0),
+    ]
+    projects: List[STPAXProjectRecord] = []
+    for row in project_specs:
+        projects.append(STPAXProjectRecord(
+            project_id=row[0], project_name=row[1], developer=row[2],
+            country=row[3], state_or_region=row[4], technology=row[5],
+            capacity_mw=row[6], storage_hours=row[7], status=row[8],
+            year_commissioned=row[9], capex_m=row[10],
+            lcoe_usd_per_mwh=row[11], annual_generation_gwh=row[12],
+            dni_kwh_per_m2_year=row[13],
+        ))
+
+    # ── Costs (24 records — 2020-2035, 3 technologies × 8 years split evenly) ─
+    base_costs = {
+        "Parabolic Trough": {"capex_usd": 4500, "lcoe_usd": 165, "lr": 7.0, "cf": 28},
+        "Power Tower":      {"capex_usd": 5200, "lcoe_usd": 175, "lr": 8.0, "cf": 38},
+        "Linear Fresnel":   {"capex_usd": 3200, "lcoe_usd": 145, "lr": 6.5, "cf": 22},
+    }
+    cost_years = list(range(2020, 2028))  # 8 years × 3 techs = 24 records
+    costs: List[STPAXCostRecord] = []
+    aud_fx = 1.52
+    for tech, bc in base_costs.items():
+        for i, yr in enumerate(cost_years):
+            decay = (1 - bc["lr"] / 100) ** i
+            capex_usd = round(bc["capex_usd"] * decay, 0)
+            lcoe_usd  = round(bc["lcoe_usd"]  * decay, 1)
+            storage_adder = round(rng.uniform(18, 35) * (1 - 0.04 * i), 1)
+            costs.append(STPAXCostRecord(
+                year=yr, technology=tech,
+                capex_usd_per_kw=capex_usd,
+                capex_aud_per_kw=round(capex_usd * aud_fx, 0),
+                lcoe_usd_per_mwh=lcoe_usd,
+                lcoe_aud_per_mwh=round(lcoe_usd * aud_fx, 1),
+                storage_cost_adder_usd_per_kwh_capacity=storage_adder,
+                capacity_factor_pct=round(bc["cf"] + i * 0.3, 1),
+                learning_rate_pct=bc["lr"],
+            ))
+
+    # ── Storage (20 records) ─────────────────────────────────────────────────
+    storage_specs = [
+        ("Andasol 1",              "Parabolic Trough", "Molten Salt Two-Tank",  1010.0,  7.5, 98.5, 22.0, 390, False, "Daily cycling"),
+        ("Gemasolar",              "Power Tower",       "Molten Salt Two-Tank",   110.0, 15.0, 99.0, 25.0, 565, False, "24h dispatch"),
+        ("Crescent Dunes",         "Power Tower",       "Molten Salt Two-Tank",  1100.0, 10.0, 99.0, 24.5, 565, False, "Evening peak"),
+        ("Solana",                 "Parabolic Trough", "Molten Salt Two-Tank",  1680.0,  6.0, 98.5, 23.0, 390, False, "Evening peak"),
+        ("Noor II",                "Parabolic Trough", "Molten Salt Two-Tank",  1400.0,  7.0, 98.2, 23.5, 400, False, "Daily cycling"),
+        ("Noor III",               "Power Tower",       "Molten Salt Two-Tank",  1125.0,  7.5, 99.1, 26.0, 565, False, "24h dispatch"),
+        ("DEWA IV",                "Power Tower",       "Molten Salt Two-Tank",  1500.0, 15.0, 99.2, 27.0, 565, False, "Base load"),
+        ("Cerro Dominador",        "Power Tower",       "Molten Salt Two-Tank",  1925.0, 17.5, 99.0, 28.0, 565, False, "Base load"),
+        ("Shouhang Dunhuang",      "Power Tower",       "Molten Salt Two-Tank",  1100.0, 11.0, 98.8, 25.5, 540, False, "Evening peak"),
+        ("Delingha Fresnel",       "Linear Fresnel",    "Molten Salt Single-Tank", 300.0, 6.0, 94.0, 18.0, 270,  True, "Limited cycling"),
+        ("EnergyNest Heatcrete",   "Parabolic Trough", "Concrete",               200.0,  5.0, 93.0, 12.0, 350, False, "Daily cycling"),
+        ("RWE Concrete Pilot",     "Parabolic Trough", "Concrete",                50.0,  4.0, 92.5, 11.5, 340, False, "Pilot scale"),
+        ("Pittsburg PCM",          "Power Tower",       "Phase Change",           150.0,  6.0, 91.0, 28.0, 550, False, "Research/Demo"),
+        ("NREL Phase Change Demo", "Linear Fresnel",    "Phase Change",            30.0,  3.0, 89.5, 26.0, 280, False, "Pilot scale"),
+        ("PS10 Steam Accumulator", "Power Tower",       "Steam Accumulator",       50.0,  0.5, 85.0, 10.0, 250,  True, "Short buffer"),
+        ("PS20 Steam Accumulator", "Power Tower",       "Steam Accumulator",       80.0,  1.0, 85.5, 10.5, 260,  True, "Short buffer"),
+        ("Vast Solar NSW",         "Power Tower",       "Molten Salt Two-Tank",    30.0,  6.0, 98.5, 26.0, 540, False, "Daily cycling"),
+        ("Vast Port Augusta",      "Power Tower",       "Molten Salt Two-Tank",  1200.0, 12.0, 99.0, 27.5, 565, False, "Evening peak"),
+        ("Azure Sun WA",           "Power Tower",       "Molten Salt Two-Tank",  2100.0, 14.0, 99.1, 28.0, 565, False, "Base load"),
+        ("Likana Chile",           "Parabolic Trough", "Molten Salt Two-Tank",  3510.0,  9.0, 98.6, 24.0, 400, False, "Base load"),
+    ]
+    storage: List[STPAXStorageRecord] = []
+    for row in storage_specs:
+        storage.append(STPAXStorageRecord(
+            project_name=row[0], technology=row[1], storage_medium=row[2],
+            storage_capacity_mwh=row[3], discharge_duration_h=row[4],
+            round_trip_efficiency_pct=row[5], storage_cost_usd_per_kwh=row[6],
+            operating_temp_c=row[7], freeze_risk=row[8], cycling_capability=row[9],
+        ))
+
+    # ── Resources (20 records) ────────────────────────────────────────────────
+    resource_specs = [
+        ("Longreach",        "QLD", 2120.0, 280, 23.5, 18000.0, "Limited",   85.0, "Low",    8.5),
+        ("Charleville",      "QLD", 2080.0, 270, 24.0, 22000.0, "Limited",  120.0, "Low",    7.2),
+        ("Broken Hill",      "NSW", 2150.0, 285, 31.5, 15000.0, "Scarce",    60.0, "Low",    6.8),
+        ("Mildura",          "VIC", 1980.0, 255, 34.0, 12000.0, "Adequate",  45.0, "Medium", 5.5),
+        ("Whyalla",          "SA",  2200.0, 290, 32.0, 25000.0, "Scarce",    40.0, "Low",    9.0),
+        ("Port Augusta",     "SA",  2180.0, 285, 31.5, 20000.0, "Scarce",    35.0, "Low",    8.5),
+        ("Coober Pedy",      "SA",  2350.0, 310, 29.0, 55000.0, "Scarce",   150.0, "Low",   15.0),
+        ("Leigh Creek",      "SA",  2300.0, 305, 30.0, 40000.0, "Scarce",   130.0, "Low",   12.5),
+        ("Kalgoorlie",       "WA",  2280.0, 295, 28.5, 80000.0, "Scarce",   200.0, "Low",   22.0),
+        ("Newman",           "WA",  2380.0, 315, 22.0,120000.0, "Scarce",   350.0, "Low",   35.0),
+        ("Meekatharra",      "WA",  2420.0, 320, 26.5,100000.0, "Scarce",   280.0, "Low",   28.0),
+        ("Carnarvon",        "WA",  2320.0, 308, 24.0, 60000.0, "Scarce",   180.0, "Medium",18.0),
+        ("Alice Springs",    "NT",  2400.0, 318, 23.5, 70000.0, "Scarce",   200.0, "Medium",20.0),
+        ("Tennant Creek",    "NT",  2300.0, 300, 20.0, 90000.0, "Scarce",   400.0, "Low",   25.0),
+        ("Katherine",        "NT",  2100.0, 272, 17.5, 50000.0, "Adequate", 320.0, "Medium",12.0),
+        ("Mount Isa",        "QLD", 2200.0, 285, 22.0, 35000.0, "Scarce",   220.0, "Low",   10.0),
+        ("Winton",           "QLD", 2140.0, 282, 22.5, 28000.0, "Scarce",   160.0, "Low",    9.5),
+        ("Nullarbor Plain",  "SA/WA",2380.0,312, 32.0,250000.0, "Scarce",   500.0, "Low",   80.0),
+        ("Pilbara Plateau",  "WA",  2450.0, 325, 21.0,180000.0, "Scarce",   420.0, "Low",   55.0),
+        ("Sturt Stony Desert","SA", 2340.0, 308, 27.5,120000.0, "Scarce",   600.0, "Low",   40.0),
+    ]
+    resources: List[STPAXResourceRecord] = []
+    for row in resource_specs:
+        resources.append(STPAXResourceRecord(
+            location=row[0], state=row[1], dni_kwh_per_m2_year=row[2],
+            clearsky_days=row[3], optimal_tilt_deg=row[4],
+            land_available_km2=row[5], water_availability=row[6],
+            grid_distance_km=row[7], environmental_sensitivity=row[8],
+            csp_potential_gw=row[9],
+        ))
+
+    # ── Dispatchability (20 records) ──────────────────────────────────────────
+    dispatch_specs = [
+        (2024, "NSW", 6.0,  185.0, 180.0, 72.0, 68.0, 45.0, 62.0),
+        (2024, "VIC", 6.0,  175.0, 170.0, 70.0, 65.0, 42.0, 60.0),
+        (2024, "SA",  6.0,  210.0, 200.0, 74.0, 71.0, 55.0, 68.0),
+        (2024, "QLD", 6.0,  165.0, 160.0, 68.0, 62.0, 38.0, 58.0),
+        (2024, "NSW",10.0,  220.0, 240.0, 82.0, 80.0, 65.0, 72.0),
+        (2024, "SA", 10.0,  255.0, 270.0, 85.0, 83.0, 75.0, 78.0),
+        (2024, "SA", 14.0,  280.0, 310.0, 92.0, 91.0, 90.0, 88.0),
+        (2024, "NSW",14.0,  260.0, 290.0, 90.0, 88.0, 85.0, 82.0),
+        (2026, "NSW", 6.0,  175.0, 190.0, 73.0, 70.0, 48.0, 68.0),
+        (2026, "SA",  6.0,  200.0, 210.0, 75.0, 72.0, 58.0, 72.0),
+        (2026, "NSW",10.0,  215.0, 255.0, 83.0, 82.0, 68.0, 78.0),
+        (2026, "SA", 10.0,  245.0, 285.0, 86.0, 85.0, 78.0, 82.0),
+        (2026, "SA", 14.0,  270.0, 325.0, 93.0, 92.0, 92.0, 90.0),
+        (2026, "NSW",14.0,  250.0, 305.0, 91.0, 90.0, 88.0, 86.0),
+        (2028, "NSW",10.0,  205.0, 265.0, 84.0, 83.0, 72.0, 84.0),
+        (2028, "SA", 10.0,  235.0, 295.0, 87.0, 86.0, 82.0, 88.0),
+        (2028, "SA", 14.0,  260.0, 340.0, 94.0, 93.0, 95.0, 93.0),
+        (2028, "NSW",14.0,  240.0, 320.0, 92.0, 91.0, 90.0, 90.0),
+        (2030, "SA", 14.0,  248.0, 355.0, 95.0, 94.0, 98.0, 96.0),
+        (2030, "NSW",14.0,  228.0, 335.0, 93.0, 92.0, 94.0, 94.0),
+    ]
+    dispatchability: List[STPAXDispatchabilityRecord] = []
+    for row in dispatch_specs:
+        dispatchability.append(STPAXDispatchabilityRecord(
+            year=row[0], region=row[1], storage_hours=row[2],
+            avg_dispatch_price_aud_per_mwh=row[3],
+            peak_capacity_value_aud_per_kw_year=row[4],
+            firmness_factor_pct=row[5], capacity_credit_pct=row[6],
+            revenue_premium_vs_pv_pct=row[7],
+            LCOE_competitiveness_pct=row[8],
+        ))
+
+    # ── Summary ───────────────────────────────────────────────────────────────
+    operating_projects = [p for p in projects if p.status == "Operating"]
+    total_global_csp_mw = sum(p.capacity_mw for p in operating_projects)
+    avg_storage_hours = round(
+        sum(p.storage_hours for p in projects if p.storage_hours > 0) /
+        max(1, sum(1 for p in projects if p.storage_hours > 0)), 1
+    )
+    costs_2024 = [c for c in costs if c.year == 2024]
+    cheapest_tech = min(
+        base_costs.keys(),
+        key=lambda t: base_costs[t]["lcoe_usd"]
+    )
+    best_dni_loc = max(resources, key=lambda r: r.dni_kwh_per_m2_year)
+    # Project 2030 LCOE for Power Tower using learning rate
+    pt_base = base_costs["Power Tower"]
+    yrs_to_2030 = 2030 - 2020
+    lcoe_2030_usd = round(pt_base["lcoe_usd"] * (1 - pt_base["lr"] / 100) ** yrs_to_2030, 1)
+    lcoe_2030_aud = round(lcoe_2030_usd * aud_fx, 1)
+
+    summary = {
+        "total_global_csp_mw": round(total_global_csp_mw, 1),
+        "total_projects_tracked": len(projects),
+        "cheapest_technology": cheapest_tech,
+        "avg_storage_hours": avg_storage_hours,
+        "best_australian_dni_location": best_dni_loc.location,
+        "projected_2030_lcoe_aud_per_mwh": lcoe_2030_aud,
+    }
+
+    _stpax_cache.update(STPAXDashboard(
+        technologies=technologies,
+        projects=projects,
+        costs=costs,
+        storage=storage,
+        resources=resources,
+        dispatchability=dispatchability,
+        summary=summary,
+    ).model_dump())
+    return STPAXDashboard(**_stpax_cache)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 112b — Energy Trading Algorithmic Strategy Analytics (ETAS)
+# ---------------------------------------------------------------------------
+
+class ETASStrategyRecord(BaseModel):
+    strategy_id: str
+    strategy_name: str
+    strategy_type: str
+    market: str
+    region: str
+    avg_daily_positions: int
+    avg_holding_period_hours: float
+    sharpe_ratio: float
+    annualised_return_pct: float
+    max_drawdown_pct: float
+    win_rate_pct: float
+    live_since_year: int
+
+
+class ETASPerformanceRecord(BaseModel):
+    month: str
+    strategy_id: str
+    gross_pnl_m: float
+    net_pnl_m: float
+    transaction_costs_m: float
+    slippage_m: float
+    trades_count: int
+    avg_trade_size_mw: float
+    hit_ratio_pct: float
+    information_ratio: float
+    sortino_ratio: float
+
+
+class ETASRiskRecord(BaseModel):
+    strategy_id: str
+    risk_metric: str
+    value: float
+    limit: float
+    utilisation_pct: float
+    breach_count_ytd: int
+    risk_currency: str
+    correlation_to_spot_pct: float
+    tail_risk_score: float
+
+
+class ETASMarketSignalRecord(BaseModel):
+    signal_date: str
+    region: str
+    signal_type: str
+    signal_strength: int
+    forward_return_1h_pct: float
+    forward_return_1d_pct: float
+    accuracy_historical_pct: float
+    ml_confidence_pct: float
+
+
+class ETASBacktestRecord(BaseModel):
+    backtest_id: str
+    strategy_name: str
+    backtest_period_start: str
+    backtest_period_end: str
+    strategy_type: str
+    sharpe_ratio: float
+    cagr_pct: float
+    max_drawdown_pct: float
+    calmar_ratio: float
+    total_trades: int
+    profitable_trades: int
+    avg_profit_per_trade_aud: float
+    overfitting_score: int
+
+
+class ETASExecutionRecord(BaseModel):
+    execution_date: str
+    strategy_id: str
+    order_type: str
+    market: str
+    volume_mwh: float
+    execution_price_aud: float
+    benchmark_price_aud: float
+    slippage_bps: float
+    latency_ms: float
+    fill_rate_pct: float
+    venue: str
+
+
+class ETASDashboard(BaseModel):
+    strategies: List[ETASStrategyRecord]
+    performance: List[ETASPerformanceRecord]
+    risk: List[ETASRiskRecord]
+    market_signals: List[ETASMarketSignalRecord]
+    backtests: List[ETASBacktestRecord]
+    execution: List[ETASExecutionRecord]
+    summary: dict
+
+
+_etas_cache: dict = {}
+
+
+@app.get("/api/energy-trading-algorithmic-strategy/dashboard", response_model=ETASDashboard, dependencies=[Depends(verify_api_key)])
+def get_etas_dashboard():
+    import random
+    if _etas_cache:
+        return ETASDashboard(**_etas_cache)
+
+    rng = random.Random(20240112)
+
+    strategy_types = [
+        "Mean Reversion", "Momentum", "Statistical Arbitrage", "Spread Trading",
+        "ML Dispatch", "Volatility", "Basis Trading", "Calendar Spread",
+    ]
+    markets = ["NEM Spot", "ASX Futures", "OTC Swaps", "FCAS", "LGC"]
+    regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+
+    strategies: List[ETASStrategyRecord] = []
+    strategy_ids = [f"STRAT-{i:03d}" for i in range(1, 21)]
+    strategy_names = [
+        "NEM Mean Rev Alpha", "VIC Momentum Pulse", "SA Stat Arb Core",
+        "QLD Spread Harvester", "NSW ML Dispatch Pro", "Volatility Surface Arb",
+        "Basis Convergence", "Cal Spread 2025", "FCAS Momentum Engine",
+        "LGC Carry Trade", "Intraday Rev NSW", "Overnight Trend VIC",
+        "Cross-Region Arb", "Demand Spike Hunter", "Renewable Basis Trap",
+        "Futures Roll Spread", "Weather-Driven Momentum", "VOLL Proximity Alpha",
+        "Peak Period Squeeze", "Settlement Price Arb",
+    ]
+    for i, sid in enumerate(strategy_ids):
+        st = strategy_types[i % len(strategy_types)]
+        strategies.append(ETASStrategyRecord(
+            strategy_id=sid,
+            strategy_name=strategy_names[i],
+            strategy_type=st,
+            market=rng.choice(markets),
+            region=rng.choice(regions),
+            avg_daily_positions=rng.randint(8, 120),
+            avg_holding_period_hours=round(rng.uniform(0.5, 72.0), 1),
+            sharpe_ratio=round(rng.uniform(0.4, 3.2), 2),
+            annualised_return_pct=round(rng.uniform(5.0, 42.0), 1),
+            max_drawdown_pct=round(rng.uniform(2.0, 18.0), 1),
+            win_rate_pct=round(rng.uniform(48.0, 72.0), 1),
+            live_since_year=rng.randint(2018, 2023),
+        ))
+
+    performance: List[ETASPerformanceRecord] = []
+    perf_months = [
+        "2022-01","2022-02","2022-03","2022-04","2022-05","2022-06",
+        "2022-07","2022-08","2022-09","2022-10","2022-11","2022-12",
+        "2023-01","2023-02","2023-03","2023-04","2023-05","2023-06",
+        "2023-07","2023-08","2023-09","2023-10","2023-11","2023-12",
+    ]
+    perf_strategy_ids = strategy_ids[:4]
+    for month in perf_months[:6]:
+        for sid in perf_strategy_ids:
+            gross = round(rng.uniform(0.3, 4.5), 3)
+            costs = round(rng.uniform(0.05, 0.4), 3)
+            slip = round(rng.uniform(0.02, 0.2), 3)
+            performance.append(ETASPerformanceRecord(
+                month=month,
+                strategy_id=sid,
+                gross_pnl_m=gross,
+                net_pnl_m=round(gross - costs - slip, 3),
+                transaction_costs_m=costs,
+                slippage_m=slip,
+                trades_count=rng.randint(80, 600),
+                avg_trade_size_mw=round(rng.uniform(5.0, 150.0), 1),
+                hit_ratio_pct=round(rng.uniform(48.0, 70.0), 1),
+                information_ratio=round(rng.uniform(0.3, 2.1), 2),
+                sortino_ratio=round(rng.uniform(0.5, 3.0), 2),
+            ))
+
+    risk_metrics = ["VaR 95", "VaR 99", "CVaR", "Delta", "Vega", "Gamma", "Greeks", "Greeks"]
+    risk_currencies = ["AUD", "MWh"]
+    risk: List[ETASRiskRecord] = []
+    for i, sid in enumerate(strategy_ids):
+        metric = risk_metrics[i % len(risk_metrics)]
+        val = round(rng.uniform(10000, 500000), 0)
+        limit = round(val * rng.uniform(1.1, 2.5), 0)
+        util = round((val / limit) * 100, 1)
+        risk.append(ETASRiskRecord(
+            strategy_id=sid,
+            risk_metric=metric,
+            value=val,
+            limit=limit,
+            utilisation_pct=util,
+            breach_count_ytd=rng.randint(0, 5),
+            risk_currency=rng.choice(risk_currencies),
+            correlation_to_spot_pct=round(rng.uniform(-60.0, 85.0), 1),
+            tail_risk_score=round(rng.uniform(1.0, 9.5), 1),
+        ))
+
+    signal_types = [
+        "Price Spike", "Trough", "Volatility Regime", "Congestion",
+        "Weather", "Demand Surprise", "FCAS Premium",
+    ]
+    signal_regions = ["NSW1", "VIC1", "QLD1", "SA1", "TAS1"]
+    market_signals: List[ETASMarketSignalRecord] = []
+    base_date_days = 0
+    for i in range(30):
+        base_date_days += rng.randint(1, 10)
+        yr = 2024
+        day_of_yr = (base_date_days % 365) + 1
+        import datetime as _dt
+        sig_date = (_dt.date(yr, 1, 1) + _dt.timedelta(days=day_of_yr - 1)).isoformat()
+        market_signals.append(ETASMarketSignalRecord(
+            signal_date=sig_date,
+            region=rng.choice(signal_regions),
+            signal_type=rng.choice(signal_types),
+            signal_strength=rng.randint(1, 10),
+            forward_return_1h_pct=round(rng.uniform(-8.0, 15.0), 2),
+            forward_return_1d_pct=round(rng.uniform(-12.0, 22.0), 2),
+            accuracy_historical_pct=round(rng.uniform(50.0, 82.0), 1),
+            ml_confidence_pct=round(rng.uniform(55.0, 95.0), 1),
+        ))
+
+    bt_strategy_types = strategy_types
+    backtests: List[ETASBacktestRecord] = []
+    bt_strategy_names = strategy_names
+    for i in range(20):
+        total_t = rng.randint(500, 5000)
+        profitable_t = int(total_t * rng.uniform(0.45, 0.72))
+        sharpe = round(rng.uniform(0.3, 3.5), 2)
+        cagr = round(rng.uniform(4.0, 45.0), 1)
+        mdd = round(rng.uniform(3.0, 25.0), 1)
+        backtests.append(ETASBacktestRecord(
+            backtest_id=f"BT-{i+1:03d}",
+            strategy_name=bt_strategy_names[i],
+            backtest_period_start=f"{rng.randint(2015, 2019)}-01-01",
+            backtest_period_end=f"{rng.randint(2022, 2023)}-12-31",
+            strategy_type=bt_strategy_types[i % len(bt_strategy_types)],
+            sharpe_ratio=sharpe,
+            cagr_pct=cagr,
+            max_drawdown_pct=mdd,
+            calmar_ratio=round(cagr / max(mdd, 0.1), 2),
+            total_trades=total_t,
+            profitable_trades=profitable_t,
+            avg_profit_per_trade_aud=round(rng.uniform(200.0, 5000.0), 0),
+            overfitting_score=rng.randint(1, 10),
+        ))
+
+    order_types = ["Market", "Limit", "Algorithmic", "VWAP", "TWAP"]
+    exec_markets = ["NEM Spot", "ASX Futures", "OTC Swaps", "FCAS", "LGC"]
+    venues = ["AEMO Dispatch", "ASX", "OTC", "Bilateral"]
+    execution: List[ETASExecutionRecord] = []
+    import datetime as _dt2
+    exec_start = _dt2.date(2024, 1, 1)
+    for i in range(25):
+        exec_date = (exec_start + _dt2.timedelta(days=i * 14)).isoformat()
+        bench = round(rng.uniform(50.0, 350.0), 2)
+        slip_bps = round(rng.uniform(-20.0, 80.0), 1)
+        exec_price = round(bench * (1 + slip_bps / 10000), 2)
+        execution.append(ETASExecutionRecord(
+            execution_date=exec_date,
+            strategy_id=rng.choice(strategy_ids),
+            order_type=rng.choice(order_types),
+            market=rng.choice(exec_markets),
+            volume_mwh=round(rng.uniform(50.0, 2000.0), 1),
+            execution_price_aud=exec_price,
+            benchmark_price_aud=bench,
+            slippage_bps=slip_bps,
+            latency_ms=round(rng.uniform(0.5, 250.0), 1),
+            fill_rate_pct=round(rng.uniform(85.0, 100.0), 1),
+            venue=rng.choice(venues),
+        ))
+
+    best_strategy = max(strategies, key=lambda s: s.annualised_return_pct)
+    total_ytd_pnl = round(sum(p.net_pnl_m for p in performance), 3)
+    avg_sharpe = round(sum(s.sharpe_ratio for s in strategies) / len(strategies), 2)
+    avg_win_rate = round(sum(s.win_rate_pct for s in strategies) / len(strategies), 1)
+    avg_slip_bps = round(sum(e.slippage_bps for e in execution) / len(execution), 1)
+
+    summary = {
+        "total_strategies": len(strategies),
+        "avg_sharpe_ratio": avg_sharpe,
+        "best_performing_strategy": best_strategy.strategy_name,
+        "total_ytd_pnl_m": total_ytd_pnl,
+        "avg_win_rate_pct": avg_win_rate,
+        "avg_execution_slippage_bps": avg_slip_bps,
+    }
+
+    _etas_cache.update(ETASDashboard(
+        strategies=strategies,
+        performance=performance,
+        risk=risk,
+        market_signals=market_signals,
+        backtests=backtests,
+        execution=execution,
+        summary=summary,
+    ).model_dump())
+    return ETASDashboard(**_etas_cache)
+
+# ---------------------------------------------------------------------------
+# EV Grid Integration and Vehicle-to-Grid Analytics (EVGI)
+# Sprint 112c
+# ---------------------------------------------------------------------------
+
+class EVGIFleetRecord(BaseModel):
+    segment: str
+    state: str
+    year: int
+    registered_count: int
+    avg_battery_kwh: float
+    avg_daily_km: float
+    home_charging_pct: float
+    public_charging_pct: float
+    workplace_pct: float
+    v2g_capable_pct: float
+    smart_charging_enrolled_pct: float
+
+class EVGIChargingRecord(BaseModel):
+    date_month: str
+    region: str
+    charge_type: str
+    sessions_count: int
+    avg_duration_h: float
+    avg_energy_kwh: float
+    peak_kw_demand: float
+    offpeak_share_pct: float
+    cost_per_kwh_aud: float
+    grid_stress_index: float
+
+class EVGIV2GRecord(BaseModel):
+    scenario: str
+    technology_type: str
+    vehicles_participating: int
+    avg_battery_kwh_available: float
+    discharge_capacity_mw: float
+    fcas_revenue_aud_per_vehicle_year: float
+    arbitrage_revenue_aud_per_vehicle_year: float
+    peak_shaving_revenue_aud_per_vehicle_year: float
+    battery_degradation_pct_per_year_v2g: float
+    net_benefit_aud_per_vehicle_year: float
+
+class EVGINetworkRecord(BaseModel):
+    quarter: str
+    dnsp: str
+    state: str
+    ev_peak_demand_mw: float
+    load_coincidence_factor_pct: float
+    transformer_overload_events: int
+    managed_charging_mw_shifted: float
+    v2g_grid_support_mw: float
+    network_upgrade_deferred_m: float
+    customer_satisfaction_pct: float
+
+class EVGIInfrastructureRecord(BaseModel):
+    state: str
+    charger_type: str
+    total_points: int
+    public_points: int
+    private_points: int
+    km_between_public: float
+    deployment_rate_per_month: float
+    utilisation_rate_pct: float
+    avg_revenue_per_point_aud_day: float
+
+class EVGIProjectionRecord(BaseModel):
+    year: int
+    scenario: str
+    ev_stock_m: float
+    ev_charging_demand_twh: float
+    v2g_available_mw: float
+    managed_charging_benefit_m: float
+    peak_demand_reduction_pct: float
+    grid_storage_equivalent_gwh: float
+    renewable_self_consumption_pct: float
+
+class EVGIDashboard(BaseModel):
+    fleet: List[EVGIFleetRecord]
+    charging: List[EVGIChargingRecord]
+    v2g: List[EVGIV2GRecord]
+    network_impact: List[EVGINetworkRecord]
+    infrastructure: List[EVGIInfrastructureRecord]
+    projections: List[EVGIProjectionRecord]
+    summary: dict
+
+_evgi_cache: dict = {}
+
+@app.get("/api/ev-grid-integration-v2g/dashboard", response_model=EVGIDashboard, dependencies=[Depends(verify_api_key)])
+def get_evgi_dashboard():
+    import random
+    if _evgi_cache:
+        return EVGIDashboard(**_evgi_cache)
+
+    rng = random.Random(20240112)
+
+    segments = ["Passenger BEV", "Passenger PHEV", "Commercial Van", "Light Truck", "Bus", "Taxi", "Rideshare", "Government Fleet"]
+    states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    years = [2023, 2024]
+
+    # --- Fleet records (20) ---
+    fleet: List[EVGIFleetRecord] = []
+    seg_state_combos = [(seg, st) for seg in segments[:5] for st in ["NSW", "VIC", "QLD", "SA"]][:20]
+    for i, (seg, st) in enumerate(seg_state_combos):
+        yr = years[i % 2]
+        bev = "BEV" in seg or seg in ["Bus", "Government Fleet"]
+        base_count = {"Passenger BEV": 22000, "Passenger PHEV": 18000, "Commercial Van": 4500,
+                      "Light Truck": 3200, "Bus": 800}.get(seg, 1500)
+        count_mult = 1.3 if yr == 2024 else 1.0
+        reg_count = int(base_count * count_mult * rng.uniform(0.7, 1.35))
+        home_pct = round(rng.uniform(55.0, 80.0), 1) if seg == "Passenger BEV" else round(rng.uniform(30.0, 65.0), 1)
+        pub_pct = round(rng.uniform(10.0, 30.0), 1)
+        work_pct = round(100.0 - home_pct - pub_pct, 1)
+        if work_pct < 0:
+            work_pct = 5.0
+        fleet.append(EVGIFleetRecord(
+            segment=seg,
+            state=st,
+            year=yr,
+            registered_count=reg_count,
+            avg_battery_kwh=round(rng.uniform(40.0, 110.0) if bev else rng.uniform(12.0, 22.0), 1),
+            avg_daily_km=round(rng.uniform(35.0, 180.0), 1),
+            home_charging_pct=home_pct,
+            public_charging_pct=pub_pct,
+            workplace_pct=work_pct,
+            v2g_capable_pct=round(rng.uniform(2.0, 18.0), 1) if yr == 2024 else round(rng.uniform(0.5, 5.0), 1),
+            smart_charging_enrolled_pct=round(rng.uniform(8.0, 45.0), 1),
+        ))
+
+    # --- Charging records (30) ---
+    charge_types = ["Home L1", "Home L2", "Public AC", "Public DC Fast", "Ultra-Fast 150kW+", "V2G Discharge"]
+    regions = ["Sydney", "Melbourne", "Brisbane", "Adelaide", "Perth"]
+    months_2023_24 = [f"202{3 + (m // 12)}-{((m % 12) + 1):02d}" for m in range(24)]
+    charging: List[EVGIChargingRecord] = []
+    for i in range(30):
+        ct = charge_types[i % len(charge_types)]
+        reg = regions[i % len(regions)]
+        dm = months_2023_24[(i * 7) % len(months_2023_24)]
+        base_sessions = {"Home L1": 4200, "Home L2": 18500, "Public AC": 9500,
+                         "Public DC Fast": 6800, "Ultra-Fast 150kW+": 3200, "V2G Discharge": 1100}.get(ct, 5000)
+        avg_dur = {"Home L1": 6.5, "Home L2": 3.2, "Public AC": 2.1,
+                   "Public DC Fast": 0.6, "Ultra-Fast 150kW+": 0.35, "V2G Discharge": 1.8}.get(ct, 2.0)
+        avg_energy = {"Home L1": 4.5, "Home L2": 12.0, "Public AC": 8.0,
+                      "Public DC Fast": 28.0, "Ultra-Fast 150kW+": 45.0, "V2G Discharge": 15.0}.get(ct, 10.0)
+        peak_kw = {"Home L1": 1.4, "Home L2": 7.4, "Public AC": 22.0,
+                   "Public DC Fast": 50.0, "Ultra-Fast 150kW+": 180.0, "V2G Discharge": 10.0}.get(ct, 10.0)
+        cost = {"Home L1": 0.28, "Home L2": 0.25, "Public AC": 0.45,
+                "Public DC Fast": 0.58, "Ultra-Fast 150kW+": 0.72, "V2G Discharge": 0.12}.get(ct, 0.35)
+        charging.append(EVGIChargingRecord(
+            date_month=dm,
+            region=reg,
+            charge_type=ct,
+            sessions_count=int(base_sessions * rng.uniform(0.75, 1.35)),
+            avg_duration_h=round(avg_dur * rng.uniform(0.85, 1.2), 2),
+            avg_energy_kwh=round(avg_energy * rng.uniform(0.88, 1.15), 2),
+            peak_kw_demand=round(peak_kw * rng.uniform(0.9, 1.12), 1),
+            offpeak_share_pct=round(rng.uniform(28.0, 72.0), 1),
+            cost_per_kwh_aud=round(cost * rng.uniform(0.92, 1.1), 3),
+            grid_stress_index=round(rng.uniform(0.15, 0.85), 3),
+        ))
+
+    # --- V2G records (20) ---
+    v2g_tech_types = ["Unidirectional", "Bidirectional", "V2H", "V2B", "V2G Fleet Aggregation"]
+    v2g_scenarios = [
+        "Conservative 2024", "Moderate 2024", "Optimistic 2024",
+        "Conservative 2025", "Moderate 2025", "Optimistic 2025",
+        "Fleet Trial NSW", "Fleet Trial VIC", "Fleet Trial QLD", "Fleet Trial SA",
+        "FCAS Enabled", "Arbitrage Enabled", "Peak Shaving Enabled", "Hybrid Revenue",
+        "Residential V2H", "Commercial V2B", "Taxi Fleet V2G", "Bus Depot V2G",
+        "Government Fleet V2G", "Rideshare V2G"
+    ]
+    v2g: List[EVGIV2GRecord] = []
+    for i in range(20):
+        sc = v2g_scenarios[i]
+        tt = v2g_tech_types[i % len(v2g_tech_types)]
+        vp = int(rng.uniform(50, 8000))
+        avg_kwh = round(rng.uniform(15.0, 55.0), 1)
+        disch_mw = round(vp * avg_kwh * 0.001 * rng.uniform(0.4, 0.8), 2)
+        fcas_rev = round(rng.uniform(80.0, 320.0), 2) if tt in ["Bidirectional", "V2G Fleet Aggregation"] else round(rng.uniform(20.0, 100.0), 2)
+        arb_rev = round(rng.uniform(50.0, 200.0), 2)
+        peak_rev = round(rng.uniform(30.0, 150.0), 2)
+        deg_pct = round(rng.uniform(0.8, 3.5), 2) if tt == "Bidirectional" else round(rng.uniform(0.2, 1.2), 2)
+        battery_cost_pct = deg_pct * 0.01 * avg_kwh * 150.0
+        net_benefit = round(fcas_rev + arb_rev + peak_rev - battery_cost_pct, 2)
+        v2g.append(EVGIV2GRecord(
+            scenario=sc,
+            technology_type=tt,
+            vehicles_participating=vp,
+            avg_battery_kwh_available=avg_kwh,
+            discharge_capacity_mw=disch_mw,
+            fcas_revenue_aud_per_vehicle_year=fcas_rev,
+            arbitrage_revenue_aud_per_vehicle_year=arb_rev,
+            peak_shaving_revenue_aud_per_vehicle_year=peak_rev,
+            battery_degradation_pct_per_year_v2g=deg_pct,
+            net_benefit_aud_per_vehicle_year=net_benefit,
+        ))
+
+    # --- Network Impact records (24, quarterly 2022-2024) ---
+    quarters = [f"{y}-Q{q}" for y in range(2022, 2025) for q in range(1, 5)]
+    dnsps = ["Ausgrid", "Endeavour Energy", "United Energy", "CitiPower", "Powercor",
+             "SA Power Networks", "Energex", "Western Power"]
+    network_impact: List[EVGINetworkRecord] = []
+    for i in range(24):
+        q = quarters[i % len(quarters)]
+        yr_num = int(q[:4])
+        dnsp = dnsps[i % len(dnsps)]
+        st = {"Ausgrid": "NSW", "Endeavour Energy": "NSW", "United Energy": "VIC",
+              "CitiPower": "VIC", "Powercor": "VIC", "SA Power Networks": "SA",
+              "Energex": "QLD", "Western Power": "WA"}.get(dnsp, "NSW")
+        yr_factor = 1.0 + (yr_num - 2022) * 0.35 + (i % 4) * 0.05
+        ev_peak = round(rng.uniform(8.0, 45.0) * yr_factor, 2)
+        man_shift = round(ev_peak * rng.uniform(0.1, 0.32), 2)
+        v2g_sup = round(ev_peak * rng.uniform(0.02, 0.12), 2)
+        network_impact.append(EVGINetworkRecord(
+            quarter=q,
+            dnsp=dnsp,
+            state=st,
+            ev_peak_demand_mw=ev_peak,
+            load_coincidence_factor_pct=round(rng.uniform(45.0, 85.0), 1),
+            transformer_overload_events=int(rng.uniform(0, 28) * yr_factor),
+            managed_charging_mw_shifted=man_shift,
+            v2g_grid_support_mw=v2g_sup,
+            network_upgrade_deferred_m=round(rng.uniform(0.5, 18.0) * yr_factor * 0.4, 2),
+            customer_satisfaction_pct=round(rng.uniform(62.0, 91.0), 1),
+        ))
+
+    # --- Infrastructure records (20) ---
+    charger_types = ["Level 1 Home", "Level 2 Home", "Level 2 Public", "DC Fast 50kW", "DC Ultra 150kW+", "Wireless", "V2G Capable"]
+    infra_states = ["NSW", "VIC", "QLD", "SA", "WA"]
+    infrastructure: List[EVGIInfrastructureRecord] = []
+    for i in range(20):
+        ct_infra = charger_types[i % len(charger_types)]
+        st_infra = infra_states[i % len(infra_states)]
+        total_type_mult = {"Level 1 Home": 18000, "Level 2 Home": 42000, "Level 2 Public": 8500,
+                           "DC Fast 50kW": 3200, "DC Ultra 150kW+": 980, "Wireless": 210, "V2G Capable": 650}.get(ct_infra, 5000)
+        total_pts = int(total_type_mult * rng.uniform(0.6, 1.5))
+        pub_pct_infra = {"Level 1 Home": 0.02, "Level 2 Home": 0.04, "Level 2 Public": 0.92,
+                         "DC Fast 50kW": 0.88, "DC Ultra 150kW+": 0.95, "Wireless": 0.6, "V2G Capable": 0.35}.get(ct_infra, 0.5)
+        pub_pts = int(total_pts * pub_pct_infra)
+        priv_pts = total_pts - pub_pts
+        km_between = {"Level 1 Home": 0.3, "Level 2 Home": 0.2, "Level 2 Public": 8.5,
+                      "DC Fast 50kW": 35.0, "DC Ultra 150kW+": 85.0, "Wireless": 150.0, "V2G Capable": 120.0}.get(ct_infra, 20.0)
+        util_rate = {"Level 1 Home": 12.0, "Level 2 Home": 18.0, "Level 2 Public": 28.0,
+                     "DC Fast 50kW": 42.0, "DC Ultra 150kW+": 55.0, "Wireless": 15.0, "V2G Capable": 22.0}.get(ct_infra, 25.0)
+        rev_day = {"Level 1 Home": 0.8, "Level 2 Home": 1.2, "Level 2 Public": 12.5,
+                   "DC Fast 50kW": 38.0, "DC Ultra 150kW+": 85.0, "Wireless": 8.0, "V2G Capable": 22.0}.get(ct_infra, 15.0)
+        infrastructure.append(EVGIInfrastructureRecord(
+            state=st_infra,
+            charger_type=ct_infra,
+            total_points=total_pts,
+            public_points=pub_pts,
+            private_points=priv_pts,
+            km_between_public=round(km_between * rng.uniform(0.75, 1.35), 2),
+            deployment_rate_per_month=round(rng.uniform(15.0, 320.0), 1),
+            utilisation_rate_pct=round(util_rate * rng.uniform(0.85, 1.2), 1),
+            avg_revenue_per_point_aud_day=round(rev_day * rng.uniform(0.8, 1.25), 2),
+        ))
+
+    # --- Projection records (20, 2025-2035 × 3 scenarios with some years skipped) ---
+    scenarios_proj = ["BAU", "Accelerated", "V2G Enabled"]
+    proj_years = list(range(2025, 2035))
+    projections: List[EVGIProjectionRecord] = []
+    scenario_params = {
+        "BAU":          {"ev_base": 0.22, "growth": 1.28, "v2g_frac": 0.04, "sc_frac": 0.12, "peak_red_base": 3.0},
+        "Accelerated":  {"ev_base": 0.30, "growth": 1.42, "v2g_frac": 0.12, "sc_frac": 0.30, "peak_red_base": 8.0},
+        "V2G Enabled":  {"ev_base": 0.28, "growth": 1.38, "v2g_frac": 0.35, "sc_frac": 0.55, "peak_red_base": 15.0},
+    }
+    combo_list = [(yr, sc) for sc in scenarios_proj for yr in proj_years][:20]
+    for yr, sc in combo_list:
+        p = scenario_params[sc]
+        yrs_from_start = yr - 2025
+        ev_stock = round(p["ev_base"] * (p["growth"] ** yrs_from_start), 3)
+        ev_demand_twh = round(ev_stock * 1e6 * 15.0 / 1e9 * rng.uniform(0.88, 1.12), 2)
+        v2g_mw = round(ev_stock * 1e6 * p["v2g_frac"] * 5.0 * rng.uniform(0.85, 1.15), 0)
+        mc_benefit = round(ev_stock * 1e6 * p["sc_frac"] * 0.00025 * rng.uniform(0.9, 1.1), 1)
+        peak_red = round(p["peak_red_base"] * (1.0 + yrs_from_start * 0.08) * rng.uniform(0.9, 1.12), 1)
+        grid_storage = round(ev_stock * 1e6 * p["v2g_frac"] * 25.0 / 1000.0 * rng.uniform(0.85, 1.15), 1)
+        renew_self = round(30.0 + yrs_from_start * 2.5 * p["sc_frac"] * 3.0 + rng.uniform(-2.0, 3.0), 1)
+        projections.append(EVGIProjectionRecord(
+            year=yr,
+            scenario=sc,
+            ev_stock_m=ev_stock,
+            ev_charging_demand_twh=ev_demand_twh,
+            v2g_available_mw=v2g_mw,
+            managed_charging_benefit_m=mc_benefit,
+            peak_demand_reduction_pct=min(peak_red, 35.0),
+            grid_storage_equivalent_gwh=grid_storage,
+            renewable_self_consumption_pct=min(renew_self, 85.0),
+        ))
+
+    # --- Summary ---
+    total_ev_fleet = sum(f.registered_count for f in fleet if f.year == 2024)
+    v2g_capable_vehicles = int(sum(
+        f.registered_count * f.v2g_capable_pct / 100.0 for f in fleet if f.year == 2024
+    ))
+    avg_v2g_net_benefit = round(sum(r.net_benefit_aud_per_vehicle_year for r in v2g) / len(v2g), 2)
+    total_charging_points = sum(inf.total_points for inf in infrastructure)
+    proj_2030_bau = [p for p in projections if p.year == 2030 and p.scenario == "Accelerated"]
+    projected_2030_ev_stock_m = proj_2030_bau[0].ev_stock_m if proj_2030_bau else 1.2
+    v2g_support_potential = round(sum(r.discharge_capacity_mw for r in v2g), 1)
+
+    summary = {
+        "total_ev_fleet": total_ev_fleet,
+        "v2g_capable_vehicles": v2g_capable_vehicles,
+        "avg_v2g_net_benefit_aud_per_vehicle": avg_v2g_net_benefit,
+        "total_charging_points": total_charging_points,
+        "projected_2030_ev_stock_m": projected_2030_ev_stock_m,
+        "v2g_grid_support_potential_mw": v2g_support_potential,
+    }
+
+    _evgi_cache.update(EVGIDashboard(
+        fleet=fleet,
+        charging=charging,
+        v2g=v2g,
+        network_impact=network_impact,
+        infrastructure=infrastructure,
+        projections=projections,
+        summary=summary,
+    ).model_dump())
+    return EVGIDashboard(**_evgi_cache)

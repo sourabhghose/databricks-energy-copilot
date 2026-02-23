@@ -20628,3 +20628,294 @@ export interface GEDADashboard {
 
 export const getGeothermalEnergyDevelopmentDashboard = (): Promise<GEDADashboard> =>
   get<GEDADashboard>('/api/geothermal-energy-development/dashboard')
+
+// ---------------------------------------------------------------------------
+// Solar Thermal Power Plant Analytics  (Sprint 112a — STPAX prefix)
+// ---------------------------------------------------------------------------
+
+export interface STPAXTechnologyRecord {
+  technology: string
+  vendor_examples: string
+  efficiency_solar_to_electric_pct: number
+  operating_temp_c: number
+  storage_capable: boolean
+  max_storage_hours: number
+  land_use_m2_per_mw: number
+  water_use_kl_per_mwh: number
+  capacity_factor_pct: number
+  trl: number
+  first_commercial_year: number
+}
+
+export interface STPAXProjectRecord {
+  project_id: string
+  project_name: string
+  developer: string
+  country: string
+  state_or_region: string
+  technology: string
+  capacity_mw: number
+  storage_hours: number
+  status: string
+  year_commissioned: number | null
+  capex_m: number | null
+  lcoe_usd_per_mwh: number | null
+  annual_generation_gwh: number | null
+  dni_kwh_per_m2_year: number
+}
+
+export interface STPAXCostRecord {
+  year: number
+  technology: string
+  capex_usd_per_kw: number
+  capex_aud_per_kw: number
+  lcoe_usd_per_mwh: number
+  lcoe_aud_per_mwh: number
+  storage_cost_adder_usd_per_kwh_capacity: number
+  capacity_factor_pct: number
+  learning_rate_pct: number
+}
+
+export interface STPAXStorageRecord {
+  project_name: string
+  technology: string
+  storage_medium: string
+  storage_capacity_mwh: number
+  discharge_duration_h: number
+  round_trip_efficiency_pct: number
+  storage_cost_usd_per_kwh: number
+  operating_temp_c: number
+  freeze_risk: boolean
+  cycling_capability: string
+}
+
+export interface STPAXResourceRecord {
+  location: string
+  state: string
+  dni_kwh_per_m2_year: number
+  clearsky_days: number
+  optimal_tilt_deg: number
+  land_available_km2: number
+  water_availability: string
+  grid_distance_km: number
+  environmental_sensitivity: string
+  csp_potential_gw: number
+}
+
+export interface STPAXDispatchabilityRecord {
+  year: number
+  region: string
+  storage_hours: number
+  avg_dispatch_price_aud_per_mwh: number
+  peak_capacity_value_aud_per_kw_year: number
+  firmness_factor_pct: number
+  capacity_credit_pct: number
+  revenue_premium_vs_pv_pct: number
+  LCOE_competitiveness_pct: number
+}
+
+export interface STPAXDashboard {
+  technologies: STPAXTechnologyRecord[]
+  projects: STPAXProjectRecord[]
+  costs: STPAXCostRecord[]
+  storage: STPAXStorageRecord[]
+  resources: STPAXResourceRecord[]
+  dispatchability: STPAXDispatchabilityRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getSolarThermalPowerPlantDashboard = (): Promise<STPAXDashboard> =>
+  get<STPAXDashboard>('/api/solar-thermal-power-plant-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 112b — Energy Trading Algorithmic Strategy Analytics (ETAS)
+// ---------------------------------------------------------------------------
+
+export interface ETASStrategyRecord {
+  strategy_id: string
+  strategy_name: string
+  strategy_type: string
+  market: string
+  region: string
+  avg_daily_positions: number
+  avg_holding_period_hours: number
+  sharpe_ratio: number
+  annualised_return_pct: number
+  max_drawdown_pct: number
+  win_rate_pct: number
+  live_since_year: number
+}
+
+export interface ETASPerformanceRecord {
+  month: string
+  strategy_id: string
+  gross_pnl_m: number
+  net_pnl_m: number
+  transaction_costs_m: number
+  slippage_m: number
+  trades_count: number
+  avg_trade_size_mw: number
+  hit_ratio_pct: number
+  information_ratio: number
+  sortino_ratio: number
+}
+
+export interface ETASRiskRecord {
+  strategy_id: string
+  risk_metric: string
+  value: number
+  limit: number
+  utilisation_pct: number
+  breach_count_ytd: number
+  risk_currency: string
+  correlation_to_spot_pct: number
+  tail_risk_score: number
+}
+
+export interface ETASMarketSignalRecord {
+  signal_date: string
+  region: string
+  signal_type: string
+  signal_strength: number
+  forward_return_1h_pct: number
+  forward_return_1d_pct: number
+  accuracy_historical_pct: number
+  ml_confidence_pct: number
+}
+
+export interface ETASBacktestRecord {
+  backtest_id: string
+  strategy_name: string
+  backtest_period_start: string
+  backtest_period_end: string
+  strategy_type: string
+  sharpe_ratio: number
+  cagr_pct: number
+  max_drawdown_pct: number
+  calmar_ratio: number
+  total_trades: number
+  profitable_trades: number
+  avg_profit_per_trade_aud: number
+  overfitting_score: number
+}
+
+export interface ETASExecutionRecord {
+  execution_date: string
+  strategy_id: string
+  order_type: string
+  market: string
+  volume_mwh: number
+  execution_price_aud: number
+  benchmark_price_aud: number
+  slippage_bps: number
+  latency_ms: number
+  fill_rate_pct: number
+  venue: string
+}
+
+export interface ETASDashboard {
+  strategies: ETASStrategyRecord[]
+  performance: ETASPerformanceRecord[]
+  risk: ETASRiskRecord[]
+  market_signals: ETASMarketSignalRecord[]
+  backtests: ETASBacktestRecord[]
+  execution: ETASExecutionRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getEnergyTradingAlgorithmicStrategyDashboard = (): Promise<ETASDashboard> =>
+  get<ETASDashboard>('/api/energy-trading-algorithmic-strategy/dashboard')
+
+// ---------------------------------------------------------------------------
+// EV Grid Integration and Vehicle-to-Grid Analytics (EVGI) — Sprint 112c
+// ---------------------------------------------------------------------------
+
+export interface EVGIFleetRecord {
+  segment: string
+  state: string
+  year: number
+  registered_count: number
+  avg_battery_kwh: number
+  avg_daily_km: number
+  home_charging_pct: number
+  public_charging_pct: number
+  workplace_pct: number
+  v2g_capable_pct: number
+  smart_charging_enrolled_pct: number
+}
+
+export interface EVGIChargingRecord {
+  date_month: string
+  region: string
+  charge_type: string
+  sessions_count: number
+  avg_duration_h: number
+  avg_energy_kwh: number
+  peak_kw_demand: number
+  offpeak_share_pct: number
+  cost_per_kwh_aud: number
+  grid_stress_index: number
+}
+
+export interface EVGIV2GRecord {
+  scenario: string
+  technology_type: string
+  vehicles_participating: number
+  avg_battery_kwh_available: number
+  discharge_capacity_mw: number
+  fcas_revenue_aud_per_vehicle_year: number
+  arbitrage_revenue_aud_per_vehicle_year: number
+  peak_shaving_revenue_aud_per_vehicle_year: number
+  battery_degradation_pct_per_year_v2g: number
+  net_benefit_aud_per_vehicle_year: number
+}
+
+export interface EVGINetworkRecord {
+  quarter: string
+  dnsp: string
+  state: string
+  ev_peak_demand_mw: number
+  load_coincidence_factor_pct: number
+  transformer_overload_events: number
+  managed_charging_mw_shifted: number
+  v2g_grid_support_mw: number
+  network_upgrade_deferred_m: number
+  customer_satisfaction_pct: number
+}
+
+export interface EVGIInfrastructureRecord {
+  state: string
+  charger_type: string
+  total_points: number
+  public_points: number
+  private_points: number
+  km_between_public: number
+  deployment_rate_per_month: number
+  utilisation_rate_pct: number
+  avg_revenue_per_point_aud_day: number
+}
+
+export interface EVGIProjectionRecord {
+  year: number
+  scenario: string
+  ev_stock_m: number
+  ev_charging_demand_twh: number
+  v2g_available_mw: number
+  managed_charging_benefit_m: number
+  peak_demand_reduction_pct: number
+  grid_storage_equivalent_gwh: number
+  renewable_self_consumption_pct: number
+}
+
+export interface EVGIDashboard {
+  fleet: EVGIFleetRecord[]
+  charging: EVGIChargingRecord[]
+  v2g: EVGIV2GRecord[]
+  network_impact: EVGINetworkRecord[]
+  infrastructure: EVGIInfrastructureRecord[]
+  projections: EVGIProjectionRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getEVGridIntegrationV2GDashboard = (): Promise<EVGIDashboard> =>
+  get<EVGIDashboard>('/api/ev-grid-integration-v2g/dashboard')

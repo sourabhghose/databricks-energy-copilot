@@ -81,6 +81,7 @@ import {
   Monitor,
   ShoppingBag,
   Eye,
+  Plug,
 } from 'lucide-react'
 
 import Home from './pages/Home'
@@ -384,6 +385,9 @@ import EnergyPovertyVulnerableConsumerAnalytics from './pages/EnergyPovertyVulne
 import NuclearSmallModularReactorAnalytics from './pages/NuclearSmallModularReactorAnalytics'
 import ElectricityMarketTransparencyAnalytics from './pages/ElectricityMarketTransparencyAnalytics'
 import GeothermalEnergyDevelopmentAnalytics from './pages/GeothermalEnergyDevelopmentAnalytics'
+import SolarThermalPowerPlantAnalytics from './pages/SolarThermalPowerPlantAnalytics'
+import EnergyTradingAlgorithmicStrategyAnalytics from './pages/EnergyTradingAlgorithmicStrategyAnalytics'
+import EVGridIntegrationV2GAnalytics from './pages/EVGridIntegrationV2GAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -688,6 +692,9 @@ const NAV_ITEMS = [
   { to: '/nuclear-small-modular-reactor',      label: 'SMR Nuclear Analytics',     Icon: Atom      },
   { to: '/electricity-market-transparency',    label: 'Market Transparency',        Icon: Eye       },
   { to: '/geothermal-energy-development',      label: 'Geothermal Development',     Icon: Thermometer },
+  { to: '/solar-thermal-power-plant',          label: 'Solar Thermal CSP',          Icon: Sun         },
+  { to: '/energy-trading-algorithmic-strategy', label: 'Algo Trading Strategy',     Icon: TrendingUp  },
+  { to: '/ev-grid-integration-v2g',            label: 'EV Grid Integration V2G',   Icon: Plug        },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1067,6 +1074,9 @@ export default function App() {
               <Route path="/nuclear-small-modular-reactor" element={<NuclearSmallModularReactorAnalytics />} />
               <Route path="/electricity-market-transparency" element={<ElectricityMarketTransparencyAnalytics />} />
               <Route path="/geothermal-energy-development" element={<GeothermalEnergyDevelopmentAnalytics />} />
+              <Route path="/solar-thermal-power-plant" element={<SolarThermalPowerPlantAnalytics />} />
+              <Route path="/energy-trading-algorithmic-strategy" element={<EnergyTradingAlgorithmicStrategyAnalytics />} />
+              <Route path="/ev-grid-integration-v2g" element={<EVGridIntegrationV2GAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
