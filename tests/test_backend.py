@@ -21771,3 +21771,248 @@ class TestEPHPXDashboard:
             assert "effectiveness_score" in prog, (
                 f"Missing effectiveness_score in program {prog.get('program_id')}"
             )
+
+
+# ===========================================================================
+# TestHRTSDashboard — Sprint 148a
+# ===========================================================================
+
+class TestHRTSDashboard:
+    """9 tests for GET /api/hydrogen-refuelling-transport/dashboard."""
+
+    URL = "/api/hydrogen-refuelling-transport/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("stations", "vehicles", "projects", "economics", "demand", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_stations_count(self):
+        """stations list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stations"]) == 15, (
+            f"Expected 15 stations, got {len(data['stations'])}"
+        )
+
+    def test_vehicles_count(self):
+        """vehicles list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["vehicles"]) == 20, (
+            f"Expected 20 vehicles, got {len(data['vehicles'])}"
+        )
+
+    def test_projects_count(self):
+        """projects list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 25, (
+            f"Expected 25 projects, got {len(data['projects'])}"
+        )
+
+    def test_economics_count(self):
+        """economics list must contain exactly 24 records (4 years × 3 sources × 2 vehicle types)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["economics"]) == 24, (
+            f"Expected 24 economics records, got {len(data['economics'])}"
+        )
+
+    def test_demand_count(self):
+        """demand list must contain exactly 30 records (6 sectors × 5 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["demand"]) == 30, (
+            f"Expected 30 demand records, got {len(data['demand'])}"
+        )
+
+    def test_summary_has_avg_retail_price_per_kg(self):
+        """summary must contain avg_retail_price_per_kg field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_retail_price_per_kg" in data["summary"], (
+            "Missing avg_retail_price_per_kg in summary"
+        )
+
+    def test_all_stations_have_h2_capacity_kg_per_day(self):
+        """Every station record must include the h2_capacity_kg_per_day field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for station in data["stations"]:
+            assert "h2_capacity_kg_per_day" in station, (
+                f"Missing h2_capacity_kg_per_day in station {station.get('station_id')}"
+            )
+
+
+# ===========================================================================
+# TestESPEDashboard — Sprint 148b: Electricity Spot Price Event Analytics
+# ===========================================================================
+
+class TestESPEDashboard:
+    """9 tests for GET /api/electricity-spot-price-events/dashboard."""
+
+    URL = "/api/electricity-spot-price-events/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("events", "regional_stats", "drivers",
+                    "price_distribution", "mitigation", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_events_count(self):
+        """events list must contain exactly 40 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["events"]) == 40, (
+            f"Expected 40 events, got {len(data['events'])}"
+        )
+
+    def test_regional_stats_count(self):
+        """regional_stats list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regional_stats"]) == 30, (
+            f"Expected 30 regional_stats, got {len(data['regional_stats'])}"
+        )
+
+    def test_drivers_count(self):
+        """drivers list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["drivers"]) == 25, (
+            f"Expected 25 drivers, got {len(data['drivers'])}"
+        )
+
+    def test_price_distribution_count(self):
+        """price_distribution list must contain exactly 24 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_distribution"]) == 24, (
+            f"Expected 24 price_distribution records, got {len(data['price_distribution'])}"
+        )
+
+    def test_mitigation_count(self):
+        """mitigation list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["mitigation"]) == 20, (
+            f"Expected 20 mitigation records, got {len(data['mitigation'])}"
+        )
+
+    def test_summary_has_total_events_2024(self):
+        """summary must contain total_events_2024 field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_events_2024" in data["summary"], (
+            "Missing total_events_2024 in summary"
+        )
+
+    def test_all_events_have_financial_impact_m_aud(self):
+        """Every event record must include the financial_impact_m_aud field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for evt in data["events"]:
+            assert "financial_impact_m_aud" in evt, (
+                f"Missing financial_impact_m_aud in event {evt.get('event_id')}"
+            )
+
+
+# ===========================================================================
+# TestLSRADashboard — Large-Scale Renewable Energy Auction Analytics
+# ===========================================================================
+
+class TestLSRADashboard:
+    """9 tests for GET /api/large-scale-renewable-auction/dashboard."""
+
+    URL = "/api/large-scale-renewable-auction/dashboard"
+    HEADERS = {"Accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}: {r.text[:200]}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_keys = {"auctions", "projects", "price_trajectory", "developers", "market_dynamics", "summary"}
+        assert expected_keys.issubset(set(data.keys())), (
+            f"Missing keys: {expected_keys - set(data.keys())}"
+        )
+
+    def test_auctions_count(self):
+        """auctions list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["auctions"]) == 20, (
+            f"Expected 20 auctions, got {len(data['auctions'])}"
+        )
+
+    def test_projects_count(self):
+        """projects list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 30, (
+            f"Expected 30 projects, got {len(data['projects'])}"
+        )
+
+    def test_price_trajectory_count(self):
+        """price_trajectory list must contain exactly 36 records (6 technologies × 6 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_trajectory"]) == 36, (
+            f"Expected 36 price_trajectory records, got {len(data['price_trajectory'])}"
+        )
+
+    def test_developers_count(self):
+        """developers list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["developers"]) == 25, (
+            f"Expected 25 developers, got {len(data['developers'])}"
+        )
+
+    def test_market_dynamics_count(self):
+        """market_dynamics list must contain exactly 24 records (6 jurisdictions × 4 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_dynamics"]) == 24, (
+            f"Expected 24 market_dynamics records, got {len(data['market_dynamics'])}"
+        )
+
+    def test_summary_has_avg_clearing_price_mwh(self):
+        """summary must contain avg_clearing_price_mwh field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_clearing_price_mwh" in data["summary"], (
+            "Missing avg_clearing_price_mwh in summary"
+        )
+
+    def test_all_auctions_have_contracted_capacity_mw(self):
+        """Every auction record must include the contracted_capacity_mw field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for auction in data["auctions"]:
+            assert "contracted_capacity_mw" in auction, (
+                f"Missing contracted_capacity_mw in auction {auction.get('auction_id')}"
+            )

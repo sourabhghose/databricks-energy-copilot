@@ -502,6 +502,9 @@ import ElectricityPriceForecastingAnalytics from './pages/ElectricityPriceForeca
 import NetworkAssetLifeCycleAnalytics from './pages/NetworkAssetLifeCycleAnalytics'
 import WindFarmWakeTurbineAnalytics from './pages/WindFarmWakeTurbineAnalytics'
 import EnergyPovertyHardshipXAnalytics from './pages/EnergyPovertyHardshipXAnalytics'
+import HydrogenRefuellingTransportAnalytics from './pages/HydrogenRefuellingTransportAnalytics'
+import ElectricitySpotPriceEventAnalytics from './pages/ElectricitySpotPriceEventAnalytics'
+import LargeScaleRenewableAuctionAnalytics from './pages/LargeScaleRenewableAuctionAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -914,6 +917,9 @@ const NAV_ITEMS = [
   { to: '/electricity-price-forecasting', label: 'Price Forecast Models', Icon: Target },
   { to: '/network-asset-life-cycle', label: 'Asset Life Cycle', Icon: SettingsIcon },
   { to: '/wind-farm-wake-turbine', label: 'Wind Farm Wake & Turbine', Icon: Wind },
+  { to: '/hydrogen-refuelling-transport', label: 'H2 Transport', Icon: Truck },
+  { to: '/electricity-spot-price-events', label: 'Price Events', Icon: Zap },
+  { to: '/large-scale-renewable-auction', label: 'RE Auctions', Icon: Award },
 ]
 
 function Sidebar() {
@@ -1401,6 +1407,9 @@ export default function App() {
               <Route path="/network-asset-life-cycle" element={<NetworkAssetLifeCycleAnalytics />} />
               <Route path="/wind-farm-wake-turbine" element={<WindFarmWakeTurbineAnalytics />} />
               <Route path="/energy-poverty-hardship-x" element={<EnergyPovertyHardshipXAnalytics />} />
+              <Route path="hydrogen-refuelling-transport" element={<HydrogenRefuellingTransportAnalytics />} />
+              <Route path="electricity-spot-price-events" element={<ElectricitySpotPriceEventAnalytics />} />
+              <Route path="large-scale-renewable-auction" element={<LargeScaleRenewableAuctionAnalytics />} />
             </Routes>
           </main>
         </div>

@@ -28985,3 +28985,262 @@ export interface EPHPXDashboard {
 
 export const getEnergyPovertyHardshipXDashboard = (): Promise<EPHPXDashboard> =>
   get<EPHPXDashboard>('/api/energy-poverty-hardship-x/dashboard')
+// ---------------------------------------------------------------------------
+// Sprint 148b — ESPE: Electricity Spot Price Event Analytics
+// ---------------------------------------------------------------------------
+
+export interface ESPEEvent {
+  event_id: string
+  event_type: string
+  region: string
+  year: number
+  month: number
+  duration_intervals: number
+  max_price_mwh: number
+  avg_price_mwh: number
+  total_energy_affected_mwh: number
+  financial_impact_m_aud: number
+  trigger_cause: string
+}
+
+export interface ESPERegionalStats {
+  region: string
+  year: number
+  half: string
+  spike_count: number
+  negative_count: number
+  cap_hit_count: number
+  total_spike_revenue_m_aud: number
+  p5_price_mwh: number
+  p95_price_mwh: number
+  volatility_index: number
+  time_above_300_pct: number
+}
+
+export interface ESPEDriver {
+  driver_id: string
+  driver_name: string
+  driver_type: string
+  contribution_pct: number
+  year: number
+  region: string
+  events_caused: number
+  avg_price_impact_mwh: number
+  seasonal_pattern: string
+}
+
+export interface ESPEPriceDistribution {
+  region: string
+  year: number
+  price_band: string
+  hours_count: number
+  percentage_of_year: number
+  avg_price_mwh: number
+  volume_mwh: number
+}
+
+export interface ESPEMitigation {
+  measure_id: string
+  measure_name: string
+  measure_type: string
+  region: string
+  year: number
+  activations: number
+  mw_dispatched: number
+  cost_m_aud: number
+  effectiveness_pct: number
+}
+
+export interface ESPESummary {
+  total_events_2024: number
+  total_spike_revenue_m_aud: number
+  most_volatile_region: string
+  avg_negative_price_hrs_pa: number
+  total_cap_hit_events: number
+  biggest_single_event_m_aud: number
+  avg_event_duration_intervals: number
+}
+
+export interface ESPEDashboard {
+  events: ESPEEvent[]
+  regional_stats: ESPERegionalStats[]
+  drivers: ESPEDriver[]
+  price_distribution: ESPEPriceDistribution[]
+  mitigation: ESPEMitigation[]
+  summary: ESPESummary
+}
+
+export const getElectricitySpotPriceEventsDashboard = (): Promise<ESPEDashboard> =>
+  get<ESPEDashboard>('/api/electricity-spot-price-events/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 148a — HRTS: Hydrogen Refuelling & Transport Sector Analytics
+// ---------------------------------------------------------------------------
+
+export interface HRTSStation {
+  station_id: string
+  station_name: string
+  state: string
+  station_type: string
+  h2_capacity_kg_per_day: number
+  dispensing_pressure_bar: number
+  h2_source: string
+  daily_vehicles_served: number
+  utilisation_pct: number
+  retail_price_per_kg: number
+  status: string
+}
+
+export interface HRTSVehicle {
+  vehicle_category: string
+  deployed_count: number
+  pipeline_count: number
+  fuel_cell_manufacturer: string
+  avg_range_km: number
+  h2_consumption_kg_per_100km: number
+  capex_k_aud: number
+  tco_vs_diesel_pct: number
+}
+
+export interface HRTSProject {
+  project_id: string
+  project_name: string
+  state: string
+  project_type: string
+  h2_demand_kt_pa: number
+  capex_m_aud: number
+  funding_source: string
+  status: string
+  commissioning_year: number
+}
+
+export interface HRTSEconomics {
+  year: number
+  h2_source: string
+  vehicle_type: string
+  production_cost_per_kg: number
+  transport_cost_per_kg: number
+  dispensing_cost_per_kg: number
+  retail_price_per_kg: number
+  tco_heavy_truck_vs_diesel_pct: number
+  break_even_oil_price_usd: number
+}
+
+export interface HRTSDemand {
+  sector: string
+  year: number
+  h2_demand_kt: number
+  h2_demand_growth_pct: number
+  stations_required: number
+  fleet_size: number
+  investment_required_b_aud: number
+}
+
+export interface HRTSSummary {
+  total_stations: number
+  total_capacity_kg_per_day: number
+  total_vehicles_deployed: number
+  total_h2_demand_kt_2030: number
+  avg_retail_price_per_kg: number
+  total_project_capex_b_aud: number
+  green_h2_stations_pct: number
+}
+
+export interface HRTSDashboard {
+  stations: HRTSStation[]
+  vehicles: HRTSVehicle[]
+  projects: HRTSProject[]
+  economics: HRTSEconomics[]
+  demand: HRTSDemand[]
+  summary: HRTSSummary
+}
+
+export const getHydrogenRefuellingTransportDashboard = (): Promise<HRTSDashboard> =>
+  get<HRTSDashboard>('/api/hydrogen-refuelling-transport/dashboard')
+
+// ---------------------------------------------------------------------------
+// LSRA — Large-Scale Renewable Energy Auction Analytics
+// ---------------------------------------------------------------------------
+
+export interface LSRAAuction {
+  auction_id: string
+  auction_name: string
+  jurisdiction: string
+  auction_type: string
+  year: number
+  total_capacity_mw: number
+  contracted_capacity_mw: number
+  clearing_price_mwh: number
+  technology_mix: string
+  oversubscription_ratio: number
+  winning_bidders_count: number
+  status: string
+}
+
+export interface LSRAProject {
+  project_id: string
+  project_name: string
+  auction_id: string
+  developer: string
+  technology: string
+  state: string
+  capacity_mw: number
+  contract_price_mwh: number
+  contract_duration_years: number
+  commissioning_year: number
+  status: string
+}
+
+export interface LSRAPriceTrajectory {
+  technology: string
+  year: number
+  min_clearing_price_mwh: number
+  avg_clearing_price_mwh: number
+  max_clearing_price_mwh: number
+  bids_received: number
+  capacity_contracted_mw: number
+}
+
+export interface LSRADeveloper {
+  developer_name: string
+  projects_won: number
+  total_capacity_mw: number
+  avg_contract_price_mwh: number
+  states_active: number
+  technology_focus: string
+  market_share_pct: number
+  pipeline_mw: number
+}
+
+export interface LSRAMarketDynamics {
+  jurisdiction: string
+  year: number
+  auctions_conducted: number
+  total_capacity_auctioned_mw: number
+  total_capacity_contracted_mw: number
+  avg_clearing_price_mwh: number
+  bidder_count: number
+  foreign_developer_pct: number
+}
+
+export interface LSRASummary {
+  total_auctions: number
+  total_contracted_capacity_gw: number
+  avg_clearing_price_mwh: number
+  lowest_clearing_price_mwh: number
+  total_projects: number
+  total_developers: number
+  avg_oversubscription_ratio: number
+}
+
+export interface LSRADashboard {
+  auctions: LSRAAuction[]
+  projects: LSRAProject[]
+  price_trajectory: LSRAPriceTrajectory[]
+  developers: LSRADeveloper[]
+  market_dynamics: LSRAMarketDynamics[]
+  summary: LSRASummary
+}
+
+export const getLargeScaleRenewableAuctionDashboard = (): Promise<LSRADashboard> =>
+  get<LSRADashboard>('/api/large-scale-renewable-auction/dashboard')
