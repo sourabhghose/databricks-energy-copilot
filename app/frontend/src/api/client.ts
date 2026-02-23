@@ -21840,3 +21840,324 @@ export interface ECSCDashboard {
 
 export const getElectricityConsumerSwitchingChurnDashboard = (): Promise<ECSCDashboard> =>
   get<ECSCDashboard>('/api/electricity-consumer-switching-churn/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 116a — NEM Inertia and Synchronous Condenser Analytics (NISC)
+// ---------------------------------------------------------------------------
+
+export interface NISCInertiaRecord {
+  region: string
+  date_month: string
+  total_inertia_mws: number
+  synchronous_gen_online_mw: number
+  coal_contribution_mws: number
+  gas_contribution_mws: number
+  hydro_contribution_mws: number
+  syncon_contribution_mws: number
+  wind_gfm_contribution_mws: number
+  min_threshold_mws: number
+  headroom_mws: number
+  low_inertia_events_count: number
+}
+
+export interface NISCSynconRecord {
+  asset_id: string
+  asset_name: string
+  owner: string
+  state: string
+  region: string
+  syncon_type: string
+  rating_mva: number
+  inertia_constant_s: number
+  h_constant_mws: number
+  commissioning_year: number
+  capex_m: number
+  annual_revenue_m: number
+  services: string
+  status: string
+}
+
+export interface NISCRoCoFRecord {
+  quarter: string
+  region: string
+  max_rocof_hz_per_s: number
+  avg_rocof_hz_per_s: number
+  rocof_limit_hz_per_s: number
+  limit_breach_count: number
+  avg_inertia_at_breach_mws: number
+  demand_mw: number
+  renewable_pct: number
+  recovery_time_s: number
+}
+
+export interface NISCProcurementRecord {
+  year: number
+  region: string
+  service_type: string
+  quantity_procured_mws: number
+  procurement_cost_m: number
+  avg_price_mws: number
+  providers_count: number
+  tender_type: string
+  cost_per_mw_year: number
+}
+
+export interface NISCCostRecord {
+  year: number
+  region: string
+  total_inertia_cost_m: number
+  syncon_capex_total_m: number
+  syncon_opex_m: number
+  grid_forming_cost_m: number
+  market_procurement_m: number
+  avoided_cost_load_shedding_m: number
+  cost_per_customer_aud: number
+  cost_as_pct_of_wholesale: number
+}
+
+export interface NISCProjectionRecord {
+  year: number
+  region: string
+  scenario: string
+  coal_mws_remaining: number
+  syncon_mws: number
+  gfm_mws: number
+  total_inertia_mws: number
+  min_threshold_mws: number
+  adequacy_margin_pct: number
+  investment_needed_m: number
+}
+
+export interface NISCDashboard {
+  inertia_levels: NISCInertiaRecord[]
+  syncondensers: NISCSynconRecord[]
+  rocof_events: NISCRoCoFRecord[]
+  procurement: NISCProcurementRecord[]
+  costs: NISCCostRecord[]
+  projections: NISCProjectionRecord[]
+  summary: {
+    avg_system_inertia_mws: number
+    total_syncon_capacity_mws: number
+    rocof_events_ytd: number
+    total_procurement_cost_m: number
+    projected_2030_inertia_adequacy_pct: number
+    most_at_risk_region: string
+  }
+}
+
+export const getNEMInertiaSynchronousCondenserDashboard = (): Promise<NISCDashboard> =>
+  get<NISCDashboard>('/api/nem-inertia-synchronous-condenser/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 116b — Offshore Wind Leasing and Site Analytics (OWLS)
+// ---------------------------------------------------------------------------
+
+export interface OWLSAreaRecord {
+  area_id: string
+  area_name: string
+  state: string
+  declared_year: number
+  total_area_km2: number
+  water_depth_min_m: number
+  water_depth_max_m: number
+  avg_wind_speed_m_s: number
+  capacity_potential_gw: number
+  licence_applications_count: number
+  operational_licences: number
+  preferred_area_status: string
+  environmental_sensitivity: string
+}
+
+export interface OWLSLicenceRecord {
+  licence_id: string
+  project_name: string
+  developer: string
+  area_id: string
+  state: string
+  capacity_mw: number
+  foundation_type: string
+  water_depth_m: number
+  application_year: number
+  status: string
+  consultation_complete: boolean
+  environmental_approval: boolean
+  connection_km_to_grid: number
+}
+
+export interface OWLSResourceRecord {
+  area_id: string
+  location_name: string
+  avg_wind_speed_m_s: number
+  p50_capacity_factor_pct: number
+  wake_loss_pct: number
+  extreme_wind_speed_m_s: number
+  significant_wave_height_m: number
+  ice_loading: boolean
+  corrosion_zone: string
+  seabed_type: string
+  geotechnical_complexity: string
+}
+
+export interface OWLSSupplyChainRecord {
+  component: string
+  australian_supply_capacity_pct: number
+  imported_from: string
+  lead_time_months: number
+  cost_component_pct: number
+  localisation_potential_pct: number
+  investment_needed_m: number
+  jobs_potential: number
+}
+
+export interface OWLSCostRecord {
+  year: number
+  foundation_type: string
+  capex_per_mw_usd_k: number
+  opex_per_mwh_usd: number
+  lcoe_usd_per_mwh: number
+  lcoe_aud_per_mwh: number
+  connection_cost_per_mw_m: number
+  installation_cost_per_mw_m: number
+  financing_cost_pct: number
+  capacity_factor_pct: number
+}
+
+export interface OWLSProjectionRecord {
+  year: number
+  scenario: string
+  cumulative_capacity_gw: number
+  projects_operating: number
+  annual_generation_twh: number
+  investment_b: number
+  supply_chain_jobs: number
+  local_content_pct: number
+  lcoe_aud_per_mwh: number
+}
+
+export interface OWLSDashboard {
+  areas: OWLSAreaRecord[]
+  licences: OWLSLicenceRecord[]
+  resources: OWLSResourceRecord[]
+  supply_chain: OWLSSupplyChainRecord[]
+  costs: OWLSCostRecord[]
+  projections: OWLSProjectionRecord[]
+  summary: {
+    total_declared_area_km2: number
+    total_capacity_potential_gw: number
+    licences_under_assessment: number
+    avg_wind_speed_m_s: number
+    projected_2030_capacity_gw: number
+    supply_chain_jobs_potential: number
+  }
+}
+
+export const getOffshoreWindLeasingSiteDashboard = (): Promise<OWLSDashboard> =>
+  get<OWLSDashboard>('/api/offshore-wind-leasing-site/dashboard')
+
+// ── Sprint 116c: Electricity Market Regulatory Appeals and Decisions ─────────
+
+export interface EMRDRuleChangeRecord {
+  change_id: string
+  title: string
+  proponent: string
+  submission_date: string
+  rule_type: string
+  stage: string
+  decision_date: string | null
+  outcome: string | null
+  financial_impact_m: number
+  affected_parties: number
+  duration_days: number
+}
+
+export interface EMRDAppealRecord {
+  appeal_id: string
+  case_title: string
+  appellant: string
+  respondent: string
+  jurisdiction: string
+  lodge_date: string
+  decision_date: string | null
+  duration_days: number
+  outcome: string | null
+  penalty_reduced_m: number
+  costs_awarded_m: number
+  precedent_set: boolean
+  legal_cost_m: number
+}
+
+export interface EMRDNetworkDeterminationRecord {
+  determination_id: string
+  network_name: string
+  tnsp_dnsp: string
+  state: string
+  determination_period: string
+  allowed_revenue_m: number
+  initial_proposal_m: number
+  aar_reduction_m: number
+  aer_decision_date: string
+  appellant: boolean
+  capex_approved_m: number
+  opex_approved_m: number
+  wacc_pct: number
+  review_decision: string | null
+}
+
+export interface EMRDPenaltyRecord {
+  penalty_id: string
+  participant: string
+  penalty_date: string
+  regulator: string
+  violation_type: string
+  penalty_amount_m: number
+  infringement_period: string
+  settlement: boolean
+  deterrent_effect_score: number
+  industry_impact: string
+}
+
+export interface EMRDProcedureRecord {
+  procedure_id: string
+  procedure_name: string
+  owner: string
+  category: string
+  last_reviewed: string
+  next_review: string
+  major_changes_count: number
+  industry_consultation_rounds: number
+  implementation_cost_industry_m: number
+  disputes_count: number
+}
+
+export interface EMRDComplianceTrendRecord {
+  year: number
+  regulator: string
+  total_investigations: number
+  formal_actions: number
+  infringement_notices: number
+  court_proceedings: number
+  total_penalties_m: number
+  settlements_count: number
+  compliance_rate_pct: number
+  industry_cost_m: number
+}
+
+export interface EMRDDashboard {
+  rule_changes: EMRDRuleChangeRecord[]
+  appeals: EMRDAppealRecord[]
+  network_determinations: EMRDNetworkDeterminationRecord[]
+  penalties: EMRDPenaltyRecord[]
+  procedures: EMRDProcedureRecord[]
+  compliance_trends: EMRDComplianceTrendRecord[]
+  summary: {
+    total_rule_changes_active: number
+    total_penalties_ytd_m: number
+    appeals_success_rate_pct: number
+    total_network_revenue_reduction_m: number
+    avg_rule_change_duration_days: number
+    compliance_rate_latest_pct: number
+  }
+}
+
+export const getElectricityMarketRegulatoryAppealsDashboard = (): Promise<EMRDDashboard> =>
+  get<EMRDDashboard>('/api/electricity-market-regulatory-appeals/dashboard')

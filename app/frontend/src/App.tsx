@@ -398,6 +398,9 @@ import GridCongestionConstraintAnalytics from './pages/GridCongestionConstraintA
 import RenewableEnergyZoneDevelopmentAnalytics from './pages/RenewableEnergyZoneDevelopmentAnalytics'
 import BatteryStorageDegradationLifetimeAnalytics from './pages/BatteryStorageDegradationLifetimeAnalytics'
 import ElectricityConsumerSwitchingChurnAnalytics from './pages/ElectricityConsumerSwitchingChurnAnalytics'
+import NEMInertiaSynchronousCondenserAnalytics from './pages/NEMInertiaSynchronousCondenserAnalytics'
+import OffshoreWindLeasingSiteAnalytics from './pages/OffshoreWindLeasingSiteAnalytics'
+import ElectricityMarketRegulatoryAppealsAnalytics from './pages/ElectricityMarketRegulatoryAppealsAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -714,6 +717,9 @@ const NAV_ITEMS = [
   { to: '/renewable-energy-zone-development', label: 'REZ Development', Icon: Map },
   { to: '/battery-storage-degradation-lifetime', label: 'Battery Degradation', Icon: Battery },
   { to: '/electricity-consumer-switching-churn', label: 'Consumer Switching', Icon: Users },
+  { to: '/nem-inertia-synchronous-condenser', label: 'Inertia & Syncondensers', Icon: Activity },
+  { to: '/offshore-wind-leasing-site', label: 'Offshore Wind Sites', Icon: Wind },
+  { to: '/electricity-market-regulatory-appeals', label: 'Regulatory Appeals', Icon: Scale },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1105,6 +1111,9 @@ export default function App() {
               <Route path="/renewable-energy-zone-development" element={<RenewableEnergyZoneDevelopmentAnalytics />} />
               <Route path="/battery-storage-degradation-lifetime" element={<BatteryStorageDegradationLifetimeAnalytics />} />
               <Route path="/electricity-consumer-switching-churn" element={<ElectricityConsumerSwitchingChurnAnalytics />} />
+              <Route path="/nem-inertia-synchronous-condenser" element={<NEMInertiaSynchronousCondenserAnalytics />} />
+              <Route path="/offshore-wind-leasing-site" element={<OffshoreWindLeasingSiteAnalytics />} />
+              <Route path="/electricity-market-regulatory-appeals" element={<ElectricityMarketRegulatoryAppealsAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
