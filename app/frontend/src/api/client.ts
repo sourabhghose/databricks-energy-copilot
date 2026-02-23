@@ -24333,3 +24333,207 @@ export interface ESDODashboard {
 
 export const getEnergyStorageDispatchOptimisationDashboard = (): Promise<ESDODashboard> =>
   get<ESDODashboard>('/api/energy-storage-dispatch-optimisation/dashboard')
+
+// ---------------------------------------------------------------------------
+// NEMRI — National Energy Market Reform Impact Analytics
+// ---------------------------------------------------------------------------
+
+export interface NEMRIReformRecord {
+  reform_name: string
+  category: string
+  aemc_rule_number: string
+  status: string
+  implementation_date: string
+  estimated_consumer_benefit_b: number
+  affected_parties: string
+  complexity: string
+  reform_driver: string
+}
+
+export interface NEMRIImpactMetric {
+  reform_name: string
+  year: number
+  metric_name: string
+  baseline_value: number
+  with_reform_value: number
+  improvement_pct: number
+}
+
+export interface NEMRIStakeholderPosition {
+  reform_name: string
+  stakeholder_group: string
+  position: string
+  key_concern: string
+  submission_count: number
+  influence_level: string
+}
+
+export interface NEMRIImplementationProgress {
+  reform_name: string
+  phase: string
+  planned_date: string
+  actual_date: string
+  status: string
+  delay_months: number
+  barrier: string
+}
+
+export interface NEMRIBenefitRealisation {
+  reform_name: string
+  year: number
+  projected_benefit_m: number
+  actual_benefit_m: number
+  realisation_rate_pct: number
+  variance_reason: string
+}
+
+export interface NEMRIDashboard {
+  reforms: NEMRIReformRecord[]
+  impacts: NEMRIImpactMetric[]
+  stakeholder_positions: NEMRIStakeholderPosition[]
+  implementation_progress: NEMRIImplementationProgress[]
+  benefit_realisation: NEMRIBenefitRealisation[]
+  summary: Record<string, unknown>
+}
+
+export const getNationalEnergyMarketReformDashboard = (): Promise<NEMRIDashboard> =>
+  get<NEMRIDashboard>('/api/national-energy-market-reform/dashboard')
+
+// ---------------------------------------------------------------------------
+// Offshore Wind Project Finance Analytics (OWPFX) — Sprint 127b
+// ---------------------------------------------------------------------------
+
+export interface OWPFXProjectRecord {
+  project_name: string
+  developer: string
+  state: string
+  zone: string
+  capacity_mw: number
+  water_depth_m: number
+  distance_from_shore_km: number
+  foundation_type: string
+  capex_b: number
+  target_cod_year: number
+  status: string
+}
+
+export interface OWPFXCostBreakdown {
+  project_name: string
+  component: string
+  cost_m: number
+  pct_of_total: number
+  benchmark_vs_global: string
+}
+
+export interface OWPFXFinancing {
+  project_name: string
+  equity_pct: number
+  debt_pct: number
+  green_bond_pct: number
+  government_support_pct: number
+  wacc_pct: number
+  debt_tenor_years: number
+  lcoe_per_mwh: number
+  irr_pct: number
+  npv_m: number
+}
+
+export interface OWPFXSupplyChain {
+  component: string
+  supplier_region: string
+  lead_time_years: number
+  bottleneck_risk: string
+  localisation_potential_pct: number
+  annual_demand_by_2030_units: number
+}
+
+export interface OWPFXRegulatory {
+  regulatory_step: string
+  average_duration_months: number
+  complexity: string
+  reform_status: string
+  responsible_agency: string
+  cost_estimate_m: number
+}
+
+export interface OWPFXDashboard {
+  projects: OWPFXProjectRecord[]
+  cost_breakdown: OWPFXCostBreakdown[]
+  financing: OWPFXFinancing[]
+  supply_chain: OWPFXSupplyChain[]
+  regulatory: OWPFXRegulatory[]
+  summary: Record<string, unknown>
+}
+
+export const getOffshoreWindProjectFinanceDashboard = (): Promise<OWPFXDashboard> =>
+  get<OWPFXDashboard>('/api/offshore-wind-project-finance-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Electricity Market Price Formation Deep Analytics (EMPF) — Sprint 127a
+// ---------------------------------------------------------------------------
+
+export interface EMPFPriceDriverRecord {
+  month: string
+  region: string
+  avg_spot_price: number
+  fuel_cost_component: number
+  carbon_cost_component: number
+  capacity_scarcity_component: number
+  network_constraint_component: number
+  renewable_suppression_component: number
+  fcas_cost_component: number
+  residual_pct: number
+}
+
+export interface EMPFMarginalUnit {
+  region: string
+  month: string
+  fuel_type: string
+  pct_intervals_marginal: number
+  avg_marginal_price: number
+  price_setter_mw: number
+  rebidding_frequency_pct: number
+}
+
+export interface EMPFPriceEvent {
+  event_date: string
+  region: string
+  event_type: string
+  peak_price: number
+  duration_intervals: number
+  total_cost_m: number
+  primary_cause: string
+  demand_mw: number
+}
+
+export interface EMPFBiddingBehaviour {
+  participant: string
+  region: string
+  quarter: string
+  capacity_bid_at_voll_pct: number
+  avg_rebid_count_per_day: number
+  late_rebid_pct: number
+  dispatch_inflexibility_pct: number
+}
+
+export interface EMPFLongRunCost {
+  technology: string
+  region: string
+  lrmc_per_mwh: number
+  capex_per_mw_m: number
+  required_capacity_factor_pct: number
+  current_cf_pct: number
+  investment_signal: string
+}
+
+export interface EMPFDashboard {
+  price_drivers: EMPFPriceDriverRecord[]
+  marginal_units: EMPFMarginalUnit[]
+  price_events: EMPFPriceEvent[]
+  bidding_behaviour: EMPFBiddingBehaviour[]
+  long_run_costs: EMPFLongRunCost[]
+  summary: Record<string, unknown>
+}
+
+export const getElectricityMarketPriceFormationDashboard = (): Promise<EMPFDashboard> =>
+  get<EMPFDashboard>('/api/electricity-market-price-formation/dashboard')

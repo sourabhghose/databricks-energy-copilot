@@ -48,6 +48,7 @@ import {
   Atom,
   Fuel,
   TreePine,
+  Anchor,
   Car,
   Award,
   Layers,
@@ -433,6 +434,9 @@ import PowerSystemStabilityXAnalytics from './pages/PowerSystemStabilityXAnalyti
 import AemoMarketOperationsAnalytics from './pages/AemoMarketOperationsAnalytics'
 import RenewableEnergyCertificateAnalytics from './pages/RenewableEnergyCertificateAnalytics'
 import EnergyStorageDispatchOptimisationAnalytics from './pages/EnergyStorageDispatchOptimisationAnalytics'
+import OffshoreWindProjectFinanceAnalytics from './pages/OffshoreWindProjectFinanceAnalytics'
+import NationalEnergyMarketReformAnalytics from './pages/NationalEnergyMarketReformAnalytics'
+import ElectricityMarketPriceFormationAnalytics from './pages/ElectricityMarketPriceFormationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -782,6 +786,9 @@ const NAV_ITEMS = [
   { to: '/aemo-market-operations', label: 'AEMO Market Operations & Dispatch', Icon: Radio },
   { to: '/renewable-energy-certificate', label: 'REC Market (LGC/STC) Analytics', Icon: Award },
   { to: '/energy-storage-dispatch-optimisation', label: 'Energy Storage Dispatch Optimisation', Icon: Battery },
+  { to: '/offshore-wind-project-finance', label: 'Offshore Wind Project Finance', Icon: Anchor },
+  { to: '/national-energy-market-reform', label: 'NEM Reform Impact Analytics', Icon: BookOpen },
+  { to: '/electricity-market-price-formation', label: 'Electricity Market Price Formation', Icon: DollarSign },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1206,6 +1213,9 @@ export default function App() {
               <Route path="/aemo-market-operations" element={<AemoMarketOperationsAnalytics />} />
               <Route path="/renewable-energy-certificate" element={<RenewableEnergyCertificateAnalytics />} />
               <Route path="/energy-storage-dispatch-optimisation" element={<EnergyStorageDispatchOptimisationAnalytics />} />
+              <Route path="/offshore-wind-project-finance" element={<OffshoreWindProjectFinanceAnalytics />} />
+              <Route path="/national-energy-market-reform" element={<NationalEnergyMarketReformAnalytics />} />
+              <Route path="/electricity-market-price-formation" element={<ElectricityMarketPriceFormationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
