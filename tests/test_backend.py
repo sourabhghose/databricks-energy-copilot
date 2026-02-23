@@ -14904,3 +14904,216 @@ class TestEVGIDashboard:
             "v2g_capable_pct", "smart_charging_enrolled_pct",
         ):
             assert field in rec
+
+
+# ---------------------------------------------------------------------------
+# Sprint 113a — Biomethane and Gas Grid Injection Analytics (BGGI)
+# ---------------------------------------------------------------------------
+
+class TestBGGIDashboard:
+    URL = "/api/biomethane-gas-grid-injection/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_200_status(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_feedstocks(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "feedstocks" in data
+        assert len(data["feedstocks"]) == 20
+
+    def test_has_production(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "production" in data
+        assert len(data["production"]) == 20
+
+    def test_has_economics(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "economics" in data
+        assert len(data["economics"]) == 24
+
+    def test_has_grid_integration(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "grid_integration" in data
+        assert len(data["grid_integration"]) == 20
+
+    def test_has_certificates(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "certificates" in data
+        assert len(data["certificates"]) == 15
+
+    def test_has_scenarios(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "scenarios" in data
+        assert len(data["scenarios"]) == 20
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_feedstock_potential_pj" in summary
+        assert "total_production_capacity_gj_day" in summary
+        assert "avg_production_cost_aud_per_gj" in summary
+        assert "grid_injection_facilities" in summary
+        assert "projected_2035_biomethane_pj" in summary
+        assert "co2_abatement_potential_mtpa" in summary
+
+    def test_feedstock_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["feedstocks"][0]
+        for field in (
+            "feedstock_type", "state", "available_volume_kt_year",
+            "biogas_potential_gj", "biomethane_potential_gj",
+            "collection_cost_aud_per_gj", "current_utilisation_pct",
+            "carbon_intensity_kgco2_per_gj", "competing_uses",
+        ):
+            assert field in rec
+
+
+# ---------------------------------------------------------------------------
+# Sprint 113b — Electricity Market Forecasting Accuracy Analytics (EMFA)
+# ---------------------------------------------------------------------------
+
+class TestEMFADashboard:
+    URL = "/api/electricity-market-forecasting-accuracy/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_200_status(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_price_forecasts(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_forecasts" in data
+        assert len(data["price_forecasts"]) == 30
+
+    def test_has_demand_forecasts(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "demand_forecasts" in data
+        assert len(data["demand_forecasts"]) == 25
+
+    def test_has_renewable_forecasts(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "renewable_forecasts" in data
+        assert len(data["renewable_forecasts"]) == 24
+
+    def test_has_event_predictions(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "event_predictions" in data
+        assert len(data["event_predictions"]) == 20
+
+    def test_has_models(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "models" in data
+        assert len(data["models"]) > 0
+
+    def test_has_improvement_trend(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "improvement_trend" in data
+        assert len(data["improvement_trend"]) > 0
+
+    def test_has_summary(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "avg_price_mape_pct" in summary
+        assert "avg_demand_mape_pct" in summary
+        assert "best_model_name" in summary
+        assert "spike_prediction_accuracy_pct" in summary
+        assert "yoy_improvement_pct" in summary
+        assert "avg_renewable_error_pct" in summary
+
+    def test_price_forecast_fields(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        rec = data["price_forecasts"][0]
+        for field in (
+            "forecast_date", "region", "horizon_type",
+            "forecast_price_mwh", "actual_price_mwh",
+            "absolute_error_mwh", "pct_error",
+            "direction_correct", "spike_predicted", "spike_occurred",
+            "model_type",
+        ):
+            assert field in rec
+
+
+# ===========================================================================
+# Sprint 113c — TestNETIDashboard
+# ===========================================================================
+
+class TestNETIDashboard:
+    URL = "/api/national-energy-transition-investment/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_investments(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "investments" in data
+        assert len(data["investments"]) == 25
+
+    def test_has_financing(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "financing" in data
+        assert len(data["financing"]) == 20
+
+    def test_has_employment(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "employment" in data
+        assert len(data["employment"]) == 24
+
+    def test_has_geographic(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "geographic" in data
+        assert len(data["geographic"]) == 20
+
+    def test_has_international(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "international" in data
+        assert len(data["international"]) > 0
+
+    def test_has_projections(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projections" in data
+        assert len(data["projections"]) > 0
+
+    def test_has_summary(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_invested_2019_2024_b" in summary
+        assert "avg_annual_investment_b" in summary
+        assert "largest_sector" in summary
+        assert "private_investment_pct" in summary
+        assert "total_jobs_created" in summary
+        assert "annual_investment_gap_b" in summary
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

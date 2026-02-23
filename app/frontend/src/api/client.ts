@@ -20919,3 +20919,304 @@ export interface EVGIDashboard {
 
 export const getEVGridIntegrationV2GDashboard = (): Promise<EVGIDashboard> =>
   get<EVGIDashboard>('/api/ev-grid-integration-v2g/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 113a — Biomethane and Gas Grid Injection Analytics (BGGI)
+// ---------------------------------------------------------------------------
+
+export interface BGGIFeedstockRecord {
+  feedstock_type: string
+  state: string
+  available_volume_kt_year: number
+  biogas_potential_gj: number
+  biomethane_potential_gj: number
+  collection_cost_aud_per_gj: number
+  current_utilisation_pct: number
+  carbon_intensity_kgco2_per_gj: number
+  competing_uses: string
+}
+
+export interface BGGIProductionRecord {
+  facility_id: string
+  facility_name: string
+  operator: string
+  state: string
+  feedstock_primary: string
+  upgrading_technology: string
+  capacity_gj_day: number
+  actual_production_gj_day: number
+  biomethane_purity_pct: number
+  status: string
+  grid_injection: boolean
+  capex_m: number
+  opex_gj: number
+}
+
+export interface BGGIEconomicsRecord {
+  year: number
+  technology: string
+  production_cost_aud_per_gj: number
+  upgrading_cost_aud_per_gj: number
+  injection_cost_aud_per_gj: number
+  total_lcoe_aud_per_gj: number
+  natural_gas_price_aud_per_gj: number
+  cost_gap_aud_per_gj: number
+  renewable_gas_certificate_value_aud: number
+  viable: boolean
+}
+
+export interface BGGIGridRecord {
+  network_operator: string
+  state: string
+  grid_length_km: number
+  biomethane_capacity_pj: number
+  current_injection_pj: number
+  max_injection_pct_of_flow: number
+  quality_standard_mj_per_m3: number
+  odorisation_required: boolean
+  blending_limit_pct: number
+  injection_points: number
+  regulatory_approval_status: string
+}
+
+export interface BGGICertificateRecord {
+  scheme_name: string
+  jurisdiction: string
+  certificate_type: string
+  eligible_feedstocks: string
+  value_range_aud: string
+  trading_platform: string
+  issuance_count_ytd: number
+  retirement_count_ytd: number
+  registry_name: string
+}
+
+export interface BGGIScenarioRecord {
+  year: number
+  scenario: string
+  biomethane_production_pj: number
+  natural_gas_displacement_pct: number
+  facilities_operating: number
+  investment_b: number
+  jobs_supported: number
+  co2_abated_mtpa: number
+  renewable_gas_pct_of_network: number
+}
+
+export interface BGGIDashboard {
+  feedstocks: BGGIFeedstockRecord[]
+  production: BGGIProductionRecord[]
+  economics: BGGIEconomicsRecord[]
+  grid_integration: BGGIGridRecord[]
+  certificates: BGGICertificateRecord[]
+  scenarios: BGGIScenarioRecord[]
+  summary: Record<string, number | string>
+}
+
+export const getBiomethaneGasGridInjectionDashboard = (): Promise<BGGIDashboard> =>
+  get<BGGIDashboard>('/api/biomethane-gas-grid-injection/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 113b — Electricity Market Forecasting Accuracy Analytics (EMFA)
+// ---------------------------------------------------------------------------
+
+export interface EMFAPriceRecord {
+  forecast_date: string
+  region: string
+  horizon_type: string
+  forecast_price_mwh: number
+  actual_price_mwh: number
+  absolute_error_mwh: number
+  pct_error: number
+  direction_correct: boolean
+  spike_predicted: boolean
+  spike_occurred: boolean
+  model_type: string
+}
+
+export interface EMFADemandRecord {
+  forecast_date: string
+  region: string
+  horizon_type: string
+  forecast_demand_mw: number
+  actual_demand_mw: number
+  mae_mw: number
+  rmse_mw: number
+  mape_pct: number
+  model_type: string
+  temperature_error_c: number
+  season: string
+}
+
+export interface EMFARenewableRecord {
+  quarter: string
+  region: string
+  solar_forecast_mw: number
+  solar_actual_mw: number
+  solar_mae_mw: number
+  wind_forecast_mw: number
+  wind_actual_mw: number
+  wind_mae_mw: number
+  combined_renewable_error_pct: number
+  curtailment_prediction_accuracy_pct: number
+}
+
+export interface EMFAEventRecord {
+  event_date: string
+  region: string
+  event_type: string
+  forecast_severity: number
+  actual_severity: number
+  prediction_lead_time_h: number
+  forecast_accuracy_pct: number
+  financial_impact_m: number
+  improvement_recommendation: string
+}
+
+export interface EMFAModelRecord {
+  model_id: string
+  model_name: string
+  model_type: string
+  target_variable: string
+  training_period_years: number
+  last_retrained: string
+  mape_pct: number
+  mae_value: number
+  r_squared: number
+  inference_time_ms: number
+  features_count: number
+  is_production: boolean
+}
+
+export interface EMFAImprovementRecord {
+  year: number
+  region: string
+  forecast_type: string
+  mape_pct: number
+  mae_value: number
+  model_generation: string
+  improvement_driver: string
+  percentage_improvement_yoy: number
+}
+
+export interface EMFADashboard {
+  price_forecasts: EMFAPriceRecord[]
+  demand_forecasts: EMFADemandRecord[]
+  renewable_forecasts: EMFARenewableRecord[]
+  event_predictions: EMFAEventRecord[]
+  models: EMFAModelRecord[]
+  improvement_trend: EMFAImprovementRecord[]
+  summary: {
+    avg_price_mape_pct: number
+    avg_demand_mape_pct: number
+    best_model_name: string
+    spike_prediction_accuracy_pct: number
+    yoy_improvement_pct: number
+    avg_renewable_error_pct: number
+  }
+}
+
+export const getElectricityMarketForecastingAccuracyDashboard = (): Promise<EMFADashboard> =>
+  get<EMFADashboard>('/api/electricity-market-forecasting-accuracy/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 113c — National Energy Transition Investment Analytics (NETI)
+// ---------------------------------------------------------------------------
+
+export interface NETIInvestmentRecord {
+  year: number
+  sector: string
+  state: string
+  total_investment_b: number
+  private_b: number
+  public_b: number
+  debt_b: number
+  equity_b: number
+  grants_b: number
+  projects_count: number
+  capacity_mw_or_km: number
+}
+
+export interface NETIFinancingRecord {
+  year: number
+  financing_type: string
+  sector: string
+  total_b: number
+  avg_tenor_years: number
+  avg_interest_rate_pct: number
+  leveraged_return_pct: number
+  institutional_share_pct: number
+  offshore_capital_pct: number
+}
+
+export interface NETIEmploymentRecord {
+  year: number
+  sector: string
+  direct_jobs_fte: number
+  indirect_jobs_fte: number
+  induced_jobs_fte: number
+  manufacturing_jobs: number
+  installation_jobs: number
+  o_and_m_jobs: number
+  jobs_per_mw_invested: number
+  regional_jobs_pct: number
+}
+
+export interface NETIGeographicRecord {
+  state: string
+  region_type: string
+  sector: string
+  investment_b: number
+  projects: number
+  capacity_mw: number
+  jobs_created: number
+  indigenous_employment_pct: number
+  infrastructure_benefit_m: number
+  community_benefit_fund_m: number
+}
+
+export interface NETIInternationalRecord {
+  country: string
+  year: number
+  clean_energy_investment_b_usd: number
+  gdp_pct: number
+  investment_per_capita_usd: number
+  renewable_capacity_added_gw: number
+  investment_growth_pct: number
+  policy_driver: string
+  leading_technology: string
+}
+
+export interface NETIProjectionRecord {
+  year: number
+  scenario: string
+  total_required_b: number
+  renewables_b: number
+  storage_b: number
+  networks_b: number
+  hydrogen_b: number
+  industrial_b: number
+  current_trajectory_b: number
+  gap_b: number
+  jobs_supported: number
+}
+
+export interface NETIDashboard {
+  investments: NETIInvestmentRecord[]
+  financing: NETIFinancingRecord[]
+  employment: NETIEmploymentRecord[]
+  geographic: NETIGeographicRecord[]
+  international: NETIInternationalRecord[]
+  projections: NETIProjectionRecord[]
+  summary: {
+    total_invested_2019_2024_b: number
+    avg_annual_investment_b: number
+    largest_sector: string
+    private_investment_pct: number
+    total_jobs_created: number
+    annual_investment_gap_b: number
+  }
+}
+
+export const getNationalEnergyTransitionInvestmentDashboard = (): Promise<NETIDashboard> =>
+  get<NETIDashboard>('/api/national-energy-transition-investment/dashboard')

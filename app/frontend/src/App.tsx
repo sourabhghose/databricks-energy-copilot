@@ -388,6 +388,9 @@ import GeothermalEnergyDevelopmentAnalytics from './pages/GeothermalEnergyDevelo
 import SolarThermalPowerPlantAnalytics from './pages/SolarThermalPowerPlantAnalytics'
 import EnergyTradingAlgorithmicStrategyAnalytics from './pages/EnergyTradingAlgorithmicStrategyAnalytics'
 import EVGridIntegrationV2GAnalytics from './pages/EVGridIntegrationV2GAnalytics'
+import BiomethaneGasGridInjectionAnalytics from './pages/BiomethaneGasGridInjectionAnalytics'
+import ElectricityMarketForecastingAccuracyAnalytics from './pages/ElectricityMarketForecastingAccuracyAnalytics'
+import NationalEnergyTransitionInvestmentAnalytics from './pages/NationalEnergyTransitionInvestmentAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -695,6 +698,9 @@ const NAV_ITEMS = [
   { to: '/solar-thermal-power-plant',          label: 'Solar Thermal CSP',          Icon: Sun         },
   { to: '/energy-trading-algorithmic-strategy', label: 'Algo Trading Strategy',     Icon: TrendingUp  },
   { to: '/ev-grid-integration-v2g',            label: 'EV Grid Integration V2G',   Icon: Plug        },
+  { to: '/biomethane-gas-grid-injection',      label: 'Biomethane Gas Grid',        Icon: Leaf        },
+  { to: '/electricity-market-forecasting-accuracy', label: 'Forecast Accuracy', Icon: Target      },
+  { to: '/national-energy-transition-investment',  label: 'Energy Transition Investment', Icon: TrendingUp },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1077,6 +1083,9 @@ export default function App() {
               <Route path="/solar-thermal-power-plant" element={<SolarThermalPowerPlantAnalytics />} />
               <Route path="/energy-trading-algorithmic-strategy" element={<EnergyTradingAlgorithmicStrategyAnalytics />} />
               <Route path="/ev-grid-integration-v2g" element={<EVGridIntegrationV2GAnalytics />} />
+              <Route path="/biomethane-gas-grid-injection" element={<BiomethaneGasGridInjectionAnalytics />} />
+              <Route path="/electricity-market-forecasting-accuracy" element={<ElectricityMarketForecastingAccuracyAnalytics />} />
+              <Route path="/national-energy-transition-investment" element={<NationalEnergyTransitionInvestmentAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
