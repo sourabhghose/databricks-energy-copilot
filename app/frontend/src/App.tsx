@@ -411,6 +411,9 @@ import ElectricityDemandForecastingMLAnalytics from './pages/ElectricityDemandFo
 import EnergyStorageMerchantRevenueAnalytics from './pages/EnergyStorageMerchantRevenueAnalytics'
 import IndustrialElectrificationXAnalytics from './pages/IndustrialElectrificationXAnalytics'
 import TransmissionAccessReformAnalytics from './pages/TransmissionAccessReformAnalytics'
+import HydrogenExportTerminalAnalytics from './pages/HydrogenExportTerminalAnalytics'
+import EnergyRetailerMarginAnalytics from './pages/EnergyRetailerMarginAnalytics'
+import GridEdgeTechnologyXAnalytics from './pages/GridEdgeTechnologyXAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -739,6 +742,9 @@ const NAV_ITEMS = [
   { to: '/electricity-demand-forecasting-ml', label: 'Demand Forecast ML', Icon: Brain },
   { to: '/energy-storage-merchant-revenue', label: 'Storage Merchant Revenue', Icon: DollarSign },
   { to: '/transmission-access-reform', label: 'Transmission Access Reform', Icon: Network },
+  { to: '/hydrogen-export-terminal', label: 'H2 Export Terminal', Icon: Ship },
+  { to: '/grid-edge-technology-x', label: 'Grid Edge Technology X', Icon: Cpu },
+  { to: '/energy-retailer-margin', label: 'Retailer Margin Analytics', Icon: ShoppingCart },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1142,6 +1148,9 @@ export default function App() {
               <Route path="/energy-storage-merchant-revenue" element={<EnergyStorageMerchantRevenueAnalytics />} />
               <Route path="/industrial-electrification-x" element={<IndustrialElectrificationXAnalytics />} />
               <Route path="/transmission-access-reform" element={<TransmissionAccessReformAnalytics />} />
+              <Route path="/hydrogen-export-terminal" element={<HydrogenExportTerminalAnalytics />} />
+              <Route path="/grid-edge-technology-x" element={<GridEdgeTechnologyXAnalytics />} />
+              <Route path="/energy-retailer-margin" element={<EnergyRetailerMarginAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

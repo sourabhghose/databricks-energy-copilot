@@ -16299,3 +16299,203 @@ class TestTransmissionAccessReformDashboard:
         scenarios_found = {p["scenario"] for p in data["price_impacts"]}
         for scenario in ["Status Quo", "Full COGATI", "Partial Reform", "REZ Model"]:
             assert scenario in scenarios_found
+
+
+class TestHydrogenExportTerminalDashboard:
+    URL = "/api/hydrogen-export-terminal/dashboard"
+    HEADERS = {"X-API-Key": "test-secret"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_terminals_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "terminals" in data
+        assert len(data["terminals"]) >= 20
+
+    def test_production_costs_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "production_costs" in data
+        assert len(data["production_costs"]) >= 72
+
+    def test_export_volumes_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "export_volumes" in data
+        assert len(data["export_volumes"]) >= 60
+
+    def test_infrastructure_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "infrastructure" in data
+        assert len(data["infrastructure"]) >= 25
+
+    def test_market_demand_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "market_demand" in data
+        assert len(data["market_demand"]) >= 10
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_capacity_ktpa" in summary
+        assert "operating_terminals" in summary
+        assert "total_capex_b" in summary
+        assert "cheapest_production_per_kg" in summary
+        assert "leading_export_form" in summary
+
+    def test_production_cost_scenarios(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        scenarios = {p["scenario"] for p in data["production_costs"]}
+        for s in ["Base", "Optimistic", "Policy Supported"]:
+            assert s in scenarios
+
+    def test_terminal_statuses(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        statuses = {t["status"] for t in data["terminals"]}
+        expected = {"Operating", "Under Construction", "FID", "Feasibility", "Concept"}
+        assert statuses & expected, f"No expected statuses found in {statuses}"
+
+
+# ===========================================================================
+# TestGridEdgeTechnologyDashboard (GETAX — Sprint 120c)
+# Endpoint: /api/grid-edge-technology-x/dashboard
+# ===========================================================================
+
+class TestGridEdgeTechnologyDashboard:
+    URL = "/api/grid-edge-technology-x/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_technologies_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "technologies" in data
+        assert len(data["technologies"]) == 35  # 7 technologies × 5 regions
+
+    def test_market_size_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "market_size" in data
+        assert len(data["market_size"]) == 66  # 11 years × 6 segments
+
+    def test_network_benefits_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "network_benefits" in data
+        assert len(data["network_benefits"]) == 40  # 5 benefit types × 8 DNSPs
+
+    def test_regulations_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "regulations" in data
+        assert len(data["regulations"]) == 20
+
+    def test_consumer_adoption_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "consumer_adoption" in data
+        assert len(data["consumer_adoption"]) == 25  # 5 segments × 5 technologies
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_deployments_m" in summary
+        assert "peak_demand_reduction_mw" in summary
+        assert "total_network_benefit_m" in summary
+        assert "leading_technology" in summary
+        assert "fastest_growing_segment" in summary
+
+    def test_tech_regions_covered(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        regions_found = {t["region"] for t in data["technologies"]}
+        for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+            assert region in regions_found
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestEnergyRetailerMarginDashboard:
+    """Tests for /api/energy-retailer-margin/dashboard  (ERMA — Sprint 120a)."""
+
+    URL = "/api/energy-retailer-margin/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_http_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_retailers_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "retailers" in data
+        assert len(data["retailers"]) == 35
+
+    def test_margin_components_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "margin_components" in data
+        assert len(data["margin_components"]) == 30
+
+    def test_trends_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "trends" in data
+        assert len(data["trends"]) == 44
+
+    def test_competition_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "competition" in data
+        assert len(data["competition"]) == 5
+
+    def test_regulated_vs_market_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "regulated_vs_market" in data
+        assert len(data["regulated_vs_market"]) == 35
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "best_margin_retailer" in summary
+        assert "avg_margin_per_mwh" in summary
+        assert "avg_churn_rate_pct" in summary
+        assert "most_competitive_region" in summary
+        assert "total_market_customers_m" in summary
+
+    def test_all_regions_present(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        regions_found = {c["region"] for c in data["competition"]}
+        for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+            assert region in regions_found
+
+    def test_margin_components_valid(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_components = {
+            "Wholesale Energy", "Network Charges", "Metering",
+            "Green Costs", "Retail Ops", "Margin",
+        }
+        found_components = {m["component"] for m in data["margin_components"]}
+        assert found_components == expected_components

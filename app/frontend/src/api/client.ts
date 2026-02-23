@@ -22956,3 +22956,186 @@ export interface TARADashboard {
 }
 export const getTransmissionAccessReformDashboard = (): Promise<TARADashboard> =>
   get<TARADashboard>('/api/transmission-access-reform/dashboard')
+
+// ---------------------------------------------------------------------------
+// ERMA — Energy Retailer Margin Analytics  (Sprint 120a)
+// ---------------------------------------------------------------------------
+export interface ERMARetailerRecord {
+  retailer_name: string
+  region: string
+  market_share_pct: number
+  customers_k: number
+  gross_margin_per_customer: number
+  wholesale_cost_per_mwh: number
+  retail_price_per_mwh: number
+  margin_per_mwh: number
+  churn_rate_pct: number
+  bad_debt_pct: number
+}
+
+export interface ERMAMarginComponent {
+  component: string
+  retailer: string
+  region: string
+  pct_of_bill: number
+  dollar_per_mwh: number
+}
+
+export interface ERMATrend {
+  quarter: string
+  retailer: string
+  gross_margin_m: number
+  net_margin_m: number
+  customers_k: number
+  avg_revenue_per_customer: number
+}
+
+export interface ERMACompetitionMetric {
+  region: string
+  retailer_count: number
+  hhi_index: number
+  top3_share_pct: number
+  switching_rate_pct: number
+  avg_market_offer_discount_pct: number
+}
+
+export interface ERMARegulatedVsMarket {
+  year: number
+  region: string
+  regulated_price_per_mwh: number
+  market_offer_avg_per_mwh: number
+  best_offer_per_mwh: number
+  price_gap_pct: number
+}
+
+export interface ERMADashboard {
+  retailers: ERMARetailerRecord[]
+  margin_components: ERMAMarginComponent[]
+  trends: ERMATrend[]
+  competition: ERMACompetitionMetric[]
+  regulated_vs_market: ERMARegulatedVsMarket[]
+  summary: Record<string, unknown>
+}
+
+export const getEnergyRetailerMarginDashboard = (): Promise<ERMADashboard> =>
+  get<ERMADashboard>('/api/energy-retailer-margin/dashboard')
+
+// ── Hydrogen Export Terminal Analytics ────────────────────────────────────
+export interface HETATerminalRecord {
+  terminal_name: string
+  location: string
+  export_form: string
+  status: string
+  capacity_ktpa: number
+  capex_b: number
+  first_export_year: number
+  target_markets: string
+  electrolyser_capacity_gw: number
+  renewable_source: string
+}
+export interface HETAProductionCost {
+  year: number
+  scenario: string
+  location: string
+  production_cost_per_kg: number
+  liquefaction_cost_per_kg: number
+  shipping_cost_per_kg: number
+  total_landed_cost_per_kg: number
+  target_market: string
+}
+export interface HETAExportVolume {
+  year: number
+  terminal_name: string
+  export_form: string
+  volume_ktpa: number
+  revenue_m: number
+  off_taker: string
+  contract_type: string
+}
+export interface HETAInfrastructureNeed {
+  infrastructure_type: string
+  terminal_name: string
+  capacity_unit: string
+  required_capacity: number
+  capex_m: number
+  lead_time_years: number
+  status: string
+}
+export interface HETAMarketDemand {
+  country: string
+  demand_2030_mtpa: number
+  demand_2040_mtpa: number
+  preferred_form: string
+  price_target_per_kg: number
+  policy_incentive: string
+  australian_share_pct: number
+}
+export interface HETADashboard {
+  terminals: HETATerminalRecord[]
+  production_costs: HETAProductionCost[]
+  export_volumes: HETAExportVolume[]
+  infrastructure: HETAInfrastructureNeed[]
+  market_demand: HETAMarketDemand[]
+  summary: Record<string, unknown>
+}
+export const getHydrogenExportTerminalDashboard = (): Promise<HETADashboard> =>
+  get<HETADashboard>('/api/hydrogen-export-terminal/dashboard')
+
+// ---------------------------------------------------------------------------
+// GETAX — Grid Edge Technology Analytics (Sprint 120c)
+// Prefix GETAX: collision detected on GETA / /api/grid-edge-technology
+// ---------------------------------------------------------------------------
+export interface GETAXTechRecord {
+  technology: string
+  region: string
+  deployment_count_k: number
+  penetration_pct: number
+  avg_load_shift_kw: number
+  capex_per_unit: number
+  annual_benefit_per_unit: number
+  simple_payback_years: number
+  co2_reduction_kg_yr: number
+}
+export interface GETAXMarketSize {
+  year: number
+  segment: string
+  market_size_m: number
+  growth_rate_pct: number
+  deployments_k: number
+}
+export interface GETAXNetworkBenefit {
+  benefit_type: string
+  dnsp: string
+  region: string
+  benefit_mw: number
+  annual_value_m: number
+  cost_to_unlock_m: number
+  net_benefit_m: number
+}
+export interface GETAXRegulation {
+  regulation_name: string
+  body: string
+  status: string
+  technology_covered: string
+  compliance_date: string
+  impact: string
+}
+export interface GETAXConsumerAdoption {
+  segment: string
+  technology: string
+  adoption_2024_pct: number
+  adoption_2030_pct: number
+  key_driver: string
+  key_barrier: string
+  willingness_to_pay_per_yr: number
+}
+export interface GETAXDashboard {
+  technologies: GETAXTechRecord[]
+  market_size: GETAXMarketSize[]
+  network_benefits: GETAXNetworkBenefit[]
+  regulations: GETAXRegulation[]
+  consumer_adoption: GETAXConsumerAdoption[]
+  summary: Record<string, unknown>
+}
+export const getGridEdgeTechnologyXDashboard = (): Promise<GETAXDashboard> =>
+  get<GETAXDashboard>('/api/grid-edge-technology-x/dashboard')
