@@ -474,6 +474,9 @@ import TransmissionCongestionRevenueAnalytics from './pages/TransmissionCongesti
 import ElectricityMarketDesignReformAnalytics from './pages/ElectricityMarketDesignReformAnalytics'
 import CarbonCaptureUtilisationAnalytics from './pages/CarbonCaptureUtilisationAnalytics'
 import GridScaleBatteryDegradationAnalytics from './pages/GridScaleBatteryDegradationAnalytics'
+import AustraliaElectricityExportAnalytics from './pages/AustraliaElectricityExportAnalytics'
+import DemandSideManagementProgramAnalytics from './pages/DemandSideManagementProgramAnalytics'
+import PowerGridTopologyAnalytics from './pages/PowerGridTopologyAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -859,6 +862,9 @@ const NAV_ITEMS = [
   { to: '/electricity-market-design-reform', label: 'Market Design Reform', Icon: BookOpen },
   { to: '/carbon-capture-utilisation', label: 'Carbon Capture (CCUS)', Icon: Cloud },
   { to: '/grid-scale-battery-degradation', label: 'Battery Degradation', Icon: Battery },
+  { to: '/electricity-export', label: 'Electricity Export', Icon: Globe },
+  { to: '/dsm-programs',      label: 'DSM Programs',       Icon: Sliders        },
+  { to: '/grid-topology',     label: 'Grid Topology',      Icon: GitBranch      },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1319,6 +1325,9 @@ export default function App() {
               <Route path="/electricity-market-design-reform" element={<ElectricityMarketDesignReformAnalytics />} />
               <Route path="/carbon-capture-utilisation" element={<CarbonCaptureUtilisationAnalytics />} />
               <Route path="/grid-scale-battery-degradation" element={<GridScaleBatteryDegradationAnalytics />} />
+              <Route path="/electricity-export" element={<AustraliaElectricityExportAnalytics />} />
+              <Route path="/dsm-programs"      element={<DemandSideManagementProgramAnalytics />} />
+              <Route path="/grid-topology"     element={<PowerGridTopologyAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

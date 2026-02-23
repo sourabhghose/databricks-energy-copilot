@@ -19883,3 +19883,166 @@ class TestGridScaleBatteryDegradationDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+# ===========================================================================
+# TestAELXDashboard — Australia Electricity Export Analytics
+# ===========================================================================
+
+class TestAELXDashboard:
+    """9 tests for GET /api/australia-electricity-export/dashboard"""
+
+    URL = "/api/australia-electricity-export/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("cables", "export_scenarios", "renewable_zones", "policy_frameworks", "investments", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_cables_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cables"]) == 8
+
+    def test_export_scenarios_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["export_scenarios"]) == 36
+
+    def test_renewable_zones_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["renewable_zones"]) == 10
+
+    def test_policy_frameworks_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["policy_frameworks"]) == 20
+
+    def test_investments_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["investments"]) == 24
+
+    def test_summary_has_total_cable_capacity_gw(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_cable_capacity_gw" in data["summary"]
+
+    def test_all_cables_have_capacity_gw(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for cable in data["cables"]:
+            assert "capacity_gw" in cable
+            assert cable["capacity_gw"] > 0
+
+
+# ===========================================================================
+# Sprint 139a — Demand Side Management Program Analytics (DSMP)
+# ===========================================================================
+class TestDSMPDashboard:
+    URL = "/api/demand-side-management-program/dashboard"
+    HEADERS = {"X-API-Key": ""}
+
+    def test_status_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["programs", "enrolment_trends", "event_performance", "cost_benefit", "technologies", "summary"]:
+            assert key in data, f"Missing key: {key}"
+
+    def test_programs_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["programs"]) == 12
+
+    def test_enrolment_trends_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["enrolment_trends"]) == 72
+
+    def test_event_performance_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["event_performance"]) == 30
+
+    def test_cost_benefit_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_benefit"]) == 24
+
+    def test_technologies_length(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["technologies"]) == 20
+
+    def test_summary_has_total_enrolled_customers(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_enrolled_customers" in data["summary"]
+
+    def test_all_programs_have_peak_demand_reduction_mw(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for prog in data["programs"]:
+            assert "peak_demand_reduction_mw" in prog
+
+
+class TestPowerGridTopologyDashboard:
+    URL = "/api/power-grid-topology/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["nodes", "lines", "contingencies", "capacity_utilisation", "reliability_metrics", "summary"]:
+            assert key in data, f"Missing key: {key}"
+
+    def test_nodes_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["nodes"]) == 25
+
+    def test_lines_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["lines"]) == 40
+
+    def test_contingencies_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["contingencies"]) == 30
+
+    def test_capacity_utilisation_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["capacity_utilisation"]) == 60
+
+    def test_reliability_metrics_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["reliability_metrics"]) == 15
+
+    def test_summary_has_total_nodes(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_nodes" in data["summary"]
+
+    def test_all_lines_have_thermal_limit_mw(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for line in data["lines"]:
+            assert "thermal_limit_mw" in line, f"Missing thermal_limit_mw in line {line.get('line_id')}"

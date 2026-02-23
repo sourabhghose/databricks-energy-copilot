@@ -26804,3 +26804,221 @@ export interface GSBDDashboard {
 }
 export const getGridScaleBatteryDegradationDashboard = (): Promise<GSBDDashboard> =>
   get<GSBDDashboard>('/api/grid-scale-battery-degradation/dashboard')
+// ── AELX — Australia Electricity Export Analytics ──────────────────────────
+export interface AELXCable {
+  cable_id: string
+  cable_name: string
+  origin_region: string
+  destination_country: string
+  capacity_gw: number
+  length_km: number
+  capex_b_aud: number
+  status: string
+  commissioning_year: number
+  technology: string
+}
+export interface AELXExportScenario {
+  cable_id: string
+  year: number
+  export_energy_twh: number
+  export_revenue_b_aud: number
+  jobs_created: number
+  co2_offset_mt: number
+  avg_export_price_per_mwh: number
+}
+export interface AELXRenewableZone {
+  zone_id: string
+  zone_name: string
+  state: string
+  technology: string
+  potential_capacity_gw: number
+  capacity_factor_pct: number
+  lcoe_per_mwh: number
+  nearest_cable_km: number
+  land_area_km2: number
+  water_availability: string
+}
+export interface AELXPolicyFramework {
+  framework_id: string
+  policy_name: string
+  category: string
+  country: string
+  status: string
+  impact: string
+  effective_year: number
+}
+export interface AELXInvestment {
+  year: number
+  cable_id: string
+  cumulative_investment_b_aud: number
+  private_funding_pct: number
+  government_funding_pct: number
+  foreign_funding_pct: number
+}
+export interface AELXSummary {
+  total_cable_capacity_gw: number
+  total_capex_b_aud: number
+  total_export_twh_2040: number
+  total_revenue_b_aud_2040: number
+  total_jobs_2040: number
+  total_co2_offset_mt_2040: number
+  leading_destination: string
+}
+export interface AELXDashboard {
+  cables: AELXCable[]
+  export_scenarios: AELXExportScenario[]
+  renewable_zones: AELXRenewableZone[]
+  policy_frameworks: AELXPolicyFramework[]
+  investments: AELXInvestment[]
+  summary: AELXSummary
+}
+export const getAustraliaElectricityExportDashboard = (): Promise<AELXDashboard> =>
+  get<AELXDashboard>('/api/australia-electricity-export/dashboard')
+
+// ── DSMP — Demand Side Management Program Analytics ───────────────────────
+export interface DSMPProgram {
+  program_id: string
+  program_name: string
+  program_type: string
+  region: string
+  operator: string
+  enrolled_customers: number
+  peak_demand_reduction_mw: number
+  annual_energy_saving_gwh: number
+  cost_per_mwh_reduced: number
+  status: string
+}
+export interface DSMPEnrolmentTrend {
+  program_id: string
+  year: number
+  month: number
+  enrolled_customers: number
+  active_participants: number
+  activation_events: number
+  avg_demand_reduction_kw: number
+}
+export interface DSMPEventPerformance {
+  event_id: string
+  program_id: string
+  event_date: string
+  duration_hours: number
+  target_reduction_mw: number
+  actual_reduction_mw: number
+  performance_pct: number
+  temperature_trigger: number
+  region: string
+}
+export interface DSMPCostBenefit {
+  program_id: string
+  year: number
+  program_costs_m: number
+  network_deferral_benefit_m: number
+  avoided_wholesale_cost_m: number
+  customer_incentive_paid_m: number
+  net_benefit_m: number
+  benefit_cost_ratio: number
+}
+export interface DSMPTechnology {
+  technology_type: string
+  installed_capacity_mw: number
+  controllable_pct: number
+  response_time_min: number
+  region: string
+  avg_utilisation_pct: number
+}
+export interface DSMPSummary {
+  total_enrolled_customers: number
+  total_peak_reduction_mw: number
+  total_annual_saving_gwh: number
+  avg_performance_pct: number
+  total_net_benefit_m: number
+  best_performing_program: string
+}
+export interface DSMPDashboard {
+  programs: DSMPProgram[]
+  enrolment_trends: DSMPEnrolmentTrend[]
+  event_performance: DSMPEventPerformance[]
+  cost_benefit: DSMPCostBenefit[]
+  technologies: DSMPTechnology[]
+  summary: DSMPSummary
+}
+export const getDemandSideManagementProgramDashboard = (): Promise<DSMPDashboard> =>
+  get<DSMPDashboard>('/api/demand-side-management-program/dashboard')
+
+// ---------------------------------------------------------------------------
+// Power Grid Topology & Network Analytics (PGTA) — Sprint 139c
+// ---------------------------------------------------------------------------
+export interface PGTANode {
+  node_id: string
+  node_name: string
+  region: string
+  node_type: string
+  voltage_kv: number
+  connected_lines: number
+  load_mw: number
+  generation_mw: number
+  n_minus_1_secure: boolean
+  criticality_score: number
+}
+export interface PGTALine {
+  line_id: string
+  from_node: string
+  to_node: string
+  voltage_kv: number
+  length_km: number
+  thermal_limit_mw: number
+  current_flow_pct: number
+  outage_hours_ytd: number
+  age_years: number
+  condition: string
+  owner: string
+}
+export interface PGTAContingency {
+  contingency_id: string
+  element_type: string
+  element_name: string
+  region: string
+  probability_pct: number
+  impact_mw: number
+  restoration_time_hrs: number
+  cascading_risk: string
+  mitigation_available: boolean
+}
+export interface PGTACapacityUtilisation {
+  node_id: string
+  year: number
+  month: number
+  peak_utilisation_pct: number
+  avg_utilisation_pct: number
+  congestion_hours: number
+  voltage_violations: number
+  thermal_violations: number
+}
+export interface PGTAReliabilityMetric {
+  region: string
+  year: number
+  saidi_mins: number
+  saifi_count: number
+  caidi_mins: number
+  unserved_energy_mwh: number
+  reliability_standard_met: boolean
+}
+export interface PGTASummary {
+  total_nodes: number
+  total_lines: number
+  avg_line_utilisation_pct: number
+  total_thermal_limit_gw: number
+  n_minus_1_secure_pct: number
+  most_critical_node: string
+  longest_line_km: number
+}
+export interface PGTADashboard {
+  nodes: PGTANode[]
+  lines: PGTALine[]
+  contingencies: PGTAContingency[]
+  capacity_utilisation: PGTACapacityUtilisation[]
+  reliability_metrics: PGTAReliabilityMetric[]
+  summary: PGTASummary
+}
+export const getPowerGridTopologyDashboard = (): Promise<PGTADashboard> =>
+  get<PGTADashboard>('/api/power-grid-topology/dashboard')
