@@ -28465,3 +28465,262 @@ export interface ERFHDashboard {
 
 export const getRetailerFinancialHealthDashboard = (): Promise<ERFHDashboard> =>
   get<ERFHDashboard>('/api/retailer-financial-health/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 146a — SFPD: Solar Farm Performance & Degradation Analytics
+// ---------------------------------------------------------------------------
+
+export interface SFPDFarm {
+  farm_id: string
+  farm_name: string
+  state: string
+  technology: string
+  dc_capacity_mw: number
+  ac_capacity_mw: number
+  dc_ac_ratio: number
+  panel_manufacturer: string
+  commissioning_year: number
+  age_years: number
+  current_pr_pct: number
+  degradation_rate_pct_pa: number
+}
+
+export interface SFPDMonthly {
+  farm_id: string
+  year: number
+  month: number
+  irradiance_kwh_per_m2: number
+  energy_output_mwh: number
+  specific_yield_kwh_per_kwp: number
+  performance_ratio_pct: number
+  availability_pct: number
+  soiling_loss_pct: number
+  temperature_loss_pct: number
+  clipping_loss_pct: number
+}
+
+export interface SFPDDegradation {
+  farm_id: string
+  year: number
+  p50_yield_mwh: number
+  actual_yield_mwh: number
+  yield_gap_pct: number
+  degradation_rate_observed_pct: number
+  warranty_degradation_pct: number
+  exceedance_flag: boolean
+}
+
+export interface SFPDFault {
+  farm_id: string
+  fault_type: string
+  occurrence_count: number
+  energy_lost_mwh: number
+  avg_detection_time_hrs: number
+  avg_repair_time_hrs: number
+  financial_impact_k_aud: number
+}
+
+export interface SFPDOandM {
+  farm_id: string
+  year: number
+  quarter: string
+  o_and_m_cost_k_aud: number
+  cleaning_events: number
+  inverter_replacements: number
+  string_replacements: number
+  preventive_maintenance_hrs: number
+  corrective_maintenance_hrs: number
+}
+
+export interface SFPDSummary {
+  total_farms: number
+  total_capacity_gw: number
+  avg_performance_ratio_pct: number
+  avg_degradation_rate_pct: number
+  total_energy_2024_gwh: number
+  best_performing_farm: string
+  avg_availability_pct: number
+}
+
+export interface SFPDDashboard {
+  farms: SFPDFarm[]
+  monthly: SFPDMonthly[]
+  degradation: SFPDDegradation[]
+  faults: SFPDFault[]
+  o_and_m: SFPDOandM[]
+  summary: SFPDSummary
+}
+
+export const getSolarFarmPerformanceDashboard = (): Promise<SFPDDashboard> =>
+  get<SFPDDashboard>('/api/solar-farm-performance/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 146b — GNPI: Gas Network Pipeline Infrastructure Analytics
+// ---------------------------------------------------------------------------
+
+export interface GNPIPipeline {
+  pipeline_id: string
+  pipeline_name: string
+  owner_operator: string
+  state_route: string
+  length_km: number
+  diameter_mm: number
+  max_operating_pressure_kpa: number
+  design_capacity_tj_per_day: number
+  current_utilisation_pct: number
+  age_years: number
+  pipeline_type: string
+  status: string
+}
+
+export interface GNPIFlow {
+  pipeline_id: string
+  year: number
+  month: number
+  actual_flow_tj: number
+  contracted_capacity_tj: number
+  utilisation_pct: number
+  spot_price_per_gj: number
+  compression_energy_tj: number
+  methane_emissions_kt: number
+}
+
+export interface GNPIStorageFacility {
+  facility_id: string
+  facility_name: string
+  facility_type: string
+  state: string
+  working_gas_pj: number
+  peak_withdrawal_tj_per_day: number
+  peak_injection_tj_per_day: number
+  current_inventory_pct: number
+  owner: string
+  status: string
+}
+
+export interface GNPICapacity {
+  pipeline_id: string
+  year: number
+  quarter: string
+  firm_capacity_tj: number
+  interruptible_capacity_tj: number
+  uncontracted_capacity_tj: number
+  oversubscription_events: number
+  curtailment_events: number
+}
+
+export interface GNPIInvestment {
+  project_id: string
+  project_name: string
+  pipeline_id: string
+  investment_type: string
+  capex_m_aud: number
+  annual_benefit_m_aud: number
+  status: string
+  completion_year: number
+  regulator_approved: boolean
+}
+
+export interface GNPISummary {
+  total_pipelines: number
+  total_network_km: number
+  avg_utilisation_pct: number
+  total_storage_pj: number
+  total_investment_m_aud: number
+  longest_pipeline_km: number
+  most_utilised_pipeline: string
+}
+
+export interface GNPIDashboard {
+  pipelines: GNPIPipeline[]
+  flows: GNPIFlow[]
+  storage_facilities: GNPIStorageFacility[]
+  capacity: GNPICapacity[]
+  investments: GNPIInvestment[]
+  summary: GNPISummary
+}
+
+export const getGasNetworkPipelineDashboard = (): Promise<GNPIDashboard> =>
+  get<GNPIDashboard>('/api/gas-network-pipeline/dashboard')
+
+// ===== EPFM — Electricity Price Forecasting Model Analytics (Sprint 146c) =====
+
+export interface EPFMModel {
+  model_id: string
+  model_name: string
+  model_type: string
+  forecast_horizon: string
+  region: string
+  mae_mwh: number
+  rmse_mwh: number
+  mape_pct: number
+  r2_score: number
+  training_data_years: number
+  last_retrained_month: string
+}
+
+export interface EPFMForecastAccuracy {
+  model_id: string
+  region: string
+  year: number
+  month: number
+  mae_mwh: number
+  rmse_mwh: number
+  mape_pct: number
+  spike_recall_pct: number
+  spike_precision_pct: number
+  negative_price_accuracy_pct: number
+}
+
+export interface EPFMFeatureImportance {
+  model_id: string
+  feature_name: string
+  importance_score: number
+  feature_category: string
+}
+
+export interface EPFMForecastvActual {
+  model_id: string
+  region: string
+  year: number
+  quarter: string
+  avg_forecast_mwh: number
+  avg_actual_mwh: number
+  bias_mwh: number
+  directional_accuracy_pct: number
+  within_10pct_accuracy_pct: number
+}
+
+export interface EPFMExtremeEvent {
+  event_id: string
+  event_type: string
+  region: string
+  event_date_offset: number
+  actual_price_mwh: number
+  forecast_price_mwh: number
+  forecast_error_mwh: number
+  was_predicted: boolean
+  model_id: string
+}
+
+export interface EPFMSummary {
+  total_models: number
+  best_model_mae: number
+  best_model_name: string
+  avg_mape_pct: number
+  best_spike_recall_pct: number
+  total_extreme_events_predicted: number
+  avg_r2_score: number
+}
+
+export interface EPFMDashboard {
+  models: EPFMModel[]
+  forecast_accuracy: EPFMForecastAccuracy[]
+  feature_importance: EPFMFeatureImportance[]
+  forecast_vs_actual: EPFMForecastvActual[]
+  extreme_events: EPFMExtremeEvent[]
+  summary: EPFMSummary
+}
+
+export const getElectricityPriceForecastingDashboard = (): Promise<EPFMDashboard> =>
+  get<EPFMDashboard>('/api/electricity-price-forecasting/dashboard')

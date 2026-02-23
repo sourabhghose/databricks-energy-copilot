@@ -21292,3 +21292,240 @@ class TestINEEDashboard:
             assert "eet_score" in facility, (
                 f"Missing eet_score in facility {facility.get('facility_id')}"
             )
+
+
+# ===========================================================================
+# TestSFPDDashboard — Sprint 146a: Solar Farm Performance & Degradation Analytics
+# ===========================================================================
+
+class TestSFPDDashboard:
+    """9 tests for GET /api/solar-farm-performance/dashboard."""
+
+    URL = "/api/solar-farm-performance/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("farms", "monthly", "degradation", "faults", "o_and_m", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_farms_count(self):
+        """farms list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["farms"]) == 12, (
+            f"Expected 12 farm records, got {len(data['farms'])}"
+        )
+
+    def test_monthly_count(self):
+        """monthly list must contain exactly 72 records (12 farms × 6 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["monthly"]) == 72, (
+            f"Expected 72 monthly records, got {len(data['monthly'])}"
+        )
+
+    def test_degradation_count(self):
+        """degradation list must contain exactly 36 records (12 farms × 3 operating years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["degradation"]) == 36, (
+            f"Expected 36 degradation records, got {len(data['degradation'])}"
+        )
+
+    def test_faults_count(self):
+        """faults list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["faults"]) == 30, (
+            f"Expected 30 fault records, got {len(data['faults'])}"
+        )
+
+    def test_o_and_m_count(self):
+        """o_and_m list must contain exactly 24 records (2 farms × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["o_and_m"]) == 24, (
+            f"Expected 24 O&M records, got {len(data['o_and_m'])}"
+        )
+
+    def test_summary_has_avg_performance_ratio_pct(self):
+        """summary must contain an avg_performance_ratio_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_performance_ratio_pct" in data["summary"]
+
+    def test_all_farms_have_degradation_rate_pct_pa(self):
+        """Every farm record must include the degradation_rate_pct_pa field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for farm in data["farms"]:
+            assert "degradation_rate_pct_pa" in farm, (
+                f"Missing degradation_rate_pct_pa in farm {farm.get('farm_id')}"
+            )
+
+
+# ===========================================================================
+# TestGNPIDashboard — Sprint 146b: Gas Network Pipeline Infrastructure Analytics
+# ===========================================================================
+
+class TestGNPIDashboard:
+    """9 tests for GET /api/gas-network-pipeline/dashboard."""
+
+    URL = "/api/gas-network-pipeline/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("pipelines", "flows", "storage_facilities", "capacity", "investments", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_pipelines_count(self):
+        """pipelines list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["pipelines"]) == 15, (
+            f"Expected 15 pipelines, got {len(data['pipelines'])}"
+        )
+
+    def test_flows_count(self):
+        """flows list must contain exactly 60 records (5 pipelines x 3 years x 4 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["flows"]) == 60, (
+            f"Expected 60 flow records, got {len(data['flows'])}"
+        )
+
+    def test_storage_facilities_count(self):
+        """storage_facilities list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["storage_facilities"]) == 10, (
+            f"Expected 10 storage facilities, got {len(data['storage_facilities'])}"
+        )
+
+    def test_capacity_count(self):
+        """capacity list must contain exactly 24 records (2 pipelines x 3 years x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["capacity"]) == 24, (
+            f"Expected 24 capacity records, got {len(data['capacity'])}"
+        )
+
+    def test_investments_count(self):
+        """investments list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["investments"]) == 20, (
+            f"Expected 20 investment records, got {len(data['investments'])}"
+        )
+
+    def test_summary_has_avg_utilisation_pct(self):
+        """summary must contain avg_utilisation_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_utilisation_pct" in data["summary"], (
+            "Missing avg_utilisation_pct in summary"
+        )
+
+    def test_all_pipelines_have_design_capacity_tj_per_day(self):
+        """Every pipeline record must include the design_capacity_tj_per_day field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for pipeline in data["pipelines"]:
+            assert "design_capacity_tj_per_day" in pipeline, (
+                f"Missing design_capacity_tj_per_day in pipeline {pipeline.get('pipeline_id')}"
+            )
+
+
+# ===========================================================================
+# TestEPFMDashboard — Sprint 146c
+# ===========================================================================
+
+class TestEPFMDashboard:
+    """9 tests for GET /api/electricity-price-forecasting/dashboard."""
+
+    URL = "/api/electricity-price-forecasting/dashboard"
+    HEADERS = {"accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_response_keys(self):
+        """Response must contain all 6 required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("models", "forecast_accuracy", "feature_importance",
+                    "forecast_vs_actual", "extreme_events", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_models_count(self):
+        """models list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["models"]) == 10, (
+            f"Expected 10 models, got {len(data['models'])}"
+        )
+
+    def test_forecast_accuracy_count(self):
+        """forecast_accuracy list must contain exactly 60 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["forecast_accuracy"]) == 60, (
+            f"Expected 60 forecast_accuracy records, got {len(data['forecast_accuracy'])}"
+        )
+
+    def test_feature_importance_count(self):
+        """feature_importance list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["feature_importance"]) == 30, (
+            f"Expected 30 feature_importance records, got {len(data['feature_importance'])}"
+        )
+
+    def test_forecast_vs_actual_count(self):
+        """forecast_vs_actual list must contain exactly 48 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["forecast_vs_actual"]) == 48, (
+            f"Expected 48 forecast_vs_actual records, got {len(data['forecast_vs_actual'])}"
+        )
+
+    def test_extreme_events_count(self):
+        """extreme_events list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["extreme_events"]) == 20, (
+            f"Expected 20 extreme_events, got {len(data['extreme_events'])}"
+        )
+
+    def test_summary_has_best_model_mae(self):
+        """summary must contain best_model_mae field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "best_model_mae" in data["summary"], "Missing best_model_mae in summary"
+
+    def test_all_models_have_mape_pct(self):
+        """Every model record must include the mape_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for model in data["models"]:
+            assert "mape_pct" in model, (
+                f"Missing mape_pct in model {model.get('model_id')}"
+            )

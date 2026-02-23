@@ -496,6 +496,9 @@ import NetworkCongestionReliefAnalytics from './pages/NetworkCongestionReliefAna
 import MarketConcentrationBiddingAnalytics from './pages/MarketConcentrationBiddingAnalytics'
 import IndustrialEnergyEfficiencyAnalytics from './pages/IndustrialEnergyEfficiencyAnalytics'
 import RetailerFinancialHealthAnalytics from './pages/RetailerFinancialHealthAnalytics'
+import SolarFarmPerformanceAnalytics from './pages/SolarFarmPerformanceAnalytics'
+import GasNetworkPipelineAnalytics from './pages/GasNetworkPipelineAnalytics'
+import ElectricityPriceForecastingAnalytics from './pages/ElectricityPriceForecastingAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -902,6 +905,9 @@ const NAV_ITEMS = [
   { to: '/market-concentration-bidding', label: 'Market Concentration', Icon: PieChart },
   { to: '/industrial-energy-efficiency', label: 'Industrial Efficiency', Icon: Factory },
   { to: '/retailer-financial-health', label: 'Retailer Financial Health', Icon: DollarSign },
+  { to: '/solar-farm-performance', label: 'Solar Farm Performance', Icon: Sun },
+  { to: '/gas-network-pipeline', label: 'Gas Pipeline Network', Icon: GitBranch },
+  { to: '/electricity-price-forecasting', label: 'Price Forecast Models', Icon: Target },
 ]
 
 function Sidebar() {
@@ -1383,6 +1389,9 @@ export default function App() {
               <Route path="/market-concentration-bidding" element={<MarketConcentrationBiddingAnalytics />} />
               <Route path="/industrial-energy-efficiency" element={<IndustrialEnergyEfficiencyAnalytics />} />
               <Route path="/retailer-financial-health" element={<RetailerFinancialHealthAnalytics />} />
+              <Route path="/solar-farm-performance" element={<SolarFarmPerformanceAnalytics />} />
+              <Route path="/gas-network-pipeline" element={<GasNetworkPipelineAnalytics />} />
+              <Route path="/electricity-price-forecasting" element={<ElectricityPriceForecastingAnalytics />} />
             </Routes>
           </main>
         </div>
