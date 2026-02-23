@@ -23328,3 +23328,190 @@ export interface PPAMDashboard {
 }
 export const getPowerPurchaseAgreementMarketDashboard = (): Promise<PPAMDashboard> =>
   get<PPAMDashboard>('/api/power-purchase-agreement-market/dashboard')
+
+export interface EMLATradingVolume {
+  quarter: string
+  region: string
+  product: string
+  traded_volume_twh: number
+  notional_value_m: number
+  open_interest_mw: number
+  avg_bid_ask_spread: number
+}
+
+export interface EMLAMarketDepth {
+  region: string
+  time_of_day: string
+  quarter: string
+  bid_depth_mw: number
+  offer_depth_mw: number
+  mid_market_price: number
+  price_impact_per_100mw: number
+  liquidity_score: number
+}
+
+export interface EMLAParticipant {
+  participant_name: string
+  participant_type: string
+  region: string
+  market_share_pct: number
+  net_position_mw: number
+  hedging_ratio_pct: number
+  avg_trade_size_mw: number
+}
+
+export interface EMLAHedgingMetric {
+  year: number
+  region: string
+  avg_hedge_ratio_pct: number
+  contract_for_difference_m: number
+  swap_volume_twh: number
+  cap_contract_volume_mw: number
+  total_hedged_load_pct: number
+}
+
+export interface EMLALiquidityRisk {
+  risk_factor: string
+  region: string
+  severity: string
+  probability_pct: number
+  estimated_impact_m: number
+  current_hedge_coverage_pct: number
+  time_horizon: string
+}
+
+export interface EMLADashboard {
+  trading_volumes: EMLATradingVolume[]
+  market_depth: EMLAMarketDepth[]
+  participants: EMLAParticipant[]
+  hedging_metrics: EMLAHedgingMetric[]
+  liquidity_risks: EMLALiquidityRisk[]
+  summary: Record<string, unknown>
+}
+
+export const getElectricityMarketLiquidityDashboard = (): Promise<EMLADashboard> =>
+  get<EMLADashboard>('/api/electricity-market-liquidity/dashboard')
+
+// ─── Distributed Solar Forecasting Analytics (DSFA — Sprint 122b) ─────────────
+export interface DSFAForecastAccuracy {
+  region: string
+  month: string
+  forecast_horizon_hr: number
+  mae_pct: number
+  rmse_pct: number
+  mbe_pct: number
+  skill_score_pct: number
+  model: string
+}
+export interface DSFAInstallationData {
+  region: string
+  month: string
+  cumulative_systems_k: number
+  new_installs_k: number
+  total_capacity_mw: number
+  avg_system_size_kw: number
+  penetration_pct: number
+  avg_generation_kwh_per_day: number
+}
+export interface DSFAWeatherImpact {
+  event_type: string
+  region: string
+  month: string
+  frequency_days: number
+  avg_generation_reduction_pct: number
+  forecast_error_increase_pct: number
+  grid_impact_mw: number
+}
+export interface DSFAGridIntegration {
+  dnsp: string
+  region: string
+  hosting_capacity_mw: number
+  curtailment_mwh: number
+  curtailment_pct: number
+  voltage_issues_count: number
+  export_limit_kw: number
+  smart_inverter_pct: number
+}
+export interface DSFAScenario {
+  year: number
+  scenario: string
+  total_capacity_gw: number
+  annual_generation_twh: number
+  curtailment_pct: number
+  forecast_accuracy_pct: number
+  grid_investment_required_b: number
+}
+export interface DSFADashboard {
+  accuracy: DSFAForecastAccuracy[]
+  installations: DSFAInstallationData[]
+  weather_impacts: DSFAWeatherImpact[]
+  grid_integration: DSFAGridIntegration[]
+  scenarios: DSFAScenario[]
+  summary: Record<string, unknown>
+}
+export const getDistributedSolarForecastingDashboard = (): Promise<DSFADashboard> =>
+  get<DSFADashboard>('/api/distributed-solar-forecasting/dashboard')
+
+// ---------------------------------------------------------------------------
+// Energy Transition Finance Analytics X (ETFAX — Sprint 122c)
+// ---------------------------------------------------------------------------
+export interface ETFAXInvestmentFlow {
+  year: number
+  sector: string
+  investor_type: string
+  investment_m: number
+  region: string
+  project_count: number
+  avg_project_size_m: number
+}
+export interface ETFAXGreenBond {
+  issuer: string
+  bond_type: string
+  amount_m: number
+  use_of_proceeds: string
+  maturity_years: number
+  coupon_pct: number
+  certification: string
+  issue_year: number
+  region: string
+}
+export interface ETFAXCostOfCapital {
+  technology: string
+  year: number
+  scenario: string
+  wacc_pct: number
+  debt_cost_pct: number
+  equity_cost_pct: number
+  leverage_ratio_pct: number
+}
+export interface ETFAXGovernmentSupport {
+  program_name: string
+  administering_body: string
+  total_funding_b: number
+  committed_b: number
+  projects_supported: number
+  technology_focus: string
+  leverage_ratio: number
+  status: string
+}
+export interface ETFAXProjectPipeline {
+  project_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  capex_m: number
+  finance_status: string
+  expected_fid_year: number
+  off_take: string
+  irr_pct: number
+}
+export interface ETFAXDashboard {
+  investment_flows: ETFAXInvestmentFlow[]
+  green_bonds: ETFAXGreenBond[]
+  cost_of_capital: ETFAXCostOfCapital[]
+  government_support: ETFAXGovernmentSupport[]
+  project_pipeline: ETFAXProjectPipeline[]
+  summary: Record<string, unknown>
+}
+export const getEnergyTransitionFinanceXDashboard = (): Promise<ETFAXDashboard> =>
+  get<ETFAXDashboard>('/api/energy-transition-finance-x/dashboard')

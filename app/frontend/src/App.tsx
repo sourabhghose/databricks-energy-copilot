@@ -417,6 +417,9 @@ import GridEdgeTechnologyXAnalytics from './pages/GridEdgeTechnologyXAnalytics'
 import EvFleetChargingAnalytics from './pages/EvFleetChargingAnalytics'
 import CarbonBorderAdjustmentAnalytics from './pages/CarbonBorderAdjustmentAnalytics'
 import PowerPurchaseAgreementMarketAnalytics from './pages/PowerPurchaseAgreementMarketAnalytics'
+import ElectricityMarketLiquidityAnalytics from './pages/ElectricityMarketLiquidityAnalytics'
+import DistributedSolarForecastingAnalytics from './pages/DistributedSolarForecastingAnalytics'
+import EnergyTransitionFinanceXAnalytics from './pages/EnergyTransitionFinanceXAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -751,6 +754,9 @@ const NAV_ITEMS = [
   { to: '/ev-fleet-charging', label: 'EV Fleet Charging Infra', Icon: Zap },
   { to: '/carbon-border-adjustment', label: 'Carbon Border Adjustment', Icon: Globe },
   { to: '/power-purchase-agreement-market', label: 'PPA Market Analytics', Icon: FileText },
+  { to: '/distributed-solar-forecasting', label: 'Distributed Solar Forecasting', Icon: Sun },
+  { to: '/electricity-market-liquidity', label: 'Market Liquidity Analytics', Icon: BarChart2 },
+  { to: '/energy-transition-finance-x', label: 'Energy Transition Finance X', Icon: TrendingUp },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1160,6 +1166,9 @@ export default function App() {
               <Route path="/ev-fleet-charging" element={<EvFleetChargingAnalytics />} />
               <Route path="/carbon-border-adjustment" element={<CarbonBorderAdjustmentAnalytics />} />
               <Route path="/power-purchase-agreement-market" element={<PowerPurchaseAgreementMarketAnalytics />} />
+              <Route path="/distributed-solar-forecasting" element={<DistributedSolarForecastingAnalytics />} />
+              <Route path="/electricity-market-liquidity" element={<ElectricityMarketLiquidityAnalytics />} />
+              <Route path="/energy-transition-finance-x" element={<EnergyTransitionFinanceXAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
