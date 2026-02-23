@@ -493,6 +493,9 @@ import DistributedEnergyResourceManagementXAnalytics from './pages/DistributedEn
 import CoalMineEnergyAnalytics from './pages/CoalMineEnergyAnalytics'
 import NemFiveMinuteSettlementAnalytics from './pages/NemFiveMinuteSettlementAnalytics'
 import NetworkCongestionReliefAnalytics from './pages/NetworkCongestionReliefAnalytics'
+import MarketConcentrationBiddingAnalytics from './pages/MarketConcentrationBiddingAnalytics'
+import IndustrialEnergyEfficiencyAnalytics from './pages/IndustrialEnergyEfficiencyAnalytics'
+import RetailerFinancialHealthAnalytics from './pages/RetailerFinancialHealthAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -896,6 +899,9 @@ const NAV_ITEMS = [
   { to: '/coal-mine-energy', label: 'Coal Mine Energy', Icon: Layers },
   { to: '/nem-5min-settlement', label: '5-Min Settlement', Icon: Clock },
   { to: '/network-congestion-relief', label: 'Congestion Relief', Icon: AlertTriangle },
+  { to: '/market-concentration-bidding', label: 'Market Concentration', Icon: PieChart },
+  { to: '/industrial-energy-efficiency', label: 'Industrial Efficiency', Icon: Factory },
+  { to: '/retailer-financial-health', label: 'Retailer Financial Health', Icon: DollarSign },
 ]
 
 function Sidebar() {
@@ -1374,6 +1380,9 @@ export default function App() {
               <Route path="/coal-mine-energy" element={<CoalMineEnergyAnalytics />} />
               <Route path="/nem-5min-settlement" element={<NemFiveMinuteSettlementAnalytics />} />
               <Route path="/network-congestion-relief" element={<NetworkCongestionReliefAnalytics />} />
+              <Route path="/market-concentration-bidding" element={<MarketConcentrationBiddingAnalytics />} />
+              <Route path="/industrial-energy-efficiency" element={<IndustrialEnergyEfficiencyAnalytics />} />
+              <Route path="/retailer-financial-health" element={<RetailerFinancialHealthAnalytics />} />
             </Routes>
           </main>
         </div>

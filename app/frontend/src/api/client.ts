@@ -28217,3 +28217,251 @@ export interface ENCRDashboard {
 
 export const getNetworkCongestionReliefDashboard = (): Promise<ENCRDashboard> =>
   get<ENCRDashboard>('/api/network-congestion-relief/dashboard')
+
+// ---------------------------------------------------------------------------
+// NMCB — NEM Market Concentration & Bidding Behaviour Analytics
+// ---------------------------------------------------------------------------
+
+export interface NMCBParticipant {
+  participant_id: string
+  participant_name: string
+  registered_capacity_mw: number
+  market_share_pct: number
+  region_presence: string
+  participant_type: string
+  hhi_contribution: number
+  pivotal_supplier_events_2024: number
+  market_power_index: number
+}
+
+export interface NMCBBiddingBand {
+  participant_id: string
+  region: string
+  year: number
+  month: number
+  band_1_volume_mw: number
+  band_2_volume_mw: number
+  band_3_volume_mw: number
+  band_4_volume_mw: number
+  avg_bid_price_mwh: number
+  withholding_events: number
+}
+
+export interface NMCBHHITrend {
+  region: string
+  year: number
+  half: number
+  hhi_generation: number
+  hhi_capacity: number
+  top_3_market_share_pct: number
+  pivotal_supplier_pct: number
+  concentration_level: string
+}
+
+export interface NMCBSurveillance {
+  event_id: string
+  participant_id: string
+  event_type: string
+  region: string
+  year: number
+  financial_impact_m_aud: number
+  resolved: boolean
+  aemo_action: string
+}
+
+export interface NMCBCompetition {
+  region: string
+  year: number
+  month: number
+  effective_competitors: number
+  contestable_demand_pct: number
+  price_cost_markup_pct: number
+  lerner_index: number
+  residual_supply_index: number
+}
+
+export interface NMCBSummary {
+  avg_hhi_2024: number
+  most_concentrated_region: string
+  total_pivotal_events_2024: number
+  total_surveillance_events: number
+  avg_market_power_index: number
+  market_share_top3_pct: number
+  avg_price_cost_markup_pct: number
+}
+
+export interface NMCBDashboard {
+  participants: NMCBParticipant[]
+  bidding_bands: NMCBBiddingBand[]
+  hhi_trends: NMCBHHITrend[]
+  surveillance: NMCBSurveillance[]
+  competition: NMCBCompetition[]
+  summary: NMCBSummary
+}
+
+export const getMarketConcentrationBiddingDashboard = (): Promise<NMCBDashboard> =>
+  get<NMCBDashboard>('/api/market-concentration-bidding/dashboard')
+
+export interface INEEFacility {
+  facility_id: string
+  facility_name: string
+  industry_sector: string
+  state: string
+  annual_energy_tj: number
+  energy_intensity_gj_per_t: number
+  safeguard_threshold_kt: number
+  eet_score: number
+  program_participation: string
+  status: string
+}
+
+export interface INEEProject {
+  project_id: string
+  facility_id: string
+  project_type: string
+  energy_saving_tj_pa: number
+  cost_m_aud: number
+  payback_years: number
+  co2_reduction_kt_pa: number
+  implementation_year: number
+  project_status: string
+}
+
+export interface INEEProgram {
+  program_id: string
+  program_name: string
+  program_type: string
+  administrator: string
+  participating_facilities: number
+  energy_saving_target_pj: number
+  energy_saved_pj: number
+  co2_abated_kt: number
+  cost_m_aud: number
+  status: string
+}
+
+export interface INEEBenchmark {
+  industry_sector: string
+  metric: string
+  year: number
+  australia_value: number
+  global_best_value: number
+  improvement_gap_pct: number
+  progress_rate_pct_pa: number
+}
+
+export interface INEETrend {
+  facility_id: string
+  year: number
+  quarter: string
+  energy_consumption_tj: number
+  energy_intensity_gj_per_t: number
+  co2_emissions_kt: number
+  eet_score: number
+  capex_efficiency_m_aud: number
+}
+
+export interface INEESummary {
+  total_facilities: number
+  total_annual_energy_tj: number
+  avg_eet_score: number
+  total_energy_saving_tj_pa: number
+  total_co2_reduction_kt_pa: number
+  total_project_investment_m_aud: number
+  best_performing_sector: string
+}
+
+export interface INEEDashboard {
+  facilities: INEEFacility[]
+  projects: INEEProject[]
+  programs: INEEProgram[]
+  benchmarks: INEEBenchmark[]
+  trends: INEETrend[]
+  summary: INEESummary
+}
+
+export const getIndustrialEnergyEfficiencyDashboard = (): Promise<INEEDashboard> =>
+  get<INEEDashboard>('/api/industrial-energy-efficiency/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 145a — ERFH: Electricity Retailer Financial Health Analytics
+// ---------------------------------------------------------------------------
+
+export interface ERFHRetailer {
+  retailer_id: string
+  retailer_name: string
+  parent_company: string
+  customer_count_k: number
+  revenue_m_aud: number
+  ebitda_m_aud: number
+  ebitda_margin_pct: number
+  net_debt_m_aud: number
+  credit_rating: string
+  prudential_capital_m_aud: number
+  market_cap_m_aud: number
+  status: string
+}
+
+export interface ERFHProfitability {
+  retailer_id: string
+  year: number
+  quarter: string
+  revenue_m_aud: number
+  gross_margin_m_aud: number
+  bad_debt_m_aud: number
+  acquisition_cost_m_aud: number
+  hedging_cost_m_aud: number
+  ebitda_m_aud: number
+}
+
+export interface ERFHRisk {
+  retailer_id: string
+  risk_type: string
+  risk_level: string
+  risk_score: number
+  mitigation_strategy: string
+  potential_impact_m_aud: number
+  likelihood: string
+}
+
+export interface ERFHPrudential {
+  year: number
+  quarter: string
+  segment: string
+  total_prudential_required_m_aud: number
+  total_deposited_m_aud: number
+  aemo_cash_calls_m_aud: number
+  non_compliance_events: number
+  exit_events: number
+  new_entrants: number
+}
+
+export interface ERFHComparison {
+  metric: string
+  year: number
+  retailer_a_value: number
+  retailer_b_value: number
+  industry_avg: number
+}
+
+export interface ERFHSummary {
+  total_market_revenue_b_aud: number
+  avg_ebitda_margin_pct: number
+  total_bad_debt_m_aud: number
+  retailers_at_exit_risk: number
+  total_prudential_capital_m_aud: number
+  industry_avg_credit_rating: string
+  total_customers_m: number
+}
+
+export interface ERFHDashboard {
+  retailers: ERFHRetailer[]
+  profitability: ERFHProfitability[]
+  risks: ERFHRisk[]
+  prudential: ERFHPrudential[]
+  comparison: ERFHComparison[]
+  summary: ERFHSummary
+}
+
+export const getRetailerFinancialHealthDashboard = (): Promise<ERFHDashboard> =>
+  get<ERFHDashboard>('/api/retailer-financial-health/dashboard')
