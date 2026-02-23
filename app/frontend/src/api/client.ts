@@ -24121,3 +24121,215 @@ export interface PSSAXDashboard {
 
 export const getPowerSystemStabilityXDashboard = (): Promise<PSSAXDashboard> =>
   get<PSSAXDashboard>('/api/power-system-stability-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// AMODA — AEMO Market Operations & Dispatch Analytics
+// ---------------------------------------------------------------------------
+
+export interface AMODADispatchRecord {
+  region: string
+  month: string
+  total_dispatched_gwh: number
+  renewable_dispatched_gwh: number
+  renewable_share_pct: number
+  avg_dispatch_price: number
+  rebid_count: number
+  constraint_count: number
+  intervention_count: number
+}
+
+export interface AMODAMarketNotice {
+  notice_type: string
+  region: string
+  month: string
+  count: number
+  avg_duration_min: number
+  avg_price_impact: number
+  total_unserved_energy_mwh: number
+}
+
+export interface AMODASettlementRecord {
+  quarter: string
+  region: string
+  total_energy_payments_m: number
+  fcas_payments_m: number
+  settlement_residue_m: number
+  prudential_requirement_m: number
+  credit_support_m: number
+  default_events: number
+}
+
+export interface AMODAPreDispatch {
+  region: string
+  month: string
+  predispatch_mae_pct: number
+  st_predispatch_mae_pct: number
+  price_forecast_accuracy_pct: number
+  demand_forecast_mae_gwh: number
+  renewable_forecast_mae_gwh: number
+}
+
+export interface AMODASystemNormal {
+  metric: string
+  region: string
+  year: number
+  events_count: number
+  total_duration_hours: number
+  max_severity_mw: number
+  regulatory_action_taken: boolean
+}
+
+export interface AMODADashboard {
+  dispatch: AMODADispatchRecord[]
+  notices: AMODAMarketNotice[]
+  settlement: AMODASettlementRecord[]
+  predispatch: AMODAPreDispatch[]
+  system_normal: AMODASystemNormal[]
+  summary: Record<string, unknown>
+}
+
+export const getAemoMarketOperationsDashboard = (): Promise<AMODADashboard> =>
+  get<AMODADashboard>('/api/aemo-market-operations/dashboard')
+
+// ---------------------------------------------------------------------------
+// RECA — Renewable Energy Certificate (LGC/STC) Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface RECALGCRecord {
+  quarter: string
+  lgc_created_k: number
+  lgc_surrendered_k: number
+  lgc_spot_price: number
+  lgc_forward_price: number
+  total_market_value_m: number
+  liable_entity_demand_k: number
+  renewable_power_percentage: number
+}
+
+export interface RECASTCRecord {
+  quarter: string
+  stc_created_k: number
+  stc_cleared_k: number
+  stc_price: number
+  clearing_house_price: number
+  rooftop_solar_installs_k: number
+  solar_hwt_installs_k: number
+  other_installs_k: number
+}
+
+export interface RECAAccreditation {
+  technology: string
+  region: string
+  accredited_capacity_mw: number
+  lgc_eligible_capacity_mw: number
+  new_accreditations_mw: number
+  deregistered_capacity_mw: number
+  avg_capacity_factor_pct: number
+}
+
+export interface RECACompliance {
+  year: number
+  liable_entity: string
+  obligation_gwh: number
+  surrender_lgc_k: number
+  surrender_stc_k: number
+  compliance_pct: number
+  shortfall_charge_m: number
+}
+
+export interface RECAProjection {
+  year: number
+  scenario: string
+  lgc_demand_k: number
+  lgc_supply_k: number
+  surplus_deficit_k: number
+  lgc_price_forecast: number
+  ret_target_achieved: boolean
+}
+
+export interface RECADashboard {
+  lgc_market: RECALGCRecord[]
+  stc_market: RECASTCRecord[]
+  accreditation: RECAAccreditation[]
+  compliance: RECACompliance[]
+  projections: RECAProjection[]
+  summary: Record<string, unknown>
+}
+
+export const getRenewableEnergyCertificateDashboard = (): Promise<RECADashboard> =>
+  get<RECADashboard>('/api/renewable-energy-certificate/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 126a — Energy Storage Dispatch Optimisation Analytics (ESDO)
+// ---------------------------------------------------------------------------
+
+export interface ESDOAssetRecord {
+  asset_name: string
+  region: string
+  technology: string
+  capacity_mw: number
+  energy_mwh: number
+  soc_min_pct: number
+  soc_max_pct: number
+  round_trip_efficiency_pct: number
+  dispatch_mode: string
+  owner: string
+}
+
+export interface ESDODispatchInterval {
+  asset_name: string
+  date: string
+  interval: number
+  soc_pct: number
+  dispatch_mw: number
+  spot_price: number
+  fcas_raise_price: number
+  fcas_lower_price: number
+  revenue_interval: number
+}
+
+export interface ESDOOptimisationResult {
+  asset_name: string
+  strategy: string
+  period: string
+  arbitrage_revenue_m: number
+  fcas_revenue_m: number
+  total_revenue_m: number
+  cycles_per_day: number
+  degradation_cost_m: number
+  net_revenue_m: number
+}
+
+export interface ESDOBatteryState {
+  asset_name: string
+  month: string
+  avg_soc_pct: number
+  min_soc_pct: number
+  max_soc_pct: number
+  charge_cycles: number
+  throughput_mwh: number
+  capacity_fade_pct: number
+}
+
+export interface ESDOMarketOpportunity {
+  opportunity_type: string
+  region: string
+  month: string
+  frequency_events: number
+  avg_duration_min: number
+  avg_value_mwh: number
+  capturable_revenue_m: number
+  required_capacity_mw: number
+}
+
+export interface ESDODashboard {
+  assets: ESDOAssetRecord[]
+  dispatch_intervals: ESDODispatchInterval[]
+  optimisation_results: ESDOOptimisationResult[]
+  battery_states: ESDOBatteryState[]
+  market_opportunities: ESDOMarketOpportunity[]
+  summary: Record<string, unknown>
+}
+
+export const getEnergyStorageDispatchOptimisationDashboard = (): Promise<ESDODashboard> =>
+  get<ESDODashboard>('/api/energy-storage-dispatch-optimisation/dashboard')

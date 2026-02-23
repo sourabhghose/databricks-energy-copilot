@@ -430,6 +430,9 @@ import ElectricityNetworkCapitalInvestmentAnalytics from './pages/ElectricityNet
 import GasToPowerTransitionAnalytics from './pages/GasToPowerTransitionAnalytics'
 import CarbonOffsetMarketAnalytics from './pages/CarbonOffsetMarketAnalytics'
 import PowerSystemStabilityXAnalytics from './pages/PowerSystemStabilityXAnalytics'
+import AemoMarketOperationsAnalytics from './pages/AemoMarketOperationsAnalytics'
+import RenewableEnergyCertificateAnalytics from './pages/RenewableEnergyCertificateAnalytics'
+import EnergyStorageDispatchOptimisationAnalytics from './pages/EnergyStorageDispatchOptimisationAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -776,6 +779,9 @@ const NAV_ITEMS = [
   { to: '/gas-to-power-transition', label: 'Gas-to-Power Transition & Retirement', Icon: Flame },
   { to: '/carbon-offset-market', label: 'Australian Carbon Offset Market', Icon: Leaf },
   { to: '/power-system-stability-x', label: 'Power System Stability & Resilience', Icon: Shield },
+  { to: '/aemo-market-operations', label: 'AEMO Market Operations & Dispatch', Icon: Radio },
+  { to: '/renewable-energy-certificate', label: 'REC Market (LGC/STC) Analytics', Icon: Award },
+  { to: '/energy-storage-dispatch-optimisation', label: 'Energy Storage Dispatch Optimisation', Icon: Battery },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1197,6 +1203,9 @@ export default function App() {
               <Route path="/gas-to-power-transition" element={<GasToPowerTransitionAnalytics />} />
               <Route path="/carbon-offset-market" element={<CarbonOffsetMarketAnalytics />} />
               <Route path="/power-system-stability-x" element={<PowerSystemStabilityXAnalytics />} />
+              <Route path="/aemo-market-operations" element={<AemoMarketOperationsAnalytics />} />
+              <Route path="/renewable-energy-certificate" element={<RenewableEnergyCertificateAnalytics />} />
+              <Route path="/energy-storage-dispatch-optimisation" element={<EnergyStorageDispatchOptimisationAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
