@@ -16499,3 +16499,204 @@ class TestEnergyRetailerMarginDashboard:
         }
         found_components = {m["component"] for m in data["margin_components"]}
         assert found_components == expected_components
+
+
+# ===========================================================================
+# TestEvFleetChargingDashboard  (EVFC — Sprint 121a)
+# ===========================================================================
+
+class TestEvFleetChargingDashboard:
+    """Tests for /api/ev-fleet-charging/dashboard (EVFC — Sprint 121a)."""
+
+    URL = "/api/ev-fleet-charging/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_http_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_hubs_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hubs" in data
+        assert len(data["hubs"]) == 25
+
+    def test_fleets_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "fleets" in data
+        assert len(data["fleets"]) == 20
+
+    def test_grid_impacts_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "grid_impacts" in data
+        assert len(data["grid_impacts"]) == 60  # 12 years × 5 regions
+
+    def test_tariffs_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "tariffs" in data
+        assert len(data["tariffs"]) == 20
+
+    def test_projections_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projections" in data
+        assert len(data["projections"]) == 33  # 11 years × 3 scenarios
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_installed_chargers" in summary
+        assert "total_ev_fleets_k" in summary
+        assert "avg_utilisation_pct" in summary
+        assert "renewable_charging_pct" in summary
+        assert "projected_2030_energy_twh" in summary
+
+    def test_all_regions_present_in_grid_impacts(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        regions_found = {g["region"] for g in data["grid_impacts"]}
+        for region in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]:
+            assert region in regions_found
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+# ===========================================================================
+# TestCarbonBorderAdjustmentDashboard  (Sprint 121b)
+# ===========================================================================
+
+class TestCarbonBorderAdjustmentDashboard:
+    """Tests for GET /api/carbon-border-adjustment/dashboard (CBAM — Sprint 121b)."""
+
+    URL = "/api/carbon-border-adjustment/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_status_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_exposed_sectors_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "exposed_sectors" in data
+        assert len(data["exposed_sectors"]) == 28  # 7 sectors × 4 countries
+
+    def test_carbon_prices_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "carbon_prices" in data
+        assert len(data["carbon_prices"]) == 60  # 12 years × 5 jurisdictions
+
+    def test_trade_impacts_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "trade_impacts" in data
+        assert len(data["trade_impacts"]) == 25
+
+    def test_abatement_options_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "abatement_options" in data
+        assert len(data["abatement_options"]) == 20
+
+    def test_policy_scenarios_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "policy_scenarios" in data
+        assert len(data["policy_scenarios"]) == 48  # 12 years × 4 scenarios
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_eu_cbam_liability_m" in summary
+        assert "highest_risk_sector" in summary
+        assert "avg_carbon_price_gap" in summary
+        assert "total_abatement_potential_mtco2" in summary
+        assert "recommended_action" in summary
+
+    def test_risk_levels_valid(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        valid_risk_levels = {"High", "Medium", "Low"}
+        for sector in data["exposed_sectors"]:
+            assert sector["risk_level"] in valid_risk_levels
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestPowerPurchaseAgreementMarketDashboard:
+    """Tests for /api/power-purchase-agreement-market/dashboard (PPAM -- Sprint 121c)."""
+
+    URL = "/api/power-purchase-agreement-market/dashboard"
+    HEADERS = {"x-api-key": "test-api-key"}
+
+    def test_http_200(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_contracts_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "contracts" in data
+        assert len(data["contracts"]) == 30
+
+    def test_price_index_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_index" in data
+        assert len(data["price_index"]) == 36
+
+    def test_buyer_analysis_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "buyer_analysis" in data
+        assert len(data["buyer_analysis"]) == 15
+
+    def test_risk_factors_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "risk_factors" in data
+        assert len(data["risk_factors"]) == 12
+
+    def test_projections_count(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "projections" in data
+        assert len(data["projections"]) == 33
+
+    def test_summary_keys(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "summary" in data
+        summary = data["summary"]
+        assert "total_contracted_capacity_gw" in summary
+        assert "active_contracts" in summary
+        assert "avg_strike_price_per_mwh" in summary
+        assert "largest_buyer_sector" in summary
+        assert "market_value_b" in summary
+
+    def test_contract_fields(self, client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        contract = data["contracts"][0]
+        for field in ["buyer", "seller", "technology", "region", "contract_type",
+                      "capacity_mw", "term_years", "strike_price_per_mwh",
+                      "annual_energy_gwh", "start_year", "status"]:
+            assert field in contract
+
+    def test_caching(self, client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

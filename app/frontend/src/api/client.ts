@@ -23139,3 +23139,192 @@ export interface GETAXDashboard {
 }
 export const getGridEdgeTechnologyXDashboard = (): Promise<GETAXDashboard> =>
   get<GETAXDashboard>('/api/grid-edge-technology-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// EV Fleet Charging Infrastructure Analytics (EVFC — Sprint 121a)
+// ---------------------------------------------------------------------------
+export interface EVFCChargingHub {
+  hub_name: string
+  location: string
+  region: string
+  charger_type: string
+  installed_chargers: number
+  max_power_mw: number
+  utilisation_pct: number
+  annual_energy_gwh: number
+  revenue_m: number
+  operator: string
+}
+export interface EVFCFleetRecord {
+  fleet_owner: string
+  vehicle_type: string
+  ev_count: number
+  avg_daily_km: number
+  avg_consumption_kwh_per_100km: number
+  daily_energy_kwh: number
+  preferred_charging: string
+  smart_charging_enabled: boolean
+  v2g_capable: boolean
+}
+export interface EVFCGridImpact {
+  region: string
+  year: number
+  ev_fleet_count_k: number
+  peak_demand_increase_mw: number
+  managed_charging_reduction_mw: number
+  v2g_discharge_mw: number
+  net_grid_impact_mw: number
+  renewable_charging_pct: number
+}
+export interface EVFCTariff {
+  tariff_name: string
+  retailer: string
+  region: string
+  off_peak_per_kwh: number
+  peak_per_kwh: number
+  shoulder_per_kwh: number
+  monthly_fixed_charge: number
+  demand_charge_per_kw: number
+}
+export interface EVFCProjection {
+  year: number
+  scenario: string
+  total_ev_fleets_k: number
+  public_chargers_k: number
+  total_charging_energy_twh: number
+  infrastructure_investment_b: number
+}
+export interface EVFCDashboard {
+  hubs: EVFCChargingHub[]
+  fleets: EVFCFleetRecord[]
+  grid_impacts: EVFCGridImpact[]
+  tariffs: EVFCTariff[]
+  projections: EVFCProjection[]
+  summary: Record<string, unknown>
+}
+export const getEvFleetChargingDashboard = (): Promise<EVFCDashboard> =>
+  get<EVFCDashboard>('/api/ev-fleet-charging/dashboard')
+
+// ---------------------------------------------------------------------------
+// CBAM — Carbon Border Adjustment Mechanism Analytics  (Sprint 121b)
+// ---------------------------------------------------------------------------
+
+export interface CBAMExposedSector {
+  sector: string
+  country: string
+  export_value_b: number
+  export_volume_mt: number
+  emissions_intensity_tco2_per_t: number
+  eu_cbam_liability_m: number
+  carbon_price_gap: number
+  risk_level: string
+  mitigation_cost_m: number
+}
+
+export interface CBAMCarbonPrice {
+  year: number
+  jurisdiction: string
+  price_eur_per_tco2: number
+  price_aud_per_tco2: number
+  price_usd_per_tco2: number
+}
+
+export interface CBAMTradeImpact {
+  product: string
+  trade_partner: string
+  export_volume_mt: number
+  cbam_cost_per_tonne: number
+  total_annual_liability_m: number
+  competitive_disadvantage_pct: number
+  decarbonisation_pathway: string
+}
+
+export interface CBAMAbatementOption {
+  option_name: string
+  sector: string
+  abatement_potential_mtco2: number
+  cost_per_tco2: number
+  investment_required_b: number
+  timeline_years: number
+  maturity: string
+}
+
+export interface CBAMPolicyScenario {
+  year: number
+  scenario: string
+  total_liability_m: number
+  export_revenue_impact_m: number
+  decarbonisation_investment_m: number
+  net_gdp_impact_m: number
+}
+
+export interface CBAMDashboard {
+  exposed_sectors: CBAMExposedSector[]
+  carbon_prices: CBAMCarbonPrice[]
+  trade_impacts: CBAMTradeImpact[]
+  abatement_options: CBAMAbatementOption[]
+  policy_scenarios: CBAMPolicyScenario[]
+  summary: Record<string, unknown>
+}
+
+export const getCarbonBorderAdjustmentDashboard = (): Promise<CBAMDashboard> =>
+  get<CBAMDashboard>('/api/carbon-border-adjustment/dashboard')
+
+export interface PPAMContractRecord {
+  buyer: string
+  seller: string
+  technology: string
+  region: string
+  contract_type: string
+  capacity_mw: number
+  term_years: number
+  strike_price_per_mwh: number
+  annual_energy_gwh: number
+  start_year: number
+  status: string
+}
+export interface PPAMPriceIndex {
+  quarter: string
+  technology: string
+  region: string
+  avg_strike_price: number
+  min_strike_price: number
+  max_strike_price: number
+  contract_count: number
+  total_capacity_mw: number
+}
+export interface PPAMBuyerAnalysis {
+  buyer_sector: string
+  buyer: string
+  total_contracted_mw: number
+  total_annual_energy_gwh: number
+  avg_ppa_term_years: number
+  renewable_pct_of_total_demand: number
+  re100_committed: boolean
+  emissions_reduction_target: string
+}
+export interface PPAMRiskFactor {
+  risk_type: string
+  probability: string
+  impact_per_mwh: number
+  mitigation: string
+  relevant_contract_type: string
+}
+export interface PPAMProjection {
+  year: number
+  scenario: string
+  contracts_signed: number
+  total_capacity_gw: number
+  avg_strike_price_per_mwh: number
+  market_value_b: number
+}
+export interface PPAMDashboard {
+  contracts: PPAMContractRecord[]
+  price_index: PPAMPriceIndex[]
+  buyer_analysis: PPAMBuyerAnalysis[]
+  risk_factors: PPAMRiskFactor[]
+  projections: PPAMProjection[]
+  summary: Record<string, unknown>
+}
+export const getPowerPurchaseAgreementMarketDashboard = (): Promise<PPAMDashboard> =>
+  get<PPAMDashboard>('/api/power-purchase-agreement-market/dashboard')

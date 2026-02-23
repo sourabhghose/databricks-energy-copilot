@@ -414,6 +414,9 @@ import TransmissionAccessReformAnalytics from './pages/TransmissionAccessReformA
 import HydrogenExportTerminalAnalytics from './pages/HydrogenExportTerminalAnalytics'
 import EnergyRetailerMarginAnalytics from './pages/EnergyRetailerMarginAnalytics'
 import GridEdgeTechnologyXAnalytics from './pages/GridEdgeTechnologyXAnalytics'
+import EvFleetChargingAnalytics from './pages/EvFleetChargingAnalytics'
+import CarbonBorderAdjustmentAnalytics from './pages/CarbonBorderAdjustmentAnalytics'
+import PowerPurchaseAgreementMarketAnalytics from './pages/PowerPurchaseAgreementMarketAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -745,6 +748,9 @@ const NAV_ITEMS = [
   { to: '/hydrogen-export-terminal', label: 'H2 Export Terminal', Icon: Ship },
   { to: '/grid-edge-technology-x', label: 'Grid Edge Technology X', Icon: Cpu },
   { to: '/energy-retailer-margin', label: 'Retailer Margin Analytics', Icon: ShoppingCart },
+  { to: '/ev-fleet-charging', label: 'EV Fleet Charging Infra', Icon: Zap },
+  { to: '/carbon-border-adjustment', label: 'Carbon Border Adjustment', Icon: Globe },
+  { to: '/power-purchase-agreement-market', label: 'PPA Market Analytics', Icon: FileText },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1151,6 +1157,9 @@ export default function App() {
               <Route path="/hydrogen-export-terminal" element={<HydrogenExportTerminalAnalytics />} />
               <Route path="/grid-edge-technology-x" element={<GridEdgeTechnologyXAnalytics />} />
               <Route path="/energy-retailer-margin" element={<EnergyRetailerMarginAnalytics />} />
+              <Route path="/ev-fleet-charging" element={<EvFleetChargingAnalytics />} />
+              <Route path="/carbon-border-adjustment" element={<CarbonBorderAdjustmentAnalytics />} />
+              <Route path="/power-purchase-agreement-market" element={<PowerPurchaseAgreementMarketAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
