@@ -25363,3 +25363,195 @@ export interface EAMADashboard {
 }
 export const getEnergyAssetMaintenanceDashboard = (): Promise<EAMADashboard> =>
   get<EAMADashboard>('/api/energy-asset-maintenance/dashboard')
+
+// ── Coal Seam Gas Analytics (CSGA) ────────────────────────────────────────
+export interface CSGAField {
+  field_id: string
+  field_name: string
+  state: string
+  operator: string
+  proven_reserves_pj: number
+  production_rate_tj_day: number
+  well_count: number
+  water_production_ml_day: number
+  first_production_year: number
+}
+export interface CSGAProductionTrend {
+  field_id: string
+  year: number
+  quarter: number
+  production_pj: number
+  new_wells_drilled: number
+  avg_well_pressure_kpa: number
+  water_to_gas_ratio: number
+}
+export interface CSGAExport {
+  terminal: string
+  year: number
+  lng_exports_mt: number
+  domestic_supply_pj: number
+  spot_price_aud_gj: number
+  contract_price_aud_gj: number
+}
+export interface CSGAWaterManagement {
+  field_id: string
+  year: number
+  produced_water_ml: number
+  treated_water_ml: number
+  reinjected_ml: number
+  beneficial_use_ml: number
+  treatment_cost_aud_ml: number
+}
+export interface CSGAInfrastructure {
+  asset_name: string
+  asset_type: string
+  capacity: number
+  capacity_unit: string
+  utilisation_pct: number
+  capex_m_aud: number
+}
+export interface CSGASummary {
+  total_reserves_pj: number
+  total_production_tj_day: number
+  total_exports_mt_fy: number
+  avg_domestic_price_aud_gj: number
+  total_wells: number
+}
+export interface CSGADashboard {
+  fields: CSGAField[]
+  production_trends: CSGAProductionTrend[]
+  exports: CSGAExport[]
+  water_management: CSGAWaterManagement[]
+  infrastructure: CSGAInfrastructure[]
+  summary: CSGASummary
+}
+export const getCoalSeamGasDashboard = (): Promise<CSGADashboard> =>
+  get<CSGADashboard>('/api/coal-seam-gas/dashboard')
+
+// ── EV Battery Technology Economics Analytics (EBTE) ─────────────────────
+export interface EBTEBatteryChemistry {
+  chemistry: string
+  application: string
+  year: number
+  cost_usd_kwh: number
+  energy_density_wh_kg: number
+  cycle_life: number
+  charge_rate_c: number
+  round_trip_efficiency_pct: number
+}
+export interface EBTEAustraliaFleet {
+  state: string
+  year: number
+  ev_registrations_k: number
+  phev_registrations_k: number
+  market_share_pct: number
+  public_chargers: number
+  fast_chargers_dc: number
+  avg_daily_range_km: number
+}
+export interface EBTEGridImpact {
+  region: string
+  year: number
+  ev_charging_demand_gwh: number
+  v2g_potential_mw: number
+  peak_demand_increase_mw: number
+  smart_charging_offset_mw: number
+  ancillary_services_mw: number
+}
+export interface EBTESupplyChain {
+  material: string
+  country_of_origin: string
+  australia_reserves_pct: number
+  price_usd_tonne: number
+  price_trend: string
+  criticality: string
+}
+export interface EBTERecycling {
+  chemistry: string
+  year: number
+  batteries_recycled_gwh: number
+  recovery_rate_pct: number
+  recycling_cost_usd_kwh: number
+  secondary_material_value_usd_kwh: number
+}
+export interface EBTESummary {
+  total_ev_fleet_australia_k: number
+  avg_battery_cost_usd_kwh: number
+  projected_cost_2030_usd_kwh: number
+  total_grid_charging_demand_gwh: number
+  v2g_potential_total_mw: number
+}
+export interface EBTEDashboard {
+  battery_chemistries: EBTEBatteryChemistry[]
+  australia_fleet: EBTEAustraliaFleet[]
+  grid_impact: EBTEGridImpact[]
+  supply_chain: EBTESupplyChain[]
+  recycling: EBTERecycling[]
+  summary: EBTESummary
+}
+export const getEvBatteryTechnologyDashboard = (): Promise<EBTEDashboard> =>
+  get<EBTEDashboard>('/api/ev-battery-technology/dashboard')
+
+// ── NEM Demand Forecasting Accuracy Analytics (NDFA) ─────────────────────
+export interface NDFAForecastAccuracy {
+  region: string
+  forecast_horizon: string
+  year: number
+  quarter: number
+  mae_mw: number
+  rmse_mw: number
+  mape_pct: number
+  bias_mw: number
+  r_squared: number
+}
+export interface NDFAHourlyProfile {
+  region: string
+  hour_of_day: number
+  season: string
+  actual_demand_mw: number
+  forecast_demand_mw: number
+  error_mw: number
+  error_pct: number
+}
+export interface NDFAModelComparison {
+  model_name: string
+  region: string
+  year: number
+  mae_mw: number
+  rmse_mw: number
+  mape_pct: number
+  training_time_s: number
+  inference_time_ms: number
+}
+export interface NDFAExtremeEventAccuracy {
+  event_type: string
+  region: string
+  event_date: string
+  actual_peak_mw: number
+  forecast_peak_mw: number
+  error_pct: number
+  forecast_horizon_hours: number
+}
+export interface NDFAFeatureImportance {
+  feature_name: string
+  region: string
+  importance_score: number
+  rank: number
+}
+export interface NDFASummary {
+  best_model: string
+  avg_day_ahead_mape_pct: number
+  avg_30min_mae_mw: number
+  worst_performing_region: string
+  extreme_event_avg_error_pct: number
+}
+export interface NDFADashboard {
+  forecast_accuracy: NDFAForecastAccuracy[]
+  hourly_profiles: NDFAHourlyProfile[]
+  model_comparison: NDFAModelComparison[]
+  extreme_events: NDFAExtremeEventAccuracy[]
+  feature_importance: NDFAFeatureImportance[]
+  summary: NDFASummary
+}
+export const getNemDemandForecastingAccuracyDashboard = (): Promise<NDFADashboard> =>
+  get<NDFADashboard>('/api/nem-demand-forecasting-accuracy/dashboard')

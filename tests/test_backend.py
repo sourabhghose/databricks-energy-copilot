@@ -18561,3 +18561,188 @@ class TestEnergyAssetMaintenanceDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCoalSeamGasDashboard:
+    URL = "/api/coal-seam-gas/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["fields", "production_trends", "exports", "water_management", "infrastructure", "summary"]:
+            assert key in data
+
+    def test_fields_count(self):
+        # 9 CSG fields
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["fields"]) == 9
+
+    def test_production_trends_count(self):
+        # 9 fields × 4 years × 4 quarters = 144
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["production_trends"]) == 144
+
+    def test_exports_count(self):
+        # 4 terminals × 4 years = 16
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["exports"]) == 16
+
+    def test_water_management_count(self):
+        # 9 fields × 4 years = 36
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["water_management"]) == 36
+
+    def test_infrastructure_count(self):
+        # 8 infrastructure assets
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["infrastructure"]) == 8
+
+    def test_summary_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        summary = r.json()["summary"]
+        assert "total_reserves_pj" in summary
+        assert "total_production_tj_day" in summary
+        assert "total_exports_mt_fy" in summary
+        assert "avg_domestic_price_aud_gj" in summary
+        assert "total_wells" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestEvBatteryTechnologyDashboard:
+    URL = "/api/ev-battery-technology/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "battery_chemistries" in data
+        assert "australia_fleet" in data
+        assert "grid_impact" in data
+        assert "supply_chain" in data
+        assert "recycling" in data
+        assert "summary" in data
+
+    def test_battery_chemistries_count(self):
+        # 6 chemistries × 4 applications × 4 years = 96
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["battery_chemistries"]) == 96
+
+    def test_australia_fleet_count(self):
+        # 6 states × 4 years = 24
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["australia_fleet"]) == 24
+
+    def test_grid_impact_count(self):
+        # 5 regions × 5 years = 25
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["grid_impact"]) == 25
+
+    def test_supply_chain_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["supply_chain"]) == 6
+
+    def test_recycling_count(self):
+        # 6 chemistries × 4 years = 24
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["recycling"]) == 24
+
+    def test_summary_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_ev_fleet_australia_k" in summary
+        assert "avg_battery_cost_usd_kwh" in summary
+        assert "projected_cost_2030_usd_kwh" in summary
+        assert "total_grid_charging_demand_gwh" in summary
+        assert "v2g_potential_total_mw" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestNemDemandForecastingAccuracyDashboard:
+    URL = "/api/nem-demand-forecasting-accuracy/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["forecast_accuracy", "hourly_profiles", "model_comparison", "extreme_events", "feature_importance", "summary"]:
+            assert key in data
+
+    def test_forecast_accuracy_count(self):
+        # 5 regions × 5 horizons × 3 years × 4 quarters = 300
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["forecast_accuracy"]) == 300
+
+    def test_hourly_profiles_count(self):
+        # 5 regions × 24 hours × 4 seasons = 480
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["hourly_profiles"]) == 480
+
+    def test_model_comparison_count(self):
+        # 5 models × 5 regions × 3 years = 75
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["model_comparison"]) == 75
+
+    def test_extreme_events_count(self):
+        # 5 event types × 5 regions = 25
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["extreme_events"]) == 25
+
+    def test_feature_importance_count(self):
+        # 7 features × 5 regions = 35
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["feature_importance"]) == 35
+
+    def test_summary_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "best_model" in summary
+        assert "avg_day_ahead_mape_pct" in summary
+        assert "avg_30min_mae_mw" in summary
+        assert "worst_performing_region" in summary
+        assert "extreme_event_avg_error_pct" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
