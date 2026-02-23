@@ -18925,3 +18925,205 @@ class TestRezCapacityFactorDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestEnergyRetailerHedgingDashboard
+# ===========================================================================
+
+class TestEnergyRetailerHedgingDashboard:
+    """Tests for GET /api/energy-retailer-hedging/dashboard (Sprint 134a ERHA)."""
+
+    URL = "/api/energy-retailer-hedging/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_returns_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "hedge_book" in data
+        assert "counterparty_exposure" in data
+        assert "hedging_costs" in data
+        assert "volatility_metrics" in data
+        assert "stress_tests" in data
+        assert "summary" in data
+
+    def test_hedge_book_count(self):
+        # 5 retailers × 4 regions × 3 years × 4 quarters = 240
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["hedge_book"]) == 240
+
+    def test_counterparty_exposure_count(self):
+        # 5 retailers × 4 counterparties each = 20
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["counterparty_exposure"]) == 20
+
+    def test_hedging_costs_count(self):
+        # 5 retailers × 4 regions × 3 years = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["hedging_costs"]) == 60
+
+    def test_volatility_metrics_count(self):
+        # 4 regions × 3 years × 4 quarters = 48
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["volatility_metrics"]) == 48
+
+    def test_stress_tests_count(self):
+        # 5 retailers × 6 scenarios × 4 regions = 120
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stress_tests"]) == 120
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_hedge_book_value_m" in summary
+        assert "avg_hedge_ratio_pct" in summary
+        assert "total_counterparty_exposure_m" in summary
+        assert "avg_hedging_cost_aud_mwh" in summary
+        assert "max_var_95_m" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+# ===========================================================================
+# Sprint 134c — Gas Power Plant Flexibility Analytics (GPFA)
+# ===========================================================================
+
+class TestGasPowerPlantFlexibilityDashboard:
+    URL = "/api/gas-power-plant-flexibility/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("plants", "dispatch", "flexibility_services", "maintenance_costs", "future_plans", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_plants_count(self):
+        # 10 plants
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["plants"]) == 10
+
+    def test_dispatch_count(self):
+        # 10 plants x 4 years x 4 quarters = 160
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["dispatch"]) == 160
+
+    def test_flexibility_services_count(self):
+        # 10 plants x 5 service types x 3 years = 150
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["flexibility_services"]) == 150
+
+    def test_maintenance_costs_count(self):
+        # 10 plants x 4 years = 40
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["maintenance_costs"]) == 40
+
+    def test_future_plans_count(self):
+        # 10 plants x 3 scenarios x 3 years = 90
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["future_plans"]) == 90
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_gas_capacity_mw" in summary
+        assert "avg_ramp_rate_mw_min" in summary
+        assert "total_fcas_revenue_m" in summary
+        assert "avg_capacity_factor_pct" in summary
+        assert "fastest_start_plant" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestSolarIrradianceResourceDashboard
+# ===========================================================================
+
+class TestSolarIrradianceResourceDashboard:
+    """Tests for GET /api/solar-irradiance-resource/dashboard (SIRA)."""
+
+    URL = "/api/solar-irradiance-resource/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("stations", "monthly_data", "performance_ratios", "extreme_events", "forecasts", "summary"):
+            assert key in data
+
+    def test_stations_count(self):
+        # 12 BOM stations
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stations"]) == 12
+
+    def test_monthly_data_count(self):
+        # 12 stations × 3 years × 12 months = 432
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["monthly_data"]) == 432
+
+    def test_performance_ratios_count(self):
+        # 12 stations × 3 years × 5 system types = 180
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["performance_ratios"]) == 180
+
+    def test_extreme_events_count(self):
+        # 25 events generated
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["extreme_events"]) == 25
+
+    def test_forecasts_count(self):
+        # 12 stations × 3 horizons × 3 years = 108
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["forecasts"]) == 108
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "best_resource_state" in summary
+        assert "avg_annual_ghi_kwh_m2" in summary
+        assert "max_daily_ghi_kwh_m2" in summary
+        assert "avg_performance_ratio_pct" in summary
+        assert "best_specific_yield_kwh_kwp" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

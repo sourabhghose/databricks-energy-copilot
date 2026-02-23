@@ -457,6 +457,9 @@ import NemDemandForecastingAccuracyAnalytics from './pages/NemDemandForecastingA
 import PowerSystemInertiaAnalytics from './pages/PowerSystemInertiaAnalytics'
 import ElectricityNetworkInvestmentDeferralAnalytics from './pages/ElectricityNetworkInvestmentDeferralAnalytics'
 import RezCapacityFactorAnalytics from './pages/RezCapacityFactorAnalytics'
+import EnergyRetailerHedgingAnalytics from './pages/EnergyRetailerHedgingAnalytics'
+import GasPowerPlantFlexibilityAnalytics from './pages/GasPowerPlantFlexibilityAnalytics'
+import SolarIrradianceResourceAnalytics from './pages/SolarIrradianceResourceAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -827,6 +830,9 @@ const NAV_ITEMS = [
   { to: '/power-system-inertia', label: 'System Inertia', Icon: Activity },
   { to: '/electricity-network-investment-deferral', label: 'Network Deferral', Icon: PauseCircle },
   { to: '/rez-capacity-factor', label: 'REZ Capacity Factors', Icon: Wind },
+  { to: '/energy-retailer-hedging', label: 'Retailer Hedging', Icon: Shield },
+  { to: '/gas-power-plant-flexibility', label: 'Gas Plant Flexibility', Icon: Flame },
+  { to: '/solar-irradiance-resource', label: 'Solar Irradiance Resource', Icon: Sun },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1272,6 +1278,9 @@ export default function App() {
               <Route path="/power-system-inertia" element={<PowerSystemInertiaAnalytics />} />
               <Route path="/electricity-network-investment-deferral" element={<ElectricityNetworkInvestmentDeferralAnalytics />} />
               <Route path="/rez-capacity-factor" element={<RezCapacityFactorAnalytics />} />
+              <Route path="/energy-retailer-hedging" element={<EnergyRetailerHedgingAnalytics />} />
+              <Route path="/gas-power-plant-flexibility" element={<GasPowerPlantFlexibilityAnalytics />} />
+              <Route path="/solar-irradiance-resource" element={<SolarIrradianceResourceAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

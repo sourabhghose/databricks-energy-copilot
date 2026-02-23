@@ -25760,3 +25760,208 @@ export interface REZCDashboard {
 }
 export const getRezCapacityFactorDashboard = (): Promise<REZCDashboard> =>
   get<REZCDashboard>('/api/rez-capacity-factor/dashboard')
+
+// ── Energy Retailer Hedging Analytics (ERHA) ──────────────────────────────
+export interface ERHAHedgeBook {
+  retailer: string
+  region: string
+  contract_type: string
+  year: number
+  quarter: number
+  hedge_volume_gwh: number
+  hedge_price_aud_mwh: number
+  market_price_aud_mwh: number
+  mtm_value_m: number
+  hedge_ratio_pct: number
+}
+export interface ERHACounterpartyExposure {
+  retailer: string
+  counterparty: string
+  contract_type: string
+  notional_value_m: number
+  credit_rating: string
+  exposure_m: number
+  collateral_posted_m: number
+}
+export interface ERHAHedgingCost {
+  retailer: string
+  region: string
+  year: number
+  total_premium_m: number
+  realized_pnl_m: number
+  unrealized_pnl_m: number
+  hedging_cost_aud_mwh: number
+}
+export interface ERHAVolatilityMetric {
+  region: string
+  year: number
+  quarter: number
+  spot_price_volatility_pct: number
+  implied_vol_cap_pct: number
+  hist_vol_30d_pct: number
+  var_95_m: number
+}
+export interface ERHAStressTest {
+  retailer: string
+  scenario: string
+  region: string
+  pnl_impact_m: number
+  hedge_effectiveness_pct: number
+}
+export interface ERHASummary {
+  total_hedge_book_value_m: number
+  avg_hedge_ratio_pct: number
+  total_counterparty_exposure_m: number
+  avg_hedging_cost_aud_mwh: number
+  max_var_95_m: number
+}
+export interface ERHADashboard {
+  hedge_book: ERHAHedgeBook[]
+  counterparty_exposure: ERHACounterpartyExposure[]
+  hedging_costs: ERHAHedgingCost[]
+  volatility_metrics: ERHAVolatilityMetric[]
+  stress_tests: ERHAStressTest[]
+  summary: ERHASummary
+}
+export const getEnergyRetailerHedgingDashboard = (): Promise<ERHADashboard> =>
+  get<ERHADashboard>('/api/energy-retailer-hedging/dashboard')
+
+// ── Gas Power Plant Flexibility Analytics (GPFA) ─────────────────────────
+export interface GPFAPlant {
+  plant_id: string
+  plant_name: string
+  region: string
+  technology: string
+  capacity_mw: number
+  min_stable_load_mw: number
+  ramp_rate_mw_min: number
+  start_time_cold_min: number
+  start_time_hot_min: number
+  fuel_type: string
+  heat_rate_gj_mwh: number
+}
+export interface GPFADispatch {
+  plant_id: string
+  year: number
+  quarter: number
+  capacity_factor_pct: number
+  starts_per_quarter: number
+  avg_run_duration_hours: number
+  peaking_hours: number
+  cycling_events: number
+  fuel_cost_aud_mwh: number
+  carbon_intensity_tco2_mwh: number
+}
+export interface GPFAFlexibilityService {
+  plant_id: string
+  service_type: string
+  year: number
+  revenue_m: number
+  availability_pct: number
+  response_time_s: number
+  contracted_mw: number
+}
+export interface GPFAMaintenanceCost {
+  plant_id: string
+  year: number
+  starts_major: number
+  starts_minor: number
+  hot_section_cost_m: number
+  ltsa_cost_m: number
+  total_maintenance_m: number
+  equivalent_operating_hours: number
+}
+export interface GPFAFuturePlan {
+  plant_id: string
+  scenario: string
+  year: number
+  capacity_factor_pct: number
+  annual_revenue_m: number
+  role: string
+}
+export interface GPFASummary {
+  total_gas_capacity_mw: number
+  avg_ramp_rate_mw_min: number
+  total_fcas_revenue_m: number
+  avg_capacity_factor_pct: number
+  fastest_start_plant: string
+}
+export interface GPFADashboard {
+  plants: GPFAPlant[]
+  dispatch: GPFADispatch[]
+  flexibility_services: GPFAFlexibilityService[]
+  maintenance_costs: GPFAMaintenanceCost[]
+  future_plans: GPFAFuturePlan[]
+  summary: GPFASummary
+}
+export const getGasPowerPlantFlexibilityDashboard = (): Promise<GPFADashboard> =>
+  get<GPFADashboard>('/api/gas-power-plant-flexibility/dashboard')
+
+// ── Solar Irradiance Resource Analytics (SIRA) ───────────────────────────
+export interface SIRAStation {
+  station_id: string
+  station_name: string
+  state: string
+  latitude: number
+  longitude: number
+  elevation_m: number
+  climate_zone: string
+  annual_ghi_kwh_m2: number
+  annual_dni_kwh_m2: number
+  annual_dhi_kwh_m2: number
+}
+export interface SIRAMonthlyData {
+  station_id: string
+  year: number
+  month: number
+  ghi_kwh_m2: number
+  dni_kwh_m2: number
+  dhi_kwh_m2: number
+  sunshine_hours: number
+  cloud_cover_pct: number
+  uv_index: number
+  temperature_c: number
+}
+export interface SIRAPerformanceRatio {
+  station_id: string
+  year: number
+  system_type: string
+  performance_ratio_pct: number
+  yield_kwh_kwp: number
+  degradation_pct_pa: number
+  soiling_loss_pct: number
+}
+export interface SIRAExtremeEvent {
+  station_id: string
+  event_type: string
+  event_date: string
+  duration_hours: number
+  irradiance_reduction_pct: number
+  energy_loss_kwh_m2: number
+}
+export interface SIRAForecast {
+  station_id: string
+  forecast_horizon: string
+  year: number
+  mae_kwh_m2: number
+  rmse_kwh_m2: number
+  skill_score_pct: number
+  model_used: string
+}
+export interface SIRASummary {
+  best_resource_state: string
+  avg_annual_ghi_kwh_m2: number
+  max_daily_ghi_kwh_m2: number
+  avg_performance_ratio_pct: number
+  best_specific_yield_kwh_kwp: number
+}
+export interface SIRADashboard {
+  stations: SIRAStation[]
+  monthly_data: SIRAMonthlyData[]
+  performance_ratios: SIRAPerformanceRatio[]
+  extreme_events: SIRAExtremeEvent[]
+  forecasts: SIRAForecast[]
+  summary: SIRASummary
+}
+export const getSolarIrradianceResourceDashboard = (): Promise<SIRADashboard> =>
+  get<SIRADashboard>('/api/solar-irradiance-resource/dashboard')
