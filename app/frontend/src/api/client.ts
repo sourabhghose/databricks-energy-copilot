@@ -25965,3 +25965,217 @@ export interface SIRADashboard {
 }
 export const getSolarIrradianceResourceDashboard = (): Promise<SIRADashboard> =>
   get<SIRADashboard>('/api/solar-irradiance-resource/dashboard')
+
+// ── Electricity Price Cap Intervention Analytics (EPCI) ───────────────────
+export interface EPCIPriceCapEvent {
+  event_id: string
+  region: string
+  year: number
+  month: number
+  day: number
+  trigger_type: string
+  dispatch_intervals_at_cap: number
+  cumulative_price_threshold_mwh: number
+  spot_price_avg_aud_mwh: number
+  administered_price_aud_mwh: number
+  duration_hours: number
+  load_shed_mw: number
+}
+export interface EPCIMarketImpact {
+  region: string
+  year: number
+  quarter: number
+  cap_events_count: number
+  total_hours_at_cap: number
+  revenue_loss_generators_m: number
+  consumer_savings_m: number
+  spot_market_volume_gwh: number
+  pct_intervals_at_cap: number
+}
+export interface EPCIGeneratorResponse {
+  generator: string
+  region: string
+  year: number
+  capacity_withheld_mw: number
+  rebid_events: number
+  forced_dispatch_mw: number
+  revenue_impact_m: number
+}
+export interface EPCIThresholdTracker {
+  region: string
+  year: number
+  month: number
+  cumulative_price_atd: number
+  threshold_level: number
+  days_to_threshold: number
+  breach_probability_pct: number
+}
+export interface EPCIRemedyAction {
+  action_id: string
+  region: string
+  action_date: string
+  action_type: string
+  capacity_mw: number
+  cost_m: number
+  outcome: string
+}
+export interface EPCISummary {
+  total_cap_events_fy: number
+  total_hours_at_cap_fy: number
+  max_administered_price_aud_mwh: number
+  total_consumer_savings_m: number
+  most_affected_region: string
+}
+export interface EPCIDashboard {
+  price_cap_events: EPCIPriceCapEvent[]
+  market_impact: EPCIMarketImpact[]
+  generator_response: EPCIGeneratorResponse[]
+  threshold_tracker: EPCIThresholdTracker[]
+  remedy_actions: EPCIRemedyAction[]
+  summary: EPCISummary
+}
+export const getElectricityPriceCapInterventionDashboard = (): Promise<EPCIDashboard> =>
+  get<EPCIDashboard>('/api/electricity-price-cap-intervention/dashboard')
+
+// ── Biogas Landfill Gas Analytics (BLGA) ─────────────────────────────────
+export interface BLGASite {
+  site_id: string
+  site_name: string
+  state: string
+  region: string
+  site_type: string
+  operator: string
+  installed_capacity_mw: number
+  annual_generation_gwh: number
+  gas_capture_rate_pct: number
+  methane_concentration_pct: number
+  commissioning_year: number
+  lgc_accredited: boolean
+}
+export interface BLGAProduction {
+  site_id: string
+  year: number
+  quarter: number
+  gas_captured_tj: number
+  electricity_generated_gwh: number
+  heat_recovered_tj: number
+  methane_destroyed_tj: number
+  capture_efficiency_pct: number
+}
+export interface BLGAEmissionReduction {
+  site_id: string
+  year: number
+  methane_captured_kt: number
+  co2e_abated_kt: number
+  lgcs_created: number
+  accu_earned: number
+  carbon_credit_revenue_m: number
+}
+export interface BLGAEconomics {
+  site_id: string
+  year: number
+  electricity_revenue_m: number
+  lgc_revenue_m: number
+  carbon_credit_revenue_m: number
+  operating_cost_m: number
+  capex_remaining_m: number
+  npv_m: number
+}
+export interface BLGAGasQuality {
+  site_id: string
+  year: number
+  quarter: number
+  ch4_pct: number
+  co2_pct: number
+  h2s_ppm: number
+  siloxane_mg_m3: number
+  moisture_pct: number
+  calorific_value_mj_m3: number
+}
+export interface BLGASummary {
+  total_installed_mw: number
+  total_generation_gwh_fy: number
+  total_co2e_abated_kt_fy: number
+  total_lgcs_fy: number
+  avg_capture_efficiency_pct: number
+}
+export interface BLGADashboard {
+  sites: BLGASite[]
+  production: BLGAProduction[]
+  emission_reductions: BLGAEmissionReduction[]
+  economics: BLGAEconomics[]
+  gas_quality: BLGAGasQuality[]
+  summary: BLGASummary
+}
+export const getBiogasLandfillDashboard = (): Promise<BLGADashboard> =>
+  get<BLGADashboard>('/api/biogas-landfill/dashboard')
+
+// ── Wind Resource Variability Analytics (WRVA) ───────────────────────────
+export interface WRVASite {
+  site_id: string
+  site_name: string
+  state: string
+  region: string
+  latitude: number
+  longitude: number
+  hub_height_m: number
+  installed_capacity_mw: number
+  turbine_model: string
+  avg_wind_speed_m_s: number
+  weibull_k: number
+  weibull_c: number
+}
+export interface WRVAWindData {
+  site_id: string
+  year: number
+  month: number
+  avg_wind_speed_m_s: number
+  p10_wind_speed: number
+  p90_wind_speed: number
+  capacity_factor_pct: number
+  low_wind_hours: number
+  high_wind_hours: number
+  turbulence_intensity: number
+}
+export interface WRVACorrelation {
+  site_a: string
+  site_b: string
+  correlation_coefficient: number
+  distance_km: number
+  same_weather_system_pct: number
+}
+export interface WRVARampEvent {
+  site_id: string
+  event_date: string
+  ramp_type: string
+  magnitude_mw: number
+  duration_minutes: number
+  rate_mw_min: number
+  trigger: string
+}
+export interface WRVASeasonalPattern {
+  site_id: string
+  season: string
+  avg_cf_pct: number
+  p10_cf_pct: number
+  p90_cf_pct: number
+  calm_days_count: number
+  storm_days_count: number
+}
+export interface WRVASummary {
+  total_wind_capacity_mw: number
+  avg_portfolio_cf_pct: number
+  best_wind_site: string
+  highest_correlation_pair: string
+  annual_ramp_events: number
+}
+export interface WRVADashboard {
+  sites: WRVASite[]
+  wind_data: WRVAWindData[]
+  correlations: WRVACorrelation[]
+  ramp_events: WRVARampEvent[]
+  seasonal_patterns: WRVASeasonalPattern[]
+  summary: WRVASummary
+}
+export const getWindResourceVariabilityDashboard = (): Promise<WRVADashboard> =>
+  get<WRVADashboard>('/api/wind-resource-variability/dashboard')

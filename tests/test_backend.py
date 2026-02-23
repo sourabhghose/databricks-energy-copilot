@@ -19127,3 +19127,189 @@ class TestSolarIrradianceResourceDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityPriceCapInterventionDashboard:
+    URL = "/api/electricity-price-cap-intervention/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "price_cap_events" in data
+        assert "market_impact" in data
+        assert "generator_response" in data
+        assert "threshold_tracker" in data
+        assert "remedy_actions" in data
+        assert "summary" in data
+
+    def test_price_cap_events_count(self):
+        # 35 events generated
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_cap_events"]) == 35
+
+    def test_market_impact_count(self):
+        # 5 regions × 4 years × 4 quarters = 80
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_impact"]) == 80
+
+    def test_generator_response_count(self):
+        # 6 generators × 3 years = 18
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["generator_response"]) == 18
+
+    def test_threshold_tracker_count(self):
+        # 5 regions × 3 years × 12 months = 180
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["threshold_tracker"]) == 180
+
+    def test_remedy_actions_count(self):
+        # 25 actions generated
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["remedy_actions"]) == 25
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_cap_events_fy" in summary
+        assert "total_hours_at_cap_fy" in summary
+        assert "max_administered_price_aud_mwh" in summary
+        assert "total_consumer_savings_m" in summary
+        assert "most_affected_region" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestBiogasLandfillDashboard:
+    URL = "/api/biogas-landfill/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["sites", "production", "emission_reductions", "economics", "gas_quality", "summary"]:
+            assert key in data
+
+    def test_sites_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["sites"]) == 10
+
+    def test_production_count(self):
+        # 10 sites × 4 years × 4 quarters = 160
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["production"]) == 160
+
+    def test_emission_reductions_count(self):
+        # 10 sites × 4 years = 40
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["emission_reductions"]) == 40
+
+    def test_economics_count(self):
+        # 10 sites × 4 years = 40
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["economics"]) == 40
+
+    def test_gas_quality_count(self):
+        # 10 sites × 3 years × 4 quarters = 120
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["gas_quality"]) == 120
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_installed_mw" in summary
+        assert "total_generation_gwh_fy" in summary
+        assert "total_co2e_abated_kt_fy" in summary
+        assert "total_lgcs_fy" in summary
+        assert "avg_capture_efficiency_pct" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ── Sprint 135b — Wind Resource Variability Analytics (WRVA) ─────────────
+
+class TestWindResourceVariabilityDashboard:
+    URL = "/api/wind-resource-variability/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ["sites", "wind_data", "correlations", "ramp_events", "seasonal_patterns", "summary"]:
+            assert key in data
+
+    def test_sites_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["sites"]) == 8
+
+    def test_wind_data_count(self):
+        # 8 sites × 4 years × 12 months = 384
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["wind_data"]) == 384
+
+    def test_correlations_count(self):
+        # 8 choose 2 = 28
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["correlations"]) == 28
+
+    def test_ramp_events_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["ramp_events"]) == 40
+
+    def test_seasonal_patterns_count(self):
+        # 8 sites × 4 seasons = 32
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["seasonal_patterns"]) == 32
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_wind_capacity_mw" in summary
+        assert "avg_portfolio_cf_pct" in summary
+        assert "best_wind_site" in summary
+        assert "highest_correlation_pair" in summary
+        assert "annual_ramp_events" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
