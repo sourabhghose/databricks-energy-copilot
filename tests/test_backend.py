@@ -17822,3 +17822,182 @@ class TestElectricityMarketPriceFormationDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ============================================================
+# Sprint 128a — Grid Modernisation & Digital Twin Analytics (GMDT)
+# ============================================================
+
+class TestGridModernisationDigitalTwinDashboard:
+    URL = "/api/grid-modernisation-digital-twin/dashboard"
+    HEADERS = {"x-api-key": API_KEY}
+
+    def test_status_ok(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_requires_auth(self, client=client):
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403)
+
+    def test_initiatives_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["initiatives"]) == 30
+
+    def test_sensors_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["sensors"]) == 40
+
+    def test_fault_detection_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["fault_detection"]) == 25
+
+    def test_cyber_security_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cyber_security"]) == 25
+
+    def test_data_platforms_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["data_platforms"]) == 25
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_modernisation_investment_b" in summary
+        assert "avg_reliability_improvement_pct" in summary
+        assert "total_predicted_faults" in summary
+        assert "top_technology" in summary
+        assert "cyber_incidents_prevented" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestRezAuctionCisDashboard
+# ===========================================================================
+
+class TestRezAuctionCisDashboard:
+    """9 tests for GET /api/rez-auction-cis/dashboard (REZA)."""
+
+    URL = "/api/rez-auction-cis/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("auctions", "zone_capacity", "bid_characteristics", "grid_impacts", "developer_pipeline", "summary"):
+            assert key in data
+
+    def test_auctions_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["auctions"]) == 30
+
+    def test_zone_capacity_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["zone_capacity"]) == 15
+
+    def test_bid_characteristics_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["bid_characteristics"]) == 16
+
+    def test_grid_impacts_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["grid_impacts"]) == 55
+
+    def test_developer_pipeline_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["developer_pipeline"]) == 15
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_awarded_gw" in summary
+        assert "avg_strike_price" in summary
+        assert "oversubscribed_rounds" in summary
+        assert "total_consumer_savings_m" in summary
+        assert "leading_developer" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestEnergyMarketCreditRiskDashboard
+# ===========================================================================
+
+class TestEnergyMarketCreditRiskDashboard:
+    """9 tests for GET /api/energy-market-credit-risk-x/dashboard (EMCRX)."""
+
+    URL = "/api/energy-market-credit-risk-x/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("participants", "exposures", "default_history", "prudential_metrics", "stress_tests", "summary"):
+            assert key in data
+
+    def test_participants_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["participants"]) == 20
+
+    def test_exposures_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["exposures"]) == 40
+
+    def test_default_history_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["default_history"]) == 25
+
+    def test_prudential_metrics_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["prudential_metrics"]) == 40
+
+    def test_stress_tests_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stress_tests"]) == 20
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_market_exposure_m" in summary
+        assert "avg_collateral_coverage_pct" in summary
+        assert "highest_risk_participant" in summary
+        assert "stress_test_max_default_m" in summary
+        assert "breach_events_ytd" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

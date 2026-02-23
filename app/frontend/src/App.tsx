@@ -437,6 +437,9 @@ import EnergyStorageDispatchOptimisationAnalytics from './pages/EnergyStorageDis
 import OffshoreWindProjectFinanceAnalytics from './pages/OffshoreWindProjectFinanceAnalytics'
 import NationalEnergyMarketReformAnalytics from './pages/NationalEnergyMarketReformAnalytics'
 import ElectricityMarketPriceFormationAnalytics from './pages/ElectricityMarketPriceFormationAnalytics'
+import RezAuctionCisAnalytics from './pages/RezAuctionCisAnalytics'
+import GridModernisationDigitalTwinAnalytics from './pages/GridModernisationDigitalTwinAnalytics'
+import EnergyMarketCreditRiskAnalytics from './pages/EnergyMarketCreditRiskAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -789,6 +792,9 @@ const NAV_ITEMS = [
   { to: '/offshore-wind-project-finance', label: 'Offshore Wind Project Finance', Icon: Anchor },
   { to: '/national-energy-market-reform', label: 'NEM Reform Impact Analytics', Icon: BookOpen },
   { to: '/electricity-market-price-formation', label: 'Electricity Market Price Formation', Icon: DollarSign },
+  { to: '/rez-auction-cis', label: 'REZ Auction & CIS Analytics', Icon: MapPin },
+  { to: '/grid-modernisation-digital-twin', label: 'Grid Modernisation & Digital Twin', Icon: Monitor },
+  { to: '/energy-market-credit-risk', label: 'Energy Market Participant Credit Risk', Icon: AlertTriangle },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1216,6 +1222,9 @@ export default function App() {
               <Route path="/offshore-wind-project-finance" element={<OffshoreWindProjectFinanceAnalytics />} />
               <Route path="/national-energy-market-reform" element={<NationalEnergyMarketReformAnalytics />} />
               <Route path="/electricity-market-price-formation" element={<ElectricityMarketPriceFormationAnalytics />} />
+              <Route path="/rez-auction-cis" element={<RezAuctionCisAnalytics />} />
+              <Route path="/grid-modernisation-digital-twin" element={<GridModernisationDigitalTwinAnalytics />} />
+              <Route path="/energy-market-credit-risk" element={<EnergyMarketCreditRiskAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

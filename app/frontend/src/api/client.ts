@@ -24537,3 +24537,221 @@ export interface EMPFDashboard {
 
 export const getElectricityMarketPriceFormationDashboard = (): Promise<EMPFDashboard> =>
   get<EMPFDashboard>('/api/electricity-market-price-formation/dashboard')
+
+// ============================================================
+// Sprint 128a — Grid Modernisation & Digital Twin Analytics (GMDT)
+// ============================================================
+
+export interface GMDTInitiative {
+  initiative_name: string
+  network_business: string
+  technology: string
+  investment_m: number
+  status: string
+  deployment_year: number
+  coverage_pct: number
+  reliability_improvement_pct: number
+  opex_savings_m: number
+  payback_years: number
+}
+
+export interface GMDTSensorData {
+  sensor_type: string
+  network_business: string
+  region: string
+  deployed_count_k: number
+  data_points_per_day_m: number
+  connectivity_pct: number
+  maintenance_alerts_per_month: number
+  false_positive_rate_pct: number
+}
+
+export interface GMDTFaultDetection {
+  network_business: string
+  year: number
+  total_faults: number
+  predicted_faults: number
+  prediction_accuracy_pct: number
+  avg_detection_lead_time_hr: number
+  prevented_outage_customer_min: number
+  cost_savings_m: number
+}
+
+export interface GMDTCyberSecurity {
+  threat_category: string
+  region: string
+  year: number
+  incidents_detected: number
+  incidents_prevented: number
+  mean_time_to_detect_hr: number
+  security_investment_m: number
+  compliance_score_pct: number
+}
+
+export interface GMDTDataPlatform {
+  platform_type: string
+  network_business: string
+  vendor: string
+  investment_m: number
+  data_volume_tb_per_day: number
+  latency_ms: number
+  uptime_pct: number
+  integration_systems: number
+}
+
+export interface GMDTDashboard {
+  initiatives: GMDTInitiative[]
+  sensors: GMDTSensorData[]
+  fault_detection: GMDTFaultDetection[]
+  cyber_security: GMDTCyberSecurity[]
+  data_platforms: GMDTDataPlatform[]
+  summary: Record<string, unknown>
+}
+
+export const getGridModernisationDigitalTwinDashboard = (): Promise<GMDTDashboard> =>
+  get<GMDTDashboard>('/api/grid-modernisation-digital-twin/dashboard')
+
+// ---------------------------------------------------------------------------
+// Renewable Energy Zone Auction & CIS Analytics (REZA) — Sprint 128b
+// ---------------------------------------------------------------------------
+
+export interface REZAAuctionRecord {
+  auction_name: string
+  zone: string
+  state: string
+  technology: string
+  capacity_awarded_mw: number
+  strike_price_per_mwh: number
+  auction_date: string
+  bids_received: number
+  oversubscription_ratio: number
+  contract_length_years: number
+  developer: string
+  status: string
+}
+
+export interface REZAZoneCapacity {
+  zone: string
+  state: string
+  total_zone_capacity_gw: number
+  awarded_gw: number
+  under_construction_gw: number
+  operating_gw: number
+  pipeline_gw: number
+  network_augmentation_needed_m: number
+  connection_queue_projects: number
+}
+
+export interface REZABidCharacteristic {
+  auction_round: string
+  technology: string
+  avg_bid_price: number
+  min_bid_price: number
+  max_bid_price: number
+  total_bids_gw: number
+  capacity_factor_assumption_pct: number
+  assumed_hybrid_battery_hr: number
+}
+
+export interface REZAGridImpact {
+  zone: string
+  year: number
+  scenario: string
+  generation_twh: number
+  curtailment_pct: number
+  transmission_congestion_cost_m: number
+  consumer_savings_m: number
+  firming_requirement_gw: number
+}
+
+export interface REZADeveloperPipeline {
+  developer: string
+  total_pipeline_gw: number
+  awarded_gw: number
+  preferred_technology: string
+  preferred_state: string
+  avg_project_size_mw: number
+  capital_committed_b: number
+  target_cod_year: number
+}
+
+export interface REZADashboard {
+  auctions: REZAAuctionRecord[]
+  zone_capacity: REZAZoneCapacity[]
+  bid_characteristics: REZABidCharacteristic[]
+  grid_impacts: REZAGridImpact[]
+  developer_pipeline: REZADeveloperPipeline[]
+  summary: Record<string, unknown>
+}
+
+export const getRezAuctionCisDashboard = (): Promise<REZADashboard> =>
+  get<REZADashboard>('/api/rez-auction-cis/dashboard')
+
+// ============================================================
+// Sprint 128c — Energy Market Participant Credit Risk Analytics (EMCRX)
+// ============================================================
+
+export interface EMCRXParticipantRecord {
+  participant_name: string
+  participant_type: string
+  credit_rating: string
+  credit_outlook: string
+  prudential_requirement_m: number
+  credit_support_lodged_m: number
+  net_market_exposure_m: number
+  leverage_ratio_pct: number
+  interest_coverage: number
+}
+
+export interface EMCRXExposureRecord {
+  quarter: string
+  region: string
+  participant_type: string
+  total_market_exposure_m: number
+  unsecured_exposure_m: number
+  collateral_coverage_pct: number
+  largest_single_exposure_m: number
+  concentration_risk_score: number
+}
+
+export interface EMCRXDefaultHistory {
+  year: number
+  event_type: string
+  participant_type: string
+  default_amount_m: number
+  recovery_pct: number
+  days_to_resolution: number
+  aemo_intervention: boolean
+}
+
+export interface EMCRXPrudentialMetric {
+  metric_name: string
+  region: string
+  quarter: string
+  avg_value: number
+  threshold_value: number
+  breach_count: number
+  trend: string
+}
+
+export interface EMCRXStressTest {
+  scenario: string
+  region: string
+  total_exposure_m: number
+  potential_default_m: number
+  systemic_risk_score: number
+  recovery_fund_adequacy_pct: number
+  mitigation_available: boolean
+}
+
+export interface EMCRXDashboard {
+  participants: EMCRXParticipantRecord[]
+  exposures: EMCRXExposureRecord[]
+  default_history: EMCRXDefaultHistory[]
+  prudential_metrics: EMCRXPrudentialMetric[]
+  stress_tests: EMCRXStressTest[]
+  summary: Record<string, unknown>
+}
+
+export const getEnergyMarketCreditRiskDashboard = (): Promise<EMCRXDashboard> =>
+  get<EMCRXDashboard>('/api/energy-market-credit-risk-x/dashboard')
