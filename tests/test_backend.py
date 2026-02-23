@@ -18180,3 +18180,186 @@ class TestDemandResponseAggregatorDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestEnergyCommodityTradingDashboard
+# ===========================================================================
+
+class TestEnergyCommodityTradingDashboard:
+    """9 tests for GET /api/energy-commodity-trading/dashboard (ECTA)."""
+
+    URL = "/api/energy-commodity-trading/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("positions", "trades", "pnl", "risk_metrics", "market_structure", "summary"):
+            assert key in data
+
+    def test_positions_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["positions"]) == 25
+
+    def test_trades_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["trades"]) == 30
+
+    def test_pnl_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["pnl"]) == 60
+
+    def test_risk_metrics_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["risk_metrics"]) == 40
+
+    def test_market_structure_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_structure"]) == 30
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_position_mw" in summary
+        assert "total_var_m" in summary
+        assert "best_performing_desk" in summary
+        assert "total_trading_pnl_m" in summary
+        assert "highest_risk_region" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestNetworkTariffDesignReformDashboard
+# ===========================================================================
+
+class TestNetworkTariffDesignReformDashboard:
+    """9 tests for GET /api/network-tariff-design-reform/dashboard (NTDR)."""
+
+    URL = "/api/network-tariff-design-reform/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("tariffs", "bill_impacts", "cost_reflectivity", "reform_options", "export_tariffs", "summary"):
+            assert key in data
+
+    def test_tariffs_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["tariffs"]) == 35
+
+    def test_bill_impacts_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["bill_impacts"]) == 25
+
+    def test_cost_reflectivity_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_reflectivity"]) == 35
+
+    def test_reform_options_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["reform_options"]) == 15
+
+    def test_export_tariffs_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["export_tariffs"]) == 25
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "most_cost_reflective_network" in summary
+        assert "avg_adoption_tou_pct" in summary
+        assert "total_cross_subsidy_m" in summary
+        assert "most_impactful_reform" in summary
+        assert "export_tariff_networks" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestHydrogenValleyClusterDashboard
+# ===========================================================================
+
+class TestHydrogenValleyClusterDashboard:
+    """9 tests for GET /api/hydrogen-valley-cluster/dashboard (HVCA)."""
+
+    URL = "/api/hydrogen-valley-cluster/dashboard"
+    HEADERS = {"x-api-key": "test-secret-key"}
+
+    def test_returns_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("clusters", "electrolysers", "demand", "supply_chain", "lcoh", "summary"):
+            assert key in data
+
+    def test_clusters_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["clusters"]) == 15
+
+    def test_electrolysers_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["electrolysers"]) == 20
+
+    def test_demand_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["demand"]) == 25
+
+    def test_supply_chain_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["supply_chain"]) == 20
+
+    def test_lcoh_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["lcoh"]) == 48
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_production_ktpa" in summary
+        assert "total_electrolyser_gw" in summary
+        assert "lowest_lcoh_per_kg" in summary
+        assert "leading_cluster" in summary
+        assert "jobs_created" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

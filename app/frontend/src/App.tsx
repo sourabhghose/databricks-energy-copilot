@@ -443,6 +443,9 @@ import EnergyMarketCreditRiskAnalytics from './pages/EnergyMarketCreditRiskAnaly
 import ElectricityConsumerBehaviourAnalytics from './pages/ElectricityConsumerBehaviourAnalytics'
 import ThermalCoalPowerTransitionAnalytics from './pages/ThermalCoalPowerTransitionAnalytics'
 import DemandResponseAggregatorAnalytics from './pages/DemandResponseAggregatorAnalytics'
+import EnergyCommodityTradingAnalytics from './pages/EnergyCommodityTradingAnalytics'
+import NetworkTariffDesignReformAnalytics from './pages/NetworkTariffDesignReformAnalytics'
+import HydrogenValleyClusterAnalytics from './pages/HydrogenValleyClusterAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -801,6 +804,9 @@ const NAV_ITEMS = [
   { to: '/electricity-consumer-behaviour', label: 'Consumer Behaviour & Smart Home', Icon: HomeIcon },
   { to: '/thermal-coal-power-transition', label: 'Thermal Coal Power Station Transition', Icon: Zap },
   { to: '/demand-response-aggregator', label: 'Demand Response Aggregator Market', Icon: Users },
+  { to: '/energy-commodity-trading', label: 'Energy Commodity Trading Desk', Icon: TrendingUp },
+  { to: '/network-tariff-design-reform', label: 'Network Tariff Design & Reform', Icon: Tag },
+  { to: '/hydrogen-valley-cluster', label: 'Hydrogen Valley & Industrial Cluster', Icon: Layers },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1234,6 +1240,9 @@ export default function App() {
               <Route path="/electricity-consumer-behaviour" element={<ElectricityConsumerBehaviourAnalytics />} />
               <Route path="/thermal-coal-power-transition" element={<ThermalCoalPowerTransitionAnalytics />} />
               <Route path="/demand-response-aggregator" element={<DemandResponseAggregatorAnalytics />} />
+              <Route path="/energy-commodity-trading" element={<EnergyCommodityTradingAnalytics />} />
+              <Route path="/network-tariff-design-reform" element={<NetworkTariffDesignReformAnalytics />} />
+              <Route path="/hydrogen-valley-cluster" element={<HydrogenValleyClusterAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

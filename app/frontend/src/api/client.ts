@@ -24970,3 +24970,224 @@ export interface TCPTDashboard {
 
 export const getThermalCoalPowerTransitionDashboard = (): Promise<TCPTDashboard> =>
   get<TCPTDashboard>('/api/thermal-coal-power-transition/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 130a — Energy Commodity Trading Desk Analytics (ECTA)
+// ---------------------------------------------------------------------------
+
+export interface ECTAPositionRecord {
+  trader_desk: string
+  region: string
+  product: string
+  position_mw: number
+  mark_to_market_m: number
+  unrealised_pnl_m: number
+  var_1day_m: number
+  tenor: string
+  counterparty_count: number
+}
+
+export interface ECTATradeRecord {
+  trade_date: string
+  product: string
+  region: string
+  direction: string
+  volume_mwh: number
+  price_per_mwh: number
+  total_value_m: number
+  counterparty_type: string
+  cleared: boolean
+}
+
+export interface ECTAPnLRecord {
+  desk: string
+  month: string
+  trading_pnl_m: number
+  hedging_pnl_m: number
+  mark_to_market_pnl_m: number
+  realised_pnl_m: number
+  total_pnl_m: number
+  sharpe_ratio: number
+  max_drawdown_m: number
+}
+
+export interface ECTARiskMetric {
+  desk: string
+  region: string
+  quarter: string
+  var_95_m: number
+  var_99_m: number
+  expected_shortfall_m: number
+  stress_test_loss_m: number
+  risk_limit_utilisation_pct: number
+  limit_breaches: number
+}
+
+export interface ECTAMarketStructure {
+  product: string
+  region: string
+  quarter: string
+  avg_bid_ask_spread_pct: number
+  daily_volume_mwh: number
+  open_interest_mwh: number
+  implied_volatility_pct: number
+  correlation_to_spot: number
+}
+
+export interface ECTADashboard {
+  positions: ECTAPositionRecord[]
+  trades: ECTATradeRecord[]
+  pnl: ECTAPnLRecord[]
+  risk_metrics: ECTARiskMetric[]
+  market_structure: ECTAMarketStructure[]
+  summary: Record<string, unknown>
+}
+
+export const getEnergyCommodityTradingDashboard = (): Promise<ECTADashboard> =>
+  get<ECTADashboard>('/api/energy-commodity-trading/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 130c — Network Tariff Design & Reform Analytics (NTDR)
+// ---------------------------------------------------------------------------
+
+export interface NTDRTariffRecord {
+  network_business: string
+  tariff_name: string
+  tariff_type: string
+  region: string
+  customer_count_k: number
+  adoption_pct: number
+  peak_charge_per_kw: number
+  offpeak_charge_per_kwh: number
+  peak_charge_per_kwh: number
+  fixed_charge_per_day: number
+  avg_annual_bill: number
+}
+
+export interface NTDRBillImpact {
+  tariff_name: string
+  customer_type: string
+  region: string
+  current_bill: number
+  new_bill_under_reform: number
+  bill_change_pct: number
+  load_shift_potential_kwh: number
+  winners_pct: number
+}
+
+export interface NTDRCostReflectivity {
+  network_business: string
+  cost_component: string
+  revenue_recovery_pct: number
+  efficient_recovery_pct: number
+  gap_m: number
+  subsidy_direction: string
+}
+
+export interface NTDRReformOption {
+  reform_name: string
+  regulator: string
+  benefit_b: number
+  implementation_cost_m: number
+  affected_customers_k: number
+  bill_volatility_impact: string
+  complexity: string
+  status: string
+}
+
+export interface NTDRExportTariff {
+  network_business: string
+  region: string
+  year: number
+  export_tariff_per_kwh: number
+  export_cap_kw: number
+  solar_penetration_pct: number
+  network_overvoltage_events: number
+  consumer_reaction: string
+}
+
+export interface NTDRDashboard {
+  tariffs: NTDRTariffRecord[]
+  bill_impacts: NTDRBillImpact[]
+  cost_reflectivity: NTDRCostReflectivity[]
+  reform_options: NTDRReformOption[]
+  export_tariffs: NTDRExportTariff[]
+  summary: Record<string, unknown>
+}
+
+export const getNetworkTariffDesignReformDashboard = (): Promise<NTDRDashboard> =>
+  get<NTDRDashboard>('/api/network-tariff-design-reform/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 130b — Hydrogen Valley & Industrial Cluster Analytics (HVCA)
+// ---------------------------------------------------------------------------
+
+export interface HVCAClusterRecord {
+  cluster_name: string
+  state: string
+  cluster_type: string
+  hydrogen_production_ktpa: number
+  electrolyser_capacity_gw: number
+  renewable_capacity_gw: number
+  anchor_offtake: string
+  total_investment_b: number
+  direct_jobs_created: number
+  status: string
+  target_cost_per_kg: number
+}
+
+export interface HVCAElectrolyserRecord {
+  project_name: string
+  cluster_name: string
+  technology: string
+  capacity_mw: number
+  efficiency_kwh_per_kg: number
+  stack_lifetime_years: number
+  capex_per_mw_m: number
+  opex_pct_of_capex: number
+  operational_year: number
+  local_content_pct: number
+}
+
+export interface HVCADemandRecord {
+  sector: string
+  cluster_name: string
+  demand_2030_ktpa: number
+  demand_2040_ktpa: number
+  price_sensitivity_per_kg: number
+  contract_length_years: number
+  local_vs_export_pct: number
+}
+
+export interface HVCASupplyChainRecord {
+  component: string
+  domestic_supplier: string
+  localisation_pct: number
+  bottleneck_risk: string
+  lead_time_months: number
+  cost_reduction_potential_2030_pct: number
+}
+
+export interface HVCALCOHRecord {
+  cluster_name: string
+  year: number
+  scenario: string
+  electrolyser_lcoh: number
+  storage_cost: number
+  transport_cost: number
+  total_lcoh: number
+  target_competitive_price: number
+  gap_to_target: number
+}
+
+export interface HVCADashboard {
+  clusters: HVCAClusterRecord[]
+  electrolysers: HVCAElectrolyserRecord[]
+  demand: HVCADemandRecord[]
+  supply_chain: HVCASupplyChainRecord[]
+  lcoh: HVCALCOHRecord[]
+  summary: Record<string, unknown>
+}
+
+export const getHydrogenValleyClusterDashboard = (): Promise<HVCADashboard> =>
+  get<HVCADashboard>('/api/hydrogen-valley-cluster/dashboard')
