@@ -467,6 +467,9 @@ import WindResourceVariabilityAnalytics from './pages/WindResourceVariabilityAna
 import EnergyStorageDurationAnalytics from './pages/EnergyStorageDurationAnalytics'
 import NemSettlementResidueAuctionAnalytics from './pages/NemSettlementResidueAuctionAnalytics'
 import HydrogenElectrolysisCostAnalytics from './pages/HydrogenElectrolysisCostAnalytics'
+import ElectricityDemandElasticityAnalytics from './pages/ElectricityDemandElasticityAnalytics'
+import NuclearEnergyFeasibilityAnalytics from './pages/NuclearEnergyFeasibilityAnalytics'
+import TransmissionCongestionRevenueAnalytics from './pages/TransmissionCongestionRevenueAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -846,6 +849,9 @@ const NAV_ITEMS = [
   { to: '/energy-storage-duration', label: 'Storage Duration', Icon: Clock },
   { to: '/nem-settlement-residue-auction', label: 'Settlement Residue Auction', Icon: Gavel },
   { to: '/hydrogen-electrolysis-cost', label: 'Hydrogen Electrolysis Cost', Icon: Zap },
+  { to: '/electricity-demand-elasticity', label: 'Demand Elasticity', Icon: TrendingDown },
+  { to: '/nuclear-energy-feasibility', label: 'Nuclear Feasibility', Icon: Atom },
+  { to: '/transmission-congestion-revenue', label: 'Congestion Revenue', Icon: GitBranch },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1300,6 +1306,9 @@ export default function App() {
               <Route path="/energy-storage-duration" element={<EnergyStorageDurationAnalytics />} />
               <Route path="/nem-settlement-residue-auction" element={<NemSettlementResidueAuctionAnalytics />} />
               <Route path="/hydrogen-electrolysis-cost" element={<HydrogenElectrolysisCostAnalytics />} />
+              <Route path="/electricity-demand-elasticity" element={<ElectricityDemandElasticityAnalytics />} />
+              <Route path="/nuclear-energy-feasibility" element={<NuclearEnergyFeasibilityAnalytics />} />
+              <Route path="/transmission-congestion-revenue" element={<TransmissionCongestionRevenueAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

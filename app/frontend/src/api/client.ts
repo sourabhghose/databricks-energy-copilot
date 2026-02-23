@@ -26383,3 +26383,215 @@ export interface HECADashboard {
 }
 export const getHydrogenElectrolysisCostDashboard = (): Promise<HECADashboard> =>
   get<HECADashboard>('/api/hydrogen-electrolysis-cost/dashboard')
+
+// ── Nuclear Energy Feasibility Analytics (NEFA) ───────────────────────────
+export interface NEFATechnology {
+  technology: string
+  capacity_mw: number
+  construction_years: number
+  design_life_years: number
+  capacity_factor_pct: number
+  overnight_cost_aud_kw: number
+  lcoe_aud_mwh: number
+  carbon_intensity_gco2_kwh: number
+  technology_readiness: string
+  vendor_country: string
+}
+export interface NEFASiteAssessment {
+  site_id: string
+  site_name: string
+  state: string
+  region: string
+  site_type: string
+  proximity_to_load_km: number
+  cooling_water_available: boolean
+  seismic_risk: string
+  social_license_score: number
+  grid_connection_cost_m: number
+  environmental_approvals: string
+  suitability_score: number
+}
+export interface NEFACostComparison {
+  technology: string
+  scenario: string
+  year_commissioned: number
+  capex_b_aud: number
+  opex_m_pa: number
+  fuel_cost_m_pa: number
+  decommissioning_m: number
+  lcoe_aud_mwh: number
+  vs_gas_peaker_differential: number
+}
+export interface NEFATimelineScenario {
+  scenario_name: string
+  first_unit_online: number
+  total_capacity_gw: number
+  sites_count: number
+  cumulative_capex_b: number
+  annual_generation_twh: number
+  co2_abatement_mt_pa: number
+  jobs_created: number
+}
+export interface NEFAPublicOpinion {
+  state: string
+  year: number
+  support_pct: number
+  oppose_pct: number
+  undecided_pct: number
+  top_concern: string
+}
+export interface NEFASummary {
+  lowest_lcoe_technology: string
+  best_site_score: number
+  earliest_possible_online: number
+  total_potential_capacity_gw: number
+  national_support_pct: number
+}
+export interface NEFADashboard {
+  technologies: NEFATechnology[]
+  site_assessments: NEFASiteAssessment[]
+  cost_comparisons: NEFACostComparison[]
+  timeline_scenarios: NEFATimelineScenario[]
+  public_opinion: NEFAPublicOpinion[]
+  summary: NEFASummary
+}
+export const getNuclearEnergyFeasibilityDashboard = (): Promise<NEFADashboard> =>
+  get<NEFADashboard>('/api/nuclear-energy-feasibility/dashboard')
+
+// ── Electricity Demand Elasticity Analytics (EDEA) ────────────────────────
+export interface EDEAElasticityEstimate {
+  region: string
+  sector: string
+  price_elasticity: number
+  income_elasticity: number
+  cross_price_elasticity: number
+  short_run_elasticity: number
+  long_run_elasticity: number
+  estimation_method: string
+  confidence_interval_low: number
+  confidence_interval_high: number
+}
+export interface EDEAPriceResponseEvent {
+  event_id: string
+  region: string
+  year: number
+  month: number
+  price_change_pct: number
+  demand_response_pct: number
+  implied_elasticity: number
+  sector: string
+  trigger: string
+}
+export interface EDEASegmentResponse {
+  segment: string
+  region: string
+  avg_daily_usage_kwh: number
+  peak_usage_pct: number
+  off_peak_usage_pct: number
+  price_sensitivity_score: number
+  dr_potential_mw: number
+}
+export interface EDEATimeOfUsePenetration {
+  region: string
+  year: number
+  flat_tariff_customers_pct: number
+  tou_customers_pct: number
+  demand_tariff_customers_pct: number
+  ev_tariff_customers_pct: number
+  avg_bill_savings_aud_pa: number
+}
+export interface EDEAElasticityTrend {
+  region: string
+  year: number
+  sector: string
+  price_elasticity: number
+  avg_price_aud_kwh: number
+  demand_gwh: number
+  efficiency_index: number
+}
+export interface EDEASummary {
+  avg_residential_elasticity: number
+  avg_industrial_elasticity: number
+  total_dr_potential_mw: number
+  tou_penetration_pct: number
+  most_price_sensitive_region: string
+}
+export interface EDEADashboard {
+  elasticity_estimates: EDEAElasticityEstimate[]
+  price_response_events: EDEAPriceResponseEvent[]
+  segment_responses: EDEASegmentResponse[]
+  tou_penetration: EDEATimeOfUsePenetration[]
+  elasticity_trends: EDEAElasticityTrend[]
+  summary: EDEASummary
+}
+export const getElectricityDemandElasticityDashboard = (): Promise<EDEADashboard> =>
+  get<EDEADashboard>('/api/electricity-demand-elasticity/dashboard')
+
+// ── Transmission Congestion Revenue Analytics (TCRA) ─────────────────────
+export interface TCRAInterconnectorRevenue {
+  interconnector_id: string
+  year: number
+  quarter: number
+  total_flow_gwh: number
+  congestion_revenue_m: number
+  avg_price_spread_aud_mwh: number
+  peak_spread_aud_mwh: number
+  constrained_hours: number
+  loss_factor_revenue_m: number
+}
+export interface TCRAConstraintGroup {
+  constraint_set: string
+  interconnector_id: string
+  year: number
+  bind_frequency_pct: number
+  avg_shadow_price: number
+  congestion_rent_m: number
+  constraint_driver: string
+  relief_options: string
+}
+export interface TCRARegionalPriceSplit {
+  region_from: string
+  region_to: string
+  year: number
+  month: number
+  avg_price_from: number
+  avg_price_to: number
+  price_spread: number
+  congestion_intensity: string
+}
+export interface TCRACongestionCost {
+  region: string
+  year: number
+  sector: string
+  congestion_cost_m: number
+  production_inefficiency_m: number
+  consumer_impact_m: number
+}
+export interface TCRAMitigationProject {
+  project_id: string
+  project_name: string
+  interconnector_id: string
+  project_type: string
+  estimated_relief_mw: number
+  capex_m: number
+  congestion_relief_m_pa: number
+  payback_years: number
+  status: string
+}
+export interface TCRASummary {
+  total_congestion_revenue_fy_m: number
+  most_congested_interconnector: string
+  avg_price_spread_aud_mwh: number
+  total_mitigation_pipeline_capex_m: number
+  annualised_consumer_congestion_cost_m: number
+}
+export interface TCRADashboard {
+  interconnector_revenues: TCRAInterconnectorRevenue[]
+  constraint_groups: TCRAConstraintGroup[]
+  regional_price_splits: TCRARegionalPriceSplit[]
+  congestion_costs: TCRACongestionCost[]
+  mitigation_projects: TCRAMitigationProject[]
+  summary: TCRASummary
+}
+export const getTransmissionCongestionRevenueDashboard = (): Promise<TCRADashboard> =>
+  get<TCRADashboard>('/api/transmission-congestion-revenue/dashboard')

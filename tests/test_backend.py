@@ -19497,3 +19497,205 @@ class TestHydrogenElectrolysisCostDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ── Nuclear Energy Feasibility Analytics (NEFA) ──────────────────────────────
+class TestNuclearEnergyFeasibilityDashboard:
+    URL = "/api/nuclear-energy-feasibility/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in [
+            "technologies",
+            "site_assessments",
+            "cost_comparisons",
+            "timeline_scenarios",
+            "public_opinion",
+            "summary",
+        ]:
+            assert key in data
+
+    def test_technologies_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["technologies"]) == 7
+
+    def test_site_assessments_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["site_assessments"]) == 7
+
+    def test_cost_comparisons_count(self):
+        # 7 technologies × 3 scenarios = 21
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_comparisons"]) == 21
+
+    def test_timeline_scenarios_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["timeline_scenarios"]) == 3
+
+    def test_public_opinion_count(self):
+        # 5 states × 3 years = 15
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["public_opinion"]) == 15
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        for key in (
+            "lowest_lcoe_technology",
+            "best_site_score",
+            "earliest_possible_online",
+            "total_potential_capacity_gw",
+            "national_support_pct",
+        ):
+            assert key in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestElectricityDemandElasticityDashboard:
+    URL = "/api/electricity-demand-elasticity/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "elasticity_estimates" in data
+        assert "price_response_events" in data
+        assert "segment_responses" in data
+        assert "tou_penetration" in data
+        assert "elasticity_trends" in data
+        assert "summary" in data
+
+    def test_elasticity_estimates_count(self):
+        # 5 regions × 4 sectors = 20
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["elasticity_estimates"]) == 20
+
+    def test_price_response_events_count(self):
+        # 35 events
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_response_events"]) == 35
+
+    def test_segment_responses_count(self):
+        # 5 segments × 5 regions = 25
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["segment_responses"]) == 25
+
+    def test_tou_penetration_count(self):
+        # 5 regions × 5 years = 25
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["tou_penetration"]) == 25
+
+    def test_elasticity_trends_count(self):
+        # 5 regions × 7 years × 4 sectors = 140
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["elasticity_trends"]) == 140
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "avg_residential_elasticity" in summary
+        assert "avg_industrial_elasticity" in summary
+        assert "total_dr_potential_mw" in summary
+        assert "tou_penetration_pct" in summary
+        assert "most_price_sensitive_region" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ── Transmission Congestion Revenue Analytics (TCRA) ──────────────────────
+class TestTransmissionCongestionRevenueDashboard:
+    URL = "/api/transmission-congestion-revenue/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in [
+            "interconnector_revenues",
+            "constraint_groups",
+            "regional_price_splits",
+            "congestion_costs",
+            "mitigation_projects",
+            "summary",
+        ]:
+            assert key in data
+
+    def test_interconnector_revenues_count(self):
+        # 5 interconnectors × 4 years × 4 quarters = 80
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["interconnector_revenues"]) == 80
+
+    def test_constraint_groups_count(self):
+        # 7 constraint sets × 3 years = 21
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["constraint_groups"]) == 21
+
+    def test_regional_price_splits_count(self):
+        # 10 region pairs × 2 years × 12 months = 240
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["regional_price_splits"]) == 240
+
+    def test_congestion_costs_count(self):
+        # 5 regions × 4 years × 3 sectors = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["congestion_costs"]) == 60
+
+    def test_mitigation_projects_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["mitigation_projects"]) == 8
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_congestion_revenue_fy_m" in summary
+        assert "most_congested_interconnector" in summary
+        assert "avg_price_spread_aud_mwh" in summary
+        assert "total_mitigation_pipeline_capex_m" in summary
+        assert "annualised_consumer_congestion_cost_m" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
