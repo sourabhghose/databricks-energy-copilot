@@ -420,6 +420,9 @@ import PowerPurchaseAgreementMarketAnalytics from './pages/PowerPurchaseAgreemen
 import ElectricityMarketLiquidityAnalytics from './pages/ElectricityMarketLiquidityAnalytics'
 import DistributedSolarForecastingAnalytics from './pages/DistributedSolarForecastingAnalytics'
 import EnergyTransitionFinanceXAnalytics from './pages/EnergyTransitionFinanceXAnalytics'
+import NemFrequencyControlAnalytics from './pages/NemFrequencyControlAnalytics'
+import BatterySecondLifeAnalytics from './pages/BatterySecondLifeAnalytics'
+import UtilitySolarFarmOperationsAnalytics from './pages/UtilitySolarFarmOperationsAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -757,6 +760,9 @@ const NAV_ITEMS = [
   { to: '/distributed-solar-forecasting', label: 'Distributed Solar Forecasting', Icon: Sun },
   { to: '/electricity-market-liquidity', label: 'Market Liquidity Analytics', Icon: BarChart2 },
   { to: '/energy-transition-finance-x', label: 'Energy Transition Finance X', Icon: TrendingUp },
+  { to: '/nem-frequency-control', label: 'NEM Frequency Control', Icon: Activity },
+  { to: '/battery-second-life', label: 'Battery Second Life & Circular Economy', Icon: RefreshCw },
+  { to: '/utility-solar-farm-operations', label: 'Utility Solar Farm Operations', Icon: Sun },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1169,6 +1175,9 @@ export default function App() {
               <Route path="/distributed-solar-forecasting" element={<DistributedSolarForecastingAnalytics />} />
               <Route path="/electricity-market-liquidity" element={<ElectricityMarketLiquidityAnalytics />} />
               <Route path="/energy-transition-finance-x" element={<EnergyTransitionFinanceXAnalytics />} />
+              <Route path="/nem-frequency-control" element={<NemFrequencyControlAnalytics />} />
+              <Route path="/battery-second-life" element={<BatterySecondLifeAnalytics />} />
+              <Route path="/utility-solar-farm-operations" element={<UtilitySolarFarmOperationsAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

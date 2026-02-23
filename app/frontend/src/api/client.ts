@@ -23515,3 +23515,191 @@ export interface ETFAXDashboard {
 }
 export const getEnergyTransitionFinanceXDashboard = (): Promise<ETFAXDashboard> =>
   get<ETFAXDashboard>('/api/energy-transition-finance-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// NEM Frequency Control Performance Analytics X (NFCPX — Sprint 123a)
+// ---------------------------------------------------------------------------
+export interface NFCPXFrequencyRecord {
+  month: string
+  region: string
+  avg_frequency_hz: number
+  time_in_band_pct: number
+  time_above_50_pct: number
+  time_below_50_pct: number
+  excursion_events: number
+  max_deviation_hz: number
+  p5mo_breaches: number
+}
+export interface NFCPXFCASMarket {
+  quarter: string
+  service: string
+  region: string
+  volume_mw: number
+  avg_price_per_mw: number
+  total_cost_m: number
+  provider_count: number
+  battery_share_pct: number
+}
+export interface NFCPXProvider {
+  provider_name: string
+  technology: string
+  region: string
+  fcas_capacity_mw: number
+  raise_revenue_m: number
+  lower_revenue_m: number
+  response_time_ms: number
+  availability_pct: number
+}
+export interface NFCPXSystemEvent {
+  event_date: string
+  event_type: string
+  region: string
+  severity: string
+  frequency_nadir_hz: number
+  duration_seconds: number
+  mw_imbalance: number
+  recovery_time_min: number
+}
+export interface NFCPXReformTracker {
+  reform_name: string
+  status: string
+  implementation_date: string
+  expected_benefit_mw: number
+  cost_estimate_m: number
+  responsible_body: string
+  frequency_band: string
+}
+export interface NFCPXDashboard {
+  frequency_records: NFCPXFrequencyRecord[]
+  fcas_market: NFCPXFCASMarket[]
+  providers: NFCPXProvider[]
+  system_events: NFCPXSystemEvent[]
+  reforms: NFCPXReformTracker[]
+  summary: Record<string, unknown>
+}
+export const getNemFrequencyControlDashboard = (): Promise<NFCPXDashboard> =>
+  get<NFCPXDashboard>('/api/nem-frequency-control-x/dashboard')
+
+export interface BSLABatteryFleet {
+  fleet_segment: string
+  chemistry: string
+  region: string
+  fleet_size_units: number
+  avg_age_years: number
+  avg_soh_pct: number
+  retirement_forecast_2030_units: number
+  second_life_eligible_pct: number
+}
+export interface BSLAProcessingFacility {
+  facility_name: string
+  operator: string
+  location: string
+  state: string
+  input_capacity_tpa: number
+  technology: string
+  recovery_rate_pct: number
+  capex_m: number
+  operational_year: number
+  status: string
+}
+export interface BSLAMaterialRecovery {
+  material: string
+  year: number
+  recovered_tonnes: number
+  market_value_m: number
+  recovery_rate_pct: number
+  domestic_refining_pct: number
+  export_share_pct: number
+}
+export interface BSLASecondLifeApp {
+  application: string
+  battery_type: string
+  deployed_mwh: number
+  avg_remaining_capacity_pct: number
+  cost_per_kwh: number
+  economic_life_years: number
+  annual_revenue_per_mwh: number
+  co2_saved_tonne_per_unit: number
+}
+export interface BSLARegulation {
+  regulation_name: string
+  jurisdiction: string
+  status: string
+  compliance_date: string
+  recycling_target_pct: number
+  financial_mechanism: string
+  key_obligation: string
+}
+export interface BSLADashboard {
+  fleet: BSLABatteryFleet[]
+  facilities: BSLAProcessingFacility[]
+  materials: BSLAMaterialRecovery[]
+  second_life: BSLASecondLifeApp[]
+  regulations: BSLARegulation[]
+  summary: Record<string, unknown>
+}
+export const getBatterySecondLifeDashboard = (): Promise<BSLADashboard> =>
+  get<BSLADashboard>('/api/battery-second-life/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 123c — Utility-Scale Solar Farm Operations Analytics (USSO)
+// ---------------------------------------------------------------------------
+export interface USSOFarmRecord {
+  farm_name: string
+  region: string
+  operator: string
+  installed_capacity_mw: number
+  dc_ac_ratio: number
+  technology: string
+  commission_year: number
+  annual_generation_gwh: number
+  capacity_factor_pct: number
+  pr_pct: number
+}
+export interface USSOMaintenanceRecord {
+  farm_name: string
+  maintenance_type: string
+  frequency: string
+  cost_per_mw_k: number
+  downtime_hours_per_yr: number
+  energy_loss_gwh: number
+}
+export interface USSODegradation {
+  farm_name: string
+  year: number
+  annual_degradation_pct: number
+  capacity_remaining_pct: number
+  generation_loss_gwh: number
+  revenue_impact_m: number
+  panel_replacement_needed: boolean
+}
+export interface USSOGridCurtailment {
+  farm_name: string
+  region: string
+  month: string
+  available_generation_gwh: number
+  curtailed_gwh: number
+  curtailment_pct: number
+  curtailment_reason: string
+  revenue_lost_m: number
+}
+export interface USSOWeatherPerformance {
+  region: string
+  month: string
+  avg_irradiance_kwh_m2: number
+  temperature_correction_pct: number
+  cloud_cover_loss_pct: number
+  soiling_loss_pct: number
+  net_energy_output_gwh: number
+  actual_vs_p50_pct: number
+}
+export interface USSODashboard {
+  farms: USSOFarmRecord[]
+  maintenance: USSOMaintenanceRecord[]
+  degradation: USSODegradation[]
+  curtailment: USSOGridCurtailment[]
+  weather_performance: USSOWeatherPerformance[]
+  summary: Record<string, unknown>
+}
+export const getUtilitySolarFarmOperationsDashboard = (): Promise<USSODashboard> =>
+  get<USSODashboard>('/api/utility-solar-farm-operations/dashboard')
