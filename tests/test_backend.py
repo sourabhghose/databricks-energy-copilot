@@ -19313,3 +19313,187 @@ class TestWindResourceVariabilityDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ============================================================
+# Sprint 136a — Energy Storage Duration Analytics (ESDA)
+# ============================================================
+
+class TestEnergyStorageDurationDashboard:
+    URL = "/api/energy-storage-duration/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("technologies", "pipeline", "cost_projections", "market_values", "suitability_scores", "summary"):
+            assert key in data
+
+    def test_technologies_count(self):
+        # 10 storage technologies
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["technologies"]) == 10
+
+    def test_pipeline_count(self):
+        # 15 pipeline projects
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["pipeline"]) == 15
+
+    def test_cost_projections_count(self):
+        # 10 technologies × 6 years = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["cost_projections"]) == 60
+
+    def test_market_values_count(self):
+        # 10 technologies × 5 regions × 4 years = 200
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_values"]) == 200
+
+    def test_suitability_scores_count(self):
+        # 10 technologies × 6 applications = 60
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["suitability_scores"]) == 60
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_storage_mwh_pipeline" in summary
+        assert "avg_duration_hours_pipeline" in summary
+        assert "dominant_technology" in summary
+        assert "lowest_cost_technology" in summary
+        assert "highest_revenue_technology" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ── NEM Settlement Residue Auction Analytics (NSRA) ──────────────────────────
+class TestNemSettlementResidueAuctionDashboard:
+    URL = "/api/nem-settlement-residue-auction/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("auctions", "sra_holders", "settlement_residue_flows", "market_activity", "interconnector_metrics", "summary"):
+            assert key in data
+
+    def test_auctions_count(self):
+        # 4 interconnectors × 4 years × 4 quarters × 2 directions = 128
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["auctions"]) == 128
+
+    def test_sra_holders_count(self):
+        # 8 holders × 4 interconnectors × 3 years × 4 quarters = 384
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["sra_holders"]) == 384
+
+    def test_settlement_residue_flows_count(self):
+        # 4 interconnectors × 4 years × 4 quarters = 64
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["settlement_residue_flows"]) == 64
+
+    def test_market_activity_count(self):
+        # 4 years × 4 quarters = 16
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["market_activity"]) == 16
+
+    def test_interconnector_metrics_count(self):
+        # 4 interconnectors × 4 years = 16
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert len(r.json()["interconnector_metrics"]) == 16
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        summary = r.json()["summary"]
+        for key in ("total_sr_revenue_fy_m", "avg_clearing_price", "most_valuable_interconnector", "total_participants", "avg_oversubscription_ratio"):
+            assert key in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+# ── Hydrogen Electrolysis Cost Analytics (HECA) ──────────────────────────────
+class TestHydrogenElectrolysisCostDashboard:
+    URL = "/api/hydrogen-electrolysis-cost/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_http_200(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in [
+            "electrolyser_technologies",
+            "production_costs",
+            "grid_vs_renewable",
+            "stack_degradation",
+            "supply_chain",
+            "summary",
+        ]:
+            assert key in data
+
+    def test_electrolyser_technologies_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["electrolyser_technologies"]) == 4
+
+    def test_production_costs_count(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["production_costs"]) == 30
+
+    def test_grid_vs_renewable_count(self):
+        # 4 scenarios × 5 regions × 4 years = 80
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["grid_vs_renewable"]) == 80
+
+    def test_stack_degradation_count(self):
+        # 4 techs × 7 operating hour points = 28
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["stack_degradation"]) == 28
+
+    def test_supply_chain_count(self):
+        # 4 techs × 5 components = 20
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["supply_chain"]) == 20
+
+    def test_summary_has_required_keys(self):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "lowest_lcoh_aud_kg" in summary
+        assert "target_lcoh_2030_aud_kg" in summary
+        assert "total_electrolyser_pipeline_gw" in summary
+        assert "avg_efficiency_kwh_kg" in summary
+        assert "green_h2_projects_count" in summary
+
+    def test_caching(self):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

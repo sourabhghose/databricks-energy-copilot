@@ -26179,3 +26179,207 @@ export interface WRVADashboard {
 }
 export const getWindResourceVariabilityDashboard = (): Promise<WRVADashboard> =>
   get<WRVADashboard>('/api/wind-resource-variability/dashboard')
+
+// ── Energy Storage Duration Analytics (ESDA) ─────────────────────────────
+export interface ESDATech {
+  technology: string
+  duration_hours: number
+  category: string
+  current_cost_aud_kwh: number
+  opex_aud_kwh_pa: number
+  round_trip_eff_pct: number
+  cycle_life: number
+  degradation_pct_pa: number
+  response_time_s: number
+  technology_readiness: string
+}
+export interface ESDAPipelineProject {
+  project_name: string
+  technology: string
+  region: string
+  power_mw: number
+  energy_mwh: number
+  duration_hours: number
+  developer: string
+  status: string
+  commissioning_year: number
+  capex_m: number
+}
+export interface ESDACostProj {
+  technology: string
+  year: number
+  cost_aud_kwh: number
+  cost_reduction_pct: number
+  learning_rate_pct: number
+}
+export interface ESDAmktValue {
+  technology: string
+  duration_hours: number
+  region: string
+  year: number
+  energy_arbitrage_aud_kwh: number
+  fcas_revenue_aud_kwh: number
+  capacity_payment_aud_kwh: number
+  total_revenue_aud_kwh: number
+  npv_per_kwh: number
+}
+export interface ESDASuitability {
+  technology: string
+  application: string
+  duration_fit_score: number
+  cost_score: number
+  maturity_score: number
+  total_score: number
+}
+export interface ESDASummary {
+  total_storage_mwh_pipeline: number
+  avg_duration_hours_pipeline: number
+  dominant_technology: string
+  lowest_cost_technology: string
+  highest_revenue_technology: string
+}
+export interface ESDAdash {
+  technologies: ESDATech[]
+  pipeline: ESDAPipelineProject[]
+  cost_projections: ESDACostProj[]
+  market_values: ESDAmktValue[]
+  suitability_scores: ESDASuitability[]
+  summary: ESDASummary
+}
+export const getEnergyStorageDurationDashboard = (): Promise<ESDAdash> =>
+  get<ESDAdash>('/api/energy-storage-duration/dashboard')
+
+// ── NEM Settlement Residue Auction Analytics (NSRA) ───────────────────────
+export interface NSRAAuction {
+  auction_id: string
+  interconnector_id: string
+  auction_year: number
+  auction_quarter: number
+  direction: string
+  units_offered: number
+  units_sold: number
+  clearing_price_aud: number
+  total_revenue_m: number
+  oversubscription_ratio: number
+}
+export interface NSRASRARHolder {
+  holder_id: string
+  holder_name: string
+  interconnector_id: string
+  year: number
+  quarter: number
+  units_held: number
+  acquisition_cost_aud: number
+  settlement_residue_aud: number
+  profit_loss_aud: number
+}
+export interface NSRASettlementResidueFlow {
+  interconnector_id: string
+  year: number
+  quarter: number
+  total_sr_generated_m: number
+  paid_to_sra_holders_m: number
+  retained_by_tnsp_m: number
+  spot_price_diff_aud_mwh: number
+}
+export interface NSRAMarketActivity {
+  year: number
+  quarter: number
+  total_units_auctioned: number
+  total_revenue_m: number
+  secondary_market_volume_m: number
+  avg_clearing_price: number
+  active_participants: number
+}
+export interface NSRAInterconnectorMetric {
+  interconnector_id: string
+  year: number
+  avg_spot_price_diff_aud_mwh: number
+  flow_utilisation_pct: number
+  sr_per_mw_aud: number
+  total_sr_m: number
+  constraint_frequency_pct: number
+}
+export interface NSRASummary {
+  total_sr_revenue_fy_m: number
+  avg_clearing_price: number
+  most_valuable_interconnector: string
+  total_participants: number
+  avg_oversubscription_ratio: number
+}
+export interface NSRADashboard {
+  auctions: NSRAAuction[]
+  sra_holders: NSRASRARHolder[]
+  settlement_residue_flows: NSRASettlementResidueFlow[]
+  market_activity: NSRAMarketActivity[]
+  interconnector_metrics: NSRAInterconnectorMetric[]
+  summary: NSRASummary
+}
+export const getNemSettlementResidueAuctionDashboard = (): Promise<NSRADashboard> =>
+  get<NSRADashboard>('/api/nem-settlement-residue-auction/dashboard')
+
+// ── Hydrogen Electrolysis Cost Analytics (HECA) ───────────────────────────
+export interface HECAElectrolyserTech {
+  technology: string
+  current_capex_aud_kw: number
+  projected_capex_2030_aud_kw: number
+  efficiency_kwh_kg: number
+  stack_lifetime_khrs: number
+  startup_time_min: number
+  min_load_pct: number
+  technology_readiness: string
+}
+export interface HECAProductionCost {
+  project_id: string
+  technology: string
+  region: string
+  year: number
+  electricity_cost_aud_kwh: number
+  electricity_consumption_pct: number
+  capex_pct: number
+  opex_pct: number
+  lcoh_aud_kg: number
+  production_kt_pa: number
+}
+export interface HECAGridVsRenewable {
+  scenario: string
+  region: string
+  year: number
+  electricity_price_aud_mwh: number
+  capacity_factor_pct: number
+  lcoh_aud_kg: number
+  co2_intensity_kg_kg_h2: number
+}
+export interface HECAStackDegradation {
+  technology: string
+  operating_hours_k: number
+  efficiency_loss_pct: number
+  voltage_increase_pct: number
+  replacement_cost_aud_kw: number
+  lcoh_impact_aud_kg: number
+}
+export interface HECASupplyChain {
+  component: string
+  technology: string
+  cost_share_pct: number
+  australian_content_pct: number
+  key_supplier_country: string
+  supply_risk: string
+}
+export interface HECASummary {
+  lowest_lcoh_aud_kg: number
+  target_lcoh_2030_aud_kg: number
+  total_electrolyser_pipeline_gw: number
+  avg_efficiency_kwh_kg: number
+  green_h2_projects_count: number
+}
+export interface HECADashboard {
+  electrolyser_technologies: HECAElectrolyserTech[]
+  production_costs: HECAProductionCost[]
+  grid_vs_renewable: HECAGridVsRenewable[]
+  stack_degradation: HECAStackDegradation[]
+  supply_chain: HECASupplyChain[]
+  summary: HECASummary
+}
+export const getHydrogenElectrolysisCostDashboard = (): Promise<HECADashboard> =>
+  get<HECADashboard>('/api/hydrogen-electrolysis-cost/dashboard')

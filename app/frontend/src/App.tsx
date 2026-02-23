@@ -88,6 +88,7 @@ import {
   Building,
   UserMinus,
   PauseCircle,
+  Gavel,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -463,6 +464,9 @@ import SolarIrradianceResourceAnalytics from './pages/SolarIrradianceResourceAna
 import ElectricityPriceCapInterventionAnalytics from './pages/ElectricityPriceCapInterventionAnalytics'
 import BiogasLandfillAnalytics from './pages/BiogasLandfillAnalytics'
 import WindResourceVariabilityAnalytics from './pages/WindResourceVariabilityAnalytics'
+import EnergyStorageDurationAnalytics from './pages/EnergyStorageDurationAnalytics'
+import NemSettlementResidueAuctionAnalytics from './pages/NemSettlementResidueAuctionAnalytics'
+import HydrogenElectrolysisCostAnalytics from './pages/HydrogenElectrolysisCostAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -839,6 +843,9 @@ const NAV_ITEMS = [
   { to: '/electricity-price-cap-intervention', label: 'Price Cap Interventions', Icon: AlertTriangle },
   { to: '/biogas-landfill', label: 'Biogas & Landfill Gas', Icon: Leaf },
   { to: '/wind-resource-variability', label: 'Wind Resource Variability', Icon: Wind },
+  { to: '/energy-storage-duration', label: 'Storage Duration', Icon: Clock },
+  { to: '/nem-settlement-residue-auction', label: 'Settlement Residue Auction', Icon: Gavel },
+  { to: '/hydrogen-electrolysis-cost', label: 'Hydrogen Electrolysis Cost', Icon: Zap },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1290,6 +1297,9 @@ export default function App() {
               <Route path="/electricity-price-cap-intervention" element={<ElectricityPriceCapInterventionAnalytics />} />
               <Route path="/biogas-landfill" element={<BiogasLandfillAnalytics />} />
               <Route path="/wind-resource-variability" element={<WindResourceVariabilityAnalytics />} />
+              <Route path="/energy-storage-duration" element={<EnergyStorageDurationAnalytics />} />
+              <Route path="/nem-settlement-residue-auction" element={<NemSettlementResidueAuctionAnalytics />} />
+              <Route path="/hydrogen-electrolysis-cost" element={<HydrogenElectrolysisCostAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>
