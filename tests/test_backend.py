@@ -17289,3 +17289,178 @@ class TestEnergyPovertyHardshipDashboard:
         r1 = client.get(self.URL, headers=self.HEADERS)
         r2 = client.get(self.URL, headers=self.HEADERS)
         assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestPowerSystemStabilityXDashboard  (Sprint 125c — PSSAX)
+# ===========================================================================
+
+class TestPowerSystemStabilityXDashboard:
+    """9 tests for GET /api/power-system-stability-x/dashboard"""
+
+    URL = "/api/power-system-stability-x/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("inertia", "voltage", "resilience", "scr", "protection", "summary"):
+            assert key in data
+
+    def test_inertia_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["inertia"]) == 60  # 5 regions x 12 months
+
+    def test_voltage_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["voltage"]) == 60  # 5 regions x 12 months
+
+    def test_resilience_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["resilience"]) == 25  # 5 event types x 5 regions
+
+    def test_scr_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["scr"]) == 25  # 5 regions x 5 years
+
+    def test_protection_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["protection"]) == 25  # 5 schemes x 5 regions
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "avg_total_inertia_mws" in summary
+        assert "lowest_scr_region" in summary
+        assert "total_unserved_energy_mwh" in summary
+        assert "avg_resilience_score" in summary
+        assert "ibr_penetration_pct" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+# ===========================================================================
+# TestGasToPowerTransitionDashboard  (Sprint 125a)
+# ===========================================================================
+
+class TestGasToPowerTransitionDashboard:
+    URL = "/api/gas-to-power-transition/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+
+    def test_status_ok(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("gas_plants", "retirement_timeline", "gas_demand", "replacement_options", "transition_risks", "summary"):
+            assert key in data
+
+    def test_gas_plants_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["gas_plants"]) == 25
+
+    def test_retirement_timeline_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["retirement_timeline"]) == 17  # years 2024-2040
+
+    def test_gas_demand_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["gas_demand"]) == 51  # 17 years × 3 scenarios
+
+    def test_replacement_options_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["replacement_options"]) == 10
+
+    def test_transition_risks_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["transition_risks"]) == 25  # 5 risks × 5 regions
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_retiring_capacity_gw" in summary
+        assert "total_replacement_needed_gw" in summary
+        assert "highest_risk_region" in summary
+        assert "dominant_replacement_tech" in summary
+        assert "transition_cost_b" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]
+
+
+class TestCarbonOffsetMarketDashboard:
+    URL = "/api/carbon-offset-market/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    def test_status_200(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_top_level_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for key in ("accu_market", "projects", "methodologies", "price_trends", "buyers", "summary"):
+            assert key in data
+
+    def test_accu_market_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["accu_market"]) == 12  # 12 quarters 2022–2024
+
+    def test_projects_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 30
+
+    def test_methodologies_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["methodologies"]) == 15
+
+    def test_price_trends_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["price_trends"]) == 60  # monthly 2020-01 to 2024-12
+
+    def test_buyers_count(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["buyers"]) == 20
+
+    def test_summary_keys(self, client=client):
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        summary = data["summary"]
+        assert "total_accu_issued_m" in summary
+        assert "spot_price_latest" in summary
+        assert "largest_method" in summary
+        assert "total_market_value_m" in summary
+        assert "compliance_demand_pct" in summary
+
+    def test_caching(self, client=client):
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.json()["summary"] == r2.json()["summary"]

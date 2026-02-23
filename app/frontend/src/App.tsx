@@ -427,6 +427,9 @@ import UtilitySolarFarmOperationsAnalytics from './pages/UtilitySolarFarmOperati
 import WindFarmWakeEffectAnalytics from './pages/WindFarmWakeEffectAnalytics'
 import EnergyPovertyHardshipAnalytics from './pages/EnergyPovertyHardshipAnalytics'
 import ElectricityNetworkCapitalInvestmentAnalytics from './pages/ElectricityNetworkCapitalInvestmentAnalytics'
+import GasToPowerTransitionAnalytics from './pages/GasToPowerTransitionAnalytics'
+import CarbonOffsetMarketAnalytics from './pages/CarbonOffsetMarketAnalytics'
+import PowerSystemStabilityXAnalytics from './pages/PowerSystemStabilityXAnalytics'
 import { useDarkMode } from './hooks/useDarkMode'
 
 const NAV_ITEMS = [
@@ -770,6 +773,9 @@ const NAV_ITEMS = [
   { to: '/wind-farm-wake-effect', label: 'Wind Farm Wake Effect & Layout Optimisation', Icon: Wind },
   { to: '/energy-poverty-hardship', label: 'Energy Poverty & Hardship Analytics', Icon: Heart },
   { to: '/electricity-network-capital-investment', label: 'Electricity Network Capital Investment', Icon: Building },
+  { to: '/gas-to-power-transition', label: 'Gas-to-Power Transition & Retirement', Icon: Flame },
+  { to: '/carbon-offset-market', label: 'Australian Carbon Offset Market', Icon: Leaf },
+  { to: '/power-system-stability-x', label: 'Power System Stability & Resilience', Icon: Shield },
   { to: '/settings',          label: 'Settings',           Icon: SettingsIcon   },
 ]
 
@@ -1188,6 +1194,9 @@ export default function App() {
               <Route path="/wind-farm-wake-effect" element={<WindFarmWakeEffectAnalytics />} />
               <Route path="/energy-poverty-hardship" element={<EnergyPovertyHardshipAnalytics />} />
               <Route path="/electricity-network-capital-investment" element={<ElectricityNetworkCapitalInvestmentAnalytics />} />
+              <Route path="/gas-to-power-transition" element={<GasToPowerTransitionAnalytics />} />
+              <Route path="/carbon-offset-market" element={<CarbonOffsetMarketAnalytics />} />
+              <Route path="/power-system-stability-x" element={<PowerSystemStabilityXAnalytics />} />
               <Route path="/settings"          element={<Settings />}            />
             </Routes>
           </main>

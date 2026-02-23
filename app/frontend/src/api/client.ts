@@ -23909,3 +23909,215 @@ export interface ENCIDashboard {
 
 export const getElectricityNetworkCapitalInvestmentDashboard = (): Promise<ENCIDashboard> =>
   get<ENCIDashboard>('/api/electricity-network-capital-investment/dashboard')
+
+// ---------------------------------------------------------------------------
+// GPTA — Gas-to-Power Transition & Retirement Analytics  (Sprint 125a)
+// ---------------------------------------------------------------------------
+
+export interface GPTAGasPlant {
+  plant_name: string
+  region: string
+  operator: string
+  technology: string
+  installed_capacity_mw: number
+  commission_year: number
+  expected_retirement_year: number
+  capacity_factor_pct: number
+  annual_generation_gwh: number
+  fuel_cost_per_mwh: number
+  emissions_intensity_tco2_per_mwh: number
+  replacement_technology: string
+}
+
+export interface GPTARetirementTimeline {
+  year: number
+  plant_count_retiring: number
+  capacity_retiring_mw: number
+  replacement_capacity_mw: number
+  replacement_technology_mix: string
+  reliability_risk: string
+  transition_cost_b: number
+}
+
+export interface GPTAGasDemand {
+  year: number
+  scenario: string
+  gas_demand_pj: number
+  gas_in_electricity_pj: number
+  gas_price_per_gj: number
+  peaking_capacity_gw: number
+  dispatchable_gap_gw: number
+}
+
+export interface GPTAReplacementOption {
+  option: string
+  capacity_needed_gw: number
+  capex_b: number
+  lead_time_years: number
+  dispatchability: string
+  cost_per_mwh: number
+  emissions_factor: number
+}
+
+export interface GPTATransitionRisk {
+  risk: string
+  region: string
+  severity: string
+  probability_pct: number
+  estimated_cost_m: number
+  mitigation_strategy: string
+  responsible_body: string
+}
+
+export interface GPTADashboard {
+  gas_plants: GPTAGasPlant[]
+  retirement_timeline: GPTARetirementTimeline[]
+  gas_demand: GPTAGasDemand[]
+  replacement_options: GPTAReplacementOption[]
+  transition_risks: GPTATransitionRisk[]
+  summary: Record<string, unknown>
+}
+
+export const getGasToPowerTransitionDashboard = (): Promise<GPTADashboard> =>
+  get<GPTADashboard>('/api/gas-to-power-transition/dashboard')
+
+// ---------------------------------------------------------------------------
+// ACOMA – Australian Carbon Offset Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface ACOMAACCURecord {
+  quarter: string
+  accu_issued_k: number
+  accu_cancelled_k: number
+  spot_price: number
+  forward_price_12m: number
+  market_value_m: number
+  compliance_demand_k: number
+  voluntary_demand_k: number
+}
+
+export interface ACOMAProjectRecord {
+  project_name: string
+  method: string
+  state: string
+  proponent: string
+  registered_year: number
+  project_area_ha: number
+  accu_issued_total_k: number
+  annual_accu_rate_k: number
+  project_duration_years: number
+  co_benefits: string
+}
+
+export interface ACOMAMethodology {
+  method_name: string
+  category: string
+  project_count: number
+  total_accu_issued_k: number
+  avg_cost_per_accu: number
+  permanence_risk: string
+  additionality_concern: string
+  crc_approval_year: number
+}
+
+export interface ACOMAPriceTrend {
+  month: string
+  spot_price: number
+  auction_clearing_price: number
+  volume_traded_k: number
+  new_supply_k: number
+  safeguard_demand_k: number
+}
+
+export interface ACOMABuyer {
+  buyer: string
+  buyer_sector: string
+  accu_purchased_k: number
+  total_spend_m: number
+  offset_pct_of_emissions: number
+  compliance_vs_voluntary: string
+  net_zero_target_year: number
+}
+
+export interface ACOMADashboard {
+  accu_market: ACOMAACCURecord[]
+  projects: ACOMAProjectRecord[]
+  methodologies: ACOMAMethodology[]
+  price_trends: ACOMAPriceTrend[]
+  buyers: ACOMABuyer[]
+  summary: Record<string, unknown>
+}
+
+export const getCarbonOffsetMarketDashboard = (): Promise<ACOMADashboard> =>
+  get<ACOMADashboard>('/api/carbon-offset-market/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 125c — Power System Stability & Resilience Analytics (PSSAX)
+// ---------------------------------------------------------------------------
+
+export interface PSSAXInertiaRecord {
+  region: string
+  month: string
+  synchronous_inertia_mws: number
+  non_synchronous_inertia_mws: number
+  total_inertia_mws: number
+  min_inertia_threshold_mws: number
+  headroom_pct: number
+  synchronous_condenser_count: number
+}
+
+export interface PSSAXVoltageStability {
+  region: string
+  bus_id: string
+  month: string
+  avg_voltage_pu: number
+  voltage_violations_count: number
+  reactive_power_mvar: number
+  reactive_reserve_mvar: number
+  static_voltage_stability_margin_pct: number
+}
+
+export interface PSSAXResilience {
+  event_type: string
+  region: string
+  year: number
+  events_count: number
+  avg_recovery_time_min: number
+  unserved_energy_mwh: number
+  value_of_unserved_energy_m: number
+  resilience_score: number
+}
+
+export interface PSSAXSCRRecord {
+  region: string
+  year: number
+  short_circuit_ratio: number
+  minimum_scr_threshold: number
+  ibr_penetration_pct: number
+  weak_grid_risk: string
+  synchronous_condenser_mvar: number
+  grid_forming_inverter_mw: number
+}
+
+export interface PSSAXProtectionSystem {
+  protection_scheme: string
+  region: string
+  coverage_pct: number
+  false_trip_rate_per_yr: number
+  response_time_ms: number
+  last_review_year: number
+  upgrade_needed: boolean
+  upgrade_cost_m: number
+}
+
+export interface PSSAXDashboard {
+  inertia: PSSAXInertiaRecord[]
+  voltage: PSSAXVoltageStability[]
+  resilience: PSSAXResilience[]
+  scr: PSSAXSCRRecord[]
+  protection: PSSAXProtectionSystem[]
+  summary: Record<string, unknown>
+}
+
+export const getPowerSystemStabilityXDashboard = (): Promise<PSSAXDashboard> =>
+  get<PSSAXDashboard>('/api/power-system-stability-x/dashboard')
