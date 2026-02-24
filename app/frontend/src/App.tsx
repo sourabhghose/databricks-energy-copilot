@@ -508,6 +508,9 @@ import ElectricitySpotPriceEventAnalytics from './pages/ElectricitySpotPriceEven
 import LargeScaleRenewableAuctionAnalytics from './pages/LargeScaleRenewableAuctionAnalytics'
 import NemAncillaryServicesAnalytics from './pages/NemAncillaryServicesAnalytics'
 import AustralianCarbonCreditAnalytics from './pages/AustralianCarbonCreditAnalytics'
+import GeneratorCapacityAdequacyAnalytics from './pages/GeneratorCapacityAdequacyAnalytics'
+import SmartGridCybersecurityAnalytics from './pages/SmartGridCybersecurityAnalytics'
+import PumpedHydroReservoirAnalytics from './pages/PumpedHydroReservoirAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -926,6 +929,9 @@ const NAV_ITEMS = [
   { to: '/nem-ancillary-services', label: 'Ancillary Services Reg', Icon: Shield },
   { to: '/australian-carbon-credit', label: 'ACCU Carbon Market', Icon: Leaf },
   { to: '/ev-grid-integration', label: 'EV Grid Integration', Icon: Car },
+  { to: '/generator-capacity-adequacy', label: 'Capacity Adequacy', Icon: BarChart },
+  { to: '/smart-grid-cybersecurity', label: 'Grid Cybersecurity', Icon: Lock },
+  { to: '/pumped-hydro-reservoir', label: 'Pumped Hydro Ops', Icon: Droplets },
 ]
 
 function Sidebar() {
@@ -1419,6 +1425,9 @@ export default function App() {
               <Route path="nem-ancillary-services" element={<NemAncillaryServicesAnalytics />} />
               <Route path="australian-carbon-credit" element={<AustralianCarbonCreditAnalytics />} />
               <Route path="ev-grid-integration" element={<ElectricVehicleGridIntegrationAnalytics />} />
+              <Route path="generator-capacity-adequacy" element={<GeneratorCapacityAdequacyAnalytics />} />
+              <Route path="smart-grid-cybersecurity" element={<SmartGridCybersecurityAnalytics />} />
+              <Route path="pumped-hydro-reservoir" element={<PumpedHydroReservoirAnalytics />} />
             </Routes>
           </main>
         </div>

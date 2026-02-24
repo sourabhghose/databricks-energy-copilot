@@ -22267,3 +22267,252 @@ class TestEVGIDashboard:
             assert "smart_charging_enrolled_pct" in segment, (
                 f"Missing smart_charging_enrolled_pct in fleet segment {segment.get('segment_id')}"
             )
+
+
+# ===========================================================================
+# TestNGCADashboard — Sprint 150b
+# ===========================================================================
+
+class TestNGCADashboard:
+    """9 tests for GET /api/generator-capacity-adequacy/dashboard."""
+
+    URL = "/api/generator-capacity-adequacy/dashboard"
+    HEADERS = {"Accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}: {r.text[:200]}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_keys = {"capacity", "generators", "retirements", "demand_scenarios", "investments", "summary"}
+        assert expected_keys.issubset(set(data.keys())), (
+            f"Missing keys: {expected_keys - set(data.keys())}"
+        )
+
+    def test_capacity_count(self):
+        """capacity list must contain exactly 15 records (5 regions × 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["capacity"]) == 15, (
+            f"Expected 15 capacity records, got {len(data['capacity'])}"
+        )
+
+    def test_generators_count(self):
+        """generators list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["generators"]) == 25, (
+            f"Expected 25 generator records, got {len(data['generators'])}"
+        )
+
+    def test_retirements_count(self):
+        """retirements list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["retirements"]) == 20, (
+            f"Expected 20 retirement records, got {len(data['retirements'])}"
+        )
+
+    def test_demand_scenarios_count(self):
+        """demand_scenarios list must contain exactly 36 records (3 regions × 6 years × 2 scenarios)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["demand_scenarios"]) == 36, (
+            f"Expected 36 demand_scenario records, got {len(data['demand_scenarios'])}"
+        )
+
+    def test_investments_count(self):
+        """investments list must contain exactly 24 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["investments"]) == 24, (
+            f"Expected 24 investment records, got {len(data['investments'])}"
+        )
+
+    def test_summary_has_avg_reserve_margin_pct(self):
+        """summary must contain avg_reserve_margin_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_reserve_margin_pct" in data["summary"], (
+            "Missing avg_reserve_margin_pct in summary"
+        )
+
+    def test_all_generators_have_sent_out_capacity_mw(self):
+        """Every generator record must include the sent_out_capacity_mw field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for gen in data["generators"]:
+            assert "sent_out_capacity_mw" in gen, (
+                f"Missing sent_out_capacity_mw in generator {gen.get('generator_id')}"
+            )
+
+
+# ===========================================================================
+# TestSGCRDashboard — Sprint 150c Smart Grid Cybersecurity & Resilience
+# ===========================================================================
+
+class TestSGCRDashboard:
+    """9 tests for GET /api/smart-grid-cybersecurity/dashboard."""
+
+    URL = "/api/smart-grid-cybersecurity/dashboard"
+    HEADERS = {"Accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}: {r.text[:200]}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_keys = {"entities", "incidents", "controls", "vulnerabilities", "resilience", "summary"}
+        assert expected_keys.issubset(set(data.keys())), (
+            f"Missing keys: {expected_keys - set(data.keys())}"
+        )
+
+    def test_entities_count(self):
+        """entities list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["entities"]) == 15, (
+            f"Expected 15 entity records, got {len(data['entities'])}"
+        )
+
+    def test_incidents_count(self):
+        """incidents list must contain exactly 30 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["incidents"]) == 30, (
+            f"Expected 30 incident records, got {len(data['incidents'])}"
+        )
+
+    def test_controls_count(self):
+        """controls list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["controls"]) == 25, (
+            f"Expected 25 control records, got {len(data['controls'])}"
+        )
+
+    def test_vulnerabilities_count(self):
+        """vulnerabilities list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["vulnerabilities"]) == 20, (
+            f"Expected 20 vulnerability records, got {len(data['vulnerabilities'])}"
+        )
+
+    def test_resilience_count(self):
+        """resilience list must contain exactly 24 records (2 entities x 3 years x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["resilience"]) == 24, (
+            f"Expected 24 resilience records, got {len(data['resilience'])}"
+        )
+
+    def test_summary_has_avg_ict_maturity_score(self):
+        """summary must contain avg_ict_maturity_score field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "avg_ict_maturity_score" in data["summary"], (
+            "Missing avg_ict_maturity_score in summary"
+        )
+
+    def test_all_entities_have_essentials8_compliance_pct(self):
+        """Every entity record must include the essentials8_compliance_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for ent in data["entities"]:
+            assert "essentials8_compliance_pct" in ent, (
+                f"Missing essentials8_compliance_pct in entity {ent.get('entity_id')}"
+            )
+
+
+# ===========================================================================
+# TestPHRODashboard — Sprint 150a: Pumped Hydro Reservoir Operations Analytics
+# ===========================================================================
+
+class TestPHRODashboard:
+    """9 tests for GET /api/pumped-hydro-reservoir-operations/dashboard."""
+
+    URL = "/api/pumped-hydro-reservoir-operations/dashboard"
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all 6 top-level keys."""
+        r = client.get(self.URL)
+        data = r.json()
+        for key in ("facilities", "operations", "water", "market", "forecast", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_facilities_count(self):
+        """facilities list must contain exactly 12 records."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["facilities"]) == 12, (
+            f"Expected 12 facilities, got {len(data['facilities'])}"
+        )
+
+    def test_operations_count(self):
+        """operations list must contain exactly 60 records (5 x 3 x 4)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["operations"]) == 60, (
+            f"Expected 60 operation records, got {len(data['operations'])}"
+        )
+
+    def test_water_count(self):
+        """water list must contain exactly 30 records (5 x 3 x 2)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["water"]) == 30, (
+            f"Expected 30 water records, got {len(data['water'])}"
+        )
+
+    def test_market_count(self):
+        """market list must contain exactly 24 records (2 x 3 x 4)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["market"]) == 24, (
+            f"Expected 24 market records, got {len(data['market'])}"
+        )
+
+    def test_forecast_count(self):
+        """forecast list must contain exactly 20 records (4 x 5)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["forecast"]) == 20, (
+            f"Expected 20 forecast records, got {len(data['forecast'])}"
+        )
+
+    def test_summary_has_total_storage_gwh(self):
+        """summary must contain the total_storage_gwh field."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert "total_storage_gwh" in data["summary"], (
+            "Missing total_storage_gwh in summary"
+        )
+
+    def test_all_facilities_have_round_trip_efficiency_pct(self):
+        """Every facility record must include the round_trip_efficiency_pct field."""
+        r = client.get(self.URL)
+        data = r.json()
+        for fac in data["facilities"]:
+            assert "round_trip_efficiency_pct" in fac, (
+                f"Missing round_trip_efficiency_pct in facility {fac.get('facility_id')}"
+            )

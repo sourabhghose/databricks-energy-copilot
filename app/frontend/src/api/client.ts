@@ -29505,3 +29505,270 @@ export interface EVGIXDashboard {
 
 export const getElectricVehicleGridIntegrationDashboard = (): Promise<EVGIXDashboard> =>
   get<EVGIXDashboard>('/api/electric-vehicle-grid-integration/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 150b — NGCA: NEM Generator Capacity Adequacy Analytics
+// ---------------------------------------------------------------------------
+
+export interface NGCACapacity {
+  region: string
+  year: number
+  installed_capacity_mw: number
+  sent_out_capacity_mw: number
+  maximum_demand_mw: number
+  reserve_margin_pct: number
+  USE_mwh: number
+  reliability_standard_met: boolean
+  low_reserve_notices: number
+}
+
+export interface NGCAGenerator {
+  generator_id: string
+  generator_name: string
+  region: string
+  technology: string
+  registered_capacity_mw: number
+  sent_out_capacity_mw: number
+  availability_pct_annual: number
+  maintenance_outage_pct: number
+  forced_outage_pct: number
+  scheduled_retirement_year: number | null
+  replacement_status: string
+}
+
+export interface NGCARetirement {
+  generator_id: string
+  generator_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  retirement_year: number
+  replacement_mw: number
+  replacement_technology: string
+  reliability_risk: string
+  transition_plan: string
+}
+
+export interface NGCADemandScenario {
+  region: string
+  year: number
+  scenario: string
+  peak_demand_mw: number
+  energy_demand_gwh: number
+  ev_demand_mw: number
+  heat_pump_demand_mw: number
+  industrial_demand_mw: number
+}
+
+export interface NGCAInvestment {
+  project_id: string
+  project_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  commissioning_year: number
+  investment_m_aud: number
+  contract_type: string
+  status: string
+  reliability_contribution_mw: number
+}
+
+export interface NGCASummary {
+  total_installed_gw: number
+  avg_reserve_margin_pct: number
+  total_retirement_gw_by_2030: number
+  total_new_investment_gw: number
+  regions_at_risk: number
+  projected_use_2030_mwh: number
+  reliability_standard_met_all_regions: boolean
+}
+
+export interface NGCADashboard {
+  capacity: NGCACapacity[]
+  generators: NGCAGenerator[]
+  retirements: NGCARetirement[]
+  demand_scenarios: NGCADemandScenario[]
+  investments: NGCAInvestment[]
+  summary: NGCASummary
+}
+
+export const getGeneratorCapacityAdequacyDashboard = (): Promise<NGCADashboard> =>
+  get<NGCADashboard>('/api/generator-capacity-adequacy/dashboard')
+
+// ============================================================
+// Sprint 150c — SGCR: Smart Grid Cybersecurity & Resilience
+// ============================================================
+
+export interface SGCREntity {
+  entity_id: string
+  entity_name: string
+  entity_type: string
+  critical_infrastructure: boolean
+  ict_maturity_score: number
+  security_incidents_2024: number
+  patch_compliance_pct: number
+  vulnerability_score: number
+  essentials8_compliance_pct: number
+  sec_ops_centre: boolean
+}
+
+export interface SGCRIncident {
+  incident_id: string
+  entity_id: string
+  incident_type: string
+  severity: string
+  year: number
+  detection_time_hrs: number
+  response_time_hrs: number
+  recovery_time_hrs: number
+  financial_impact_m_aud: number
+  operational_impact: string
+  reported_to_asd: boolean
+}
+
+export interface SGCRControl {
+  control_id: string
+  control_name: string
+  framework_type: string
+  adoption_pct: number
+  effectiveness_score: number
+  sector_applicability: string
+  last_update_year: number
+}
+
+export interface SGCRVulnerability {
+  vuln_id: string
+  asset_type: string
+  vulnerability_count: number
+  critical_vulns: number
+  high_vulns: number
+  patched_pct: number
+  mean_time_to_patch_days: number
+  exploit_risk: string
+  compensating_controls: boolean
+}
+
+export interface SGCRResilience {
+  entity_id: string
+  year: number
+  quarter: string
+  backup_recovery_rto_hrs: number
+  cyber_insurance_m_aud: number
+  security_investment_m_aud: number
+  awareness_training_completion_pct: number
+  red_team_exercises: number
+  business_continuity_tested: boolean
+}
+
+export interface SGCRSummary {
+  total_entities: number
+  avg_ict_maturity_score: number
+  total_incidents_2024: number
+  critical_incidents_2024: number
+  avg_essentials8_compliance_pct: number
+  total_security_investment_m_aud: number
+  entities_with_soc_pct: number
+}
+
+export interface SGCRDashboard {
+  entities: SGCREntity[]
+  incidents: SGCRIncident[]
+  controls: SGCRControl[]
+  vulnerabilities: SGCRVulnerability[]
+  resilience: SGCRResilience[]
+  summary: SGCRSummary
+}
+
+export const getSmartGridCybersecurityDashboard = (): Promise<SGCRDashboard> =>
+  get<SGCRDashboard>('/api/smart-grid-cybersecurity/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 150a — PHRO: Pumped Hydro Reservoir Operations Analytics
+// ---------------------------------------------------------------------------
+
+export interface PHROFacility {
+  facility_id: string
+  facility_name: string
+  state: string
+  operator: string
+  upper_reservoir_gl: number
+  lower_reservoir_gl: number
+  turbine_capacity_mw: number
+  pump_capacity_mw: number
+  energy_storage_gwh: number
+  round_trip_efficiency_pct: number
+  head_m: number
+  age_years: number
+  status: string
+}
+
+export interface PHROOperation {
+  facility_id: string
+  year: number
+  month: number
+  generation_gwh: number
+  pumping_gwh: number
+  net_energy_gwh: number
+  avg_generation_price_mwh: number
+  avg_pumping_price_mwh: number
+  arbitrage_spread_mwh: number
+  water_level_upper_pct: number
+  cycling_events: number
+}
+
+export interface PHROWater {
+  facility_id: string
+  year: number
+  quarter: string
+  inflow_gl: number
+  evaporation_gl: number
+  seepage_gl: number
+  water_traded_gl: number
+  end_of_quarter_upper_pct: number
+  drought_impact: boolean
+  water_security_score: number
+}
+
+export interface PHROMarket {
+  facility_id: string
+  year: number
+  quarter: string
+  wholesale_revenue_m_aud: number
+  fcas_revenue_m_aud: number
+  ancillary_revenue_m_aud: number
+  total_revenue_m_aud: number
+  pumping_cost_m_aud: number
+  ebitda_m_aud: number
+}
+
+export interface PHROForecast {
+  facility_id: string
+  year: number
+  scenario: string
+  forecast_generation_gwh: number
+  forecast_revenue_m_aud: number
+  forecast_water_level_pct: number
+  renewable_integration_benefit_gwh: number
+}
+
+export interface PHROSummary {
+  total_facilities: number
+  total_storage_gwh: number
+  total_generation_gwh_2024: number
+  avg_round_trip_efficiency_pct: number
+  total_revenue_m_aud_2024: number
+  largest_facility: string
+  snowy_2_contribution_pct: number
+}
+
+export interface PHRODashboard {
+  facilities: PHROFacility[]
+  operations: PHROOperation[]
+  water: PHROWater[]
+  market: PHROMarket[]
+  forecast: PHROForecast[]
+  summary: PHROSummary
+}
+
+export const getPumpedHydroReservoirOperationsDashboard = (): Promise<PHRODashboard> =>
+  get<PHRODashboard>('/api/pumped-hydro-reservoir-operations/dashboard')
