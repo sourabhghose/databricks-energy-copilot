@@ -30866,3 +30866,190 @@ export interface FMRPDashboard {
 
 export const getFrequencyReservePlanningDashboard = (): Promise<FMRPDashboard> =>
   get<FMRPDashboard>('/api/frequency-reserve-planning/dashboard')
+
+export interface DAROAssetRecord {
+  asset_id: string
+  asset_type: string
+  state: string
+  region: string
+  capacity_kw: number
+  enrolled_in_vpp: boolean
+  aggregator: string
+  flexibility_score: number
+}
+
+export interface DARODispatchRecord {
+  asset_type: string
+  region: string
+  year: number
+  month: number
+  total_assets: number
+  dispatched_assets: number
+  avg_dispatch_kw: number
+  total_dispatch_mwh: number
+  revenue_per_asset_aud: number
+}
+
+export interface DAROAggregatorRecord {
+  aggregator_name: string
+  assets_managed: number
+  total_capacity_mw: number
+  states_covered: string[]
+  annual_revenue_m_aud: number
+  avg_dispatch_response_ms: number
+  technology_platform: string
+}
+
+export interface DAROFlexibilityRecord {
+  region: string
+  year: number
+  quarter: string
+  available_flexibility_mw: number
+  activated_flexibility_mw: number
+  utilisation_rate_pct: number
+  market_value_m_aud: number
+}
+
+export interface DARODashboardSummary {
+  total_assets: number
+  total_capacity_mw: number
+  avg_flexibility_score: number
+  total_annual_revenue_m_aud: number
+}
+
+export interface DARODashboard {
+  assets: DAROAssetRecord[]
+  dispatch: DARODispatchRecord[]
+  aggregators: DAROAggregatorRecord[]
+  flexibility: DAROFlexibilityRecord[]
+  summary: DARODashboardSummary
+}
+
+export const getDistributedAssetOptimisationDashboard = (): Promise<DARODashboard> =>
+  get<DARODashboard>('/api/distributed-asset-optimisation/dashboard')
+
+// ── Sprint 157b: Energy Consumer Segmentation Analytics (ECSA) ───────────────
+
+export interface ECSASegmentRecord {
+  segment_name: string
+  state: string
+  year: number
+  customer_count: number
+  avg_annual_consumption_mwh: number
+  avg_bill_aud: number
+  churn_rate_pct: number
+  satisfaction_score: number
+  digital_engagement_pct: number
+}
+
+export interface ECSABehaviourRecord {
+  segment_name: string
+  peak_consumption_pct: number
+  off_peak_consumption_pct: number
+  weekend_vs_weekday_ratio: number
+  seasonal_variation_pct: number
+  demand_response_participation_pct: number
+}
+
+export interface ECSAProductRecord {
+  product_name: string
+  segment_target: string
+  state: string
+  customers_enrolled: number
+  avg_discount_pct: number
+  retention_rate_pct: number
+  product_type: string
+}
+
+export interface ECSAChurnRecord {
+  state: string
+  year: number
+  quarter: string
+  segment_name: string
+  churned_customers: number
+  acquired_customers: number
+  net_change: number
+  churn_reason: string
+}
+
+export interface ECSADashboardSummary {
+  total_customers: number
+  avg_annual_bill_aud: number
+  overall_churn_rate_pct: number
+  highest_satisfaction_segment: string
+}
+
+export interface ECSADashboard {
+  segments: ECSASegmentRecord[]
+  behaviour: ECSABehaviourRecord[]
+  products: ECSAProductRecord[]
+  churn: ECSAChurnRecord[]
+  summary: ECSADashboardSummary
+}
+
+export const getConsumerSegmentationDashboard = (): Promise<ECSADashboard> =>
+  get<ECSADashboard>('/api/consumer-segmentation/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 157c: Generation Expansion New Entry Analytics (GENA)
+// ---------------------------------------------------------------------------
+
+export interface GENAProjectRecord {
+  project_name: string
+  developer: string
+  technology: string
+  state: string
+  capacity_mw: number
+  financial_close_year: number
+  commissioning_year: number
+  status: string
+  capex_m_aud: number
+}
+
+export interface GENAEconomicsRecord {
+  technology: string
+  year: number
+  lrmc_mwh: number
+  wacc_pct: number
+  capacity_factor_pct: number
+  economic_life_years: number
+  breakeven_price_mwh: number
+  irr_pct: number
+}
+
+export interface GENAPipelineRecord {
+  state: string
+  technology: string
+  stage: string
+  total_projects: number
+  total_capacity_mw: number
+  year: number
+}
+
+export interface GENARetirementRecord {
+  plant_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  retirement_year: number
+  replacement_technology: string
+  replacement_capacity_mw: number
+}
+
+export interface GENADashboardSummary {
+  total_new_projects: number
+  total_new_capacity_mw: number
+  avg_irr_pct: number
+  total_retirement_capacity_mw: number
+}
+
+export interface GENADashboard {
+  projects: GENAProjectRecord[]
+  economics: GENAEconomicsRecord[]
+  pipeline: GENAPipelineRecord[]
+  retirements: GENARetirementRecord[]
+  summary: GENADashboardSummary
+}
+
+export const getGenerationExpansionDashboard = (): Promise<GENADashboard> =>
+  get<GENADashboard>('/api/generation-expansion/dashboard')

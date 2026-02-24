@@ -532,6 +532,9 @@ import EmergingMarketsAnalytics from './pages/EmergingMarketsAnalytics'
 import PortfolioRiskOptimisationAnalytics from './pages/PortfolioRiskOptimisationAnalytics'
 import EnergyHubMicrostructureAnalytics from './pages/EnergyHubMicrostructureAnalytics'
 import FrequencyReservePlanningAnalytics from './pages/FrequencyReservePlanningAnalytics'
+import DistributedAssetOptimisationAnalytics from './pages/DistributedAssetOptimisationAnalytics'
+import ConsumerSegmentationAnalytics from './pages/ConsumerSegmentationAnalytics'
+import GenerationExpansionAnalytics from './pages/GenerationExpansionAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -971,6 +974,9 @@ const NAV_ITEMS = [
   { to: '/epro-dashboard', label: 'Portfolio Risk Opt.', Icon: PieChart },
   { to: '/aehm-dashboard', label: 'Energy Hub Markets', Icon: Globe },
   { to: '/fmrp-dashboard', label: 'Frequency Reserve', Icon: Radio },
+  { to: '/daro-dashboard', label: 'Distributed Assets', Icon: Cpu },
+  { to: '/ecsa-dashboard', label: 'Consumer Segments', Icon: Users },
+  { to: '/gena-dashboard', label: 'Generation Expansion', Icon: Zap },
 ]
 
 function Sidebar() {
@@ -1485,6 +1491,9 @@ export default function App() {
               <Route path="/epro-dashboard" element={<PortfolioRiskOptimisationAnalytics />} />
               <Route path="/aehm-dashboard" element={<EnergyHubMicrostructureAnalytics />} />
               <Route path="/fmrp-dashboard" element={<FrequencyReservePlanningAnalytics />} />
+              <Route path="/daro-dashboard" element={<DistributedAssetOptimisationAnalytics />} />
+              <Route path="/ecsa-dashboard" element={<ConsumerSegmentationAnalytics />} />
+              <Route path="/gena-dashboard" element={<GenerationExpansionAnalytics />} />
             </Routes>
           </main>
         </div>

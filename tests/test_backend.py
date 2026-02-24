@@ -24228,3 +24228,305 @@ class TestFMRPDashboard:
             assert expected_type in types_present, (
                 f"Reserve type '{expected_type}' not found in reserves: {types_present}"
             )
+
+# ===========================================================================
+# TestDARODashboard — Sprint 157a: Distributed Asset Resource Optimisation
+# ===========================================================================
+
+class TestDARODashboard:
+    """Tests for GET /api/distributed-asset-optimisation/dashboard (DARO)."""
+
+    URL = "/api/distributed-asset-optimisation/dashboard"
+
+    def test_daro_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_daro_assets_count(self):
+        """Must return exactly 60 asset records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["assets"]) == 60, (
+            f"Expected 60 asset records, got {len(data['assets'])}"
+        )
+
+    def test_daro_dispatch_count(self):
+        """Must return exactly 144 dispatch records (6 types × 4 regions × 2 years × 3 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["dispatch"]) == 144, (
+            f"Expected 144 dispatch records, got {len(data['dispatch'])}"
+        )
+
+    def test_daro_aggregators_count(self):
+        """Must return exactly 8 aggregator records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["aggregators"]) == 8, (
+            f"Expected 8 aggregator records, got {len(data['aggregators'])}"
+        )
+
+    def test_daro_flexibility_count(self):
+        """Must return exactly 48 flexibility records (4 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["flexibility"]) == 48, (
+            f"Expected 48 flexibility records, got {len(data['flexibility'])}"
+        )
+
+    def test_daro_summary_fields(self):
+        """Summary must contain all four required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_assets" in summary
+        assert "total_capacity_mw" in summary
+        assert "avg_flexibility_score" in summary
+        assert "total_annual_revenue_m_aud" in summary
+        assert isinstance(summary["total_assets"], int)
+        assert isinstance(summary["total_capacity_mw"], (int, float))
+        assert isinstance(summary["avg_flexibility_score"], (int, float))
+        assert isinstance(summary["total_annual_revenue_m_aud"], (int, float))
+
+    def test_daro_assets_structure(self):
+        """Each asset record must contain all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assets = r.json()["assets"]
+        for rec in assets[:10]:
+            assert "asset_id" in rec
+            assert "asset_type" in rec
+            assert "state" in rec
+            assert "region" in rec
+            assert "capacity_kw" in rec
+            assert "enrolled_in_vpp" in rec
+            assert "aggregator" in rec
+            assert "flexibility_score" in rec
+            assert rec["capacity_kw"] > 0
+            assert 0 <= rec["flexibility_score"] <= 100
+            assert isinstance(rec["enrolled_in_vpp"], bool)
+
+    def test_daro_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_daro_asset_types(self):
+        """All 6 asset types must be present in the dispatch data."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        types_present = {rec["asset_type"] for rec in r.json()["dispatch"]}
+        for expected_type in (
+            "Rooftop Solar",
+            "Home Battery",
+            "EV",
+            "Pool Pump",
+            "HVAC",
+            "Hot Water",
+        ):
+            assert expected_type in types_present, (
+                f"Asset type '{expected_type}' not found in dispatch: {types_present}"
+            )
+
+
+# ===========================================================================
+# TestECSADashboard — Sprint 157b: Energy Consumer Segmentation Analytics
+# ===========================================================================
+
+class TestECSADashboard:
+    """Tests for GET /api/consumer-segmentation/dashboard (ECSA)."""
+
+    URL = "/api/consumer-segmentation/dashboard"
+
+    def test_ecsa_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_ecsa_segments_count(self):
+        """Must return exactly 120 segment records (8 segments × 5 states × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["segments"]) == 120, (
+            f"Expected 120 segment records, got {len(data['segments'])}"
+        )
+
+    def test_ecsa_behaviour_count(self):
+        """Must return exactly 8 behaviour records (one per segment)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["behaviour"]) == 8, (
+            f"Expected 8 behaviour records, got {len(data['behaviour'])}"
+        )
+
+    def test_ecsa_products_count(self):
+        """Must return exactly 36 product records (12 products × 3 states)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["products"]) == 36, (
+            f"Expected 36 product records, got {len(data['products'])}"
+        )
+
+    def test_ecsa_churn_count(self):
+        """Must return exactly 200 churn records (5 states × 2 years × 4 quarters × 5 segments)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["churn"]) == 200, (
+            f"Expected 200 churn records, got {len(data['churn'])}"
+        )
+
+    def test_ecsa_summary_fields(self):
+        """Summary must contain all four required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_customers" in summary
+        assert "avg_annual_bill_aud" in summary
+        assert "overall_churn_rate_pct" in summary
+        assert "highest_satisfaction_segment" in summary
+        assert isinstance(summary["total_customers"], int)
+        assert isinstance(summary["avg_annual_bill_aud"], (int, float))
+        assert isinstance(summary["overall_churn_rate_pct"], (int, float))
+        assert isinstance(summary["highest_satisfaction_segment"], str)
+
+    def test_ecsa_segments_structure(self):
+        """Each segment record must contain all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        for rec in r.json()["segments"][:10]:
+            assert "segment_name" in rec
+            assert "state" in rec
+            assert "year" in rec
+            assert "customer_count" in rec
+            assert "avg_annual_consumption_mwh" in rec
+            assert "avg_bill_aud" in rec
+            assert "churn_rate_pct" in rec
+            assert "satisfaction_score" in rec
+            assert "digital_engagement_pct" in rec
+            assert rec["customer_count"] > 0
+            assert 1 <= rec["satisfaction_score"] <= 10
+            assert rec["year"] in (2022, 2023, 2024)
+
+    def test_ecsa_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_ecsa_segment_names(self):
+        """All 8 expected segment names must be present in the segments list."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        names_present = {rec["segment_name"] for rec in r.json()["segments"]}
+        expected = {
+            "High Users", "Low Income", "Solar Adopters", "EV Owners",
+            "Time-of-Use", "Business SME", "Large Commercial", "Industrial",
+        }
+        for name in expected:
+            assert name in names_present, (
+                f"Segment name '{name}' not found in segments: {names_present}"
+            )
+
+
+# ===========================================================================
+# Sprint 157c: TestGENADashboard — Generation Expansion New Entry Analytics
+# ===========================================================================
+
+class TestGENADashboard:
+    """Tests for GET /api/generation-expansion/dashboard (GENA Sprint 157c)."""
+
+    URL = "/api/generation-expansion/dashboard"
+
+    def test_gena_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_gena_projects_count(self):
+        """Dashboard must contain exactly 24 project records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 24
+
+    def test_gena_economics_count(self):
+        """Dashboard must contain exactly 30 economics records (6 techs × 5 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["economics"]) == 30
+
+    def test_gena_pipeline_count(self):
+        """Dashboard must contain exactly 180 pipeline records (6 states × 6 techs × 5 stages)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["pipeline"]) == 180
+
+    def test_gena_retirements_count(self):
+        """Dashboard must contain exactly 10 retirement records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["retirements"]) == 10
+
+    def test_gena_summary_fields(self):
+        """Summary must contain all required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_new_projects" in summary
+        assert "total_new_capacity_mw" in summary
+        assert "avg_irr_pct" in summary
+        assert "total_retirement_capacity_mw" in summary
+        assert summary["total_new_projects"] == 24
+        assert summary["total_new_capacity_mw"] > 0
+        assert summary["avg_irr_pct"] > 0
+        assert summary["total_retirement_capacity_mw"] > 0
+
+    def test_gena_projects_structure(self):
+        """Each project record must have all required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        for proj in r.json()["projects"]:
+            assert "project_name" in proj
+            assert "developer" in proj
+            assert "technology" in proj
+            assert "state" in proj
+            assert "capacity_mw" in proj
+            assert "financial_close_year" in proj
+            assert "commissioning_year" in proj
+            assert "status" in proj
+            assert "capex_m_aud" in proj
+            assert proj["capacity_mw"] > 0
+            assert proj["commissioning_year"] >= proj["financial_close_year"]
+
+    def test_gena_caching(self):
+        """Repeated calls must return identical data (caching in effect)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["summary"] == r2.json()["summary"]
+        assert len(r1.json()["projects"]) == len(r2.json()["projects"])
+
+    def test_gena_technologies(self):
+        """All 6 expected technologies must appear in the economics records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        techs_present = {rec["technology"] for rec in r.json()["economics"]}
+        expected_techs = {"Solar", "Wind", "Wind+Storage", "Solar+Storage", "Gas Peaker", "Pumped Hydro"}
+        for tech in expected_techs:
+            assert tech in techs_present, (
+                f"Technology '{tech}' not found in economics records: {techs_present}"
+            )
