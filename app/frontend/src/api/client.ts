@@ -31250,3 +31250,195 @@ export interface SPARDashboard {
 
 export const getSolarParkRegistryDashboard = (): Promise<SPARDashboard> =>
   get<SPARDashboard>('/api/solar-park-registry/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 159a — Energy Storage Duration Analytics X (ESDAxDashboard)
+// ---------------------------------------------------------------------------
+
+export interface ESDAxStorageSite {
+  site_id: string
+  site_name: string
+  technology: string
+  region: string
+  capacity_mw: number
+  duration_hours: number
+  energy_capacity_mwh: number
+  year_commissioned: number
+}
+
+export interface ESDAxOperationalRecord {
+  site_id: string
+  year: number
+  month: number
+  cycles_per_day: number
+  round_trip_efficiency_pct: number
+  avg_charge_duration_h: number
+  avg_discharge_duration_h: number
+  capacity_factor_pct: number
+  degradation_pct: number
+}
+
+export interface ESDAxRevenueRecord {
+  site_id: string
+  year: number
+  quarter: string
+  energy_arbitrage_m_aud: number
+  fcas_revenue_m_aud: number
+  capacity_market_m_aud: number
+  total_revenue_m_aud: number
+}
+
+export interface ESDAxTechnologyTrend {
+  technology: string
+  year: number
+  avg_cost_per_kwh: number
+  deployed_projects: number
+  total_capacity_mw: number
+}
+
+export interface ESDAxSummary {
+  total_sites: number
+  total_capacity_mw: number
+  total_energy_capacity_mwh: number
+  avg_duration_hours: number
+  top_technology: string
+}
+
+export interface ESDAxDashboard {
+  sites: ESDAxStorageSite[]
+  operational: ESDAxOperationalRecord[]
+  revenue: ESDAxRevenueRecord[]
+  tech_trends: ESDAxTechnologyTrend[]
+  summary: ESDAxSummary
+}
+
+export async function getEnergyStorageDurationXDashboard(): Promise<ESDAxDashboard> {
+  return get<ESDAxDashboard>('/api/energy-storage-duration-x/dashboard')
+}
+
+// ---------------------------------------------------------------------------
+// Offshore Wind Development Analytics (OWDAX) — Sprint 159c
+// ---------------------------------------------------------------------------
+
+export interface OWDAXProject {
+  project_id: string
+  project_name: string
+  state: string
+  developer: string
+  capacity_mw: number
+  distance_offshore_km: number
+  water_depth_m: number
+  turbine_count: number
+  status: string
+  year_first_power: number
+}
+
+export interface OWDAXInvestmentRecord {
+  project_id: string
+  year: number
+  capex_m_aud: number
+  opex_m_aud: number
+  equity_pct: number
+  debt_pct: number
+  govt_grant_m_aud: number
+}
+
+export interface OWDAXGenerationRecord {
+  project_id: string
+  year: number
+  quarter: string
+  generation_gwh: number
+  capacity_factor_pct: number
+  availability_pct: number
+  curtailment_pct: number
+}
+
+export interface OWDAXSupplyChainRecord {
+  component: string
+  local_content_pct: number
+  import_cost_m_aud: number
+  local_jobs: number
+  supplier_country: string
+}
+
+export interface OWDAXSummary {
+  total_projects: number
+  total_pipeline_mw: number
+  operating_mw: number
+  avg_capex_per_mw_m_aud: number
+  leading_state: string
+}
+
+export interface OWDAXdashboard {
+  projects: OWDAXProject[]
+  investment: OWDAXInvestmentRecord[]
+  generation: OWDAXGenerationRecord[]
+  supply_chain: OWDAXSupplyChainRecord[]
+  summary: OWDAXSummary
+}
+
+export async function getOffshoreWindDevelopmentDashboard(): Promise<OWDAXdashboard> {
+  return get<OWDAXdashboard>('/api/offshore-wind-development/dashboard')
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 159b — NEM Participant Financial Performance (NPFPdashboard)
+// ---------------------------------------------------------------------------
+
+export interface NPFPParticipant {
+  participant_id: string
+  participant_name: string
+  participant_type: string
+  region: string
+  market_share_pct: number
+}
+
+export interface NPFPRevenueRecord {
+  participant_id: string
+  year: number
+  quarter: string
+  trading_revenue_m_aud: number
+  fcas_revenue_m_aud: number
+  capacity_revenue_m_aud: number
+  hedge_pnl_m_aud: number
+  total_revenue_m_aud: number
+}
+
+export interface NPFPCostRecord {
+  participant_id: string
+  year: number
+  fuel_cost_m_aud: number
+  opex_m_aud: number
+  carbon_cost_m_aud: number
+  network_charges_m_aud: number
+  ebitda_m_aud: number
+  ebitda_margin_pct: number
+}
+
+export interface NPFPRiskMetric {
+  participant_id: string
+  year: number
+  value_at_risk_m_aud: number
+  credit_exposure_m_aud: number
+  hedge_ratio_pct: number
+  liquidity_ratio: number
+}
+
+export interface NPFPSummary {
+  total_participants: number
+  total_market_revenue_m_aud: number
+  avg_ebitda_margin_pct: number
+  most_profitable_participant: string
+}
+
+export interface NPFPdashboard {
+  participants: NPFPParticipant[]
+  revenue: NPFPRevenueRecord[]
+  costs: NPFPCostRecord[]
+  risk: NPFPRiskMetric[]
+  summary: NPFPSummary
+}
+
+export async function getNemParticipantFinancialDashboard(): Promise<NPFPdashboard> {
+  return get<NPFPdashboard>('/api/nem-participant-financial/dashboard')
+}

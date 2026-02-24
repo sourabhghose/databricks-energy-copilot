@@ -538,6 +538,9 @@ import GenerationExpansionAnalytics from './pages/GenerationExpansionAnalytics'
 import MarketAnomalyDetectionAnalytics from './pages/MarketAnomalyDetectionAnalytics'
 import WindCapacityMarketAnalytics from './pages/WindCapacityMarketAnalytics'
 import SolarParkRegistryAnalytics from './pages/SolarParkRegistryAnalytics'
+import EnergyStorageDurationXAnalytics from './pages/EnergyStorageDurationXAnalytics'
+import OffshoreWindDevelopmentAnalytics from './pages/OffshoreWindDevelopmentAnalytics'
+import NemParticipantFinancialAnalytics from './pages/NemParticipantFinancialAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -983,6 +986,9 @@ const NAV_ITEMS = [
   { to: '/nema-dashboard', label: 'Anomaly Detection', Icon: AlertTriangle },
   { to: '/wcms-dashboard', label: 'Wind Capacity Market', Icon: Wind },
   { to: '/spar-dashboard', label: 'Solar Park Registry', Icon: Sun },
+  { to: '/energy-storage-duration-x', label: 'Storage Duration X', Icon: Battery },
+  { to: '/offshore-wind-development', label: 'Offshore Wind', Icon: Wind },
+  { to: '/nem-participant-financial', label: 'Participant Financial', Icon: TrendingUp },
 ]
 
 function Sidebar() {
@@ -1503,6 +1509,9 @@ export default function App() {
               <Route path="/nema-dashboard" element={<MarketAnomalyDetectionAnalytics />} />
               <Route path="/wcms-dashboard" element={<WindCapacityMarketAnalytics />} />
               <Route path="/spar-dashboard" element={<SolarParkRegistryAnalytics />} />
+              <Route path="/energy-storage-duration-x" element={<EnergyStorageDurationXAnalytics />} />
+              <Route path="/offshore-wind-development" element={<OffshoreWindDevelopmentAnalytics />} />
+              <Route path="/nem-participant-financial" element={<NemParticipantFinancialAnalytics />} />
             </Routes>
           </main>
         </div>

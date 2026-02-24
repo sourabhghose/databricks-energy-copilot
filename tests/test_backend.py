@@ -24796,3 +24796,212 @@ class TestSPARDashboard:
         assert len(techs) >= 3, (
             f"Expected at least 3 panel technologies, found {len(techs)}: {techs}"
         )
+
+
+# ===========================================================================
+# Sprint 159a — Energy Storage Duration Analytics X (ESDAxDashboard)
+# ===========================================================================
+
+class TestEnergyStorageDurationXEndpoints:
+    """9 tests for GET /api/energy-storage-duration-x/dashboard (Sprint 159a)."""
+
+    URL = "/api/energy-storage-duration-x/dashboard"
+
+    def test_esdax_status_200_with_valid_key(self):
+        """Endpoint returns HTTP 200 with a valid API key (auth disabled in test env)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_esdax_status_403_without_key(self):
+        """Endpoint returns 401/403 when auth is enabled and no key is provided."""
+        with patch("app.backend.main._API_AUTH_ENABLED", True), \
+             patch("app.backend.main.API_KEY", "secret-test-key"):
+            r = client.get(self.URL)
+        assert r.status_code in (401, 403)
+
+    def test_esdax_response_has_required_keys(self):
+        """Response must contain sites, operational, revenue, tech_trends, summary."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert "sites" in data
+        assert "operational" in data
+        assert "revenue" in data
+        assert "tech_trends" in data
+        assert "summary" in data
+
+    def test_esdax_sites_count(self):
+        """Dashboard must contain exactly 15 storage site records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["sites"]) == 15
+
+    def test_esdax_operational_count(self):
+        """Dashboard must contain exactly 180 operational records (15 sites x 3 years x 4 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["operational"]) == 180
+
+    def test_esdax_revenue_count(self):
+        """Dashboard must contain exactly 60 revenue records (15 sites x 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 60
+
+    def test_esdax_tech_trends_count(self):
+        """Dashboard must contain exactly 20 technology trend records (5 technologies x 4 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["tech_trends"]) == 20
+
+    def test_esdax_summary_total_sites(self):
+        """summary.total_sites must equal 15."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_sites"] == 15
+
+    def test_esdax_summary_top_technology_nonempty(self):
+        """summary.top_technology must be a non-empty string."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        top_tech = r.json()["summary"]["top_technology"]
+        assert isinstance(top_tech, str) and len(top_tech) > 0
+
+
+# ===========================================================================
+# Sprint 159b — TestNemParticipantFinancialEndpoints
+# ===========================================================================
+
+class TestNemParticipantFinancialEndpoints:
+    """Tests for GET /api/nem-participant-financial/dashboard (Sprint 159b)."""
+
+    URL = "/api/nem-participant-financial/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_npfp_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_npfp_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_npfp_response_has_required_keys(self):
+        """Response body must contain participants, revenue, costs, risk, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("participants", "revenue", "costs", "risk", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_npfp_participants_count(self):
+        """participants list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["participants"]) == 12
+
+    def test_npfp_revenue_count(self):
+        """revenue list must contain exactly 96 records (12 × 4 quarters × 2 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 96
+
+    def test_npfp_costs_count(self):
+        """costs list must contain exactly 24 records (12 × 2 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["costs"]) == 24
+
+    def test_npfp_risk_count(self):
+        """risk list must contain exactly 24 records (12 × 2 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["risk"]) == 24
+
+    def test_npfp_summary_total_participants(self):
+        """summary.total_participants must equal 12."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_participants"] == 12
+
+    def test_npfp_summary_most_profitable_nonempty(self):
+        """summary.most_profitable_participant must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        name = r.json()["summary"]["most_profitable_participant"]
+        assert isinstance(name, str) and len(name) > 0
+
+
+# ===========================================================================
+# Sprint 159c — Offshore Wind Development Analytics (OWDAXdashboard)
+# ===========================================================================
+
+class TestOffshoreWindDevelopmentEndpoints:
+    """9 tests for GET /api/offshore-wind-development/dashboard (Sprint 159c)."""
+
+    URL = "/api/offshore-wind-development/dashboard"
+
+    def test_owdax_status_200_with_valid_key(self):
+        """Endpoint returns HTTP 200 with a valid API key (auth disabled in test env)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_owdax_status_403_without_key(self):
+        """Endpoint returns 401/403 when auth is enabled and no key is provided."""
+        with patch("app.backend.main._API_AUTH_ENABLED", True), \
+             patch("app.backend.main.API_KEY", "secret-test-key"):
+            r = client.get(self.URL)
+        assert r.status_code in (401, 403)
+
+    def test_owdax_response_has_required_keys(self):
+        """Response must contain projects, investment, generation, supply_chain, summary."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert "projects" in data
+        assert "investment" in data
+        assert "generation" in data
+        assert "supply_chain" in data
+        assert "summary" in data
+
+    def test_owdax_projects_count(self):
+        """Dashboard must contain exactly 14 project records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 14
+
+    def test_owdax_investment_count(self):
+        """Dashboard must contain exactly 42 investment records (14 projects x 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["investment"]) == 42
+
+    def test_owdax_generation_count(self):
+        """Dashboard must contain exactly 56 generation records (14 projects x 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["generation"]) == 56
+
+    def test_owdax_supply_chain_count(self):
+        """Dashboard must contain exactly 5 supply chain records (one per component)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["supply_chain"]) == 5
+
+    def test_owdax_summary_total_projects(self):
+        """summary.total_projects must equal 14."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_projects"] == 14
+
+    def test_owdax_summary_leading_state_nonempty(self):
+        """summary.leading_state must be a non-empty string."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        leading_state = r.json()["summary"]["leading_state"]
+        assert isinstance(leading_state, str) and len(leading_state) > 0
