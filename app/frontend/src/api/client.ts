@@ -30680,3 +30680,189 @@ export interface EMGADashboard {
 
 export const getEmergingMarketsDashboard = (): Promise<EMGADashboard> =>
   get<EMGADashboard>('/api/emerging-markets/dashboard')
+
+// ── Sprint 156a: Energy Portfolio Risk Optimisation (EPRO) ────────────────────
+
+export interface EPROAssetAllocation {
+  participant: string
+  asset_type: string
+  year: number
+  quarter: string
+  allocation_pct: number
+  expected_return_pct: number
+  volatility_pct: number
+  correlation_to_market: number
+}
+
+export interface EPROOptimisationResult {
+  participant: string
+  optimisation_objective: string
+  year: number
+  optimal_return_pct: number
+  optimal_risk_pct: number
+  sharpe_ratio: number
+  var_95_m_aud: number
+  efficient_frontier_point: number
+}
+
+export interface EPRORiskFactor {
+  risk_factor: string
+  participant: string
+  year: number
+  exposure_m_aud: number
+  hedge_ratio_pct: number
+  residual_risk_m_aud: number
+  risk_rating: string
+}
+
+export interface EPROScenarioAnalysis {
+  scenario: string
+  participant: string
+  year: number
+  portfolio_value_m_aud: number
+  pnl_impact_m_aud: number
+  probability_pct: number
+}
+
+export interface EPRODashboardSummary {
+  total_participants: number
+  avg_portfolio_sharpe: number
+  total_var_95_m_aud: number
+  avg_hedge_ratio_pct: number
+}
+
+export interface EPRODashboard {
+  asset_allocations: EPROAssetAllocation[]
+  optimisation_results: EPROOptimisationResult[]
+  risk_factors: EPRORiskFactor[]
+  scenario_analysis: EPROScenarioAnalysis[]
+  summary: EPRODashboardSummary
+}
+
+export const getPortfolioRiskOptimisationDashboard = (): Promise<EPRODashboard> =>
+  get<EPRODashboard>('/api/portfolio-risk-optimisation/dashboard')
+
+// ── Sprint 156b: Australian Energy Hub Microstructure Analytics (AEHM) ────────
+
+export interface AEHMHubRecord {
+  hub_name: string
+  hub_type: string
+  location: string
+  state: string
+  participants: number
+  daily_volume_tj_or_mwh: number
+  liquidity_index: number
+  established_year: number
+}
+
+export interface AEHMOrderBookRecord {
+  hub_name: string
+  year: number
+  month: number
+  bid_volume: number
+  ask_volume: number
+  bid_ask_spread: number
+  market_depth_score: number
+  price_impact_pct: number
+}
+
+export interface AEHMParticipantRecord {
+  hub_name: string
+  participant: string
+  participant_type: string
+  market_share_pct: number
+  monthly_trades: number
+  avg_trade_size: number
+}
+
+export interface AEHMTransactionRecord {
+  hub_name: string
+  year: number
+  quarter: string
+  transaction_count: number
+  total_volume: number
+  avg_transaction_size: number
+  off_market_pct: number
+  electronic_pct: number
+}
+
+export interface AEHMDashboardSummary {
+  total_hubs: number
+  most_liquid_hub: string
+  total_daily_volume: number
+  avg_bid_ask_spread: number
+}
+
+export interface AEHMDashboard {
+  hubs: AEHMHubRecord[]
+  order_book: AEHMOrderBookRecord[]
+  participants: AEHMParticipantRecord[]
+  transactions: AEHMTransactionRecord[]
+  summary: AEHMDashboardSummary
+}
+
+export const getEnergyHubMicrostructureDashboard = (): Promise<AEHMDashboard> =>
+  get<AEHMDashboard>('/api/energy-hub-microstructure/dashboard')
+
+// ── Sprint 156c: Frequency Management Reserve Planning (FMRP) ─────────────────
+
+export interface FMRPReserveRecord {
+  region: string
+  reserve_type: string
+  year: number
+  quarter: string
+  procured_mw: number
+  required_mw: number
+  coverage_pct: number
+  cost_m_aud: number
+}
+
+export interface FMRPEventRecord {
+  event_id: string
+  event_type: string
+  region: string
+  year: number
+  magnitude_hz_deviation: number
+  duration_seconds: number
+  reserves_activated_mw: number
+  recovery_time_seconds: number
+  severity: string
+}
+
+export interface FMRPProviderRecord {
+  provider_name: string
+  provider_type: string
+  region: string
+  fcas_capacity_mw: number
+  response_time_ms: number
+  annual_revenue_m_aud: number
+  availability_pct: number
+}
+
+export interface FMRPTrendRecord {
+  region: string
+  year: number
+  month: number
+  system_frequency_avg_hz: number
+  frequency_deviation_std: number
+  inertia_mws: number
+  rop_mw: number
+}
+
+export interface FMRPDashboardSummary {
+  total_reserve_procured_mw: number
+  total_fcas_cost_m_aud: number
+  avg_frequency_hz: number
+  frequency_events_2024: number
+}
+
+export interface FMRPDashboard {
+  reserves: FMRPReserveRecord[]
+  events: FMRPEventRecord[]
+  providers: FMRPProviderRecord[]
+  trends: FMRPTrendRecord[]
+  summary: FMRPDashboardSummary
+}
+
+export const getFrequencyReservePlanningDashboard = (): Promise<FMRPDashboard> =>
+  get<FMRPDashboard>('/api/frequency-reserve-planning/dashboard')

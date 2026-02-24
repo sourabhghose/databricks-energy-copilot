@@ -23947,3 +23947,284 @@ class TestEMGADashboard:
             assert name in names_present, (
                 f"Market name '{name}' not found in markets: {names_present}"
             )
+
+
+# ── Sprint 156a: Energy Portfolio Risk Optimisation (EPRO) ───────────────────
+class TestEPRODashboard:
+    URL = "/api/portfolio-risk-optimisation/dashboard"
+
+    def test_epro_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_epro_asset_allocations_count(self):
+        """asset_allocations list must contain exactly 384 records (8 × 2 × 4 × 6)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["asset_allocations"]) == 384
+
+    def test_epro_optimisation_results_count(self):
+        """optimisation_results list must contain exactly 80 records (8 × 2 × 5)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["optimisation_results"]) == 80
+
+    def test_epro_risk_factors_count(self):
+        """risk_factors list must contain exactly 96 records (8 × 2 × 6)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["risk_factors"]) == 96
+
+    def test_epro_scenario_analysis_count(self):
+        """scenario_analysis list must contain exactly 80 records (5 × 8 × 2)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["scenario_analysis"]) == 80
+
+    def test_epro_summary_fields(self):
+        """summary must contain all 4 expected fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_participants" in summary
+        assert "avg_portfolio_sharpe" in summary
+        assert "total_var_95_m_aud" in summary
+        assert "avg_hedge_ratio_pct" in summary
+        assert isinstance(summary["total_participants"], int)
+        assert isinstance(summary["avg_portfolio_sharpe"], float)
+        assert isinstance(summary["total_var_95_m_aud"], float)
+        assert isinstance(summary["avg_hedge_ratio_pct"], float)
+
+    def test_epro_allocations_structure(self):
+        """Every asset_allocation record must have all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "participant", "asset_type", "year", "quarter",
+            "allocation_pct", "expected_return_pct", "volatility_pct", "correlation_to_market",
+        ]
+        valid_asset_types = {"Baseload", "Peaking", "Renewable", "Storage", "Hedges", "Transmission"}
+        valid_quarters = {"Q1", "Q2", "Q3", "Q4"}
+        for rec in r.json()["asset_allocations"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in asset_allocation record: {rec}"
+            assert rec["year"] in (2023, 2024), f"year must be 2023 or 2024, got {rec['year']}"
+            assert rec["asset_type"] in valid_asset_types, f"unexpected asset_type: {rec['asset_type']}"
+            assert rec["quarter"] in valid_quarters, f"unexpected quarter: {rec['quarter']}"
+
+    def test_epro_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_epro_scenarios(self):
+        """All 5 expected scenarios must be present across all scenario_analysis records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        scenarios_present = {rec["scenario"] for rec in r.json()["scenario_analysis"]}
+        expected_scenarios = {"Base", "High Price", "Low Price", "Carbon Tax", "Tech Disruption"}
+        for sc in expected_scenarios:
+            assert sc in scenarios_present, (
+                f"Scenario '{sc}' not found in scenario_analysis: {scenarios_present}"
+            )
+
+# ===========================================================================
+# TestAEHMDashboard — Sprint 156b: Australian Energy Hub Microstructure Analytics
+# ===========================================================================
+
+class TestAEHMDashboard:
+    URL = "/api/energy-hub-microstructure/dashboard"
+
+    def test_aehm_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_aehm_hubs_count(self):
+        """Dashboard must contain exactly 8 hubs."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        hubs = r.json()["hubs"]
+        assert len(hubs) == 8, f"Expected 8 hubs, got {len(hubs)}"
+
+    def test_aehm_order_book_count(self):
+        """Order book must contain exactly 96 records (8 hubs × 2 years × 6 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        order_book = r.json()["order_book"]
+        assert len(order_book) == 96, f"Expected 96 order_book records, got {len(order_book)}"
+
+    def test_aehm_participants_count(self):
+        """Participants list must contain exactly 48 records (8 hubs × 6 participants)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        participants = r.json()["participants"]
+        assert len(participants) == 48, f"Expected 48 participant records, got {len(participants)}"
+
+    def test_aehm_transactions_count(self):
+        """Transactions must contain exactly 96 records (8 hubs × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        transactions = r.json()["transactions"]
+        assert len(transactions) == 96, f"Expected 96 transaction records, got {len(transactions)}"
+
+    def test_aehm_summary_fields(self):
+        """Summary block must have all four required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_hubs" in summary
+        assert "most_liquid_hub" in summary
+        assert "total_daily_volume" in summary
+        assert "avg_bid_ask_spread" in summary
+        assert isinstance(summary["total_hubs"], int)
+        assert isinstance(summary["most_liquid_hub"], str)
+        assert isinstance(summary["total_daily_volume"], float)
+        assert isinstance(summary["avg_bid_ask_spread"], float)
+
+    def test_aehm_hubs_structure(self):
+        """Every hub record must have all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "hub_name", "hub_type", "location", "state",
+            "participants", "daily_volume_tj_or_mwh", "liquidity_index", "established_year",
+        ]
+        for hub in r.json()["hubs"]:
+            for field in required_fields:
+                assert field in hub, f"Missing field '{field}' in hub record: {hub}"
+            assert 0 <= hub["liquidity_index"] <= 100, (
+                f"liquidity_index out of range: {hub['liquidity_index']}"
+            )
+            assert hub["established_year"] >= 2005, (
+                f"established_year too early: {hub['established_year']}"
+            )
+
+    def test_aehm_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_aehm_hub_types(self):
+        """All three hub types — Gas, Electricity, Hybrid — must be present."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        types_present = {hub["hub_type"] for hub in r.json()["hubs"]}
+        for expected_type in ("Gas", "Electricity", "Hybrid"):
+            assert expected_type in types_present, (
+                f"Hub type '{expected_type}' not found in hubs: {types_present}"
+            )
+
+
+# ===========================================================================
+# TestFMRPDashboard — Sprint 156c: Frequency Management Reserve Planning
+# ===========================================================================
+
+class TestFMRPDashboard:
+    """Tests for the GET /api/frequency-reserve-planning/dashboard endpoint."""
+
+    URL = "/api/frequency-reserve-planning/dashboard"
+
+    def test_fmrp_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_fmrp_reserves_count(self):
+        """Must return exactly 240 reserve records (5 regions × 4 types × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["reserves"]) == 240, (
+            f"Expected 240 reserve records, got {len(data['reserves'])}"
+        )
+
+    def test_fmrp_events_count(self):
+        """Must return exactly 50 frequency event records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["events"]) == 50, (
+            f"Expected 50 event records, got {len(data['events'])}"
+        )
+
+    def test_fmrp_providers_count(self):
+        """Must return exactly 12 provider records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["providers"]) == 12, (
+            f"Expected 12 provider records, got {len(data['providers'])}"
+        )
+
+    def test_fmrp_trends_count(self):
+        """Must return exactly 60 trend records (5 regions × 3 years × 4 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["trends"]) == 60, (
+            f"Expected 60 trend records, got {len(data['trends'])}"
+        )
+
+    def test_fmrp_summary_fields(self):
+        """Summary must contain all four required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_reserve_procured_mw" in summary
+        assert "total_fcas_cost_m_aud" in summary
+        assert "avg_frequency_hz" in summary
+        assert "frequency_events_2024" in summary
+        assert isinstance(summary["total_reserve_procured_mw"], (int, float))
+        assert isinstance(summary["total_fcas_cost_m_aud"], (int, float))
+        assert isinstance(summary["avg_frequency_hz"], (int, float))
+        assert isinstance(summary["frequency_events_2024"], int)
+
+    def test_fmrp_reserves_structure(self):
+        """Each reserve record must contain all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        reserves = r.json()["reserves"]
+        for rec in reserves[:10]:
+            assert "region" in rec
+            assert "reserve_type" in rec
+            assert "year" in rec
+            assert "quarter" in rec
+            assert "procured_mw" in rec
+            assert "required_mw" in rec
+            assert "coverage_pct" in rec
+            assert "cost_m_aud" in rec
+            assert rec["procured_mw"] > 0
+            assert rec["required_mw"] > 0
+            assert rec["coverage_pct"] > 0
+            assert rec["cost_m_aud"] > 0
+
+    def test_fmrp_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_fmrp_reserve_types(self):
+        """All four reserve types must be present in the reserves data."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        types_present = {rec["reserve_type"] for rec in r.json()["reserves"]}
+        for expected_type in (
+            "Contingency Raise",
+            "Contingency Lower",
+            "Regulation Raise",
+            "Regulation Lower",
+        ):
+            assert expected_type in types_present, (
+                f"Reserve type '{expected_type}' not found in reserves: {types_present}"
+            )

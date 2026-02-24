@@ -529,6 +529,9 @@ import PriceSensitivityAnalytics from './pages/PriceSensitivityAnalytics'
 import GridReliabilityAnalytics from './pages/GridReliabilityAnalytics'
 import MarketTradingStrategyAnalytics from './pages/MarketTradingStrategyAnalytics'
 import EmergingMarketsAnalytics from './pages/EmergingMarketsAnalytics'
+import PortfolioRiskOptimisationAnalytics from './pages/PortfolioRiskOptimisationAnalytics'
+import EnergyHubMicrostructureAnalytics from './pages/EnergyHubMicrostructureAnalytics'
+import FrequencyReservePlanningAnalytics from './pages/FrequencyReservePlanningAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -965,6 +968,9 @@ const NAV_ITEMS = [
   { to: '/grpt-dashboard', label: 'Grid Reliability', Icon: Wifi },
   { to: '/mats-dashboard', label: 'Trading Strategy', Icon: BarChart2 },
   { to: '/emga-dashboard', label: 'Emerging Markets', Icon: Rocket },
+  { to: '/epro-dashboard', label: 'Portfolio Risk Opt.', Icon: PieChart },
+  { to: '/aehm-dashboard', label: 'Energy Hub Markets', Icon: Globe },
+  { to: '/fmrp-dashboard', label: 'Frequency Reserve', Icon: Radio },
 ]
 
 function Sidebar() {
@@ -1476,6 +1482,9 @@ export default function App() {
               <Route path="/grpt-dashboard" element={<GridReliabilityAnalytics />} />
               <Route path="/mats-dashboard" element={<MarketTradingStrategyAnalytics />} />
               <Route path="/emga-dashboard" element={<EmergingMarketsAnalytics />} />
+              <Route path="/epro-dashboard" element={<PortfolioRiskOptimisationAnalytics />} />
+              <Route path="/aehm-dashboard" element={<EnergyHubMicrostructureAnalytics />} />
+              <Route path="/fmrp-dashboard" element={<FrequencyReservePlanningAnalytics />} />
             </Routes>
           </main>
         </div>
