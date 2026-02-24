@@ -522,6 +522,9 @@ import NaturalGasTradingAnalytics from './pages/NaturalGasTradingAnalytics'
 import EnergyOptimisationAnalytics from './pages/EnergyOptimisationAnalytics'
 import AemcRuleChangeAnalytics from './pages/AemcRuleChangeAnalytics'
 import RenewableExportAnalytics from './pages/RenewableExportAnalytics'
+import CorporatePpaAnalytics from './pages/CorporatePpaAnalytics'
+import NetZeroEmissionsAnalytics from './pages/NetZeroEmissionsAnalytics'
+import PriceSensitivityAnalytics from './pages/PriceSensitivityAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -952,6 +955,9 @@ const NAV_ITEMS = [
   { to: '/aeos-dashboard', label: 'Energy Optimisation', Icon: SettingsIcon },
   { to: '/aemc-rule-change', label: 'AEMC Rule Changes', Icon: BookOpen },
   { to: '/renx-dashboard', label: 'Renewable Export', Icon: Upload },
+  { to: '/cppa-dashboard-x', label: 'Corporate PPA', Icon: FileText },
+  { to: '/nzem-dashboard', label: 'Net Zero Emissions', Icon: Wind },
+  { to: '/epsa-dashboard', label: 'Price Sensitivity', Icon: TrendingUp },
 ]
 
 function Sidebar() {
@@ -1457,6 +1463,9 @@ export default function App() {
               <Route path="/aeos-dashboard" element={<EnergyOptimisationAnalytics />} />
               <Route path="/aemc-rule-change" element={<AemcRuleChangeAnalytics />} />
               <Route path="/renx-dashboard" element={<RenewableExportAnalytics />} />
+              <Route path="/cppa-dashboard-x" element={<CorporatePpaAnalytics />} />
+              <Route path="/nzem-dashboard" element={<NetZeroEmissionsAnalytics />} />
+              <Route path="/epsa-dashboard" element={<PriceSensitivityAnalytics />} />
             </Routes>
           </main>
         </div>

@@ -30309,3 +30309,184 @@ export interface RENXDashboard {
 
 export const getRenewableExportDashboard = (): Promise<RENXDashboard> =>
   get<RENXDashboard>('/api/renewable-export/dashboard')
+
+// ── Sprint 154a: Corporate PPA Analytics (CPPA) ──────────────────────────────
+
+export interface CPPAXContractRecord {
+  contract_id: string
+  buyer: string
+  seller: string
+  technology: string
+  state: string
+  contract_volume_mwh_yr: number
+  strike_price_mwh: number
+  contract_start_year: number
+  contract_duration_years: number
+  contract_type: string
+  buyer_sector: string
+}
+
+export interface CPPAXPricingRecord {
+  technology: string
+  year: number
+  quarter: string
+  avg_strike_price_mwh: number
+  market_reference_price_mwh: number
+  price_premium_pct: number
+  new_contracts_signed: number
+}
+
+export interface CPPAXBuyerRecord {
+  buyer_name: string
+  sector: string
+  total_contracted_mwh_yr: number
+  num_contracts: number
+  avg_contract_duration_years: number
+  green_tariff_pct: number
+  re100_committed: boolean
+}
+
+export interface CPPAXRiskRecord {
+  contract_id: string
+  buyer: string
+  volume_risk_score: number
+  price_risk_score: number
+  counterparty_risk_score: number
+  regulatory_risk_score: number
+  overall_risk_score: number
+}
+
+export interface CPPAXDashboardSummary {
+  total_contracts: number
+  total_contracted_volume_twh_yr: number
+  avg_strike_price_mwh: number
+  largest_buyer: string
+}
+
+export interface CPPAXDashboard {
+  contracts: CPPAXContractRecord[]
+  pricing: CPPAXPricingRecord[]
+  buyers: CPPAXBuyerRecord[]
+  risk_records: CPPAXRiskRecord[]
+  summary: CPPAXDashboardSummary
+}
+
+export const getCorporatePpaDashboard = (): Promise<CPPAXDashboard> =>
+  get<CPPAXDashboard>('/api/corporate-ppa-x/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 154b: Net Zero Emissions Market Analytics (NZEM)
+// ---------------------------------------------------------------------------
+
+export interface NZEMSectorRecord {
+  sector: string
+  year: number
+  emissions_mt_co2e: number
+  reduction_vs_2005_pct: number
+  net_zero_target_year: number
+  pathway: string
+}
+
+export interface NZEMTechnologyRecord {
+  technology: string
+  year: number
+  deployment_gw: number
+  cost_reduction_vs_2020_pct: number
+  co2_abatement_mt: number
+  investment_required_b_aud: number
+}
+
+export interface NZEMPolicyRecord {
+  policy_name: string
+  policy_type: string
+  sector_coverage: string
+  implementation_year: number
+  expected_abatement_mt: number
+  cost_effectiveness_aud_t: number
+  status: string
+}
+
+export interface NZEMProgressRecord {
+  jurisdiction: string
+  year: number
+  emissions_mt_co2e: number
+  renewable_share_pct: number
+  ev_fleet_share_pct: number
+  net_zero_target: string
+}
+
+export interface NZEMDashboardSummary {
+  total_emissions_2024_mt: number
+  reduction_vs_2005_pct: number
+  renewable_electricity_pct: number
+  investment_required_b_aud: number
+}
+
+export interface NZEMDashboard {
+  sectors: NZEMSectorRecord[]
+  technologies: NZEMTechnologyRecord[]
+  policies: NZEMPolicyRecord[]
+  progress: NZEMProgressRecord[]
+  summary: NZEMDashboardSummary
+}
+
+export const getNetZeroEmissionsDashboard = (): Promise<NZEMDashboard> =>
+  get<NZEMDashboard>('/api/net-zero-emissions/dashboard')
+
+// ── Sprint 154c: Electricity Price Sensitivity Analysis (EPSA) ────────────────
+
+export interface EPSASensitivityRecord {
+  region: string
+  driver: string
+  year: number
+  base_price_mwh: number
+  sensitivity_low_mwh: number
+  sensitivity_high_mwh: number
+  elasticity: number
+}
+
+export interface EPSAScenarioRecord {
+  scenario_name: string
+  region: string
+  year: number
+  avg_price_mwh: number
+  peak_price_mwh: number
+  price_std_dev: number
+  renewable_penetration_pct: number
+}
+
+export interface EPSACorrelationRecord {
+  region: string
+  variable_a: string
+  variable_b: string
+  correlation_coefficient: number
+  significance: string
+}
+
+export interface EPSATailRiskRecord {
+  region: string
+  year: number
+  var_95_mwh: number
+  cvar_95_mwh: number
+  spike_frequency_per_year: number
+  avg_spike_duration_hours: number
+  max_spike_mwh: number
+}
+
+export interface EPSADashboardSummary {
+  most_sensitive_region: string
+  highest_elasticity_driver: string
+  avg_base_price_mwh: number
+  max_tail_risk_mwh: number
+}
+
+export interface EPSADashboard {
+  sensitivity: EPSASensitivityRecord[]
+  scenarios: EPSAScenarioRecord[]
+  correlations: EPSACorrelationRecord[]
+  tail_risks: EPSATailRiskRecord[]
+  summary: EPSADashboardSummary
+}
+
+export const getPriceSensitivityDashboard = (): Promise<EPSADashboard> =>
+  get<EPSADashboard>('/api/price-sensitivity/dashboard')

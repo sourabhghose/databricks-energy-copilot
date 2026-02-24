@@ -23366,3 +23366,299 @@ class TestRENXDashboard:
             assert tech in techs_present, (
                 f"Technology '{tech}' not found in generation records: {techs_present}"
             )
+
+
+# ===========================================================================
+# Sprint 154a — Corporate PPA Analytics (CPPA)
+# ===========================================================================
+
+class TestCPPADashboard:
+    """Tests for GET /api/corporate-ppa-x/dashboard"""
+
+    URL = "/api/corporate-ppa-x/dashboard"
+
+    def test_cppa_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_cppa_contracts_count(self):
+        """Contracts list must contain exactly 60 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        contracts = r.json()["contracts"]
+        assert len(contracts) == 60, f"Expected 60 contracts, got {len(contracts)}"
+
+    def test_cppa_pricing_count(self):
+        """Pricing list must contain exactly 64 records (4 tech × 4 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        pricing = r.json()["pricing"]
+        assert len(pricing) == 64, f"Expected 64 pricing records, got {len(pricing)}"
+
+    def test_cppa_buyers_count(self):
+        """Buyers list must contain exactly 15 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        buyers = r.json()["buyers"]
+        assert len(buyers) == 15, f"Expected 15 buyer records, got {len(buyers)}"
+
+    def test_cppa_risk_records_count(self):
+        """Risk records list must contain exactly 40 records (first 40 contracts assessed)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        risk_records = r.json()["risk_records"]
+        assert len(risk_records) == 40, f"Expected 40 risk records, got {len(risk_records)}"
+
+    def test_cppa_summary_fields(self):
+        """Summary must include all 4 required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert isinstance(summary["total_contracts"], int), "total_contracts must be int"
+        assert isinstance(summary["total_contracted_volume_twh_yr"], float), (
+            "total_contracted_volume_twh_yr must be float"
+        )
+        assert isinstance(summary["avg_strike_price_mwh"], float), (
+            "avg_strike_price_mwh must be float"
+        )
+        assert isinstance(summary["largest_buyer"], str), "largest_buyer must be str"
+        assert summary["largest_buyer"] != "", "largest_buyer must not be empty"
+
+    def test_cppa_contracts_structure(self):
+        """Each contract record must have all required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "contract_id", "buyer", "seller", "technology", "state",
+            "contract_volume_mwh_yr", "strike_price_mwh", "contract_start_year",
+            "contract_duration_years", "contract_type", "buyer_sector",
+        ]
+        for rec in r.json()["contracts"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in contract record: {rec}"
+            assert rec["contract_volume_mwh_yr"] > 0, "contract_volume_mwh_yr must be positive"
+            assert rec["strike_price_mwh"] > 0, "strike_price_mwh must be positive"
+            assert rec["contract_start_year"] >= 2020, "contract_start_year must be >= 2020"
+
+    def test_cppa_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_cppa_technologies(self):
+        """All 4 expected technologies must be present in contract records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        techs_present = {rec["technology"] for rec in r.json()["contracts"]}
+        expected = {"Solar", "Wind", "Hydro", "Mixed"}
+        for tech in expected:
+            assert tech in techs_present, (
+                f"Technology '{tech}' not found in contract records: {techs_present}"
+            )
+
+
+# ===========================================================================
+# Sprint 154b — Net Zero Emissions Market Analytics (NZEM)
+# ===========================================================================
+
+class TestNZEMDashboard:
+    """Tests for GET /api/net-zero-emissions/dashboard"""
+
+    URL = "/api/net-zero-emissions/dashboard"
+
+    def test_nzem_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_nzem_sectors_count(self):
+        """Sectors list must contain exactly 42 records (6 sectors × 7 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        sectors = r.json()["sectors"]
+        assert len(sectors) == 42, f"Expected 42 sector records, got {len(sectors)}"
+
+    def test_nzem_technologies_count(self):
+        """Technologies list must contain exactly 49 records (7 technologies × 7 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        technologies = r.json()["technologies"]
+        assert len(technologies) == 49, f"Expected 49 technology records, got {len(technologies)}"
+
+    def test_nzem_policies_count(self):
+        """Policies list must contain exactly 12 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        policies = r.json()["policies"]
+        assert len(policies) == 12, f"Expected 12 policy records, got {len(policies)}"
+
+    def test_nzem_progress_count(self):
+        """Progress list must contain exactly 35 records (7 jurisdictions × 5 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        progress = r.json()["progress"]
+        assert len(progress) == 35, f"Expected 35 progress records, got {len(progress)}"
+
+    def test_nzem_summary_fields(self):
+        """Summary must include all 4 required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert isinstance(summary["total_emissions_2024_mt"], float), (
+            "total_emissions_2024_mt must be float"
+        )
+        assert isinstance(summary["reduction_vs_2005_pct"], float), (
+            "reduction_vs_2005_pct must be float"
+        )
+        assert isinstance(summary["renewable_electricity_pct"], float), (
+            "renewable_electricity_pct must be float"
+        )
+        assert isinstance(summary["investment_required_b_aud"], float), (
+            "investment_required_b_aud must be float"
+        )
+        assert summary["total_emissions_2024_mt"] > 0, "total_emissions_2024_mt must be positive"
+
+    def test_nzem_sectors_structure(self):
+        """Each sector record must have all required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "sector", "year", "emissions_mt_co2e", "reduction_vs_2005_pct",
+            "net_zero_target_year", "pathway",
+        ]
+        for rec in r.json()["sectors"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in sector record: {rec}"
+            assert rec["emissions_mt_co2e"] >= 0, "emissions_mt_co2e must be non-negative"
+            assert rec["net_zero_target_year"] in (2035, 2045, 2050), (
+                f"net_zero_target_year must be 2035/2045/2050, got {rec['net_zero_target_year']}"
+            )
+
+    def test_nzem_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_nzem_pathways(self):
+        """All 3 pathways must be present in the sector records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        pathways_present = {rec["pathway"] for rec in r.json()["sectors"]}
+        expected = {"Ambitious", "Moderate", "Business As Usual"}
+        for pathway in expected:
+            assert pathway in pathways_present, (
+                f"Pathway '{pathway}' not found in sector records: {pathways_present}"
+            )
+
+
+# ===========================================================================
+# TestEPSADashboard — Sprint 154c: Electricity Price Sensitivity Analysis
+# ===========================================================================
+
+class TestEPSADashboard:
+    """Tests for GET /api/price-sensitivity/dashboard (EPSA analytics)."""
+
+    URL = "/api/price-sensitivity/dashboard"
+
+    def test_epsa_returns_200(self):
+        """GET /api/price-sensitivity/dashboard must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_epsa_sensitivity_count(self):
+        """Sensitivity list must contain exactly 90 records (5 regions × 6 drivers × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        sensitivity = r.json()["sensitivity"]
+        assert len(sensitivity) == 90, f"Expected 90 sensitivity records, got {len(sensitivity)}"
+
+    def test_epsa_scenarios_count(self):
+        """Scenarios list must contain exactly 75 records (5 scenarios × 5 regions × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        scenarios = r.json()["scenarios"]
+        assert len(scenarios) == 75, f"Expected 75 scenario records, got {len(scenarios)}"
+
+    def test_epsa_correlations_count(self):
+        """Correlations list must contain exactly 40 records (5 regions × 8 variable pairs)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        correlations = r.json()["correlations"]
+        assert len(correlations) == 40, f"Expected 40 correlation records, got {len(correlations)}"
+
+    def test_epsa_tail_risks_count(self):
+        """Tail risks list must contain exactly 15 records (5 regions × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        tail_risks = r.json()["tail_risks"]
+        assert len(tail_risks) == 15, f"Expected 15 tail risk records, got {len(tail_risks)}"
+
+    def test_epsa_summary_fields(self):
+        """Summary must include all 4 required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert isinstance(summary["most_sensitive_region"], str), (
+            "most_sensitive_region must be str"
+        )
+        assert isinstance(summary["highest_elasticity_driver"], str), (
+            "highest_elasticity_driver must be str"
+        )
+        assert isinstance(summary["avg_base_price_mwh"], float), (
+            "avg_base_price_mwh must be float"
+        )
+        assert isinstance(summary["max_tail_risk_mwh"], float), (
+            "max_tail_risk_mwh must be float"
+        )
+        assert summary["avg_base_price_mwh"] > 0, "avg_base_price_mwh must be positive"
+        assert summary["max_tail_risk_mwh"] > 0, "max_tail_risk_mwh must be positive"
+
+    def test_epsa_sensitivity_structure(self):
+        """Each sensitivity record must have all required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "region", "driver", "year", "base_price_mwh",
+            "sensitivity_low_mwh", "sensitivity_high_mwh", "elasticity",
+        ]
+        for rec in r.json()["sensitivity"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in sensitivity record: {rec}"
+            assert rec["sensitivity_low_mwh"] <= rec["base_price_mwh"], (
+                "sensitivity_low_mwh must be <= base_price_mwh"
+            )
+            assert rec["sensitivity_high_mwh"] >= rec["base_price_mwh"], (
+                "sensitivity_high_mwh must be >= base_price_mwh"
+            )
+            assert rec["year"] in (2022, 2023, 2024), (
+                f"year must be 2022/2023/2024, got {rec['year']}"
+            )
+
+    def test_epsa_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_epsa_drivers(self):
+        """All 6 expected drivers must be present in the sensitivity records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        drivers_present = {rec["driver"] for rec in r.json()["sensitivity"]}
+        expected_drivers = {
+            "Gas Price", "Carbon Price", "Renewable Penetration",
+            "Demand Growth", "Hydro Availability", "Coal Availability",
+        }
+        for driver in expected_drivers:
+            assert driver in drivers_present, (
+                f"Driver '{driver}' not found in sensitivity records: {drivers_present}"
+            )
