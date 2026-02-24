@@ -24530,3 +24530,269 @@ class TestGENADashboard:
             assert tech in techs_present, (
                 f"Technology '{tech}' not found in economics records: {techs_present}"
             )
+
+
+# ===========================================================================
+# Sprint 158a — NEM Market Anomaly Detection Analytics (NEMA)
+# ===========================================================================
+
+class TestNEMADashboard:
+    URL = "/api/market-anomaly-detection/dashboard"
+
+    def test_nema_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_nema_anomalies_count(self):
+        """Dashboard must contain exactly 80 anomaly records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["anomalies"]) == 80
+
+    def test_nema_patterns_count(self):
+        """Dashboard must contain exactly 12 pattern records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["patterns"]) == 12
+
+    def test_nema_alerts_count(self):
+        """Dashboard must contain exactly 60 alert records (5 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["alerts"]) == 60
+
+    def test_nema_model_performance_count(self):
+        """Dashboard must contain exactly 18 model performance records (6 models × 3 regions)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["model_performance"]) == 18
+
+    def test_nema_summary_fields(self):
+        """Summary must contain all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_anomalies_2024" in summary
+        assert "critical_anomalies_2024" in summary
+        assert "total_financial_impact_m_aud" in summary
+        assert "best_detection_model" in summary
+        assert summary["total_anomalies_2024"] >= 0
+        assert summary["critical_anomalies_2024"] >= 0
+        assert summary["total_financial_impact_m_aud"] > 0
+        assert isinstance(summary["best_detection_model"], str)
+        assert len(summary["best_detection_model"]) > 0
+
+    def test_nema_anomalies_structure(self):
+        """Each anomaly record must have all required fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        for rec in r.json()["anomalies"]:
+            assert "anomaly_id" in rec
+            assert "region" in rec
+            assert "anomaly_type" in rec
+            assert "year" in rec
+            assert "month" in rec
+            assert "detected_at" in rec
+            assert "severity" in rec
+            assert "price_deviation_pct" in rec
+            assert "duration_minutes" in rec
+            assert "financial_impact_m_aud" in rec
+            assert "resolution_status" in rec
+            assert rec["price_deviation_pct"] > 0
+            assert rec["duration_minutes"] > 0
+            assert rec["financial_impact_m_aud"] > 0
+            assert 1 <= rec["month"] <= 12
+
+    def test_nema_caching(self):
+        """Repeated calls must return identical data (caching in effect)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["summary"] == r2.json()["summary"]
+        assert len(r1.json()["anomalies"]) == len(r2.json()["anomalies"])
+
+    def test_nema_anomaly_types(self):
+        """All 5 expected anomaly types must appear in the anomaly records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        types_present = {rec["anomaly_type"] for rec in r.json()["anomalies"]}
+        expected_types = {"Price Spike", "Volume Anomaly", "Bid Manipulation", "Constraint Breach", "Settlement Error"}
+        for atype in expected_types:
+            assert atype in types_present, (
+                f"Anomaly type '{atype}' not found in anomaly records: {types_present}"
+            )
+
+
+# ── Sprint 158b: Wind Capacity Market Structure Analytics (WCMS) ──────────────
+class TestWCMSDashboard:
+    URL = "/api/wind-capacity-market/dashboard"
+
+    def test_wcms_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_wcms_farms_count(self):
+        """Must return exactly 16 farm records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["farms"]) == 16
+
+    def test_wcms_generation_count(self):
+        """Must return exactly 192 generation records (16 farms × 3 years × 4 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["generation"]) == 192
+
+    def test_wcms_market_count(self):
+        """Must return exactly 128 market records (16 farms × 2 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["market"]) == 128
+
+    def test_wcms_regional_count(self):
+        """Must return exactly 15 regional records (5 regions × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["regional"]) == 15
+
+    def test_wcms_summary_fields(self):
+        """Summary must contain all required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_installed_mw" in summary
+        assert "avg_capacity_factor_pct" in summary
+        assert "total_farms" in summary
+        assert "total_revenue_2024_m_aud" in summary
+        assert summary["total_installed_mw"] > 0
+        assert summary["total_farms"] == 16
+        assert 0 < summary["avg_capacity_factor_pct"] < 100
+
+    def test_wcms_farms_structure(self):
+        """Each farm record must contain all expected fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        for farm in r.json()["farms"]:
+            assert "farm_name" in farm
+            assert "developer" in farm
+            assert "state" in farm
+            assert "region" in farm
+            assert "installed_capacity_mw" in farm
+            assert "commissioning_year" in farm
+            assert "turbine_model" in farm
+            assert "hub_height_m" in farm
+            assert "rotor_diameter_m" in farm
+            assert "num_turbines" in farm
+            assert farm["installed_capacity_mw"] > 0
+            assert farm["num_turbines"] > 0
+            assert 2012 <= farm["commissioning_year"] <= 2024
+
+    def test_wcms_caching(self):
+        """Repeated calls must return identical data (caching in effect)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["summary"] == r2.json()["summary"]
+        assert len(r1.json()["farms"]) == len(r2.json()["farms"])
+        assert len(r1.json()["generation"]) == len(r2.json()["generation"])
+
+    def test_wcms_regions(self):
+        """All 5 NEM regions must be present in the regional data."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        regions_present = {rec["region"] for rec in r.json()["regional"]}
+        expected_regions = {"NSW1", "QLD1", "VIC1", "SA1", "TAS1"}
+        for region in expected_regions:
+            assert region in regions_present, (
+                f"Region '{region}' not found in regional records: {regions_present}"
+            )
+
+# ===========================================================================
+# Sprint 158c: Solar Park Asset Registry Analytics (SPAR)
+# ===========================================================================
+
+class TestSPARDashboard:
+    """Tests for GET /api/solar-park-registry/dashboard (Sprint 158c)."""
+
+    URL = "/api/solar-park-registry/dashboard"
+
+    def test_spar_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_spar_parks_count(self):
+        """Dashboard must contain exactly 16 park records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["parks"]) == 16
+
+    def test_spar_generation_count(self):
+        """Dashboard must contain exactly 192 generation records (16 parks × 3 years × 4 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["generation"]) == 192
+
+    def test_spar_components_count(self):
+        """Dashboard must contain exactly 80 component records (16 parks × 5 component types)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["components"]) == 80
+
+    def test_spar_revenue_count(self):
+        """Dashboard must contain exactly 128 revenue records (16 parks × 2 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 128
+
+    def test_spar_summary_fields(self):
+        """Summary must have all expected fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert summary["total_parks"] == 16
+        assert summary["total_capacity_mw"] > 0
+        assert 0 < summary["avg_performance_ratio_pct"] < 200
+        assert summary["total_revenue_2024_m_aud"] > 0
+
+    def test_spar_parks_structure(self):
+        """Each park record must contain all expected fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        for park in r.json()["parks"]:
+            assert "park_name" in park
+            assert "developer" in park
+            assert "state" in park
+            assert "region" in park
+            assert "dc_capacity_mw" in park
+            assert "ac_capacity_mw" in park
+            assert "commissioning_year" in park
+            assert "panel_technology" in park
+            assert "tracking_type" in park
+            assert "land_area_ha" in park
+            assert park["dc_capacity_mw"] > 0
+            assert park["ac_capacity_mw"] > 0
+            assert 2015 <= park["commissioning_year"] <= 2024
+
+    def test_spar_caching(self):
+        """Repeated calls must return identical data (caching in effect)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["summary"] == r2.json()["summary"]
+        assert len(r1.json()["parks"]) == len(r2.json()["parks"])
+        assert len(r1.json()["generation"]) == len(r2.json()["generation"])
+
+    def test_spar_panel_technologies(self):
+        """At least 3 distinct panel technologies must be present across all parks."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        techs = {park["panel_technology"] for park in r.json()["parks"]}
+        assert len(techs) >= 3, (
+            f"Expected at least 3 panel technologies, found {len(techs)}: {techs}"
+        )

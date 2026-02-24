@@ -535,6 +535,9 @@ import FrequencyReservePlanningAnalytics from './pages/FrequencyReservePlanningA
 import DistributedAssetOptimisationAnalytics from './pages/DistributedAssetOptimisationAnalytics'
 import ConsumerSegmentationAnalytics from './pages/ConsumerSegmentationAnalytics'
 import GenerationExpansionAnalytics from './pages/GenerationExpansionAnalytics'
+import MarketAnomalyDetectionAnalytics from './pages/MarketAnomalyDetectionAnalytics'
+import WindCapacityMarketAnalytics from './pages/WindCapacityMarketAnalytics'
+import SolarParkRegistryAnalytics from './pages/SolarParkRegistryAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -977,6 +980,9 @@ const NAV_ITEMS = [
   { to: '/daro-dashboard', label: 'Distributed Assets', Icon: Cpu },
   { to: '/ecsa-dashboard', label: 'Consumer Segments', Icon: Users },
   { to: '/gena-dashboard', label: 'Generation Expansion', Icon: Zap },
+  { to: '/nema-dashboard', label: 'Anomaly Detection', Icon: AlertTriangle },
+  { to: '/wcms-dashboard', label: 'Wind Capacity Market', Icon: Wind },
+  { to: '/spar-dashboard', label: 'Solar Park Registry', Icon: Sun },
 ]
 
 function Sidebar() {
@@ -1494,6 +1500,9 @@ export default function App() {
               <Route path="/daro-dashboard" element={<DistributedAssetOptimisationAnalytics />} />
               <Route path="/ecsa-dashboard" element={<ConsumerSegmentationAnalytics />} />
               <Route path="/gena-dashboard" element={<GenerationExpansionAnalytics />} />
+              <Route path="/nema-dashboard" element={<MarketAnomalyDetectionAnalytics />} />
+              <Route path="/wcms-dashboard" element={<WindCapacityMarketAnalytics />} />
+              <Route path="/spar-dashboard" element={<SolarParkRegistryAnalytics />} />
             </Routes>
           </main>
         </div>

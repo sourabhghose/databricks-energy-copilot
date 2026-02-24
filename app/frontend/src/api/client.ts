@@ -31053,3 +31053,200 @@ export interface GENADashboard {
 
 export const getGenerationExpansionDashboard = (): Promise<GENADashboard> =>
   get<GENADashboard>('/api/generation-expansion/dashboard')
+
+// ── Sprint 158a: NEM Market Anomaly Detection Analytics (NEMA) ───────────────
+
+export interface NEMAAnomalyRecord {
+  anomaly_id: string
+  region: string
+  anomaly_type: string
+  year: number
+  month: number
+  detected_at: string
+  severity: string
+  price_deviation_pct: number
+  duration_minutes: number
+  financial_impact_m_aud: number
+  resolution_status: string
+}
+
+export interface NEMAPatternRecord {
+  pattern_name: string
+  region: string
+  frequency_per_year: number
+  avg_price_impact_mwh: number
+  trigger_condition: string
+  detection_method: string
+  false_positive_rate_pct: number
+}
+
+export interface NEMAAlertRecord {
+  alert_id: string
+  region: string
+  alert_type: string
+  year: number
+  quarter: string
+  alerts_triggered: number
+  alerts_confirmed: number
+  avg_response_time_minutes: number
+  escalated_to_aer: number
+}
+
+export interface NEMAModelPerformance {
+  model_name: string
+  model_type: string
+  region: string
+  precision_pct: number
+  recall_pct: number
+  f1_score: number
+  training_period: string
+}
+
+export interface NEMADashboardSummary {
+  total_anomalies_2024: number
+  critical_anomalies_2024: number
+  total_financial_impact_m_aud: number
+  best_detection_model: string
+}
+
+export interface NEMADashboard {
+  anomalies: NEMAAnomalyRecord[]
+  patterns: NEMAPatternRecord[]
+  alerts: NEMAAlertRecord[]
+  model_performance: NEMAModelPerformance[]
+  summary: NEMADashboardSummary
+}
+
+export const getMarketAnomalyDetectionDashboard = (): Promise<NEMADashboard> =>
+  get<NEMADashboard>('/api/market-anomaly-detection/dashboard')
+
+// ── Sprint 158b: Wind Capacity Market Structure Analytics (WCMS) ──────────────
+export interface WCMSFarmRecord {
+  farm_name: string
+  developer: string
+  state: string
+  region: string
+  installed_capacity_mw: number
+  commissioning_year: number
+  turbine_model: string
+  hub_height_m: number
+  rotor_diameter_m: number
+  num_turbines: number
+}
+
+export interface WCMSGenerationRecord {
+  farm_name: string
+  year: number
+  month: number
+  actual_generation_mwh: number
+  capacity_factor_pct: number
+  curtailed_mwh: number
+  avg_wind_speed_ms: number
+  availability_pct: number
+}
+
+export interface WCMSMarketRecord {
+  farm_name: string
+  year: number
+  quarter: string
+  energy_revenue_m_aud: number
+  lrec_revenue_m_aud: number
+  fcas_revenue_m_aud: number
+  hedge_premium_m_aud: number
+  total_revenue_m_aud: number
+}
+
+export interface WCMSRegionalRecord {
+  region: string
+  year: number
+  total_installed_mw: number
+  active_farms: number
+  avg_capacity_factor_pct: number
+  penetration_pct: number
+  price_cannibalisation_pct: number
+}
+
+export interface WCMSDashboardSummary {
+  total_installed_mw: number
+  avg_capacity_factor_pct: number
+  total_farms: number
+  total_revenue_2024_m_aud: number
+}
+
+export interface WCMSDashboard {
+  farms: WCMSFarmRecord[]
+  generation: WCMSGenerationRecord[]
+  market: WCMSMarketRecord[]
+  regional: WCMSRegionalRecord[]
+  summary: WCMSDashboardSummary
+}
+
+export const getWindCapacityMarketDashboard = (): Promise<WCMSDashboard> =>
+  get<WCMSDashboard>('/api/wind-capacity-market/dashboard')
+
+// ── Sprint 158c: Solar Park Asset Registry Analytics (SPAR) ──────────────────
+
+export interface SPARParkRecord {
+  park_name: string
+  developer: string
+  state: string
+  region: string
+  dc_capacity_mw: number
+  ac_capacity_mw: number
+  commissioning_year: number
+  panel_technology: string
+  tracking_type: string
+  land_area_ha: number
+}
+
+export interface SPARGenerationRecord {
+  park_name: string
+  year: number
+  month: number
+  actual_generation_mwh: number
+  expected_generation_mwh: number
+  performance_ratio_pct: number
+  irradiation_kwh_m2: number
+  temperature_derating_pct: number
+  soiling_loss_pct: number
+}
+
+export interface SPARComponentRecord {
+  park_name: string
+  component_type: string
+  total_units: number
+  failed_units: number
+  under_maintenance: number
+  availability_pct: number
+  avg_age_years: number
+  replacement_cost_m_aud: number
+}
+
+export interface SPARRevenueRecord {
+  park_name: string
+  year: number
+  quarter: string
+  energy_revenue_m_aud: number
+  lgc_revenue_m_aud: number
+  merchant_revenue_m_aud: number
+  ppa_revenue_m_aud: number
+  total_revenue_m_aud: number
+}
+
+export interface SPARDashboardSummary {
+  total_parks: number
+  total_capacity_mw: number
+  avg_performance_ratio_pct: number
+  total_revenue_2024_m_aud: number
+}
+
+export interface SPARDashboard {
+  parks: SPARParkRecord[]
+  generation: SPARGenerationRecord[]
+  components: SPARComponentRecord[]
+  revenue: SPARRevenueRecord[]
+  summary: SPARDashboardSummary
+}
+
+export const getSolarParkRegistryDashboard = (): Promise<SPARDashboard> =>
+  get<SPARDashboard>('/api/solar-park-registry/dashboard')
