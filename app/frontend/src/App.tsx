@@ -92,6 +92,7 @@ import {
   Cloud,
   Briefcase,
   Upload,
+  Rocket,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -525,6 +526,9 @@ import RenewableExportAnalytics from './pages/RenewableExportAnalytics'
 import CorporatePpaAnalytics from './pages/CorporatePpaAnalytics'
 import NetZeroEmissionsAnalytics from './pages/NetZeroEmissionsAnalytics'
 import PriceSensitivityAnalytics from './pages/PriceSensitivityAnalytics'
+import GridReliabilityAnalytics from './pages/GridReliabilityAnalytics'
+import MarketTradingStrategyAnalytics from './pages/MarketTradingStrategyAnalytics'
+import EmergingMarketsAnalytics from './pages/EmergingMarketsAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -958,6 +962,9 @@ const NAV_ITEMS = [
   { to: '/cppa-dashboard-x', label: 'Corporate PPA', Icon: FileText },
   { to: '/nzem-dashboard', label: 'Net Zero Emissions', Icon: Wind },
   { to: '/epsa-dashboard', label: 'Price Sensitivity', Icon: TrendingUp },
+  { to: '/grpt-dashboard', label: 'Grid Reliability', Icon: Wifi },
+  { to: '/mats-dashboard', label: 'Trading Strategy', Icon: BarChart2 },
+  { to: '/emga-dashboard', label: 'Emerging Markets', Icon: Rocket },
 ]
 
 function Sidebar() {
@@ -1466,6 +1473,9 @@ export default function App() {
               <Route path="/cppa-dashboard-x" element={<CorporatePpaAnalytics />} />
               <Route path="/nzem-dashboard" element={<NetZeroEmissionsAnalytics />} />
               <Route path="/epsa-dashboard" element={<PriceSensitivityAnalytics />} />
+              <Route path="/grpt-dashboard" element={<GridReliabilityAnalytics />} />
+              <Route path="/mats-dashboard" element={<MarketTradingStrategyAnalytics />} />
+              <Route path="/emga-dashboard" element={<EmergingMarketsAnalytics />} />
             </Routes>
           </main>
         </div>

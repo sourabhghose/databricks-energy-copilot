@@ -30490,3 +30490,193 @@ export interface EPSADashboard {
 
 export const getPriceSensitivityDashboard = (): Promise<EPSADashboard> =>
   get<EPSADashboard>('/api/price-sensitivity/dashboard')
+
+// ── Sprint 155a: Grid Reliability Performance Tracker (GRPT) ─────────────────
+
+export interface GRPTRegionMetric {
+  region: string
+  year: number
+  quarter: string
+  saidi_minutes: number
+  saifi_count: number
+  caidi_minutes: number
+  reliability_target_met: boolean
+  unserved_energy_mwh: number
+}
+
+export interface GRPTIncidentRecord {
+  incident_id: string
+  region: string
+  incident_type: string
+  year: number
+  duration_hours: number
+  customers_affected: number
+  unserved_energy_mwh: number
+  financial_impact_m_aud: number
+  restoration_method: string
+}
+
+export interface GRPTAssetRecord {
+  asset_class: string
+  region: string
+  age_years: number
+  condition_score: number
+  failure_rate_per_yr: number
+  maintenance_cost_m_aud: number
+  replacement_priority: string
+}
+
+export interface GRPTPerformanceBenchmark {
+  region: string
+  year: number
+  region_saidi: number
+  national_avg_saidi: number
+  best_practice_saidi: number
+  percentile_rank: number
+}
+
+export interface GRPTDashboardSummary {
+  avg_saidi_2024: number
+  total_incidents_2024: number
+  unserved_energy_2024_mwh: number
+  reliability_compliance_pct: number
+}
+
+export interface GRPTDashboard {
+  region_metrics: GRPTRegionMetric[]
+  incidents: GRPTIncidentRecord[]
+  assets: GRPTAssetRecord[]
+  benchmarks: GRPTPerformanceBenchmark[]
+  summary: GRPTDashboardSummary
+}
+
+export const getGridReliabilityDashboard = (): Promise<GRPTDashboard> =>
+  get<GRPTDashboard>('/api/grid-reliability/dashboard')
+
+// ── Sprint 155b: Market Access Trading Strategy Analytics (MATS) ─────────────
+
+export interface MATSStrategyRecord {
+  strategy_name: string
+  strategy_type: string
+  participant: string
+  region: string
+  year: number
+  quarter: string
+  trades_count: number
+  total_volume_mwh: number
+  pnl_m_aud: number
+  sharpe_ratio: number
+  max_drawdown_pct: number
+  win_rate_pct: number
+}
+
+export interface MATSPositionRecord {
+  participant: string
+  region: string
+  product: string
+  year: number
+  month: number
+  long_position_mwh: number
+  short_position_mwh: number
+  net_position_mwh: number
+  mark_to_market_m_aud: number
+}
+
+export interface MATSExecutionRecord {
+  participant: string
+  year: number
+  quarter: string
+  avg_slippage_mwh: number
+  execution_speed_ms: number
+  fill_rate_pct: number
+  market_impact_mwh: number
+  algo_pct: number
+}
+
+export interface MATSMarketDepthRecord {
+  region: string
+  year: number
+  quarter: string
+  bid_ask_spread_mwh: number
+  market_depth_mwh: number
+  liquidity_score: number
+  participation_count: number
+}
+
+export interface MATSDashboardSummary {
+  total_strategies: number
+  best_strategy_pnl_m_aud: number
+  avg_sharpe_ratio: number
+  total_market_volume_twh: number
+}
+
+export interface MATSDashboard {
+  strategies: MATSStrategyRecord[]
+  positions: MATSPositionRecord[]
+  execution: MATSExecutionRecord[]
+  market_depth: MATSMarketDepthRecord[]
+  summary: MATSDashboardSummary
+}
+
+export const getMarketTradingStrategyDashboard = (): Promise<MATSDashboard> =>
+  get<MATSDashboard>('/api/market-trading-strategy/dashboard')
+
+// ── Sprint 155c: Emerging Energy Markets Growth Analytics (EMGA) ──────────────
+export interface EMGAMarketRecord {
+  market_name: string
+  year: number
+  market_size_m_aud: number
+  growth_rate_pct: number
+  participant_count: number
+  maturity_level: string
+  key_driver: string
+}
+
+export interface EMGAStartupRecord {
+  company_name: string
+  market_segment: string
+  founded_year: number
+  funding_raised_m_aud: number
+  employees: number
+  revenue_m_aud: number
+  growth_stage: string
+  technology_type: string
+}
+
+export interface EMGAAdoptionRecord {
+  technology: string
+  year: number
+  state: string
+  installations: number
+  cumulative_capacity_mw: number
+  cost_per_kw_aud: number
+  adoption_rate_pct: number
+}
+
+export interface EMGAInvestmentTrend {
+  segment: string
+  year: number
+  quarter: string
+  venture_capital_m_aud: number
+  private_equity_m_aud: number
+  govt_grants_m_aud: number
+  total_investment_m_aud: number
+}
+
+export interface EMGADashboardSummary {
+  total_market_size_b_aud: number
+  fastest_growing_market: string
+  total_startups: number
+  total_investment_2024_m_aud: number
+}
+
+export interface EMGADashboard {
+  markets: EMGAMarketRecord[]
+  startups: EMGAStartupRecord[]
+  adoption: EMGAAdoptionRecord[]
+  investment_trends: EMGAInvestmentTrend[]
+  summary: EMGADashboardSummary
+}
+
+export const getEmergingMarketsDashboard = (): Promise<EMGADashboard> =>
+  get<EMGADashboard>('/api/emerging-markets/dashboard')

@@ -23662,3 +23662,288 @@ class TestEPSADashboard:
             assert driver in drivers_present, (
                 f"Driver '{driver}' not found in sensitivity records: {drivers_present}"
             )
+
+
+# ===========================================================================
+# Sprint 155a: Grid Reliability Performance Tracker (GRPT) Tests
+# ===========================================================================
+
+class TestGRPTDashboard:
+    """Tests for GET /api/grid-reliability/dashboard (GRPT analytics)."""
+
+    URL = "/api/grid-reliability/dashboard"
+
+    def test_grpt_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_grpt_region_metrics_count(self):
+        """region_metrics must contain exactly 72 records (6 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["region_metrics"]) == 72, (
+            f"Expected 72 region_metrics records, got {len(r.json()['region_metrics'])}"
+        )
+
+    def test_grpt_incidents_count(self):
+        """incidents must contain exactly 60 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["incidents"]) == 60, (
+            f"Expected 60 incidents, got {len(r.json()['incidents'])}"
+        )
+
+    def test_grpt_assets_count(self):
+        """assets must contain exactly 30 records (5 asset classes × 6 regions)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["assets"]) == 30, (
+            f"Expected 30 asset records, got {len(r.json()['assets'])}"
+        )
+
+    def test_grpt_benchmarks_count(self):
+        """benchmarks must contain exactly 18 records (6 regions × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["benchmarks"]) == 18, (
+            f"Expected 18 benchmark records, got {len(r.json()['benchmarks'])}"
+        )
+
+    def test_grpt_summary_fields(self):
+        """summary must contain all 4 expected fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "avg_saidi_2024" in summary
+        assert "total_incidents_2024" in summary
+        assert "unserved_energy_2024_mwh" in summary
+        assert "reliability_compliance_pct" in summary
+        assert isinstance(summary["avg_saidi_2024"], float)
+        assert isinstance(summary["total_incidents_2024"], int)
+        assert isinstance(summary["unserved_energy_2024_mwh"], float)
+        assert isinstance(summary["reliability_compliance_pct"], float)
+
+    def test_grpt_metrics_structure(self):
+        """Every region_metric record must have all required fields."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "region", "year", "quarter", "saidi_minutes",
+            "saifi_count", "caidi_minutes", "reliability_target_met",
+            "unserved_energy_mwh",
+        ]
+        for rec in r.json()["region_metrics"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in region_metric: {rec}"
+            assert rec["year"] in (2022, 2023, 2024), (
+                f"year must be 2022/2023/2024, got {rec['year']}"
+            )
+            assert rec["quarter"] in ("Q1", "Q2", "Q3", "Q4"), (
+                f"quarter must be Q1-Q4, got {rec['quarter']}"
+            )
+
+    def test_grpt_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_grpt_incident_types(self):
+        """All 6 expected incident types must be present across all incidents."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        types_present = {rec["incident_type"] for rec in r.json()["incidents"]}
+        expected_types = {
+            "Equipment Failure", "Extreme Weather", "Bushfire",
+            "Flood", "Cyber", "Human Error",
+        }
+        for t in expected_types:
+            assert t in types_present, (
+                f"Incident type '{t}' not found in incidents: {types_present}"
+            )
+
+
+# ── Sprint 155b: Market Access Trading Strategy Analytics (MATS) ──────────────
+
+class TestMATSDashboard:
+    URL = "/api/market-trading-strategy/dashboard"
+
+    def test_mats_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_mats_strategies_count(self):
+        """strategies must contain exactly 72 records (12 strategy_names × 6 participants)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["strategies"]) == 72, (
+            f"Expected 72 strategy records, got {len(r.json()['strategies'])}"
+        )
+
+    def test_mats_positions_count(self):
+        """positions must contain exactly 320 records (8 participants × 5 regions × 2 years × 4 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["positions"]) == 320, (
+            f"Expected 320 position records, got {len(r.json()['positions'])}"
+        )
+
+    def test_mats_execution_count(self):
+        """execution must contain exactly 64 records (8 participants × 2 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["execution"]) == 64, (
+            f"Expected 64 execution records, got {len(r.json()['execution'])}"
+        )
+
+    def test_mats_market_depth_count(self):
+        """market_depth must contain exactly 60 records (5 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["market_depth"]) == 60, (
+            f"Expected 60 market_depth records, got {len(r.json()['market_depth'])}"
+        )
+
+    def test_mats_summary_fields(self):
+        """summary must contain all 4 expected fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_strategies" in summary
+        assert "best_strategy_pnl_m_aud" in summary
+        assert "avg_sharpe_ratio" in summary
+        assert "total_market_volume_twh" in summary
+        assert isinstance(summary["total_strategies"], int)
+        assert isinstance(summary["best_strategy_pnl_m_aud"], float)
+        assert isinstance(summary["avg_sharpe_ratio"], float)
+        assert isinstance(summary["total_market_volume_twh"], float)
+
+    def test_mats_strategies_structure(self):
+        """Every strategy record must have all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "strategy_name", "strategy_type", "participant", "region",
+            "year", "quarter", "trades_count", "total_volume_mwh",
+            "pnl_m_aud", "sharpe_ratio", "max_drawdown_pct", "win_rate_pct",
+        ]
+        for rec in r.json()["strategies"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in strategy record: {rec}"
+            assert rec["year"] in (2023, 2024), (
+                f"year must be 2023 or 2024, got {rec['year']}"
+            )
+            assert rec["quarter"] in ("Q1", "Q2", "Q3", "Q4"), (
+                f"quarter must be Q1-Q4, got {rec['quarter']}"
+            )
+
+    def test_mats_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_mats_strategy_types(self):
+        """All 5 expected strategy types must be present across all strategy records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        types_present = {rec["strategy_type"] for rec in r.json()["strategies"]}
+        expected_types = {"Arbitrage", "Hedging", "Speculation", "Market Making", "Algorithmic"}
+        for t in expected_types:
+            assert t in types_present, (
+                f"Strategy type '{t}' not found in strategies: {types_present}"
+            )
+
+
+# ── Sprint 155c: Emerging Energy Markets Growth Analytics (EMGA) ──────────────
+class TestEMGADashboard:
+    URL = "/api/emerging-markets/dashboard"
+
+    def test_emga_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_emga_markets_count(self):
+        """markets list must contain exactly 30 records (6 markets × 5 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["markets"]) == 30
+
+    def test_emga_startups_count(self):
+        """startups list must contain exactly 20 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["startups"]) == 20
+
+    def test_emga_adoption_count(self):
+        """adoption list must contain exactly 100 records (5 techs × 4 years × 5 states)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["adoption"]) == 100
+
+    def test_emga_investment_trends_count(self):
+        """investment_trends list must contain exactly 72 records (6 segments × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["investment_trends"]) == 72
+
+    def test_emga_summary_fields(self):
+        """summary must contain all 4 expected fields with correct types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_market_size_b_aud" in summary
+        assert "fastest_growing_market" in summary
+        assert "total_startups" in summary
+        assert "total_investment_2024_m_aud" in summary
+        assert isinstance(summary["total_market_size_b_aud"], float)
+        assert isinstance(summary["fastest_growing_market"], str)
+        assert isinstance(summary["total_startups"], int)
+        assert isinstance(summary["total_investment_2024_m_aud"], float)
+
+    def test_emga_markets_structure(self):
+        """Every market record must have all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "market_name", "year", "market_size_m_aud", "growth_rate_pct",
+            "participant_count", "maturity_level", "key_driver",
+        ]
+        for rec in r.json()["markets"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in market record: {rec}"
+            assert rec["year"] in (2021, 2022, 2023, 2024, 2025), (
+                f"year must be 2021-2025, got {rec['year']}"
+            )
+            assert rec["maturity_level"] in ("Nascent", "Emerging", "Growth", "Mature"), (
+                f"unexpected maturity_level: {rec['maturity_level']}"
+            )
+
+    def test_emga_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_emga_market_names(self):
+        """All 6 expected market names must be present across all market records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        names_present = {rec["market_name"] for rec in r.json()["markets"]}
+        expected_names = {
+            "Virtual Power Plants", "Peer-to-Peer Trading", "Microgrids",
+            "Energy as a Service", "Flexibility Markets", "Green Hydrogen",
+        }
+        for name in expected_names:
+            assert name in names_present, (
+                f"Market name '{name}' not found in markets: {names_present}"
+            )
