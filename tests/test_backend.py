@@ -22802,3 +22802,294 @@ class TestCEFAXDashboard:
             assert expected_type in fund_types_present, (
                 f"Fund type '{expected_type}' not found in funds"
             )
+
+
+# ===========================================================================
+# Sprint 152a: BESS Performance Analytics Tests
+# ===========================================================================
+
+class TestBESSPerformanceAnalytics:
+    URL = "/api/bess-performance/dashboard"
+
+    def test_bess_perf_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_bess_perf_systems_count(self):
+        """Must return exactly 12 BESS systems."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["systems"]) == 12, (
+            f"Expected 12 systems, got {len(data['systems'])}"
+        )
+
+    def test_bess_perf_operations_count(self):
+        """Must return exactly 144 operation records (12 systems × 2 years × 6 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["operations"]) == 144, (
+            f"Expected 144 operation records, got {len(data['operations'])}"
+        )
+
+    def test_bess_perf_degradation_count(self):
+        """Must return exactly 36 degradation records (12 systems × 3 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["degradation"]) == 36, (
+            f"Expected 36 degradation records, got {len(data['degradation'])}"
+        )
+
+    def test_bess_perf_revenue_count(self):
+        """Must return exactly 96 revenue records (12 systems × 2 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["revenue"]) == 96, (
+            f"Expected 96 revenue records, got {len(data['revenue'])}"
+        )
+
+    def test_bess_perf_summary_fields(self):
+        """Summary must contain all four required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_systems" in summary
+        assert "total_capacity_mwh" in summary
+        assert "avg_round_trip_efficiency_pct" in summary
+        assert "total_revenue_2024_m_aud" in summary
+        assert summary["total_systems"] == 12
+        assert summary["total_capacity_mwh"] > 0
+        assert 0 < summary["avg_round_trip_efficiency_pct"] <= 100
+        assert summary["total_revenue_2024_m_aud"] > 0
+
+    def test_bess_perf_systems_structure(self):
+        """Every system record must contain all required fields."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = {
+            "system_name", "location", "state", "technology",
+            "capacity_mwh", "power_mw", "commissioning_year", "owner",
+        }
+        for sys in r.json()["systems"]:
+            for field in required_fields:
+                assert field in sys, f"Missing field '{field}' in system record: {sys}"
+
+    def test_bess_perf_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_bess_perf_technologies(self):
+        """Technologies 'Li-Ion LFP' and 'Li-Ion NMC' must be present in systems."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        technologies_present = {s["technology"] for s in r.json()["systems"]}
+        assert "Li-Ion LFP" in technologies_present, (
+            f"'Li-Ion LFP' not found in technologies: {technologies_present}"
+        )
+        assert "Li-Ion NMC" in technologies_present, (
+            f"'Li-Ion NMC' not found in technologies: {technologies_present}"
+        )
+
+
+# ===========================================================================
+# Sprint 152b — ELCA: Electricity Load Curve Analytics
+# ===========================================================================
+
+class TestELCADashboard:
+    URL = "/api/load-curve/dashboard"
+
+    def test_elca_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+
+    def test_elca_hourly_profiles_count(self):
+        """Must return exactly 960 hourly profiles (5 regions × 4 seasons × 2 day_types × 24 hours)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["hourly_profiles"]) == 960, (
+            f"Expected 960 hourly profiles, got {len(data['hourly_profiles'])}"
+        )
+
+    def test_elca_duration_curves_count(self):
+        """Must return exactly 90 duration curve records (5 regions × 2 years × 9 percentiles)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["duration_curves"]) == 90, (
+            f"Expected 90 duration curve records, got {len(data['duration_curves'])}"
+        )
+
+    def test_elca_peak_records_count(self):
+        """Must return exactly 25 peak records (5 regions × 5 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["peak_records"]) == 25, (
+            f"Expected 25 peak records, got {len(data['peak_records'])}"
+        )
+
+    def test_elca_seasonal_trends_count(self):
+        """Must return exactly 100 seasonal trend records (5 regions × 5 years × 4 seasons)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["seasonal_trends"]) == 100, (
+            f"Expected 100 seasonal trend records, got {len(data['seasonal_trends'])}"
+        )
+
+    def test_elca_summary_fields(self):
+        """Summary must contain all four required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "max_peak_demand_mw" in summary
+        assert "min_demand_mw" in summary
+        assert "avg_load_factor_pct" in summary
+        assert "demand_growth_yoy_pct" in summary
+        assert summary["max_peak_demand_mw"] > 0
+        assert summary["min_demand_mw"] >= 0
+        assert 0 < summary["avg_load_factor_pct"] <= 100
+        assert 0 <= summary["demand_growth_yoy_pct"] <= 10
+
+    def test_elca_hourly_profiles_structure(self):
+        """Every hourly profile must have hour in range 0-23 and required fields."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        profiles = r.json()["hourly_profiles"]
+        required_fields = {
+            "region", "season", "day_type", "hour",
+            "avg_demand_mw", "min_demand_mw", "max_demand_mw",
+            "p10_demand_mw", "p90_demand_mw",
+        }
+        for profile in profiles:
+            for field in required_fields:
+                assert field in profile, f"Missing field '{field}' in hourly profile: {profile}"
+            assert 0 <= profile["hour"] <= 23, (
+                f"Hour out of range 0-23: {profile['hour']}"
+            )
+
+    def test_elca_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_elca_seasons(self):
+        """All 4 seasons must be present in seasonal_trends."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        seasons_present = {t["season"] for t in r.json()["seasonal_trends"]}
+        for season in ["Summer", "Autumn", "Winter", "Spring"]:
+            assert season in seasons_present, (
+                f"Season '{season}' not found in seasonal_trends: {seasons_present}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 152c: Natural Gas Trading & Settlement Analytics (NGTS)
+# ---------------------------------------------------------------------------
+
+class TestNGTSDashboard:
+    URL = "/api/natural-gas-trading/dashboard"
+
+    def test_ngts_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_ngts_trades_count(self):
+        """Must return exactly 80 trade records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["trades"]) == 80, (
+            f"Expected 80 trades, got {len(data['trades'])}"
+        )
+
+    def test_ngts_hub_prices_count(self):
+        """Must return exactly 90 hub price records (5 hubs × 3 years × 6 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["hub_prices"]) == 90, (
+            f"Expected 90 hub price records, got {len(data['hub_prices'])}"
+        )
+
+    def test_ngts_pipeline_flows_count(self):
+        """Must return exactly 96 pipeline flow records (8 pipelines × 2 years × 6 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["pipeline_flows"]) == 96, (
+            f"Expected 96 pipeline flow records, got {len(data['pipeline_flows'])}"
+        )
+
+    def test_ngts_settlements_count(self):
+        """Must return exactly 80 settlement records (10 participants × 2 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["settlements"]) == 80, (
+            f"Expected 80 settlement records, got {len(data['settlements'])}"
+        )
+
+    def test_ngts_summary_fields(self):
+        """Summary must contain all four required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert "total_trade_volume_pj" in summary
+        assert "avg_spot_price_gj" in summary
+        assert "total_participants" in summary
+        assert "highest_price_hub" in summary
+        assert summary["total_trade_volume_pj"] > 0
+        assert summary["avg_spot_price_gj"] > 0
+        assert summary["total_participants"] == 10
+        assert summary["highest_price_hub"] in [
+            "Wallumbilla", "Moomba", "Victoria", "Adelaide", "Darwin"
+        ]
+
+    def test_ngts_trades_structure(self):
+        """Every trade record must have all required fields and valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        trades = r.json()["trades"]
+        required_fields = {
+            "trade_id", "hub", "product", "buyer", "seller",
+            "volume_gj", "price_gj_aud", "trade_date", "settlement_date",
+        }
+        for trade in trades:
+            for field in required_fields:
+                assert field in trade, f"Missing field '{field}' in trade: {trade}"
+            assert trade["volume_gj"] >= 100
+            assert trade["price_gj_aud"] >= 4
+
+    def test_ngts_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_ngts_hubs(self):
+        """All 5 hubs must be present in hub_prices."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        hubs_present = {h["hub"] for h in r.json()["hub_prices"]}
+        for hub in ["Wallumbilla", "Moomba", "Victoria", "Adelaide", "Darwin"]:
+            assert hub in hubs_present, (
+                f"Hub '{hub}' not found in hub_prices: {hubs_present}"
+            )

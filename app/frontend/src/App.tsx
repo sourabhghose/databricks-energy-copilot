@@ -515,6 +515,9 @@ import PumpedHydroReservoirAnalytics from './pages/PumpedHydroReservoirAnalytics
 import EnergyTransitionJobsAnalytics from './pages/EnergyTransitionJobsAnalytics'
 import InterconnectorFlowRightsAnalytics from './pages/InterconnectorFlowRightsAnalytics'
 import CleanEnergyFinanceXAnalytics from './pages/CleanEnergyFinanceXAnalytics'
+import BessPerformanceAnalytics from './pages/BessPerformanceAnalytics'
+import LoadCurveAnalytics from './pages/LoadCurveAnalytics'
+import NaturalGasTradingAnalytics from './pages/NaturalGasTradingAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -939,6 +942,9 @@ const NAV_ITEMS = [
   { to: '/etjj-dashboard', label: 'Energy Transition Jobs', Icon: Briefcase },
   { to: '/nifr-dashboard', label: 'Interconnector Flow Rights', Icon: GitMerge },
   { to: '/cefa-dashboard-x', label: 'Clean Energy Finance', Icon: DollarSign },
+  { to: '/bess-performance', label: 'BESS Performance', Icon: Battery },
+  { to: '/elca-dashboard', label: 'Load Curve Analytics', Icon: Activity },
+  { to: '/ngts-dashboard', label: 'Gas Trading & Settlement', Icon: Flame },
 ]
 
 function Sidebar() {
@@ -1438,6 +1444,9 @@ export default function App() {
               <Route path="/etjj-dashboard" element={<EnergyTransitionJobsAnalytics />} />
               <Route path="/nifr-dashboard" element={<InterconnectorFlowRightsAnalytics />} />
               <Route path="/cefa-dashboard-x" element={<CleanEnergyFinanceXAnalytics />} />
+              <Route path="/bess-performance" element={<BessPerformanceAnalytics />} />
+              <Route path="/elca-dashboard" element={<LoadCurveAnalytics />} />
+              <Route path="/ngts-dashboard" element={<NaturalGasTradingAnalytics />} />
             </Routes>
           </main>
         </div>

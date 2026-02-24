@@ -29942,3 +29942,185 @@ export interface CEFAXDashboard {
 
 export const getCleanEnergyFinanceAnalyticsDashboard = (): Promise<CEFAXDashboard> =>
   get<CEFAXDashboard>('/api/clean-energy-finance-x/dashboard')
+
+// ── Sprint 152a: Battery Energy Storage System Performance (BESS) ─────────────
+
+export interface BESSSystemRecord {
+  system_name: string
+  location: string
+  state: string
+  technology: string
+  capacity_mwh: number
+  power_mw: number
+  commissioning_year: number
+  owner: string
+}
+
+export interface BESSOperationRecord {
+  system_name: string
+  year: number
+  month: number
+  charge_mwh: number
+  discharge_mwh: number
+  round_trip_efficiency_pct: number
+  cycles: number
+  availability_pct: number
+}
+
+export interface BESSDegradationRecord {
+  system_name: string
+  year: number
+  capacity_fade_pct: number
+  power_fade_pct: number
+  state_of_health_pct: number
+  estimated_remaining_life_years: number
+}
+
+export interface BESSRevenueRecord {
+  system_name: string
+  year: number
+  quarter: string
+  arbitrage_revenue_m_aud: number
+  fcas_revenue_m_aud: number
+  capacity_market_revenue_m_aud: number
+  total_revenue_m_aud: number
+}
+
+export interface BESSPerfDashboardSummary {
+  total_systems: number
+  total_capacity_mwh: number
+  avg_round_trip_efficiency_pct: number
+  total_revenue_2024_m_aud: number
+}
+
+export interface BESSPerfDashboard {
+  systems: BESSSystemRecord[]
+  operations: BESSOperationRecord[]
+  degradation: BESSDegradationRecord[]
+  revenue: BESSRevenueRecord[]
+  summary: BESSPerfDashboardSummary
+}
+
+export const getBessPerformanceDashboard = (): Promise<BESSPerfDashboard> =>
+  get<BESSPerfDashboard>('/api/bess-performance/dashboard')
+
+// ── Sprint 152b: Electricity Load Curve Analytics (ELCA) ─────────────────────
+
+export interface ELCAHourlyProfile {
+  region: string
+  season: string
+  day_type: string
+  hour: number
+  avg_demand_mw: number
+  min_demand_mw: number
+  max_demand_mw: number
+  p10_demand_mw: number
+  p90_demand_mw: number
+}
+
+export interface ELCADurationCurve {
+  region: string
+  year: number
+  percentile: number
+  demand_mw: number
+}
+
+export interface ELCAPeakRecord {
+  region: string
+  year: number
+  peak_demand_mw: number
+  peak_month: number
+  peak_hour: number
+  temperature_celsius: number
+  coincident_peak_mw: number
+}
+
+export interface ELCASeasonalTrend {
+  region: string
+  year: number
+  season: string
+  avg_demand_mw: number
+  demand_growth_pct: number
+  renewable_share_pct: number
+}
+
+export interface ELCADashboardSummary {
+  max_peak_demand_mw: number
+  min_demand_mw: number
+  avg_load_factor_pct: number
+  demand_growth_yoy_pct: number
+}
+
+export interface ELCADashboard {
+  hourly_profiles: ELCAHourlyProfile[]
+  duration_curves: ELCADurationCurve[]
+  peak_records: ELCAPeakRecord[]
+  seasonal_trends: ELCASeasonalTrend[]
+  summary: ELCADashboardSummary
+}
+
+export const getLoadCurveDashboard = (): Promise<ELCADashboard> =>
+  get<ELCADashboard>('/api/load-curve/dashboard')
+
+// ── Sprint 152c: Natural Gas Trading & Settlement Analytics (NGTS) ────────────
+
+export interface NGTSTradeRecord {
+  trade_id: string
+  hub: string
+  product: string
+  buyer: string
+  seller: string
+  volume_gj: number
+  price_gj_aud: number
+  trade_date: string
+  settlement_date: string
+}
+
+export interface NGTSHubPrice {
+  hub: string
+  year: number
+  month: number
+  spot_price_gj: number
+  day_ahead_price_gj: number
+  monthly_avg_price_gj: number
+  price_volatility_pct: number
+}
+
+export interface NGTSPipelineFlow {
+  pipeline_name: string
+  origin: string
+  destination: string
+  year: number
+  month: number
+  avg_daily_flow_tj: number
+  capacity_tj: number
+  utilisation_pct: number
+}
+
+export interface NGTSSettlementRecord {
+  participant: string
+  year: number
+  quarter: string
+  total_buys_pj: number
+  total_sells_pj: number
+  net_position_pj: number
+  settlement_amount_m_aud: number
+}
+
+export interface NGTSDashboardSummary {
+  total_trade_volume_pj: number
+  avg_spot_price_gj: number
+  total_participants: number
+  highest_price_hub: string
+}
+
+export interface NGTSDashboard {
+  trades: NGTSTradeRecord[]
+  hub_prices: NGTSHubPrice[]
+  pipeline_flows: NGTSPipelineFlow[]
+  settlements: NGTSSettlementRecord[]
+  summary: NGTSDashboardSummary
+}
+
+export const getNaturalGasTradingDashboard = (): Promise<NGTSDashboard> =>
+  get<NGTSDashboard>('/api/natural-gas-trading/dashboard')
