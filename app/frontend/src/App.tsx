@@ -541,6 +541,9 @@ import SolarParkRegistryAnalytics from './pages/SolarParkRegistryAnalytics'
 import EnergyStorageDurationXAnalytics from './pages/EnergyStorageDurationXAnalytics'
 import OffshoreWindDevelopmentAnalytics from './pages/OffshoreWindDevelopmentAnalytics'
 import NemParticipantFinancialAnalytics from './pages/NemParticipantFinancialAnalytics'
+import GreenTariffHydrogenAnalytics from './pages/GreenTariffHydrogenAnalytics'
+import NemPriceReviewAnalytics from './pages/NemPriceReviewAnalytics'
+import RenewableCertificateNemAnalytics from './pages/RenewableCertificateNemAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -989,6 +992,9 @@ const NAV_ITEMS = [
   { to: '/energy-storage-duration-x', label: 'Storage Duration X', Icon: Battery },
   { to: '/offshore-wind-development', label: 'Offshore Wind', Icon: Wind },
   { to: '/nem-participant-financial', label: 'Participant Financial', Icon: TrendingUp },
+  { to: '/green-tariff-hydrogen', label: 'Green Tariff & H2', Icon: Zap },
+  { to: '/nem-price-review', label: 'Price Review', Icon: DollarSign },
+  { to: '/renewable-certificate-nem', label: 'REC Analytics', Icon: Award },
 ]
 
 function Sidebar() {
@@ -1512,6 +1518,9 @@ export default function App() {
               <Route path="/energy-storage-duration-x" element={<EnergyStorageDurationXAnalytics />} />
               <Route path="/offshore-wind-development" element={<OffshoreWindDevelopmentAnalytics />} />
               <Route path="/nem-participant-financial" element={<NemParticipantFinancialAnalytics />} />
+              <Route path="/green-tariff-hydrogen" element={<GreenTariffHydrogenAnalytics />} />
+              <Route path="/nem-price-review" element={<NemPriceReviewAnalytics />} />
+              <Route path="/renewable-certificate-nem" element={<RenewableCertificateNemAnalytics />} />
             </Routes>
           </main>
         </div>

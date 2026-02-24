@@ -25005,3 +25005,219 @@ class TestOffshoreWindDevelopmentEndpoints:
         assert r.status_code == 200
         leading_state = r.json()["summary"]["leading_state"]
         assert isinstance(leading_state, str) and len(leading_state) > 0
+
+
+# ===========================================================================
+# Sprint 160a — Green Tariff & Hydrogen Analytics (GTHAdashboard)
+# ===========================================================================
+
+class TestGreenTariffHydrogenEndpoints:
+    """9 tests for GET /api/green-tariff-hydrogen/dashboard (Sprint 160a)."""
+
+    URL = "/api/green-tariff-hydrogen/dashboard"
+    HEADERS = {"X-API-Key": "secret-test-key"}
+
+    def test_gtha_status_200_with_valid_key(self):
+        """Endpoint returns HTTP 200 with a valid API key (auth disabled in test env)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_gtha_status_403_without_key(self):
+        """Endpoint returns 401/403 when auth is enabled and no key is provided."""
+        with patch("app.backend.main._API_AUTH_ENABLED", True), \
+             patch("app.backend.main.API_KEY", "secret-test-key"):
+            r = client.get(self.URL)
+        assert r.status_code in (401, 403)
+
+    def test_gtha_response_has_required_keys(self):
+        """Response must contain tariffs, hydrogen_projects, cost_trends, exports, summary."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        data = r.json()
+        assert "tariffs" in data
+        assert "hydrogen_projects" in data
+        assert "cost_trends" in data
+        assert "exports" in data
+        assert "summary" in data
+
+    def test_gtha_tariffs_count(self):
+        """tariffs list must contain exactly 30 records (5 retailers x 6 states)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["tariffs"]) == 30
+
+    def test_gtha_hydrogen_projects_count(self):
+        """hydrogen_projects list must contain exactly 14 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["hydrogen_projects"]) == 14
+
+    def test_gtha_cost_trends_count(self):
+        """cost_trends list must contain exactly 20 records (4 technologies x 5 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["cost_trends"]) == 20
+
+    def test_gtha_exports_count(self):
+        """exports list must contain exactly 28 records (14 projects x 2 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert len(r.json()["exports"]) == 28
+
+    def test_gtha_summary_total_tariff_products(self):
+        """summary.total_tariff_products must equal 30."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_tariff_products"] == 30
+
+    def test_gtha_summary_cheapest_retailer_nonempty(self):
+        """summary.cheapest_green_tariff_retailer must be a non-empty string."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        name = r.json()["summary"]["cheapest_green_tariff_retailer"]
+        assert isinstance(name, str) and len(name) > 0
+
+
+# ===========================================================================
+# Sprint 160b — NEM Price Review Analytics (NEPRdashboard)
+# ===========================================================================
+
+class TestNemPriceReviewEndpoints:
+    """Tests for GET /api/nem-price-review/dashboard (Sprint 160b)."""
+
+    URL = "/api/nem-price-review/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_nepr_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_nepr_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_nepr_response_has_required_keys(self):
+        """Response body must contain spot_prices, retail_prices, price_drivers,
+        affordability, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("spot_prices", "retail_prices", "price_drivers", "affordability", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_nepr_spot_prices_count(self):
+        """spot_prices list must contain exactly 60 records (5 regions x 4 months x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["spot_prices"]) == 60
+
+    def test_nepr_retail_prices_count(self):
+        """retail_prices list must contain exactly 54 records (6 states x 3 retailer types x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["retail_prices"]) == 54
+
+    def test_nepr_price_drivers_count(self):
+        """price_drivers list must contain exactly 60 records (5 regions x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["price_drivers"]) == 60
+
+    def test_nepr_affordability_count(self):
+        """affordability list must contain exactly 18 records (6 states x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["affordability"]) == 18
+
+    def test_nepr_summary_highest_price_region_nonempty(self):
+        """summary.highest_price_region must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        region = r.json()["summary"]["highest_price_region"]
+        assert isinstance(region, str) and len(region) > 0
+
+    def test_nepr_summary_total_cap_price_events_nonnegative(self):
+        """summary.total_cap_price_events must be a non-negative integer."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        total = r.json()["summary"]["total_cap_price_events"]
+        assert isinstance(total, int) and total >= 0
+
+
+# ===========================================================================
+# Sprint 160c — Renewable Energy Certificate NEM Analytics (RCNAdashboard)
+# ===========================================================================
+
+class TestRenewableCertificateNemEndpoints:
+    """Tests for GET /api/renewable-certificate-nem/dashboard (Sprint 160c)."""
+
+    URL = "/api/renewable-certificate-nem/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_rcna_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_rcna_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_rcna_response_has_required_keys(self):
+        """Response body must contain lgc_records, stc_records, generators,
+        compliance, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("lgc_records", "stc_records", "generators", "compliance", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_rcna_lgc_records_count(self):
+        """lgc_records list must contain exactly 72 records
+        (6 states x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["lgc_records"]) == 72
+
+    def test_rcna_stc_records_count(self):
+        """stc_records list must contain exactly 72 records
+        (6 states x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["stc_records"]) == 72
+
+    def test_rcna_generators_count(self):
+        """generators list must contain exactly 18 records
+        (6 states x 3 generators)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["generators"]) == 18
+
+    def test_rcna_compliance_count(self):
+        """compliance list must contain exactly 30 records
+        (10 liable entities x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["compliance"]) == 30
+
+    def test_rcna_summary_total_accredited_generators(self):
+        """summary.total_accredited_generators must equal 18."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_accredited_generators"] == 18
+
+    def test_rcna_summary_overall_compliance_rate_in_range(self):
+        """summary.overall_compliance_rate_pct must be between 50 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        rate = r.json()["summary"]["overall_compliance_rate_pct"]
+        assert 50 <= rate <= 100

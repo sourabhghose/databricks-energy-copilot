@@ -31442,3 +31442,196 @@ export interface NPFPdashboard {
 export async function getNemParticipantFinancialDashboard(): Promise<NPFPdashboard> {
   return get<NPFPdashboard>('/api/nem-participant-financial/dashboard')
 }
+
+// ===========================================================================
+// Sprint 160b — NEM Price Review Analytics (NEPR)
+// ===========================================================================
+
+export interface NEPRSpotPriceRecord {
+  region: string
+  year: number
+  month: number
+  avg_spot_price_mwh: number
+  max_spot_price_mwh: number
+  min_spot_price_mwh: number
+  negative_price_hours: number
+  cap_price_events: number
+}
+
+export interface NEPRRetailPriceRecord {
+  state: string
+  year: number
+  retailer_type: string
+  avg_residential_c_kwh: number
+  avg_sme_c_kwh: number
+  market_offer_c_kwh: number
+}
+
+export interface NEPRPriceDriverRecord {
+  year: number
+  quarter: string
+  region: string
+  wholesale_component_pct: number
+  network_component_pct: number
+  environmental_component_pct: number
+  retail_margin_pct: number
+  other_pct: number
+}
+
+export interface NEPRAffordabilityRecord {
+  state: string
+  year: number
+  avg_household_bill_aud: number
+  energy_poverty_pct: number
+  hardship_customers_k: number
+  concession_spend_m_aud: number
+}
+
+export interface NEPRSummary {
+  avg_spot_price_2024_mwh: number
+  avg_retail_price_2024_c_kwh: number
+  highest_price_region: string
+  lowest_price_region: string
+  total_cap_price_events: number
+}
+
+export interface NEPRdashboard {
+  spot_prices: NEPRSpotPriceRecord[]
+  retail_prices: NEPRRetailPriceRecord[]
+  price_drivers: NEPRPriceDriverRecord[]
+  affordability: NEPRAffordabilityRecord[]
+  summary: NEPRSummary
+}
+
+export async function getNemPriceReviewDashboard(): Promise<NEPRdashboard> {
+  return get<NEPRdashboard>('/api/nem-price-review/dashboard')
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 160a — Green Tariff & Hydrogen Analytics (GTHAdashboard)
+// ---------------------------------------------------------------------------
+
+export interface GTHATariffRecord {
+  tariff_id: string
+  retailer: string
+  state: string
+  tariff_name: string
+  renewable_pct: number
+  flat_rate_c_kwh: number
+  green_premium_c_kwh: number
+  lgc_included: boolean
+  year: number
+}
+
+export interface GTHAHydrogenProject {
+  project_id: string
+  project_name: string
+  state: string
+  technology: string
+  capacity_mw: number
+  hydrogen_output_tpd: number
+  lcoh_aud_per_kg: number
+  status: string
+  offtake_sector: string
+}
+
+export interface GTHACostTrend {
+  year: number
+  technology: string
+  lcoh_aud_per_kg: number
+  electrolyser_cost_aud_per_kw: number
+  electricity_cost_mwh: number
+}
+
+export interface GTHAExportRecord {
+  project_id: string
+  year: number
+  export_volume_kt: number
+  export_revenue_m_aud: number
+  destination: string
+}
+
+export interface GTHASummary {
+  total_tariff_products: number
+  total_hydrogen_projects: number
+  avg_lcoh_aud_per_kg: number
+  total_hydrogen_capacity_mw: number
+  cheapest_green_tariff_retailer: string
+}
+
+export interface GTHAdashboard {
+  tariffs: GTHATariffRecord[]
+  hydrogen_projects: GTHAHydrogenProject[]
+  cost_trends: GTHACostTrend[]
+  exports: GTHAExportRecord[]
+  summary: GTHASummary
+}
+
+export async function getGreenTariffHydrogenDashboard(): Promise<GTHAdashboard> {
+  return get<GTHAdashboard>('/api/green-tariff-hydrogen/dashboard')
+}
+
+// ===========================================================================
+// Sprint 160c — Renewable Energy Certificate NEM Analytics (RCNA)
+// ===========================================================================
+
+export interface RCNALGCRecord {
+  year: number
+  quarter: string
+  state: string
+  lgc_created: number
+  lgc_surrendered: number
+  lgc_spot_price_aud: number
+  lgc_forward_price_aud: number
+}
+
+export interface RCNASTCRecord {
+  year: number
+  quarter: string
+  state: string
+  stc_created: number
+  stc_price_aud: number
+  solar_installations: number
+  avg_system_size_kw: number
+}
+
+export interface RCNAAccreditedGenerator {
+  generator_id: string
+  generator_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  lgcs_per_year: number
+  accreditation_year: number
+}
+
+export interface RCNAComplianceRecord {
+  entity_id: string
+  entity_type: string
+  year: number
+  liable_mwh: number
+  lgc_surrendered: number
+  stc_surrendered: number
+  compliance_pct: number
+  shortfall_charge_m_aud: number
+}
+
+export interface RCNASummary {
+  total_accredited_generators: number
+  total_lgc_created_2024: number
+  avg_lgc_price_2024: number
+  avg_stc_price_2024: number
+  overall_compliance_rate_pct: number
+}
+
+export interface RCNAdashboard {
+  lgc_records: RCNALGCRecord[]
+  stc_records: RCNASTCRecord[]
+  generators: RCNAAccreditedGenerator[]
+  compliance: RCNAComplianceRecord[]
+  summary: RCNASummary
+}
+
+export async function getRenewableCertificateNemDashboard(): Promise<RCNAdashboard> {
+  return get<RCNAdashboard>('/api/renewable-certificate-nem/dashboard')
+}
