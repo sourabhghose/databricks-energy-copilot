@@ -22016,3 +22016,254 @@ class TestLSRADashboard:
             assert "contracted_capacity_mw" in auction, (
                 f"Missing contracted_capacity_mw in auction {auction.get('auction_id')}"
             )
+
+
+# ===========================================================================
+# TestNASRDashboard — Sprint 149a
+# ===========================================================================
+
+class TestNASRDashboard:
+    """9 tests for GET /api/nem-ancillary-services-regulation/dashboard."""
+
+    URL = "/api/nem-ancillary-services-regulation/dashboard"
+    HEADERS = {"Accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}: {r.text[:200]}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_keys = {"services", "providers", "costs", "activations", "tenders", "summary"}
+        assert expected_keys.issubset(set(data.keys())), (
+            f"Missing keys: {expected_keys - set(data.keys())}"
+        )
+
+    def test_services_count(self):
+        """services list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["services"]) == 12, (
+            f"Expected 12 services, got {len(data['services'])}"
+        )
+
+    def test_providers_count(self):
+        """providers list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["providers"]) == 20, (
+            f"Expected 20 providers, got {len(data['providers'])}"
+        )
+
+    def test_costs_count(self):
+        """costs list must contain exactly 36 records (3 service_types × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["costs"]) == 36, (
+            f"Expected 36 cost records, got {len(data['costs'])}"
+        )
+
+    def test_activations_count(self):
+        """activations list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["activations"]) == 25, (
+            f"Expected 25 activations, got {len(data['activations'])}"
+        )
+
+    def test_tenders_count(self):
+        """tenders list must contain exactly 24 records (2 services × 3 years × 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["tenders"]) == 24, (
+            f"Expected 24 tenders, got {len(data['tenders'])}"
+        )
+
+    def test_summary_has_total_annual_cost_m_aud(self):
+        """summary must contain total_annual_cost_m_aud field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "total_annual_cost_m_aud" in data["summary"], (
+            "Missing total_annual_cost_m_aud in summary"
+        )
+
+    def test_all_services_have_annual_cost_m_aud(self):
+        """Every service record must include the annual_cost_m_aud field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for service in data["services"]:
+            assert "annual_cost_m_aud" in service, (
+                f"Missing annual_cost_m_aud in service {service.get('service_id')}"
+            )
+
+# ===========================================================================
+# Sprint 149b — ACCU: Australian Carbon Credit Unit Market Analytics
+# ===========================================================================
+
+class TestACCUDashboard:
+    """9 tests for GET /api/australian-carbon-credit/dashboard."""
+
+    URL = "/api/australian-carbon-credit/dashboard"
+    HEADERS = {"Accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}: {r.text[:200]}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_keys = {"methodologies", "market_prices", "projects", "safeguard", "demand_supply", "summary"}
+        assert expected_keys.issubset(set(data.keys())), (
+            f"Missing keys: {expected_keys - set(data.keys())}"
+        )
+
+    def test_methodologies_count(self):
+        """methodologies list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["methodologies"]) == 15, (
+            f"Expected 15 methodologies, got {len(data['methodologies'])}"
+        )
+
+    def test_market_prices_count(self):
+        """market_prices list must contain exactly 60 records (5 years x 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["market_prices"]) == 60, (
+            f"Expected 60 market_prices, got {len(data['market_prices'])}"
+        )
+
+    def test_projects_count(self):
+        """projects list must contain exactly 25 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["projects"]) == 25, (
+            f"Expected 25 projects, got {len(data['projects'])}"
+        )
+
+    def test_safeguard_count(self):
+        """safeguard list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["safeguard"]) == 20, (
+            f"Expected 20 safeguard records, got {len(data['safeguard'])}"
+        )
+
+    def test_demand_supply_count(self):
+        """demand_supply list must contain exactly 24 records (3 years x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["demand_supply"]) == 24, (
+            f"Expected 24 demand_supply records, got {len(data['demand_supply'])}"
+        )
+
+    def test_summary_has_current_spot_price_aud(self):
+        """summary must contain current_spot_price_aud field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "current_spot_price_aud" in data["summary"], (
+            "Missing current_spot_price_aud in summary"
+        )
+
+    def test_all_methodologies_have_avg_cost_per_accu(self):
+        """Every methodology record must include the avg_cost_per_accu field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for method in data["methodologies"]:
+            assert "avg_cost_per_accu" in method, (
+                f"Missing avg_cost_per_accu in methodology {method.get('method_id')}"
+            )
+
+
+# ===========================================================================
+# Sprint 149c — TestEVGIDashboard (EVGI Electric Vehicle Grid Integration)
+# ===========================================================================
+
+class TestEVGIDashboard:
+    """9 tests for GET /api/electric-vehicle-grid-integration/dashboard."""
+
+    URL = "/api/electric-vehicle-grid-integration/dashboard"
+    HEADERS = {"Accept": "application/json"}
+
+    def test_status_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200, (
+            f"Expected 200, got {r.status_code}: {r.text[:200]}"
+        )
+
+    def test_response_keys(self):
+        """Response must contain all six top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        expected_keys = {"fleet", "charging_load", "v2g", "infrastructure", "grid_impact", "summary"}
+        assert expected_keys.issubset(set(data.keys())), (
+            f"Missing keys: {expected_keys - set(data.keys())}"
+        )
+
+    def test_fleet_count(self):
+        """fleet list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["fleet"]) == 10, (
+            f"Expected 10 fleet segments, got {len(data['fleet'])}"
+        )
+
+    def test_charging_load_count(self):
+        """charging_load list must contain exactly 60 records (5 regions x 3 years x 4 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["charging_load"]) == 60, (
+            f"Expected 60 charging_load records, got {len(data['charging_load'])}"
+        )
+
+    def test_v2g_count(self):
+        """v2g list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["v2g"]) == 20, (
+            f"Expected 20 v2g records, got {len(data['v2g'])}"
+        )
+
+    def test_infrastructure_count(self):
+        """infrastructure list must contain exactly 30 records (5 states x 2 charger types x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["infrastructure"]) == 30, (
+            f"Expected 30 infrastructure records, got {len(data['infrastructure'])}"
+        )
+
+    def test_grid_impact_count(self):
+        """grid_impact list must contain exactly 24 records (2 regions x 3 years x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert len(data["grid_impact"]) == 24, (
+            f"Expected 24 grid_impact records, got {len(data['grid_impact'])}"
+        )
+
+    def test_summary_has_v2g_capacity_mw(self):
+        """summary must contain v2g_capacity_mw field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        assert "v2g_capacity_mw" in data["summary"], (
+            "Missing v2g_capacity_mw in summary"
+        )
+
+    def test_all_fleet_segments_have_smart_charging_enrolled_pct(self):
+        """Every fleet segment record must include the smart_charging_enrolled_pct field."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        data = r.json()
+        for segment in data["fleet"]:
+            assert "smart_charging_enrolled_pct" in segment, (
+                f"Missing smart_charging_enrolled_pct in fleet segment {segment.get('segment_id')}"
+            )

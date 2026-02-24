@@ -397,6 +397,7 @@ import GeothermalEnergyDevelopmentAnalytics from './pages/GeothermalEnergyDevelo
 import SolarThermalPowerPlantAnalytics from './pages/SolarThermalPowerPlantAnalytics'
 import EnergyTradingAlgorithmicStrategyAnalytics from './pages/EnergyTradingAlgorithmicStrategyAnalytics'
 import EVGridIntegrationV2GAnalytics from './pages/EVGridIntegrationV2GAnalytics'
+import ElectricVehicleGridIntegrationAnalytics from './pages/ElectricVehicleGridIntegrationAnalytics'
 import BiomethaneGasGridInjectionAnalytics from './pages/BiomethaneGasGridInjectionAnalytics'
 import ElectricityMarketForecastingAccuracyAnalytics from './pages/ElectricityMarketForecastingAccuracyAnalytics'
 import NationalEnergyTransitionInvestmentAnalytics from './pages/NationalEnergyTransitionInvestmentAnalytics'
@@ -505,6 +506,8 @@ import EnergyPovertyHardshipXAnalytics from './pages/EnergyPovertyHardshipXAnaly
 import HydrogenRefuellingTransportAnalytics from './pages/HydrogenRefuellingTransportAnalytics'
 import ElectricitySpotPriceEventAnalytics from './pages/ElectricitySpotPriceEventAnalytics'
 import LargeScaleRenewableAuctionAnalytics from './pages/LargeScaleRenewableAuctionAnalytics'
+import NemAncillaryServicesAnalytics from './pages/NemAncillaryServicesAnalytics'
+import AustralianCarbonCreditAnalytics from './pages/AustralianCarbonCreditAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -920,6 +923,9 @@ const NAV_ITEMS = [
   { to: '/hydrogen-refuelling-transport', label: 'H2 Transport', Icon: Truck },
   { to: '/electricity-spot-price-events', label: 'Price Events', Icon: Zap },
   { to: '/large-scale-renewable-auction', label: 'RE Auctions', Icon: Award },
+  { to: '/nem-ancillary-services', label: 'Ancillary Services Reg', Icon: Shield },
+  { to: '/australian-carbon-credit', label: 'ACCU Carbon Market', Icon: Leaf },
+  { to: '/ev-grid-integration', label: 'EV Grid Integration', Icon: Car },
 ]
 
 function Sidebar() {
@@ -1410,6 +1416,9 @@ export default function App() {
               <Route path="hydrogen-refuelling-transport" element={<HydrogenRefuellingTransportAnalytics />} />
               <Route path="electricity-spot-price-events" element={<ElectricitySpotPriceEventAnalytics />} />
               <Route path="large-scale-renewable-auction" element={<LargeScaleRenewableAuctionAnalytics />} />
+              <Route path="nem-ancillary-services" element={<NemAncillaryServicesAnalytics />} />
+              <Route path="australian-carbon-credit" element={<AustralianCarbonCreditAnalytics />} />
+              <Route path="ev-grid-integration" element={<ElectricVehicleGridIntegrationAnalytics />} />
             </Routes>
           </main>
         </div>

@@ -29244,3 +29244,264 @@ export interface LSRADashboard {
 
 export const getLargeScaleRenewableAuctionDashboard = (): Promise<LSRADashboard> =>
   get<LSRADashboard>('/api/large-scale-renewable-auction/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 149a — NASR: NEM Ancillary Services Regulation Analytics
+// ---------------------------------------------------------------------------
+
+export interface NASRService {
+  service_id: string
+  service_name: string
+  service_type: string
+  region: string
+  requirement_mw: number
+  contracted_capacity_mw: number
+  annual_cost_m_aud: number
+  primary_provider: string
+  contract_duration_years: number
+  tender_frequency: string
+}
+
+export interface NASRProvider {
+  provider_id: string
+  provider_name: string
+  provider_type: string
+  region: string
+  service_categories: string
+  contracted_capacity_mw: number
+  annual_revenue_m_aud: number
+  response_compliance_pct: number
+  aemo_audits_passed: number
+}
+
+export interface NASRCost {
+  service_type: string
+  region: string
+  year: number
+  quarter: string
+  contracted_cost_m_aud: number
+  activation_cost_m_aud: number
+  total_cost_m_aud: number
+  cost_per_mw_pa: number
+}
+
+export interface NASRActivation {
+  activation_id: string
+  service_name: string
+  region: string
+  year: number
+  activation_trigger: string
+  duration_hrs: number
+  capacity_dispatched_mw: number
+  cost_m_aud: number
+  outcome: string
+}
+
+export interface NASRTender {
+  tender_id: string
+  service_name: string
+  year: number
+  quarter: string
+  bidders_count: number
+  winning_price_m_aud: number
+  reserve_price_m_aud: number
+  capacity_awarded_mw: number
+  new_entrants: number
+  aemo_satisfied: boolean
+}
+
+export interface NASRSummary {
+  total_services: number
+  total_contracted_capacity_mw: number
+  total_annual_cost_m_aud: number
+  avg_compliance_pct: number
+  total_activations_2024: number
+  most_expensive_service: string
+  total_providers: number
+}
+
+export interface NASRDashboard {
+  services: NASRService[]
+  providers: NASRProvider[]
+  costs: NASRCost[]
+  activations: NASRActivation[]
+  tenders: NASRTender[]
+  summary: NASRSummary
+}
+
+export const getNemAncillaryServicesRegulationDashboard = (): Promise<NASRDashboard> =>
+  get<NASRDashboard>('/api/nem-ancillary-services-regulation/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 149b — ACCU: Australian Carbon Credit Unit Market Analytics
+// ---------------------------------------------------------------------------
+
+export interface ACCUMethodology {
+  method_id: string
+  method_name: string
+  category: string
+  issuances_2024_kt: number
+  registered_projects: number
+  avg_cost_per_accu: number
+  credit_permanence_years: number
+  additionality_strength: string
+  popularity_trend: string
+}
+
+export interface ACCUMarketPrice {
+  year: number
+  month: number
+  spot_price_aud: number
+  forward_2yr_price_aud: number
+  government_contract_price_aud: number
+  voluntary_market_price_aud: number
+  volume_traded_kt: number
+  registry_issued_kt: number
+}
+
+export interface ACCUProject {
+  project_id: string
+  project_name: string
+  methodology_id: string
+  proponent: string
+  state: string
+  registered_year: number
+  total_issuances_kt: number
+  annual_issuance_kt: number
+  project_area_ha: number
+  co_benefits: string
+  status: string
+}
+
+export interface ACCUSafeguard {
+  entity_id: string
+  entity_name: string
+  sector: string
+  baseline_kt: number
+  actual_emissions_kt: number
+  accu_surrender_kt: number
+  accu_purchase_cost_m_aud: number
+  abatement_investment_m_aud: number
+  compliance_status: string
+}
+
+export interface ACCUDemandSupply {
+  year: number
+  quarter: string
+  total_issuances_kt: number
+  safeguard_demand_kt: number
+  voluntary_demand_kt: number
+  government_contracts_kt: number
+  net_balance_kt: number
+  registry_total_kt: number
+}
+
+export interface ACCUSummary {
+  total_registered_projects: number
+  total_issuances_2024_kt: number
+  current_spot_price_aud: number
+  safeguard_entities_count: number
+  total_safeguard_demand_kt: number
+  voluntary_market_size_kt: number
+  avg_project_area_ha: number
+}
+
+export interface ACCUDashboard {
+  methodologies: ACCUMethodology[]
+  market_prices: ACCUMarketPrice[]
+  projects: ACCUProject[]
+  safeguard: ACCUSafeguard[]
+  demand_supply: ACCUDemandSupply[]
+  summary: ACCUSummary
+}
+
+export const getAustralianCarbonCreditDashboard = (): Promise<ACCUDashboard> =>
+  get<ACCUDashboard>('/api/australian-carbon-credit/dashboard')
+
+// ---------------------------------------------------------------------------
+// Sprint 149c — EVGI Electric Vehicle Grid Integration Analytics (EVGIX)
+// ---------------------------------------------------------------------------
+
+export interface EVGIXFleet {
+  segment_id: string
+  segment_name: string
+  ev_count_2024: number
+  ev_count_2030_forecast: number
+  avg_battery_kwh: number
+  avg_daily_km: number
+  charging_behaviour: string
+  v2g_capable_pct: number
+  smart_charging_enrolled_pct: number
+}
+
+export interface EVGIXChargingLoad {
+  region: string
+  year: number
+  month: number
+  peak_charging_load_mw: number
+  avg_charging_load_mw: number
+  peak_hour: number
+  off_peak_charging_pct: number
+  smart_charging_mw: number
+  unmanaged_charging_mw: number
+}
+
+export interface EVGIXV2G {
+  program_id: string
+  program_name: string
+  operator: string
+  region: string
+  enrolled_vehicles: number
+  total_capacity_mw: number
+  avg_dispatch_mw: number
+  v2g_revenue_per_vehicle_aud_pa: number
+  fcas_participation: boolean
+  wholesale_participation: boolean
+  status: string
+}
+
+export interface EVGIXInfrastructure {
+  state: string
+  charger_type: string
+  year: number
+  installed_count: number
+  public_count: number
+  private_count: number
+  utilisation_pct: number
+  avg_session_kwh: number
+  investment_m_aud: number
+}
+
+export interface EVGIXGridImpact {
+  region: string
+  year: number
+  quarter: string
+  ev_load_peak_increase_mw: number
+  smart_charging_peak_reduction_mw: number
+  v2g_fcas_mw: number
+  grid_reinforcement_cost_m_aud: number
+  avoided_cost_smart_m_aud: number
+  net_grid_impact_m_aud: number
+}
+
+export interface EVGIXSummary {
+  total_evs_2024: number
+  total_charging_capacity_mw: number
+  smart_charging_enrolled_pct: number
+  v2g_capacity_mw: number
+  annual_charging_energy_gwh: number
+  peak_load_increase_mw: number
+  avoided_grid_cost_m_aud: number
+}
+
+export interface EVGIXDashboard {
+  fleet: EVGIXFleet[]
+  charging_load: EVGIXChargingLoad[]
+  v2g: EVGIXV2G[]
+  infrastructure: EVGIXInfrastructure[]
+  grid_impact: EVGIXGridImpact[]
+  summary: EVGIXSummary
+}
+
+export const getElectricVehicleGridIntegrationDashboard = (): Promise<EVGIXDashboard> =>
+  get<EVGIXDashboard>('/api/electric-vehicle-grid-integration/dashboard')
