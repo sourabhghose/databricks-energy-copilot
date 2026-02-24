@@ -22516,3 +22516,289 @@ class TestPHRODashboard:
             assert "round_trip_efficiency_pct" in fac, (
                 f"Missing round_trip_efficiency_pct in facility {fac.get('facility_id')}"
             )
+
+
+# ===========================================================================
+# Sprint 151a: Energy Transition Just Jobs (ETJJ) Tests
+# ===========================================================================
+
+class TestETJJDashboard:
+    """Tests for GET /api/energy-transition-jobs/dashboard."""
+
+    URL = "/api/energy-transition-jobs/dashboard"
+
+    def test_etjj_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+
+    def test_etjj_worker_profiles_count(self):
+        """worker_profiles must contain exactly 90 records (6 regions × 5 categories × 3 years)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["worker_profiles"]) == 90, (
+            f"Expected 90 worker_profiles, got {len(data['worker_profiles'])}"
+        )
+
+    def test_etjj_transition_programs_count(self):
+        """transition_programs must contain exactly 12 records."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["transition_programs"]) == 12, (
+            f"Expected 12 transition_programs, got {len(data['transition_programs'])}"
+        )
+
+    def test_etjj_regional_impact_count(self):
+        """regional_impact must contain exactly 18 records (6 regions × 3 years)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["regional_impact"]) == 18, (
+            f"Expected 18 regional_impact records, got {len(data['regional_impact'])}"
+        )
+
+    def test_etjj_skill_mapping_count(self):
+        """skill_mapping must contain exactly 8 records."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["skill_mapping"]) == 8, (
+            f"Expected 8 skill_mapping records, got {len(data['skill_mapping'])}"
+        )
+
+    def test_etjj_summary_fields(self):
+        """summary must contain all four required fields with numeric values."""
+        r = client.get(self.URL)
+        data = r.json()
+        summary = data["summary"]
+        for field in [
+            "total_renewable_jobs_2024",
+            "total_transition_funding_m_aud",
+            "workers_retrained",
+            "avg_salary_increase_pct",
+        ]:
+            assert field in summary, f"Missing field '{field}' in summary"
+            assert isinstance(summary[field], (int, float)), (
+                f"Field '{field}' should be numeric, got {type(summary[field])}"
+            )
+
+    def test_etjj_worker_profiles_structure(self):
+        """Every worker_profile record must contain all required fields."""
+        r = client.get(self.URL)
+        data = r.json()
+        required_fields = {
+            "region", "job_category", "year",
+            "jobs_count", "median_salary_aud", "training_programs",
+        }
+        for wp in data["worker_profiles"]:
+            for field in required_fields:
+                assert field in wp, (
+                    f"Missing field '{field}' in worker_profile record: {wp}"
+                )
+
+    def test_etjj_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_etjj_transition_programs_statuses(self):
+        """transition_programs must include all three statuses: Active, Completed, Proposed."""
+        r = client.get(self.URL)
+        data = r.json()
+        statuses_present = {p["status"] for p in data["transition_programs"]}
+        for expected_status in ("Active", "Completed", "Proposed"):
+            assert expected_status in statuses_present, (
+                f"Status '{expected_status}' not found in transition_programs"
+            )
+
+
+# ===========================================================================
+# Sprint 151b: NEM Interconnector Flow Rights (NIFR) Tests
+# ===========================================================================
+
+class TestNIFRDashboard:
+    """Tests for GET /api/interconnector-flow-rights/dashboard."""
+
+    URL = "/api/interconnector-flow-rights/dashboard"
+
+    def test_nifr_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+
+    def test_nifr_contracts_count(self):
+        """contracts must contain exactly 96 records (6 × 4 × 2 × 2)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["contracts"]) == 96, (
+            f"Expected 96 contracts, got {len(data['contracts'])}"
+        )
+
+    def test_nifr_utilisation_count(self):
+        """utilisation must contain exactly 72 records (6 × 2 × 6)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["utilisation"]) == 72, (
+            f"Expected 72 utilisation records, got {len(data['utilisation'])}"
+        )
+
+    def test_nifr_auction_results_count(self):
+        """auction_results must contain exactly 32 records (8 × 4)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["auction_results"]) == 32, (
+            f"Expected 32 auction_results, got {len(data['auction_results'])}"
+        )
+
+    def test_nifr_congestion_costs_count(self):
+        """congestion_costs must contain exactly 72 records (6 × 3 × 4)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["congestion_costs"]) == 72, (
+            f"Expected 72 congestion_costs, got {len(data['congestion_costs'])}"
+        )
+
+    def test_nifr_summary_fields(self):
+        """summary must contain all four required fields with numeric values."""
+        r = client.get(self.URL)
+        data = r.json()
+        summary = data["summary"]
+        for field in [
+            "total_right_holders",
+            "total_contracted_capacity_mw",
+            "avg_utilisation_pct",
+            "total_congestion_cost_m_aud",
+        ]:
+            assert field in summary, f"Missing field '{field}' in summary"
+            assert isinstance(summary[field], (int, float)), (
+                f"Field '{field}' should be numeric, got {type(summary[field])}"
+            )
+
+    def test_nifr_contracts_structure(self):
+        """Every contract record must contain all required fields."""
+        r = client.get(self.URL)
+        data = r.json()
+        required_fields = {
+            "interconnector_id", "contract_type", "holder",
+            "capacity_mw", "direction", "year", "quarter", "revenue_m_aud",
+        }
+        for contract in data["contracts"]:
+            for field in required_fields:
+                assert field in contract, (
+                    f"Missing field '{field}' in contract record: {contract}"
+                )
+
+    def test_nifr_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_nifr_interconnector_ids(self):
+        """All 6 NEM interconnectors must be present in utilisation records."""
+        r = client.get(self.URL)
+        data = r.json()
+        expected_ids = {"QNI", "VIC1-NSW1", "V-SA", "Murraylink", "Heywood", "Basslink"}
+        present_ids = {u["interconnector_id"] for u in data["utilisation"]}
+        for ic_id in expected_ids:
+            assert ic_id in present_ids, (
+                f"Interconnector '{ic_id}' not found in utilisation records"
+            )
+
+
+# ===========================================================================
+# Sprint 151c: Clean Energy Finance Analytics (CEFAX) Tests
+# ===========================================================================
+
+class TestCEFAXDashboard:
+    """Tests for GET /api/clean-energy-finance-x/dashboard."""
+
+    URL = "/api/clean-energy-finance-x/dashboard"
+
+    def test_cefa_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+
+    def test_cefa_investments_count(self):
+        """investments must contain exactly 100 records (20 projects × 5 years)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["investments"]) == 100, (
+            f"Expected 100 investments, got {len(data['investments'])}"
+        )
+
+    def test_cefa_funds_count(self):
+        """funds must contain exactly 10 records."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["funds"]) == 10, (
+            f"Expected 10 funds, got {len(data['funds'])}"
+        )
+
+    def test_cefa_cost_trends_count(self):
+        """cost_trends must contain exactly 30 records (6 technologies × 5 years)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["cost_trends"]) == 30, (
+            f"Expected 30 cost_trends, got {len(data['cost_trends'])}"
+        )
+
+    def test_cefa_risk_metrics_count(self):
+        """risk_metrics must contain exactly 20 records (one per project)."""
+        r = client.get(self.URL)
+        data = r.json()
+        assert len(data["risk_metrics"]) == 20, (
+            f"Expected 20 risk_metrics, got {len(data['risk_metrics'])}"
+        )
+
+    def test_cefa_summary_fields(self):
+        """summary must contain all four required fields with numeric values."""
+        r = client.get(self.URL)
+        data = r.json()
+        summary = data["summary"]
+        for field in [
+            "total_investment_2024_m_aud",
+            "total_projects",
+            "avg_irr_pct",
+            "cefc_deployed_m_aud",
+        ]:
+            assert field in summary, f"Missing field '{field}' in summary"
+            assert isinstance(summary[field], (int, float)), (
+                f"Field '{field}' should be numeric, got {type(summary[field])}"
+            )
+
+    def test_cefa_investments_structure(self):
+        """Every investment record must contain all required fields."""
+        r = client.get(self.URL)
+        data = r.json()
+        required_fields = {
+            "project_name", "technology", "state", "year",
+            "investment_m_aud", "debt_pct", "equity_pct", "grant_pct", "irr_pct",
+        }
+        for inv in data["investments"]:
+            for field in required_fields:
+                assert field in inv, (
+                    f"Missing field '{field}' in investment record: {inv}"
+                )
+
+    def test_cefa_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_cefa_fund_types(self):
+        """fund_types CEFC, ARENA, Private PE and Superannuation must all be present."""
+        r = client.get(self.URL)
+        data = r.json()
+        fund_types_present = {f["fund_type"] for f in data["funds"]}
+        for expected_type in ("CEFC", "ARENA", "Private PE", "Superannuation"):
+            assert expected_type in fund_types_present, (
+                f"Fund type '{expected_type}' not found in funds"
+            )

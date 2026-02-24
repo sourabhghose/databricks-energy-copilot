@@ -29772,3 +29772,173 @@ export interface PHRODashboard {
 
 export const getPumpedHydroReservoirOperationsDashboard = (): Promise<PHRODashboard> =>
   get<PHRODashboard>('/api/pumped-hydro-reservoir-operations/dashboard')
+
+// ── Sprint 151a: Energy Transition Just Jobs (ETJJ) ──────────────────────────
+
+export interface ETJJWorkerProfile {
+  region: string
+  job_category: string
+  year: number
+  jobs_count: number
+  median_salary_aud: number
+  training_programs: number
+}
+
+export interface ETJJTransitionProgram {
+  program_name: string
+  state: string
+  funding_m_aud: number
+  workers_supported: number
+  completion_rate_pct: number
+  status: string
+}
+
+export interface ETJJRegionalImpact {
+  region: string
+  fossil_fuel_jobs_lost: number
+  renewable_jobs_gained: number
+  net_jobs_change: number
+  year: number
+}
+
+export interface ETJJSkillMapping {
+  fossil_skill: string
+  renewable_skill: string
+  transferability_pct: number
+  retraining_weeks: number
+  demand_growth_pct: number
+}
+
+export interface ETJJDashboardSummary {
+  total_renewable_jobs_2024: number
+  total_transition_funding_m_aud: number
+  workers_retrained: number
+  avg_salary_increase_pct: number
+}
+
+export interface ETJJDashboard {
+  worker_profiles: ETJJWorkerProfile[]
+  transition_programs: ETJJTransitionProgram[]
+  regional_impact: ETJJRegionalImpact[]
+  skill_mapping: ETJJSkillMapping[]
+  summary: ETJJDashboardSummary
+}
+
+export const getEnergyTransitionJobsDashboard = (): Promise<ETJJDashboard> =>
+  get<ETJJDashboard>('/api/energy-transition-jobs/dashboard')
+
+// ── Sprint 151b: NEM Interconnector Flow Rights (NIFR) ────────────────────────
+
+export interface NIFRContractRecord {
+  interconnector_id: string
+  contract_type: string
+  holder: string
+  capacity_mw: number
+  direction: string
+  year: number
+  quarter: string
+  revenue_m_aud: number
+}
+
+export interface NIFRUtilisationRecord {
+  interconnector_id: string
+  year: number
+  month: number
+  avg_flow_mw: number
+  peak_flow_mw: number
+  utilisation_pct: number
+  congestion_hours: number
+}
+
+export interface NIFRAuctionResult {
+  auction_round: string
+  interconnector_id: string
+  clearing_price_mwh: number
+  volume_mw: number
+  participants: number
+  oversubscription_ratio: number
+}
+
+export interface NIFRCongestionCost {
+  interconnector_id: string
+  year: number
+  quarter: string
+  congestion_cost_m_aud: number
+  constrained_hours: number
+  avg_price_differential_mwh: number
+}
+
+export interface NIFRDashboardSummary {
+  total_right_holders: number
+  total_contracted_capacity_mw: number
+  avg_utilisation_pct: number
+  total_congestion_cost_m_aud: number
+}
+
+export interface NIFRDashboard {
+  contracts: NIFRContractRecord[]
+  utilisation: NIFRUtilisationRecord[]
+  auction_results: NIFRAuctionResult[]
+  congestion_costs: NIFRCongestionCost[]
+  summary: NIFRDashboardSummary
+}
+
+export const getInterconnectorFlowRightsDashboard = (): Promise<NIFRDashboard> =>
+  get<NIFRDashboard>('/api/interconnector-flow-rights/dashboard')
+
+// ── Sprint 151c: Clean Energy Finance Analytics (CEFAX) ──────────────────────
+export interface CEFAXInvestmentRecord {
+  project_name: string
+  technology: string
+  state: string
+  year: number
+  investment_m_aud: number
+  debt_pct: number
+  equity_pct: number
+  grant_pct: number
+  irr_pct: number
+}
+
+export interface CEFAXFundRecord {
+  fund_name: string
+  fund_type: string
+  total_committed_m_aud: number
+  deployed_m_aud: number
+  portfolio_irr_pct: number
+  technology_focus: string
+}
+
+export interface CEFAXCostTrend {
+  technology: string
+  year: number
+  lcoe_mwh: number
+  capex_mw_m_aud: number
+  opex_mw_yr_aud: number
+}
+
+export interface CEFAXRiskMetric {
+  project_name: string
+  technology: string
+  merchant_risk_score: number
+  regulatory_risk_score: number
+  construction_risk_score: number
+  offtake_coverage_pct: number
+}
+
+export interface CEFAXDashboardSummary {
+  total_investment_2024_m_aud: number
+  total_projects: number
+  avg_irr_pct: number
+  cefc_deployed_m_aud: number
+}
+
+export interface CEFAXDashboard {
+  investments: CEFAXInvestmentRecord[]
+  funds: CEFAXFundRecord[]
+  cost_trends: CEFAXCostTrend[]
+  risk_metrics: CEFAXRiskMetric[]
+  summary: CEFAXDashboardSummary
+}
+
+export const getCleanEnergyFinanceAnalyticsDashboard = (): Promise<CEFAXDashboard> =>
+  get<CEFAXDashboard>('/api/clean-energy-finance-x/dashboard')

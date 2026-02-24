@@ -90,6 +90,7 @@ import {
   PauseCircle,
   Gavel,
   Cloud,
+  Briefcase,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -511,6 +512,9 @@ import AustralianCarbonCreditAnalytics from './pages/AustralianCarbonCreditAnaly
 import GeneratorCapacityAdequacyAnalytics from './pages/GeneratorCapacityAdequacyAnalytics'
 import SmartGridCybersecurityAnalytics from './pages/SmartGridCybersecurityAnalytics'
 import PumpedHydroReservoirAnalytics from './pages/PumpedHydroReservoirAnalytics'
+import EnergyTransitionJobsAnalytics from './pages/EnergyTransitionJobsAnalytics'
+import InterconnectorFlowRightsAnalytics from './pages/InterconnectorFlowRightsAnalytics'
+import CleanEnergyFinanceXAnalytics from './pages/CleanEnergyFinanceXAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -932,6 +936,9 @@ const NAV_ITEMS = [
   { to: '/generator-capacity-adequacy', label: 'Capacity Adequacy', Icon: BarChart },
   { to: '/smart-grid-cybersecurity', label: 'Grid Cybersecurity', Icon: Lock },
   { to: '/pumped-hydro-reservoir', label: 'Pumped Hydro Ops', Icon: Droplets },
+  { to: '/etjj-dashboard', label: 'Energy Transition Jobs', Icon: Briefcase },
+  { to: '/nifr-dashboard', label: 'Interconnector Flow Rights', Icon: GitMerge },
+  { to: '/cefa-dashboard-x', label: 'Clean Energy Finance', Icon: DollarSign },
 ]
 
 function Sidebar() {
@@ -1428,6 +1435,9 @@ export default function App() {
               <Route path="generator-capacity-adequacy" element={<GeneratorCapacityAdequacyAnalytics />} />
               <Route path="smart-grid-cybersecurity" element={<SmartGridCybersecurityAnalytics />} />
               <Route path="pumped-hydro-reservoir" element={<PumpedHydroReservoirAnalytics />} />
+              <Route path="/etjj-dashboard" element={<EnergyTransitionJobsAnalytics />} />
+              <Route path="/nifr-dashboard" element={<InterconnectorFlowRightsAnalytics />} />
+              <Route path="/cefa-dashboard-x" element={<CleanEnergyFinanceXAnalytics />} />
             </Routes>
           </main>
         </div>
