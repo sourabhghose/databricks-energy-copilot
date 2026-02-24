@@ -30124,3 +30124,188 @@ export interface NGTSDashboard {
 
 export const getNaturalGasTradingDashboard = (): Promise<NGTSDashboard> =>
   get<NGTSDashboard>('/api/natural-gas-trading/dashboard')
+
+// ── Sprint 153a: Automated Energy Optimisation System Analytics (AEOS) ─────────
+export interface AEOSOptimisationRun {
+  run_id: string
+  site_name: string
+  algorithm: string
+  objective: string
+  year: number
+  month: number
+  optimisation_horizon_hours: number
+  cost_saving_aud: number
+  peak_reduction_mw: number
+  carbon_reduction_t: number
+  solve_time_seconds: number
+  status: string
+}
+
+export interface AEOSSiteRecord {
+  site_name: string
+  site_type: string
+  state: string
+  installed_assets: string[]
+  annual_energy_mwh: number
+  optimisation_enabled: boolean
+  avg_monthly_saving_aud: number
+}
+
+export interface AEOSScheduleRecord {
+  site_name: string
+  year: number
+  month: number
+  solar_dispatch_mwh: number
+  battery_charge_mwh: number
+  battery_discharge_mwh: number
+  grid_import_mwh: number
+  grid_export_mwh: number
+  demand_response_mwh: number
+}
+
+export interface AEOSPerformanceKPI {
+  site_name: string
+  year: number
+  quarter: string
+  optimisation_rate_pct: number
+  forecast_accuracy_pct: number
+  demand_flexibility_mw: number
+  roi_pct: number
+}
+
+export interface AEOSDashboardSummary {
+  total_sites: number
+  total_cost_saving_aud: number
+  avg_peak_reduction_mw: number
+  total_carbon_reduction_t: number
+}
+
+export interface AEOSDashboard {
+  optimisation_runs: AEOSOptimisationRun[]
+  sites: AEOSSiteRecord[]
+  schedules: AEOSScheduleRecord[]
+  performance_kpis: AEOSPerformanceKPI[]
+  summary: AEOSDashboardSummary
+}
+
+export const getEnergyOptimisationDashboard = (): Promise<AEOSDashboard> =>
+  get<AEOSDashboard>('/api/energy-optimisation/dashboard')
+
+// ── Sprint 153b: AEMC Rule Change Analytics (AEMCR) ──────────────────────────
+
+export interface AEMCRuleRecord {
+  rule_number: string
+  rule_name: string
+  category: string
+  proponent: string
+  status: string
+  initiation_year: number
+  determination_year: number | null
+  impact_level: string
+  affected_participants: number
+}
+
+export interface AEMCConsultationRecord {
+  rule_number: string
+  consultation_round: string
+  submissions_received: number
+  year: number
+  stakeholder_types: string[]
+}
+
+export interface AEMCImplementationRecord {
+  rule_number: string
+  rule_name: string
+  implementation_cost_m_aud: number
+  compliance_deadline: string
+  entities_affected: number
+  estimated_benefit_m_aud: number
+}
+
+export interface AEMCTimelineRecord {
+  category: string
+  year: number
+  rules_initiated: number
+  rules_completed: number
+  avg_duration_months: number
+}
+
+export interface AEMCRuleDashboardSummary {
+  total_rules: number
+  rules_in_progress: number
+  avg_consultation_submissions: number
+  total_implementation_cost_m_aud: number
+}
+
+export interface AEMCRuleDashboard {
+  rules: AEMCRuleRecord[]
+  consultations: AEMCConsultationRecord[]
+  implementations: AEMCImplementationRecord[]
+  timeline: AEMCTimelineRecord[]
+  summary: AEMCRuleDashboardSummary
+}
+
+export const getAemcRuleChangeDashboard = (): Promise<AEMCRuleDashboard> =>
+  get<AEMCRuleDashboard>('/api/aemc-rule-change/dashboard')
+
+// ── Sprint 153c: Renewable Energy Network Export Analytics (RENX) ─────────────
+
+export interface RENXGenerationRecord {
+  region: string
+  technology: string
+  year: number
+  month: number
+  generation_mwh: number
+  export_mwh: number
+  curtailed_mwh: number
+  export_revenue_m_aud: number
+}
+
+export interface RENXNetworkConstraint {
+  region: string
+  constraint_name: string
+  technology_affected: string
+  year: number
+  constrained_hours: number
+  constrained_mwh: number
+  revenue_foregone_m_aud: number
+}
+
+export interface RENXInvestmentRecord {
+  project_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  commissioning_year: number
+  network_upgrade_cost_m_aud: number
+  export_capacity_mw: number
+  capacity_factor_pct: number
+}
+
+export interface RENXPricingRecord {
+  region: string
+  year: number
+  quarter: string
+  export_price_mwh: number
+  lmp_spread_mwh: number
+  congestion_component_mwh: number
+  loss_component_mwh: number
+}
+
+export interface RENXDashboardSummary {
+  total_generation_2024_twh: number
+  total_export_2024_twh: number
+  avg_curtailment_pct: number
+  total_network_investment_m_aud: number
+}
+
+export interface RENXDashboard {
+  generation: RENXGenerationRecord[]
+  constraints: RENXNetworkConstraint[]
+  investments: RENXInvestmentRecord[]
+  pricing: RENXPricingRecord[]
+  summary: RENXDashboardSummary
+}
+
+export const getRenewableExportDashboard = (): Promise<RENXDashboard> =>
+  get<RENXDashboard>('/api/renewable-export/dashboard')

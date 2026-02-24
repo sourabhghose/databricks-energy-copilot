@@ -23093,3 +23093,276 @@ class TestNGTSDashboard:
             assert hub in hubs_present, (
                 f"Hub '{hub}' not found in hub_prices: {hubs_present}"
             )
+
+
+# ===========================================================================
+# Sprint 153a — Automated Energy Optimisation System Analytics (AEOS)
+# ===========================================================================
+
+class TestAEOSDashboard:
+    URL = "/api/energy-optimisation/dashboard"
+
+    def test_aeos_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_aeos_optimisation_runs_count(self):
+        """Must return exactly 60 optimisation runs."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        runs = r.json()["optimisation_runs"]
+        assert len(runs) == 60, f"Expected 60 runs, got {len(runs)}"
+
+    def test_aeos_sites_count(self):
+        """Must return exactly 12 sites."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        sites = r.json()["sites"]
+        assert len(sites) == 12, f"Expected 12 sites, got {len(sites)}"
+
+    def test_aeos_schedules_count(self):
+        """Must return exactly 144 schedule records (12 sites × 2 years × 6 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        schedules = r.json()["schedules"]
+        assert len(schedules) == 144, f"Expected 144 schedules, got {len(schedules)}"
+
+    def test_aeos_performance_kpis_count(self):
+        """Must return exactly 96 performance KPI records (12 sites × 2 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        kpis = r.json()["performance_kpis"]
+        assert len(kpis) == 96, f"Expected 96 KPI records, got {len(kpis)}"
+
+    def test_aeos_summary_fields(self):
+        """Summary must have all four required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert summary["total_sites"] == 12
+        assert summary["total_cost_saving_aud"] >= 0
+        assert summary["avg_peak_reduction_mw"] >= 0
+        assert summary["total_carbon_reduction_t"] >= 0
+
+    def test_aeos_runs_structure(self):
+        """Every optimisation run must contain all required fields with valid types."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        runs = r.json()["optimisation_runs"]
+        required_fields = {
+            "run_id", "site_name", "algorithm", "objective", "year", "month",
+            "optimisation_horizon_hours", "cost_saving_aud", "peak_reduction_mw",
+            "carbon_reduction_t", "solve_time_seconds", "status",
+        }
+        for run in runs:
+            for field in required_fields:
+                assert field in run, f"Missing field '{field}' in run: {run}"
+            assert run["status"] in ("Success", "Partial", "Failed"), (
+                f"Unexpected status: {run['status']}"
+            )
+            assert run["solve_time_seconds"] >= 0
+
+    def test_aeos_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_aeos_algorithms(self):
+        """All 5 algorithms must be present across the optimisation runs."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        algorithms_present = {run["algorithm"] for run in r.json()["optimisation_runs"]}
+        expected = {
+            "Linear Programming", "Mixed Integer", "Genetic Algorithm",
+            "Reinforcement Learning", "Rule-Based",
+        }
+        for algo in expected:
+            assert algo in algorithms_present, (
+                f"Algorithm '{algo}' not found in runs: {algorithms_present}"
+            )
+
+
+# ===========================================================================
+# Sprint 153b: AEMC Rule Change Analytics (AEMCR)
+# ===========================================================================
+
+class TestAEMCRDashboard:
+    URL = "/api/aemc-rule-change/dashboard"
+
+    def test_aemcr_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_aemcr_rules_count(self):
+        """Must return exactly 24 rule records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        rules = r.json()["rules"]
+        assert len(rules) == 24, f"Expected 24 rules, got {len(rules)}"
+
+    def test_aemcr_consultations_count(self):
+        """Must return exactly 54 consultation records (18 rules × 3 rounds)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        consultations = r.json()["consultations"]
+        assert len(consultations) == 54, f"Expected 54 consultations, got {len(consultations)}"
+
+    def test_aemcr_timeline_count(self):
+        """Must return exactly 30 timeline records (6 categories × 5 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        timeline = r.json()["timeline"]
+        assert len(timeline) == 30, f"Expected 30 timeline records, got {len(timeline)}"
+
+    def test_aemcr_summary_fields(self):
+        """Summary must have all four required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        assert summary["total_rules"] == 24
+        assert summary["rules_in_progress"] >= 0
+        assert summary["avg_consultation_submissions"] >= 0
+        assert summary["total_implementation_cost_m_aud"] >= 0
+
+    def test_aemcr_rules_structure(self):
+        """Every rule record must contain all required fields with valid values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        rules = r.json()["rules"]
+        required_fields = {
+            "rule_number", "rule_name", "category", "proponent", "status",
+            "initiation_year", "determination_year", "impact_level", "affected_participants",
+        }
+        valid_statuses = {"Completed", "In Progress", "Draft Determination", "Final Determination", "Withdrawn"}
+        valid_impacts = {"High", "Medium", "Low"}
+        for rule in rules:
+            for field in required_fields:
+                assert field in rule, f"Missing field '{field}' in rule: {rule}"
+            assert rule["status"] in valid_statuses, f"Unexpected status: {rule['status']}"
+            assert rule["impact_level"] in valid_impacts, f"Unexpected impact level: {rule['impact_level']}"
+            assert rule["rule_number"].startswith("ERC"), f"Unexpected rule number format: {rule['rule_number']}"
+
+    def test_aemcr_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_aemcr_categories(self):
+        """All 6 categories must be present across the rule records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        categories_present = {rule["category"] for rule in r.json()["rules"]}
+        expected = {
+            "Market Design", "Network Access", "Retail",
+            "Security", "Settlement", "Ancillary Services",
+        }
+        for cat in expected:
+            assert cat in categories_present, (
+                f"Category '{cat}' not found in rules: {categories_present}"
+            )
+
+    def test_aemcr_implementations_not_empty(self):
+        """Implementations list must contain at least one record."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        implementations = r.json()["implementations"]
+        assert len(implementations) > 0, "Expected at least one implementation record"
+
+# ===========================================================================
+# TestRENXDashboard — Sprint 153c: Renewable Energy Network Export Analytics
+# ===========================================================================
+
+class TestRENXDashboard:
+    """Tests for GET /api/renewable-export/dashboard (RENX)."""
+
+    URL = "/api/renewable-export/dashboard"
+
+    def test_renx_returns_200(self):
+        """Endpoint must return HTTP 200."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_renx_generation_count(self):
+        """Generation list must contain exactly 240 records (5 regions × 4 techs × 3 years × 4 months)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        generation = r.json()["generation"]
+        assert len(generation) == 240, f"Expected 240 generation records, got {len(generation)}"
+
+    def test_renx_constraints_count(self):
+        """Constraints list must contain exactly 20 records (10 constraint names × 2 years)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        constraints = r.json()["constraints"]
+        assert len(constraints) == 20, f"Expected 20 constraint records, got {len(constraints)}"
+
+    def test_renx_investments_count(self):
+        """Investments list must contain exactly 12 records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        investments = r.json()["investments"]
+        assert len(investments) == 12, f"Expected 12 investment records, got {len(investments)}"
+
+    def test_renx_pricing_count(self):
+        """Pricing list must contain exactly 60 records (5 regions × 3 years × 4 quarters)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        pricing = r.json()["pricing"]
+        assert len(pricing) == 60, f"Expected 60 pricing records, got {len(pricing)}"
+
+    def test_renx_summary_fields(self):
+        """Summary must include all 4 expected numeric fields."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        summary = r.json()["summary"]
+        required = [
+            "total_generation_2024_twh",
+            "total_export_2024_twh",
+            "avg_curtailment_pct",
+            "total_network_investment_m_aud",
+        ]
+        for field in required:
+            assert field in summary, f"Missing summary field: {field}"
+            assert isinstance(summary[field], (int, float)), f"Field {field} should be numeric"
+
+    def test_renx_generation_structure(self):
+        """Each generation record must have all required fields with sensible values."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        required_fields = [
+            "region", "technology", "year", "month",
+            "generation_mwh", "export_mwh", "curtailed_mwh", "export_revenue_m_aud",
+        ]
+        for rec in r.json()["generation"]:
+            for field in required_fields:
+                assert field in rec, f"Missing field '{field}' in generation record: {rec}"
+            assert rec["generation_mwh"] > 0, "generation_mwh must be positive"
+            assert rec["export_mwh"] >= 0, "export_mwh must be non-negative"
+            assert 1 <= rec["month"] <= 12, f"Unexpected month value: {rec['month']}"
+
+    def test_renx_caching(self):
+        """Two sequential calls must return identical data (caching check)."""
+        r1 = client.get(self.URL)
+        r2 = client.get(self.URL)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response should be identical to first response"
+
+    def test_renx_technologies(self):
+        """All 4 expected technologies must be present in generation records."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+        techs_present = {rec["technology"] for rec in r.json()["generation"]}
+        expected = {"Solar", "Wind", "Hydro", "Biomass"}
+        for tech in expected:
+            assert tech in techs_present, (
+                f"Technology '{tech}' not found in generation records: {techs_present}"
+            )

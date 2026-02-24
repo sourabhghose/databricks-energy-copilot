@@ -91,6 +91,7 @@ import {
   Gavel,
   Cloud,
   Briefcase,
+  Upload,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -518,6 +519,9 @@ import CleanEnergyFinanceXAnalytics from './pages/CleanEnergyFinanceXAnalytics'
 import BessPerformanceAnalytics from './pages/BessPerformanceAnalytics'
 import LoadCurveAnalytics from './pages/LoadCurveAnalytics'
 import NaturalGasTradingAnalytics from './pages/NaturalGasTradingAnalytics'
+import EnergyOptimisationAnalytics from './pages/EnergyOptimisationAnalytics'
+import AemcRuleChangeAnalytics from './pages/AemcRuleChangeAnalytics'
+import RenewableExportAnalytics from './pages/RenewableExportAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -945,6 +949,9 @@ const NAV_ITEMS = [
   { to: '/bess-performance', label: 'BESS Performance', Icon: Battery },
   { to: '/elca-dashboard', label: 'Load Curve Analytics', Icon: Activity },
   { to: '/ngts-dashboard', label: 'Gas Trading & Settlement', Icon: Flame },
+  { to: '/aeos-dashboard', label: 'Energy Optimisation', Icon: SettingsIcon },
+  { to: '/aemc-rule-change', label: 'AEMC Rule Changes', Icon: BookOpen },
+  { to: '/renx-dashboard', label: 'Renewable Export', Icon: Upload },
 ]
 
 function Sidebar() {
@@ -1447,6 +1454,9 @@ export default function App() {
               <Route path="/bess-performance" element={<BessPerformanceAnalytics />} />
               <Route path="/elca-dashboard" element={<LoadCurveAnalytics />} />
               <Route path="/ngts-dashboard" element={<NaturalGasTradingAnalytics />} />
+              <Route path="/aeos-dashboard" element={<EnergyOptimisationAnalytics />} />
+              <Route path="/aemc-rule-change" element={<AemcRuleChangeAnalytics />} />
+              <Route path="/renx-dashboard" element={<RenewableExportAnalytics />} />
             </Routes>
           </main>
         </div>
