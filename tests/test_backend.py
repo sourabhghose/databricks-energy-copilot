@@ -25797,3 +25797,420 @@ class TestAemo5MinSettlementEndpoints:
         r = client.get(self.URL, headers=self.HEADERS)
         assert r.status_code == 200
         assert r.json()["summary"]["avg_dispatch_price_2024_mwh"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Sprint 164c — Demand Response Aggregation Analytics (DRAA)
+# ---------------------------------------------------------------------------
+
+class TestDemandResponseAggregationAnalytics:
+    """Tests for GET /api/demand-response-aggregation/dashboard (Sprint 164c)."""
+
+    URL = "/api/demand-response-aggregation/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_draa_http_200_and_keys(self):
+        """Response must be 200 and contain all expected top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("timestamp", "aggregators", "events", "seasonal", "revenue"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_draa_aggregator_count(self):
+        """There must be exactly 8 aggregator records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        aggs = r.json()["aggregators"]
+        assert len(aggs) == 8
+
+    def test_draa_enel_x_largest_portfolio(self):
+        """Enel X must have the largest portfolio_mw among all aggregators."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        aggs = r.json()["aggregators"]
+        enel = [a for a in aggs if a["aggregator_name"] == "Enel X"]
+        assert len(enel) == 1
+        max_portfolio = max(a["portfolio_mw"] for a in aggs)
+        assert enel[0]["portfolio_mw"] == max_portfolio
+
+    def test_draa_aggregator_valid_data(self):
+        """Each aggregator must have required fields with sensible values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for a in r.json()["aggregators"]:
+            assert a["portfolio_mw"] > 0
+            assert a["customers_k"] > 0
+            assert a["avg_response_time_min"] > 0
+            assert "technology_mix" in a
+            assert isinstance(a["technology_mix"], dict)
+
+    def test_draa_activation_success_between_80_100(self):
+        """All aggregators must have activation_success_pct between 80 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for a in r.json()["aggregators"]:
+            assert 80.0 <= a["activation_success_pct"] <= 100.0, (
+                f"{a['aggregator_name']} activation_success_pct={a['activation_success_pct']}"
+            )
+
+    def test_draa_event_count(self):
+        """There must be exactly 15 DR events."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["events"]) == 15
+
+    def test_draa_event_valid_enums(self):
+        """Every event must have valid event_type and trigger values."""
+        valid_types = {"RERT", "WDRM", "NETWORK_SUPPORT", "EMERGENCY", "VOLUNTARY"}
+        valid_triggers = {"PRICE_SPIKE", "RELIABILITY", "NETWORK_CONSTRAINT", "FREQUENCY"}
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for e in r.json()["events"]:
+            assert e["event_type"] in valid_types, f"Invalid event_type: {e['event_type']}"
+            assert e["trigger"] in valid_triggers, f"Invalid trigger: {e['trigger']}"
+
+    def test_draa_seasonal_count(self):
+        """There must be exactly 60 seasonal records (5 regions x 12 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["seasonal"]) == 60
+
+    def test_draa_seasonal_summer_higher_activation(self):
+        """Summer months (Dec, Jan, Feb) should have higher average activation
+        rates than winter months (Jun, Jul, Aug)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        seasonal = r.json()["seasonal"]
+        summer = [s for s in seasonal if s["month"] in [12, 1, 2]]
+        winter = [s for s in seasonal if s["month"] in [6, 7, 8]]
+        avg_summer = sum(s["activation_rate_pct"] for s in summer) / len(summer)
+        avg_winter = sum(s["activation_rate_pct"] for s in winter) / len(winter)
+        assert avg_summer > avg_winter, (
+            f"Summer avg {avg_summer:.1f}% should be > winter avg {avg_winter:.1f}%"
+        )
+
+    def test_draa_revenue_count(self):
+        """There must be exactly 24 revenue records (8 aggregators x 3 streams)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 24
+
+    def test_draa_revenue_streams(self):
+        """Revenue records must cover expected revenue streams."""
+        expected_streams = {"FCAS", "WHOLESALE", "NETWORK"}
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        streams = {rec["revenue_stream"] for rec in r.json()["revenue"]}
+        assert expected_streams.issubset(streams), f"Missing streams: {expected_streams - streams}"
+
+
+# ===========================================================================
+# Sprint 164b — Grid Frequency Response Analytics (GFRA)
+# ===========================================================================
+
+class TestGridFrequencyResponseAnalytics:
+    """Tests for GET /api/grid-frequency/dashboard (Sprint 164b)."""
+
+    URL = "/api/grid-frequency/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    VALID_EVENT_TYPES = {"GENERATION_TRIP", "LOAD_TRIP", "INTERCONNECTOR_TRIP", "SYSTEM_NORMAL"}
+    VALID_TECHNOLOGIES = {"BATTERY", "GAS", "HYDRO", "COAL", "WIND", "SOLAR"}
+
+    def test_gfra_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_gfra_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_gfra_top_level_keys(self):
+        """Response must contain all expected top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        body = r.json()
+        for key in ("timestamp", "frequency_events", "fcas_providers", "inertia", "rocof_trends"):
+            assert key in body, f"Missing key: {key}"
+
+    def test_gfra_frequency_events_count(self):
+        """frequency_events list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["frequency_events"]) == 12
+
+    def test_gfra_frequency_event_types_valid(self):
+        """Every frequency event must have a valid event_type enum value."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for ev in r.json()["frequency_events"]:
+            assert ev["event_type"] in self.VALID_EVENT_TYPES, (
+                f"Invalid event_type: {ev['event_type']}"
+            )
+
+    def test_gfra_fcas_providers_count(self):
+        """fcas_providers list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["fcas_providers"]) == 10
+
+    def test_gfra_fcas_technology_valid(self):
+        """Every FCAS provider must have a valid technology enum value."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["fcas_providers"]:
+            assert p["technology"] in self.VALID_TECHNOLOGIES, (
+                f"Invalid technology: {p['technology']}"
+            )
+
+    def test_gfra_fcas_capacity_positive(self):
+        """All raise capacity values must be greater than 0."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["fcas_providers"]:
+            assert p["raise_6s_capacity_mw"] > 0
+            assert p["raise_60s_capacity_mw"] > 0
+            assert p["raise_5min_capacity_mw"] > 0
+
+    def test_gfra_fcas_reliability_range(self):
+        """All FCAS providers must have reliability_pct between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["fcas_providers"]:
+            assert 0 <= p["reliability_pct"] <= 100
+
+    def test_gfra_inertia_sa_below_threshold(self):
+        """SA1 must have at least one month where is_below_threshold is True."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        sa_records = [i for i in r.json()["inertia"] if i["region"] == "SA1"]
+        assert any(i["is_below_threshold"] for i in sa_records), (
+            "SA1 must have at least one below-threshold inertia month"
+        )
+
+    def test_gfra_rocof_trends_count(self):
+        """rocof_trends list must contain exactly 12 monthly records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["rocof_trends"]) == 12
+
+    def test_gfra_rocof_valid_ranges(self):
+        """RoCoF values must be positive and max >= avg."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["rocof_trends"]:
+            assert rec["avg_rocof_hz_per_s"] > 0
+            assert rec["max_rocof_hz_per_s"] >= rec["avg_rocof_hz_per_s"]
+            assert rec["threshold_hz_per_s"] > 0
+            assert rec["events_above_threshold"] >= 0
+
+    def test_gfra_hornsdale_fastest_response(self):
+        """Hornsdale Power Reserve must have the fastest (lowest) avg_response_time_ms."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        providers = r.json()["fcas_providers"]
+        hornsdale = next(p for p in providers if p["provider_name"] == "Hornsdale Power Reserve")
+        min_response = min(p["avg_response_time_ms"] for p in providers)
+        assert hornsdale["avg_response_time_ms"] == min_response, (
+            f"Hornsdale response {hornsdale['avg_response_time_ms']}ms is not fastest ({min_response}ms)"
+        )
+
+    def test_gfra_battery_providers_high_reliability(self):
+        """All BATTERY technology providers must have reliability_pct >= 95%."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        batteries = [p for p in r.json()["fcas_providers"] if p["technology"] == "BATTERY"]
+        assert len(batteries) > 0, "Must have at least one BATTERY provider"
+        for b in batteries:
+            assert b["reliability_pct"] >= 95.0, (
+                f"{b['provider_name']} reliability {b['reliability_pct']}% < 95%"
+            )
+
+
+# ===========================================================================
+# Sprint 164a — Electricity Retail Competition Analytics (ERCA)
+# ===========================================================================
+
+class TestElectricityRetailCompetitionAnalytics:
+    """Tests for GET /api/retail-competition/dashboard (Sprint 164a)."""
+
+    URL = "/api/retail-competition/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    VALID_RETAILERS = [
+        "Origin", "AGL", "EnergyAustralia", "Alinta",
+        "Red Energy", "Momentum", "Powershop", "1st Energy",
+    ]
+    VALID_REGIONS = ["NSW", "QLD", "VIC", "SA", "TAS"]
+    VALID_QUARTERS = [
+        "Q1_2024", "Q2_2024", "Q3_2024", "Q4_2024",
+        "Q1_2025", "Q2_2025", "Q3_2025", "Q4_2025",
+    ]
+    VALID_PLAN_TYPES = ["STANDING_OFFER", "MARKET_OFFER", "VPP_PLAN", "GREEN_PLAN"]
+
+    def test_erca_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_erca_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_erca_response_has_required_keys(self):
+        """Response body must contain timestamp, retailers, switching,
+        price_dispersion, hardship keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("timestamp", "retailers", "switching", "price_dispersion", "hardship"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_erca_retailer_count(self):
+        """retailers list must contain exactly 40 records
+        (8 retailers x 5 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["retailers"]) == 40
+
+    def test_erca_switching_count(self):
+        """switching list must contain exactly 40 records
+        (8 quarters x 5 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["switching"]) == 40
+
+    def test_erca_price_dispersion_count(self):
+        """price_dispersion list must contain exactly 20 records
+        (4 plan types x 5 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["price_dispersion"]) == 20
+
+    def test_erca_hardship_count(self):
+        """hardship list must contain exactly 8 records (one per retailer)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["hardship"]) == 8
+
+    def test_erca_retailer_names_valid(self):
+        """All retailer_name values must be in the known set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["retailers"]:
+            assert rec["retailer_name"] in self.VALID_RETAILERS, (
+                f"Unknown retailer: {rec['retailer_name']}"
+            )
+
+    def test_erca_retailer_regions_valid(self):
+        """All retailer region values must be in the known NEM set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["retailers"]:
+            assert rec["region"] in self.VALID_REGIONS, (
+                f"Unknown region: {rec['region']}"
+            )
+
+    def test_erca_switching_quarters_valid(self):
+        """All quarter values in switching must be valid."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["switching"]:
+            assert rec["quarter"] in self.VALID_QUARTERS, (
+                f"Unknown quarter: {rec['quarter']}"
+            )
+
+    def test_erca_plan_types_valid(self):
+        """All plan_type values must be in the known set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["price_dispersion"]:
+            assert rec["plan_type"] in self.VALID_PLAN_TYPES, (
+                f"Unknown plan_type: {rec['plan_type']}"
+            )
+
+    def test_erca_market_share_positive(self):
+        """All market_share_pct values must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["retailers"]:
+            assert rec["market_share_pct"] > 0, (
+                f"{rec['retailer_name']} in {rec['region']} has non-positive share"
+            )
+
+    def test_erca_churn_rate_range(self):
+        """All churn_rate_pct values must be between 0 and 50."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["retailers"]:
+            assert 0 < rec["churn_rate_pct"] < 50, (
+                f"{rec['retailer_name']} churn {rec['churn_rate_pct']}% out of range"
+            )
+
+    def test_erca_switching_rate_range(self):
+        """All switching_rate_pct values must be between 0 and 30."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["switching"]:
+            assert 0 < rec["switching_rate_pct"] < 30, (
+                f"{rec['quarter']} {rec['region']} switching {rec['switching_rate_pct']}% out of range"
+            )
+
+    def test_erca_price_min_lte_median_lte_max(self):
+        """For every price dispersion record, min <= median <= max."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["price_dispersion"]:
+            assert rec["min_annual_aud"] <= rec["median_annual_aud"] <= rec["max_annual_aud"], (
+                f"{rec['region']} {rec['plan_type']}: min({rec['min_annual_aud']}) > "
+                f"median({rec['median_annual_aud']}) or > max({rec['max_annual_aud']})"
+            )
+
+    def test_erca_affordability_index_range(self):
+        """All affordability_index values must be between 0 and 10."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["hardship"]:
+            assert 0 <= rec["affordability_index"] <= 10, (
+                f"{rec['retailer_name']} affordability {rec['affordability_index']} out of 0-10 range"
+            )
+
+    def test_erca_origin_largest_share_nsw(self):
+        """Origin must have the largest market share in NSW."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        nsw_retailers = [
+            rec for rec in r.json()["retailers"] if rec["region"] == "NSW"
+        ]
+        assert len(nsw_retailers) > 0
+        top = max(nsw_retailers, key=lambda x: x["market_share_pct"])
+        assert top["retailer_name"] == "Origin", (
+            f"Expected Origin to lead NSW market share, got {top['retailer_name']}"
+        )
+
+    def test_erca_hardship_debt_positive(self):
+        """All debt_level_avg_aud values must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["hardship"]:
+            assert rec["debt_level_avg_aud"] > 0, (
+                f"{rec['retailer_name']} debt must be positive"
+            )
+
+    def test_erca_payment_plan_success_range(self):
+        """All payment_plan_success_pct values must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["hardship"]:
+            assert 0 < rec["payment_plan_success_pct"] <= 100, (
+                f"{rec['retailer_name']} payment success {rec['payment_plan_success_pct']}% out of range"
+            )

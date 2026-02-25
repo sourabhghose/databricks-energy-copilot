@@ -552,6 +552,9 @@ import CarbonVoluntaryExchangeAnalytics from './pages/CarbonVoluntaryExchangeAna
 import NaturalGasPipelineAnalytics from './pages/NaturalGasPipelineAnalytics'
 import BatteryChemistryRiskAnalytics from './pages/BatteryChemistryRiskAnalytics'
 import Aemo5MinSettlementAnalytics from './pages/Aemo5MinSettlementAnalytics'
+import ElectricityRetailCompetitionAnalytics from './pages/ElectricityRetailCompetitionAnalytics'
+import DemandResponseAggregationAnalytics from './pages/DemandResponseAggregationAnalytics'
+import GridFrequencyResponseAnalytics from './pages/GridFrequencyResponseAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1011,6 +1014,9 @@ const NAV_ITEMS = [
   { to: '/natural-gas-pipeline', label: 'Gas Pipelines', Icon: GitMerge },
   { to: '/battery-chemistry-risk', label: 'Battery Risk', Icon: Shield },
   { to: '/aemo-5min-settlement', label: '5-Min Settlement', Icon: Clock },
+  { to: '/retail-competition', label: 'Retail Competition', Icon: ShoppingCart },
+  { to: '/demand-response-aggregation', label: 'Demand Response', Icon: Zap },
+  { to: '/grid-frequency', label: 'Grid Frequency', Icon: Radio },
 ]
 
 function Sidebar() {
@@ -1545,6 +1551,9 @@ export default function App() {
               <Route path="/natural-gas-pipeline" element={<NaturalGasPipelineAnalytics />} />
               <Route path="/battery-chemistry-risk" element={<BatteryChemistryRiskAnalytics />} />
               <Route path="/aemo-5min-settlement" element={<Aemo5MinSettlementAnalytics />} />
+              <Route path="/retail-competition" element={<ElectricityRetailCompetitionAnalytics />} />
+              <Route path="/demand-response-aggregation" element={<DemandResponseAggregationAnalytics />} />
+              <Route path="/grid-frequency" element={<GridFrequencyResponseAnalytics />} />
             </Routes>
           </main>
         </div>

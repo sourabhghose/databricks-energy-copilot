@@ -32251,3 +32251,181 @@ export async function getVirtualPpaFinanceDashboard(): Promise<VPPAdashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ===========================================================================
+// Sprint 164a — Electricity Retail Competition Analytics (ERCA)
+// ===========================================================================
+
+export interface ERCARetailerRecord {
+  retailer_name: string
+  region: string
+  market_share_pct: number
+  customer_count_k: number
+  churn_rate_pct: number
+  avg_price_c_kwh: number
+  hardship_customers_k: number
+  complaint_rate_per_10k: number
+}
+
+export interface ERCASwitchingRecord {
+  quarter: string
+  region: string
+  switching_rate_pct: number
+  avg_saving_aud: number
+  switches_k: number
+  win_back_rate_pct: number
+}
+
+export interface ERCAPriceDispersionRecord {
+  region: string
+  plan_type: string
+  min_annual_aud: number
+  median_annual_aud: number
+  max_annual_aud: number
+  plan_count: number
+  dmo_reference_aud: number
+}
+
+export interface ERCAHardshipRecord {
+  retailer_name: string
+  hardship_customers_k: number
+  debt_level_avg_aud: number
+  payment_plan_success_pct: number
+  disconnection_rate_per_10k: number
+  affordability_index: number
+}
+
+export interface ERCADashboard {
+  timestamp: string
+  retailers: ERCARetailerRecord[]
+  switching: ERCASwitchingRecord[]
+  price_dispersion: ERCAPriceDispersionRecord[]
+  hardship: ERCAHardshipRecord[]
+}
+
+export async function getERCADashboard(): Promise<ERCADashboard> {
+  const r = await fetch(`${BASE_URL}/api/retail-competition/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ===========================================================================
+// Sprint 164c — Demand Response Aggregation Analytics (DRAA)
+// ===========================================================================
+
+export interface DRAAAggregatorRecord {
+  aggregator_name: string
+  region: string
+  portfolio_mw: number
+  customers_k: number
+  avg_response_time_min: number
+  activation_success_pct: number
+  revenue_m_aud: number
+  technology_mix: Record<string, number>
+}
+
+export interface DRAAEventRecord {
+  event_id: string
+  date: string
+  region: string
+  event_type: string
+  trigger: string
+  duration_min: number
+  load_reduced_mw: number
+  participants_k: number
+  avg_payment_aud_mwh: number
+  peak_demand_reduced_pct: number
+}
+
+export interface DRAASeasonalRecord {
+  month: number
+  region: string
+  available_dr_mw: number
+  activated_dr_mw: number
+  activation_rate_pct: number
+  peak_demand_mw: number
+  dr_as_pct_of_peak: number
+}
+
+export interface DRAARevenueRecord {
+  aggregator_name: string
+  revenue_stream: string
+  revenue_m_aud: number
+  volume_mwh: number
+}
+
+export interface DRAADashboard {
+  timestamp: string
+  aggregators: DRAAAggregatorRecord[]
+  events: DRAAEventRecord[]
+  seasonal: DRAASeasonalRecord[]
+  revenue: DRAARevenueRecord[]
+}
+
+export async function getDRAADashboard(): Promise<DRAADashboard> {
+  const r = await fetch(`${BASE_URL}/api/demand-response-aggregation/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 164b — Grid Frequency Response Analytics (GFRA)
+// ---------------------------------------------------------------------------
+
+export interface GFRAFrequencyEventRecord {
+  event_id: string
+  timestamp: string
+  region: string
+  frequency_nadir_hz: number
+  rocof_hz_per_s: number
+  event_type: string
+  recovery_time_s: number
+  contingency_size_mw: number
+  primary_response_provider: string
+}
+
+export interface GFRAFcasProviderRecord {
+  provider_name: string
+  technology: string
+  region: string
+  raise_6s_capacity_mw: number
+  raise_60s_capacity_mw: number
+  raise_5min_capacity_mw: number
+  lower_6s_capacity_mw: number
+  lower_60s_capacity_mw: number
+  lower_5min_capacity_mw: number
+  avg_response_time_ms: number
+  reliability_pct: number
+}
+
+export interface GFRAInertiaRecord {
+  region: string
+  month: string
+  system_inertia_mws: number
+  synchronous_gen_mw: number
+  synthetic_inertia_mw: number
+  min_threshold_mws: number
+  is_below_threshold: boolean
+}
+
+export interface GFRARocofTrendRecord {
+  month: string
+  avg_rocof_hz_per_s: number
+  max_rocof_hz_per_s: number
+  events_above_threshold: number
+  threshold_hz_per_s: number
+}
+
+export interface GFRADashboard {
+  timestamp: string
+  frequency_events: GFRAFrequencyEventRecord[]
+  fcas_providers: GFRAFcasProviderRecord[]
+  inertia: GFRAInertiaRecord[]
+  rocof_trends: GFRARocofTrendRecord[]
+}
+
+export async function getGFRADashboard(): Promise<GFRADashboard> {
+  const r = await fetch(`${BASE_URL}/api/grid-frequency/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
