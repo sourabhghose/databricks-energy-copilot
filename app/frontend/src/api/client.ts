@@ -31835,3 +31835,207 @@ export async function getMarketEvolutionPolicyDashboard(): Promise<MEPAdashboard
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 162c — Natural Gas Pipeline Analytics (NGPA)
+// ---------------------------------------------------------------------------
+
+export interface NGPAPipelineRecord {
+  pipeline_id: string
+  pipeline_name: string
+  state: string
+  operator: string
+  length_km: number
+  capacity_tj_per_day: number
+  pressure_kpa: number
+  year_commissioned: number
+  condition_rating: string
+}
+
+export interface NGPAFlowRecord {
+  pipeline_id: string
+  year: number
+  month: number
+  avg_flow_tj_per_day: number
+  peak_flow_tj_per_day: number
+  utilisation_pct: number
+  compression_energy_tj: number
+}
+
+export interface NGPACapacityRecord {
+  pipeline_id: string
+  year: number
+  quarter: string
+  contracted_capacity_tj: number
+  interruptible_capacity_tj: number
+  spare_capacity_tj: number
+  capacity_auction_price_gj: number
+}
+
+export interface NGPAMaintenanceRecord {
+  pipeline_id: string
+  year: number
+  planned_outage_days: number
+  unplanned_outage_days: number
+  maintenance_cost_m_aud: number
+  integrity_incidents: number
+  gas_leakage_tj: number
+}
+
+export interface NGPASummary {
+  total_pipelines: number
+  total_capacity_tj_per_day: number
+  avg_utilisation_pct: number
+  highest_utilisation_pipeline: string
+  total_maintenance_cost_m_aud: number
+}
+
+export interface NGPAdashboard {
+  pipelines: NGPAPipelineRecord[]
+  flows: NGPAFlowRecord[]
+  capacity: NGPACapacityRecord[]
+  maintenance: NGPAMaintenanceRecord[]
+  summary: NGPASummary
+}
+
+export async function getNaturalGasPipelineDashboard(): Promise<NGPAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/natural-gas-pipeline/dashboard`, { headers: { Accept: 'application/json' } })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 162b — Renewable Energy Market Sensitivity Analytics (REMS)
+// ---------------------------------------------------------------------------
+
+export interface REMSSensitivityRecord {
+  region: string
+  year: number
+  quarter: string
+  sensitivity_factor: string
+  base_case_value: number
+  low_scenario_value: number
+  high_scenario_value: number
+  price_impact_pct: number
+}
+
+export interface REMSGenerationRecord {
+  region: string
+  year: number
+  month: number
+  solar_mw: number
+  wind_mw: number
+  hydro_mw: number
+  other_renewable_mw: number
+  total_renewable_mw: number
+  renewable_penetration_pct: number
+}
+
+export interface REMSPriceCorrelation {
+  region: string
+  year: number
+  factor: string
+  correlation_coefficient: number
+  r_squared: number
+  p_value: number
+}
+
+export interface REMSScenarioRecord {
+  scenario: string
+  year: number
+  region: string
+  avg_price_mwh: number
+  renewable_share_pct: number
+  storage_deployment_mw: number
+  emissions_intensity_kgco2_mwh: number
+}
+
+export interface REMSSummary {
+  avg_renewable_penetration_pct: number
+  highest_penetration_region: string
+  most_sensitive_factor: string
+  avg_price_impact_pct: number
+  total_renewable_mw_2024: number
+}
+
+export interface REMSdashboard {
+  sensitivity: REMSSensitivityRecord[]
+  generation: REMSGenerationRecord[]
+  price_correlation: REMSPriceCorrelation[]
+  scenarios: REMSScenarioRecord[]
+  summary: REMSSummary
+}
+
+export async function getRenewableMarketSensitivityDashboard(): Promise<REMSdashboard> {
+  const r = await fetch(`${BASE_URL}/api/renewable-market-sensitivity/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ===========================================================================
+// Sprint 162a — Carbon Voluntary Exchange Analytics (CVEA)
+// ===========================================================================
+
+export interface CVEACreditRecord {
+  credit_id: string
+  project_name: string
+  credit_type: string
+  project_type: string
+  state: string
+  vintage_year: number
+  volume_issued: number
+  retirement_pct: number
+}
+
+export interface CVEATradeRecord {
+  trade_id: string
+  year: number
+  quarter: string
+  credit_type: string
+  buyer_sector: string
+  volume_traded: number
+  price_per_credit_aud: number
+  total_value_m_aud: number
+}
+
+export interface CVEAProjectRecord {
+  project_id: string
+  project_name: string
+  methodology: string
+  state: string
+  annual_abatement_ktco2e: number
+  registered_year: number
+  project_length_years: number
+  co_benefits_score: number
+}
+
+export interface CVEAPriceRecord {
+  year: number
+  month: number
+  credit_type: string
+  spot_price_aud: number
+  forward_12m_price_aud: number
+  trade_volume_monthly: number
+}
+
+export interface CVEASummary {
+  total_credits_issued: number
+  total_trade_value_m_aud: number
+  avg_accu_price_aud: number
+  most_active_buyer_sector: string
+  total_abatement_ktco2e: number
+}
+
+export interface CVEAdashboard {
+  credits: CVEACreditRecord[]
+  trades: CVEATradeRecord[]
+  projects: CVEAProjectRecord[]
+  prices: CVEAPriceRecord[]
+  summary: CVEASummary
+}
+
+export async function getCarbonVoluntaryExchangeDashboard(): Promise<CVEAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/carbon-voluntary-exchange/dashboard`, { headers: { Accept: 'application/json' } })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

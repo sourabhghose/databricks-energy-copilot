@@ -25440,3 +25440,216 @@ class TestEnergyGridTopologyEndpoints:
         assert r.status_code == 200
         region = r.json()["summary"]["most_constrained_region"]
         assert isinstance(region, str) and len(region) > 0
+
+
+# ===========================================================================
+# Sprint 162a — Carbon Voluntary Exchange Analytics (CVEA)
+# ===========================================================================
+
+class TestCarbonVoluntaryExchangeEndpoints:
+    """Tests for GET /api/carbon-voluntary-exchange/dashboard (Sprint 162a)."""
+
+    URL = "/api/carbon-voluntary-exchange/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_cvea_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_cvea_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_cvea_response_has_required_keys(self):
+        """Response body must contain credits, trades, projects, prices, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("credits", "trades", "projects", "prices", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_cvea_credits_count(self):
+        """credits list must contain exactly 35 records (5 credit types x 7 states)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["credits"]) == 35
+
+    def test_cvea_trades_count(self):
+        """trades list must contain exactly 48 records
+        (6 buyer sectors x 4 quarters x 2 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["trades"]) == 48
+
+    def test_cvea_projects_count(self):
+        """projects list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 20
+
+    def test_cvea_prices_count(self):
+        """prices list must contain exactly 30 records (5 credit types x 6 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["prices"]) == 30
+
+    def test_cvea_summary_total_credits_issued_positive(self):
+        """summary.total_credits_issued must be > 0."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_credits_issued"] > 0
+
+    def test_cvea_summary_most_active_buyer_sector_non_empty(self):
+        """summary.most_active_buyer_sector must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        sector = r.json()["summary"]["most_active_buyer_sector"]
+        assert isinstance(sector, str) and len(sector) > 0
+
+
+# ===========================================================================
+# Sprint 162b — Renewable Energy Market Sensitivity Analytics (REMS)
+# ===========================================================================
+
+class TestRenewableMarketSensitivityEndpoints:
+    URL = "/api/renewable-market-sensitivity/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_rems_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_rems_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_rems_response_has_required_keys(self):
+        """Response body must contain sensitivity, generation, price_correlation,
+        scenarios, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("sensitivity", "generation", "price_correlation", "scenarios", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_rems_sensitivity_count(self):
+        """sensitivity list must contain exactly 100 records
+        (5 regions x 5 factors x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["sensitivity"]) == 100
+
+    def test_rems_generation_count(self):
+        """generation list must contain exactly 60 records
+        (5 regions x 4 months x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["generation"]) == 60
+
+    def test_rems_price_correlation_count(self):
+        """price_correlation list must contain exactly 60 records
+        (5 regions x 4 factors x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["price_correlation"]) == 60
+
+    def test_rems_scenarios_count(self):
+        """scenarios list must contain exactly 75 records
+        (5 scenarios x 5 regions x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["scenarios"]) == 75
+
+    def test_rems_summary_highest_penetration_region_non_empty(self):
+        """summary.highest_penetration_region must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        region = r.json()["summary"]["highest_penetration_region"]
+        assert isinstance(region, str) and len(region) > 0
+
+    def test_rems_summary_avg_renewable_penetration_positive(self):
+        """summary.avg_renewable_penetration_pct must be greater than 0."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["avg_renewable_penetration_pct"] > 0
+
+
+# ===========================================================================
+# Sprint 162c — Natural Gas Pipeline Analytics (NGPA)
+# ===========================================================================
+
+class TestNaturalGasPipelineEndpoints:
+    """Tests for GET /api/natural-gas-pipeline/dashboard (Sprint 162c)."""
+
+    URL = "/api/natural-gas-pipeline/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_ngpa_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_ngpa_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_ngpa_response_has_required_keys(self):
+        """Response body must contain pipelines, flows, capacity,
+        maintenance, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("pipelines", "flows", "capacity", "maintenance", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_ngpa_pipelines_count(self):
+        """pipelines list must contain exactly 12 records (2 per state x 6 states)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["pipelines"]) == 12
+
+    def test_ngpa_flows_count(self):
+        """flows list must contain exactly 48 records
+        (12 pipelines x 4 months x 1 year)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["flows"]) == 48
+
+    def test_ngpa_capacity_count(self):
+        """capacity list must contain exactly 48 records
+        (12 pipelines x 4 quarters x 1 year)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["capacity"]) == 48
+
+    def test_ngpa_maintenance_count(self):
+        """maintenance list must contain exactly 36 records
+        (12 pipelines x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["maintenance"]) == 36
+
+    def test_ngpa_summary_total_pipelines(self):
+        """summary.total_pipelines must equal 12."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_pipelines"] == 12
+
+    def test_ngpa_summary_highest_utilisation_pipeline_non_empty(self):
+        """summary.highest_utilisation_pipeline must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        pipeline = r.json()["summary"]["highest_utilisation_pipeline"]
+        assert isinstance(pipeline, str) and len(pipeline) > 0

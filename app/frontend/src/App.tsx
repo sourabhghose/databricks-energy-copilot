@@ -547,6 +547,9 @@ import RenewableCertificateNemAnalytics from './pages/RenewableCertificateNemAna
 import DemandCurvePriceAnchorAnalytics from './pages/DemandCurvePriceAnchorAnalytics'
 import MarketEvolutionPolicyAnalytics from './pages/MarketEvolutionPolicyAnalytics'
 import EnergyGridTopologyAnalytics from './pages/EnergyGridTopologyAnalytics'
+import RenewableMarketSensitivityAnalytics from './pages/RenewableMarketSensitivityAnalytics'
+import CarbonVoluntaryExchangeAnalytics from './pages/CarbonVoluntaryExchangeAnalytics'
+import NaturalGasPipelineAnalytics from './pages/NaturalGasPipelineAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1001,6 +1004,9 @@ const NAV_ITEMS = [
   { to: '/demand-curve-price-anchor', label: 'Demand Curve', Icon: TrendingDown },
   { to: '/market-evolution-policy', label: 'Market Policy', Icon: Scale },
   { to: '/energy-grid-topology', label: 'Grid Topology', Icon: Network },
+  { to: '/carbon-voluntary-exchange', label: 'Voluntary Carbon', Icon: Leaf },
+  { to: '/renewable-market-sensitivity', label: 'RE Sensitivity', Icon: Sun },
+  { to: '/natural-gas-pipeline', label: 'Gas Pipelines', Icon: GitMerge },
 ]
 
 function Sidebar() {
@@ -1530,6 +1536,9 @@ export default function App() {
               <Route path="/demand-curve-price-anchor" element={<DemandCurvePriceAnchorAnalytics />} />
               <Route path="/market-evolution-policy" element={<MarketEvolutionPolicyAnalytics />} />
               <Route path="/energy-grid-topology" element={<EnergyGridTopologyAnalytics />} />
+              <Route path="/carbon-voluntary-exchange" element={<CarbonVoluntaryExchangeAnalytics />} />
+              <Route path="/renewable-market-sensitivity" element={<RenewableMarketSensitivityAnalytics />} />
+              <Route path="/natural-gas-pipeline" element={<NaturalGasPipelineAnalytics />} />
             </Routes>
           </main>
         </div>
