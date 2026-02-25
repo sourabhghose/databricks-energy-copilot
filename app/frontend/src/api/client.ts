@@ -32608,3 +32608,181 @@ export async function getEFGADashboard(): Promise<EFGADashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 166b — Capacity Investment Scheme Analytics (CISA)
+// ---------------------------------------------------------------------------
+
+export interface CISAContractRecord {
+  project_name: string
+  developer: string
+  technology: string
+  state: string
+  capacity_mw: number
+  underwrite_price_aud_mwh: number
+  cod_year: number
+  status: string
+  tender_round: string
+}
+
+export interface CISATenderRecord {
+  round_name: string
+  year: number
+  capacity_offered_gw: number
+  bids_received: number
+  avg_bid_price_aud_mwh: number
+  clearing_price_aud_mwh: number
+  oversubscription_ratio: number
+  technology_focus: string
+}
+
+export interface CISAProjectionRecord {
+  year: number
+  wind_gw: number
+  solar_gw: number
+  battery_gw: number
+  hydro_gw: number
+  total_dispatchable_gw: number
+  total_vre_gw: number
+}
+
+export interface CISARevenueRecord {
+  month: string
+  wholesale_price_aud_mwh: number
+  underwrite_floor_aud_mwh: number
+  cis_payment_aud_mwh: number
+  net_cost_m_aud: number
+}
+
+export interface CISADashboard {
+  timestamp: string
+  contracts: CISAContractRecord[]
+  tenders: CISATenderRecord[]
+  projections: CISAProjectionRecord[]
+  revenue: CISARevenueRecord[]
+}
+
+export async function getCISADashboard(): Promise<CISADashboard> {
+  const r = await fetch(`${BASE_URL}/api/cisa/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 166a — Grid Emissions Intensity Analytics (GEIA)
+// ---------------------------------------------------------------------------
+
+export interface GEIARegionalRecord {
+  region: string
+  month: string
+  avg_intensity_tco2_mwh: number
+  marginal_intensity_tco2_mwh: number
+  renewable_pct: number
+  coal_pct: number
+  gas_pct: number
+  total_generation_gwh: number
+}
+
+export interface GEIAGeneratorRecord {
+  generator_name: string
+  fuel_type: string
+  region: string
+  capacity_mw: number
+  intensity_tco2_mwh: number
+  annual_emissions_mt: number
+  capacity_factor_pct: number
+}
+
+export interface GEIATimeOfDayRecord {
+  region: string
+  period: string
+  marginal_intensity_tco2_mwh: number
+  avg_price_aud_mwh: number
+  renewable_pct: number
+}
+
+export interface GEIACorrelationRecord {
+  region: string
+  month: string
+  avg_intensity_tco2_mwh: number
+  avg_price_aud_mwh: number
+  generation_gwh: number
+}
+
+export interface GEIADashboard {
+  timestamp: string
+  regional: GEIARegionalRecord[]
+  generators: GEIAGeneratorRecord[]
+  time_of_day: GEIATimeOfDayRecord[]
+  correlation: GEIACorrelationRecord[]
+}
+
+export async function getGEIADashboard(): Promise<GEIADashboard> {
+  const r = await fetch(`${BASE_URL}/api/grid-emissions/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 166c — Microgrid Resilience Analytics (MGRA)
+// ---------------------------------------------------------------------------
+
+export interface MGRAMicrogridRecord {
+  name: string
+  location: string
+  state: string
+  grid_type: string
+  capacity_kw: number
+  battery_kwh: number
+  solar_kw: number
+  wind_kw: number
+  diesel_kw: number
+  renewable_pct: number
+  islanding_capable: boolean
+  operator: string
+  communities_served: number
+  reliability_score: number
+}
+
+export interface MGRAIslandingRecord {
+  microgrid_name: string
+  event_date: string
+  trigger: string
+  duration_hrs: number
+  load_served_pct: number
+  battery_soc_start_pct: number
+  battery_soc_end_pct: number
+  diesel_used_litres: number
+}
+
+export interface MGRAResilienceRecord {
+  microgrid_name: string
+  reliability_score: number
+  renewable_score: number
+  autonomy_score: number
+  cost_score: number
+  emissions_score: number
+  overall_score: number
+}
+
+export interface MGRAMonthlyRecord {
+  month: string
+  total_islanding_events: number
+  avg_duration_hrs: number
+  avg_load_served_pct: number
+  grid_outage_hrs: number
+}
+
+export interface MGRADashboard {
+  timestamp: string
+  microgrids: MGRAMicrogridRecord[]
+  islanding_events: MGRAIslandingRecord[]
+  resilience: MGRAResilienceRecord[]
+  monthly_trends: MGRAMonthlyRecord[]
+}
+
+export async function getMGRADashboard(): Promise<MGRADashboard> {
+  const r = await fetch(`${BASE_URL}/api/microgrid-resilience/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

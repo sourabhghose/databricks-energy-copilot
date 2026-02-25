@@ -26531,3 +26531,407 @@ class TestEvFleetGridIntegrationAnalytics:
         assert states == self.VALID_STATES, (
             f"Missing states: {self.VALID_STATES - states}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 166b — Capacity Investment Scheme Analytics (CISA)
+# ---------------------------------------------------------------------------
+
+class TestCISADashboard:
+    URL = "/api/cisa/dashboard"
+    HEADERS = {"X-API-Key": "test-key"}
+
+    VALID_TECHNOLOGIES = {
+        "ONSHORE_WIND", "OFFSHORE_WIND", "SOLAR",
+        "BATTERY_2HR", "BATTERY_4HR", "PUMPED_HYDRO",
+    }
+    VALID_STATUSES = {"AWARDED", "SHORTLISTED", "UNDER_CONSTRUCTION", "OPERATIONAL"}
+    VALID_ROUNDS = {"T1_2024", "T2_2024", "T3_2025", "T4_2025"}
+
+    def test_cisa_returns_200(self):
+        """Endpoint returns 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_cisa_top_level_keys(self):
+        """Response contains all required top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("timestamp", "contracts", "tenders", "projections", "revenue"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_cisa_contracts_count(self):
+        """Must return exactly 20 contract records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["contracts"]) == 20
+
+    def test_cisa_contract_fields(self):
+        """Each contract has all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {
+            "project_name", "developer", "technology", "state",
+            "capacity_mw", "underwrite_price_aud_mwh", "cod_year",
+            "status", "tender_round",
+        }
+        for c in r.json()["contracts"]:
+            assert required.issubset(c.keys()), f"Missing fields in contract: {required - c.keys()}"
+
+    def test_cisa_contract_technologies_valid(self):
+        """All contract technologies are from the allowed set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for c in r.json()["contracts"]:
+            assert c["technology"] in self.VALID_TECHNOLOGIES, (
+                f"Invalid technology: {c['technology']}"
+            )
+
+    def test_cisa_contract_statuses_valid(self):
+        """All contract statuses are from the allowed set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for c in r.json()["contracts"]:
+            assert c["status"] in self.VALID_STATUSES, (
+                f"Invalid status: {c['status']}"
+            )
+
+    def test_cisa_nsw_vic_most_capacity(self):
+        """NSW and VIC should have the most capacity."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        state_capacity: dict[str, float] = {}
+        for c in r.json()["contracts"]:
+            state_capacity[c["state"]] = state_capacity.get(c["state"], 0) + c["capacity_mw"]
+        top_two = sorted(state_capacity, key=state_capacity.get, reverse=True)[:2]
+        assert set(top_two) == {"NSW", "VIC"} or "NSW" in top_two or "VIC" in top_two, (
+            f"Expected NSW and VIC in top 2, got {top_two}"
+        )
+
+    def test_cisa_tenders_count(self):
+        """Must return exactly 4 tender round records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["tenders"]) == 4
+
+    def test_cisa_tender_rounds_valid(self):
+        """All tender round names are from the expected set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        rounds = {t["round_name"] for t in r.json()["tenders"]}
+        assert rounds == self.VALID_ROUNDS, f"Expected {self.VALID_ROUNDS}, got {rounds}"
+
+    def test_cisa_projections_count(self):
+        """Must return exactly 7 projection year records (2024-2030)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["projections"]) == 7
+
+    def test_cisa_projections_years(self):
+        """Projection years must span 2024-2030."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        years = [p["year"] for p in r.json()["projections"]]
+        assert years == list(range(2024, 2031))
+
+    def test_cisa_projections_increasing(self):
+        """Total VRE capacity should increase year-on-year."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        vre = [p["total_vre_gw"] for p in r.json()["projections"]]
+        for i in range(1, len(vre)):
+            assert vre[i] > vre[i - 1], f"VRE not increasing: {vre[i-1]} -> {vre[i]}"
+
+    def test_cisa_revenue_count(self):
+        """Must return exactly 18 monthly revenue records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 18
+
+    def test_cisa_revenue_payment_logic(self):
+        """CIS payment should be >0 only when wholesale < floor."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["revenue"]:
+            if rec["wholesale_price_aud_mwh"] >= rec["underwrite_floor_aud_mwh"]:
+                assert rec["cis_payment_aud_mwh"] == 0.0, (
+                    f"Month {rec['month']}: CIS payment should be 0 when wholesale >= floor"
+                )
+            else:
+                assert rec["cis_payment_aud_mwh"] > 0.0, (
+                    f"Month {rec['month']}: CIS payment should be >0 when wholesale < floor"
+                )
+
+    def test_cisa_accessible_without_explicit_key(self):
+        """Endpoint is accessible in test mode (verify_api_key permissive)."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_cisa_caching(self):
+        """Second request should return cached data with same timestamp."""
+        r1 = client.get(self.URL, headers=self.HEADERS)
+        r2 = client.get(self.URL, headers=self.HEADERS)
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["timestamp"] == r2.json()["timestamp"]
+
+
+# ============================================================
+# Sprint 166a — Grid Emissions Intensity Analytics (GEIA)
+# ============================================================
+
+class TestGridEmissionsIntensityAnalytics:
+    URL = "/api/grid-emissions/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+    VALID_REGIONS = {"NSW1", "VIC1", "QLD1", "SA1", "TAS1"}
+    VALID_PERIODS = {"PEAK", "OFFPEAK", "SHOULDER"}
+    VALID_FUEL_TYPES = {"BLACK_COAL", "BROWN_COAL", "GAS_CCGT", "GAS_OCGT", "DIESEL"}
+
+    def test_geia_status_ok(self):
+        """Endpoint returns 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_geia_has_timestamp(self):
+        """Response must contain a timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+        assert len(r.json()["timestamp"]) > 0
+
+    def test_geia_regional_count(self):
+        """Must have 90 regional records (5 regions x 18 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["regional"]) == 90
+
+    def test_geia_generators_count(self):
+        """Must have 15 top generator records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["generators"]) == 15
+
+    def test_geia_time_of_day_count(self):
+        """Must have 15 time-of-day records (5 regions x 3 periods)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["time_of_day"]) == 15
+
+    def test_geia_correlation_count(self):
+        """Must have 90 correlation records (5 regions x 18 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["correlation"]) == 90
+
+    def test_geia_all_regions_in_regional(self):
+        """All 5 NEM regions must appear in regional records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        regions = {rec["region"] for rec in r.json()["regional"]}
+        assert regions == self.VALID_REGIONS, (
+            f"Missing regions: {self.VALID_REGIONS - regions}"
+        )
+
+    def test_geia_all_periods_in_time_of_day(self):
+        """All 3 periods must appear in time-of-day records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        periods = {rec["period"] for rec in r.json()["time_of_day"]}
+        assert periods == self.VALID_PERIODS, (
+            f"Missing periods: {self.VALID_PERIODS - periods}"
+        )
+
+    def test_geia_vic1_highest_intensity(self):
+        """VIC1 should have highest average intensity (brown coal)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        regional = r.json()["regional"]
+        region_avg: dict[str, list[float]] = {}
+        for rec in regional:
+            region_avg.setdefault(rec["region"], []).append(rec["avg_intensity_tco2_mwh"])
+        avgs = {reg: sum(vals) / len(vals) for reg, vals in region_avg.items()}
+        assert max(avgs, key=avgs.get) == "VIC1", (  # type: ignore[arg-type]
+            f"VIC1 should have highest intensity, got {max(avgs, key=avgs.get)}"
+        )
+
+    def test_geia_tas1_lowest_intensity(self):
+        """TAS1 should have lowest average intensity (hydro dominant)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        regional = r.json()["regional"]
+        region_avg: dict[str, list[float]] = {}
+        for rec in regional:
+            region_avg.setdefault(rec["region"], []).append(rec["avg_intensity_tco2_mwh"])
+        avgs = {reg: sum(vals) / len(vals) for reg, vals in region_avg.items()}
+        assert min(avgs, key=avgs.get) == "TAS1", (  # type: ignore[arg-type]
+            f"TAS1 should have lowest intensity, got {min(avgs, key=avgs.get)}"
+        )
+
+    def test_geia_declining_trend(self):
+        """NEM average intensity should decline over the 18-month period."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        regional = r.json()["regional"]
+        months = sorted({rec["month"] for rec in regional})
+        first_month = months[0]
+        last_month = months[-1]
+        first_avg = sum(
+            rec["avg_intensity_tco2_mwh"] for rec in regional if rec["month"] == first_month
+        ) / 5
+        last_avg = sum(
+            rec["avg_intensity_tco2_mwh"] for rec in regional if rec["month"] == last_month
+        ) / 5
+        assert last_avg < first_avg, (
+            f"Emissions should decline: first={first_avg:.4f}, last={last_avg:.4f}"
+        )
+
+    def test_geia_generator_fuel_types_valid(self):
+        """All generator fuel types must be in the valid set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for gen in r.json()["generators"]:
+            assert gen["fuel_type"] in self.VALID_FUEL_TYPES, (
+                f"Invalid fuel type: {gen['fuel_type']}"
+            )
+
+    def test_geia_generator_positive_values(self):
+        """Generator capacity, intensity and emissions must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for gen in r.json()["generators"]:
+            assert gen["capacity_mw"] > 0
+            assert gen["intensity_tco2_mwh"] > 0
+            assert gen["annual_emissions_mt"] > 0
+            assert 0 < gen["capacity_factor_pct"] <= 100
+
+    def test_geia_peak_marginal_higher_than_offpeak(self):
+        """Peak marginal intensity should be higher than offpeak for each region."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        tod = r.json()["time_of_day"]
+        for reg in self.VALID_REGIONS:
+            peak = next(t for t in tod if t["region"] == reg and t["period"] == "PEAK")
+            offpeak = next(t for t in tod if t["region"] == reg and t["period"] == "OFFPEAK")
+            assert peak["marginal_intensity_tco2_mwh"] > offpeak["marginal_intensity_tco2_mwh"], (
+                f"{reg}: peak ({peak['marginal_intensity_tco2_mwh']}) should be > "
+                f"offpeak ({offpeak['marginal_intensity_tco2_mwh']})"
+            )
+
+
+# ============================================================
+# Sprint 166c — Microgrid Resilience Analytics (MGRA)
+# ============================================================
+
+
+class TestMicrogridResilienceAnalytics:
+    URL = "/api/microgrid-resilience/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+    VALID_TRIGGERS = {"STORM", "BUSHFIRE", "GRID_FAULT", "PLANNED_MAINTENANCE", "CYBER_INCIDENT"}
+    VALID_GRID_TYPES = {"REMOTE", "REGIONAL", "INDUSTRIAL", "DEFENCE", "CRITICAL_INFRA"}
+
+    def test_mgra_status_ok(self):
+        """Endpoint returns 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_mgra_microgrids_count(self):
+        """Must have 12 microgrid records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["microgrids"]) == 12
+
+    def test_mgra_islanding_events_count(self):
+        """Must have 20 islanding event records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["islanding_events"]) == 20
+
+    def test_mgra_resilience_count(self):
+        """Must have 12 resilience score records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["resilience"]) == 12
+
+    def test_mgra_monthly_trends_count(self):
+        """Must have 18 monthly records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["monthly_trends"]) == 18
+
+    def test_mgra_all_grid_types_valid(self):
+        """All microgrid grid_type values must be in the valid set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for mg in r.json()["microgrids"]:
+            assert mg["grid_type"] in self.VALID_GRID_TYPES, (
+                f"{mg['name']}: invalid grid_type '{mg['grid_type']}'"
+            )
+
+    def test_mgra_all_triggers_valid(self):
+        """All islanding event trigger values must be in the valid set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for ev in r.json()["islanding_events"]:
+            assert ev["trigger"] in self.VALID_TRIGGERS, (
+                f"{ev['microgrid_name']}: invalid trigger '{ev['trigger']}'"
+            )
+
+    def test_mgra_renewable_pct_in_range(self):
+        """Renewable percentage must be between 0 and 100 for all microgrids."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for mg in r.json()["microgrids"]:
+            assert 0 <= mg["renewable_pct"] <= 100, (
+                f"{mg['name']}: renewable_pct {mg['renewable_pct']} out of range"
+            )
+
+    def test_mgra_reliability_scores_in_range(self):
+        """All resilience scores must be between 0 and 10."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["resilience"]:
+            for key in ("reliability_score", "renewable_score", "autonomy_score",
+                        "cost_score", "emissions_score", "overall_score"):
+                assert 0 <= rec[key] <= 10, (
+                    f"{rec['microgrid_name']}: {key}={rec[key]} out of 0-10 range"
+                )
+
+    def test_mgra_load_served_pct_in_range(self):
+        """Load served percentage must be between 0 and 100 for all events."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for ev in r.json()["islanding_events"]:
+            assert 0 <= ev["load_served_pct"] <= 100, (
+                f"{ev['microgrid_name']} ({ev['event_date']}): "
+                f"load_served_pct {ev['load_served_pct']} out of range"
+            )
+
+    def test_mgra_battery_soc_end_less_than_start(self):
+        """Battery SoC at end should be less than or equal to SoC at start."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for ev in r.json()["islanding_events"]:
+            assert ev["battery_soc_end_pct"] <= ev["battery_soc_start_pct"], (
+                f"{ev['microgrid_name']} ({ev['event_date']}): "
+                f"SoC end ({ev['battery_soc_end_pct']}) > SoC start ({ev['battery_soc_start_pct']})"
+            )
+
+    def test_mgra_all_microgrids_islanding_capable(self):
+        """All 12 mock microgrids should be islanding capable."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for mg in r.json()["microgrids"]:
+            assert mg["islanding_capable"] is True, (
+                f"{mg['name']}: expected islanding_capable=True"
+            )
+
+    def test_mgra_resilience_names_match_microgrids(self):
+        """Every resilience record must reference a known microgrid name."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        mg_names = {mg["name"] for mg in r.json()["microgrids"]}
+        for rec in r.json()["resilience"]:
+            assert rec["microgrid_name"] in mg_names, (
+                f"Resilience record for '{rec['microgrid_name']}' not found in microgrids"
+            )

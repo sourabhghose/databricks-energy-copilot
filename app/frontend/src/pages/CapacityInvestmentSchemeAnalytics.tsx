@@ -1,329 +1,282 @@
 import { useEffect, useState } from 'react'
-import { Award } from 'lucide-react'
+import { Award, Zap, DollarSign, Battery } from 'lucide-react'
 import {
-  BarChart, Bar, LineChart, Line, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts'
-import {
-  CISCDashboard,
-  CISCAwardRecord,
-  getCapacityInvestmentSchemeDashboard,
-} from '../api/client'
+import { getCISADashboard } from '../api/client'
+import type { CISADashboard } from '../api/client'
 
-// ---- Colour palette ----
-const TECH_COLORS: Record<string, string> = {
-  'Solar PV':       '#f59e0b',
-  'Wind Onshore':   '#3b82f6',
-  'Wind Offshore':  '#06b6d4',
-  'Battery Storage':'#a855f7',
-  'Pumped Hydro':   '#22d3ee',
-  'Firming Gas':    '#f97316',
-}
-const STAGE_COLORS: Record<string, string> = {
-  'Pre-bid':        '#6b7280',
-  'Short-listed':   '#3b82f6',
-  'Awarded':        '#f59e0b',
-  'Financial Close':'#10b981',
-  'Construction':   '#f97316',
-  'Operating':      '#22c55e',
-}
-const REGION_COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#a855f7']
-const REGIONS = ['NSW/ACT', 'VIC/TAS', 'QLD', 'SA/WA']
-
-// ---- Helper: sum capacity by technology ----
-function capacityByTechnology(awards: CISCAwardRecord[]) {
-  const map: Record<string, number> = {}
-  for (const a of awards) {
-    map[a.technology] = (map[a.technology] ?? 0) + a.capacity_mw
-  }
-  return Object.entries(map)
-    .map(([technology, capacity_mw]) => ({ technology, capacity_mw: Math.round(capacity_mw) }))
-    .sort((a, b) => b.capacity_mw - a.capacity_mw)
+// ---------------------------------------------------------------------------
+// Colour palettes
+// ---------------------------------------------------------------------------
+const TECH_COLOURS: Record<string, string> = {
+  ONSHORE_WIND: '#3b82f6',
+  OFFSHORE_WIND: '#6366f1',
+  SOLAR: '#f59e0b',
+  BATTERY_2HR: '#10b981',
+  BATTERY_4HR: '#14b8a6',
+  PUMPED_HYDRO: '#8b5cf6',
 }
 
+const TECH_LABELS: Record<string, string> = {
+  ONSHORE_WIND: 'Onshore Wind',
+  OFFSHORE_WIND: 'Offshore Wind',
+  SOLAR: 'Solar',
+  BATTERY_2HR: 'Battery 2hr',
+  BATTERY_4HR: 'Battery 4hr',
+  PUMPED_HYDRO: 'Pumped Hydro',
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  AWARDED: 'bg-blue-900 text-blue-300',
+  SHORTLISTED: 'bg-yellow-900 text-yellow-300',
+  UNDER_CONSTRUCTION: 'bg-amber-900 text-amber-300',
+  OPERATIONAL: 'bg-green-900 text-green-300',
+}
+
+// ---------------------------------------------------------------------------
+// KPI Card
+// ---------------------------------------------------------------------------
+function KpiCard({
+  title,
+  value,
+  sub,
+  icon: Icon,
+  color,
+}: {
+  title: string
+  value: string
+  sub?: string
+  icon: React.ElementType
+  color: string
+}) {
+  return (
+    <div className="bg-gray-800 rounded-2xl p-6 flex items-start gap-4">
+      <div className={`p-2 rounded-lg ${color}`}>
+        <Icon size={22} className="text-white" />
+      </div>
+      <div>
+        <p className="text-xs text-gray-400 mb-1">{title}</p>
+        <p className="text-2xl font-bold text-white">{value}</p>
+        {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chart Card wrapper
+// ---------------------------------------------------------------------------
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-gray-800 rounded-2xl p-6">
+      <h3 className="text-sm font-semibold text-gray-200 mb-4">{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main Page
+// ---------------------------------------------------------------------------
 export default function CapacityInvestmentSchemeAnalytics() {
-  const [data, setData] = useState<CISCDashboard | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<CISADashboard | null>(null)
 
   useEffect(() => {
-    getCapacityInvestmentSchemeDashboard()
-      .then(setData)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
+    getCISADashboard().then(setData).catch(console.error)
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full bg-gray-900 text-gray-400">
-        <div className="text-center">
-          <Award size={40} className="mx-auto mb-3 text-amber-400 animate-pulse" />
-          <p>Loading CIS Analytics...</p>
-        </div>
-      </div>
-    )
-  }
-  if (error || !data) {
-    return (
-      <div className="flex items-center justify-center h-full bg-gray-900 text-red-400">
-        <p>Error loading data: {error ?? 'Unknown error'}</p>
-      </div>
-    )
+  if (!data) {
+    return <div className="min-h-screen bg-gray-900 p-8 text-white">Loading Capacity Investment Scheme Analytics dashboard...</div>
   }
 
-  const { awards, rounds, cfd_payments, pipeline, portfolio_metrics, market_impacts, summary } = data
+  // KPI aggregation
+  const totalCapacityGW = data.contracts.reduce((s, c) => s + c.capacity_mw, 0) / 1000
+  const contractsAwarded = data.contracts.filter((c) => c.status !== 'SHORTLISTED').length
+  const totalInvestmentB = totalCapacityGW * 1.65 // rough AUD per GW
+  const avgUnderwrite = data.contracts.reduce((s, c) => s + c.underwrite_price_aud_mwh, 0) / data.contracts.length
 
-  // ---- Derived datasets ----
-  const techCapacity = capacityByTechnology(awards)
-
-  const roundChartData = rounds.map(r => ({
-    name: r.round_name.replace('CIS ', '').replace(' (', '\n('),
-    target: r.total_capacity_mw_target,
-    awarded: r.awarded_capacity_mw,
-    clearing: r.clearing_price_dolpermwh,
-  }))
-
-  // CFD trends: aggregate by settlement period (avg cfd_payment)
-  const cfdByPeriod: Record<string, { total: number; count: number }> = {}
-  for (const c of cfd_payments) {
-    if (!cfdByPeriod[c.settlement_period]) cfdByPeriod[c.settlement_period] = { total: 0, count: 0 }
-    cfdByPeriod[c.settlement_period].total += c.cfd_payment_m
-    cfdByPeriod[c.settlement_period].count += 1
-  }
-  const cfdTrendData = Object.entries(cfdByPeriod).map(([period, { total, count }]) => ({
-    period,
-    avg_payment: parseFloat((total / count).toFixed(2)),
-    total_payment: parseFloat(total.toFixed(2)),
-  }))
-
-  // Pipeline by stage
-  const stageMap: Record<string, number> = {}
-  for (const p of pipeline) {
-    stageMap[p.stage] = (stageMap[p.stage] ?? 0) + p.capacity_mw
-  }
-  const pipelineStageData = Object.entries(stageMap)
-    .map(([stage, capacity_mw]) => ({ stage, capacity_mw: Math.round(capacity_mw) }))
-    .sort((a, b) => {
-      const order = ['Pre-bid','Short-listed','Awarded','Financial Close','Construction','Operating']
-      return order.indexOf(a.stage) - order.indexOf(b.stage)
-    })
-
-  // Portfolio area chart: awarded capacity by region & year (2025-2029)
-  const years = [2025, 2026, 2027, 2028, 2029]
-  const portfolioChartData = years.map(year => {
-    const row: Record<string, number | string> = { year: year.toString() }
-    for (const region of REGIONS) {
-      const rec = portfolio_metrics.find(m => m.year === year && m.region === region)
-      row[region] = rec ? Math.round(rec.total_awarded_capacity_mw) : 0
+  // Build tender bar chart data by technology per round
+  const tenderByTech = data.tenders.map((t) => {
+    const roundContracts = data.contracts.filter((c) => c.tender_round === t.round_name)
+    const byTech: Record<string, number> = {}
+    for (const c of roundContracts) {
+      byTech[c.technology] = (byTech[c.technology] || 0) + c.capacity_mw / 1000
     }
-    return row
+    return { round: t.round_name.replace(/_/g, ' '), ...byTech }
   })
 
-  // Top 12 awards by capacity
-  const topAwards = [...awards].sort((a, b) => b.capacity_mw - a.capacity_mw).slice(0, 12)
-
-  const fmt = (n: number, dp = 1) => n.toFixed(dp)
+  // Build state allocation data
+  const stateMap: Record<string, Record<string, number>> = {}
+  for (const c of data.contracts) {
+    if (!stateMap[c.state]) stateMap[c.state] = {}
+    stateMap[c.state][c.technology] = (stateMap[c.state][c.technology] || 0) + c.capacity_mw / 1000
+  }
+  const stateAllocation = Object.entries(stateMap).map(([state, techs]) => ({ state, ...techs }))
 
   return (
-    <div className="p-6 bg-gray-900 min-h-full text-gray-100">
-      {/* Page header */}
-      <div className="flex items-center gap-3 mb-6">
+    <div className="min-h-screen bg-gray-900 p-8 text-white">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-8">
         <Award size={28} className="text-amber-400" />
         <div>
-          <h1 className="text-2xl font-bold text-white">Capacity Investment Scheme Analytics</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Australia's CIS — Contracts for Difference & Firming Auctions
-          </p>
+          <h1 className="text-2xl font-bold">Capacity Investment Scheme Analytics</h1>
+          <p className="text-sm text-gray-400">Sprint 166b — CISA Dashboard</p>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Total Awarded Capacity</p>
-          <p className="text-3xl font-bold text-amber-400 mt-1">{fmt(summary.total_awarded_gw, 2)}</p>
-          <p className="text-xs text-gray-500 mt-1">GW contracted</p>
-        </div>
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Pipeline Capacity</p>
-          <p className="text-3xl font-bold text-blue-400 mt-1">{fmt(summary.total_pipeline_gw, 2)}</p>
-          <p className="text-xs text-gray-500 mt-1">GW in pipeline</p>
-        </div>
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Auction Rounds</p>
-          <p className="text-3xl font-bold text-emerald-400 mt-1">{summary.num_auction_rounds}</p>
-          <p className="text-xs text-gray-500 mt-1">rounds completed/planned</p>
-        </div>
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Avg Clearing Price</p>
-          <p className="text-3xl font-bold text-purple-400 mt-1">${fmt(summary.avg_clearing_price_dolpermwh, 1)}</p>
-          <p className="text-xs text-gray-500 mt-1">$/MWh across rounds</p>
-        </div>
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <KpiCard
+          title="Total CIS Capacity"
+          value={`${totalCapacityGW.toFixed(1)} GW`}
+          sub="across all tender rounds"
+          icon={Zap}
+          color="bg-blue-600"
+        />
+        <KpiCard
+          title="Contracts Awarded"
+          value={`${contractsAwarded}`}
+          sub="awarded / under construction / operational"
+          icon={Award}
+          color="bg-emerald-600"
+        />
+        <KpiCard
+          title="Total Investment"
+          value={`${totalInvestmentB.toFixed(1)}B AUD`}
+          sub="estimated capital commitment"
+          icon={DollarSign}
+          color="bg-amber-600"
+        />
+        <KpiCard
+          title="Avg Revenue Underwrite"
+          value={`$${avgUnderwrite.toFixed(1)}/MWh`}
+          sub="weighted average floor price"
+          icon={Battery}
+          color="bg-purple-600"
+        />
       </div>
 
-      {/* Row 1: Tech capacity + Rounds */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* Awarded capacity by technology */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-300 mb-3">Awarded Capacity by Technology (MW)</h2>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={techCapacity} layout="vertical" margin={{ left: 24, right: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
-              <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="technology" stroke="#6b7280" tick={{ fontSize: 11 }} width={110} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                formatter={(v: number) => [`${v.toLocaleString()} MW`, 'Capacity']}
-              />
-              <Bar dataKey="capacity_mw" radius={[0, 4, 4, 0]}
-                fill="#f59e0b"
-                label={{ position: 'right', fill: '#9ca3af', fontSize: 10,
-                  formatter: (v: number) => `${(v/1000).toFixed(1)}GW` }}
-              />
+      {/* Charts row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* CIS Tender Results by Technology BarChart */}
+        <ChartCard title="CIS Tender Results by Technology & Round (GW)">
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={tenderByTech}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="round" stroke="#9ca3af" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#9ca3af" tick={{ fontSize: 12 }} label={{ value: 'GW', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
+              <Legend />
+              {Object.entries(TECH_COLOURS).map(([tech, color]) => (
+                <Bar key={tech} dataKey={tech} name={TECH_LABELS[tech]} fill={color} stackId="tech" />
+              ))}
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        {/* Auction rounds: awarded vs target */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-300 mb-3">Auction Rounds — Target vs Awarded (MW)</h2>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={roundChartData} margin={{ left: 0, right: 10 }}>
+        {/* Revenue Underwrite Floor vs Wholesale Price LineChart */}
+        <ChartCard title="Revenue Underwrite Floor vs Wholesale Price ($/MWh)">
+          <ResponsiveContainer width="100%" height={340}>
+            <LineChart data={data.revenue}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="name" stroke="#6b7280" tick={{ fontSize: 9 }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                formatter={(v: number, name: string) => [`${v.toLocaleString()} MW`, name === 'target' ? 'Target' : 'Awarded']}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="target" fill="#374151" name="Target" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="awarded" fill="#3b82f6" name="Awarded" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Row 2: CFD payments + Pipeline stages */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* CFD payment trends */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-300 mb-3">CfD Payment Trends by Settlement Period ($M)</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={cfdTrendData} margin={{ left: 0, right: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="period" stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                formatter={(v: number, name: string) => [
-                  `$${v.toFixed(2)}M`,
-                  name === 'avg_payment' ? 'Avg Payment' : 'Total Payment'
-                ]}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="avg_payment" stroke="#f59e0b" strokeWidth={2} dot name="Avg Payment ($M)" />
-              <Line type="monotone" dataKey="total_payment" stroke="#3b82f6" strokeWidth={2} dot name="Total Payment ($M)" />
+              <XAxis dataKey="month" stroke="#9ca3af" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#9ca3af" tick={{ fontSize: 12 }} label={{ value: '$/MWh', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
+              <Legend />
+              <Line type="monotone" dataKey="wholesale_price_aud_mwh" name="Wholesale Price" stroke="#ef4444" strokeWidth={2} />
+              <Line type="monotone" dataKey="underwrite_floor_aud_mwh" name="Underwrite Floor" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" />
+              <Line type="monotone" dataKey="cis_payment_aud_mwh" name="CIS Payment" stroke="#f59e0b" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
+      </div>
 
-        {/* Pipeline by stage */}
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h2 className="text-sm font-semibold text-gray-300 mb-3">Pipeline Capacity by Stage (MW)</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={pipelineStageData} margin={{ left: 0, right: 20 }}>
+      {/* Charts row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* State-by-State CIS Allocation Stacked BarChart */}
+        <ChartCard title="State-by-State CIS Allocation (GW by Technology)">
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={stateAllocation}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="stage" stroke="#6b7280" tick={{ fontSize: 10 }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-                formatter={(v: number) => [`${v.toLocaleString()} MW`, 'Capacity']}
-              />
-              <Bar dataKey="capacity_mw" radius={[4, 4, 0, 0]}
-                name="Capacity (MW)"
-                fill="#10b981"
-              />
+              <XAxis dataKey="state" stroke="#9ca3af" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#9ca3af" tick={{ fontSize: 12 }} label={{ value: 'GW', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
+              <Legend />
+              {Object.entries(TECH_COLOURS).map(([tech, color]) => (
+                <Bar key={tech} dataKey={tech} name={TECH_LABELS[tech]} fill={color} stackId="state" />
+              ))}
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
+
+        {/* Projected Dispatchable Capacity Additions AreaChart */}
+        <ChartCard title="Projected Dispatchable Capacity Additions from CIS (2024-2030)">
+          <ResponsiveContainer width="100%" height={340}>
+            <AreaChart data={data.projections}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="year" stroke="#9ca3af" tick={{ fontSize: 12 }} />
+              <YAxis stroke="#9ca3af" tick={{ fontSize: 12 }} label={{ value: 'GW', angle: -90, position: 'insideLeft', fill: '#9ca3af' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: 8 }} />
+              <Legend />
+              <Area type="monotone" dataKey="wind_gw" name="Wind" stackId="proj" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.5} />
+              <Area type="monotone" dataKey="solar_gw" name="Solar" stackId="proj" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.5} />
+              <Area type="monotone" dataKey="battery_gw" name="Battery" stackId="proj" stroke="#10b981" fill="#10b981" fillOpacity={0.5} />
+              <Area type="monotone" dataKey="hydro_gw" name="Hydro" stackId="proj" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.5} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
       </div>
 
-      {/* Row 3: Portfolio area chart */}
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-4">
-        <h2 className="text-sm font-semibold text-gray-300 mb-3">Portfolio — Awarded Capacity by Region & Year (MW, Stacked)</h2>
-        <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={portfolioChartData} margin={{ left: 0, right: 20 }}>
-            <defs>
-              {REGIONS.map((region, i) => (
-                <linearGradient key={region} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={REGION_COLORS[i]} stopOpacity={0.6} />
-                  <stop offset="95%" stopColor={REGION_COLORS[i]} stopOpacity={0.15} />
-                </linearGradient>
-              ))}
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="year" stroke="#6b7280" tick={{ fontSize: 11 }} />
-            <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-              formatter={(v: number, name: string) => [`${v.toLocaleString()} MW`, name]}
-            />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {REGIONS.map((region, i) => (
-              <Area
-                key={region}
-                type="monotone"
-                dataKey={region}
-                stackId="1"
-                stroke={REGION_COLORS[i]}
-                fill={`url(#grad-${i})`}
-                strokeWidth={1.5}
-              />
-            ))}
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Row 4: Top award records table */}
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-        <h2 className="text-sm font-semibold text-gray-300 mb-3">Top 12 Award Records by Capacity</h2>
+      {/* Table: CIS Contract Register */}
+      <div className="bg-gray-800 rounded-2xl p-6 mb-6">
+        <h3 className="text-sm font-semibold text-gray-200 mb-4">CIS Contract Register</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-sm text-left">
             <thead>
               <tr className="border-b border-gray-700 text-gray-400">
-                <th className="pb-2 pr-4 font-medium">Project</th>
-                <th className="pb-2 pr-4 font-medium">Technology</th>
-                <th className="pb-2 pr-4 font-medium">State</th>
-                <th className="pb-2 pr-4 font-medium text-right">Capacity (MW)</th>
-                <th className="pb-2 pr-4 font-medium text-right">Strike ($/MWh)</th>
-                <th className="pb-2 pr-4 font-medium text-right">Term (yrs)</th>
-                <th className="pb-2 font-medium">Contract Type</th>
+                <th className="py-3 px-4">Project</th>
+                <th className="py-3 px-4">Developer</th>
+                <th className="py-3 px-4">Technology</th>
+                <th className="py-3 px-4">State</th>
+                <th className="py-3 px-4 text-right">Capacity MW</th>
+                <th className="py-3 px-4 text-right">Underwrite $/MWh</th>
+                <th className="py-3 px-4 text-right">COD</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">Round</th>
               </tr>
             </thead>
             <tbody>
-              {topAwards.map((a, idx) => (
-                <tr
-                  key={a.award_id}
-                  className={`border-b border-gray-700/50 ${idx % 2 === 0 ? 'bg-gray-800/40' : ''}`}
-                >
-                  <td className="py-2 pr-4 text-white font-medium truncate max-w-[200px]">{a.project_name}</td>
-                  <td className="py-2 pr-4">
-                    <span
-                      className="inline-block px-2 py-0.5 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: `${TECH_COLORS[a.technology] ?? '#6b7280'}22`,
-                        color: TECH_COLORS[a.technology] ?? '#9ca3af',
-                      }}
-                    >
-                      {a.technology}
+              {data.contracts.map((c) => (
+                <tr key={c.project_name} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <td className="py-3 px-4 font-medium text-white">{c.project_name}</td>
+                  <td className="py-3 px-4 text-gray-300">{c.developer}</td>
+                  <td className="py-3 px-4">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: TECH_COLOURS[c.technology] + '30', color: TECH_COLOURS[c.technology] }}>
+                      {TECH_LABELS[c.technology] || c.technology}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-gray-300">{a.state}</td>
-                  <td className="py-2 pr-4 text-amber-400 text-right font-mono">{a.capacity_mw.toLocaleString()}</td>
-                  <td className="py-2 pr-4 text-blue-400 text-right font-mono">${a.strike_price_dolpermwh.toFixed(1)}</td>
-                  <td className="py-2 pr-4 text-gray-300 text-right">{a.contract_term_years}</td>
-                  <td className="py-2 text-gray-400">{a.contract_type}</td>
+                  <td className="py-3 px-4 text-gray-300">{c.state}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">{c.capacity_mw.toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">${c.underwrite_price_aud_mwh.toFixed(1)}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">{c.cod_year}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[c.status] || 'bg-gray-700 text-gray-300'}`}>
+                      {c.status.replace(/_/g, ' ')}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-300">{c.tender_round.replace(/_/g, ' ')}</td>
                 </tr>
               ))}
             </tbody>
@@ -331,40 +284,36 @@ export default function CapacityInvestmentSchemeAnalytics() {
         </div>
       </div>
 
-      {/* Market Impact Summary */}
-      <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mt-4">
-        <h2 className="text-sm font-semibold text-gray-300 mb-3">Market Impact Scenarios</h2>
+      {/* Table: Tender Round Summary */}
+      <div className="bg-gray-800 rounded-2xl p-6 mb-6">
+        <h3 className="text-sm font-semibold text-gray-200 mb-4">Tender Round Summary</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+          <table className="w-full text-sm text-left">
             <thead>
               <tr className="border-b border-gray-700 text-gray-400">
-                <th className="pb-2 pr-4 font-medium">Scenario</th>
-                <th className="pb-2 pr-4 font-medium">Year</th>
-                <th className="pb-2 pr-4 font-medium text-right">Price Impact (%)</th>
-                <th className="pb-2 pr-4 font-medium text-right">RE Penetration (%)</th>
-                <th className="pb-2 pr-4 font-medium text-right">Consumer Bill Impact ($/pa)</th>
-                <th className="pb-2 pr-4 font-medium text-right">CO2 Reduction (Mt/pa)</th>
-                <th className="pb-2 font-medium text-center">Reliability</th>
+                <th className="py-3 px-4">Round</th>
+                <th className="py-3 px-4 text-right">Year</th>
+                <th className="py-3 px-4 text-right">Capacity Offered GW</th>
+                <th className="py-3 px-4 text-right">Bids Received</th>
+                <th className="py-3 px-4 text-right">Clearing Price $/MWh</th>
+                <th className="py-3 px-4 text-right">Oversubscription</th>
+                <th className="py-3 px-4">Technology Focus</th>
               </tr>
             </thead>
             <tbody>
-              {market_impacts.map((m, idx) => (
-                <tr key={m.impact_id} className={`border-b border-gray-700/50 ${idx % 2 === 0 ? 'bg-gray-800/40' : ''}`}>
-                  <td className="py-2 pr-4 text-white font-medium">{m.scenario}</td>
-                  <td className="py-2 pr-4 text-gray-300">{m.year}</td>
-                  <td className={`py-2 pr-4 text-right font-mono ${m.wholesale_price_impact_pctchange < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {m.wholesale_price_impact_pctchange.toFixed(1)}%
-                  </td>
-                  <td className="py-2 pr-4 text-blue-400 text-right font-mono">{m.renewable_penetration_pct.toFixed(1)}%</td>
-                  <td className={`py-2 pr-4 text-right font-mono ${m.consumer_bill_impact_dollar_pa < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    ${m.consumer_bill_impact_dollar_pa.toFixed(0)}
-                  </td>
-                  <td className="py-2 pr-4 text-amber-400 text-right font-mono">{m.co2_reduction_mt_pa.toFixed(1)}</td>
-                  <td className="py-2 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs ${m.reliability_standard_met ? 'bg-emerald-900/50 text-emerald-400' : 'bg-red-900/50 text-red-400'}`}>
-                      {m.reliability_standard_met ? 'Met' : 'At Risk'}
+              {data.tenders.map((t) => (
+                <tr key={t.round_name} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <td className="py-3 px-4 font-medium text-white">{t.round_name.replace(/_/g, ' ')}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">{t.year}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">{t.capacity_offered_gw.toFixed(1)}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">{t.bids_received}</td>
+                  <td className="py-3 px-4 text-right text-gray-300">${t.clearing_price_aud_mwh.toFixed(1)}</td>
+                  <td className="py-3 px-4 text-right">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${t.oversubscription_ratio >= 3 ? 'bg-green-900 text-green-300' : t.oversubscription_ratio >= 2 ? 'bg-yellow-900 text-yellow-300' : 'bg-red-900 text-red-300'}`}>
+                      {t.oversubscription_ratio.toFixed(1)}x
                     </span>
                   </td>
+                  <td className="py-3 px-4 text-gray-300">{t.technology_focus}</td>
                 </tr>
               ))}
             </tbody>

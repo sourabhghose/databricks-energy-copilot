@@ -93,6 +93,7 @@ import {
   Briefcase,
   Upload,
   Rocket,
+  CloudRain,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -558,6 +559,8 @@ import GridFrequencyResponseAnalytics from './pages/GridFrequencyResponseAnalyti
 import HydrogenEconomyOutlookAnalytics from './pages/HydrogenEconomyOutlookAnalytics'
 import NetworkAugmentationDeferralAnalytics from './pages/NetworkAugmentationDeferralAnalytics'
 import EvFleetGridIntegrationAnalytics from './pages/EvFleetGridIntegrationAnalytics'
+import GridEmissionsIntensityAnalytics from './pages/GridEmissionsIntensityAnalytics'
+import MicrogridResilienceAnalytics from './pages/MicrogridResilienceAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1023,6 +1026,8 @@ const NAV_ITEMS = [
   { to: '/hydrogen-economy-outlook', label: 'Hydrogen Economy', Icon: Fuel },
   { to: '/network-augmentation', label: 'Network Deferral', Icon: GitBranch },
   { to: '/ev-fleet-grid', label: 'EV Grid Integration', Icon: Car },
+  { to: '/grid-emissions-intensity', label: 'Grid Emissions', Icon: CloudRain },
+  { to: '/microgrid-resilience', label: 'Microgrid Resilience', Icon: Shield },
 ]
 
 function Sidebar() {
@@ -1563,6 +1568,8 @@ export default function App() {
               <Route path="/hydrogen-economy-outlook" element={<HydrogenEconomyOutlookAnalytics />} />
               <Route path="/network-augmentation" element={<NetworkAugmentationDeferralAnalytics />} />
               <Route path="/ev-fleet-grid" element={<EvFleetGridIntegrationAnalytics />} />
+              <Route path="/grid-emissions-intensity" element={<GridEmissionsIntensityAnalytics />} />
+              <Route path="/microgrid-resilience" element={<MicrogridResilienceAnalytics />} />
             </Routes>
           </main>
         </div>
