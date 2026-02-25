@@ -1883,3 +1883,49 @@ Added Generator Planned Outage & Maintenance Scheduling Analytics page covering 
 **Routing (`app/frontend/src/App.tsx`):** Added `import SocialLicenceAnalytics from './pages/SocialLicenceAnalytics'`. Nav entry `{ to: '/social-licence-analytics', label: 'Social Licence & Equity Analytics', Icon: Users }` added before Settings. `Route path="/social-licence-analytics"` with `element={<SocialLicenceAnalytics />}` added before settings route. `Users` icon was already imported in App.tsx.
 
 **Tests (`tests/test_backend.py`):** Appended `TestSocialLicenceAnalytics.test_social_licence_dashboard` using `(self, client, auth_headers)` fixture pattern. Validates: HTTP 200; all 5 top-level keys present; exactly 10 project records with valid opposition_reason and engagement_quality enums, support+opposition+neutral summing to ~100%, at least 1 aboriginal land project, avg support >= 50%; exactly 5 First Nations records with valid consultation_adequacy enum, boolean land_rights_respected, positive project counts and benefit sharing; exactly 5 just transition records covering Hunter Valley/Latrobe Valley/Callide/Collie/Leigh Creek with valid ranges, Hunter Valley as largest affected workforce; exactly 6 equity cohort records covering all 6 expected cohorts with equity_score 0–10, valid trend enum, First Nations having lowest equity score, at least 1 WORSENING cohort.
+
+---
+
+## Sprint 163 — Battery Chemistry Risk (BCR) and AEMO 5-Min Settlement Analytics (2026-02-25)
+
+Backend, frontend page, API client types, routing, and tests for BatteryChemistryRiskAnalytics and Aemo5MinSettlementAnalytics dashboards.
+
+---
+
+## Sprint 164 — Electricity Retail Competition (ERCA), Grid Frequency Response (GFRA), Demand Response Aggregation (DRAA) Analytics (2026-02-25)
+
+**ERCA:** Retail competition analytics — 8 retailers x 5 regions, switching rates, price dispersion (standing/market/VPP/green), hardship programs. Endpoint: `/api/retail-competition/dashboard`. 18 backend tests.
+
+**GFRA:** Grid frequency response — 12 frequency events, 10 FCAS providers (Hornsdale fastest response), 18 inertia records (SA below threshold), 12 RoCoF trend records. Endpoint: `/api/grid-frequency/dashboard`. 15 backend tests.
+
+**DRAA:** Demand response aggregation — 8 aggregators (Enel X largest at ~200MW), 15 DR events, 60 seasonal records, 24 revenue records. Endpoint: `/api/demand-response-aggregation/dashboard`. 11 backend tests.
+
+---
+
+## Sprint 165 — Hydrogen Economy Outlook (HEOA), Network Augmentation Deferral (NADA), EV Fleet Grid Integration (EFGA) Analytics (2026-02-25)
+
+**HEOA:** 12 major Australian H2 projects, LCOH declining from $6.50 to $3.20/kg, 60 demand records, 5 export MOUs. Endpoint: `/api/hydrogen-economy-outlook/dashboard`. 14 tests.
+
+**NADA:** 15 deferral projects across 10 DNSPs, 6 annual investment trends (deferral rate 4.6%→42%), 10 RIT-D assessments, 20 DER hosting zones. Endpoint: `/api/network-augmentation/dashboard`. 13 tests.
+
+**EFGA:** EV adoption 2024-2035, 24-hour charging profiles, 8 state impacts, 8 fleet operators, V2G only during peak hours. Endpoint: `/api/ev-fleet-grid/dashboard`. 10 tests.
+
+---
+
+## Sprint 166 — Grid Emissions Intensity (GEIA), Capacity Investment Scheme (CISA), Microgrid Resilience (MGRA) Analytics (2026-02-25)
+
+**GEIA:** 90 regional emissions records (VIC highest, TAS lowest), 15 top generators, 15 time-of-day records, 90 correlation records. Declining trend. Endpoint: `/api/grid-emissions/dashboard`. 14 tests.
+
+**CISA:** 20 CIS contracts, 4 tender rounds, 7 projection years, 18 monthly revenue records. NSW/VIC most capacity. Endpoint: `/api/cisa/dashboard`. 16 tests.
+
+**MGRA:** 12 Australian microgrids (Coober Pedy, King Island, etc.), 20 islanding events, 12 resilience scores, 18 monthly records. Endpoint: `/api/microgrid-resilience/dashboard`. 13 tests.
+
+---
+
+## Sprint 167 — Power Quality Monitoring (PQMA), REZ Development (REZA), Energy Poverty & Affordability (EPAA) Analytics (2026-02-25)
+
+**PQMA:** 15 substations, 120 voltage profiles, 18 monthly incidents, 25 recent events. Endpoint: `/api/power-quality/dashboard`. 13 tests.
+
+**REZA:** 10 REZs (Central-West Orana, New England, etc.), 25 projects, 90 timeline records, 10 tech mix records. Endpoint: `/api/rez-development/dashboard`. 18 tests.
+
+**EPAA:** 8 states, 5 income quintiles (Q1 ~8% burden, Q5 ~2%), 48 disconnection records, 8 retailers, 20 LGA records. SA/TAS highest burden. Endpoint: `/api/energy-poverty-affordability/dashboard`. 15 tests.

@@ -32968,3 +32968,176 @@ export async function getPQMADashboard(): Promise<PQMADashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---- Coal Fleet Retirement Pathway Analytics (CFRA) ----
+
+export interface CFRAUnitRecord {
+  unit_name: string
+  station_name: string
+  state: string
+  capacity_mw: number
+  age_years: number
+  commissioning_year: number
+  retirement_year: number
+  owner: string
+  thermal_efficiency_pct: number
+  emissions_intensity_tco2_mwh: number
+  workforce: number
+}
+
+export interface CFRAReplacementRecord {
+  project_name: string
+  replacing_station: string
+  technology: string
+  capacity_mw: number
+  cod_year: number
+  investment_b_aud: number
+  status: string
+}
+
+export interface CFRACapacityRecord {
+  year: number
+  coal_capacity_gw: number
+  battery_gw: number
+  gas_gw: number
+  wind_gw: number
+  solar_gw: number
+  hydro_gw: number
+  total_replacement_gw: number
+}
+
+export interface CFRAReliabilityRecord {
+  region: string
+  year: number
+  reliability_margin_with_coal_pct: number
+  reliability_margin_without_coal_pct: number
+  unserved_energy_mwh: number
+}
+
+export interface CFRADashboard {
+  timestamp: string
+  units: CFRAUnitRecord[]
+  replacements: CFRAReplacementRecord[]
+  capacity_trajectory: CFRACapacityRecord[]
+  reliability: CFRAReliabilityRecord[]
+}
+
+export async function getCFRADashboard(): Promise<CFRADashboard> {
+  const r = await fetch(`${BASE_URL}/api/coal-retirement/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 168b — Virtual Power Plant Operations Analytics (VPOA)
+// ---------------------------------------------------------------------------
+
+export interface VPOAOperatorRecord {
+  operator_name: string
+  enrolled_assets_k: number
+  capacity_mw: number
+  markets: string[]
+  dispatch_success_pct: number
+  revenue_m_aud: number
+  avg_response_time_ms: number
+}
+
+export interface VPOADispatchRecord {
+  month: string
+  energy_mwh: number
+  fcas_mwh: number
+  network_mwh: number
+  total_dispatches: number
+  avg_response_ms: number
+}
+
+export interface VPOAAssetMixRecord {
+  asset_type: string
+  count_k: number
+  capacity_mw: number
+  avg_availability_pct: number
+}
+
+export interface VPOAEventRecord {
+  event_date: string
+  vpp_name: string
+  market: string
+  dispatched_mw: number
+  duration_min: number
+  response_time_ms: number
+  payment_aud: number
+  battery_soc_pct: number
+}
+
+export interface VPOADashboard {
+  timestamp: string
+  operators: VPOAOperatorRecord[]
+  dispatch_monthly: VPOADispatchRecord[]
+  asset_mix: VPOAAssetMixRecord[]
+  events: VPOAEventRecord[]
+}
+
+export async function getVPOADashboard(): Promise<VPOADashboard> {
+  const r = await fetch(`${BASE_URL}/api/vpp-operations/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---- Pumped Hydro Energy Storage Analytics (PHSA) ----
+
+export interface PHSAProjectRecord {
+  project_name: string
+  location: string
+  state: string
+  capacity_mw: number
+  storage_hours: number
+  storage_gwh: number
+  status: string
+  dam_type: string
+  head_m: number
+  investment_b_aud: number
+  developer: string
+  target_cod: string
+}
+
+export interface PHSAOperationRecord {
+  project_name: string
+  round_trip_efficiency_pct: number
+  cycles_per_year: number
+  capacity_factor_pct: number
+  annual_revenue_m_aud: number
+  energy_arbitrage_pct: number
+  fcas_pct: number
+  inertia_pct: number
+  capacity_pct: number
+}
+
+export interface PHSADailyProfileRecord {
+  hour: number
+  pumping_mw: number
+  generating_mw: number
+  reservoir_level_pct: number
+}
+
+export interface PHSARevenueRecord {
+  project_name: string
+  energy_arbitrage_m_aud: number
+  fcas_m_aud: number
+  inertia_m_aud: number
+  capacity_m_aud: number
+  total_m_aud: number
+}
+
+export interface PHSADashboard {
+  timestamp: string
+  projects: PHSAProjectRecord[]
+  operations: PHSAOperationRecord[]
+  daily_profile: PHSADailyProfileRecord[]
+  revenue: PHSARevenueRecord[]
+}
+
+export async function getPHSADashboard(): Promise<PHSADashboard> {
+  const r = await fetch(`${BASE_URL}/api/pumped-hydro/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

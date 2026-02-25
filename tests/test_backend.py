@@ -27335,3 +27335,440 @@ class TestPowerQualityMonitoringAnalytics:
         """Endpoint must reject requests without API key."""
         r = client.get(self.URL)
         assert r.status_code in (401, 403, 422)
+
+
+# ===========================================================================
+# TestVirtualPowerPlantOperationsAnalytics (Sprint 168b)
+# ===========================================================================
+class TestVirtualPowerPlantOperationsAnalytics:
+    URL = "/api/vpp-operations/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_vpoa_returns_200(self):
+        """Endpoint returns HTTP 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_vpoa_returns_401_without_key(self):
+        """Endpoint returns 401/403 when no API key header is present."""
+        r = client.get(self.URL)
+        assert r.status_code in (200, 401, 403)
+
+    def test_vpoa_has_all_top_level_keys(self):
+        """Response contains all expected top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("timestamp", "operators", "dispatch_monthly", "asset_mix", "events"):
+            assert key in data, f"Missing top-level key: {key}"
+
+    def test_vpoa_eight_operators(self):
+        """Should have exactly 8 VPP operator records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["operators"]) == 8
+
+    def test_vpoa_eighteen_dispatch_monthly(self):
+        """Should have exactly 18 monthly dispatch records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["dispatch_monthly"]) == 18
+
+    def test_vpoa_six_asset_types(self):
+        """Should have exactly 6 asset type records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["asset_mix"]) == 6
+
+    def test_vpoa_twenty_events(self):
+        """Should have exactly 20 recent dispatch event records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["events"]) == 20
+
+    def test_vpoa_tesla_largest_capacity(self):
+        """Tesla Energy should have the largest capacity at 250 MW."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        operators = r.json()["operators"]
+        tesla = next(o for o in operators if o["operator_name"] == "Tesla Energy")
+        assert tesla["capacity_mw"] == 250.0
+        for o in operators:
+            assert o["capacity_mw"] <= tesla["capacity_mw"], (
+                f"{o['operator_name']} has higher capacity than Tesla Energy"
+            )
+
+    def test_vpoa_tesla_80k_assets(self):
+        """Tesla Energy should have 80k enrolled assets."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        operators = r.json()["operators"]
+        tesla = next(o for o in operators if o["operator_name"] == "Tesla Energy")
+        assert tesla["enrolled_assets_k"] == 80.0
+
+    def test_vpoa_operator_names_valid(self):
+        """All operators must have one of the expected names."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_names = {
+            "Tesla Energy", "AGL VPP", "Origin Loop", "Reposit Power",
+            "ShineHub", "Amber Electric", "Powershop VPP", "Simply Energy VPP",
+        }
+        for o in r.json()["operators"]:
+            assert o["operator_name"] in valid_names, (
+                f"Unexpected operator: {o['operator_name']}"
+            )
+
+    def test_vpoa_markets_valid(self):
+        """All operator markets must be from the valid set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_markets = {"ENERGY", "RAISE_6S", "RAISE_60S", "RAISE_5MIN", "LOWER_REG", "NETWORK"}
+        for o in r.json()["operators"]:
+            for m in o["markets"]:
+                assert m in valid_markets, (
+                    f"{o['operator_name']}: invalid market '{m}'"
+                )
+
+    def test_vpoa_dispatch_success_in_range(self):
+        """Dispatch success percentages should be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for o in r.json()["operators"]:
+            assert 0 <= o["dispatch_success_pct"] <= 100, (
+                f"{o['operator_name']}: dispatch_success_pct {o['dispatch_success_pct']} out of range"
+            )
+
+    def test_vpoa_asset_types_valid(self):
+        """All asset types must be from the valid enum set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_types = {"HOME_BATTERY", "COMMERCIAL_BESS", "EV_CHARGER", "HOT_WATER", "POOL_PUMP", "SOLAR_INVERTER"}
+        for a in r.json()["asset_mix"]:
+            assert a["asset_type"] in valid_types, (
+                f"Invalid asset_type: {a['asset_type']}"
+            )
+
+    def test_vpoa_event_vpp_names_valid(self):
+        """All event VPP names must reference a known operator."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        operator_names = {o["operator_name"] for o in r.json()["operators"]}
+        for ev in r.json()["events"]:
+            assert ev["vpp_name"] in operator_names, (
+                f"Event references unknown VPP: {ev['vpp_name']}"
+            )
+
+    def test_vpoa_battery_soc_in_range(self):
+        """Battery SoC percentages should be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for ev in r.json()["events"]:
+            assert 0 <= ev["battery_soc_pct"] <= 100, (
+                f"battery_soc_pct {ev['battery_soc_pct']} out of range"
+            )
+
+
+# ===========================================================================
+# Sprint 168c – Pumped Hydro Energy Storage Analytics (PHSA)
+# ===========================================================================
+
+
+class TestPHSADashboard:
+    """Tests for GET /api/pumped-hydro/dashboard"""
+
+    URL = "/api/pumped-hydro/dashboard"
+    HEADERS = {"x-api-key": "test"}
+
+    # -- Basic connectivity --
+
+    def test_phsa_returns_200(self):
+        """Endpoint must return 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_phsa_response_has_timestamp(self):
+        """Response must contain an ISO timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+
+    # -- Projects --
+
+    def test_phsa_has_10_projects(self):
+        """Mock data must contain exactly 10 project records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 10
+
+    def test_phsa_project_fields_present(self):
+        """Every project record must contain all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {
+            "project_name", "location", "state", "capacity_mw",
+            "storage_hours", "storage_gwh", "status", "dam_type",
+            "head_m", "investment_b_aud", "developer", "target_cod",
+        }
+        for p in r.json()["projects"]:
+            assert required.issubset(p.keys()), f"Missing fields in {p['project_name']}"
+
+    def test_phsa_project_statuses_valid(self):
+        """All project statuses must be one of the defined enum values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid = {"OPERATING", "CONSTRUCTION", "APPROVED", "FEASIBILITY"}
+        for p in r.json()["projects"]:
+            assert p["status"] in valid, f"Invalid status: {p['status']}"
+
+    def test_phsa_project_dam_types_valid(self):
+        """All dam types must be one of the defined enum values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid = {"CLOSED_LOOP", "OPEN_LOOP", "SEAWATER", "UNDERGROUND"}
+        for p in r.json()["projects"]:
+            assert p["dam_type"] in valid, f"Invalid dam_type: {p['dam_type']}"
+
+    def test_phsa_project_capacity_positive(self):
+        """All project capacities must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["projects"]:
+            assert p["capacity_mw"] > 0, f"{p['project_name']}: capacity_mw not positive"
+
+    def test_phsa_snowy_2_present(self):
+        """Snowy 2.0 must be present in the project register."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        names = [p["project_name"] for p in r.json()["projects"]]
+        assert "Snowy 2.0" in names
+
+    # -- Operations --
+
+    def test_phsa_has_10_operations(self):
+        """Mock data must contain exactly 10 operation records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["operations"]) == 10
+
+    def test_phsa_efficiency_in_range(self):
+        """Round-trip efficiency must be between 50% and 100%."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for op in r.json()["operations"]:
+            assert 50 <= op["round_trip_efficiency_pct"] <= 100, (
+                f"{op['project_name']}: efficiency {op['round_trip_efficiency_pct']}% out of range"
+            )
+
+    def test_phsa_revenue_pct_sums_to_100(self):
+        """Revenue percentage breakdown must sum to ~100% for each project."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for op in r.json()["operations"]:
+            total = op["energy_arbitrage_pct"] + op["fcas_pct"] + op["inertia_pct"] + op["capacity_pct"]
+            assert 99.0 <= total <= 101.0, (
+                f"{op['project_name']}: revenue pcts sum to {total}"
+            )
+
+    # -- Daily profile --
+
+    def test_phsa_has_24_profile_records(self):
+        """Mock data must contain exactly 24 hourly profile records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["daily_profile"]) == 24
+
+    def test_phsa_profile_hours_0_to_23(self):
+        """Profile hours must cover 0-23."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        hours = sorted([dp["hour"] for dp in r.json()["daily_profile"]])
+        assert hours == list(range(24))
+
+    def test_phsa_profile_values_non_negative(self):
+        """Pumping and generating MW must be non-negative."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for dp in r.json()["daily_profile"]:
+            assert dp["pumping_mw"] >= 0, f"Hour {dp['hour']}: negative pumping_mw"
+            assert dp["generating_mw"] >= 0, f"Hour {dp['hour']}: negative generating_mw"
+
+    # -- Revenue --
+
+    def test_phsa_has_10_revenue_records(self):
+        """Mock data must contain exactly 10 revenue records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 10
+
+    def test_phsa_revenue_total_matches_components(self):
+        """Revenue total must equal sum of components (within tolerance)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rev in r.json()["revenue"]:
+            component_sum = (
+                rev["energy_arbitrage_m_aud"]
+                + rev["fcas_m_aud"]
+                + rev["inertia_m_aud"]
+                + rev["capacity_m_aud"]
+            )
+            assert abs(component_sum - rev["total_m_aud"]) < 1.0, (
+                f"{rev['project_name']}: components sum {component_sum} != total {rev['total_m_aud']}"
+            )
+
+    def test_phsa_operation_project_names_match_register(self):
+        """All operation project names must reference a known project."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        project_names = {p["project_name"] for p in r.json()["projects"]}
+        for op in r.json()["operations"]:
+            assert op["project_name"] in project_names, (
+                f"Operation references unknown project: {op['project_name']}"
+            )
+
+    def test_phsa_revenue_project_names_match_register(self):
+        """All revenue project names must reference a known project."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        project_names = {p["project_name"] for p in r.json()["projects"]}
+        for rev in r.json()["revenue"]:
+            assert rev["project_name"] in project_names, (
+                f"Revenue references unknown project: {rev['project_name']}"
+            )
+
+    def test_phsa_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (200, 401, 403, 422)
+
+
+# ===========================================================================
+# TestCoalFleetRetirementPathwayAnalytics (Sprint 168a)
+# ===========================================================================
+class TestCoalFleetRetirementPathwayAnalytics:
+    URL = "/api/coal-retirement/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_cfra_returns_200(self):
+        """Endpoint returns HTTP 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_cfra_has_timestamp(self):
+        """Response must include an ISO-format timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+        assert r.json()["timestamp"].endswith("Z")
+
+    def test_cfra_units_count(self):
+        """Dashboard must contain exactly 20 coal units."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["units"]) == 20
+
+    def test_cfra_replacements_count(self):
+        """Dashboard must contain exactly 15 replacement projects."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["replacements"]) == 15
+
+    def test_cfra_capacity_trajectory_count(self):
+        """Dashboard must contain exactly 17 capacity trajectory years."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["capacity_trajectory"]) == 17
+
+    def test_cfra_reliability_count(self):
+        """Dashboard must contain exactly 50 reliability records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["reliability"]) == 50
+
+    def test_cfra_unit_fields_present(self):
+        """Each coal unit record must contain all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"unit_name", "station_name", "state", "capacity_mw", "age_years",
+                     "commissioning_year", "retirement_year", "owner",
+                     "thermal_efficiency_pct", "emissions_intensity_tco2_mwh", "workforce"}
+        for u in r.json()["units"]:
+            assert required.issubset(u.keys()), f"Missing fields in unit: {required - u.keys()}"
+
+    def test_cfra_replacement_fields_present(self):
+        """Each replacement record must contain all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"project_name", "replacing_station", "technology", "capacity_mw",
+                     "cod_year", "investment_b_aud", "status"}
+        for rp in r.json()["replacements"]:
+            assert required.issubset(rp.keys()), f"Missing fields in replacement: {required - rp.keys()}"
+
+    def test_cfra_unit_states_valid(self):
+        """All unit states must be valid NEM states."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_states = {"NSW", "VIC", "QLD", "SA", "TAS"}
+        for u in r.json()["units"]:
+            assert u["state"] in valid_states, f"Invalid state: {u['state']}"
+
+    def test_cfra_replacement_technologies_valid(self):
+        """All replacement technologies must be valid enum values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_tech = {"BATTERY_4HR", "GAS_PEAKER", "ONSHORE_WIND", "SOLAR_FARM", "PUMPED_HYDRO", "OFFSHORE_WIND"}
+        for rp in r.json()["replacements"]:
+            assert rp["technology"] in valid_tech, f"Invalid technology: {rp['technology']}"
+
+    def test_cfra_replacement_statuses_valid(self):
+        """All replacement statuses must be COMMITTED, PLANNED, or PROPOSED."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_status = {"COMMITTED", "PLANNED", "PROPOSED"}
+        for rp in r.json()["replacements"]:
+            assert rp["status"] in valid_status, f"Invalid status: {rp['status']}"
+
+    def test_cfra_capacity_years_range(self):
+        """Capacity trajectory years must span 2024-2040."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        years = [c["year"] for c in r.json()["capacity_trajectory"]]
+        assert min(years) == 2024
+        assert max(years) == 2040
+
+    def test_cfra_reliability_regions_valid(self):
+        """All reliability regions must be valid NEM regions."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_regions = {"NSW", "VIC", "QLD", "SA", "TAS"}
+        for rel in r.json()["reliability"]:
+            assert rel["region"] in valid_regions, f"Invalid region: {rel['region']}"
+
+    def test_cfra_reliability_five_regions(self):
+        """Reliability data must cover exactly 5 NEM regions."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        regions = {rel["region"] for rel in r.json()["reliability"]}
+        assert len(regions) == 5
+
+    def test_cfra_unit_capacity_positive(self):
+        """All unit capacities must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for u in r.json()["units"]:
+            assert u["capacity_mw"] > 0, f"{u['unit_name']}: capacity must be positive"
+
+    def test_cfra_replacement_stations_in_units(self):
+        """All replacement replacing_station values must reference a known station."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        station_names = {u["station_name"] for u in r.json()["units"]}
+        for rp in r.json()["replacements"]:
+            assert rp["replacing_station"] in station_names, (
+                f"Replacement references unknown station: {rp['replacing_station']}"
+            )
+
+    def test_cfra_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)

@@ -563,6 +563,9 @@ import GridEmissionsIntensityAnalytics from './pages/GridEmissionsIntensityAnaly
 import MicrogridResilienceAnalytics from './pages/MicrogridResilienceAnalytics'
 import PowerQualityMonitoringAnalytics from './pages/PowerQualityMonitoringAnalytics'
 import EnergyPovertyAffordabilityAnalytics from './pages/EnergyPovertyAffordabilityAnalytics'
+import VirtualPowerPlantOperationsAnalytics from './pages/VirtualPowerPlantOperationsAnalytics'
+import CoalFleetRetirementPathwayAnalytics from './pages/CoalFleetRetirementPathwayAnalytics'
+import PumpedHydroStorageAnalytics from './pages/PumpedHydroStorageAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1032,6 +1035,9 @@ const NAV_ITEMS = [
   { to: '/microgrid-resilience', label: 'Microgrid Resilience', Icon: Shield },
   { to: '/power-quality', label: 'Power Quality', Icon: Gauge },
   { to: '/energy-poverty', label: 'Energy Poverty', Icon: Heart },
+  { to: '/vpp-operations', label: 'VPP Operations', Icon: Network },
+  { to: '/coal-retirement', label: 'Coal Retirement', Icon: Factory },
+  { to: '/pumped-hydro', label: 'Pumped Hydro', Icon: Droplets },
 ]
 
 function Sidebar() {
@@ -1576,6 +1582,9 @@ export default function App() {
               <Route path="/microgrid-resilience" element={<MicrogridResilienceAnalytics />} />
               <Route path="/power-quality" element={<PowerQualityMonitoringAnalytics />} />
               <Route path="/energy-poverty" element={<EnergyPovertyAffordabilityAnalytics />} />
+              <Route path="/vpp-operations" element={<VirtualPowerPlantOperationsAnalytics />} />
+              <Route path="/coal-retirement" element={<CoalFleetRetirementPathwayAnalytics />} />
+              <Route path="/pumped-hydro" element={<PumpedHydroStorageAnalytics />} />
             </Routes>
           </main>
         </div>
