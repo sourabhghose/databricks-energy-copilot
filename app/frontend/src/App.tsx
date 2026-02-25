@@ -544,6 +544,9 @@ import NemParticipantFinancialAnalytics from './pages/NemParticipantFinancialAna
 import GreenTariffHydrogenAnalytics from './pages/GreenTariffHydrogenAnalytics'
 import NemPriceReviewAnalytics from './pages/NemPriceReviewAnalytics'
 import RenewableCertificateNemAnalytics from './pages/RenewableCertificateNemAnalytics'
+import DemandCurvePriceAnchorAnalytics from './pages/DemandCurvePriceAnchorAnalytics'
+import MarketEvolutionPolicyAnalytics from './pages/MarketEvolutionPolicyAnalytics'
+import EnergyGridTopologyAnalytics from './pages/EnergyGridTopologyAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -995,6 +998,9 @@ const NAV_ITEMS = [
   { to: '/green-tariff-hydrogen', label: 'Green Tariff & H2', Icon: Zap },
   { to: '/nem-price-review', label: 'Price Review', Icon: DollarSign },
   { to: '/renewable-certificate-nem', label: 'REC Analytics', Icon: Award },
+  { to: '/demand-curve-price-anchor', label: 'Demand Curve', Icon: TrendingDown },
+  { to: '/market-evolution-policy', label: 'Market Policy', Icon: Scale },
+  { to: '/energy-grid-topology', label: 'Grid Topology', Icon: Network },
 ]
 
 function Sidebar() {
@@ -1521,6 +1527,9 @@ export default function App() {
               <Route path="/green-tariff-hydrogen" element={<GreenTariffHydrogenAnalytics />} />
               <Route path="/nem-price-review" element={<NemPriceReviewAnalytics />} />
               <Route path="/renewable-certificate-nem" element={<RenewableCertificateNemAnalytics />} />
+              <Route path="/demand-curve-price-anchor" element={<DemandCurvePriceAnchorAnalytics />} />
+              <Route path="/market-evolution-policy" element={<MarketEvolutionPolicyAnalytics />} />
+              <Route path="/energy-grid-topology" element={<EnergyGridTopologyAnalytics />} />
             </Routes>
           </main>
         </div>

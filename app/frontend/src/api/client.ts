@@ -31635,3 +31635,203 @@ export interface RCNAdashboard {
 export async function getRenewableCertificateNemDashboard(): Promise<RCNAdashboard> {
   return get<RCNAdashboard>('/api/renewable-certificate-nem/dashboard')
 }
+
+// ============================================================
+// Sprint 161a — Demand Curve Price Anchor Analytics (DCPA)
+// ============================================================
+
+export interface DCPADemandRecord {
+  region: string
+  year: number
+  month: number
+  peak_demand_mw: number
+  avg_demand_mw: number
+  off_peak_demand_mw: number
+  demand_response_mw: number
+  industrial_load_mw: number
+}
+
+export interface DCPAPriceAnchorRecord {
+  region: string
+  year: number
+  quarter: string
+  price_anchor_mwh: number
+  vwap_mwh: number
+  twa_price_mwh: number
+  cap_activation_count: number
+  floor_activation_count: number
+}
+
+export interface DCPAElasticityRecord {
+  region: string
+  year: number
+  sector: string
+  price_elasticity: number
+  demand_flexibility_pct: number
+  response_time_minutes: number
+}
+
+export interface DCPAForecastRecord {
+  region: string
+  year: number
+  quarter: string
+  forecast_demand_mw: number
+  actual_demand_mw: number
+  forecast_error_pct: number
+  confidence_interval_pct: number
+}
+
+export interface DCPASummary {
+  avg_peak_demand_mw: number
+  avg_price_anchor_mwh: number
+  most_elastic_region: string
+  total_demand_response_mw: number
+  avg_forecast_error_pct: number
+}
+
+export interface DCPAdashboard {
+  demand: DCPADemandRecord[]
+  price_anchors: DCPAPriceAnchorRecord[]
+  elasticity: DCPAElasticityRecord[]
+  forecasts: DCPAForecastRecord[]
+  summary: DCPASummary
+}
+
+export async function getDemandCurvePriceAnchorDashboard(): Promise<DCPAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/demand-curve-price-anchor/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ===========================================================================
+// Sprint 161b — Energy Grid Topology Analytics (EGTA)
+// ===========================================================================
+
+export interface EGTASubstationRecord {
+  substation_id: string
+  substation_name: string
+  region: string
+  voltage_kv: number
+  transformer_capacity_mva: number
+  n_minus_1_compliant: boolean
+  age_years: number
+  condition_score: number
+}
+
+export interface EGTATransmissionLine {
+  line_id: string
+  line_name: string
+  region: string
+  voltage_kv: number
+  length_km: number
+  thermal_rating_mw: number
+  current_loading_pct: number
+  maintenance_due_year: number
+}
+
+export interface EGTAFaultRecord {
+  fault_id: string
+  region: string
+  asset_type: string
+  year: number
+  fault_type: string
+  outage_duration_h: number
+  energy_unserved_mwh: number
+  repair_cost_m_aud: number
+}
+
+export interface EGTACapacityRecord {
+  region: string
+  year: number
+  quarter: string
+  total_transfer_capacity_mw: number
+  available_capacity_mw: number
+  constrained_hours: number
+  augmentation_needed_mw: number
+}
+
+export interface EGTASummary {
+  total_substations: number
+  total_transmission_lines: number
+  avg_line_loading_pct: number
+  total_fault_events: number
+  most_constrained_region: string
+}
+
+export interface EGTAdashboard {
+  substations: EGTASubstationRecord[]
+  transmission_lines: EGTATransmissionLine[]
+  faults: EGTAFaultRecord[]
+  capacity: EGTACapacityRecord[]
+  summary: EGTASummary
+}
+
+export async function getEnergyGridTopologyDashboard(): Promise<EGTAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/energy-grid-topology/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 161c — Market Evolution Policy Analytics (MEPA)
+// ---------------------------------------------------------------------------
+
+export interface MEPAPolicyRecord {
+  policy_id: string
+  policy_name: string
+  policy_type: string
+  regulator: string
+  year_effective: number
+  status: string
+  impact_score: number
+}
+
+export interface MEPAMarketIndicator {
+  year: number
+  quarter: string
+  indicator: string
+  region: string
+  value: number
+  benchmark: number
+}
+
+export interface MEPATransitionRecord {
+  year: number
+  technology: string
+  capacity_retirement_mw: number
+  capacity_new_mw: number
+  net_change_mw: number
+  firming_required_mw: number
+}
+
+export interface MEPAConsumerRecord {
+  year: number
+  quarter: string
+  measure: string
+  state: string
+  value: number
+  previous_value: number
+  change_pct: number
+}
+
+export interface MEPASummary {
+  total_policies: number
+  policies_in_effect: number
+  avg_market_concentration: number
+  total_net_capacity_change_mw: number
+  avg_switching_rate_pct: number
+}
+
+export interface MEPAdashboard {
+  policies: MEPAPolicyRecord[]
+  market_indicators: MEPAMarketIndicator[]
+  transition: MEPATransitionRecord[]
+  consumer: MEPAConsumerRecord[]
+  summary: MEPASummary
+}
+
+export async function getMarketEvolutionPolicyDashboard(): Promise<MEPAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/market-evolution-policy/dashboard`, { headers: { Accept: 'application/json' } })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

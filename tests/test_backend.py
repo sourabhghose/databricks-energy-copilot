@@ -25221,3 +25221,222 @@ class TestRenewableCertificateNemEndpoints:
         assert r.status_code == 200
         rate = r.json()["summary"]["overall_compliance_rate_pct"]
         assert 50 <= rate <= 100
+
+
+# ===========================================================================
+# TestDemandCurvePriceAnchorEndpoints  (Sprint 161a)
+# ===========================================================================
+
+class TestDemandCurvePriceAnchorEndpoints:
+    """Tests for GET /api/demand-curve-price-anchor/dashboard (Sprint 161a)."""
+
+    URL = "/api/demand-curve-price-anchor/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_dcpa_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_dcpa_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_dcpa_response_has_required_keys(self):
+        """Response body must contain demand, price_anchors, elasticity,
+        forecasts, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("demand", "price_anchors", "elasticity", "forecasts", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_dcpa_demand_count(self):
+        """demand list must contain exactly 60 records
+        (5 regions x 4 months x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["demand"]) == 60
+
+    def test_dcpa_price_anchors_count(self):
+        """price_anchors list must contain exactly 60 records
+        (5 regions x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["price_anchors"]) == 60
+
+    def test_dcpa_elasticity_count(self):
+        """elasticity list must contain exactly 60 records
+        (5 regions x 4 sectors x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["elasticity"]) == 60
+
+    def test_dcpa_forecasts_count(self):
+        """forecasts list must contain exactly 60 records
+        (5 regions x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["forecasts"]) == 60
+
+    def test_dcpa_summary_most_elastic_region_non_empty(self):
+        """summary.most_elastic_region must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        region = r.json()["summary"]["most_elastic_region"]
+        assert isinstance(region, str) and len(region) > 0
+
+    def test_dcpa_summary_avg_peak_demand_positive(self):
+        """summary.avg_peak_demand_mw must be greater than 0."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["avg_peak_demand_mw"] > 0
+
+
+# ===========================================================================
+# Sprint 161c — Market Evolution Policy Analytics (MEPA)
+# ===========================================================================
+
+class TestMarketEvolutionPolicyEndpoints:
+    """9 tests for the /api/market-evolution-policy/dashboard endpoint."""
+
+    URL = "/api/market-evolution-policy/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_mepa_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_mepa_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_mepa_response_has_required_keys(self):
+        """Response body must contain policies, market_indicators, transition,
+        consumer, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("policies", "market_indicators", "transition", "consumer", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_mepa_policies_count(self):
+        """policies list must contain exactly 25 records
+        (5 policy types x 5 regulators)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["policies"]) == 25
+
+    def test_mepa_market_indicators_count(self):
+        """market_indicators list must contain exactly 80 records
+        (5 regions x 4 indicators x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["market_indicators"]) == 80
+
+    def test_mepa_transition_count(self):
+        """transition list must contain exactly 30 records
+        (6 technologies x 5 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["transition"]) == 30
+
+    def test_mepa_consumer_count(self):
+        """consumer list must contain exactly 72 records
+        (6 states x 4 measures x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["consumer"]) == 72
+
+    def test_mepa_summary_total_policies(self):
+        """summary.total_policies must equal 25."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_policies"] == 25
+
+    def test_mepa_summary_policies_in_effect_non_negative(self):
+        """summary.policies_in_effect must be >= 0."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["policies_in_effect"] >= 0
+
+
+# ===========================================================================
+# Sprint 161b — Energy Grid Topology Analytics (EGTA)
+# ===========================================================================
+
+class TestEnergyGridTopologyEndpoints:
+    """Tests for GET /api/energy-grid-topology/dashboard (Sprint 161b)."""
+
+    URL = "/api/energy-grid-topology/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_egta_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_egta_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        # In dev/test mode auth is disabled so 200 is also acceptable
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_egta_response_has_required_keys(self):
+        """Response body must contain substations, transmission_lines, faults,
+        capacity, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("substations", "transmission_lines", "faults", "capacity", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_egta_substations_count(self):
+        """substations list must contain exactly 20 records (4 per region x 5 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["substations"]) == 20
+
+    def test_egta_transmission_lines_count(self):
+        """transmission_lines list must contain exactly 25 records (5 per region x 5 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["transmission_lines"]) == 25
+
+    def test_egta_faults_count(self):
+        """faults list must contain exactly 60 records
+        (3 years x 4 asset types x 5 regions)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["faults"]) == 60
+
+    def test_egta_capacity_count(self):
+        """capacity list must contain exactly 60 records
+        (5 regions x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["capacity"]) == 60
+
+    def test_egta_summary_total_substations(self):
+        """summary.total_substations must equal 20."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_substations"] == 20
+
+    def test_egta_summary_most_constrained_region_non_empty(self):
+        """summary.most_constrained_region must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        region = r.json()["summary"]["most_constrained_region"]
+        assert isinstance(region, str) and len(region) > 0
