@@ -566,6 +566,9 @@ import EnergyPovertyAffordabilityAnalytics from './pages/EnergyPovertyAffordabil
 import VirtualPowerPlantOperationsAnalytics from './pages/VirtualPowerPlantOperationsAnalytics'
 import CoalFleetRetirementPathwayAnalytics from './pages/CoalFleetRetirementPathwayAnalytics'
 import PumpedHydroStorageAnalytics from './pages/PumpedHydroStorageAnalytics'
+import EastCoastGasMarketAnalytics from './pages/EastCoastGasMarketAnalytics'
+import SmartMeterDataAnalytics from './pages/SmartMeterDataAnalytics'
+import IntegratedSystemPlanAnalytics from './pages/IntegratedSystemPlanAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1038,6 +1041,9 @@ const NAV_ITEMS = [
   { to: '/vpp-operations', label: 'VPP Operations', Icon: Network },
   { to: '/coal-retirement', label: 'Coal Retirement', Icon: Factory },
   { to: '/pumped-hydro', label: 'Pumped Hydro', Icon: Droplets },
+  { to: '/smart-meter', label: 'Smart Meter Analytics', Icon: BarChart3 },
+  { to: '/east-coast-gas', label: 'East Coast Gas', Icon: Flame },
+  { to: '/isp-analytics', label: 'ISP Analytics', Icon: Map },
 ]
 
 function Sidebar() {
@@ -1585,6 +1591,9 @@ export default function App() {
               <Route path="/vpp-operations" element={<VirtualPowerPlantOperationsAnalytics />} />
               <Route path="/coal-retirement" element={<CoalFleetRetirementPathwayAnalytics />} />
               <Route path="/pumped-hydro" element={<PumpedHydroStorageAnalytics />} />
+              <Route path="/smart-meter" element={<SmartMeterDataAnalytics />} />
+              <Route path="/east-coast-gas" element={<EastCoastGasMarketAnalytics />} />
+              <Route path="/isp-analytics" element={<IntegratedSystemPlanAnalytics />} />
             </Routes>
           </main>
         </div>

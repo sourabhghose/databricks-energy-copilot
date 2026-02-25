@@ -27772,3 +27772,408 @@ class TestCoalFleetRetirementPathwayAnalytics:
         """Endpoint must reject requests without API key."""
         r = client.get(self.URL)
         assert r.status_code in (401, 403, 422)
+
+
+# ---------------------------------------------------------------------------
+# Sprint 169a – Integrated System Plan Analytics (ISPA)
+# ---------------------------------------------------------------------------
+
+class TestISPADashboard:
+    URL = "/api/isp-analytics/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_ispa_returns_200(self):
+        """Endpoint returns HTTP 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_ispa_has_timestamp(self):
+        """Response must include an ISO-format timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+        assert r.json()["timestamp"].endswith("Z")
+
+    def test_ispa_projects_count(self):
+        """Dashboard must contain exactly 10 ISP projects."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 10
+
+    def test_ispa_capacity_count(self):
+        """Dashboard must contain exactly 42 capacity records (7 scenarios x 6 time points)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["capacity"]) == 42
+
+    def test_ispa_savings_count(self):
+        """Dashboard must contain exactly 6 savings records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["savings"]) == 6
+
+    def test_ispa_transfers_count(self):
+        """Dashboard must contain exactly 7 transfer corridors."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["transfers"]) == 7
+
+    def test_ispa_scenarios_count(self):
+        """Dashboard must contain exactly 4 scenarios."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["scenarios"]) == 4
+
+    def test_ispa_project_fields_present(self):
+        """Each project record must contain all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"project_name", "corridor", "capacity_mw", "investment_b_aud",
+                     "timing", "status", "benefit_cost_ratio", "consumer_benefit_b_aud"}
+        for p in r.json()["projects"]:
+            assert required.issubset(p.keys()), f"Missing fields in project: {required - p.keys()}"
+
+    def test_ispa_project_statuses_valid(self):
+        """All project statuses must be valid enum values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_status = {"COMMITTED", "ANTICIPATED", "FUTURE", "UNDER_ASSESSMENT"}
+        for p in r.json()["projects"]:
+            assert p["status"] in valid_status, f"Invalid status: {p['status']}"
+
+    def test_ispa_project_capacity_positive(self):
+        """All project capacities must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["projects"]:
+            assert p["capacity_mw"] > 0, f"{p['project_name']}: capacity must be positive"
+
+    def test_ispa_project_bcr_positive(self):
+        """All project benefit-cost ratios must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["projects"]:
+            assert p["benefit_cost_ratio"] > 0, f"{p['project_name']}: BCR must be positive"
+
+    def test_ispa_capacity_years_range(self):
+        """Capacity records must span 2024-2050."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        years = [c["year"] for c in r.json()["capacity"]]
+        assert min(years) == 2024
+        assert max(years) == 2050
+
+    def test_ispa_capacity_scenarios_valid(self):
+        """All capacity scenarios must be valid."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_scenarios = {"STEP_CHANGE", "PROGRESSIVE_CHANGE", "GREEN_ENERGY_EXPORTS",
+                           "SLOW_CHANGE", "STEP_CHANGE_HIGH", "ELECTRIFICATION", "HYDROGEN_SUPERPOWER"}
+        for c in r.json()["capacity"]:
+            assert c["scenario"] in valid_scenarios, f"Invalid scenario: {c['scenario']}"
+
+    def test_ispa_savings_cumulative_increasing(self):
+        """Cumulative savings must be non-decreasing over time."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        savings = sorted(r.json()["savings"], key=lambda s: s["year"])
+        for i in range(1, len(savings)):
+            assert savings[i]["cumulative_savings_b_aud"] >= savings[i - 1]["cumulative_savings_b_aud"]
+
+    def test_ispa_transfer_corridors_unique(self):
+        """All transfer corridor names must be unique."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        names = [t["corridor_name"] for t in r.json()["transfers"]]
+        assert len(names) == len(set(names)), "Duplicate corridor names found"
+
+    def test_ispa_transfer_fields_present(self):
+        """Each transfer record must contain all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"corridor_name", "capacity_mw", "length_km", "investment_b_aud"}
+        for t in r.json()["transfers"]:
+            assert required.issubset(t.keys()), f"Missing fields in transfer: {required - t.keys()}"
+
+    def test_ispa_scenario_fields_present(self):
+        """Each scenario record must contain all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"scenario", "renewables_2030_pct", "renewables_2050_pct",
+                     "coal_exit_year", "total_investment_b_aud", "consumer_saving_b_aud"}
+        for s in r.json()["scenarios"]:
+            assert required.issubset(s.keys()), f"Missing fields in scenario: {required - s.keys()}"
+
+    def test_ispa_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)
+
+
+# ===========================================================================
+# TestEastCoastGasMarketAnalytics (Sprint 169c)
+# ===========================================================================
+
+
+class TestEastCoastGasMarketAnalytics:
+    """Tests for GET /api/east-coast-gas/dashboard."""
+
+    URL = "/api/east-coast-gas/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_ecga_returns_200(self):
+        """Endpoint returns HTTP 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_ecga_has_timestamp(self):
+        """Response must include an ISO-format timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+        assert r.json()["timestamp"].endswith("Z")
+
+    def test_ecga_hub_prices_count(self):
+        """Dashboard must contain exactly 72 hub price records (4 hubs x 18 months)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["hub_prices"]) == 72
+
+    def test_ecga_supply_count(self):
+        """Dashboard must contain exactly 24 supply records (6 basins x 4 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["supply"]) == 24
+
+    def test_ecga_demand_count(self):
+        """Dashboard must contain exactly 8 demand records (8 quarters)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["demand"]) == 8
+
+    def test_ecga_lng_count(self):
+        """Dashboard must contain exactly 18 LNG records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["lng"]) == 18
+
+    def test_ecga_balance_count(self):
+        """Dashboard must contain exactly 6 balance records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["balance"]) == 6
+
+    def test_ecga_hub_prices_have_all_hubs(self):
+        """All four hubs must be represented in hub prices."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        hubs = {rec["hub"] for rec in r.json()["hub_prices"]}
+        assert hubs == {"SYDNEY", "BRISBANE", "ADELAIDE", "VICTORIA"}
+
+    def test_ecga_supply_has_all_basins(self):
+        """All six basins must be represented in supply records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        basins = {rec["basin"] for rec in r.json()["supply"]}
+        assert basins == {"COOPER", "GIPPSLAND", "SURAT_BOWEN", "OTWAY", "BASS", "OTHER"}
+
+    def test_ecga_hub_prices_positive(self):
+        """All hub prices must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["hub_prices"]:
+            assert rec["price_aud_gj"] > 0, f"{rec['hub']} {rec['month']}: price must be positive"
+
+    def test_ecga_demand_total_equals_sum(self):
+        """Each demand record total_pj must equal sum of sector components."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["demand"]:
+            expected = round(
+                rec["power_gen_pj"] + rec["industrial_pj"] + rec["residential_pj"]
+                + rec["commercial_pj"] + rec["lng_export_pj"], 1
+            )
+            assert abs(rec["total_pj"] - expected) < 0.2, (
+                f"{rec['quarter']}: total_pj {rec['total_pj']} != sum {expected}"
+            )
+
+    def test_ecga_balance_remaining_years_positive(self):
+        """All balance remaining years must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["balance"]:
+            assert rec["remaining_years"] > 0, f"{rec['basin']}: remaining_years must be positive"
+
+    def test_ecga_lng_price_gap_consistency(self):
+        """LNG price_gap_aud_gj must equal netback minus domestic price."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["lng"]:
+            expected_gap = round(rec["netback_aud_gj"] - rec["domestic_price_aud_gj"], 2)
+            assert abs(rec["price_gap_aud_gj"] - expected_gap) < 0.02, (
+                f"{rec['month']}: price_gap {rec['price_gap_aud_gj']} != {expected_gap}"
+            )
+
+    def test_ecga_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)
+
+
+# ===========================================================================
+# Sprint 169b – Smart Meter Data Analytics (SMDA)
+# ===========================================================================
+
+
+class TestSMDADashboard:
+    """Tests for GET /api/smart-meter/dashboard"""
+
+    URL = "/api/smart-meter/dashboard"
+    HEADERS = {"x-api-key": "test"}
+
+    # -- Basic connectivity --
+
+    def test_smda_returns_200(self):
+        """Endpoint must return 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_smda_response_has_timestamp(self):
+        """Response must contain an ISO timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+
+    # -- Load Profile --
+
+    def test_smda_has_48_load_profile_records(self):
+        """Mock data must contain exactly 48 half-hour interval records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["load_profile"]) == 48
+
+    def test_smda_load_profile_intervals_1_to_48(self):
+        """Intervals must cover 1-48 with no gaps."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        intervals = sorted(lp["interval"] for lp in r.json()["load_profile"])
+        assert intervals == list(range(1, 49))
+
+    def test_smda_load_profile_total_equals_sum(self):
+        """total_mw must equal residential + commercial + industrial."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for lp in r.json()["load_profile"]:
+            expected = round(lp["residential_mw"] + lp["commercial_mw"] + lp["industrial_mw"], 1)
+            assert abs(lp["total_mw"] - expected) < 0.2, (
+                f"Interval {lp['interval']}: total {lp['total_mw']} != sum {expected}"
+            )
+
+    def test_smda_load_profile_positive_values(self):
+        """All MW values in load profile must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for lp in r.json()["load_profile"]:
+            assert lp["residential_mw"] > 0
+            assert lp["commercial_mw"] > 0
+            assert lp["industrial_mw"] > 0
+
+    # -- Rollout --
+
+    def test_smda_has_10_rollout_records(self):
+        """Mock data must contain exactly 10 DNSP rollout records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["rollout"]) == 10
+
+    def test_smda_rollout_pct_in_range(self):
+        """Rollout percentage must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["rollout"]:
+            assert 0 <= rec["rollout_pct"] <= 100, (
+                f"{rec['dnsp']}: rollout_pct {rec['rollout_pct']} out of range"
+            )
+
+    def test_smda_rollout_deployed_lte_target(self):
+        """Deployed meters must not exceed target for any DNSP."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["rollout"]:
+            assert rec["deployed_m"] <= rec["target_m"], (
+                f"{rec['dnsp']}: deployed {rec['deployed_m']} > target {rec['target_m']}"
+            )
+
+    def test_smda_rollout_valid_comm_technology(self):
+        """Communication technology must be one of the defined enum values."""
+        valid = {"MESH_RF", "4G_LTE", "NB_IOT", "WIFI_HAN"}
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["rollout"]:
+            assert rec["comm_technology"] in valid, (
+                f"{rec['dnsp']}: invalid comm_technology {rec['comm_technology']}"
+            )
+
+    # -- Consumption --
+
+    def test_smda_has_18_consumption_records(self):
+        """Mock data must contain exactly 18 monthly consumption records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["consumption"]) == 18
+
+    def test_smda_consumption_positive_kwh(self):
+        """Average daily kWh must be positive for all months."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["consumption"]:
+            assert rec["avg_daily_kwh"] > 0, f"{rec['month']}: avg_daily_kwh must be positive"
+
+    # -- Segments --
+
+    def test_smda_has_6_segment_records(self):
+        """Mock data must contain exactly 6 segment records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["segments"]) == 6
+
+    def test_smda_segment_solar_pct_in_range(self):
+        """Solar percentage must be between 0 and 100 for all segments."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for seg in r.json()["segments"]:
+            assert 0 <= seg["solar_pct"] <= 100, (
+                f"{seg['segment']}: solar_pct {seg['solar_pct']} out of range"
+            )
+
+    # -- Tariff Migration --
+
+    def test_smda_has_6_tariff_migration_records(self):
+        """Mock data must contain exactly 6 tariff migration year records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["tariff_migration"]) == 6
+
+    def test_smda_tariff_pcts_sum_to_100(self):
+        """Tariff type percentages must sum to 100 for each year."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["tariff_migration"]:
+            total = rec["flat_pct"] + rec["tou_pct"] + rec["demand_pct"] + rec["dynamic_pct"]
+            assert 99.0 <= total <= 101.0, (
+                f"Year {rec['year']}: tariff pcts sum to {total}, expected ~100"
+            )
+
+    def test_smda_tariff_years_2020_to_2025(self):
+        """Tariff migration must cover years 2020-2025."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        years = sorted(rec["year"] for rec in r.json()["tariff_migration"])
+        assert years == [2020, 2021, 2022, 2023, 2024, 2025]
+
+    # -- Auth --
+
+    def test_smda_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)

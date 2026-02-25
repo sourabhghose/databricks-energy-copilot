@@ -33141,3 +33141,197 @@ export async function getPHSADashboard(): Promise<PHSADashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 169a – Integrated System Plan Analytics (ISPA)
+// ---------------------------------------------------------------------------
+
+export interface ISPAProjectRecord {
+  project_name: string
+  corridor: string
+  capacity_mw: number
+  investment_b_aud: number
+  timing: string
+  status: string
+  benefit_cost_ratio: number
+  consumer_benefit_b_aud: number
+}
+
+export interface ISPACapacityRecord {
+  year: number
+  coal_gw: number
+  gas_gw: number
+  wind_gw: number
+  solar_gw: number
+  battery_gw: number
+  hydro_gw: number
+  hydrogen_gw: number
+  total_gw: number
+  scenario: string
+}
+
+export interface ISPASavingsRecord {
+  year: number
+  cumulative_savings_b_aud: number
+  annual_savings_b_aud: number
+  counterfactual_cost_b_aud: number
+}
+
+export interface ISPATransferRecord {
+  corridor_name: string
+  capacity_mw: number
+  length_km: number
+  investment_b_aud: number
+}
+
+export interface ISPAScenarioRecord {
+  scenario: string
+  renewables_2030_pct: number
+  renewables_2050_pct: number
+  coal_exit_year: number
+  total_investment_b_aud: number
+  consumer_saving_b_aud: number
+}
+
+export interface ISPADashboard {
+  timestamp: string
+  projects: ISPAProjectRecord[]
+  capacity: ISPACapacityRecord[]
+  savings: ISPASavingsRecord[]
+  transfers: ISPATransferRecord[]
+  scenarios: ISPAScenarioRecord[]
+}
+
+export async function getISPADashboard(): Promise<ISPADashboard> {
+  const r = await fetch(`${BASE_URL}/api/isp-analytics/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 169c — East Coast Gas Market Analytics (ECGA)
+// ---------------------------------------------------------------------------
+
+export interface ECGAHubPriceRecord {
+  hub: string
+  month: string
+  price_aud_gj: number
+  day_ahead_price_aud_gj: number
+  supply_constraint: boolean
+}
+
+export interface ECGASupplyRecord {
+  quarter: string
+  basin: string
+  production_pj: number
+  reserves_2p_pj: number
+  decline_rate_pct: number
+}
+
+export interface ECGADemandRecord {
+  quarter: string
+  power_gen_pj: number
+  industrial_pj: number
+  residential_pj: number
+  commercial_pj: number
+  lng_export_pj: number
+  total_pj: number
+}
+
+export interface ECGALngRecord {
+  month: string
+  export_volume_pj: number
+  spot_price_usd_mmbtu: number
+  netback_aud_gj: number
+  domestic_price_aud_gj: number
+  price_gap_aud_gj: number
+}
+
+export interface ECGABalanceRecord {
+  basin: string
+  production_pj_yr: number
+  reserves_2p_pj: number
+  remaining_years: number
+  decline_rate_pct: number
+  new_wells_needed: number
+}
+
+export interface ECGADashboard {
+  timestamp: string
+  hub_prices: ECGAHubPriceRecord[]
+  supply: ECGASupplyRecord[]
+  demand: ECGADemandRecord[]
+  lng: ECGALngRecord[]
+  balance: ECGABalanceRecord[]
+}
+
+export async function getECGADashboard(): Promise<ECGADashboard> {
+  const r = await fetch(`${BASE_URL}/api/east-coast-gas/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 169b – Smart Meter Data Analytics (SMDA)
+// ---------------------------------------------------------------------------
+
+export interface SMDALoadProfileRecord {
+  interval: number
+  residential_mw: number
+  commercial_mw: number
+  industrial_mw: number
+  total_mw: number
+  solar_generation_mw: number
+  net_grid_mw: number
+}
+
+export interface SMDARolloutRecord {
+  dnsp: string
+  deployed_m: number
+  target_m: number
+  rollout_pct: number
+  data_quality_pct: number
+  avg_latency_min: number
+  comm_technology: string
+}
+
+export interface SMDAConsumptionRecord {
+  month: string
+  avg_daily_kwh: number
+  median_daily_kwh: number
+  solar_export_kwh: number
+  peak_demand_kw: number
+}
+
+export interface SMDASegmentRecord {
+  segment: string
+  avg_daily_kwh: number
+  solar_pct: number
+  battery_pct: number
+  ev_pct: number
+  tou_adoption_pct: number
+  count_k: number
+}
+
+export interface SMDATariffMigrationRecord {
+  year: number
+  flat_pct: number
+  tou_pct: number
+  demand_pct: number
+  dynamic_pct: number
+}
+
+export interface SMDADashboard {
+  timestamp: string
+  load_profile: SMDALoadProfileRecord[]
+  rollout: SMDARolloutRecord[]
+  consumption: SMDAConsumptionRecord[]
+  segments: SMDASegmentRecord[]
+  tariff_migration: SMDATariffMigrationRecord[]
+}
+
+export async function getSMDADashboard(): Promise<SMDADashboard> {
+  const r = await fetch(`${BASE_URL}/api/smart-meter/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
