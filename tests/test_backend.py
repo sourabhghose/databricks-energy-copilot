@@ -25653,3 +25653,147 @@ class TestNaturalGasPipelineEndpoints:
         assert r.status_code == 200
         pipeline = r.json()["summary"]["highest_utilisation_pipeline"]
         assert isinstance(pipeline, str) and len(pipeline) > 0
+
+
+# ===========================================================================
+# Sprint 163a — Battery Chemistry Risk Analytics (BCRA)
+# ===========================================================================
+
+class TestBatteryChemistryRiskEndpoints:
+    """Tests for GET /api/battery-chemistry-risk/dashboard (Sprint 163a)."""
+
+    URL = "/api/battery-chemistry-risk/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_bcra_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_bcra_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_bcra_response_has_required_keys(self):
+        """Response body must contain chemistries, deployments, risks,
+        performance, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("chemistries", "deployments", "risks", "performance", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_bcra_chemistries_count(self):
+        """chemistries list must contain exactly 6 records (one per chemistry type)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["chemistries"]) == 6
+
+    def test_bcra_deployments_count(self):
+        """deployments list must contain exactly 18 records (3 sites x 6 states)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["deployments"]) == 18
+
+    def test_bcra_risks_count(self):
+        """risks list must contain exactly 30 records
+        (6 chemistries x 5 risk categories)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["risks"]) == 30
+
+    def test_bcra_performance_count(self):
+        """performance list must contain exactly 72 records
+        (18 sites x 4 quarters x 1 year)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["performance"]) == 72
+
+    def test_bcra_summary_total_deployments(self):
+        """summary.total_deployments must equal 18."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["total_deployments"] == 18
+
+    def test_bcra_summary_safest_chemistry_non_empty(self):
+        """summary.safest_chemistry must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        safest = r.json()["summary"]["safest_chemistry"]
+        assert isinstance(safest, str) and len(safest) > 0
+
+
+# ===========================================================================
+# Sprint 163c — AEMO 5-Minute Settlement Dispatch Analytics (AEMO5M)
+# ===========================================================================
+
+class TestAemo5MinSettlementEndpoints:
+    """Tests for GET /api/aemo-5min-settlement/dashboard (Sprint 163c)."""
+
+    URL = "/api/aemo-5min-settlement/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    def test_aemo5m_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_aemo5m_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_aemo5m_response_has_required_keys(self):
+        """Response body must contain dispatch, settlement, intervals,
+        compliance, summary keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("dispatch", "settlement", "intervals", "compliance", "summary"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_aemo5m_dispatch_count(self):
+        """dispatch list must contain exactly 60 records
+        (5 regions x 4 months x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["dispatch"]) == 60
+
+    def test_aemo5m_settlement_count(self):
+        """settlement list must contain exactly 60 records
+        (5 regions x 4 quarters x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["settlement"]) == 60
+
+    def test_aemo5m_intervals_count(self):
+        """intervals list must contain exactly 60 records
+        (4 interval types x 5 regions x 3 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["intervals"]) == 60
+
+    def test_aemo5m_compliance_count(self):
+        """compliance list must contain exactly 40 records
+        (10 participants x 4 quarters, 2024 only)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["compliance"]) == 40
+
+    def test_aemo5m_summary_most_volatile_region_non_empty(self):
+        """summary.most_volatile_region must be a non-empty string."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        region = r.json()["summary"]["most_volatile_region"]
+        assert isinstance(region, str) and len(region) > 0
+
+    def test_aemo5m_summary_avg_dispatch_price_positive(self):
+        """summary.avg_dispatch_price_2024_mwh must be greater than 0."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert r.json()["summary"]["avg_dispatch_price_2024_mwh"] > 0

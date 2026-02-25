@@ -32039,3 +32039,215 @@ export async function getCarbonVoluntaryExchangeDashboard(): Promise<CVEAdashboa
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ===========================================================================
+// Sprint 163a — Battery Chemistry Risk Analytics (BCRA)
+// ===========================================================================
+
+export interface BCRAChemistryRecord {
+  chemistry_id: string
+  chemistry_name: string
+  energy_density_wh_kg: number
+  cycle_life: number
+  thermal_runaway_temp_c: number
+  cost_per_kwh_aud: number
+  round_trip_efficiency_pct: number
+  calendar_life_years: number
+}
+
+export interface BCRADeploymentRecord {
+  site_id: string
+  site_name: string
+  state: string
+  chemistry: string
+  capacity_mwh: number
+  power_mw: number
+  year_deployed: number
+  degradation_pct_per_year: number
+  fire_incidents: number
+}
+
+export interface BCRARiskRecord {
+  chemistry: string
+  risk_category: string
+  severity_score: number
+  likelihood_score: number
+  risk_score: number
+  mitigation_status: string
+  insurance_premium_pct: number
+}
+
+export interface BCRAPerformanceRecord {
+  site_id: string
+  year: number
+  quarter: string
+  state_of_health_pct: number
+  avg_discharge_efficiency_pct: number
+  response_time_ms: number
+  availability_pct: number
+  revenue_m_aud: number
+}
+
+export interface BCRASummary {
+  total_deployments: number
+  total_capacity_mwh: number
+  safest_chemistry: string
+  highest_risk_chemistry: string
+  avg_degradation_pct_per_year: number
+}
+
+export interface BCRAdashboard {
+  chemistries: BCRAChemistryRecord[]
+  deployments: BCRADeploymentRecord[]
+  risks: BCRARiskRecord[]
+  performance: BCRAPerformanceRecord[]
+  summary: BCRASummary
+}
+
+export async function getBatteryChemistryRiskDashboard(): Promise<BCRAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/battery-chemistry-risk/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ===========================================================================
+// Sprint 163c — AEMO 5-Minute Settlement Dispatch Analytics (AEMO5M)
+// ===========================================================================
+
+export interface AEMO5MDispatchRecord {
+  region: string
+  year: number
+  month: number
+  avg_dispatch_price_mwh: number
+  max_dispatch_price_mwh: number
+  min_dispatch_price_mwh: number
+  price_volatility_pct: number
+  negative_dispatch_intervals: number
+  cap_price_intervals: number
+}
+
+export interface AEMO5MSettlementRecord {
+  region: string
+  year: number
+  quarter: string
+  total_energy_settled_gwh: number
+  total_settlement_value_m_aud: number
+  avg_settlement_price_mwh: number
+  spot_vs_predispatch_deviation_pct: number
+  prudential_margin_m_aud: number
+}
+
+export interface AEMO5MIntervalRecord {
+  interval_type: string
+  region: string
+  year: number
+  avg_price_mwh: number
+  price_spread_mwh: number
+  correlation_to_spot: number
+  arbitrage_opportunity_m_aud: number
+}
+
+export interface AEMO5MComplianceRecord {
+  participant_id: string
+  participant_name: string
+  year: number
+  quarter: string
+  dispatch_compliance_pct: number
+  rebid_count: number
+  late_rebid_count: number
+  settlement_shortfall_m_aud: number
+}
+
+export interface AEMO5MSummary {
+  avg_dispatch_price_2024_mwh: number
+  total_settlement_value_2024_m_aud: number
+  most_volatile_region: string
+  total_cap_price_intervals: number
+  avg_compliance_pct: number
+}
+
+export interface AEMO5Mdashboard {
+  dispatch: AEMO5MDispatchRecord[]
+  settlement: AEMO5MSettlementRecord[]
+  intervals: AEMO5MIntervalRecord[]
+  compliance: AEMO5MComplianceRecord[]
+  summary: AEMO5MSummary
+}
+
+export async function getAemo5MinSettlementDashboard(): Promise<AEMO5Mdashboard> {
+  const r = await fetch(`${BASE_URL}/api/aemo-5min-settlement/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 163b — Virtual PPA Structured Finance Analytics (VPPA)
+// ---------------------------------------------------------------------------
+
+export interface VPPAContractRecord {
+  contract_id: string
+  buyer_name: string
+  seller_name: string
+  technology: string
+  state: string
+  capacity_mw: number
+  contract_length_years: number
+  strike_price_mwh: number
+  year_signed: number
+  lgcs_included: boolean
+}
+
+export interface VPPACashflowRecord {
+  contract_id: string
+  year: number
+  quarter: string
+  generation_gwh: number
+  spot_price_mwh: number
+  strike_price_mwh: number
+  settlement_payment_m_aud: number
+  lgc_revenue_m_aud: number
+  net_cashflow_m_aud: number
+}
+
+export interface VPPARiskRecord {
+  contract_id: string
+  year: number
+  volume_risk_pct: number
+  price_risk_pct: number
+  basis_risk_pct: number
+  credit_risk_score: number
+  total_risk_score: number
+}
+
+export interface VPPAMarketRecord {
+  year: number
+  quarter: string
+  technology: string
+  state: string
+  avg_strike_price_mwh: number
+  new_contracts_signed: number
+  total_capacity_signed_mw: number
+  avg_contract_length_years: number
+}
+
+export interface VPPASummary {
+  total_contracts: number
+  total_contracted_mw: number
+  avg_strike_price_mwh: number
+  most_active_buyer_sector: string
+  total_settlement_2024_m_aud: number
+}
+
+export interface VPPAdashboard {
+  contracts: VPPAContractRecord[]
+  cashflows: VPPACashflowRecord[]
+  risks: VPPARiskRecord[]
+  market: VPPAMarketRecord[]
+  summary: VPPASummary
+}
+
+export async function getVirtualPpaFinanceDashboard(): Promise<VPPAdashboard> {
+  const r = await fetch(`${BASE_URL}/api/virtual-ppa-finance/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

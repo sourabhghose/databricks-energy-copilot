@@ -550,6 +550,8 @@ import EnergyGridTopologyAnalytics from './pages/EnergyGridTopologyAnalytics'
 import RenewableMarketSensitivityAnalytics from './pages/RenewableMarketSensitivityAnalytics'
 import CarbonVoluntaryExchangeAnalytics from './pages/CarbonVoluntaryExchangeAnalytics'
 import NaturalGasPipelineAnalytics from './pages/NaturalGasPipelineAnalytics'
+import BatteryChemistryRiskAnalytics from './pages/BatteryChemistryRiskAnalytics'
+import Aemo5MinSettlementAnalytics from './pages/Aemo5MinSettlementAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1007,6 +1009,8 @@ const NAV_ITEMS = [
   { to: '/carbon-voluntary-exchange', label: 'Voluntary Carbon', Icon: Leaf },
   { to: '/renewable-market-sensitivity', label: 'RE Sensitivity', Icon: Sun },
   { to: '/natural-gas-pipeline', label: 'Gas Pipelines', Icon: GitMerge },
+  { to: '/battery-chemistry-risk', label: 'Battery Risk', Icon: Shield },
+  { to: '/aemo-5min-settlement', label: '5-Min Settlement', Icon: Clock },
 ]
 
 function Sidebar() {
@@ -1539,6 +1543,8 @@ export default function App() {
               <Route path="/carbon-voluntary-exchange" element={<CarbonVoluntaryExchangeAnalytics />} />
               <Route path="/renewable-market-sensitivity" element={<RenewableMarketSensitivityAnalytics />} />
               <Route path="/natural-gas-pipeline" element={<NaturalGasPipelineAnalytics />} />
+              <Route path="/battery-chemistry-risk" element={<BatteryChemistryRiskAnalytics />} />
+              <Route path="/aemo-5min-settlement" element={<Aemo5MinSettlementAnalytics />} />
             </Routes>
           </main>
         </div>
