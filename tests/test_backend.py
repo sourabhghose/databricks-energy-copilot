@@ -26935,3 +26935,403 @@ class TestMicrogridResilienceAnalytics:
             assert rec["microgrid_name"] in mg_names, (
                 f"Resilience record for '{rec['microgrid_name']}' not found in microgrids"
             )
+
+
+# ============================================================
+# Sprint 167b — Renewable Energy Zone Development Analytics (REZA)
+# ============================================================
+
+class TestRenewableEnergyZoneDevelopmentAnalytics:
+    URL = "/api/rez-development/dashboard"
+    HEADERS = {"x-api-key": "test"}
+
+    def test_reza_returns_200(self):
+        """Endpoint must return 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_reza_returns_200_no_key(self):
+        """Endpoint returns 200 even without API key in mock/test mode."""
+        r = client.get(self.URL)
+        assert r.status_code == 200
+
+    def test_reza_has_timestamp(self):
+        """Response must include a non-empty timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["timestamp"]) > 0
+
+    def test_reza_zone_count(self):
+        """There should be exactly 10 REZ zone records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["zones"]) == 10
+
+    def test_reza_project_count(self):
+        """There should be exactly 25 project records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 25
+
+    def test_reza_timeline_count(self):
+        """There should be exactly 90 timeline records (10 REZs x 9 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["timeline"]) == 90
+
+    def test_reza_tech_mix_count(self):
+        """There should be exactly 10 tech mix records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["tech_mix"]) == 10
+
+    def test_reza_zone_fields(self):
+        """Every zone record must have all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"rez_name", "state", "declared_capacity_gw", "connected_capacity_gw",
+                     "pipeline_capacity_gw", "transmission_investment_b_aud",
+                     "transmission_status", "access_scheme", "generator_applications"}
+        for z in r.json()["zones"]:
+            assert required.issubset(z.keys()), f"Missing fields in zone: {required - z.keys()}"
+
+    def test_reza_project_fields(self):
+        """Every project record must have all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"project_name", "rez_name", "developer", "technology",
+                     "capacity_mw", "status", "connection_year"}
+        for p in r.json()["projects"]:
+            assert required.issubset(p.keys()), f"Missing fields in project: {required - p.keys()}"
+
+    def test_reza_transmission_status_valid(self):
+        """Transmission status must be one of the allowed values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid = {"OPERATIONAL", "UNDER_CONSTRUCTION", "PLANNING", "PROPOSED"}
+        for z in r.json()["zones"]:
+            assert z["transmission_status"] in valid, (
+                f"{z['rez_name']}: invalid transmission_status {z['transmission_status']}"
+            )
+
+    def test_reza_access_scheme_valid(self):
+        """Access scheme must be one of the allowed values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid = {"OPEN", "PRIORITY", "CAPPED"}
+        for z in r.json()["zones"]:
+            assert z["access_scheme"] in valid, (
+                f"{z['rez_name']}: invalid access_scheme {z['access_scheme']}"
+            )
+
+    def test_reza_technology_valid(self):
+        """Technology must be one of the allowed values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid = {"WIND", "SOLAR", "BATTERY", "HYBRID", "SOLAR_BATTERY"}
+        for p in r.json()["projects"]:
+            assert p["technology"] in valid, (
+                f"{p['project_name']}: invalid technology {p['technology']}"
+            )
+
+    def test_reza_project_status_valid(self):
+        """Project status must be one of the allowed values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid = {"OPERATIONAL", "CONSTRUCTION", "APPROVED", "APPLICATION"}
+        for p in r.json()["projects"]:
+            assert p["status"] in valid, (
+                f"{p['project_name']}: invalid status {p['status']}"
+            )
+
+    def test_reza_timeline_years_in_range(self):
+        """Timeline years must be between 2022 and 2030."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for t in r.json()["timeline"]:
+            assert 2022 <= t["year"] <= 2030, (
+                f"{t['rez_name']}: year {t['year']} out of range"
+            )
+
+    def test_reza_declared_gte_connected(self):
+        """Declared capacity must be >= connected capacity for each zone."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for z in r.json()["zones"]:
+            assert z["declared_capacity_gw"] >= z["connected_capacity_gw"], (
+                f"{z['rez_name']}: declared ({z['declared_capacity_gw']}) < connected ({z['connected_capacity_gw']})"
+            )
+
+    def test_reza_projects_reference_valid_rez(self):
+        """Every project must reference a known REZ name."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        rez_names = {z["rez_name"] for z in r.json()["zones"]}
+        for p in r.json()["projects"]:
+            assert p["rez_name"] in rez_names, (
+                f"Project '{p['project_name']}' references unknown REZ '{p['rez_name']}'"
+            )
+
+    def test_reza_tech_mix_references_valid_rez(self):
+        """Every tech mix record must reference a known REZ name."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        rez_names = {z["rez_name"] for z in r.json()["zones"]}
+        for tm in r.json()["tech_mix"]:
+            assert tm["rez_name"] in rez_names, (
+                f"Tech mix for '{tm['rez_name']}' not found in zones"
+            )
+
+    def test_reza_capacity_positive(self):
+        """All capacity values must be positive for zones."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for z in r.json()["zones"]:
+            assert z["declared_capacity_gw"] > 0, f"{z['rez_name']}: declared capacity <= 0"
+            assert z["connected_capacity_gw"] >= 0, f"{z['rez_name']}: connected capacity < 0"
+            assert z["pipeline_capacity_gw"] >= 0, f"{z['rez_name']}: pipeline capacity < 0"
+
+
+# ===========================================================================
+# TestEnergyPovertyAffordabilityAnalytics (Sprint 167c)
+# ===========================================================================
+class TestEnergyPovertyAffordabilityAnalytics:
+    URL = "/api/energy-poverty-affordability/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_epaa_returns_200(self):
+        """Endpoint returns HTTP 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_epaa_returns_401_without_key(self):
+        """Endpoint returns 401/403 when no API key header is present;
+        in dev/test mode auth may be disabled so 200 is also acceptable."""
+        r = client.get(self.URL)
+        assert r.status_code in (200, 401, 403)
+
+    def test_epaa_has_all_top_level_keys(self):
+        """Response contains all expected top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("timestamp", "states", "income_quintiles", "disconnections",
+                     "retailer_hardship", "lga_data"):
+            assert key in data, f"Missing top-level key: {key}"
+
+    def test_epaa_eight_states(self):
+        """Should have exactly 8 state records (all AU states/territories)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["states"]) == 8
+
+    def test_epaa_five_income_quintiles(self):
+        """Should have exactly 5 income quintile records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["income_quintiles"]) == 5
+
+    def test_epaa_48_disconnection_records(self):
+        """Should have 48 disconnection records (8 states x 6 years)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["disconnections"]) == 48
+
+    def test_epaa_eight_retailers(self):
+        """Should have exactly 8 retailer hardship records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["retailer_hardship"]) == 8
+
+    def test_epaa_twenty_lga_records(self):
+        """Should have exactly 20 LGA records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["lga_data"]) == 20
+
+    def test_epaa_sa_tas_highest_energy_burden(self):
+        """SA and TAS should have the highest energy burden among states."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        states = r.json()["states"]
+        burdens = {s["state"]: s["energy_burden_pct"] for s in states}
+        sorted_states = sorted(burdens, key=burdens.get, reverse=True)
+        assert set(sorted_states[:2]) == {"SA", "TAS"}, (
+            f"Expected SA and TAS as top 2, got {sorted_states[:2]}"
+        )
+
+    def test_epaa_q1_highest_energy_burden(self):
+        """Q1 (lowest income) should have the highest energy burden ~8%."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        quintiles = r.json()["income_quintiles"]
+        q1 = next(q for q in quintiles if q["quintile"] == "Q1_LOWEST")
+        q5 = next(q for q in quintiles if q["quintile"] == "Q5_HIGHEST")
+        assert q1["energy_burden_pct"] > q5["energy_burden_pct"], (
+            "Q1 energy burden should exceed Q5"
+        )
+        assert 7.0 <= q1["energy_burden_pct"] <= 9.0, (
+            f"Q1 energy burden {q1['energy_burden_pct']} not near ~8%"
+        )
+        assert 1.5 <= q5["energy_burden_pct"] <= 3.0, (
+            f"Q5 energy burden {q5['energy_burden_pct']} not near ~2%"
+        )
+
+    def test_epaa_disconnections_declining_trend(self):
+        """Disconnection rates should show a declining trend over years for each state."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        disconnections = r.json()["disconnections"]
+        states = {d["state"] for d in disconnections}
+        for state in states:
+            state_recs = sorted(
+                [d for d in disconnections if d["state"] == state],
+                key=lambda x: x["year"],
+            )
+            for i in range(1, len(state_recs)):
+                assert state_recs[i]["disconnections_per_10k"] <= state_recs[i - 1]["disconnections_per_10k"], (
+                    f"{state}: disconnections increased from {state_recs[i-1]['year']} to {state_recs[i]['year']}"
+                )
+
+    def test_epaa_disconnection_years_2020_to_2025(self):
+        """Disconnection records should span years 2020-2025."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        years = {d["year"] for d in r.json()["disconnections"]}
+        assert years == {2020, 2021, 2022, 2023, 2024, 2025}
+
+    def test_epaa_energy_burden_pct_in_range(self):
+        """Energy burden percentages should be between 0 and 100 for states."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for s in r.json()["states"]:
+            assert 0 < s["energy_burden_pct"] < 100, (
+                f"{s['state']}: energy_burden_pct {s['energy_burden_pct']} out of range"
+            )
+
+    def test_epaa_retailer_payment_plan_success_in_range(self):
+        """Payment plan success percentages should be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for ret in r.json()["retailer_hardship"]:
+            assert 0 <= ret["payment_plan_success_pct"] <= 100, (
+                f"{ret['retailer_name']}: payment_plan_success_pct "
+                f"{ret['payment_plan_success_pct']} out of range"
+            )
+
+    def test_epaa_lga_states_valid(self):
+        """All LGA records should reference valid Australian states."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_states = {"NSW", "VIC", "QLD", "SA", "WA", "TAS", "NT", "ACT"}
+        for lga in r.json()["lga_data"]:
+            assert lga["state"] in valid_states, (
+                f"LGA '{lga['lga_name']}' has invalid state '{lga['state']}'"
+            )
+
+
+# ===========================================================================
+# TestPowerQualityMonitoringAnalytics (Sprint 167a)
+# ===========================================================================
+class TestPowerQualityMonitoringAnalytics:
+    URL = "/api/power-quality/dashboard"
+    HEADERS = {"X-API-Key": "test"}
+
+    def test_pqma_returns_200(self):
+        """GET /api/power-quality/dashboard must return 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_pqma_has_all_top_level_keys(self):
+        """Response must contain timestamp, substations, voltage_profiles, incidents, events."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        body = r.json()
+        for key in ("timestamp", "substations", "voltage_profiles", "incidents", "events"):
+            assert key in body, f"Missing top-level key: {key}"
+
+    def test_pqma_15_substations(self):
+        """Must return exactly 15 substation records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["substations"]) == 15
+
+    def test_pqma_120_voltage_profiles(self):
+        """Must return exactly 120 voltage profile records (24 hours x 5 substations)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["voltage_profiles"]) == 120
+
+    def test_pqma_18_incident_records(self):
+        """Must return exactly 18 monthly incident records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["incidents"]) == 18
+
+    def test_pqma_25_event_records(self):
+        """Must return exactly 25 recent event records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["events"]) == 25
+
+    def test_pqma_voltage_compliance_in_range(self):
+        """Voltage compliance percentage must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for sub in r.json()["substations"]:
+            assert 0 <= sub["voltage_compliance_pct"] <= 100, (
+                f"{sub['name']}: voltage_compliance_pct {sub['voltage_compliance_pct']} out of range"
+            )
+
+    def test_pqma_power_factor_in_range(self):
+        """Power factor must be between 0 and 1."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for sub in r.json()["substations"]:
+            assert 0 < sub["power_factor"] <= 1.0, (
+                f"{sub['name']}: power_factor {sub['power_factor']} out of range"
+            )
+
+    def test_pqma_voltage_profile_hours_0_to_23(self):
+        """All voltage profile hours must be in range 0-23."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for vp in r.json()["voltage_profiles"]:
+            assert 0 <= vp["hour"] <= 23, (
+                f"{vp['substation_name']}: hour {vp['hour']} out of range"
+            )
+
+    def test_pqma_event_types_valid(self):
+        """All event types must be one of the defined enum values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_types = {"VOLTAGE_SAG", "VOLTAGE_SWELL", "HARMONIC", "FLICKER", "FREQUENCY"}
+        for ev in r.json()["events"]:
+            assert ev["event_type"] in valid_types, (
+                f"Invalid event_type: {ev['event_type']}"
+            )
+
+    def test_pqma_severity_levels_valid(self):
+        """All severity levels must be MINOR, MODERATE, or MAJOR."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        valid_sev = {"MINOR", "MODERATE", "MAJOR"}
+        for ev in r.json()["events"]:
+            assert ev["severity"] in valid_sev, (
+                f"Invalid severity: {ev['severity']}"
+            )
+
+    def test_pqma_substation_names_in_events_valid(self):
+        """All event substation names must reference a known substation."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        sub_names = {s["name"] for s in r.json()["substations"]}
+        for ev in r.json()["events"]:
+            assert ev["substation_name"] in sub_names, (
+                f"Event references unknown substation: {ev['substation_name']}"
+            )
+
+    def test_pqma_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)

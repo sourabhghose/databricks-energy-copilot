@@ -32786,3 +32786,185 @@ export async function getMGRADashboard(): Promise<MGRADashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---------------------------------------------------------------------------
+// Energy Poverty & Affordability Analytics (EPAA) — Sprint 167c
+// ---------------------------------------------------------------------------
+
+export interface EPAAStateRecord {
+  state: string
+  avg_annual_bill_aud: number
+  median_household_income_aud: number
+  energy_burden_pct: number
+  disconnection_rate_per_10k: number
+  hardship_participants_k: number
+  energy_poverty_rate_pct: number
+  concession_recipients_k: number
+}
+
+export interface EPAAIncomeQuintileRecord {
+  quintile: 'Q1_LOWEST' | 'Q2' | 'Q3' | 'Q4' | 'Q5_HIGHEST'
+  avg_energy_cost_aud: number
+  avg_income_aud: number
+  energy_burden_pct: number
+  energy_poverty_rate_pct: number
+}
+
+export interface EPAADisconnectionRecord {
+  state: string
+  year: number
+  disconnections_per_10k: number
+  wrongful_disconnections: number
+  avg_duration_days: number
+  reconnection_within_7days_pct: number
+}
+
+export interface EPAARetailerHardshipRecord {
+  retailer_name: string
+  hardship_customers_k: number
+  avg_debt_aud: number
+  payment_plan_count_k: number
+  payment_plan_success_pct: number
+  debt_waivers_k: number
+  appliance_replacements: number
+  energy_audits: number
+  disconnections_per_10k: number
+  aer_compliant: boolean
+}
+
+export interface EPAALgaRecord {
+  lga_name: string
+  state: string
+  energy_poverty_rate_pct: number
+  median_income_aud: number
+  avg_bill_aud: number
+  solar_adoption_pct: number
+  rental_pct: number
+}
+
+export interface EPAADashboard {
+  timestamp: string
+  states: EPAAStateRecord[]
+  income_quintiles: EPAAIncomeQuintileRecord[]
+  disconnections: EPAADisconnectionRecord[]
+  retailer_hardship: EPAARetailerHardshipRecord[]
+  lga_data: EPAALgaRecord[]
+}
+
+export async function getEPAADashboard(): Promise<EPAADashboard> {
+  const r = await fetch(`${BASE_URL}/api/energy-poverty-affordability/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 167b — Renewable Energy Zone Development Analytics (REZA)
+// ---------------------------------------------------------------------------
+
+export interface REZAZoneRecord {
+  rez_name: string
+  state: string
+  declared_capacity_gw: number
+  connected_capacity_gw: number
+  pipeline_capacity_gw: number
+  transmission_investment_b_aud: number
+  transmission_status: string
+  access_scheme: string
+  generator_applications: number
+}
+
+export interface REZAProjectRecord {
+  project_name: string
+  rez_name: string
+  developer: string
+  technology: string
+  capacity_mw: number
+  status: string
+  connection_year: number
+}
+
+export interface REZATimelineRecord {
+  year: number
+  rez_name: string
+  connected_gw: number
+  pipeline_gw: number
+}
+
+export interface REZATechMixRecord {
+  rez_name: string
+  wind_gw: number
+  solar_gw: number
+  battery_gw: number
+  hybrid_gw: number
+}
+
+export interface REZADashboard {
+  timestamp: string
+  zones: REZAZoneRecord[]
+  projects: REZAProjectRecord[]
+  timeline: REZATimelineRecord[]
+  tech_mix: REZATechMixRecord[]
+}
+
+export async function getREZADashboard(): Promise<REZADashboard> {
+  const r = await fetch(`${BASE_URL}/api/rez-development/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ===========================================================================
+// Sprint 167a — Power Quality Monitoring Analytics (PQMA)
+// ===========================================================================
+
+export interface PQMASubstationRecord {
+  name: string
+  dnsp: string
+  region: string
+  voltage_compliance_pct: number
+  thd_pct: number
+  power_factor: number
+  flicker_pst: number
+  der_penetration_pct: number
+  load_mw: number
+}
+
+export interface PQMAVoltageProfileRecord {
+  substation_name: string
+  hour: number
+  voltage_pu: number
+  upper_limit_pu: number
+  lower_limit_pu: number
+  tap_position: number
+}
+
+export interface PQMAIncidentRecord {
+  month: string
+  voltage_sag_count: number
+  voltage_swell_count: number
+  harmonic_count: number
+  flicker_count: number
+  total_affected_customers_k: number
+}
+
+export interface PQMAEventRecord {
+  event_date: string
+  substation_name: string
+  event_type: string
+  severity: string
+  duration_min: number
+  affected_customers: number
+}
+
+export interface PQMADashboard {
+  timestamp: string
+  substations: PQMASubstationRecord[]
+  voltage_profiles: PQMAVoltageProfileRecord[]
+  incidents: PQMAIncidentRecord[]
+  events: PQMAEventRecord[]
+}
+
+export async function getPQMADashboard(): Promise<PQMADashboard> {
+  const r = await fetch(`${BASE_URL}/api/power-quality/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

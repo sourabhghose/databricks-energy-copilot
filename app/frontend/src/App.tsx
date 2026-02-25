@@ -561,6 +561,8 @@ import NetworkAugmentationDeferralAnalytics from './pages/NetworkAugmentationDef
 import EvFleetGridIntegrationAnalytics from './pages/EvFleetGridIntegrationAnalytics'
 import GridEmissionsIntensityAnalytics from './pages/GridEmissionsIntensityAnalytics'
 import MicrogridResilienceAnalytics from './pages/MicrogridResilienceAnalytics'
+import PowerQualityMonitoringAnalytics from './pages/PowerQualityMonitoringAnalytics'
+import EnergyPovertyAffordabilityAnalytics from './pages/EnergyPovertyAffordabilityAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1028,6 +1030,8 @@ const NAV_ITEMS = [
   { to: '/ev-fleet-grid', label: 'EV Grid Integration', Icon: Car },
   { to: '/grid-emissions-intensity', label: 'Grid Emissions', Icon: CloudRain },
   { to: '/microgrid-resilience', label: 'Microgrid Resilience', Icon: Shield },
+  { to: '/power-quality', label: 'Power Quality', Icon: Gauge },
+  { to: '/energy-poverty', label: 'Energy Poverty', Icon: Heart },
 ]
 
 function Sidebar() {
@@ -1181,7 +1185,7 @@ export default function App() {
               <Route path="/ev"           element={<EvCharging />}          />
               <Route path="/storage"      element={<StorageArbitrage />}    />
               <Route path="/demand-forecast" element={<DemandForecastAnalytics />} />
-              <Route path="/rez-development" element={<RezDevelopment />}      />
+              <Route path="/rez-development" element={<RenewableEnergyZoneDevelopmentAnalytics />} />
               <Route path="/congestion"   element={<CongestionAnalytics />} />
               <Route path="/equity"           element={<EnergyEquity />}              />
               <Route path="/demand-response" element={<DemandResponseAnalytics />} />
@@ -1570,6 +1574,8 @@ export default function App() {
               <Route path="/ev-fleet-grid" element={<EvFleetGridIntegrationAnalytics />} />
               <Route path="/grid-emissions-intensity" element={<GridEmissionsIntensityAnalytics />} />
               <Route path="/microgrid-resilience" element={<MicrogridResilienceAnalytics />} />
+              <Route path="/power-quality" element={<PowerQualityMonitoringAnalytics />} />
+              <Route path="/energy-poverty" element={<EnergyPovertyAffordabilityAnalytics />} />
             </Routes>
           </main>
         </div>
