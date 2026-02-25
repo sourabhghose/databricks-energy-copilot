@@ -1929,3 +1929,33 @@ Backend, frontend page, API client types, routing, and tests for BatteryChemistr
 **REZA:** 10 REZs (Central-West Orana, New England, etc.), 25 projects, 90 timeline records, 10 tech mix records. Endpoint: `/api/rez-development/dashboard`. 18 tests.
 
 **EPAA:** 8 states, 5 income quintiles (Q1 ~8% burden, Q5 ~2%), 48 disconnection records, 8 retailers, 20 LGA records. SA/TAS highest burden. Endpoint: `/api/energy-poverty-affordability/dashboard`. 15 tests.
+
+---
+
+## Sprint 168 — Coal Fleet Retirement (CFRA), VPP Operations (VPOA), Pumped Hydro Storage (PHSA) Analytics (2026-02-25)
+
+**CFRA:** 20 coal units (Eraring, Bayswater, Loy Yang A/B, Yallourn, Mt Piper, Vales Point), 15 replacement projects, 17 capacity trajectory years (2024-2040), 50 reliability records. Endpoint: `/api/coal-retirement/dashboard`. 16 tests.
+
+**VPOA:** 8 VPP operators (Tesla 250MW largest), 18 monthly dispatch records, 6 asset types, 20 recent events. Endpoint: `/api/vpp-operations/dashboard`. 15 tests.
+
+**PHSA:** 10 pumped hydro projects (Snowy 2.0, Pioneer-Burdekin, Borumba, etc.), 10 operation records, 24 hourly profiles, 10 revenue records. Endpoint: `/api/pumped-hydro/dashboard`. 19 tests.
+
+---
+
+## Sprint 169 — Integrated System Plan (ISPA), Smart Meter Data (SMDA), East Coast Gas Market (ECGA) Analytics (2026-02-25)
+
+**ISPA:** 10 ISP transmission projects (HumeLink, VNI West, Marinus Link, etc.), 42 capacity records, 6 savings records, 7 transfer corridors, 4 scenarios. Endpoint: `/api/isp-analytics/dashboard`. 18 tests.
+
+**SMDA:** 48 half-hour load profiles, 10 DNSP rollout records, 18 monthly consumption records, 6 customer segments, 6 tariff migration years. Endpoint: `/api/smart-meter/dashboard`. 18 tests.
+
+**ECGA:** 72 hub price records (4 hubs x 18 months), 24 supply records, 8 demand records, 18 LNG records, 6 basin balance records. Endpoint: `/api/east-coast-gas/dashboard`. 14 tests.
+
+---
+
+## Sprint 170 — Energy Cyber Security (ESCA), Community Battery (CBA), Wholesale Market Reform (WMRA) Analytics (2026-02-25)
+
+**ESCA:** 20 incidents, 18 detection trend months, 6 maturity domains (OT/SCADA lowest), 4 vulnerability types, 8 asset classes. Endpoint: `/api/energy-cyber-security/dashboard`. 21 tests.
+
+**CBA:** 15 community batteries (Ausgrid Beacon Hill, SA Power Networks Payneham, etc.), 24 hourly operations, 12 monthly benefits, 15 revenue records. Endpoint: `/api/community-battery/dashboard`. 19 tests.
+
+**WMRA:** 15 reforms, 36 efficiency months, 15 consumer impact records, 7 price cap years, 10 metrics. Endpoint: `/api/wholesale-market-reform/dashboard`.
