@@ -569,6 +569,9 @@ import PumpedHydroStorageAnalytics from './pages/PumpedHydroStorageAnalytics'
 import EastCoastGasMarketAnalytics from './pages/EastCoastGasMarketAnalytics'
 import SmartMeterDataAnalytics from './pages/SmartMeterDataAnalytics'
 import IntegratedSystemPlanAnalytics from './pages/IntegratedSystemPlanAnalytics'
+import CommunityBatteryAnalytics from './pages/CommunityBatteryAnalytics'
+import EnergySectorCyberSecurityAnalytics from './pages/EnergySectorCyberSecurityAnalytics'
+import WholesaleMarketReformAnalytics from './pages/WholesaleMarketReformAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1044,6 +1047,9 @@ const NAV_ITEMS = [
   { to: '/smart-meter', label: 'Smart Meter Analytics', Icon: BarChart3 },
   { to: '/east-coast-gas', label: 'East Coast Gas', Icon: Flame },
   { to: '/isp-analytics', label: 'ISP Analytics', Icon: Map },
+  { to: '/community-battery', label: 'Community Battery', Icon: Battery },
+  { to: '/energy-cyber-security', label: 'Cyber Security', Icon: Lock },
+  { to: '/wholesale-market-reform', label: 'Wholesale Market Reform', Icon: Scale },
 ]
 
 function Sidebar() {
@@ -1594,6 +1600,9 @@ export default function App() {
               <Route path="/smart-meter" element={<SmartMeterDataAnalytics />} />
               <Route path="/east-coast-gas" element={<EastCoastGasMarketAnalytics />} />
               <Route path="/isp-analytics" element={<IntegratedSystemPlanAnalytics />} />
+              <Route path="/community-battery" element={<CommunityBatteryAnalytics />} />
+              <Route path="/energy-cyber-security" element={<EnergySectorCyberSecurityAnalytics />} />
+              <Route path="/wholesale-market-reform" element={<WholesaleMarketReformAnalytics />} />
             </Routes>
           </main>
         </div>

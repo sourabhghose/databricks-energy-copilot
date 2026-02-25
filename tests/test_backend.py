@@ -28177,3 +28177,321 @@ class TestSMDADashboard:
         """Endpoint must reject requests without API key."""
         r = client.get(self.URL)
         assert r.status_code in (401, 403, 422)
+
+
+# ===========================================================================
+# Sprint 170b – Community Battery Analytics (CBA)
+# ===========================================================================
+
+class TestCBADashboard:
+    """Tests for GET /api/community-battery/dashboard."""
+
+    URL = "/api/community-battery/dashboard"
+    HEADERS = {"x-api-key": "test"}
+
+    # -- Top-level structure --
+
+    def test_cba_returns_200(self):
+        """Endpoint returns 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_cba_has_required_keys(self):
+        """Response must contain timestamp, batteries, operation, network_benefits, revenue."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        body = r.json()
+        for key in ("timestamp", "batteries", "operation", "network_benefits", "revenue"):
+            assert key in body, f"Missing key: {key}"
+
+    # -- Batteries --
+
+    def test_cba_has_15_batteries(self):
+        """Mock data must contain exactly 15 community batteries."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["batteries"]) == 15
+
+    def test_cba_battery_fields_present(self):
+        """Each battery record must have all required fields."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        required = {"name", "suburb", "state", "dnsp", "capacity_kw", "capacity_kwh",
+                     "households_served", "solar_capture_pct", "status", "installation_year", "manufacturer"}
+        for bat in r.json()["batteries"]:
+            assert required.issubset(bat.keys()), f"Missing fields in {bat.get('name')}"
+
+    def test_cba_battery_status_valid(self):
+        """Battery status must be one of the allowed values."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        allowed = {"OPERATIONAL", "COMMISSIONING", "APPROVED", "PLANNED"}
+        for bat in r.json()["batteries"]:
+            assert bat["status"] in allowed, f"{bat['name']}: invalid status {bat['status']}"
+
+    def test_cba_battery_solar_capture_in_range(self):
+        """Solar capture percentage must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for bat in r.json()["batteries"]:
+            assert 0 <= bat["solar_capture_pct"] <= 100, (
+                f"{bat['name']}: solar_capture_pct {bat['solar_capture_pct']} out of range"
+            )
+
+    def test_cba_battery_capacity_positive(self):
+        """Battery capacity kW and kWh must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for bat in r.json()["batteries"]:
+            assert bat["capacity_kw"] > 0, f"{bat['name']}: capacity_kw <= 0"
+            assert bat["capacity_kwh"] > 0, f"{bat['name']}: capacity_kwh <= 0"
+
+    # -- Operation --
+
+    def test_cba_has_24_operation_records(self):
+        """Mock data must contain exactly 24 hourly operation records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["operation"]) == 24
+
+    def test_cba_operation_hours_0_to_23(self):
+        """Operation records must cover hours 0-23."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        hours = sorted(rec["hour"] for rec in r.json()["operation"])
+        assert hours == list(range(24))
+
+    def test_cba_operation_soc_in_range(self):
+        """Average SoC must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["operation"]:
+            assert 0 <= rec["avg_soc_pct"] <= 100, (
+                f"Hour {rec['hour']}: avg_soc_pct {rec['avg_soc_pct']} out of range"
+            )
+
+    # -- Network Benefits --
+
+    def test_cba_has_12_network_benefit_records(self):
+        """Mock data must contain exactly 12 monthly network benefit records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["network_benefits"]) == 12
+
+    def test_cba_network_benefit_peak_reduction_positive(self):
+        """Peak reduction MW must be positive for all months."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["network_benefits"]:
+            assert rec["peak_reduction_mw"] > 0, (
+                f"{rec['month']}: peak_reduction_mw <= 0"
+            )
+
+    # -- Revenue --
+
+    def test_cba_has_15_revenue_records(self):
+        """Mock data must contain exactly 15 revenue records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["revenue"]) == 15
+
+    def test_cba_revenue_total_matches_sum(self):
+        """Total revenue must equal sum of individual streams."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["revenue"]:
+            expected = (rec["network_deferral_k_aud"] + rec["fcas_k_aud"] +
+                        rec["energy_arbitrage_k_aud"] + rec["solar_sponge_k_aud"] +
+                        rec["customer_benefit_k_aud"])
+            assert abs(rec["total_k_aud"] - expected) < 0.2, (
+                f"{rec['battery_name']}: total {rec['total_k_aud']} != sum {expected}"
+            )
+
+    def test_cba_revenue_cost_recovery_in_range(self):
+        """Cost recovery percentage must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["revenue"]:
+            assert 0 <= rec["cost_recovery_pct"] <= 100, (
+                f"{rec['battery_name']}: cost_recovery_pct {rec['cost_recovery_pct']} out of range"
+            )
+
+    # -- Auth --
+
+    def test_cba_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)
+
+
+# =============================================================================
+# Sprint 170a — Energy Sector Cyber Security Analytics (ESCA)
+# =============================================================================
+
+
+class TestESCADashboard:
+    """Tests for GET /api/energy-cyber-security/dashboard"""
+
+    URL = "/api/energy-cyber-security/dashboard"
+    HEADERS = {"x-api-key": "test"}
+
+    # -- Basic connectivity --
+
+    def test_esca_returns_200(self):
+        """Endpoint must return 200 with valid API key."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_esca_response_has_timestamp(self):
+        """Response must contain an ISO timestamp."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert "timestamp" in r.json()
+
+    # -- Incidents --
+
+    def test_esca_has_20_incidents(self):
+        """Mock data must contain exactly 20 incident records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["incidents"]) == 20
+
+    def test_esca_incident_categories_valid(self):
+        """All incident categories must be from the allowed set."""
+        valid = {"RANSOMWARE", "PHISHING", "OT_INTRUSION", "DDOS", "INSIDER", "SUPPLY_CHAIN"}
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for inc in r.json()["incidents"]:
+            assert inc["category"] in valid, f"Invalid category: {inc['category']}"
+
+    def test_esca_incident_severities_valid(self):
+        """All incident severities must be CRITICAL/HIGH/MEDIUM/LOW."""
+        valid = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for inc in r.json()["incidents"]:
+            assert inc["severity"] in valid, f"Invalid severity: {inc['severity']}"
+
+    def test_esca_incident_detection_time_positive(self):
+        """Detection time must be positive for all incidents."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for inc in r.json()["incidents"]:
+            assert inc["detection_time_hrs"] > 0
+
+    def test_esca_incident_resolution_time_positive(self):
+        """Resolution time must be positive for all incidents."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for inc in r.json()["incidents"]:
+            assert inc["resolution_time_hrs"] > 0
+
+    # -- Detection Trends --
+
+    def test_esca_has_18_detection_trends(self):
+        """Mock data must contain exactly 18 detection trend records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["detection_trends"]) == 18
+
+    def test_esca_detection_trend_mttd_positive(self):
+        """MTTD must be positive for all months."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["detection_trends"]:
+            assert rec["mttd_hrs"] > 0
+
+    def test_esca_detection_trend_false_positive_in_range(self):
+        """False positive rate must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["detection_trends"]:
+            assert 0 <= rec["false_positive_rate_pct"] <= 100
+
+    # -- Maturity --
+
+    def test_esca_has_6_maturity_domains(self):
+        """Mock data must contain exactly 6 maturity domain records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["maturity"]) == 6
+
+    def test_esca_maturity_scores_in_range(self):
+        """Maturity scores must be between 0 and 5."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["maturity"]:
+            assert 0 <= rec["current_score"] <= 5
+            assert 0 <= rec["target_score"] <= 5
+
+    def test_esca_ot_scada_has_lowest_maturity(self):
+        """OT_SCADA domain must have the lowest current maturity score."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        maturity = r.json()["maturity"]
+        ot_scada = [m for m in maturity if m["domain"] == "OT_SCADA"]
+        assert len(ot_scada) == 1
+        ot_score = ot_scada[0]["current_score"]
+        for m in maturity:
+            assert ot_score <= m["current_score"], (
+                f"OT_SCADA score {ot_score} should be <= {m['domain']} score {m['current_score']}"
+            )
+
+    # -- Vulnerabilities --
+
+    def test_esca_has_4_vulnerability_asset_types(self):
+        """Mock data must contain exactly 4 vulnerability asset type records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["vulnerabilities"]) == 4
+
+    def test_esca_vulnerability_asset_types_valid(self):
+        """All vulnerability asset types must be IT/OT/CLOUD/IOT."""
+        valid = {"IT", "OT", "CLOUD", "IOT"}
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["vulnerabilities"]:
+            assert rec["asset_type"] in valid
+
+    def test_esca_vulnerability_patched_pct_in_range(self):
+        """Patched percentage must be between 0 and 100."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["vulnerabilities"]:
+            assert 0 <= rec["patched_pct"] <= 100
+
+    # -- Assets --
+
+    def test_esca_has_8_asset_classes(self):
+        """Mock data must contain exactly 8 asset class records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["assets"]) == 8
+
+    def test_esca_asset_patched_pct_in_range(self):
+        """Patched percentage must be between 0 and 100 for all asset classes."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["assets"]:
+            assert 0 <= rec["patched_pct"] <= 100
+
+    def test_esca_asset_monitored_pct_in_range(self):
+        """Monitored percentage must be between 0 and 100 for all asset classes."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["assets"]:
+            assert 0 <= rec["monitored_pct"] <= 100
+
+    def test_esca_asset_count_positive(self):
+        """Asset count must be positive for all classes."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["assets"]:
+            assert rec["count"] > 0
+
+    # -- Auth --
+
+    def test_esca_requires_api_key(self):
+        """Endpoint must reject requests without API key."""
+        r = client.get(self.URL)
+        assert r.status_code in (401, 403, 422)

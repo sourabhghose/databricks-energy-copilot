@@ -33335,3 +33335,191 @@ export async function getSMDADashboard(): Promise<SMDADashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 170b – Community Battery Analytics (CBA)
+// ---------------------------------------------------------------------------
+
+export interface CBABatteryRecord {
+  name: string
+  suburb: string
+  state: string
+  dnsp: string
+  capacity_kw: number
+  capacity_kwh: number
+  households_served: number
+  solar_capture_pct: number
+  status: string
+  installation_year: number
+  manufacturer: string
+}
+
+export interface CBAOperationRecord {
+  hour: number
+  avg_charge_kw: number
+  avg_discharge_kw: number
+  avg_soc_pct: number
+  solar_surplus_kw: number
+  grid_export_kw: number
+}
+
+export interface CBANetworkBenefitRecord {
+  month: string
+  peak_reduction_mw: number
+  voltage_support_events: number
+  transformer_loading_reduction_pct: number
+  customer_minutes_saved: number
+}
+
+export interface CBARevenueRecord {
+  battery_name: string
+  network_deferral_k_aud: number
+  fcas_k_aud: number
+  energy_arbitrage_k_aud: number
+  solar_sponge_k_aud: number
+  customer_benefit_k_aud: number
+  total_k_aud: number
+  cost_recovery_pct: number
+}
+
+export interface CBADashboard {
+  timestamp: string
+  batteries: CBABatteryRecord[]
+  operation: CBAOperationRecord[]
+  network_benefits: CBANetworkBenefitRecord[]
+  revenue: CBARevenueRecord[]
+}
+
+export async function getCBADashboard(): Promise<CBADashboard> {
+  const r = await fetch(`${BASE_URL}/api/community-battery/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ===========================================================================
+// Sprint 170a — Energy Sector Cyber Security Analytics (ESCA)
+// ===========================================================================
+
+export interface ESCAIncidentRecord {
+  incident_date: string
+  category: string
+  severity: string
+  affected_system: string
+  detection_time_hrs: number
+  resolution_time_hrs: number
+  impact_description: string
+  cost_aud_k: number
+}
+
+export interface ESCADetectionTrendRecord {
+  month: string
+  mttd_hrs: number
+  mttr_hrs: number
+  incidents_detected: number
+  false_positive_rate_pct: number
+}
+
+export interface ESCAMaturityRecord {
+  domain: string
+  current_score: number
+  target_score: number
+  gap: number
+  investment_m_aud: number
+}
+
+export interface ESCAVulnerabilityRecord {
+  asset_type: string
+  critical_count: number
+  high_count: number
+  medium_count: number
+  low_count: number
+  patched_pct: number
+  avg_patch_time_days: number
+}
+
+export interface ESCAAssetRecord {
+  asset_class: string
+  count: number
+  patched_pct: number
+  monitored_pct: number
+  avg_age_years: number
+  eol_pct: number
+}
+
+export interface ESCADashboard {
+  timestamp: string
+  incidents: ESCAIncidentRecord[]
+  detection_trends: ESCADetectionTrendRecord[]
+  maturity: ESCAMaturityRecord[]
+  vulnerabilities: ESCAVulnerabilityRecord[]
+  assets: ESCAAssetRecord[]
+}
+
+export async function getESCADashboard(): Promise<ESCADashboard> {
+  const r = await fetch(`${BASE_URL}/api/energy-cyber-security/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 170c — NEM Wholesale Market Reform Analytics (WMRA)
+// ---------------------------------------------------------------------------
+
+export interface WMRAReformRecord {
+  reform_name: string
+  category: string
+  proponent: string
+  status: string
+  implementation_date: string | null
+  consumer_impact_b_aud: number
+  description: string
+}
+
+export interface WMRAEfficiencyRecord {
+  month: string
+  price_volatility_index: number
+  bid_ask_spread_aud: number
+  dispatch_error_mw: number
+  market_concentration_hhi: number
+  renewable_curtailment_pct: number
+}
+
+export interface WMRAConsumerImpactRecord {
+  reform_name: string
+  bill_reduction_m_aud: number
+  reliability_improvement_m_aud: number
+  emissions_reduction_m_aud: number
+  total_impact_m_aud: number
+}
+
+export interface WMRAPriceCapRecord {
+  year: number
+  market_price_cap_aud_mwh: number
+  cumulative_price_threshold_aud: number
+  administered_price_cap_aud_mwh: number
+  cap_events: number
+}
+
+export interface WMRAMetricRecord {
+  metric_name: string
+  value_2022: number
+  value_2025: number
+  improvement_pct: number
+  target_value: number
+  on_track: boolean
+}
+
+export interface WMRADashboard {
+  timestamp: string
+  reforms: WMRAReformRecord[]
+  efficiency: WMRAEfficiencyRecord[]
+  consumer_impacts: WMRAConsumerImpactRecord[]
+  price_caps: WMRAPriceCapRecord[]
+  metrics: WMRAMetricRecord[]
+}
+
+export async function getWMRADashboard(): Promise<WMRADashboard> {
+  const r = await fetch(`${BASE_URL}/api/wholesale-market-reform/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
