@@ -32429,3 +32429,182 @@ export async function getGFRADashboard(): Promise<GFRADashboard> {
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
+
+// ---------------------------------------------------------------------------
+// Sprint 165a — Hydrogen Economy Outlook Analytics (HEOA)
+// ---------------------------------------------------------------------------
+
+export interface HEOAProjectRecord {
+  project_name: string
+  developer: string
+  state: string
+  capacity_mw: number
+  technology: string
+  status: string
+  investment_b_aud: number
+  target_year: number
+  h2_output_ktpa: number
+}
+
+export interface HEOACostRecord {
+  year: number
+  green_lcoh_aud_kg: number
+  blue_lcoh_aud_kg: number
+  gray_lcoh_aud_kg: number
+  electrolyser_capex_aud_kw: number
+}
+
+export interface HEOADemandRecord {
+  year: number
+  sector: string
+  demand_ktpa: number
+}
+
+export interface HEOAExportRecord {
+  partner_country: string
+  mou_volume_ktpa: number
+  status: string
+  target_year: number
+  port: string
+}
+
+export interface HEOADashboard {
+  timestamp: string
+  projects: HEOAProjectRecord[]
+  costs: HEOACostRecord[]
+  demand: HEOADemandRecord[]
+  exports: HEOAExportRecord[]
+}
+
+export async function getHEOADashboard(): Promise<HEOADashboard> {
+  const r = await fetch(`${BASE_URL}/api/hydrogen-economy-outlook/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+
+// =============================================================================
+// Sprint 165b – Network Augmentation Deferral Analytics (NADA)
+// =============================================================================
+
+export interface NADADeferralRecord {
+  project_name: string
+  dnsp: string
+  zone: string
+  traditional_cost_m_aud: number
+  non_network_cost_m_aud: number
+  saving_m_aud: number
+  deferral_years: number
+  status: string
+  solution_type: string
+  der_capacity_mw: number
+}
+
+export interface NADAInvestmentTrendRecord {
+  year: number
+  traditional_augmentation_m_aud: number
+  non_network_solutions_m_aud: number
+  total_deferred_m_aud: number
+  deferral_rate_pct: number
+}
+
+export interface NADARitdRecord {
+  project_name: string
+  proponent_dnsp: string
+  preferred_option: string
+  net_benefit_m_aud: number
+  capex_m_aud: number
+  assessment_year: number
+  status: string
+  affected_customers_k: number
+}
+
+export interface NADADerHostingRecord {
+  dnsp: string
+  zone_name: string
+  hosting_capacity_mw: number
+  actual_der_mw: number
+  utilisation_pct: number
+  constraint_type: string
+  upgrade_needed: boolean
+}
+
+export interface NADADashboard {
+  timestamp: string
+  deferrals: NADADeferralRecord[]
+  investment_trends: NADAInvestmentTrendRecord[]
+  ritd_assessments: NADARitdRecord[]
+  der_hosting: NADADerHostingRecord[]
+}
+
+export async function getNADADashboard(): Promise<NADADashboard> {
+  const r = await fetch(`${BASE_URL}/api/network-augmentation/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 165c — EV Fleet Grid Integration Analytics (EFGA)
+// ---------------------------------------------------------------------------
+
+export interface EFGAAdoptionRecord {
+  year: number
+  bev_fleet_k: number
+  phev_fleet_k: number
+  v2g_enabled_k: number
+  total_fleet_k: number
+  new_registrations_k: number
+}
+
+export interface EFGAChargingProfileRecord {
+  hour: number
+  unmanaged_load_mw: number
+  smart_charging_mw: number
+  v2g_discharge_mw: number
+  net_grid_impact_mw: number
+  solar_generation_mw: number
+}
+
+export interface EFGAStateImpactRecord {
+  state: string
+  ev_fleet_k: number
+  additional_peak_mw: number
+  v2g_capacity_mw: number
+  smart_charging_reduction_mw: number
+  dc_fast_chargers: number
+  ac_destination_chargers: number
+  home_chargers_k: number
+  charger_utilisation_pct: number
+}
+
+export interface EFGAFleetOperatorRecord {
+  operator_name: string
+  fleet_size: number
+  v2g_pct: number
+  avg_charge_rate_kw: number
+  annual_energy_mwh: number
+  grid_services_revenue_k_aud: number
+}
+
+export interface EFGAMonthlyRecord {
+  month: string
+  charging_energy_gwh: number
+  solar_generation_gwh: number
+  correlation_pct: number
+  avg_daytime_charge_pct: number
+}
+
+export interface EFGADashboard {
+  timestamp: string
+  adoption: EFGAAdoptionRecord[]
+  charging_profile: EFGAChargingProfileRecord[]
+  state_impacts: EFGAStateImpactRecord[]
+  fleet_operators: EFGAFleetOperatorRecord[]
+  monthly: EFGAMonthlyRecord[]
+}
+
+export async function getEFGADashboard(): Promise<EFGADashboard> {
+  const r = await fetch(`${BASE_URL}/api/ev-fleet-grid/dashboard`, { headers: getHeaders() })
+  if (!r.ok) throw new Error(await r.text())
+  return r.json()
+}

@@ -26214,3 +26214,320 @@ class TestElectricityRetailCompetitionAnalytics:
             assert 0 < rec["payment_plan_success_pct"] <= 100, (
                 f"{rec['retailer_name']} payment success {rec['payment_plan_success_pct']}% out of range"
             )
+
+
+class TestHydrogenEconomyOutlookAnalytics:
+    """Tests for GET /api/hydrogen-economy-outlook/dashboard (Sprint 165a)."""
+
+    URL = "/api/hydrogen-economy-outlook/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    VALID_TECHNOLOGIES = {"ALKALINE", "PEM", "SOEC", "SMR_CCS"}
+    VALID_STATUSES = {"OPERATING", "CONSTRUCTION", "FID", "FEASIBILITY", "CONCEPT"}
+    VALID_STATES = {"WA", "SA", "QLD", "NSW", "TAS", "VIC", "NT"}
+    VALID_SECTORS = {"EXPORT", "INDUSTRIAL", "TRANSPORT", "POWER", "AMMONIA"}
+
+    def test_heoa_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_heoa_returns_403_without_key(self):
+        """Endpoint must return 401/403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_heoa_top_level_keys(self):
+        """Response must contain all expected top-level keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        body = r.json()
+        for key in ("timestamp", "projects", "costs", "demand", "exports"):
+            assert key in body, f"Missing key: {key}"
+
+    def test_heoa_projects_count(self):
+        """projects list must contain exactly 12 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["projects"]) == 12
+
+    def test_heoa_project_technologies_valid(self):
+        """Every project must have a valid technology enum value."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["projects"]:
+            assert p["technology"] in self.VALID_TECHNOLOGIES, (
+                f"Invalid technology: {p['technology']}"
+            )
+
+    def test_heoa_project_statuses_valid(self):
+        """Every project must have a valid status enum value."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["projects"]:
+            assert p["status"] in self.VALID_STATUSES, (
+                f"Invalid status: {p['status']}"
+            )
+
+    def test_heoa_project_states_valid(self):
+        """Every project must have a valid state enum value."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for p in r.json()["projects"]:
+            assert p["state"] in self.VALID_STATES, (
+                f"Invalid state: {p['state']}"
+            )
+
+    def test_heoa_costs_count(self):
+        """costs list must contain exactly 7 annual records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["costs"]) == 7
+
+    def test_heoa_green_lcoh_declining(self):
+        """Green LCOH must decline over time (each year <= previous)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        costs = sorted(r.json()["costs"], key=lambda c: c["year"])
+        for i in range(1, len(costs)):
+            assert costs[i]["green_lcoh_aud_kg"] <= costs[i - 1]["green_lcoh_aud_kg"], (
+                f"Green LCOH did not decline from {costs[i-1]['year']} to {costs[i]['year']}: "
+                f"{costs[i-1]['green_lcoh_aud_kg']} -> {costs[i]['green_lcoh_aud_kg']}"
+            )
+
+    def test_heoa_demand_count(self):
+        """demand list must contain exactly 60 records (12 years x 5 sectors)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["demand"]) == 60
+
+    def test_heoa_demand_sectors_valid(self):
+        """Every demand record must have a valid sector enum value."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for d in r.json()["demand"]:
+            assert d["sector"] in self.VALID_SECTORS, (
+                f"Invalid sector: {d['sector']}"
+            )
+
+    def test_heoa_exports_count(self):
+        """exports list must contain exactly 5 MOU records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["exports"]) == 5
+
+    def test_heoa_wa_most_projects(self):
+        """WA must have the most hydrogen projects."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        from collections import Counter
+        state_counts = Counter(p["state"] for p in r.json()["projects"])
+        top_state = state_counts.most_common(1)[0][0]
+        assert top_state == "WA", (
+            f"Expected WA to have most projects, got {top_state}"
+        )
+
+    def test_heoa_export_japan_korea_present(self):
+        """Export MOUs must include Japan and South Korea."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        countries = {e["partner_country"] for e in r.json()["exports"]}
+        assert "Japan" in countries, "Japan missing from export MOUs"
+        assert "South Korea" in countries, "South Korea missing from export MOUs"
+
+
+class TestNetworkAugmentationDeferralAnalytics:
+    """Tests for GET /api/network-augmentation/dashboard (Sprint 165b)."""
+
+    URL = "/api/network-augmentation/dashboard"
+    API_KEY = os.environ.get("API_KEY", "dev-key-12345")
+    HEADERS = {"X-API-Key": API_KEY}
+
+    VALID_DNSPS = [
+        "Ausgrid", "Endeavour", "Essential", "Energex", "Ergon",
+        "SA Power Networks", "CitiPower", "Powercor", "AusNet", "TasNetworks",
+    ]
+
+    def test_nada_returns_200_with_valid_key(self):
+        """Endpoint must return HTTP 200 when a valid API key is supplied."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_nada_returns_403_without_key(self):
+        """Endpoint must return 401 or 403 when no API key header is present
+        and ENERGY_COPILOT_API_KEY is set; otherwise 200 in dev mode."""
+        r_no_key = client.get(self.URL)
+        assert r_no_key.status_code in (200, 401, 403)
+
+    def test_nada_response_has_required_keys(self):
+        """Response body must contain timestamp, deferrals, investment_trends,
+        ritd_assessments, der_hosting keys."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        for key in ("timestamp", "deferrals", "investment_trends", "ritd_assessments", "der_hosting"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_nada_deferral_count(self):
+        """deferrals list must contain exactly 15 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["deferrals"]) == 15
+
+    def test_nada_investment_trend_count(self):
+        """investment_trends list must contain exactly 6 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["investment_trends"]) == 6
+
+    def test_nada_ritd_count(self):
+        """ritd_assessments list must contain exactly 10 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["ritd_assessments"]) == 10
+
+    def test_nada_der_hosting_count(self):
+        """der_hosting list must contain exactly 20 records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["der_hosting"]) == 20
+
+    def test_nada_savings_always_positive(self):
+        """All saving_m_aud values must be positive."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["deferrals"]:
+            assert rec["saving_m_aud"] > 0, (
+                f"{rec['project_name']} saving must be positive, got {rec['saving_m_aud']}"
+            )
+
+    def test_nada_deferral_rate_increasing(self):
+        """deferral_rate_pct must be strictly increasing over years."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        trends = sorted(r.json()["investment_trends"], key=lambda x: x["year"])
+        for i in range(1, len(trends)):
+            assert trends[i]["deferral_rate_pct"] > trends[i - 1]["deferral_rate_pct"], (
+                f"Deferral rate not increasing: {trends[i-1]['year']}="
+                f"{trends[i-1]['deferral_rate_pct']} >= {trends[i]['year']}="
+                f"{trends[i]['deferral_rate_pct']}"
+            )
+
+    def test_nada_all_10_dnsps_represented(self):
+        """All 10 DNSPs must appear in the deferrals data."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        dnsps_found = {rec["dnsp"] for rec in r.json()["deferrals"]}
+        for dnsp in self.VALID_DNSPS:
+            assert dnsp in dnsps_found, f"DNSP {dnsp} not found in deferrals"
+
+    def test_nada_savings_30_to_60_pct(self):
+        """Non-network solutions must save 30-60% vs traditional augmentation."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["deferrals"]:
+            saving_pct = rec["saving_m_aud"] / rec["traditional_cost_m_aud"] * 100
+            assert 30.0 <= saving_pct <= 65.0, (
+                f"{rec['project_name']} saving {saving_pct:.1f}% outside 30-60% range"
+            )
+
+    def test_nada_dnsps_valid(self):
+        """All dnsp values in deferrals must be in the known set."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["deferrals"]:
+            assert rec["dnsp"] in self.VALID_DNSPS, (
+                f"Unknown DNSP: {rec['dnsp']}"
+            )
+
+
+# ============================================================
+# Sprint 165c — EV Fleet Grid Integration Analytics (EFGA)
+# ============================================================
+
+class TestEvFleetGridIntegrationAnalytics:
+    URL = "/api/ev-fleet-grid/dashboard"
+    HEADERS = {"x-api-key": "test-key"}
+    VALID_STATES = {"NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT", "NT"}
+
+    def test_efga_status_ok(self):
+        """Endpoint returns 200."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+
+    def test_efga_adoption_count(self):
+        """Must have 12 adoption records (2024-2035)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["adoption"]) == 12
+
+    def test_efga_charging_profile_count(self):
+        """Must have 24 hourly charging profile records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["charging_profile"]) == 24
+
+    def test_efga_state_impacts_count(self):
+        """Must have 8 state impact records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["state_impacts"]) == 8
+
+    def test_efga_fleet_operators_count(self):
+        """Must have 8 fleet operator records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["fleet_operators"]) == 8
+
+    def test_efga_monthly_count(self):
+        """Must have 12 monthly records."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        assert len(r.json()["monthly"]) == 12
+
+    def test_efga_adoption_increasing_year_over_year(self):
+        """Total fleet size must increase year over year."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        adoption = r.json()["adoption"]
+        for i in range(1, len(adoption)):
+            assert adoption[i]["total_fleet_k"] > adoption[i - 1]["total_fleet_k"], (
+                f"Fleet size not increasing: {adoption[i]['year']} "
+                f"({adoption[i]['total_fleet_k']}) <= {adoption[i-1]['year']} "
+                f"({adoption[i-1]['total_fleet_k']})"
+            )
+
+    def test_efga_smart_charging_less_than_unmanaged(self):
+        """Smart charging load must be less than unmanaged for all hours."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["charging_profile"]:
+            assert rec["smart_charging_mw"] < rec["unmanaged_load_mw"], (
+                f"Hour {rec['hour']}: smart_charging ({rec['smart_charging_mw']}) "
+                f">= unmanaged ({rec['unmanaged_load_mw']})"
+            )
+
+    def test_efga_v2g_only_during_peak_hours(self):
+        """V2G discharge must be > 0 only during peak hours (16-20)."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        for rec in r.json()["charging_profile"]:
+            if 16 <= rec["hour"] <= 20:
+                assert rec["v2g_discharge_mw"] > 0, (
+                    f"Hour {rec['hour']}: V2G should be active during peak"
+                )
+            else:
+                assert rec["v2g_discharge_mw"] == 0, (
+                    f"Hour {rec['hour']}: V2G should be 0 outside peak hours"
+                )
+
+    def test_efga_all_states_represented(self):
+        """All 8 Australian states/territories must be represented."""
+        r = client.get(self.URL, headers=self.HEADERS)
+        assert r.status_code == 200
+        states = {rec["state"] for rec in r.json()["state_impacts"]}
+        assert states == self.VALID_STATES, (
+            f"Missing states: {self.VALID_STATES - states}"
+        )

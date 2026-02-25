@@ -555,6 +555,9 @@ import Aemo5MinSettlementAnalytics from './pages/Aemo5MinSettlementAnalytics'
 import ElectricityRetailCompetitionAnalytics from './pages/ElectricityRetailCompetitionAnalytics'
 import DemandResponseAggregationAnalytics from './pages/DemandResponseAggregationAnalytics'
 import GridFrequencyResponseAnalytics from './pages/GridFrequencyResponseAnalytics'
+import HydrogenEconomyOutlookAnalytics from './pages/HydrogenEconomyOutlookAnalytics'
+import NetworkAugmentationDeferralAnalytics from './pages/NetworkAugmentationDeferralAnalytics'
+import EvFleetGridIntegrationAnalytics from './pages/EvFleetGridIntegrationAnalytics'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1017,6 +1020,9 @@ const NAV_ITEMS = [
   { to: '/retail-competition', label: 'Retail Competition', Icon: ShoppingCart },
   { to: '/demand-response-aggregation', label: 'Demand Response', Icon: Zap },
   { to: '/grid-frequency', label: 'Grid Frequency', Icon: Radio },
+  { to: '/hydrogen-economy-outlook', label: 'Hydrogen Economy', Icon: Fuel },
+  { to: '/network-augmentation', label: 'Network Deferral', Icon: GitBranch },
+  { to: '/ev-fleet-grid', label: 'EV Grid Integration', Icon: Car },
 ]
 
 function Sidebar() {
@@ -1554,6 +1560,9 @@ export default function App() {
               <Route path="/retail-competition" element={<ElectricityRetailCompetitionAnalytics />} />
               <Route path="/demand-response-aggregation" element={<DemandResponseAggregationAnalytics />} />
               <Route path="/grid-frequency" element={<GridFrequencyResponseAnalytics />} />
+              <Route path="/hydrogen-economy-outlook" element={<HydrogenEconomyOutlookAnalytics />} />
+              <Route path="/network-augmentation" element={<NetworkAugmentationDeferralAnalytics />} />
+              <Route path="/ev-fleet-grid" element={<EvFleetGridIntegrationAnalytics />} />
             </Routes>
           </main>
         </div>
