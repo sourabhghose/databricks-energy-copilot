@@ -190,11 +190,13 @@ async def _global_exc_handler(request: Request, exc: Exception):
 
 @app.get("/health", summary="Service health", tags=["Health"])
 async def health():
-    """Return service health status (always healthy in slim deployment mode)."""
+    """Return service health status."""
+    sql_ok = _get_sql_connection() is not None
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "mock_mode": True,
+        "mock_mode": not sql_ok,
+        "sql_connected": sql_ok,
         "deployment": "slim",
         "databricks_healthy": True,
         "lakebase_healthy": True,
@@ -1626,23 +1628,135 @@ _REGION_BASE_PRICES = {"NSW1": 72.5, "QLD1": 65.3, "VIC1": 55.8, "SA1": 88.1, "T
 _AEST = timezone(timedelta(hours=10))
 
 
+# ---------------------------------------------------------------------------
+# SQL query helper — query gold tables via Databricks SQL
+# ---------------------------------------------------------------------------
+_CATALOG = "energy_copilot_catalog"
+_sql_connection = None
+
+
+def _get_sql_connection():
+    """Lazily create a Databricks SQL connection using SDK auth."""
+    global _sql_connection
+    if _sql_connection is not None:
+        try:
+            _sql_connection.cursor().execute("SELECT 1")
+            return _sql_connection
+        except Exception:
+            _sql_connection = None
+
+    try:
+        from databricks.sdk import WorkspaceClient
+        from databricks import sql as dbsql
+
+        w = WorkspaceClient()
+        host = w.config.host.rstrip("/").replace("https://", "")
+        token = w.config.authenticate().get("Authorization", "").replace("Bearer ", "")
+
+        # Find the first available SQL warehouse
+        warehouses = list(w.warehouses.list())
+        wh_id = None
+        for wh in warehouses:
+            if wh.state and str(wh.state).upper() in ("RUNNING", "STARTING"):
+                wh_id = wh.id
+                break
+        if not wh_id and warehouses:
+            wh_id = warehouses[0].id
+        if not wh_id:
+            logger.warning("No SQL warehouse found")
+            return None
+
+        _sql_connection = dbsql.connect(
+            server_hostname=host,
+            http_path=f"/sql/1.0/warehouses/{wh_id}",
+            access_token=token,
+        )
+        logger.info("SQL connection established to %s warehouse %s", host, wh_id)
+        return _sql_connection
+    except Exception as exc:
+        logger.warning("Cannot establish SQL connection: %s", exc)
+        return None
+
+
+def _query_gold(sql: str, params: Optional[dict] = None) -> Optional[List[Dict[str, Any]]]:
+    """Run a SQL query and return list of dicts, or None on failure."""
+    cache_key = f"sql:{hash(sql)}:{params}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    conn = _get_sql_connection()
+    if conn is None:
+        return None
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        result = [dict(zip(columns, row)) for row in rows]
+        # Only cache non-empty results to avoid caching transient misses
+        if result:
+            _cache_set(cache_key, result, ttl_seconds=25)
+        return result
+    except Exception as exc:
+        logger.warning("SQL query failed: %s — %s", exc, sql[:120])
+        return None
+    finally:
+        if cursor:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+
+
 @app.get("/api/prices/latest", summary="Latest spot prices", tags=["Market Data"])
 async def prices_latest():
     """Current spot prices for all 5 NEM regions with trend indicators."""
+    # Try gold table first
+    rows = _query_gold(f"""
+        WITH latest AS (
+            SELECT region_id, rrp, interval_datetime,
+                   LAG(rrp) OVER (PARTITION BY region_id ORDER BY interval_datetime) AS prev_rrp
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 1 HOUR
+        )
+        SELECT region_id, rrp, interval_datetime, prev_rrp
+        FROM latest
+        WHERE (region_id, interval_datetime) IN (
+            SELECT region_id, MAX(interval_datetime) FROM latest GROUP BY region_id
+        )
+    """)
+    if rows:
+        result = []
+        for r in rows:
+            price = float(r["rrp"])
+            prev = float(r["prev_rrp"]) if r.get("prev_rrp") is not None else price
+            trend = "up" if price > prev * 1.01 else ("down" if price < prev * 0.99 else "stable")
+            result.append({
+                "region": r["region_id"],
+                "price": round(price, 2),
+                "trend": trend,
+                "updatedAt": str(r["interval_datetime"]),
+            })
+        # Fill any missing regions
+        found = {r["region"] for r in result}
+        now = datetime.now(_AEST)
+        for region in _NEM_REGIONS:
+            if region not in found:
+                result.append({"region": region, "price": _REGION_BASE_PRICES[region], "trend": "stable", "updatedAt": now.isoformat()})
+        return result
+
+    # Fallback to mock
     now = datetime.now(_AEST)
-    seed = int(now.timestamp() // 30)  # changes every 30s
+    seed = int(now.timestamp() // 30)
     rng = random.Random(seed)
     trends = ["up", "down", "stable"]
     result = []
     for region in _NEM_REGIONS:
         base = _REGION_BASE_PRICES[region]
         price = round(base * rng.uniform(0.85, 1.15), 2)
-        result.append({
-            "region": region,
-            "price": price,
-            "trend": rng.choice(trends),
-            "updatedAt": now.isoformat(),
-        })
+        result.append({"region": region, "price": price, "trend": rng.choice(trends), "updatedAt": now.isoformat()})
     return result
 
 
@@ -1653,6 +1767,17 @@ async def prices_history(
     end: Optional[str] = Query(None),
 ):
     """Return 24 hours of 5-minute price points for a region."""
+    rows = _query_gold(f"""
+        SELECT interval_datetime, rrp
+        FROM {_CATALOG}.gold.nem_prices_5min
+        WHERE region_id = '{region}'
+          AND interval_datetime >= current_timestamp() - INTERVAL 24 HOURS
+        ORDER BY interval_datetime
+    """)
+    if rows and len(rows) > 10:
+        return [{"timestamp": str(r["interval_datetime"]), "price": round(float(r["rrp"]), 2)} for r in rows]
+
+    # Fallback to mock
     base = _REGION_BASE_PRICES.get(region, 70.0)
     now = datetime.now(timezone.utc)
     start_dt = now - timedelta(hours=24)
@@ -1661,7 +1786,6 @@ async def prices_history(
     for i in range(288):
         ts = start_dt + timedelta(minutes=5 * i)
         hour_frac = ts.hour + ts.minute / 60.0
-        # sine wave for daily pattern: peak around 18:00, trough around 04:00
         daily = math.sin((hour_frac - 4) / 24 * 2 * math.pi) * base * 0.3
         noise = rng.gauss(0, base * 0.08)
         price = round(max(0, base + daily + noise), 2)
@@ -1672,6 +1796,47 @@ async def prices_history(
 @app.get("/api/market-summary/latest", summary="Market narrative summary", tags=["Market Data"])
 async def market_summary_latest():
     """AI-generated market summary narrative."""
+    rows = _query_gold(f"""
+        SELECT summary_text, key_events, trading_date, avg_price_aud_mwh,
+               max_price_aud_mwh, renewables_pct, generated_at
+        FROM {_CATALOG}.gold.daily_market_summary
+        WHERE trading_date >= current_date() - INTERVAL 1 DAY
+        ORDER BY trading_date DESC, generated_at DESC
+        LIMIT 1
+    """)
+    if rows and rows[0].get("summary_text"):
+        r = rows[0]
+        return {
+            "summary_date": str(r["trading_date"]),
+            "narrative": r["summary_text"],
+            "model_id": "gold-table",
+            "generated_at": str(r.get("generated_at") or datetime.now(timezone.utc).isoformat()),
+            "word_count": len(str(r["summary_text"]).split()),
+            "generation_succeeded": True,
+        }
+
+    # Build a data-driven summary from prices and generation tables
+    price_rows = _query_gold(f"""
+        SELECT region_id, AVG(rrp) AS avg_rrp, MAX(rrp) AS max_rrp, MIN(rrp) AS min_rrp
+        FROM {_CATALOG}.gold.nem_prices_5min
+        WHERE interval_datetime >= current_timestamp() - INTERVAL 6 HOURS
+        GROUP BY region_id
+    """)
+    if price_rows:
+        lines = []
+        for pr in sorted(price_rows, key=lambda x: -float(x["avg_rrp"])):
+            lines.append(f"{pr['region_id']} averaging ${float(pr['avg_rrp']):.0f}/MWh (range ${float(pr['min_rrp']):.0f}-${float(pr['max_rrp']):.0f})")
+        narrative = f"NEM spot prices over the past 6 hours: {'; '.join(lines)}."
+        return {
+            "summary_date": date.today().isoformat(),
+            "narrative": narrative,
+            "model_id": "auto-summary",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "word_count": len(narrative.split()),
+            "generation_succeeded": True,
+        }
+
+    # Static fallback
     today = date.today().isoformat()
     return {
         "summary_date": today,
@@ -1681,15 +1846,11 @@ async def market_summary_latest():
             "and lower-than-forecast wind output. Victoria and Tasmania continued to benefit from "
             "strong hydro availability, keeping wholesale prices below $60/MWh. NSW demand tracked "
             "near seasonal averages at approximately 8,400 MW, with rooftop solar offsetting "
-            "early-afternoon peaks. Queensland coal units maintained steady output, while battery "
-            "storage facilities across the NEM captured evening price spreads during the transition "
-            "from solar to thermal generation. Interconnector flows from Victoria to South Australia "
-            "reached 85% utilisation during the afternoon shoulder period. Overall system security "
-            "remained satisfactory with adequate inertia margins across all regions."
+            "early-afternoon peaks."
         ),
-        "model_id": "gpt-nem-v3",
+        "model_id": "static-fallback",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "word_count": 120,
+        "word_count": 70,
         "generation_succeeded": True,
     }
 
@@ -1701,6 +1862,26 @@ async def generation_timeseries(
     end: Optional[str] = Query(None),
 ):
     """Return generation mix time series (30-min intervals, 24h) for a region."""
+    rows = _query_gold(f"""
+        SELECT interval_datetime, fuel_type, total_mw
+        FROM {_CATALOG}.gold.nem_generation_by_fuel
+        WHERE region_id = '{region}'
+          AND interval_datetime >= current_timestamp() - INTERVAL 24 HOURS
+        ORDER BY interval_datetime, fuel_type
+    """)
+    if rows and len(rows) > 10:
+        from itertools import groupby
+        # Pivot: group by interval, fuel_type columns
+        by_interval = {}
+        for r in rows:
+            ts = str(r["interval_datetime"])
+            if ts not in by_interval:
+                by_interval[ts] = {"timestamp": ts}
+            fuel = str(r["fuel_type"]).lower()
+            by_interval[ts][fuel] = round(float(r["total_mw"]), 1)
+        return list(by_interval.values())
+
+    # Fallback to mock
     now = datetime.now(timezone.utc)
     start_dt = now - timedelta(hours=24)
     rng = random.Random(hash(region) + 42)
@@ -1735,6 +1916,50 @@ async def generation_timeseries(
 @app.get("/api/interconnectors", summary="Interconnector flows", tags=["Market Data"])
 async def interconnectors(intervals: int = Query(12)):
     """Return InterconnectorSummary matching frontend interface."""
+    # IC metadata for from/to region mapping
+    _ic_meta = {
+        "N-Q-MNSP1":  {"from": "NSW1", "to": "QLD1", "limit": 700, "export_limit": 700, "import_limit": 600},
+        "VIC1-NSW1":  {"from": "VIC1", "to": "NSW1", "limit": 1350, "export_limit": 1350, "import_limit": 1200},
+        "V-SA":       {"from": "VIC1", "to": "SA1", "limit": 680, "export_limit": 680, "import_limit": 550},
+        "T-V-MNSP1":  {"from": "TAS1", "to": "VIC1", "limit": 594, "export_limit": 594, "import_limit": 478},
+        "V-S-MNSP1":  {"from": "VIC1", "to": "SA1", "limit": 220, "export_limit": 220, "import_limit": 200},
+    }
+    rows = _query_gold(f"""
+        SELECT interconnector_id, mw_flow, export_limit_mw, import_limit_mw, interval_datetime,
+               from_region, to_region
+        FROM {_CATALOG}.gold.nem_interconnectors
+        WHERE interval_datetime = (SELECT MAX(interval_datetime) FROM {_CATALOG}.gold.nem_interconnectors)
+    """)
+    if rows:
+        now = str(rows[0]["interval_datetime"])
+        interconnectors_list = []
+        max_util = 0.0
+        most_loaded = ""
+        total_mw = 0.0
+        for r in rows:
+            ic_id = r["interconnector_id"]
+            flow = float(r["mw_flow"])
+            meta = _ic_meta.get(ic_id, {})
+            limit = float(r.get("export_limit_mw") or meta.get("limit", 700))
+            util = abs(flow) / limit if limit > 0 else 0
+            if util > max_util:
+                max_util = util
+                most_loaded = ic_id
+            total_mw += abs(flow)
+            interconnectors_list.append({
+                "interval_datetime": now,
+                "interconnectorid": ic_id,
+                "from_region": r.get("from_region") or meta.get("from", ""),
+                "to_region": r.get("to_region") or meta.get("to", ""),
+                "mw_flow": round(flow, 1),
+                "mw_flow_limit": limit,
+                "export_limit": float(r.get("export_limit_mw") or meta.get("export_limit", limit)),
+                "import_limit": float(r.get("import_limit_mw") or meta.get("import_limit", limit)),
+                "congested": util > 0.85,
+            })
+        return {"timestamp": now, "interconnectors": interconnectors_list, "most_loaded": most_loaded, "total_interstate_mw": round(total_mw, 0)}
+
+    # Fallback to mock
     now = datetime.now(timezone.utc)
     rng = random.Random(int(now.timestamp() // 60))
     ic_data = [
@@ -1756,22 +1981,13 @@ async def interconnectors(intervals: int = Query(12)):
             most_loaded = ic["id"]
         total_mw += abs(flow)
         interconnectors_list.append({
-            "interval_datetime": now.isoformat(),
-            "interconnectorid": ic["id"],
-            "from_region": ic["from_region"],
-            "to_region": ic["to_region"],
-            "mw_flow": flow,
-            "mw_flow_limit": ic["limit"],
-            "export_limit": ic["export_limit"],
-            "import_limit": ic["import_limit"],
+            "interval_datetime": now.isoformat(), "interconnectorid": ic["id"],
+            "from_region": ic["from_region"], "to_region": ic["to_region"],
+            "mw_flow": flow, "mw_flow_limit": ic["limit"],
+            "export_limit": ic["export_limit"], "import_limit": ic["import_limit"],
             "congested": util > 0.85,
         })
-    return {
-        "timestamp": now.isoformat(),
-        "interconnectors": interconnectors_list,
-        "most_loaded": most_loaded,
-        "total_interstate_mw": round(total_mw, 0),
-    }
+    return {"timestamp": now.isoformat(), "interconnectors": interconnectors_list, "most_loaded": most_loaded, "total_interstate_mw": round(total_mw, 0)}
 
 
 @app.get("/api/forecasts", summary="Price forecasts", tags=["Market Data"])
@@ -1786,23 +2002,50 @@ async def forecasts(
         hours = int(horizon[:-1])
     elif horizon.endswith("d"):
         hours = int(horizon[:-1]) * 24
+
+    rows = _query_gold(f"""
+        SELECT interval_datetime, predicted_rrp, prediction_lower_80, prediction_upper_80,
+               spike_probability, horizon_intervals
+        FROM {_CATALOG}.gold.price_forecasts
+        WHERE region_id = '{region}'
+          AND interval_datetime >= current_timestamp()
+          AND interval_datetime <= current_timestamp() + INTERVAL {hours} HOURS
+        ORDER BY interval_datetime
+    """)
+    if rows and len(rows) > 3:
+        points = []
+        for r in rows:
+            pred = float(r["predicted_rrp"])
+            lo = float(r.get("prediction_lower_80") or pred * 0.85)
+            hi = float(r.get("prediction_upper_80") or pred * 1.15)
+            h = int(r.get("horizon_intervals") or 1)
+            conf = round(max(0.5, 0.92 - h * 0.02), 2)
+            points.append({
+                "timestamp": str(r["interval_datetime"]),
+                "predicted": round(pred, 2),
+                "lower": round(lo, 2),
+                "upper": round(hi, 2),
+                "price_p10": round(lo * 0.9, 2),
+                "price_p90": round(hi * 1.1, 2),
+                "forecast_confidence": conf,
+            })
+        return points
+
+    # Fallback to mock
     base = _REGION_BASE_PRICES.get(region, 70.0)
     rng = random.Random(hash(region) + int(now.timestamp() // 3600))
     points = []
-    for i in range(hours * 2):  # 30-min intervals
+    for i in range(hours * 2):
         ts = now + timedelta(minutes=30 * i)
         hour = ts.hour + ts.minute / 60.0
         daily = math.sin((hour - 4) / 24 * 2 * math.pi) * base * 0.25
         noise = rng.gauss(0, base * 0.06)
         price = round(max(0, base + daily + noise), 2)
-        ci_width = base * 0.15 * (1 + i / (hours * 2))  # widening CI
+        ci_width = base * 0.15 * (1 + i / (hours * 2))
         points.append({
-            "timestamp": ts.isoformat(),
-            "predicted": price,
-            "lower": round(max(0, price - ci_width), 2),
-            "upper": round(price + ci_width, 2),
-            "price_p10": round(max(0, price - ci_width * 0.8), 2),
-            "price_p90": round(price + ci_width * 0.8, 2),
+            "timestamp": ts.isoformat(), "predicted": price,
+            "lower": round(max(0, price - ci_width), 2), "upper": round(price + ci_width, 2),
+            "price_p10": round(max(0, price - ci_width * 0.8), 2), "price_p90": round(price + ci_width * 0.8, 2),
             "forecast_confidence": round(max(0.5, 0.92 - i / (hours * 4)), 2),
         })
     return points
@@ -1839,6 +2082,28 @@ async def prices_spikes(
     end: Optional[str] = Query(None),
 ):
     """Return recent price spike events for a region."""
+    rows = _query_gold(f"""
+        SELECT detected_at, interval_datetime, metric_value, description, event_type
+        FROM {_CATALOG}.gold.anomaly_events
+        WHERE (region_id = '{region}' OR region_id IS NULL)
+          AND event_type IN ('price_spike', 'negative_price')
+          AND detected_at >= current_timestamp() - INTERVAL 72 HOURS
+        ORDER BY detected_at DESC
+        LIMIT 20
+    """)
+    if rows:
+        spikes = []
+        for r in rows:
+            spikes.append({
+                "timestamp": str(r.get("interval_datetime") or r["detected_at"]),
+                "peakPrice": round(float(r.get("metric_value") or 300), 2),
+                "durationMinutes": 5,
+                "region": region,
+                "trigger": str(r.get("event_type") or "price_spike"),
+            })
+        return spikes
+
+    # Fallback to mock
     now = datetime.now(timezone.utc)
     rng = random.Random(hash(region) + 999)
     spikes = []
@@ -1847,13 +2112,9 @@ async def prices_spikes(
         base = _REGION_BASE_PRICES.get(region, 70.0)
         peak = round(base * rng.uniform(5, 25), 2)
         duration = rng.randint(5, 30)
-        spikes.append({
-            "timestamp": spike_time.isoformat(),
-            "peakPrice": peak,
-            "durationMinutes": duration,
-            "region": region,
-            "trigger": rng.choice(["generator_trip", "demand_surge", "interconnector_constraint", "forecast_error"]),
-        })
+        spikes.append({"timestamp": spike_time.isoformat(), "peakPrice": peak,
+            "durationMinutes": duration, "region": region,
+            "trigger": rng.choice(["generator_trip", "demand_surge", "interconnector_constraint", "forecast_error"])})
     spikes.sort(key=lambda s: s["timestamp"], reverse=True)
     return spikes
 
@@ -1861,19 +2122,67 @@ async def prices_spikes(
 @app.get("/api/prices/volatility", summary="Price volatility metrics", tags=["Market Data"])
 async def prices_volatility():
     """Return volatility metrics for all NEM regions."""
+    rows = _query_gold(f"""
+        WITH stats AS (
+            SELECT region_id,
+                   AVG(rrp) AS avg_price,
+                   STDDEV(rrp) AS std_dev,
+                   MAX(rrp) AS max_price,
+                   MIN(rrp) AS min_price,
+                   SUM(CASE WHEN rrp > 300 THEN 1 ELSE 0 END) AS spike_count
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS
+            GROUP BY region_id
+        ),
+        latest AS (
+            SELECT region_id, rrp AS current_price,
+                   ROW_NUMBER() OVER (PARTITION BY region_id ORDER BY interval_datetime DESC) AS rn
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 1 HOUR
+        )
+        SELECT s.region_id, l.current_price, s.avg_price, s.std_dev,
+               s.max_price, s.min_price, s.spike_count
+        FROM stats s
+        LEFT JOIN latest l ON s.region_id = l.region_id AND l.rn = 1
+    """)
+    if rows:
+        result = []
+        for r in rows:
+            avg_p = float(r["avg_price"])
+            std = float(r["std_dev"]) if r["std_dev"] else avg_p * 0.2
+            result.append({
+                "region": r["region_id"],
+                "currentPrice": round(float(r["current_price"]), 2),
+                "avgPrice24h": round(avg_p, 2),
+                "stdDev24h": round(std, 2),
+                "maxPrice24h": round(float(r["max_price"]), 2),
+                "minPrice24h": round(float(r["min_price"]), 2),
+                "volatilityIndex": round(min(1.0, std / avg_p) if avg_p > 0 else 0.5, 3),
+                "spikeCount24h": int(r["spike_count"]),
+            })
+        # Fill missing regions
+        found = {r["region"] for r in result}
+        rng = random.Random(int(datetime.now(timezone.utc).timestamp() // 3600))
+        for region in _NEM_REGIONS:
+            if region not in found:
+                base = _REGION_BASE_PRICES[region]
+                result.append({"region": region, "currentPrice": base, "avgPrice24h": base,
+                    "stdDev24h": round(base * 0.2, 2), "maxPrice24h": round(base * 2, 2),
+                    "minPrice24h": round(base * 0.4, 2), "volatilityIndex": 0.3, "spikeCount24h": 0})
+        return result
+
+    # Fallback to mock
     rng = random.Random(int(datetime.now(timezone.utc).timestamp() // 3600))
     result = []
     for region in _NEM_REGIONS:
         base = _REGION_BASE_PRICES[region]
         result.append({
-            "region": region,
-            "currentPrice": round(base * rng.uniform(0.9, 1.1), 2),
+            "region": region, "currentPrice": round(base * rng.uniform(0.9, 1.1), 2),
             "avgPrice24h": round(base * rng.uniform(0.95, 1.05), 2),
             "stdDev24h": round(base * rng.uniform(0.1, 0.4), 2),
             "maxPrice24h": round(base * rng.uniform(1.5, 3.0), 2),
             "minPrice24h": round(base * rng.uniform(0.2, 0.6), 2),
-            "volatilityIndex": round(rng.uniform(0.1, 0.9), 3),
-            "spikeCount24h": rng.randint(0, 5),
+            "volatilityIndex": round(rng.uniform(0.1, 0.9), 3), "spikeCount24h": rng.randint(0, 5),
         })
     return result
 
@@ -1954,6 +2263,53 @@ async def generation_units(region: str = Query("NSW1"), fuel_type: str = Query(N
 @app.get("/api/generation/mix", summary="Generation mix percentages", tags=["Market Data"])
 async def generation_mix_pct(region: str = Query("NSW1")):
     """Return GenerationSummary matching frontend interface."""
+    renewables_set = {"hydro", "wind", "solar", "battery"}
+    unit_counts = {"coal": 4, "gas": 5, "hydro": 6, "wind": 8, "solar": 10, "battery": 3}
+
+    rows = _query_gold(f"""
+        SELECT fuel_type, total_mw, unit_count, capacity_factor, emissions_tco2e, interval_datetime
+        FROM {_CATALOG}.gold.nem_generation_by_fuel
+        WHERE region_id = '{region}'
+          AND interval_datetime = (
+              SELECT MAX(interval_datetime)
+              FROM {_CATALOG}.gold.nem_generation_by_fuel
+              WHERE region_id = '{region}'
+          )
+    """)
+    if rows:
+        total_gen = sum(float(r["total_mw"]) for r in rows)
+        fuel_mix = []
+        renewable_mw = 0.0
+        total_emissions = 0.0
+        for r in rows:
+            mw = float(r["total_mw"])
+            fuel = str(r["fuel_type"])
+            fuel_lower = fuel.lower()
+            pct = round(mw / total_gen * 100, 1) if total_gen > 0 else 0
+            is_renew = fuel_lower in renewables_set
+            if is_renew:
+                renewable_mw += mw
+            if r.get("emissions_tco2e"):
+                total_emissions += float(r["emissions_tco2e"])
+            fuel_mix.append({
+                "fuel_type": fuel.title(),
+                "total_mw": round(mw, 0),
+                "percentage": pct,
+                "unit_count": int(r.get("unit_count") or unit_counts.get(fuel_lower, 3)),
+                "is_renewable": is_renew,
+            })
+        carbon_intensity = round(total_emissions / total_gen, 2) if total_gen > 0 and total_emissions > 0 else round(random.uniform(0.4, 0.85), 2)
+        return {
+            "timestamp": str(rows[0]["interval_datetime"]),
+            "total_generation_mw": round(total_gen, 0),
+            "renewable_mw": round(renewable_mw, 0),
+            "renewable_percentage": round(renewable_mw / total_gen * 100, 1) if total_gen > 0 else 0,
+            "carbon_intensity_kg_co2_mwh": carbon_intensity,
+            "region": region,
+            "fuel_mix": fuel_mix,
+        }
+
+    # Fallback to mock
     mix_data = {
         "NSW1": {"Black Coal": 52.0, "Natural Gas": 8.5, "Hydro": 10.2, "Wind": 12.8, "Solar": 13.5, "Battery": 3.0},
         "QLD1": {"Black Coal": 58.0, "Natural Gas": 12.0, "Hydro": 5.0, "Wind": 7.5, "Solar": 15.5, "Battery": 2.0},
@@ -1962,7 +2318,6 @@ async def generation_mix_pct(region: str = Query("NSW1")):
         "TAS1": {"Natural Gas": 3.0, "Hydro": 72.0, "Wind": 20.0, "Solar": 5.0},
     }
     total_gen_base = {"NSW1": 9500, "QLD1": 7200, "VIC1": 6800, "SA1": 2200, "TAS1": 1400}
-    renewables = {"Hydro", "Wind", "Solar", "Battery"}
     mix = mix_data.get(region, mix_data["NSW1"])
     rng = random.Random(int(datetime.now(timezone.utc).timestamp() // 300) + hash(region))
     total_gen = total_gen_base.get(region, 7000) + rng.uniform(-500, 500)
@@ -1974,28 +2329,20 @@ async def generation_mix_pct(region: str = Query("NSW1")):
         total_pct += val
     fuel_mix = []
     renewable_mw = 0.0
-    unit_counts = {"Black Coal": 4, "Brown Coal": 3, "Natural Gas": 5, "Hydro": 6, "Wind": 8, "Solar": 10, "Battery": 3}
     for fuel, val in adjusted.items():
         pct = round(val / total_pct * 100, 1)
         mw = round(total_gen * pct / 100, 0)
-        is_renew = fuel in renewables
+        is_renew = fuel in {"Hydro", "Wind", "Solar", "Battery"}
         if is_renew:
             renewable_mw += mw
-        fuel_mix.append({
-            "fuel_type": fuel,
-            "total_mw": mw,
-            "percentage": pct,
-            "unit_count": unit_counts.get(fuel, 3),
-            "is_renewable": is_renew,
-        })
+        fuel_mix.append({"fuel_type": fuel, "total_mw": mw, "percentage": pct,
+            "unit_count": {"Black Coal": 4, "Brown Coal": 3, "Natural Gas": 5, "Hydro": 6, "Wind": 8, "Solar": 10, "Battery": 3}.get(fuel, 3),
+            "is_renewable": is_renew})
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "total_generation_mw": round(total_gen, 0),
+        "timestamp": datetime.now(timezone.utc).isoformat(), "total_generation_mw": round(total_gen, 0),
         "renewable_mw": round(renewable_mw, 0),
         "renewable_percentage": round(renewable_mw / total_gen * 100, 1) if total_gen > 0 else 0,
-        "carbon_intensity_kg_co2_mwh": round(rng.uniform(0.4, 0.85), 2),
-        "region": region,
-        "fuel_mix": fuel_mix,
+        "carbon_intensity_kg_co2_mwh": round(rng.uniform(0.4, 0.85), 2), "region": region, "fuel_mix": fuel_mix,
     }
 
 
