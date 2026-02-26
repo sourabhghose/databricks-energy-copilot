@@ -3685,7 +3685,7 @@ async def _build_market_context() -> str:
                 + "\n".join(fuel_lines)
             )
     except Exception as exc:
-        lg.warning("Context: generation mix failed: %s", exc)
+        logger.warning("Context: generation mix failed: %s", exc)
 
     if nem_total_gen > 0:
         parts.append(
@@ -3696,17 +3696,18 @@ async def _build_market_context() -> str:
     # 6. Price volatility
     try:
         vol = await prices_volatility()
+        vol_regions = vol.get("regions", []) if isinstance(vol, dict) else vol
         lines = []
-        for v in vol:
+        for v in vol_regions:
             lines.append(
-                f"  {v['region']}: avg=${v.get('avgPrice24h', 0):.1f}, "
-                f"std_dev=${v.get('stdDev24h', 0):.1f}, "
-                f"range=[${v.get('minPrice24h', 0):.0f}, ${v.get('maxPrice24h', 0):.0f}], "
-                f"spikes={v.get('spikeCount24h', 0)}"
+                f"  {v['region']}: avg=${v.get('mean_price', 0):.1f}, "
+                f"std_dev=${v.get('std_dev', 0):.1f}, "
+                f"range=[${v.get('min_price', 0):.0f}, ${v.get('max_price', 0):.0f}], "
+                f"spikes={v.get('spike_count', 0)}"
             )
         parts.append("PRICE VOLATILITY (24h):\n" + "\n".join(lines))
     except Exception as exc:
-        lg.warning("Context: volatility failed: %s", exc)
+        logger.warning("Context: volatility failed: %s", exc)
 
     # 7. BESS fleet summary
     try:
@@ -3732,7 +3733,7 @@ async def _build_market_context() -> str:
                 )
             parts.append("BESS UNIT DETAIL:\n" + "\n".join(bess_lines))
     except Exception as exc:
-        lg.warning("Context: BESS fleet failed: %s", exc)
+        logger.warning("Context: BESS fleet failed: %s", exc)
 
     # 8. Alerts
     try:
@@ -3754,7 +3755,7 @@ async def _build_market_context() -> str:
                 + "\n".join(lines)
             )
     except Exception as exc:
-        lg.warning("Context: alerts failed: %s", exc)
+        logger.warning("Context: alerts failed: %s", exc)
 
     # 9. Demand response
     try:
@@ -3776,7 +3777,7 @@ async def _build_market_context() -> str:
                     )
                 parts.append("DR EVENTS TODAY:\n" + "\n".join(ev_lines))
     except Exception as exc:
-        lg.warning("Context: demand response failed: %s", exc)
+        logger.warning("Context: demand response failed: %s", exc)
 
     # 10. Forecasts summary (next 4h price outlook)
     try:
@@ -3792,7 +3793,7 @@ async def _build_market_context() -> str:
                     f"avg ${avg_fc:.1f}, min ${min_fc:.1f}, max ${max_fc:.1f}/MWh"
                 )
     except Exception as exc:
-        lg.warning("Context: forecasts failed: %s", exc)
+        logger.warning("Context: forecasts failed: %s", exc)
 
     # 11. Merit order snapshot (top generators)
     try:
@@ -3808,9 +3809,20 @@ async def _build_market_context() -> str:
                 )
             parts.append(f"MERIT ORDER — NSW1 (cheapest 5):\n" + "\n".join(mo_lines))
     except Exception as exc:
-        lg.warning("Context: merit order failed: %s", exc)
+        logger.warning("Context: merit order failed: %s", exc)
 
     return "\n\n".join(parts)
+
+
+@app.get("/api/debug/context")
+async def debug_context():
+    """Debug: show the market context that gets injected into the LLM."""
+    try:
+        ctx = await _build_market_context()
+        return {"status": "ok", "length": len(ctx), "context": ctx}
+    except Exception as exc:
+        import traceback
+        return {"status": "error", "error": str(exc), "traceback": traceback.format_exc()}
 
 
 class ChatRequest(BaseModel):
@@ -3835,7 +3847,7 @@ async def copilot_chat(req: ChatRequest):
         # Get auth headers from the SDK (handles OAuth, PAT, etc.)
         auth_headers = w.config.authenticate()
     except Exception as auth_exc:
-        lg.error("Failed to initialise Databricks auth: %s", auth_exc)
+        logger.error("Failed to initialise Databricks auth: %s", auth_exc)
         return JSONResponse(
             status_code=500,
             content={"error": f"Databricks authentication failed: {str(auth_exc)[:200]}"},
@@ -3924,7 +3936,7 @@ async def copilot_chat(req: ChatRequest):
                                 except json.JSONDecodeError:
                                     pass
         except Exception as exc:
-            lg.exception("Chat stream error")
+            logger.exception("Chat stream error")
             yield f'data: {json.dumps({"content": f"Error: {str(exc)[:200]}"})}\n\n'
 
         # Send done event with token usage

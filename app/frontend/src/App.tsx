@@ -1157,10 +1157,16 @@ function Sidebar() {
   }, [])
 
   return (
-    <aside className="flex flex-col w-56 min-h-screen bg-gray-900 dark:bg-gray-950 text-gray-100 shrink-0">
+    <aside className="flex flex-col w-56 min-h-screen text-gray-100 shrink-0" style={{ backgroundColor: 'var(--db-sidebar)' }}>
       {/* Brand */}
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-700">
-        <Zap className="text-amber-400" size={22} />
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-white/10">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-7 h-7 shrink-0">
+          <g transform="matrix(0.753,0,0,0.753,1.054,18.824)">
+            <path fill="#db1905" d="M0,24.8V38.5L41.1,60 82.2,38.5V24.8L67.7,17.4 82.2,9.8V-3.8L82.1-3.8 41.1-25 .1-3.9H0V9.8L14.5,17.4 0,24.8"/>
+            <polygon fill="#ff5224" transform="translate(0,-36)" points="0,60.8 41.1,82.3 82.2,60.8 67.7,53.4 41.1,67.3 14.5,53.4"/>
+            <polygon fill="#ff5224" transform="translate(0,-36)" points="82.2,32.2 41.1,53.7 0,32.2 41.1,11"/>
+          </g>
+        </svg>
         <span className="text-sm font-bold leading-tight tracking-tight">
           AUS Energy<br />Copilot
         </span>
@@ -1176,7 +1182,7 @@ function Sidebar() {
             end={to === '/'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
               }`
             }
           >
@@ -1185,7 +1191,7 @@ function Sidebar() {
           </NavLink>
         ))}
 
-        <div className="h-px bg-gray-700/50 my-2 mx-2" />
+        <div className="h-px bg-white/10 my-2 mx-2" />
 
         {/* Accordion groups */}
         {navGroups.map(group => {
@@ -1197,8 +1203,8 @@ function Sidebar() {
                 onClick={() => toggleGroup(group.key)}
                 className={`flex items-center justify-between w-full px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${
                   hasActive
-                    ? 'text-amber-400 bg-gray-800/50'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                    ? 'text-[#FF3621] bg-white/5'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -1211,7 +1217,7 @@ function Sidebar() {
                 </span>
               </button>
               {isOpen && (
-                <div className="ml-3 border-l border-gray-800 pl-1 py-0.5">
+                <div className="ml-3 border-l border-white/10 pl-1 py-0.5">
                   {group.items.map(({ to, label, Icon }) => (
                     <NavLink
                       key={to}
@@ -1219,8 +1225,8 @@ function Sidebar() {
                       className={({ isActive }) =>
                         `flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
                           isActive
-                            ? 'bg-gray-700 text-white font-medium'
-                            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                            ? 'bg-white/10 text-white font-medium'
+                            : 'text-gray-400 hover:bg-white/5 hover:text-white'
                         }`
                       }
                     >
@@ -1236,13 +1242,13 @@ function Sidebar() {
       </nav>
 
       {/* Footer — Settings + attribution */}
-      <div className="border-t border-gray-700 px-2 py-2">
+      <div className="border-t border-white/10 px-2 py-2">
         {settingsItem && (
           <NavLink
             to={settingsItem.to}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
               }`
             }
           >
@@ -1250,8 +1256,8 @@ function Sidebar() {
             Settings
           </NavLink>
         )}
-        <div className="px-3 py-2 text-xs text-gray-500">
-          NEM data via NEMWEB
+        <div className="px-3 py-1 text-[10px] text-gray-500">
+          Powered by Databricks
         </div>
       </div>
     </aside>
@@ -1261,7 +1267,7 @@ function Sidebar() {
 function TopBar() {
   const [isDark, toggleDark] = useDarkMode()
   return (
-    <header className="h-12 flex items-center justify-between px-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shrink-0">
+    <header className="h-12 flex items-center justify-between px-6 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-[#30363D] shrink-0">
       <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
         AUS Energy Copilot
       </h1>
@@ -1286,7 +1292,7 @@ function TopBar() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      <div className="flex h-screen bg-[#F5F7FA] dark:bg-[#0D1117] overflow-hidden">
         <Sidebar />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <TopBar />
