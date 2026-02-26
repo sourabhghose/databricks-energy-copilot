@@ -3,6 +3,26 @@
 All notable changes to AUS Energy Copilot are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Sprint 171] - 2026-02-26
+
+### Fixed
+- Route ordering: moved 32 stub dashboard endpoints before the API catch-all route (`/api/{path:path}`) so they no longer return 404
+- Copilot data context: fixed `NameError: name 'lg' is not defined` in `_build_market_context()` — logger variable was `logger` but context builder used `lg`
+- Copilot volatility parsing: `prices_volatility()` returns `{"regions": [...]}` dict but context builder iterated over it directly; now extracts `.regions` list and uses correct field names (`mean_price`, `std_dev`, `min_price`, `max_price`, `spike_count`)
+
+### Changed
+- API catch-all fallback from 404 to 501 ("not yet implemented") so frontend error handlers display a message instead of crashing to blank screen
+- Sidebar branding: Databricks logo (inline SVG), dark sidebar (`#1B3139`), accent color `#FF3621`
+- Favicon: Databricks diamond logo as data URI SVG
+- Font: DM Sans via Google Fonts
+- Title: "AUS Energy Copilot | Databricks"
+- Top bar and main container colors updated to Databricks palette
+- Footer: "Powered by Databricks"
+
+### Added
+- `/api/debug/context` endpoint for troubleshooting copilot system prompt context
+- Databricks icon SVG in `frontend/dist/`
+
 ## [Sprint 12c] - 2026-02-19
 
 ### Added

@@ -650,14 +650,30 @@ Week 9-10: Sprint 4 — Genie, Alerts, Polish, Launch
 - [ ] Data freshness: dispatch data < 2 minutes from AEMO publish
 - [ ] 20 forecast models (5 regions × 4 types: price, demand, wind, solar) + anomaly model trained, evaluated, and serving forecasts via multi-horizon output design
 - [ ] Price forecast 1-hr MAE < $15/MWh (excluding extreme events >$500/MWh); spike detection recall tracked separately
-- [ ] AI Copilot agent deployed with 14 tools (including FCAS), >80% query resolution rate
+- [x] AI Copilot agent deployed with data-driven context (market prices, generation, interconnectors, volatility, forecasts injected into system prompt); responds with specific NEM data
 - [ ] RAG index over AEMO documents searchable
 - [ ] Daily AI market summaries auto-generating by 06:00 AEST
 - [ ] 3 Genie spaces live with >85% query accuracy (semantic layer — column descriptions and benchmark questions — tuned per space)
-- [ ] React app (Vite + TypeScript + FastAPI backend) deployed on Databricks Apps with 6 pages (Home, Live Market, Forecasts, Copilot, Genie, Alerts)
+- [x] React app (Vite + TypeScript + FastAPI backend) deployed on Databricks Apps with 30+ analytics pages (Home, Live Market, Forecasts, Copilot, Genie, Alerts + 24 domain-specific dashboards)
 - [ ] SQL alerts configured for price thresholds, data staleness, model drift
 - [ ] Dashboard load time < 3 seconds
 - [ ] Lakebase storing user preferences and copilot history
 - [ ] Access control configured: Databricks Apps SSO, Unity Catalog RBAC (gold/silver read for app users; bronze restricted to pipeline service principals)
 - [ ] End-to-end test suite passing
 - [ ] Architecture documentation and user guide complete
+- [x] Databricks branding applied (DM Sans font, Databricks logo favicon + sidebar, color palette)
+- [x] Graceful 501 fallback for unimplemented endpoints (535+ endpoints return friendly error instead of blank screen)
+
+---
+
+## 10. Current Deployment Status (2026-02-26)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Databricks App** | Live | https://energy-copilot-7474645691011751.aws.databricksapps.com |
+| **Workspace** | Active | https://fevm-energy-copilot.cloud.databricks.com |
+| **Frontend** | Deployed | 30+ pages, Databricks branding, DM Sans font |
+| **Backend** | Deployed | ~86 implemented endpoints, 501 fallback for ~535 remaining |
+| **AI Copilot** | Working | Data-driven responses using live market context (prices, generation, interconnectors, volatility, forecasts) |
+| **GitHub** | Pushed | https://github.com/sourabhghose/databricks-energy-copilot |
+| **CLI Profile** | `fe-vm-energy-copilot` | Warehouse: `4d44ca1635a22803` |

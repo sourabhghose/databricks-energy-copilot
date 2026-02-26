@@ -1,8 +1,8 @@
 # AUS Energy Copilot — Project Status
 
 ## Frontend Workstream — completed
-**Completed:** package.json, tsconfig.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, 6 pages, 4 components, api/client.ts, hooks/useMarketData.ts
-**Notes:** React 18 + Vite 5 + TypeScript. Recharts for charts, Tailwind for styling, React Router v6 for navigation. SSE streaming in ChatInterface for real-time copilot responses. InterconnectorMap uses inline SVG.
+**Completed:** package.json, tsconfig.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, 30+ pages (6 core + 24 domain-specific analytics dashboards), 4 components, api/client.ts, hooks/useMarketData.ts
+**Notes:** React 18 + Vite 5 + TypeScript. Recharts for charts, Tailwind for styling, React Router v6 for navigation. SSE streaming in ChatInterface for real-time copilot responses. InterconnectorMap uses inline SVG. Databricks branding applied: DM Sans font, Databricks logo (inline SVG in sidebar + data URI favicon), color palette (#FF3621 red, #1B3139 dark sidebar, #0D1117 dark mode). Build command: `npx vite build` (skips tsc type-checking).
 
 ## Backend + Agent Workstream — 2026-02-19T00:00:00+11:00 (AEDT)
 
@@ -1959,3 +1959,39 @@ Backend, frontend page, API client types, routing, and tests for BatteryChemistr
 **CBA:** 15 community batteries (Ausgrid Beacon Hill, SA Power Networks Payneham, etc.), 24 hourly operations, 12 monthly benefits, 15 revenue records. Endpoint: `/api/community-battery/dashboard`. 19 tests.
 
 **WMRA:** 15 reforms, 36 efficiency months, 15 consumer impact records, 7 price cap years, 10 metrics. Endpoint: `/api/wholesale-market-reform/dashboard`.
+
+---
+
+## Sprint 171 — Route Ordering Fix, Databricks Branding & Copilot Context Fix (2026-02-26)
+
+### Route Ordering Fix
+- **Problem:** 32 stub dashboard endpoints (added in Sprint 163-170) were placed AFTER the API catch-all route `@app.api_route("/api/{path:path}")` in `app/main.py`, causing all of them to return 404.
+- **Fix:** Moved the 315-line block of 32 endpoint definitions to BEFORE the catch-all route using a Python line-manipulation script.
+- **Verification:** All 31 new endpoints confirmed returning HTTP 200 via Chrome DevTools fetch() calls.
+
+### Graceful 501 Fallback
+- **Problem:** Frontend has ~586 unique API endpoints but only ~86 are implemented. Pages with unimplemented endpoints crashed to blank screens (generic 200 mock data had wrong TypeScript shape, causing `TypeError: t.filter is not a function`).
+- **Fix:** Changed API catch-all from 404 to HTTP 501 with structured JSON error: `{"error": "Endpoint /api/{path} is not yet implemented", "message": "..."}`. Frontend `get<T>()` throws on non-2xx, so each page's catch block shows a red error message instead of crashing.
+
+### Databricks Branding
+- **`app/frontend/index.html`:** Updated favicon to Databricks diamond logo as data URI SVG; added DM Sans font via Google Fonts; title changed to "AUS Energy Copilot | Databricks".
+- **`app/frontend/src/App.tsx`:** Sidebar brand replaced `<Zap>` icon with inline Databricks SVG; sidebar background `#1B3139`; accent colors changed from amber to Databricks red `#FF3621`; nav link active states `bg-white/10`; footer "Powered by Databricks"; top bar dark mode `#161B22`; main container `#F5F7FA` / `#0D1117`.
+- **`app/frontend/src/index.css`:** Font-family changed to `"DM Sans"`; added Databricks CSS custom properties (`--db-red`, `--db-sidebar`, `--db-dark`, etc.); dark mode variables.
+- **`app/frontend/dist/databricks-icon.svg`:** Official Databricks diamond logo SVG added.
+- **Note:** SVG files in `public/` are NOT served correctly by the SPA catch-all route (served as `text/html`); inline SVG and data URI approach used instead.
+
+### Copilot Data Context Fix
+- **Problem:** AI copilot always responded "the live market data feed is temporarily unavailable" despite data endpoints working.
+- **Root Cause 1:** `NameError: name 'lg' is not defined` in `_build_market_context()`. Logger was defined as `logger` (line 70) but exception handlers used `lg`. This caused the entire function to throw, caught by the chat handler which set `market_context = "(Market data temporarily unavailable)"`.
+- **Root Cause 2:** `TypeError: string indices must be integers` in volatility section. `prices_volatility()` returns `{"timestamp": ..., "regions": [...]}` but context builder iterated over the dict directly (`for v in vol`) yielding string keys. Also used wrong field names (`avgPrice24h` vs `mean_price`).
+- **Fix:** Replaced all `lg.` with `logger.`; extracted `.regions` from volatility response; used correct field names (`mean_price`, `std_dev`, `min_price`, `max_price`, `spike_count`).
+- **Verification:** `/api/debug/context` endpoint returns 4,674 chars of rich market context; copilot now gives data-driven answers with specific prices ($77.28/MWh for NSW).
+
+### Debug Endpoint
+- Added `GET /api/debug/context` — returns `_build_market_context()` output or full traceback on error, for troubleshooting copilot system prompt.
+
+### Deployment
+- Built frontend: `npx vite build` (skips tsc type-checking)
+- Uploaded to workspace and deployed as Databricks App
+- App URL: https://energy-copilot-7474645691011751.aws.databricksapps.com
+- Git commits: `6437150` (route fix + 501 fallback), `2a12897` (branding + copilot fix)
