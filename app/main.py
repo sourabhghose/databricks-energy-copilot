@@ -306,20 +306,21 @@ class NemGenMixRecord(BaseModel):
     region: str
     fuel_type: str
     registered_capacity_mw: float
-    available_capacity_mw: float
-    dispatched_mw: float
-    capacity_factor: float
-    marginal_cost_estimate: float
+    available_mw: float
+    dispatch_mw: float
+    capacity_factor_pct: float
+    marginal_cost_aud_mwh: float
 
 
 class NemIcFlowRecord(BaseModel):
     interconnector_id: str
     from_region: str
     to_region: str
-    flow_mw: float
-    limit_mw: float
-    utilisation_pct: float
-    marginal_loss_factor: float
+    mw_flow: float
+    mw_limit: float
+    loading_pct: float
+    losses_mw: float
+    direction: str
 
 
 class NemRealTimeDashboard(BaseModel):
@@ -398,23 +399,23 @@ def _build_realtime_dashboard() -> NemRealTimeDashboard:
             generation_mix.append(NemGenMixRecord(
                 region=region, fuel_type=fuel,
                 registered_capacity_mw=float(cap),
-                available_capacity_mw=float(cap) * 0.85,
-                dispatched_mw=float(disp),
-                capacity_factor=cf,
-                marginal_cost_estimate=mc,
+                available_mw=float(cap) * 0.85,
+                dispatch_mw=float(disp),
+                capacity_factor_pct=cf * 100,
+                marginal_cost_aud_mwh=mc,
             ))
 
     interconnector_flows = [
         NemIcFlowRecord(interconnector_id="N-Q-MNSP1", from_region="NSW1", to_region="QLD1",
-                        flow_mw=280.0, limit_mw=700.0, utilisation_pct=40.0, marginal_loss_factor=0.98),
+                        mw_flow=280.0, mw_limit=700.0, loading_pct=40.0, losses_mw=5.6, direction="FORWARD"),
         NemIcFlowRecord(interconnector_id="VIC1-NSW1", from_region="VIC1", to_region="NSW1",
-                        flow_mw=420.0, limit_mw=1350.0, utilisation_pct=31.1, marginal_loss_factor=0.97),
+                        mw_flow=420.0, mw_limit=1350.0, loading_pct=31.1, losses_mw=12.6, direction="FORWARD"),
         NemIcFlowRecord(interconnector_id="V-SA", from_region="VIC1", to_region="SA1",
-                        flow_mw=-142.0, limit_mw=680.0, utilisation_pct=20.9, marginal_loss_factor=0.96),
+                        mw_flow=-142.0, mw_limit=680.0, loading_pct=20.9, losses_mw=4.3, direction="REVERSE"),
         NemIcFlowRecord(interconnector_id="T-V-MNSP1", from_region="TAS1", to_region="VIC1",
-                        flow_mw=87.0, limit_mw=594.0, utilisation_pct=14.6, marginal_loss_factor=0.97),
+                        mw_flow=87.0, mw_limit=594.0, loading_pct=14.6, losses_mw=2.6, direction="FORWARD"),
         NemIcFlowRecord(interconnector_id="V-S-MNSP1", from_region="VIC1", to_region="SA1",
-                        flow_mw=95.0, limit_mw=220.0, utilisation_pct=43.2, marginal_loss_factor=0.95),
+                        mw_flow=95.0, mw_limit=220.0, loading_pct=43.2, losses_mw=3.8, direction="FORWARD"),
     ]
 
     prices = [rd.dispatch_price_aud_mwh for rd in regional_dispatch]
@@ -443,6 +444,8 @@ def _build_realtime_dashboard() -> NemRealTimeDashboard:
 
 @app.get("/api/nem-realtime/dashboard", response_model=NemRealTimeDashboard,
          summary="NEM Real-Time Dashboard", tags=["Market Data"])
+@app.get("/api/realtime/dashboard", response_model=NemRealTimeDashboard,
+         summary="NEM Real-Time Dashboard (alias)", tags=["Market Data"], include_in_schema=False)
 def get_nem_realtime_dashboard() -> NemRealTimeDashboard:
     """NEM-wide real-time dispatch overview with regional prices, generation mix, and interconnector flows."""
     cached = _cache_get("nem_realtime")
@@ -2953,6 +2956,186 @@ async def demand_response(region: str = Query(None)):
 
 
 # --- 13. Market Notices ---
+@app.get("/api/market-events/dashboard", summary="NEM market events dashboard", tags=["Market Data"])
+async def market_events_dashboard():
+    """Return MarketEventsDashboard matching frontend interface."""
+    rng = random.Random(int(time.time() // 300))
+    now = datetime.now(timezone.utc)
+
+    event_types = ["LOR1", "LOR2", "LOR3", "direction", "administered_pricing", "constraint_violation", "frequency_event", "interconnector_trip"]
+    severities = ["low", "medium", "high", "critical"]
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    causes = [
+        "forecast demand exceeds available supply",
+        "unplanned generator outage",
+        "interconnector constraint binding",
+        "high demand from extreme temperatures",
+        "low wind generation across region",
+        "transmission line fault",
+        "frequency deviation outside normal band",
+    ]
+
+    # Recent events
+    recent_events = []
+    for i in range(rng.randint(6, 12)):
+        et = rng.choice(event_types)
+        sev = "critical" if et in ("LOR3", "administered_pricing") else rng.choice(severities)
+        start = now - timedelta(hours=rng.uniform(0.5, 168))
+        resolved = rng.random() > 0.2
+        dur = rng.randint(5, 480) if resolved else None
+        recent_events.append({
+            "event_id": f"NEM-EVT-{2026}{i+1:04d}",
+            "event_type": et,
+            "region": rng.choice(regions),
+            "start_time": start.isoformat(),
+            "end_time": (start + timedelta(minutes=dur)).isoformat() if dur else None,
+            "duration_minutes": dur,
+            "severity": sev,
+            "description": rng.choice(causes),
+            "affected_capacity_mw": round(rng.uniform(100, 2500), 0) if et != "frequency_event" else None,
+            "administered_price": round(rng.uniform(300, 600), 2) if et == "administered_pricing" else None,
+            "resolved": resolved,
+        })
+    recent_events.sort(key=lambda e: e["start_time"], reverse=True)
+
+    # Interventions
+    interventions = []
+    intervention_types = ["direction", "instructions", "reliability_reserve"]
+    for i in range(rng.randint(1, 4)):
+        interventions.append({
+            "intervention_id": f"INT-{2026}{i+1:03d}",
+            "intervention_type": rng.choice(intervention_types),
+            "region": rng.choice(regions),
+            "duid": rng.choice(["BW01", "TORRB1", "APTS1", "PPCCGT", "YWPS1", None]),
+            "station_name": rng.choice(["Bayswater", "Torrens Island B", "Angaston", "Pelican Point", "Yallourn", None]),
+            "issued_time": (now - timedelta(hours=rng.uniform(1, 48))).isoformat(),
+            "duration_hours": round(rng.uniform(0.5, 12), 1),
+            "directed_mw": round(rng.uniform(50, 500), 0),
+            "reason": rng.choice(causes),
+            "market_notice_id": f"MN-{rng.randint(80000, 99999)}",
+            "cost_est_aud": round(rng.uniform(50000, 2000000), 0),
+        })
+
+    # Price cap events
+    price_cap_events = []
+    cap_types = ["CPT", "MPC", "APC"]
+    for i in range(rng.randint(0, 3)):
+        price_cap_events.append({
+            "event_id": f"CAP-{2026}{i+1:03d}",
+            "region": rng.choice(regions),
+            "date": (now - timedelta(days=rng.randint(0, 30))).strftime("%Y-%m-%d"),
+            "cap_type": rng.choice(cap_types),
+            "trigger_interval": (now - timedelta(hours=rng.uniform(1, 72))).isoformat(),
+            "intervals_above_cap": rng.randint(1, 12),
+            "cumulative_energy_mwh": round(rng.uniform(100, 5000), 1),
+            "max_spot_price": round(rng.uniform(5000, 16600), 2),
+            "total_apc_duration_hours": round(rng.uniform(0.5, 8), 1) if rng.random() > 0.5 else None,
+        })
+
+    critical = sum(1 for e in recent_events if e["severity"] == "critical")
+    lor_today = sum(1 for e in recent_events if e["event_type"].startswith("LOR") and e["start_time"][:10] == now.strftime("%Y-%m-%d"))
+    active_dirs = sum(1 for i in interventions if i["intervention_type"] == "direction")
+    apc_hrs = sum(p["total_apc_duration_hours"] or 0 for p in price_cap_events)
+
+    return {
+        "period": "Last 7 days",
+        "total_events": len(recent_events),
+        "critical_events": critical,
+        "interventions_this_week": len(interventions),
+        "apc_hours_this_month": round(apc_hrs, 1),
+        "lor_events_today": lor_today,
+        "directions_active": active_dirs,
+        "recent_events": recent_events,
+        "interventions": interventions,
+        "price_cap_events": price_cap_events,
+    }
+
+
+@app.get("/api/surveillance/dashboard", summary="Market surveillance dashboard", tags=["Market Data"])
+async def surveillance_dashboard():
+    """Return SurveillanceDashboard matching frontend interface."""
+    rng = random.Random(int(time.time() // 300))
+    now = datetime.now(timezone.utc)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    participants = ["Origin Energy", "AGL Energy", "EnergyAustralia", "Alinta Energy", "Snowy Hydro",
+                    "CS Energy", "Stanwell", "Macquarie Generation", "Engie", "Delta Electricity"]
+    notice_types = ["rebidding_investigation", "market_power_review", "price_manipulation", "compliance_audit",
+                    "direction_compliance", "late_rebid", "false_misleading_offer"]
+    rule_refs = ["NER 3.8.22A", "NER 3.8.1", "NEL s.46", "NER 3.15.6A", "NER 4.9.8", "NER 3.8.22"]
+    breach_types = ["late_rebid", "false_rebid_reason", "excessive_market_power", "direction_non_compliance", "reporting_failure"]
+    anomaly_types = ["price_spike_unexplained", "generation_withdrawal", "bid_stack_manipulation",
+                     "interconnector_gaming", "capacity_withholding", "rebid_timing"]
+
+    notices = []
+    for i in range(rng.randint(4, 10)):
+        td = (now - timedelta(days=rng.randint(0, 60))).strftime("%Y-%m-%d")
+        resolved = rng.random() > 0.4
+        notices.append({
+            "notice_id": f"SN-{2026}-{i+1:04d}",
+            "notice_type": rng.choice(notice_types),
+            "region": rng.choice(regions),
+            "participant": rng.choice(participants),
+            "trading_date": td,
+            "description": f"Investigation into {rng.choice(anomaly_types).replace('_', ' ')} behaviour",
+            "status": rng.choice(["closed", "resolved"]) if resolved else rng.choice(["open", "under_review"]),
+            "priority": rng.choice(["low", "medium", "high", "critical"]),
+            "aemo_team": rng.choice(["Market Monitoring", "Compliance", "Enforcement", "Market Analysis"]),
+            "resolution_date": (now - timedelta(days=rng.randint(0, 10))).strftime("%Y-%m-%d") if resolved else None,
+            "outcome": rng.choice(["no_breach", "warning_issued", "referred_to_aer", "penalty_applied", "ongoing_monitoring"]) if resolved else None,
+        })
+
+    compliance = []
+    for i in range(rng.randint(3, 8)):
+        ref_to_aer = rng.random() > 0.7
+        compliance.append({
+            "record_id": f"CR-{2026}-{i+1:04d}",
+            "participant": rng.choice(participants),
+            "rule_reference": rng.choice(rule_refs),
+            "rule_description": rng.choice(["Late rebidding obligation", "Good faith rebidding", "Market power conduct",
+                                             "Direction compliance", "Reporting obligations", "Bidding in good faith"]),
+            "breach_type": rng.choice(breach_types),
+            "trading_date": (now - timedelta(days=rng.randint(0, 90))).strftime("%Y-%m-%d"),
+            "region": rng.choice(regions),
+            "penalty_aud": round(rng.uniform(0, 500000), 0) if rng.random() > 0.3 else 0,
+            "status": rng.choice(["confirmed", "under_investigation", "dismissed", "penalty_issued"]),
+            "referred_to_aer": ref_to_aer,
+            "civil_penalty": ref_to_aer and rng.random() > 0.5,
+        })
+
+    anomalies = []
+    for i in range(rng.randint(5, 15)):
+        expected = round(rng.uniform(30, 120), 2)
+        actual = round(expected * rng.uniform(1.5, 10), 2) if rng.random() > 0.3 else round(expected * rng.uniform(-0.5, 0.5), 2)
+        anomalies.append({
+            "anomaly_id": f"MA-{2026}-{i+1:04d}",
+            "region": rng.choice(regions),
+            "trading_interval": (now - timedelta(hours=rng.uniform(0, 168))).isoformat(),
+            "anomaly_type": rng.choice(anomaly_types),
+            "spot_price": actual,
+            "expected_price": expected,
+            "deviation_pct": round(((actual - expected) / expected) * 100, 1) if expected != 0 else 0,
+            "generator_id": rng.choice(["BW01", "TORRB1", "APTS1", "YWPS1", "LD01", "MP1", "VPGS1", None]),
+            "flagged": rng.random() > 0.4,
+            "explanation": rng.choice([None, "demand forecast error", "generator trip", "rebid ahead of constraint",
+                                        "correlated bidding pattern", "capacity withholding suspected"]),
+        })
+
+    referred = sum(1 for c in compliance if c["referred_to_aer"])
+    total_penalties = sum(c["penalty_aud"] for c in compliance)
+    open_inv = sum(1 for n in notices if n["status"] in ("open", "under_review"))
+
+    return {
+        "timestamp": now.isoformat(),
+        "open_investigations": open_inv,
+        "referred_to_aer_ytd": referred,
+        "total_penalties_ytd_aud": round(total_penalties, 0),
+        "participants_under_review": len(set(n["participant"] for n in notices if n["status"] in ("open", "under_review"))),
+        "notices": notices,
+        "compliance_records": compliance,
+        "anomalies": anomalies,
+    }
+
+
 @app.get("/api/market-notices", summary="AEMO market notices", tags=["Live Ops"])
 async def market_notices():
     """Return list of recent AEMO market notices."""
