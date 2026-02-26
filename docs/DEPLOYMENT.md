@@ -2,291 +2,305 @@
 
 ## Prerequisites
 
-### Databricks Workspace Requirements
+### Databricks Workspace
 
-| Requirement | Minimum Version / SKU |
+| Requirement | Notes |
 |---|---|
-| Databricks Runtime | 15.4 LTS (jobs); 15.4 LTS ML (forecast job) |
-| Unity Catalog | Enabled on the metastore |
-| Databricks Asset Bundles (DAB) CLI | v0.209.0+ |
-| SQL Warehouse | Serverless or Pro tier (for agent SQL tools) |
-| Vector Search | Enabled on the workspace |
-| Model Serving | Enabled (for MLflow Model Registry with UC) |
-| Lakehouse Monitoring | Enabled (for drift detection) |
+| Databricks Workspace | Serverless-enabled (FEVM or One-Env) |
+| Unity Catalog | Enabled on the metastore; `energy_copilot_catalog` will be used |
+| SQL Warehouse | At least one warehouse (Serverless Starter is sufficient) |
+| Databricks CLI | v0.209.0+ installed and authenticated |
+| Databricks Apps | Enabled on the workspace |
 
-### Access Scopes Required
+### Local Tools
 
-The service principal used for deployment needs:
-
-- `CAN MANAGE` on the `energy_copilot` catalog (or equivalent Unity Catalog admin)
-- `CAN USE` on the target SQL warehouse
-- `CAN USE` on the Vector Search endpoint
-- `CREATE MODEL` privilege in `energy_copilot.ml` schema
-- Databricks Secrets scope: `energy-copilot-secrets` with the keys listed in the environment variables table below
+| Tool | Install |
+|---|---|
+| Databricks CLI | `brew tap databricks/tap && brew install databricks` |
+| Node.js + npm | `brew install node` (for frontend build) |
+| Python 3.10+ | Required for local development |
 
 ---
 
-## Step-by-Step Deployment
+## Automated Deployment (Recommended)
 
-### Step 1 — Set Environment Variables
-
-Copy `.env.example` to `.env` (for local runs) and export the following in your shell or CI environment:
+The `deploy.sh` script handles the entire deployment in a single command:
 
 ```bash
-export DATABRICKS_HOST=https://<workspace-id>.azuredatabricks.net
-export DATABRICKS_TOKEN=<personal-access-token-or-sp-token>
-export DATABRICKS_WAREHOUSE_ID=<sql-warehouse-id>
-export DATABRICKS_CATALOG=energy_copilot
-export ANTHROPIC_API_KEY=<anthropic-api-key>
-export LAKEBASE_HOST=<lakebase-postgres-host>
-export LAKEBASE_PORT=5432
-export LAKEBASE_DB=energy_copilot
-export LAKEBASE_USER=<lakebase-user>
-export LAKEBASE_PASSWORD=<lakebase-password>
+# 1. Authenticate with your Databricks workspace
+databricks auth login https://your-workspace.cloud.databricks.com --profile=my-profile
+
+# 2. Deploy everything
+./deploy.sh my-profile
 ```
 
-Store secrets in a Databricks Secret Scope for production:
+### What `deploy.sh` does
 
-```bash
-databricks secrets create-scope energy-copilot-secrets
-databricks secrets put-secret energy-copilot-secrets ANTHROPIC_API_KEY
-databricks secrets put-secret energy-copilot-secrets LAKEBASE_PASSWORD
+| Step | Description | Duration |
+|------|-------------|----------|
+| 1. Create schemas | Creates `bronze`, `silver`, `gold`, `ml`, `tools` in `energy_copilot_catalog` | ~30s |
+| 2. Create tables | Creates 4 bronze + 5 silver + 13 gold Delta tables with auto-optimize | ~2 min |
+| 3. Upload notebooks | Uploads simulator and backfill notebooks to workspace | ~10s |
+| 4. Historical backfill | Runs 90-day backfill job (waits for completion, prints row count progress) | 15–30 min |
+| 5. Start simulator | Creates and starts the live simulator job (writes every 30s) | ~30s |
+| 6. Deploy app | Builds frontend, uploads files, deploys Databricks App | 5–10 min |
+
+The script is **idempotent** — safe to re-run at any time. It uses `CREATE IF NOT EXISTS` for all tables, finds existing jobs by name, and the backfill notebook skips if historical data already exists (>50K rows).
+
+### Output
+
+When complete, the script prints:
+
+```
+============================================================
+ Deployment Complete!
+============================================================
+ App URL:       https://energy-copilot-XXXXX.aws.databricksapps.com
+ Simulator Job: 123456789 (running)
+ Backfill Job:  987654321
+ Catalog:       energy_copilot_catalog
+ Profile:       my-profile
+============================================================
 ```
 
-### Step 2 — Run Setup SQL Scripts (00 to 06)
-
-Execute scripts in order from the `setup/` directory. Scripts 00–02 and 05–06 run
-against your Databricks SQL warehouse; script 03 requires a Postgres connection to
-Lakebase; script 04 uses the Databricks Python SDK.
+### Managing the Simulator
 
 ```bash
-# Unity Catalog, schemas, and all Delta tables
-databricks sql execute --warehouse-id $DATABRICKS_WAREHOUSE_ID -f setup/00_create_catalog.sql
-databricks sql execute --warehouse-id $DATABRICKS_WAREHOUSE_ID -f setup/01_create_schemas.sql
-databricks sql execute --warehouse-id $DATABRICKS_WAREHOUSE_ID -f setup/02_create_tables.sql
+# Check if simulator is running
+databricks jobs list-runs --job-id=<SIM_JOB_ID> --active-only --profile=my-profile
 
-# Lakebase (Postgres) — run with psql or your Postgres client
-psql "$LAKEBASE_CONNECTION_STRING" -f setup/03_setup_lakebase.sql
+# Stop the simulator
+databricks jobs cancel-all-runs <SIM_JOB_ID> --profile=my-profile
 
-# Genie Spaces (requires DATABRICKS_HOST + DATABRICKS_TOKEN in env)
-python setup/04_create_genie_spaces.py
-
-# Alert views
-databricks sql execute --warehouse-id $DATABRICKS_WAREHOUSE_ID -f setup/05_create_alerts.sql
-
-# Unity Catalog SQL functions for the agent
-python setup/06_register_uc_functions.py
-```
-
-### Step 3 — Load Generator Registry
-
-Downloads the AEMO NEM Registration and Exemption List XLSX and writes
-`energy_copilot.gold.generator_registry` and `energy_copilot.gold.region_weather_mapping`
-to the Delta tables.
-
-```bash
-python setup/load_generator_registry.py
-# Or, if running locally with no Spark:
-python setup/load_generator_registry.py --local-csv /path/to/nem_registration.csv
-# Dry-run to validate without writing:
-python setup/load_generator_registry.py --dry-run
-```
-
-### Step 4 — Deploy Databricks Bundle
-
-The `databricks.yml` bundle packages all jobs, DLT pipelines, MLflow experiments,
-and the Databricks App definition.
-
-```bash
-# Deploy to dev target
-databricks bundle deploy --target dev
-
-# Deploy to production
-databricks bundle deploy --target prod
-```
-
-Verify all resources were created:
-
-```bash
-databricks bundle run --target prod job_01_nemweb_ingest --no-wait
-databricks jobs list | grep energy_copilot
-```
-
-### Step 5 — Trigger First Data Ingest
-
-Run ingest pipelines in dependency order to populate Bronze through Gold tables:
-
-```bash
-databricks bundle run --target prod job_01_nemweb_ingest
-databricks bundle run --target prod job_02_openelec_ingest
-databricks bundle run --target prod job_03_weather_ingest
-databricks bundle run --target prod job_04_solar_ingest
-```
-
-Confirm Gold tables are populated:
-
-```bash
-databricks sql execute --warehouse-id $DATABRICKS_WAREHOUSE_ID \
-  --statement "SELECT COUNT(*), MAX(settlementdate) FROM energy_copilot.gold.nem_prices_5min"
-```
-
-### Step 6 — Index AEMO Documents for RAG
-
-Index AEMO market rules PDFs, constraint XML files, and market notices into the
-Vector Search index. Place source documents in the configured blob path or pass
-URLs directly.
-
-```bash
-python -m agent.rag.index_documents \
-  --docs-path /path/to/aemo_docs \
-  --warehouse-id $DATABRICKS_WAREHOUSE_ID
-```
-
-The script writes chunks to `energy_copilot.gold.aemo_document_chunks` (Delta)
-and triggers a sync on `energy_copilot.gold.aemo_docs_vs_index`. Wait for the
-index sync to complete (status: `ONLINE`) before starting the app:
-
-```bash
-databricks vector-search indexes get-index \
-  --endpoint-name energy_copilot_vs \
-  --index-name energy_copilot.gold.aemo_docs_vs_index
-```
-
-### Step 7 — Train Models
-
-Train all five model types. On Databricks, trigger the training jobs via the bundle;
-locally, pass `spark=None` for unit-test/smoke-test mode.
-
-```bash
-# Via Databricks bundle (recommended for production)
-databricks bundle run --target prod job_train_price_forecast
-databricks bundle run --target prod job_train_anomaly_detector
-
-# Smoke-test locally (synthetic data, no Databricks required)
-python -c "from models.anomaly_detection.train import train_anomaly_detector; train_anomaly_detector(spark=None)"
-```
-
-### Step 8 — Register Models
-
-After training completes, register all models in MLflow Model Registry with the
-`production` alias so the forecast pipeline can load them:
-
-```bash
-python models/register_all_models.py \
-  --databricks-host $DATABRICKS_HOST \
-  --databricks-token $DATABRICKS_TOKEN
-
-# Dry-run to validate without writing aliases
-python models/register_all_models.py --dry-run
-```
-
-### Step 9 — Start the App
-
-Deploy the Databricks App using the bundle (recommended) or start FastAPI locally:
-
-```bash
-# Databricks Apps (production)
-databricks bundle deploy --target prod
-# Then open the Apps URL from the Databricks workspace UI
-
-# Local development
-cd app/frontend && npm ci && npm run build && cd ../..
-uvicorn app.backend.main:app --host 0.0.0.0 --port 8000 --reload
+# Restart the simulator
+databricks jobs run-now <SIM_JOB_ID> --profile=my-profile
 ```
 
 ---
 
-## Environment Variables
+## Manual Deployment
 
-| Variable | Required | Description |
-|---|---|---|
-| `DATABRICKS_HOST` | Yes | Databricks workspace URL, e.g. `https://<id>.azuredatabricks.net` |
-| `DATABRICKS_TOKEN` | Yes | PAT or service-principal OAuth token |
-| `DATABRICKS_WAREHOUSE_ID` | Yes | SQL warehouse ID for all query endpoints |
-| `DATABRICKS_CATALOG` | No | Unity Catalog name (default: `energy_copilot`) |
-| `ANTHROPIC_API_KEY` | Yes | API key for Claude (used by agent and market summary pipeline) |
-| `LAKEBASE_HOST` | No | Lakebase Postgres host (falls back to mock data if unset) |
-| `LAKEBASE_PORT` | No | Postgres port (default: `5432`) |
-| `LAKEBASE_DB` | No | Postgres database name (default: `energy_copilot`) |
-| `LAKEBASE_USER` | No | Postgres user |
-| `LAKEBASE_PASSWORD` | No | Postgres password (store in secret scope) |
-| `ALLOW_ORIGINS` | No | CORS allowed origins for the FastAPI backend (default: `*`) |
-| `LOG_LEVEL` | No | Logging level for the backend (default: `INFO`) |
-| `ENERGY_COPILOT_INTEGRATION_TEST` | No | Set to `1` to enable integration test suite |
+If you prefer to run each step individually:
+
+### Step 1 — Authenticate
+
+```bash
+databricks auth login https://your-workspace.cloud.databricks.com --profile=my-profile
+```
+
+### Step 2 — Create Schemas and Tables
+
+The deploy script creates tables via the SQL Statements API. To do this manually, run each DDL statement against your SQL warehouse:
+
+```bash
+# Create schemas
+for schema in bronze silver gold ml tools; do
+  databricks api post /api/2.0/sql/statements/ \
+    --json='{"statement": "CREATE SCHEMA IF NOT EXISTS energy_copilot_catalog.'$schema'", "warehouse_id": "<WH_ID>", "wait_timeout": "50s"}' \
+    --profile=my-profile
+done
+```
+
+For the full table DDL, see `setup/02_create_tables.sql` or review the table creation section in `deploy.sh`.
+
+### Step 3 — Upload Notebooks
+
+```bash
+WS_BASE="/Workspace/Users/<your-email>/energy-copilot"
+
+databricks workspace mkdirs "$WS_BASE/setup" --profile=my-profile
+
+databricks workspace import "$WS_BASE/setup/10_nem_simulator.py" \
+  --file=setup/10_nem_simulator.py --format=SOURCE --language=PYTHON --overwrite \
+  --profile=my-profile
+
+databricks workspace import "$WS_BASE/setup/11_historical_backfill.py" \
+  --file=setup/11_historical_backfill.py --format=SOURCE --language=PYTHON --overwrite \
+  --profile=my-profile
+```
+
+### Step 4 — Run Historical Backfill
+
+Create a job and run it:
+
+```bash
+JOB_ID=$(databricks jobs create --json='{
+  "name": "NEM Historical Backfill (90 days)",
+  "tasks": [{
+    "task_key": "backfill",
+    "notebook_task": {
+      "notebook_path": "'$WS_BASE'/setup/11_historical_backfill.py",
+      "source": "WORKSPACE"
+    },
+    "environment_key": "default"
+  }],
+  "environments": [{"environment_key": "default", "spec": {"client": "1"}}],
+  "max_concurrent_runs": 1
+}' --profile=my-profile | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+
+databricks jobs run-now $JOB_ID --profile=my-profile
+```
+
+Monitor progress by checking row counts:
+
+```bash
+databricks api post /api/2.0/sql/statements/ \
+  --json='{"statement": "SELECT COUNT(*), COUNT(DISTINCT CAST(interval_datetime AS DATE)) FROM energy_copilot_catalog.gold.nem_prices_5min", "warehouse_id": "<WH_ID>", "wait_timeout": "30s"}' \
+  --profile=my-profile
+```
+
+Expected final state: ~130K rows across 90 distinct dates.
+
+### Step 5 — Start the Simulator
+
+```bash
+SIM_JOB_ID=$(databricks jobs create --json='{
+  "name": "NEM Market Data Simulator",
+  "tasks": [{
+    "task_key": "nem_simulator",
+    "notebook_task": {
+      "notebook_path": "'$WS_BASE'/setup/10_nem_simulator.py",
+      "source": "WORKSPACE"
+    },
+    "environment_key": "default"
+  }],
+  "environments": [{"environment_key": "default", "spec": {"client": "1"}}],
+  "max_concurrent_runs": 1
+}' --profile=my-profile | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+
+databricks jobs run-now $SIM_JOB_ID --profile=my-profile
+```
+
+The simulator runs indefinitely, writing to 9 gold tables every 30 seconds.
+
+### Step 6 — Deploy the App
+
+```bash
+WS_BASE="/Workspace/Users/<your-email>/energy-copilot"
+
+# Build frontend
+cd app/frontend && npm install && npm run build && cd ../..
+
+# Upload app files
+databricks workspace import "$WS_BASE/main.py" --file=app/main.py --format=AUTO --language=PYTHON --overwrite --profile=my-profile
+databricks workspace import "$WS_BASE/requirements.txt" --file=app/requirements.txt --format=AUTO --overwrite --profile=my-profile
+databricks workspace import "$WS_BASE/app.yaml" --file=app/app.yaml --format=AUTO --overwrite --profile=my-profile
+databricks workspace import-dir app/frontend/dist "$WS_BASE/frontend/dist" --overwrite --profile=my-profile
+
+# Deploy
+databricks apps deploy energy-copilot --source-code-path="$WS_BASE" --profile=my-profile
+```
+
+---
+
+## Data Architecture
+
+### Medallion Layers
+
+```
+Bronze (raw)  →  Silver (cleaned)  →  Gold (analytics-ready)
+4 tables          5 tables              13 tables
+```
+
+### Gold Tables (queried by the API)
+
+| Table | Rows per Day | Description |
+|-------|-------------|-------------|
+| `nem_prices_5min` | 1,440 (5 regions × 288) | 5-minute spot prices by region |
+| `nem_generation_by_fuel` | ~10,080 | Generation by fuel type, region, interval |
+| `nem_interconnectors` | 1,440 | Interconnector flows (5 links × 288) |
+| `demand_actuals` | 1,440 | Demand and rooftop solar by region |
+| `weather_nem_regions` | 1,440 | Temperature, wind, solar radiation |
+| `anomaly_events` | Variable | Price spikes and negative price events |
+| `price_forecasts` | ~720 | 3-horizon forecasts (every 30 min) |
+| `demand_forecasts` | ~720 | 3-horizon demand forecasts |
+| `nem_daily_summary` | 5 | Daily summary per region |
+
+### Simulator Details
+
+The simulator (`setup/10_nem_simulator.py`) generates realistic NEM market data:
+
+- **Diurnal demand** — peaks at 8am and 6pm, troughs at 3am
+- **Solar generation** — follows sun position, zero at night, peak at noon
+- **Wind generation** — variable with semi-random patterns
+- **Coal/gas baseload** — steady output with small variation
+- **Battery storage** — charges during solar surplus, discharges during evening peak
+- **Price-demand correlation** — prices rise with demand and fall with surplus generation
+- **Interconnector flows** — proportional to price differentials between regions
+- **Weather** — temperature, wind speed, solar radiation with diurnal cycles
+- **Anomalies** — occasional price spikes (>$300/MWh) and negative prices during solar surplus
+
+---
+
+## API Architecture
+
+The FastAPI backend (`app/main.py`) queries gold tables via `databricks-sql-connector`:
+
+1. On startup, the app lazily creates a SQL connection using the Databricks SDK for auth
+2. Each endpoint first queries the gold table with a 25-second TTL cache
+3. If the SQL connection fails or returns no data, endpoints fall back to mock data
+4. The `/api/chat` endpoint gathers data from multiple endpoints to build LLM context
+5. Chat uses the Databricks Foundation Model API (`databricks-claude-sonnet-4-6`)
+
+### Authentication
+
+When deployed as a Databricks App:
+- The Databricks SDK handles OAuth automatically — no tokens or environment variables needed
+- The SQL warehouse is auto-discovered from the workspace
+- Users authenticate via the workspace's SSO when accessing the app URL
+
+For local development:
+- No auth needed — all endpoints serve mock data
+- To connect to a real workspace locally, set `DATABRICKS_HOST` and `DATABRICKS_TOKEN`
 
 ---
 
 ## Troubleshooting
 
-### Error: `RESOURCE_DOES_NOT_EXIST` on secret scope
+### Backfill completes too quickly (skipped)
 
-```
-databricks.sdk.errors.ResourceDoesNotExist: Secret scope 'energy-copilot-secrets' does not exist
+The backfill has an idempotency check — if >50K historical rows already exist, it skips. To force a re-run:
+
+```sql
+-- Check current row count
+SELECT COUNT(*) FROM energy_copilot_catalog.gold.nem_prices_5min
+  WHERE interval_datetime < current_timestamp() - INTERVAL 2 DAYS;
 ```
 
-Create the scope before running the bundle:
+If you need to regenerate, truncate the tables first:
+
+```sql
+TRUNCATE TABLE energy_copilot_catalog.gold.nem_prices_5min;
+-- Repeat for other gold tables
+```
+
+### App shows mock data instead of gold table data
+
+Check the `/health` endpoint:
 
 ```bash
-databricks secrets create-scope energy-copilot-secrets
+curl -H "Authorization: Bearer <token>" https://<app-url>/health
 ```
 
-### Error: Wrong catalog (`energy_copilot_dev` vs `energy_copilot`)
+If `sql_connected: false`:
+1. Verify a SQL warehouse exists and is running
+2. Check the app logs in the Databricks Apps UI for connection errors
+3. Ensure `databricks-sql-connector` is in `requirements.txt`
 
-The bundle uses `${var.catalog}` substitution. Verify the active target:
+### Simulator job fails with "serverless compute not supported"
+
+The job must use `environment_key` instead of `new_cluster`. The deploy script handles this, but if creating manually, use:
+
+```json
+{
+  "environments": [{"environment_key": "default", "spec": {"client": "1"}}]
+}
+```
+
+### Notebook import fails with "already exists"
+
+Use the `--overwrite` flag:
 
 ```bash
-databricks bundle validate --target prod
-```
-
-Check that `DATABRICKS_CATALOG` is set correctly when running scripts locally.
-
-### Error: Vector Search index not ready
-
-```
-VectorSearchClientException: Index is not ONLINE (current status: PROVISIONING)
-```
-
-Wait for the index to finish syncing. This can take 5–15 minutes after the first
-ingest. Poll the status:
-
-```bash
-databricks vector-search indexes get-index \
-  --endpoint-name energy_copilot_vs \
-  --index-name energy_copilot.gold.aemo_docs_vs_index
-```
-
-The RAG tool and agent will function in degraded mode (SQL LIKE fallback) while
-the index is provisioning.
-
-### Error: `No module named 'pyspark'` during local tests
-
-This is expected. All pipelines, models, and agent tools degrade gracefully when
-PySpark is not installed. Set `ENERGY_COPILOT_INTEGRATION_TEST=0` (the default)
-to run only unit tests that do not require a Spark session.
-
----
-
-## Local Development Quick Start
-
-```bash
-# 1. Clone and install dev dependencies
-git clone <repo-url> energy-copilot
-cd energy-copilot
-pip install -r requirements-dev.txt
-
-# 2. Copy environment template
-cp app/backend/.env.example app/backend/.env
-# Edit app/backend/.env — set at least DATABRICKS_HOST, DATABRICKS_TOKEN, ANTHROPIC_API_KEY
-
-# 3. Run unit tests (no Databricks required)
-pytest tests/ -v -k "not integration"
-
-# 4. Start backend (mock data mode when LAKEBASE_HOST unset)
-uvicorn app.backend.main:app --reload --port 8000
-
-# 5. Start frontend
-cd app/frontend
-npm install
-npm run dev
-# Open http://localhost:5173
+databricks workspace import /path/to/notebook.py --file=local.py --format=SOURCE --language=PYTHON --overwrite --profile=my-profile
 ```
