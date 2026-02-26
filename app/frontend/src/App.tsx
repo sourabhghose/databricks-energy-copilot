@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Zap,
@@ -63,7 +64,7 @@ import {
   Factory,
   RefreshCw,
   ArrowLeftRight,
-  Map,
+  Map as MapIcon,
   GitMerge,
   Globe,
   Globe2,
@@ -94,6 +95,8 @@ import {
   Upload,
   Rocket,
   CloudRain,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -705,7 +708,7 @@ const NAV_ITEMS = [
   { to: '/industrial-demand-flex', label: 'Industrial Demand Flex', Icon: Factory },
   { to: '/storage-lca',       label: 'Storage LCA',        Icon: RefreshCw      },
   { to: '/interconnector-flow-analytics', label: 'Interconnector Flows', Icon: ArrowLeftRight },
-  { to: '/isp-progress',                 label: 'ISP Progress',              Icon: Map            },
+  { to: '/isp-progress',                 label: 'ISP Progress',              Icon: MapIcon        },
   { to: '/firming-technology-economics', label: 'Firming Tech Economics',     Icon: Flame          },
   { to: '/demand-forecasting-models',   label: 'Demand Forecast Models',     Icon: Brain          },
   { to: '/market-stress-testing',       label: 'Market Stress Testing',      Icon: ShieldAlert    },
@@ -885,7 +888,7 @@ const NAV_ITEMS = [
   { to: '/electricity-spot-price-seasonality', label: 'Price Seasonality', Icon: BarChart2 },
   { to: '/grid-congestion-constraint', label: 'Grid Congestion', Icon: GitBranch },
   { to: '/electricity-market-competition-concentration', label: 'Market Competition', Icon: PieChart },
-  { to: '/renewable-energy-zone-development', label: 'REZ Development', Icon: Map },
+  { to: '/renewable-energy-zone-development', label: 'REZ Development', Icon: MapIcon },
   { to: '/battery-storage-degradation-lifetime', label: 'Battery Degradation', Icon: Battery },
   { to: '/electricity-consumer-switching-churn', label: 'Consumer Switching', Icon: Users },
   { to: '/nem-inertia-synchronous-condenser', label: 'Inertia & Syncondensers', Icon: Activity },
@@ -1046,13 +1049,113 @@ const NAV_ITEMS = [
   { to: '/pumped-hydro', label: 'Pumped Hydro', Icon: Droplets },
   { to: '/smart-meter', label: 'Smart Meter Analytics', Icon: BarChart3 },
   { to: '/east-coast-gas', label: 'East Coast Gas', Icon: Flame },
-  { to: '/isp-analytics', label: 'ISP Analytics', Icon: Map },
+  { to: '/isp-analytics', label: 'ISP Analytics', Icon: MapIcon },
   { to: '/community-battery', label: 'Community Battery', Icon: Battery },
   { to: '/energy-cyber-security', label: 'Cyber Security', Icon: Lock },
   { to: '/wholesale-market-reform', label: 'Wholesale Market Reform', Icon: Scale },
 ]
 
+// ---------------------------------------------------------------------------
+// Sidebar — Accordion grouped navigation
+// ---------------------------------------------------------------------------
+
+const PINNED_PATHS = new Set(['/', '/live', '/copilot', '/genie', '/alerts'])
+
+const GROUP_DEFS: { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+  { key: 'operations',  label: 'Market Operations',   Icon: Radio },
+  { key: 'prices',      label: 'Prices & Trading',    Icon: DollarSign },
+  { key: 'generation',  label: 'Generation',           Icon: Zap },
+  { key: 'renewables',  label: 'Renewables',           Icon: Sun },
+  { key: 'storage',     label: 'Energy Storage',       Icon: Battery },
+  { key: 'network',     label: 'Network & Grid',       Icon: Network },
+  { key: 'demand',      label: 'Demand & Weather',     Icon: Thermometer },
+  { key: 'system',      label: 'FCAS & Security',      Icon: Shield },
+  { key: 'der',         label: 'DER, EV & Smart Grid', Icon: HomeIcon },
+  { key: 'gas',         label: 'Gas Market',            Icon: Flame },
+  { key: 'emerging',    label: 'Hydrogen & Nuclear',    Icon: Atom },
+  { key: 'climate',     label: 'Carbon & Climate',      Icon: Leaf },
+  { key: 'retail',      label: 'Retail & Consumer',     Icon: Users },
+  { key: 'policy',      label: 'Policy & Regulation',   Icon: FileText },
+  { key: 'analytics',   label: 'Analytics & AI',        Icon: Brain },
+  { key: 'other',       label: 'More',                  Icon: Layers },
+]
+
+/** Classify a nav item into a group key based on path and label keywords. */
+function classifyNavItem(to: string, label: string): string {
+  // Exact path overrides for short/ambiguous paths
+  const exact: Record<string, string> = {
+    '/monitoring': 'operations', '/settings': 'retail',
+    '/ml-dashboard': 'analytics', '/data-catalog': 'analytics',
+    '/scenario': 'analytics', '/trends': 'analytics',
+    '/gas': 'gas', '/retail': 'retail', '/security': 'system',
+    '/dsp': 'demand', '/der': 'der', '/curtailment': 'renewables',
+    '/outages': 'generation', '/load-duration': 'demand',
+    '/weather-demand': 'demand', '/sustainability': 'renewables',
+    '/frequency': 'system', '/pasa': 'system',
+  }
+  if (exact[to]) return exact[to]
+
+  const s = (to + ' ' + label).toLowerCase()
+
+  if (/realtime|live.ops|market.notice|nem.event|surveillance|aemo.*operation|emergency|system.operator|stpasa|market.*transparen|market.*event/.test(s)) return 'operations'
+  if (/price|spike|volatil|forecast(?!.*model)|spot(?!.*solar)|forward.curve|futures|trading|merit|hedg|bidding|settle|sra|voll|market.depth|market.liquid|wholesale.*liquid|market.stress|market.*micro|market.share|market.power|market.concent|credit.risk|participant.fin|algo.trad|commodity.trad|wholesale.*bidd|electricity.*option|ewml|epsa|mats|negative.*price|congestion.re[vn]/.test(s)) return 'prices'
+  if (/generator|efor|coal.*retire|gas.*econ|gas.*gen(?!.*grid)|gas.*flex|thermal.eff|dispatch.acc|generation.*mix|generation.*expan|gena|capacity.*adequ|outage|planned.*outage/.test(s)) return 'generation'
+  if (/batter|bess|storage|pumped.hydro|phes|ldes|long.duration/.test(s)) return 'storage'
+  if (/solar(?!.*ev)|wind|offshore|renewab|ppa|rec.market|rec.lgc|rec.certif|lgc.*market|merchant.wind|cer[^s]|clean.energy|biomass|bioenergy|sustain|curtail|cppa|renx|rooftop.*solar(?!.*grid)/.test(s)) return 'renewables'
+  if (/interconnect|network|constrain|congestion(?!.*rev)|grid.mod|tnsp|dnsp|rez|transmiss|mlf|distribut.*network|grid.topology|rab.analyt|rit.analyt/.test(s)) return 'network'
+  if (/fcas|frequen|system.security|causer|inertia|pasa|stability|black.start|reactive|power.quality|ancillar|system.strength|grid.freq|fmrp/.test(s)) return 'system'
+  if (/demand|weather|load.stat|load.dur|load.curve|minimum.demand|large.industrial|demand.elastic|demand.curve|elca|nem.demand|dsm|dsr/.test(s)) return 'demand'
+  if (/der|vpp|ev.fleet|ev.charg|ev.grid|v2g|smart.grid|smart.meter|microgrid|rooftop.*grid|behind.*meter|prosumer|community.energ|community.batter|community.micro|derms|grid.edge|digital.*twin|daro|btm/.test(s)) return 'der'
+  if (/hydrogen|nuclear|geotherm|wave.*tidal|ocean|power.to.x|ammonia|biomethane|fuel.cell|marine.energy|nzem/.test(s)) return 'emerging'
+  if (/retail|consumer|tariff(?!.*reform)|energy.pover|affordab|hardship|switching|churn|ecsa|electricity.cpi|smart.home|settings/.test(s)) return 'retail'
+  if (/carbon|climate|decarbon|net.zero|safeguard|emission|social.licence|equity|grid.resilien|extreme.weather|cbam/.test(s)) return 'climate'
+  if (/gas.market|gas.network|gas.pipeline|gas.trading|lng|coal.seam|east.coast.gas|gas.transition|gas.electric|ngts|wholesale.gas/.test(s)) return 'gas'
+  if (/regulat|isp|reform|aemc|rule.change|market.design|capacity.mechan|cis.analyt|workforce|policy/.test(s)) return 'policy'
+  if (/ml.model|data.catalog|scenario|histor|trend|anomaly.detect|nema|forecast.*model/.test(s)) return 'analytics'
+  return 'other'
+}
+
 function Sidebar() {
+  const location = useLocation()
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+
+  // Build grouped navigation from flat NAV_ITEMS
+  const { pinnedItems, navGroups, settingsItem } = useMemo(() => {
+    const pinnedItems = NAV_ITEMS.filter(item => PINNED_PATHS.has(item.to))
+    const settingsItem = NAV_ITEMS.find(item => item.to === '/settings')
+    const remaining = NAV_ITEMS.filter(item => !PINNED_PATHS.has(item.to) && item.to !== '/settings')
+
+    const grouped = new Map<string, typeof NAV_ITEMS[number][]>()
+    for (const item of remaining) {
+      const key = classifyNavItem(item.to, item.label)
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key)!.push(item)
+    }
+
+    const navGroups = GROUP_DEFS
+      .filter(g => grouped.has(g.key) && grouped.get(g.key)!.length > 0)
+      .map(g => ({ ...g, items: grouped.get(g.key)! }))
+
+    return { pinnedItems, navGroups, settingsItem }
+  }, [])
+
+  // Auto-expand group containing active route
+  useEffect(() => {
+    for (const group of navGroups) {
+      if (group.items.some(item => item.to === location.pathname)) {
+        setExpandedGroups(prev => {
+          if (prev[group.key]) return prev
+          return { ...prev, [group.key]: true }
+        })
+        break
+      }
+    }
+  }, [location.pathname, navGroups])
+
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
+
   return (
     <aside className="flex flex-col w-56 min-h-screen bg-gray-900 dark:bg-gray-950 text-gray-100 shrink-0">
       {/* Brand */}
@@ -1063,31 +1166,93 @@ function Sidebar() {
         </span>
       </div>
 
-      {/* Nav links */}
-      <nav className="flex flex-col gap-1 px-3 py-4 flex-1">
-        {NAV_ITEMS.map(({ to, label, Icon }) => (
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
+        {/* Pinned items — always visible */}
+        {pinnedItems.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/'}
             className={({ isActive }) =>
-              [
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white',
-              ].join(' ')
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              }`
             }
           >
             <Icon size={18} />
             {label}
           </NavLink>
         ))}
+
+        <div className="h-px bg-gray-700/50 my-2 mx-2" />
+
+        {/* Accordion groups */}
+        {navGroups.map(group => {
+          const isOpen = expandedGroups[group.key] ?? false
+          const hasActive = group.items.some(item => item.to === location.pathname)
+          return (
+            <div key={group.key} className="mb-0.5">
+              <button
+                onClick={() => toggleGroup(group.key)}
+                className={`flex items-center justify-between w-full px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${
+                  hasActive
+                    ? 'text-amber-400 bg-gray-800/50'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <group.Icon size={14} />
+                  {group.label}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="text-[10px] font-normal text-gray-600">{group.items.length}</span>
+                  {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </span>
+              </button>
+              {isOpen && (
+                <div className="ml-3 border-l border-gray-800 pl-1 py-0.5">
+                  {group.items.map(({ to, label, Icon }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
+                          isActive
+                            ? 'bg-gray-700 text-white font-medium'
+                            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                        }`
+                      }
+                    >
+                      <Icon size={14} />
+                      <span className="truncate">{label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-5 py-3 border-t border-gray-700 text-xs text-gray-500">
-        NEM data via NEMWEB
+      {/* Footer — Settings + attribution */}
+      <div className="border-t border-gray-700 px-2 py-2">
+        {settingsItem && (
+          <NavLink
+            to={settingsItem.to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                isActive ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              }`
+            }
+          >
+            <SettingsIcon size={18} />
+            Settings
+          </NavLink>
+        )}
+        <div className="px-3 py-2 text-xs text-gray-500">
+          NEM data via NEMWEB
+        </div>
       </div>
     </aside>
   )
