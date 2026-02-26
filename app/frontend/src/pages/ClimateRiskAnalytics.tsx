@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts'
-import { apiClient, ClimateRiskDashboard, NetworkAssetRiskRecord, ClimateEventRecord } from '../api/client'
+import { api, ClimateRiskDashboard, NetworkAssetRiskRecord, ClimateEventRecord } from '../api/client'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,7 +121,7 @@ export default function ClimateRiskAnalytics() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    apiClient.getClimateRiskDashboard()
+    api.getClimateRiskDashboard()
       .then(setDashboard)
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false))

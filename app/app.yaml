@@ -1,51 +1,22 @@
-# Databricks Apps deployment configuration for AUS Energy Copilot
-# Deploy with: databricks apps deploy energy-copilot --source-code-path /Workspace/Shared/energy_copilot/app
-
 command:
+  - python
+  - -m
   - uvicorn
   - main:app
   - --host
-  - "0.0.0.0"
+  - 0.0.0.0
   - --port
   - "8000"
   - --workers
-  - "2"
+  - "1"
 
 env:
-  - name: DATABRICKS_HOST
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.databricks.host
-  - name: DATABRICKS_TOKEN
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.databricks.token
-  - name: ANTHROPIC_API_KEY
-    valueFrom:
-      secretRef:
-        scope: energy_copilot
-        key: anthropic_api_key
-  - name: DATABRICKS_WAREHOUSE_ID
-    valueFrom:
-      secretRef:
-        scope: energy_copilot
-        key: sql_warehouse_id
-  - name: LAKEBASE_HOST
-    valueFrom:
-      secretRef:
-        scope: energy_copilot
-        key: lakebase_host
+  - name: DATABRICKS_CATALOG
+    value: energy_copilot_catalog
   - name: LAKEBASE_DATABASE
     value: energy_copilot
   - name: LAKEBASE_USER
     value: energy_copilot_app
-  - name: LAKEBASE_PASSWORD
-    valueFrom:
-      secretRef:
-        scope: energy_copilot
-        key: lakebase_password
-  - name: DATABRICKS_CATALOG
-    value: energy_copilot
   - name: LOG_LEVEL
     value: INFO
   - name: PYTHONPATH

@@ -117,15 +117,20 @@ Build an AI-first market intelligence platform that:
 - [x] Responsive web design (desktop + tablet)
 - [x] OAuth authentication via Databricks
 
-### 4.2 Out of Scope (Phase 2+)
+### 4.2 Out of Scope (Deferred to Phase 2)
 - Deal capture and portfolio management (ETRM)
-- Bid preparation and AEMO submission
-- Settlement processing and reconciliation
 - Forward curve construction and mark-to-market
-- Risk analytics (VaR, Greeks, sensitivity)
-- PPA valuation
+- Basic risk analytics (portfolio exposure, P&L attribution)
+- PPA valuation copilot
+- FCAS market analytics and co-optimization
+- Settlement reconciliation (AEMO vs internal)
+
+### 4.3 Out of Scope (Deferred to Phase 3)
+- Bid preparation and AEMO submission (EnergyOffer-like)
+- Advanced risk analytics (VaR, Greeks, Monte Carlo sensitivity)
 - Gas market data (STTM, DWGM)
 - WEM (Western Australian) market data
+- Battery dispatch optimization
 - Native mobile application
 - Multi-tenancy / white-labeling
 
@@ -541,21 +546,599 @@ User (Streamlit Chat UI)
 
 ---
 
-## 13. Glossary
+---
 
-| Term | Definition |
-|------|-----------|
-| **NEM** | National Electricity Market — covers QLD, NSW, VIC, SA, TAS |
-| **AEMO** | Australian Energy Market Operator |
-| **NEMWEB** | AEMO's public data portal for NEM market data |
-| **RRP** | Regional Reference Price — the spot electricity price in $/MWh |
-| **Dispatch Interval** | 5-minute interval for physical dispatch and pricing |
-| **Trading Interval** | 30-minute interval for financial settlement |
-| **DUID** | Dispatchable Unit Identifier — unique ID for each generator/load |
-| **FCAS** | Frequency Control Ancillary Services |
-| **Interconnector** | Transmission link between NEM regions |
-| **Bidstack** | Ordered set of price-quantity bids from generators |
-| **SDP** | Structured Data Processing (Lakeflow Spark Declarative Pipelines) |
-| **PPA** | Power Purchase Agreement |
-| **MAE** | Mean Absolute Error |
-| **MAPE** | Mean Absolute Percentage Error |
+# Phase 2: Lightweight ETRM — Trading & Risk
+
+**Estimated Duration:** 12-16 weeks (following Phase 1 completion)
+**Prerequisites:** Phase 1 fully operational (data pipelines, dashboard, copilot, Genie)
+
+---
+
+## 14. Phase 2 — Executive Summary
+
+Phase 2 transforms AUS Energy Copilot from a market intelligence tool into an active **trading support platform** by adding deal capture, portfolio tracking, forward curve management, risk analytics, PPA valuation, and FCAS market support. This directly addresses the gentailer workflow: traders can now ask the copilot "what's my exposure?" — not just "what's the market doing?"
+
+The phase targets the core gap identified in Phase 1 for gentailer customers like Alinta Energy and Energy Australia: connecting market intelligence to **portfolio positions**.
+
+---
+
+## 15. Phase 2 — Product Scope
+
+### 15.1 Deal Capture & Portfolio Management
+
+#### Deal Capture UI
+- **Trade entry forms** in Streamlit for common NEM contract types:
+  - Spot exposure (generation/load positions by region)
+  - OTC forwards and swaps (flat, peak, off-peak, super-peak profiles)
+  - Futures (ASX Energy futures — base, peak, cap contracts)
+  - Options (caps, floors, collars on NEM regional prices)
+  - Power Purchase Agreements (fixed price, CPI-escalated, floor/cap, pay-as-produced, baseload-shaped)
+  - Renewable Energy Certificates (LGCs, STCs)
+- **AI-assisted deal entry**: Copilot can create trades from natural language ("Enter a 50MW peak swap for VIC Q3 2026 at $85/MWh")
+- **Bulk import** via CSV upload for existing portfolio migration
+- **Trade amendment and cancellation** with full audit trail
+
+#### Portfolio Views
+- **Position summary**: Net long/short by region, time bucket (month, quarter, year), and contract type
+- **Portfolio P&L**: Realized + unrealized, broken down by trade, region, and contract type
+- **Exposure heatmap**: Visual grid of MW exposure by region x time period, color-coded by direction and size
+- **Trade blotter**: Filterable/sortable list of all trades with status, counterparty, volume, price, and current MtM value
+
+#### Data Model (Lakebase)
+
+| Table | Key Columns | Purpose |
+|-------|-------------|---------|
+| `trades` | trade_id, trade_type, region, buy_sell, volume_mw, price, start_date, end_date, profile, status, counterparty, created_by, created_at | Master trade record |
+| `trade_legs` | leg_id, trade_id, settlement_date, interval_start, interval_end, volume_mw, price, profile_factor | Time-bucketed trade cashflows |
+| `trade_amendments` | amendment_id, trade_id, field_changed, old_value, new_value, amended_by, amended_at | Audit trail |
+| `counterparties` | counterparty_id, name, credit_rating, credit_limit | Counterparty master |
+| `portfolios` | portfolio_id, name, owner, description | Portfolio groupings |
+| `portfolio_trades` | portfolio_id, trade_id | Many-to-many mapping |
+
+### 15.2 Forward Curve Construction & Mark-to-Market
+
+#### Forward Curve Engine
+- **Base curve sources**: ASX Energy futures settlement prices (daily), broker quotes (OTC forwards)
+- **Curve building methodology**:
+  - Bootstrap from liquid futures maturities (monthly, quarterly)
+  - Shape to hourly granularity using historical load-shape profiles (peak/off-peak/super-peak ratios)
+  - Apply seasonal shaping factors derived from 3-year historical price patterns
+  - Solar and wind cannibalization adjustments for renewable capture price curves
+- **Curve storage**: Versioned in Delta Lake (`gold.forward_curves`) with daily snapshots for historical MtM
+- **Curve visualization**: Interactive term structure chart in dashboard
+
+#### Mark-to-Market (MtM) Valuation
+- **Daily MtM batch job**: Values entire portfolio against latest forward curves
+- **MtM methodology**:
+  - Forwards/swaps: Sum of (forward price − contract price) × volume × discount factor per settlement period
+  - Options: Black-76 model for European-style caps/floors; intrinsic + time value decomposition
+  - PPAs: Hourly cashflow projection using shaped forward curves × forecast generation profile, discounted to NPV
+  - RECs: Current spot/forward LGC price × certificate volume
+- **P&L attribution**: Decompose daily P&L change into price move, volume change, curve roll, new trades, and time decay
+- **Results stored** in `gold.portfolio_mtm` and `gold.pnl_attribution`
+
+### 15.3 Risk Analytics
+
+#### Portfolio Risk Metrics
+- **Net position by region and time bucket**: Real-time calculation from trade legs vs generation/load forecasts
+- **Portfolio Greeks**:
+  - Delta: MW sensitivity to $1/MWh price move per region
+  - Gamma: Second-order price sensitivity (relevant for option positions)
+  - Vega: Sensitivity to implied volatility changes
+  - Theta: Time decay on option positions
+- **Value at Risk (VaR)**: Parametric VaR (95%, 99% confidence) using historical volatility by region
+- **Stress testing**: Pre-defined scenarios:
+  - "SA heatwave" (SA price +300%, demand +20%)
+  - "Wind drought" (wind gen -80% across NEM for 48 hours)
+  - "Coal trip" (2GW unplanned outage in NSW)
+  - "Interconnector failure" (Heywood or QNI capacity = 0)
+  - Custom user-defined scenarios
+
+#### Credit Risk
+- Counterparty exposure tracking against credit limits
+- Alerts when exposure exceeds 80% of credit limit
+- Counterparty exposure aging (current, 30-day, 90-day)
+
+### 15.4 PPA Valuation Copilot
+
+#### AI-Powered PPA Analysis
+- **Copilot PPA tool**: `value_ppa(strike_price, term_years, technology, region, profile, escalation, volume_mw)`
+- **Valuation approach**:
+  - Project hourly generation profile using technology-specific shape (solar, wind) and regional capacity factors
+  - Apply shaped forward curves to calculate merchant revenue baseline
+  - Calculate PPA cashflows: (strike price − merchant price) × forecast generation per hour
+  - Discount to NPV using configurable WACC
+  - Run Monte Carlo simulation (1,000 paths) varying price, generation, and correlation to produce NPV distribution
+- **Key outputs**: Expected NPV, P10/P50/P90 NPV range, breakeven strike price, capture price discount, annual cashflow profile
+- **Copilot conversation example**:
+  > "Value a 10-year solar PPA in SA at $55/MWh with 2.5% CPI escalation, 100MW nameplate"
+  >
+  > Copilot returns NPV range, capture price analysis, sensitivity table, and recommendation
+
+### 15.5 FCAS Market Analytics
+
+#### FCAS Data & Dashboards
+- Ingest all 8 FCAS markets: Raise 6s, Raise 60s, Raise 5min, Raise Reg, Lower 6s, Lower 60s, Lower 5min, Lower Reg
+- **FCAS price dashboard**: Live and historical FCAS prices by service and region
+- **FCAS bidstack analysis**: View FCAS bids by generator/battery
+- **Co-optimization view**: Show energy + FCAS co-optimization outcomes per dispatch interval
+- **Battery FCAS revenue tracker**: Track FCAS revenue by battery asset (relevant for Alinta, EA battery portfolios)
+
+#### FCAS Forecasting
+- FCAS price forecast models (LightGBM) for each service × region
+- Features: system frequency, inertia levels, renewable penetration, demand, time-of-day
+- Copilot tool: `get_fcas_forecast(service, region, horizon)`
+
+### 15.6 Settlement Reconciliation
+
+#### AEMO Settlement Matching
+- Ingest AEMO preliminary and final settlement files
+- Match AEMO settlements against internal trade positions
+- **Reconciliation dashboard**: Matched, unmatched, and disputed items
+- **Variance analysis**: Highlight settlement differences > $1,000
+- **Copilot tool**: `get_settlement_variance(region, settlement_date)` — explains material variances
+
+### 15.7 Phase 2 — Copilot Agent Extensions
+
+New tools added to the Mosaic AI agent:
+
+| Tool | Input | Output | Description |
+|------|-------|--------|-------------|
+| `get_portfolio_position(portfolio, region, period)` | Portfolio name, region, time bucket | Net MW position, direction | Query current portfolio exposure |
+| `get_portfolio_pnl(portfolio, date_range)` | Portfolio, date range | Realized + unrealized P&L | Portfolio P&L summary |
+| `get_portfolio_risk(portfolio, metric)` | Portfolio, VaR/Greeks/stress | Risk metric values | Risk analytics on demand |
+| `value_ppa(params)` | Strike, term, tech, region, volume | NPV range, capture price | AI-powered PPA valuation |
+| `create_trade(description)` | Natural language trade description | Trade confirmation | AI-assisted deal entry |
+| `get_forward_curve(region, tenor)` | Region, time range | Forward price curve | Retrieve latest curves |
+| `get_fcas_forecast(service, region, horizon)` | FCAS service, region, horizon | Price forecast | FCAS market predictions |
+| `get_settlement_variance(region, date)` | Region, settlement date | Variance items | Settlement reconciliation |
+| `explain_pnl_move(portfolio, date)` | Portfolio, date | P&L attribution breakdown | Explain what drove P&L changes |
+| `run_stress_test(portfolio, scenario)` | Portfolio, scenario name | Stressed P&L impact | Portfolio stress testing |
+
+### 15.8 Phase 2 — Frontend Extensions
+
+#### New Tabs
+- **Portfolio tab**: Position summary, exposure heatmap, trade blotter, P&L chart
+- **Deal Entry tab**: Trade capture forms, AI-assisted entry, bulk import
+- **Risk tab**: VaR dashboard, Greeks summary, stress test results, credit exposure
+- **Curves tab**: Forward curve term structure, historical curve comparison, curve building inputs
+- **FCAS tab**: FCAS prices, bidstacks, co-optimization, battery revenue tracker
+
+#### Enhanced Existing Tabs
+- **Home tab**: Add portfolio P&L ticker, top exposure alerts, settlement status
+- **Copilot Chat**: All new tools available; suggested questions updated with portfolio/risk queries
+- **Alerts tab**: Add portfolio-level alerts (position limit breach, credit limit, MtM threshold, settlement variance)
+
+### 15.9 Phase 2 — Data Architecture Extensions
+
+#### New Gold Layer Tables
+
+| Table | Description |
+|-------|-------------|
+| `gold.forward_curves` | Daily forward curve snapshots by region (hourly granularity, versioned) |
+| `gold.forward_curves_shaped` | Hourly shaped forward prices (peak/off-peak/solar/wind profiles) |
+| `gold.portfolio_mtm` | Daily mark-to-market by trade, portfolio, region |
+| `gold.pnl_attribution` | Daily P&L decomposition (price, volume, curve roll, new trades, time decay) |
+| `gold.portfolio_positions` | Aggregated net positions by portfolio, region, time bucket |
+| `gold.risk_metrics` | Daily VaR, Greeks per portfolio |
+| `gold.stress_test_results` | Scenario stress test outputs |
+| `gold.fcas_prices` | 5-minute FCAS prices by service and region |
+| `gold.fcas_bidstacks` | FCAS bidstack data by generator |
+| `gold.settlement_reconciliation` | AEMO settlement vs internal position matching |
+| `gold.credit_exposure` | Counterparty credit exposure tracking |
+
+#### New Lakebase Tables
+
+| Table | Purpose |
+|-------|---------|
+| `trades` | Master trade record store |
+| `trade_legs` | Time-bucketed cashflows per trade |
+| `trade_amendments` | Trade change audit trail |
+| `counterparties` | Counterparty master data |
+| `portfolios` | Portfolio definitions |
+| `curve_configs` | Forward curve building parameters |
+| `risk_limits` | Position and risk limit definitions |
+| `settlement_disputes` | Flagged settlement variances |
+
+### 15.10 Phase 2 — New Genie Spaces
+
+#### Space 4: Portfolio & P&L
+**Tables/Views**: `gold.portfolio_mtm`, `gold.pnl_attribution`, `gold.portfolio_positions`
+
+**Sample Questions**:
+- "What is the total unrealized P&L for the base portfolio this month?"
+- "Show me the top 10 trades by MtM value"
+- "What was the daily P&L attribution for VIC positions last week?"
+- "Which portfolio has the largest net short position in SA for Q2?"
+
+#### Space 5: FCAS Markets
+**Tables/Views**: `gold.fcas_prices`, `gold.fcas_bidstacks`
+
+**Sample Questions**:
+- "What was the average Raise 6s price in SA this week?"
+- "Show me FCAS revenue by battery asset for the past month"
+- "Compare Reg Raise prices across all regions for January"
+- "Which generators bid the most FCAS volume in QLD today?"
+
+### 15.11 Phase 2 — Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Trade entry time (AI-assisted) | < 30 seconds per trade | App analytics |
+| Daily MtM batch completion | < 15 minutes for full portfolio | Workflow monitoring |
+| PPA valuation response (copilot) | < 45 seconds including Monte Carlo | Agent evaluation |
+| Forward curve build time | < 5 minutes (daily) | Pipeline monitoring |
+| Settlement reconciliation match rate | > 98% auto-matched | Reconciliation dashboard |
+| FCAS forecast accuracy (1-hr MAPE) | < 20% | MLflow model metrics |
+| Portfolio-related copilot queries resolved | > 75% without escalation | Agent evaluation |
+| Risk metric calculation freshness | < 30 minutes from market close | Workflow monitoring |
+
+### 15.12 Phase 2 — Estimated Timeline
+
+| Sprint | Duration | Focus |
+|--------|----------|-------|
+| Sprint 5 | 2 weeks | Lakebase trade data model, deal capture UI, basic portfolio views |
+| Sprint 6 | 2 weeks | Forward curve engine, MtM valuation batch, curve dashboard |
+| Sprint 7 | 2 weeks | Risk analytics (VaR, Greeks, stress tests), risk dashboard |
+| Sprint 8 | 2 weeks | PPA valuation engine, PPA copilot tool, Monte Carlo simulation |
+| Sprint 9 | 2 weeks | FCAS data ingestion, FCAS dashboards, FCAS forecast models |
+| Sprint 10 | 2 weeks | Settlement reconciliation, new copilot tools, new Genie spaces |
+| Sprint 11 | 2 weeks | Integration testing, copilot evaluation, UX polish, launch |
+
+---
+
+# Phase 3: Bidding, Advanced Risk & Market Expansion
+
+**Estimated Duration:** 16-24 weeks (following Phase 2 completion)
+**Prerequisites:** Phase 2 fully operational (portfolio, curves, risk, FCAS)
+
+---
+
+## 16. Phase 3 — Executive Summary
+
+Phase 3 completes the platform as a full-featured **energy trading and operations system** — adding AI-optimized bid/offer management (EnergyOffer-like), advanced risk analytics, battery dispatch optimization, gas market coverage, WEM expansion, and multi-tenant deployment. This phase positions AUS Energy Copilot as a comprehensive alternative to Energy One's product suite for the Databricks ecosystem.
+
+---
+
+## 17. Phase 3 — Product Scope
+
+### 17.1 AI-Optimized Bidding & Dispatch (EnergyOffer Alternative)
+
+#### Bid Preparation
+- **Bid/offer editor** for NEM energy market:
+  - 10 price-quantity band pairs per generator (NEM format)
+  - Support for daily, rebid, and default bids
+  - FCAS bid/offer preparation (8 services)
+  - Bid validation against AEMO rules (price band ordering, ramp rate limits, minimum generation)
+- **AI bid optimization copilot**:
+  - Agent analyzes: price forecasts, demand forecasts, weather, competitor bidstack patterns, constraint forecasts, portfolio position, fuel costs, and emission obligations
+  - Recommends optimal bid curves per generator to maximize portfolio revenue
+  - Tool: `optimize_bid(duid, date, objective)` — returns recommended 10-band bid curve with reasoning
+  - Supports multiple objectives: maximize revenue, minimize risk, target dispatch volume
+- **Rebid intelligence**:
+  - Monitor market conditions in real-time
+  - Alert when rebid opportunity detected (material change in forecast, constraint, or competitor behavior)
+  - Auto-generate rebid reason text compliant with AEMO rebid guidelines
+  - Tool: `suggest_rebid(duid, reason_category)` — returns new bid bands + compliant reason string
+
+#### AEMO Market Submission
+- **Direct API integration** with AEMO NEM Dispatch Bidding API (`dev.aemo.com.au`)
+- Bid submission workflow: prepare → review → approve → submit → confirm
+- Mandatory dual-approval for bids exceeding configurable thresholds
+- Submission audit trail with timestamps, approver, and AEMO acknowledgment
+- Bid compliance tracking: flag late submissions, missing rebid reasons, price band violations
+
+#### Dispatch Monitoring
+- **Unit conformance dashboard**: Actual output vs dispatch target per generator
+- **Conformance alerts**: Flag non-conformance events (deviation > 5% from target for > 2 intervals)
+- **Dispatch outcome analysis**: Post-interval review of dispatch results vs bid expectations
+- **Revenue attribution**: Actual revenue vs optimal strategy comparison per unit per day
+
+### 17.2 Advanced Risk Analytics
+
+#### Enhanced VaR Models
+- **Historical simulation VaR**: Full revaluation using 2+ years of historical scenarios (1,000+ paths)
+- **Monte Carlo VaR**: Correlated simulation across regions, fuel types, and weather factors
+- **Conditional VaR (CVaR / Expected Shortfall)**: Tail risk quantification at 95% and 99%
+- **Incremental VaR**: Marginal risk contribution of each trade to total portfolio VaR
+- **Component VaR**: Risk decomposition by region, contract type, and time bucket
+
+#### Option Analytics
+- **Full Greeks suite**: Delta, Gamma, Vega, Theta, Rho per option position and portfolio aggregate
+- **Implied volatility surface**: Construct and display vol surface by strike × tenor for each NEM region
+- **Scenario Greeks**: Greeks under stressed market conditions
+- **Exotic option support**: Asian options (average price), barrier options, swing contracts
+
+#### Advanced Stress Testing
+- **Scenario library** with 20+ pre-built scenarios covering:
+  - Extreme weather (heatwave, cold snap, storm, wind drought, cloud cover)
+  - Infrastructure (interconnector outage, pipeline failure, coal plant trip, transmission constraint)
+  - Regulatory (price cap change, carbon price shock, renewable target acceleration)
+  - Market structure (demand response event, large generator exit, battery saturation)
+- **Reverse stress testing**: "What scenario would cause a $X loss?" — AI agent identifies market conditions
+- **Historical event replay**: Replay portfolio through actual historical events (SA blackout 2016, QLD flood 2022, etc.)
+- **Copilot tool**: `reverse_stress_test(portfolio, loss_threshold)` — identifies breaking scenarios
+
+#### Real-Time Risk Monitoring
+- **Intraday risk dashboard**: VaR and exposure updated every 5 minutes with dispatch data
+- **Limit monitoring**: Real-time position vs limit tracking with automatic breach alerts
+- **Risk escalation workflow**: Breach → alert → acknowledge → action → resolve, stored in Lakebase
+
+### 17.3 Battery Dispatch Optimization
+
+#### Battery Operations Module
+- **Battery asset registry**: Capacity (MW), energy (MWh), round-trip efficiency, degradation model, location, grid connection
+- **Optimal dispatch scheduler**:
+  - Mixed-integer linear program (MILP) or reinforcement learning agent
+  - Objective: maximize revenue from energy arbitrage + FCAS co-optimization
+  - Constraints: state of charge, max cycles/day, degradation budget, grid constraints
+  - Horizon: rolling 24-48 hour optimization, re-solved every 5 minutes
+- **Battery dispatch copilot**:
+  - Tool: `optimize_battery(asset_id, horizon, objective)` — returns charge/discharge schedule
+  - "When should I charge/discharge Hornsdale today for maximum revenue?"
+  - "What's the expected FCAS vs energy revenue split for the battery this week?"
+- **Battery performance tracking**: Actual vs optimal revenue, degradation monitoring, cycle count, state of health
+
+### 17.4 Gas Market Expansion
+
+#### STTM (Short Term Trading Market) — Adelaide, Sydney, Brisbane
+- Ingest AEMO STTM data: ex-ante and ex-post prices, pipeline flows, withdrawals
+- Gas price dashboard by hub
+- Gas price forecasting models
+- Gas-electric spread analysis (spark spread tracking for gas generators)
+
+#### DWGM (Declared Wholesale Gas Market) — Victoria
+- Ingest AEMO DWGM data: market prices, schedules, pipeline nominations
+- Victorian gas market dashboard
+- Gas demand forecasting
+
+#### Gas Trading Integration
+- Deal capture for gas contracts (spot, forwards, transport)
+- Gas portfolio P&L and risk alongside electricity
+- Combined gas + power portfolio view
+- Copilot tools: `get_gas_price(hub)`, `get_gas_forecast(hub, horizon)`, `get_spark_spread(region)`
+
+### 17.5 WEM (Western Australian) Market Expansion
+
+#### WEM Data Ingestion
+- Ingest AEMO WEM data: balancing prices, LFAS prices, facility generation, demand
+- WEM-specific pipeline (separate from NEM, different market rules)
+- Reference price: Balancing Price (not RRP)
+- Facilities data: WEM generator registry
+
+#### WEM Dashboard & Analytics
+- WEM balancing price chart (30-minute intervals)
+- WEM generation mix and demand
+- WEM price forecasting models
+- Genie space for WEM data
+
+#### WEM Trading Support
+- WEM-specific deal capture (different contract structures)
+- WEM portfolio tracking and P&L
+- Combined NEM + WEM portfolio view for national gentailers
+
+### 17.6 Advanced Copilot Capabilities
+
+#### New Phase 3 Agent Tools
+
+| Tool | Input | Output | Description |
+|------|-------|--------|-------------|
+| `optimize_bid(duid, date, objective)` | Generator DUID, target date, objective | 10-band bid curve + reasoning | AI-recommended bid strategy |
+| `suggest_rebid(duid, reason)` | Generator DUID, reason category | New bid bands + compliant reason text | Rebid opportunity detection |
+| `optimize_battery(asset, horizon, objective)` | Battery asset ID, hours ahead, max revenue/min risk | Charge/discharge schedule | Battery dispatch optimization |
+| `reverse_stress_test(portfolio, threshold)` | Portfolio, loss amount | Scenario description | Find scenario that causes target loss |
+| `replay_event(portfolio, event_name)` | Portfolio, historical event | P&L impact, position analysis | Replay portfolio through historical crisis |
+| `get_gas_price(hub)` | Gas hub name | Current/historical gas price | Gas market data |
+| `get_spark_spread(region)` | NEM region | Gas price vs electricity price spread | Gas-electric economics |
+| `get_bid_compliance(duid, date_range)` | Generator, period | Compliance report | Bid compliance check |
+| `compare_bid_vs_optimal(duid, date)` | Generator, date | Revenue comparison | Post-dispatch bid quality analysis |
+| `get_wem_price(date_range)` | Date range | WEM balancing prices | WA market data |
+
+#### Enhanced Agent Capabilities
+- **Multi-step reasoning**: Agent chains multiple tools for complex analysis (e.g., "Optimize tomorrow's bids for all SA generators considering the weather forecast and my current portfolio exposure")
+- **Proactive operations alerts**: Agent monitors battery state-of-charge, bid submission deadlines, conformance events, and settlement deadlines
+- **Report generation**: Agent produces formatted PDF/HTML reports for management (weekly risk report, monthly portfolio review, quarterly performance attribution)
+- **What-if analysis**: "What if I add a 200MW wind PPA in VIC at $60/MWh — how does that change my portfolio risk?"
+
+### 17.7 Multi-Tenancy & Enterprise Features
+
+#### Multi-Tenant Architecture
+- **Workspace isolation**: Separate Unity Catalog schemas per tenant (portfolio data, trades, risk limits)
+- **Shared data layer**: Market data (Bronze/Silver/Gold) shared across tenants (read-only)
+- **Tenant admin console**: User management, role assignment, feature flags
+- **Data segregation**: Trades, positions, and risk data strictly isolated per tenant
+
+#### Enterprise Security
+- **Role-based access control**:
+  - Trader: deal entry, bid preparation, market views
+  - Risk Manager: risk dashboards, limit management, portfolio override
+  - Analyst: full read access, model results, historical analysis
+  - Admin: user management, system configuration
+  - Executive: summary dashboards, report access
+- **Four-eyes principle** for bid submission and large trade entry
+- **Audit trail**: Every action (trade, bid, limit change, approval) logged with user, timestamp, and context
+- **Data retention policies**: Configurable per regulation (NER compliance)
+
+#### White-Labeling
+- Configurable app branding (logo, colors, company name)
+- Custom Genie space naming and glossary per client
+- Deployable as a managed service or self-hosted on client's Databricks workspace
+
+### 17.8 Phase 3 — Frontend Extensions
+
+#### New Tabs
+- **Bidding tab**: Bid editor, AI optimization panel, submission workflow, compliance tracker
+- **Battery tab**: Dispatch schedule, charge/discharge plan, revenue tracker, state of health
+- **Gas tab**: Gas prices, gas-electric spreads, gas portfolio (if gas market enabled)
+- **WEM tab**: WA market dashboard (if WEM enabled)
+
+#### Enhanced Existing Tabs
+- **Risk tab**: Full VaR dashboard (historical, Monte Carlo, CVaR), vol surface, scenario library, reverse stress test
+- **Portfolio tab**: Combined NEM + WEM + Gas view, incremental VaR per trade
+- **Home tab**: Bidding deadlines, conformance alerts, battery optimization status
+- **Copilot Chat**: All Phase 3 tools available, report generation capability
+
+### 17.9 Phase 3 — Data Architecture Extensions
+
+#### New Gold Layer Tables
+
+| Table | Description |
+|-------|-------------|
+| `gold.bids_submitted` | All bids/offers submitted to AEMO with status |
+| `gold.bid_optimization_results` | AI-recommended bid curves and reasoning |
+| `gold.dispatch_conformance` | Unit conformance vs dispatch targets |
+| `gold.revenue_attribution` | Actual vs optimal revenue per generator |
+| `gold.var_historical` | Daily VaR time series by portfolio |
+| `gold.var_monte_carlo` | Monte Carlo VaR results with scenario paths |
+| `gold.vol_surface` | Implied volatility surface by region × strike × tenor |
+| `gold.stress_test_library` | Pre-defined and custom stress scenarios |
+| `gold.battery_dispatch_schedule` | Optimized charge/discharge plans |
+| `gold.battery_performance` | Actual vs planned revenue, degradation, cycle tracking |
+| `gold.gas_sttm_prices` | STTM hub prices (Adelaide, Sydney, Brisbane) |
+| `gold.gas_dwgm_prices` | DWGM Victorian gas prices |
+| `gold.gas_spark_spreads` | Spark spread calculations by region |
+| `gold.wem_balancing_prices` | WEM balancing market prices |
+| `gold.wem_generation` | WEM facility generation data |
+| `gold.wem_demand` | WEM demand data |
+
+#### New Lakebase Tables
+
+| Table | Purpose |
+|-------|---------|
+| `bids` | Bid/offer records per generator per interval |
+| `bid_approvals` | Bid approval workflow state |
+| `bid_submissions` | AEMO submission tracking and acknowledgments |
+| `battery_assets` | Battery asset registry and parameters |
+| `battery_schedules` | Active and historical dispatch schedules |
+| `gas_trades` | Gas contract records |
+| `tenants` | Tenant configuration (if multi-tenant) |
+| `tenant_users` | User-tenant mappings and roles |
+| `audit_log` | Comprehensive action audit trail |
+
+### 17.10 Phase 3 — New Genie Spaces
+
+#### Space 6: Bidding & Dispatch
+**Tables/Views**: `gold.bids_submitted`, `gold.bid_optimization_results`, `gold.dispatch_conformance`, `gold.revenue_attribution`
+
+**Sample Questions**:
+- "Show me all rebids for Torrens Island in the past week with reasons"
+- "What was the conformance deviation for Bayswater today?"
+- "Compare actual vs AI-optimal revenue for all NSW generators this month"
+- "How many late bid submissions did we have this quarter?"
+
+#### Space 7: Gas Markets
+**Tables/Views**: `gold.gas_sttm_prices`, `gold.gas_dwgm_prices`, `gold.gas_spark_spreads`
+
+**Sample Questions**:
+- "What was the average STTM Adelaide gas price this week?"
+- "Show me spark spreads for Pelican Point over the past 3 months"
+- "Compare gas prices across all STTM hubs for January"
+
+#### Space 8: WEM (Western Australia)
+**Tables/Views**: `gold.wem_balancing_prices`, `gold.wem_generation`, `gold.wem_demand`
+
+**Sample Questions**:
+- "What was the average WEM balancing price this month?"
+- "Show me WEM generation by fuel type for the past week"
+- "Compare WEM demand patterns weekday vs weekend"
+
+### 17.11 Phase 3 — Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| AI bid optimization revenue uplift | > 3% vs manual bidding (backtested) | Revenue attribution analysis |
+| Bid submission compliance rate | 100% on-time submissions | AEMO acknowledgment tracking |
+| Battery optimization revenue uplift | > 5% vs simple rule-based dispatch | Actual vs baseline revenue comparison |
+| Monte Carlo VaR computation time | < 10 minutes for full portfolio (1,000 paths) | Workflow monitoring |
+| Conformance event detection latency | < 10 minutes from dispatch interval | Streaming pipeline monitoring |
+| Gas price forecast accuracy (1-day MAPE) | < 8% | MLflow model metrics |
+| WEM price forecast accuracy (1-hr MAE) | < $10/MWh | MLflow model metrics |
+| Multi-step copilot query resolution | > 70% | Agent evaluation |
+| Report generation time (weekly risk) | < 2 minutes | Agent evaluation |
+
+### 17.12 Phase 3 — Estimated Timeline
+
+| Sprint | Duration | Focus |
+|--------|----------|-------|
+| Sprint 12 | 2 weeks | Bid editor UI, bid validation, AEMO API integration scaffold |
+| Sprint 13 | 2 weeks | AI bid optimization engine, rebid intelligence, bid submission workflow |
+| Sprint 14 | 2 weeks | Advanced VaR (historical sim, Monte Carlo), CVaR, component VaR |
+| Sprint 15 | 2 weeks | Option analytics (Greeks, vol surface), advanced stress testing, reverse stress tests |
+| Sprint 16 | 2 weeks | Battery optimization engine (MILP/RL), battery dashboard, performance tracking |
+| Sprint 17 | 2 weeks | Gas market data ingestion (STTM, DWGM), gas dashboards, spark spreads |
+| Sprint 18 | 2 weeks | WEM data ingestion, WEM dashboard, WEM forecasting models |
+| Sprint 19 | 2 weeks | Multi-tenancy architecture, RBAC, audit trail, enterprise security |
+| Sprint 20 | 2 weeks | New copilot tools, agent evaluation, report generation capability |
+| Sprint 21 | 2 weeks | Genie spaces (3 new), white-labeling, integration testing |
+| Sprint 22 | 2 weeks | End-to-end testing, performance tuning, documentation, production launch |
+
+---
+
+## 18. Full Product Roadmap Summary
+
+```
+Phase 1 (Weeks 1-10)         Phase 2 (Weeks 11-24)         Phase 3 (Weeks 25-46)
+Market Intelligence           Lightweight ETRM              Full Trading Platform
+& AI Copilot                  & Risk                        & Market Expansion
+─────────────────             ──────────────────            ─────────────────────
+✦ Data pipelines              ✦ Deal capture                ✦ AI bid optimization
+✦ Medallion lakehouse         ✦ Portfolio tracking           ✦ AEMO bid submission
+✦ NemSight-like dashboard     ✦ Forward curves              ✦ Advanced VaR/CVaR
+✦ Price/demand forecasts      ✦ Mark-to-market              ✦ Option Greeks & vol
+✦ AI copilot (13 tools)       ✦ Basic risk (VaR, Greeks)    ✦ Battery optimization
+✦ Genie spaces (3)            ✦ PPA valuation               ✦ Gas markets (STTM/DWGM)
+✦ Alerting                    ✦ FCAS analytics              ✦ WEM expansion
+                              ✦ Settlement recon            ✦ Multi-tenancy
+                              ✦ Copilot +10 tools           ✦ Copilot +10 tools
+                              ✦ Genie spaces +2             ✦ Genie spaces +3
+
+         MVP                     Trading-Ready                  Enterprise-Grade
+     (NemSight++)             (SimEnergy-level)              (EOT Alternative)
+```
+
+| Phase | Cumulative Copilot Tools | Cumulative Genie Spaces | Cumulative Gold Tables |
+|-------|-------------------------|------------------------|----------------------|
+| Phase 1 | 13 | 3 | 15 |
+| Phase 2 | 23 | 5 | 26 |
+| Phase 3 | 33 | 8 | 42 |
+
+---
+
+## 19. Glossary
+
+| Term | Definition | Phase |
+|------|-----------|-------|
+| **NEM** | National Electricity Market — covers QLD, NSW, VIC, SA, TAS | 1 |
+| **WEM** | Wholesale Electricity Market — Western Australia (separate from NEM) | 3 |
+| **AEMO** | Australian Energy Market Operator | 1 |
+| **NEMWEB** | AEMO's public data portal for NEM market data | 1 |
+| **RRP** | Regional Reference Price — the spot electricity price in $/MWh | 1 |
+| **Dispatch Interval** | 5-minute interval for physical dispatch and pricing | 1 |
+| **Trading Interval** | 30-minute interval for financial settlement | 1 |
+| **DUID** | Dispatchable Unit Identifier — unique ID for each generator/load | 1 |
+| **FCAS** | Frequency Control Ancillary Services — 8 markets for frequency regulation | 2 |
+| **Interconnector** | Transmission link between NEM regions | 1 |
+| **Bidstack** | Ordered set of price-quantity bids from generators | 1 |
+| **SDP** | Structured Data Processing (Lakeflow Spark Declarative Pipelines) | 1 |
+| **PPA** | Power Purchase Agreement — long-term contract between generator and buyer | 2 |
+| **MAE** | Mean Absolute Error | 1 |
+| **MAPE** | Mean Absolute Percentage Error | 1 |
+| **MtM** | Mark-to-Market — revaluing open positions against current market prices | 2 |
+| **Forward Curve** | Term structure of expected future electricity prices by delivery period | 2 |
+| **VaR** | Value at Risk — maximum expected loss at a given confidence level over a period | 2 |
+| **CVaR** | Conditional Value at Risk (Expected Shortfall) — average loss beyond the VaR threshold | 3 |
+| **Greeks** | Option risk sensitivities: Delta, Gamma, Vega, Theta, Rho | 2 |
+| **Black-76** | Standard option pricing model for commodity/energy options | 2 |
+| **Capture Price** | Generation-weighted average price a renewable asset actually earns | 2 |
+| **Spark Spread** | Difference between electricity price and gas fuel cost — measures gas plant profitability | 3 |
+| **STTM** | Short Term Trading Market — gas hubs in Adelaide, Sydney, Brisbane | 3 |
+| **DWGM** | Declared Wholesale Gas Market — Victorian gas market | 3 |
+| **LGC** | Large-scale Generation Certificate — renewable energy certificate under RET | 2 |
+| **STC** | Small-scale Technology Certificate — rooftop solar certificate under SRES | 2 |
+| **ETRM** | Energy Trading and Risk Management — integrated trading, risk, and settlement system | 2 |
+| **Rebid** | Updating a generator's bid/offer bands intra-day with a valid reason | 3 |
+| **Conformance** | Generator adherence to AEMO dispatch targets within tolerance bands | 3 |
+| **MILP** | Mixed-Integer Linear Programming — optimization technique for battery dispatch | 3 |
+| **Gentailer** | Vertically integrated generator-retailer (e.g., Alinta, Energy Australia, AGL, Origin) | All |
+| **NER** | National Electricity Rules — regulatory framework governing the NEM | 3 |

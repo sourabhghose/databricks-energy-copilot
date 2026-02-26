@@ -18,13 +18,69 @@ import { api, type CopilotSession } from '../api/client'
 // Sidebar: model info + example questions + session stats
 // ---------------------------------------------------------------------------
 
-const EXAMPLE_QUESTIONS = [
-  'What drove SA1 prices above $500/MWh yesterday?',
-  'Compare VIC1 and NSW1 generation mix this week',
-  'What is the current wind forecast for QLD1?',
-  'Explain the FCAS market structure',
-  'What are the current interconnector flows?',
-  'What NEM rules govern AEMO\'s intervention powers?',
+const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
+  {
+    label: 'Spot Prices',
+    questions: [
+      'What are the current spot prices across all NEM regions?',
+      'What drove SA1 prices above $500/MWh yesterday?',
+      'Which region has the cheapest electricity right now?',
+      'Show me recent price spikes and their triggers',
+      'How volatile are prices across regions today?',
+    ],
+  },
+  {
+    label: 'Generation & Fuel Mix',
+    questions: [
+      'Compare VIC1 and NSW1 generation mix right now',
+      'What percentage of generation is renewable in each region?',
+      'Which region has the highest carbon intensity?',
+      'How much coal vs gas is running in QLD1?',
+      'What is the total NEM generation output?',
+    ],
+  },
+  {
+    label: 'Interconnectors',
+    questions: [
+      'What are the current interconnector flows?',
+      'Are any interconnectors congested right now?',
+      'How much power is flowing from VIC to SA?',
+      'What is the total interstate energy transfer?',
+    ],
+  },
+  {
+    label: 'Battery & Storage',
+    questions: [
+      'How many batteries are charging vs discharging?',
+      'What is the total BESS fleet capacity in the NEM?',
+      'Summarise battery storage performance today',
+    ],
+  },
+  {
+    label: 'Demand Response',
+    questions: [
+      'How many demand response programs are active?',
+      'How much demand response MW has been activated today?',
+      'Summarise the demand response situation',
+    ],
+  },
+  {
+    label: 'Alerts & System',
+    questions: [
+      'Are there any active system alerts?',
+      'Are there any LOR conditions right now?',
+      'Give me a full market status briefing',
+    ],
+  },
+  {
+    label: 'NEM Knowledge',
+    questions: [
+      'Explain the FCAS market structure',
+      'What NEM rules govern AEMO\'s intervention powers?',
+      'How does the NEM dispatch process work?',
+      'What is the market price cap and cumulative price threshold?',
+    ],
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -135,10 +191,10 @@ function InfoTab({ onSelectQuestion, apiError, messageCount, avgResponseMs }: In
           <div className="flex items-center gap-1.5">
             <Zap size={12} className="text-amber-500 shrink-0" />
             <span className="text-xs font-semibold text-gray-800 leading-tight">
-              Claude Sonnet 4.5
+              Claude Sonnet 4.6
             </span>
           </div>
-          <div className="text-xs text-gray-400 font-mono">claude-sonnet-4-5</div>
+          <div className="text-xs text-gray-400 font-mono">databricks-claude-sonnet-4-6</div>
           <div className="flex items-center gap-1.5 pt-0.5">
             <span
               className={[
@@ -158,20 +214,29 @@ function InfoTab({ onSelectQuestion, apiError, messageCount, avgResponseMs }: In
         </div>
       </div>
 
-      {/* Example questions */}
-      <div className="px-3 py-3 border-b border-gray-200 flex-1">
+      {/* Example questions — categorised & scrollable */}
+      <div className="px-3 py-3 border-b border-gray-200 flex-1 overflow-y-auto">
         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
           Example Questions
         </div>
-        <div className="flex flex-col gap-1.5">
-          {EXAMPLE_QUESTIONS.map(q => (
-            <button
-              key={q}
-              onClick={() => onSelectQuestion(q)}
-              className="text-left text-xs px-2.5 py-2 rounded-lg border border-blue-100 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-200 transition-colors leading-snug"
-            >
-              {q}
-            </button>
+        <div className="flex flex-col gap-3">
+          {QUESTION_CATEGORIES.map(cat => (
+            <div key={cat.label}>
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                {cat.label}
+              </div>
+              <div className="flex flex-col gap-1">
+                {cat.questions.map(q => (
+                  <button
+                    key={q}
+                    onClick={() => onSelectQuestion(q)}
+                    className="text-left text-[11px] px-2 py-1.5 rounded-md border border-gray-150 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors leading-snug"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -228,7 +293,7 @@ function Sidebar({
   const [activeTab, setActiveTab] = useState<'info' | 'sessions'>('info')
 
   return (
-    <aside className="w-[200px] shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 overflow-y-auto">
+    <aside className="w-[240px] shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden">
       {/* Tab buttons */}
       <div className="flex border-b border-gray-200 shrink-0">
         <button
