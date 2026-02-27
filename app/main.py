@@ -4260,7 +4260,17 @@ async def emergency_management_dashboard():
     restoration = [{"event_id":"RS-2016-001","event_name":"South Australia Black System","region":"SA1","black_start_units":["Quarantine PS","Torrens Island"],"restoration_phases":4,"phase_1_time_hrs":2.5,"phase_2_time_hrs":5.0,"full_restoration_hrs":12.0,"critical_load_priority":"Hospitals, Water, Comms","lessons_learned":"Improved system strength requirements"}]
     preparedness = [{"region":r,"metric":"Black Start Capacity","current_value":round(random.uniform(200,800)),"target_value":round(random.uniform(300,1000)),"adequacy_status":random.choice(["ADEQUATE","MARGINAL"]),"last_tested_months_ago":random.randint(3,18),"investment_needed_m":round(random.uniform(0,50),1)} for r in ["NSW1","QLD1","VIC1","SA1","TAS1"]]
     drills = [{"drill_id":f"DRILL-{i}","drill_type":dt,"date":d,"participants":p,"scenario":sc,"duration_hrs":round(random.uniform(4,8),1),"objectives_met_pct":round(random.uniform(75,98),1),"findings_count":random.randint(3,15),"critical_findings":random.randint(0,3),"remediation_actions":random.randint(2,10)} for i,(dt,d,p,sc) in enumerate([("Tabletop","2025-06-15",["AEMO","TNSPs","Generators"],"Cascading failure in NSW"),("Live Test","2025-09-20",["AEMO","SA Generators"],"SA islanding event"),("Full Simulation","2025-11-10",["AEMO","All NEM Participants"],"Multi-region LOR3")])]
-    return {"emergencies":emergencies,"protocols":protocols,"restoration":restoration,"preparedness":preparedness,"drills":drills,"summary":{"total_emergencies_ytd":2,"avg_response_time_min":12}}
+    adequate_count = sum(1 for p in preparedness if p["adequacy_status"] == "ADEQUATE")
+    summary = {
+        "total_emergencies_2024": len(emergencies),
+        "avg_severity_level": sum(e["severity_level"] for e in emergencies) / max(len(emergencies), 1),
+        "load_shed_2024_mwh": sum(e["load_shed_mwh"] for e in emergencies),
+        "avg_restoration_hrs": sum(r["full_restoration_hrs"] for r in restoration) / max(len(restoration), 1),
+        "preparedness_adequate_pct": round(100 * adequate_count / max(len(preparedness), 1), 1),
+        "drills_per_yr_avg": round(len(drills) / 1, 1),
+        "rert_activated_2024": sum(1 for e in emergencies if "RERT" in e.get("resolution_mechanism", "")),
+    }
+    return {"emergencies":emergencies,"protocols":protocols,"restoration":restoration,"preparedness":preparedness,"drills":drills,"summary":summary}
 
 @app.get("/api/stpasa-adequacy/dashboard", summary="ST PASA adequacy", tags=["Market Data"])
 async def stpasa_adequacy_dashboard():
