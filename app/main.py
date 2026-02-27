@@ -4302,6 +4302,73 @@ async def storage_dashboard():
 
 
 # =========================================================================
+# NEM Suspension / Market Events Analysis endpoints
+# =========================================================================
+
+@app.get("/api/nem-suspension/dashboard")
+async def nem_suspension_dashboard():
+    import random
+    ts = "2026-02-27T06:00:00+11:00"
+    events = [
+        {"event_id":"EVT001","event_name":"SA System Black","start_date":"2016-09-28","end_date":"2016-10-11","duration_days":13,"event_type":"SYSTEM_BLACK","regions_affected":["SA1"],"trigger":"Severe storm destroyed transmission towers; cascading failure","avg_spot_price_before_aud_mwh":52.30,"avg_spot_price_during_aud_mwh":14200.00,"max_spot_price_aud_mwh":14200.00,"total_market_cost_m_aud":367.0,"load_shed_mwh":524000,"generators_directed":12,"aemo_market_notices":47},
+        {"event_id":"EVT002","event_name":"QLD-NSW Separation Event","start_date":"2021-05-25","end_date":"2021-05-26","duration_days":1,"event_type":"SEPARATION","regions_affected":["QLD1","NSW1"],"trigger":"QNI trip due to lightning; QLD islanded","avg_spot_price_before_aud_mwh":68.40,"avg_spot_price_during_aud_mwh":1540.00,"max_spot_price_aud_mwh":15100.00,"total_market_cost_m_aud":42.0,"load_shed_mwh":0,"generators_directed":4,"aemo_market_notices":15},
+        {"event_id":"EVT003","event_name":"Feb 2017 NSW Heatwave","start_date":"2017-02-10","end_date":"2017-02-12","duration_days":2,"event_type":"PRICE_SPIKE","regions_affected":["NSW1","VIC1"],"trigger":"Extreme heat 45°C+; record demand; Liddell unit trip","avg_spot_price_before_aud_mwh":71.20,"avg_spot_price_during_aud_mwh":6800.00,"max_spot_price_aud_mwh":14200.00,"total_market_cost_m_aud":185.0,"load_shed_mwh":35000,"generators_directed":7,"aemo_market_notices":28},
+        {"event_id":"EVT004","event_name":"2019 VIC Bushfire Emergency","start_date":"2019-11-21","end_date":"2019-11-24","duration_days":3,"event_type":"EMERGENCY","regions_affected":["VIC1"],"trigger":"Bushfire damage to 500kV Moorabool–Haunted Gully line","avg_spot_price_before_aud_mwh":58.10,"avg_spot_price_during_aud_mwh":2340.00,"max_spot_price_aud_mwh":14700.00,"total_market_cost_m_aud":89.0,"load_shed_mwh":18000,"generators_directed":5,"aemo_market_notices":22},
+        {"event_id":"EVT005","event_name":"June 2022 Market Suspension","start_date":"2022-06-15","end_date":"2022-06-24","duration_days":9,"event_type":"MARKET_SUSPENSION","regions_affected":["NSW1","QLD1","SA1","VIC1","TAS1"],"trigger":"Cumulative coal outages + gas shortages; AEMO suspended spot market","avg_spot_price_before_aud_mwh":264.00,"avg_spot_price_during_aud_mwh":0.0,"max_spot_price_aud_mwh":15500.00,"total_market_cost_m_aud":1850.0,"load_shed_mwh":0,"generators_directed":28,"aemo_market_notices":92},
+        {"event_id":"EVT006","event_name":"TAS Basslink Cable Failure","start_date":"2015-12-20","end_date":"2016-06-13","duration_days":176,"event_type":"SEPARATION","regions_affected":["TAS1"],"trigger":"Basslink undersea cable failure; TAS islanded for 6 months","avg_spot_price_before_aud_mwh":38.50,"avg_spot_price_during_aud_mwh":95.40,"max_spot_price_aud_mwh":1420.00,"total_market_cost_m_aud":145.0,"load_shed_mwh":0,"generators_directed":3,"aemo_market_notices":180},
+        {"event_id":"EVT007","event_name":"Jan 2024 SA Heatwave Spike","start_date":"2024-01-18","end_date":"2024-01-19","duration_days":1,"event_type":"PRICE_SPIKE","regions_affected":["SA1","VIC1"],"trigger":"Heatwave 44°C; wind output dropped to 5% capacity; gas peakers maxed","avg_spot_price_before_aud_mwh":82.00,"avg_spot_price_during_aud_mwh":4200.00,"max_spot_price_aud_mwh":16600.00,"total_market_cost_m_aud":62.0,"load_shed_mwh":8000,"generators_directed":6,"aemo_market_notices":14},
+        {"event_id":"EVT008","event_name":"2020 QLD Callide Explosion","start_date":"2021-05-25","end_date":"2021-06-30","duration_days":36,"event_type":"EMERGENCY","regions_affected":["QLD1"],"trigger":"Callide C4 turbine hall explosion; 2 units offline for years","avg_spot_price_before_aud_mwh":55.00,"avg_spot_price_during_aud_mwh":310.00,"max_spot_price_aud_mwh":15100.00,"total_market_cost_m_aud":520.0,"load_shed_mwh":0,"generators_directed":8,"aemo_market_notices":65},
+    ]
+    interventions = [
+        {"intervention_id":"INT001","event_id":"EVT001","intervention_type":"DIRECTION","date":"2016-09-28","region":"SA1","generator_or_party":"Torrens Island B","quantity_mw":480,"duration_hrs":72,"trigger_reason":"System restart after blackout","cost_m_aud":18.5,"outcome":"Successful restart sequence"},
+        {"intervention_id":"INT002","event_id":"EVT001","intervention_type":"LOAD_SHEDDING","date":"2016-09-28","region":"SA1","generator_or_party":"SA Power Networks","quantity_mw":1200,"duration_hrs":8,"trigger_reason":"Total system black","cost_m_aud":0.0,"outcome":"Rolling restoration over 8 hours"},
+        {"intervention_id":"INT003","event_id":"EVT003","intervention_type":"DIRECTION","date":"2017-02-10","region":"NSW1","generator_or_party":"Vales Point B","quantity_mw":660,"duration_hrs":12,"trigger_reason":"Reliability and Reserve Trader (RERT)","cost_m_aud":8.2,"outcome":"Avoided load shedding"},
+        {"intervention_id":"INT004","event_id":"EVT003","intervention_type":"RERT_ACTIVATION","date":"2017-02-11","region":"NSW1","generator_or_party":"EnergyAustralia","quantity_mw":350,"duration_hrs":6,"trigger_reason":"LOR3 condition","cost_m_aud":12.0,"outcome":"350MW emergency reserve activated"},
+        {"intervention_id":"INT005","event_id":"EVT005","intervention_type":"MARKET_SUSPENSION","date":"2022-06-15","region":"NSW1","generator_or_party":"AEMO","quantity_mw":0,"duration_hrs":216,"trigger_reason":"Administered pricing cap hit 7 times in 336 intervals","cost_m_aud":0.0,"outcome":"Spot market suspended; AEMO directed all generation"},
+        {"intervention_id":"INT006","event_id":"EVT005","intervention_type":"DIRECTION","date":"2022-06-16","region":"QLD1","generator_or_party":"Gladstone PS","quantity_mw":1680,"duration_hrs":192,"trigger_reason":"Coal unit returning from outage; directed to generate","cost_m_aud":45.0,"outcome":"Critical base-load restored"},
+        {"intervention_id":"INT007","event_id":"EVT005","intervention_type":"DIRECTION","date":"2022-06-17","region":"VIC1","generator_or_party":"Loy Yang A","quantity_mw":2200,"duration_hrs":168,"trigger_reason":"Unplanned outage recall","cost_m_aud":52.0,"outcome":"VIC supply stabilised"},
+        {"intervention_id":"INT008","event_id":"EVT006","intervention_type":"DIRECTION","date":"2016-01-15","region":"TAS1","generator_or_party":"Tamar Valley CCGT","quantity_mw":208,"duration_hrs":2160,"trigger_reason":"Gas generation directed during Basslink outage","cost_m_aud":35.0,"outcome":"TAS supply maintained via hydro + gas"},
+        {"intervention_id":"INT009","event_id":"EVT007","intervention_type":"LOAD_SHEDDING","date":"2024-01-18","region":"SA1","generator_or_party":"SA Power Networks","quantity_mw":200,"duration_hrs":2,"trigger_reason":"LOR3 actual; insufficient generation","cost_m_aud":0.0,"outcome":"200MW rotational load shed"},
+        {"intervention_id":"INT010","event_id":"EVT008","intervention_type":"DIRECTION","date":"2021-05-26","region":"QLD1","generator_or_party":"Stanwell PS","quantity_mw":1400,"duration_hrs":480,"trigger_reason":"Emergency direction to cover Callide C loss","cost_m_aud":28.0,"outcome":"QLD supply maintained"},
+    ]
+    timeline = [
+        {"record_id":"TL001","event_id":"EVT005","timestamp":"2022-06-12T00:00:00","milestone":"Cumulative Price Threshold (CPT) exceeded","milestone_type":"TRIGGER","region":"QLD1","detail":"QLD CPT hit $1,359,100 — exceeding $1,313,100 threshold"},
+        {"record_id":"TL002","event_id":"EVT005","timestamp":"2022-06-13T14:00:00","milestone":"Administered Price Cap activated","milestone_type":"INTERVENTION","region":"NSW1","detail":"APC of $300/MWh applied across NEM"},
+        {"record_id":"TL003","event_id":"EVT005","timestamp":"2022-06-15T14:05:00","milestone":"AEMO suspends spot market","milestone_type":"SUSPENSION","region":"ALL","detail":"First NEM-wide market suspension in history"},
+        {"record_id":"TL004","event_id":"EVT005","timestamp":"2022-06-22T00:00:00","milestone":"Coal units begin returning","milestone_type":"RECOVERY","region":"QLD1","detail":"Gladstone and Stanwell units restarted"},
+        {"record_id":"TL005","event_id":"EVT005","timestamp":"2022-06-24T06:00:00","milestone":"Spot market resumes","milestone_type":"RESOLUTION","region":"ALL","detail":"AEMO lifts suspension; normal dispatch resumes"},
+        {"record_id":"TL006","event_id":"EVT001","timestamp":"2016-09-28T16:18:00","milestone":"Tornado destroys transmission towers","milestone_type":"TRIGGER","region":"SA1","detail":"Two tornadoes damage 22 transmission towers on 275kV lines"},
+        {"record_id":"TL007","event_id":"EVT001","timestamp":"2016-09-28T16:18:30","milestone":"SA system black","milestone_type":"SUSPENSION","region":"SA1","detail":"Entire SA grid collapses; 1.7 million customers without power"},
+        {"record_id":"TL008","event_id":"EVT001","timestamp":"2016-09-28T19:00:00","milestone":"Restoration begins","milestone_type":"RECOVERY","region":"SA1","detail":"Torrens Island B directed to start; first loads restored"},
+        {"record_id":"TL009","event_id":"EVT001","timestamp":"2016-10-11T00:00:00","milestone":"Full restoration complete","milestone_type":"RESOLUTION","region":"SA1","detail":"All SA loads restored; investigation begins"},
+        {"record_id":"TL010","event_id":"EVT008","timestamp":"2021-05-25T13:44:00","milestone":"Callide C4 turbine explosion","milestone_type":"TRIGGER","region":"QLD1","detail":"Catastrophic turbine failure at Callide C4; 2 workers injured"},
+        {"record_id":"TL011","event_id":"EVT008","timestamp":"2021-05-25T14:00:00","milestone":"QLD-NSW separation","milestone_type":"INTERVENTION","region":"QLD1","detail":"QNI trips due to frequency deviation; QLD islanded"},
+        {"record_id":"TL012","event_id":"EVT008","timestamp":"2021-06-30T00:00:00","milestone":"QLD supply stabilised","milestone_type":"RESOLUTION","region":"QLD1","detail":"Stanwell and Gladstone compensate for Callide loss"},
+        {"record_id":"TL013","event_id":"EVT007","timestamp":"2024-01-18T14:30:00","milestone":"SA LOR3 declared","milestone_type":"TRIGGER","region":"SA1","detail":"Wind drops to 5% capacity; temperature hits 44°C"},
+        {"record_id":"TL014","event_id":"EVT007","timestamp":"2024-01-18T15:00:00","milestone":"Load shedding activated","milestone_type":"INTERVENTION","region":"SA1","detail":"200MW rotational load shed across Adelaide metro"},
+        {"record_id":"TL015","event_id":"EVT007","timestamp":"2024-01-19T06:00:00","milestone":"Conditions ease","milestone_type":"RESOLUTION","region":"SA1","detail":"Temperature drops; wind output recovers; LOR3 cancelled"},
+    ]
+    total_cost = sum(e["total_market_cost_m_aud"] for e in events)
+    total_shed = sum(e["load_shed_mwh"] for e in events) / 1000  # to GWh
+    total_days = sum(e["duration_days"] for e in events)
+    return {"timestamp":ts,"total_events_5yr":len(events),"total_suspension_days":total_days,"total_market_cost_m_aud":round(total_cost,1),"total_load_shed_gwh":round(total_shed,1),"events":events,"interventions":interventions,"timeline":timeline}
+
+@app.get("/api/nem-suspension/events")
+async def nem_suspension_events():
+    d = await nem_suspension_dashboard()
+    return d["events"]
+
+@app.get("/api/nem-suspension/interventions")
+async def nem_suspension_interventions():
+    d = await nem_suspension_dashboard()
+    return d["interventions"]
+
+@app.get("/api/nem-suspension/timeline")
+async def nem_suspension_timeline():
+    d = await nem_suspension_dashboard()
+    return d["timeline"]
+
+# =========================================================================
 # API 404 catch-all (must be BEFORE the SPA catch-all)
 # =========================================================================
 
