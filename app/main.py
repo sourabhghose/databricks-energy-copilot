@@ -4039,11 +4039,12 @@ async def forward_curve_dashboard():
     curves = []
     for r in regions:
         base = {"NSW1":85,"QLD1":90,"VIC1":75,"SA1":110}[r]
-        for i,prod in enumerate(["Q2-2026","Q3-2026","Q4-2026","Q1-2027","Cal-2027","Cal-2028"]):
+        for i,prod in enumerate(["Q2-2026","Q3-2026","Q4-2026","Q1-2027","CAL25","CAL26","CAL27","CAL28"]):
+            pt = "CALENDAR" if prod.startswith("CAL") else "QUARTERLY"
             p = base*(1+i*0.03)*random.uniform(0.95,1.05)
-            curves.append({"point_id":f"{r}-{prod}","region":r,"product":prod,"product_type":"BASE","delivery_start":f"2026-{(i+4)%12+1:02d}-01","delivery_end":f"2026-{(i+5)%12+1:02d}-01","settlement_price_aud_mwh":round(p,2),"daily_volume_mw":random.randint(50,300),"open_interest_mw":random.randint(500,3000),"spot_to_forward_premium_pct":round(random.uniform(-5,15),1),"implied_volatility_pct":round(random.uniform(20,50),1),"last_trade_date":"2026-02-25"})
+            curves.append({"point_id":f"{r}-{prod}","region":r,"product":prod,"product_type":pt,"delivery_start":f"2026-{(i+4)%12+1:02d}-01","delivery_end":f"2026-{(i+5)%12+1:02d}-01","settlement_price_aud_mwh":round(p,2),"daily_volume_mw":random.randint(50,300),"open_interest_mw":random.randint(500,3000),"spot_to_forward_premium_pct":round(random.uniform(-5,15),1),"implied_volatility_pct":round(random.uniform(20,50),1),"last_trade_date":"2026-02-25"})
     caps = [{"option_id":f"CAP-{r}-{i}","region":r,"contract_type":"CAP","strike_price_aud_mwh":s,"settlement_period":"Q3-2026","premium_aud_mwh":round(random.uniform(2,15),2),"delta":round(random.uniform(0.1,0.6),3),"gamma":round(random.uniform(0.001,0.01),4),"vega":round(random.uniform(0.5,3),2),"implied_vol_pct":round(random.uniform(25,55),1),"open_interest_mw":random.randint(100,800),"in_the_money":s<100} for i,(r,s) in enumerate([(r,s) for r in ["NSW1","VIC1"] for s in [100,200,300]])]
-    seasonal = [{"record_id":f"SP-{r}-{s}","region":r,"season":s,"year":2025,"avg_spot_aud_mwh":round(random.uniform(50,120),2),"avg_forward_aud_mwh":round(random.uniform(55,130),2),"forward_premium_aud_mwh":round(random.uniform(-5,15),2),"realised_volatility_pct":round(random.uniform(20,60),1),"max_spike_aud_mwh":round(random.uniform(500,5000),0),"spike_hours":random.randint(2,30)} for r in regions for s in ["Summer","Autumn","Winter","Spring"]]
+    seasonal = [{"record_id":f"SP-{r}-{s}-{y}","region":r,"season":s,"year":y,"avg_spot_aud_mwh":round(random.uniform(50,120),2),"avg_forward_aud_mwh":round(random.uniform(55,130),2),"forward_premium_aud_mwh":round(random.uniform(-5,15),2),"realised_volatility_pct":round(random.uniform(20,60),1),"max_spike_aud_mwh":round(random.uniform(500,5000),0),"spike_hours":random.randint(2,30)} for r in regions for s in ["SUMMER","AUTUMN","WINTER","SPRING"] for y in [2023,2024,2025]]
     return {"timestamp":ts,"base_spot_nsw_aud_mwh":87.5,"curve_steepness_nsw":3.2,"avg_implied_vol_pct":35.8,"total_open_interest_mw":12500,"forward_curve":curves,"cap_options":caps,"seasonal_premiums":seasonal}
 
 @app.get("/api/participant-market-share/dashboard", summary="Participant market share", tags=["Market Data"])
@@ -4132,7 +4133,7 @@ async def mlf_analytics_dashboard():
 async def settlement_dashboard():
     ts = datetime.now(timezone.utc).isoformat()
     runs = [{"run_id":f"SR-{i}","run_type":rt,"trading_date":"2026-02-25","run_datetime":ts,"status":"COMPLETE","records_processed":random.randint(50000,200000),"total_settlement_aud":round(random.uniform(20e6,80e6),2),"largest_payment_aud":round(random.uniform(2e6,8e6),2),"largest_receipt_aud":round(random.uniform(2e6,8e6),2),"runtime_seconds":random.randint(120,600)} for i,rt in enumerate(["PRELIMINARY","FINAL","REVISION_1"])]
-    residues = [{"interval_id":f"INT-{i}","interconnector_id":ic,"flow_mw":round(random.uniform(-500,500),1),"price_differential":round(random.uniform(-20,40),2),"settlement_residue_aud":round(random.uniform(-50000,200000),2),"direction":random.choice(["FORWARD","REVERSE"]),"allocation_pool":random.choice(["SRA","IRSR"])} for i,ic in enumerate(["N-Q-MNSP1","VIC1-NSW1","V-SA","T-V-MNSP1","V-S-MNSP1"])]
+    residues = [{"interval_id":f"INT-{i}","interconnector_id":ic,"flow_mw":round(random.uniform(-500,500),1),"price_differential":round(random.uniform(-20,40),2),"settlement_residue_aud":round(random.uniform(-50000,200000),2),"direction":random.choice(["IMPORT","EXPORT"]),"allocation_pool":random.choice(["SRA_POOL","IRSR_POOL"])} for i,ic in enumerate(["N-Q-MNSP1","VIC1-NSW1","V-SA","T-V-MNSP1","V-S-MNSP1"])]
     prudential = [{"participant_id":f"P{i}","participant_name":n,"participant_type":pt,"credit_limit_aud":round(random.uniform(10e6,100e6),2),"current_exposure_aud":round(random.uniform(5e6,80e6),2),"utilisation_pct":round(random.uniform(20,85),1),"outstanding_amount_aud":round(random.uniform(0,5e6),2),"days_since_review":random.randint(10,90),"status":random.choice(["GREEN","AMBER","GREEN"]),"default_notice_issued":False} for i,(n,pt) in enumerate([("Origin Energy","Generator/Retailer"),("AGL Energy","Generator/Retailer"),("EnergyAustralia","Generator/Retailer"),("Snowy Hydro","Generator"),("Alinta Energy","Generator")])]
     tec = [{"participant_id":"P0","duid":"BW01","station_name":"Bayswater","region":"NSW1","previous_tec_mw":2640,"new_tec_mw":2640,"change_mw":0,"effective_date":"2026-07-01","reason":"No change","mlf_before":0.98,"mlf_after":0.98}]
     return {"timestamp":ts,"settlement_period":"2026-02","total_energy_settlement_aud":245000000,"total_fcas_settlement_aud":18500000,"total_residues_aud":12800000,"prudential_exceedances":0,"pending_settlement_runs":1,"largest_residue_interconnector":"VIC1-NSW1","settlement_runs":runs,"residues":residues,"prudential_records":prudential,"tec_adjustments":tec}
@@ -4144,7 +4145,15 @@ async def market_participant_financial_dashboard():
     defaults = [{"year":y,"default_events":e,"total_default_value_m":round(random.uniform(0,50),1),"recovered_pct":round(random.uniform(60,95),1),"market_impact_m":round(random.uniform(0,20),1),"trigger":t} for y,e,t in [(2022,0,"None"),(2023,1,"Retailer insolvency"),(2024,0,"None"),(2025,0,"None")]]
     credit = [{"support_type":st,"total_lodged_m":round(random.uniform(200,800),1),"participants_using":random.randint(5,30),"avg_duration_months":random.randint(6,24),"renewal_frequency_per_yr":round(random.uniform(1,4),1),"acceptance_rate_pct":round(random.uniform(92,100),1)} for st in ["Bank Guarantee","Cash Deposit","Insurance Bond","Letter of Credit"]]
     prudential = [{"quarter":f"2025-Q{q}","total_prudential_requirement_m":round(random.uniform(2000,3000),1),"total_credit_support_lodged_m":round(random.uniform(2500,3500),1),"market_coverage_ratio":round(random.uniform(1.1,1.4),2),"amber_participants":random.randint(0,3),"red_participants":0,"waiver_requests":random.randint(0,2),"waivers_granted":random.randint(0,1)} for q in range(1,5)]
-    return {"participants":participants,"settlement":settlement,"defaults":defaults,"credit_support":credit,"prudential":prudential,"summary":{"total_market_credit_support_b":3.2,"avg_coverage_ratio":1.25}}
+    total_parts = len(participants)
+    latest_prud = prudential[-1] if prudential else {}
+    total_prud_req = latest_prud.get("total_prudential_requirement_m", 2500)
+    mkt_cov = latest_prud.get("market_coverage_ratio", 1.25)
+    red_flagged = sum(1 for p in participants if p["credit_risk_flag"] == "RED")
+    default_2024 = sum(d["default_events"] for d in defaults if d["year"] == 2024)
+    ratings = [p["credit_rating"] for p in participants]
+    avg_rating = max(set(ratings), key=ratings.count) if ratings else "BBB"
+    return {"participants":participants,"settlement":settlement,"defaults":defaults,"credit_support":credit,"prudential":prudential,"summary":{"total_participants":total_parts,"total_prudential_requirement_m":total_prud_req,"market_coverage_ratio":mkt_cov,"red_flagged_participants":red_flagged,"default_events_2024":default_2024,"avg_credit_rating":avg_rating}}
 
 @app.get("/api/rec-market/dashboard", summary="Renewable energy certificates", tags=["Market Data"])
 async def rec_market_dashboard():
@@ -4179,7 +4188,14 @@ async def rooftop_solar_grid_dashboard():
     duck = [{"region":r,"season":s,"hour":h,"net_demand_2020_mw":round(base*(0.7+0.3*abs(12-h)/12)),"net_demand_2024_mw":round(base*(0.6+0.3*abs(12-h)/12)),"net_demand_2030_mw":round(base*(0.4+0.3*abs(12-h)/12)),"net_demand_2035_mw":round(base*(0.25+0.35*abs(12-h)/12)),"ramp_rate_mw_per_hr":round(random.uniform(100,600))} for r,base in [("NSW1",10000),("VIC1",7000),("SA1",2000)] for s in ["Summer","Winter"] for h in range(0,24,2)]
     hosting = [{"distributor":d,"feeder_class":fc,"avg_hosting_capacity_pct":round(random.uniform(40,85),1),"additional_capacity_available_mw":round(random.uniform(50,500)),"constraint_type":random.choice(["Voltage","Thermal","Protection"]),"dynamic_export_limit_applied":random.choice([True,False]),"upgrade_cost_per_mw_m":round(random.uniform(0.5,3),1)} for d in ["Ausgrid","Citipower","Energex","SA Power"] for fc in ["Urban","Suburban","Rural"]]
     export = [{"state":s,"scheme":"Dynamic Export Limits","penetration_pct":round(random.uniform(15,50),1),"avg_curtailment_pct":round(random.uniform(2,12),1),"customer_satisfaction_score":round(random.uniform(3.5,4.5),1),"network_benefit_m_yr":round(random.uniform(5,50),1)} for s in ["SA","QLD","NSW","VIC"]]
-    return {"adoption":adoption,"generation":gen,"duck_curve":duck,"hosting_capacity":hosting,"export_management":export,"summary":{"total_rooftop_gw":22.5,"total_systems_m":3.8,"national_penetration_pct":35.2}}
+    avg_payback = sum(a["avg_payback_years"] for a in adoption) / max(len(adoption), 1)
+    peak_curtail = max((g["curtailment_pct"] for g in gen), default=0)
+    min_net_2024 = min((d["net_demand_2024_mw"] for d in duck), default=0)
+    min_net_2030 = min((d["net_demand_2030_mw"] for d in duck), default=0)
+    total_cap = sum(a["total_capacity_mw"] for a in adoption if a["quarter"] == "2025-Q4")
+    total_sys = sum(a["residential_systems"] + a["commercial_systems"] for a in adoption if a["quarter"] == "2025-Q4")
+    avg_pen = sum(a["penetration_pct"] for a in adoption if a["quarter"] == "2025-Q4") / max(sum(1 for a in adoption if a["quarter"] == "2025-Q4"), 1)
+    return {"adoption":adoption,"generation":gen,"duck_curve":duck,"hosting_capacity":hosting,"export_management":export,"summary":{"total_rooftop_mw_2024":total_cap,"total_systems_2024":total_sys,"avg_penetration_pct":round(avg_pen,1),"peak_curtailment_pct":round(peak_curtail,1),"min_net_demand_2024_mw":min_net_2024,"min_net_demand_2030_mw":min_net_2030,"avg_payback_years":round(avg_payback,1)}}
 
 @app.get("/api/community-energy/dashboard", summary="Community energy", tags=["Market Data"])
 async def community_energy_dashboard():
@@ -4327,7 +4343,9 @@ async def aemo_market_operations_dashboard():
     settlement = [{"quarter":f"2025-Q{q}","region":r,"total_energy_payments_m":round(random.uniform(500,2000),1),"fcas_payments_m":round(random.uniform(20,100),1),"settlement_residue_m":round(random.uniform(5,50),1),"prudential_requirement_m":round(random.uniform(50,200),1),"credit_support_m":round(random.uniform(60,250),1),"default_events":0} for q in range(1,5) for r in regions[:3]]
     predispatch = [{"region":r,"month":"2025-12","predispatch_mae_pct":round(random.uniform(5,15),1),"st_predispatch_mae_pct":round(random.uniform(3,10),1),"price_forecast_accuracy_pct":round(random.uniform(70,90),1),"demand_forecast_mae_gwh":round(random.uniform(0.5,3),2),"renewable_forecast_mae_gwh":round(random.uniform(0.3,2),2)} for r in regions]
     system_normal = [{"metric":m,"region":"NEM","year":2025,"events_count":random.randint(5,50),"total_duration_hours":round(random.uniform(10,200),1),"max_severity_mw":round(random.uniform(100,2000)),"regulatory_action_taken":random.choice([True,False])} for m in ["Frequency Excursion","Voltage Deviation","Constraint Violation","System Restart","Load Shedding"]]
-    return {"dispatch":dispatch,"notices":notices,"settlement":settlement,"predispatch":predispatch,"system_normal":system_normal,"summary":{"total_dispatched_twh":195.4,"renewable_share_pct":38.2}}
+    total_notices = sum(n["count"] for n in notices)
+    avg_pred_acc = sum(p["price_forecast_accuracy_pct"] for p in predispatch) / max(len(predispatch), 1)
+    return {"dispatch":dispatch,"notices":notices,"settlement":settlement,"predispatch":predispatch,"system_normal":system_normal,"summary":{"total_dispatched_twh":195.4,"avg_renewable_share_pct":38.2,"total_notices":total_notices,"avg_predispatch_accuracy_pct":round(avg_pred_acc,1)}}
 
 @app.get("/api/storage/dashboard", summary="Energy storage projects", tags=["Market Data"])
 async def storage_dashboard():
