@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { BrowserRouter, Routes, Route, NavLink, useLocation, useParams } from 'react-router-dom'
 import {
   LayoutDashboard,
   Zap,
@@ -95,8 +95,6 @@ import {
   Upload,
   Rocket,
   CloudRain,
-  ChevronDown,
-  ChevronRight,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -1055,8 +1053,487 @@ const NAV_ITEMS = [
   { to: '/wholesale-market-reform', label: 'Wholesale Market Reform', Icon: Scale },
 ]
 
+const ROUTE_MAP: Record<string, React.ComponentType> = {
+  '/': Home,
+  '/live': LiveMarket,
+  '/forecasts': Forecasts,
+  '/copilot': Copilot,
+  '/genie': Genie,
+  '/alerts': Alerts,
+  '/monitoring': Monitoring,
+  '/market-depth': MarketDepth,
+  '/price-analysis': PriceAnalysis,
+  '/interconnectors': Interconnectors,
+  '/generator-fleet': GeneratorFleet,
+  '/market-notices': MarketNotices,
+  '/weather-demand': WeatherDemand,
+  '/bess': BessAnalytics,
+  '/trading-desk': TradingDesk,
+  '/sustainability': Sustainability,
+  '/merit-order': MeritOrder,
+  '/ml-dashboard': MlDashboardPage,
+  '/data-catalog': DataCatalog,
+  '/scenario': ScenarioAnalysis,
+  '/load-duration': LoadDuration,
+  '/trends': HistoricalTrends,
+  '/frequency': FrequencyAnalytics,
+  '/futures': EnergyFutures,
+  '/registry': ParticipantRegistry,
+  '/outages': OutageSchedule,
+  '/der': DerDashboard,
+  '/gas': GasMarket,
+  '/retail': RetailMarket,
+  '/network': NetworkAnalytics,
+  '/rez': RezInfrastructure,
+  '/curtailment': CurtailmentAnalytics,
+  '/dsp': DemandResponse,
+  '/security': SystemSecurity,
+  '/bidding': BiddingAnalytics,
+  '/nem-events': NemEvents,
+  '/fcas-market': FcasMarket,
+  '/battery-econ': BatteryEconomics,
+  '/settlement': NemSettlement,
+  '/carbon': CarbonAnalytics,
+  '/hedging': HedgingAnalytics,
+  '/hydro': HydroStorage,
+  '/market-power': MarketPower,
+  '/pasa': PasaAnalytics,
+  '/sra': SraAuction,
+  '/ppa': PpaMarket,
+  '/dispatch': DispatchAccuracy,
+  '/regulatory': RegulatoryTracker,
+  '/isp-tracker': IspTracker,
+  '/solar-ev': SolarEvAnalytics,
+  '/lrmc': LrmcAnalytics,
+  '/constraints': NetworkConstraints,
+  '/price-setter': PriceSetterAnalytics,
+  '/tariff': TariffAnalytics,
+  '/grid-mod': GridModernisation,
+  '/spot-cap': SpotCapAnalytics,
+  '/causer-pays': CauserPays,
+  '/wem': WemOverview,
+  '/inertia': InertiaAnalytics,
+  '/tnsp': TnspAnalytics,
+  '/surveillance': MarketSurveillance,
+  '/hydrogen': HydrogenAnalytics,
+  '/offshore-wind': OffshoreWind,
+  '/offshore-wind-pipeline': OffshoreWindPipeline,
+  '/cer': CerDashboard,
+  '/phes': PhesAnalytics,
+  '/safeguard': SafeguardAnalytics,
+  '/transmission': TransmissionProjects,
+  '/dnsp': DnspAnalytics,
+  '/vpp': VppDashboard,
+  '/reform': MarketReformTracker,
+  '/tuos': TuosAnalytics,
+  '/carbon-registry': CarbonRegistry,
+  '/ev': EvCharging,
+  '/storage': StorageArbitrage,
+  '/demand-forecast': DemandForecastAnalytics,
+  '/rez-development': RenewableEnergyZoneDevelopmentAnalytics,
+  '/congestion': CongestionAnalytics,
+  '/equity': EnergyEquity,
+  '/demand-response': DemandResponseAnalytics,
+  '/btm': BehindTheMeter,
+  '/rab': RabAnalytics,
+  '/realtime': NemRealTimeDashboard,
+  '/rit': RitAnalytics,
+  '/forward-curve': ForwardCurveAnalytics,
+  '/coal-retirement': CoalRetirement,
+  '/gas-gen': GasGenEconomics,
+  '/consumer-protection': ConsumerProtection,
+  '/efor': GeneratorAvailability,
+  '/climate-risk': ClimateRiskAnalytics,
+  '/smart-grid': SmartGridAnalytics,
+  '/minimum-demand': MinimumDemandAnalytics,
+  '/market-events': MarketEventsAnalysis,
+  '/battery-tech': BatteryTechAnalytics,
+  '/community-energy': CommunityEnergy,
+  '/asset-management': AssetManagement,
+  '/decarbonization': DecarbonizationPathway,
+  '/nuclear-ldes': NuclearLongDuration,
+  '/nuclear-energy': NuclearEnergyAnalytics,
+  '/bidding-behaviour': BiddingBehaviour,
+  '/energy-poverty': EnergyPoverty,
+  '/spot-forecast': SpotForecastDashboard,
+  '/hydrogen-economy': HydrogenEconomy,
+  '/hydrogen-economy-analytics': HydrogenEconomyAnalytics,
+  '/carbon-credit': CarbonCreditMarket,
+  '/grid-resilience': GridResilience,
+  '/ev-fleet': EvFleetCharging,
+  '/rec-market': RecMarket,
+  '/transmission-congestion': TransmissionCongestion,
+  '/derms-orchestration': DermsOrchestration,
+  '/market-design': MarketDesignReform,
+  '/rez-capacity': RezCapacityTracking,
+  '/retail-offer-comparison': RetailOfferComparison,
+  '/system-operator': SystemOperatorActions,
+  '/network-tariff-reform': NetworkTariffReform,
+  '/spike-analysis': PriceSpikeAnalysis,
+  '/storage-revenue-stack': StorageRevenueStack,
+  '/solar-resource': SolarResourceAnalytics,
+  '/futures-market-risk': FuturesMarketRisk,
+  '/wind-resource': WindResourceAnalytics,
+  '/corporate-ppa-market': CorporatePpaMarket,
+  '/microgrid-raps': MicrogridRaps,
+  '/market-liquidity': MarketLiquidity,
+  '/thermal-efficiency': ThermalEfficiency,
+  '/industrial-demand-flex': IndustrialDemandFlex,
+  '/storage-lca': StorageLca,
+  '/interconnector-flow-analytics': InterconnectorFlowAnalytics,
+  '/isp-progress': IspProgressTracker,
+  '/firming-technology-economics': FirmingTechnologyEconomics,
+  '/demand-forecasting-models': DemandForecastingModels,
+  '/market-stress-testing': MarketStressTesting,
+  '/capacity-investment-signals': CapacityInvestmentSignals,
+  '/frequency-control-analytics': FrequencyControlAnalytics,
+  '/rec-certificate-tracking': RecCertificateTracking,
+  '/spot-market-depth': SpotMarketDepthAnalytics,
+  '/storage-tech-roadmap': StorageTechRoadmap,
+  '/renewable-integration-cost': RenewableIntegrationCost,
+  '/planned-outage-analytics': PlannedOutageAnalytics,
+  '/market-share-tracker': MarketShareTracker,
+  '/volatility-regime-analytics': VolatilityRegimeAnalytics,
+  '/black-start-capability': BlackStartCapability,
+  '/ancillary-services-cost': AncillaryServicesCost,
+  '/cbam-trade-analytics': CbamTradeAnalytics,
+  '/congestion-revenue-analytics': CongestionRevenueAnalytics,
+  '/climate-physical-risk': ClimatePhysicalRisk,
+  '/energy-affordability': EnergyAffordabilityAnalytics,
+  '/electrification-analytics': ElectrificationAnalytics,
+  '/electricity-export-infra': ElectricityExportInfra,
+  '/electricity-export-economics': ElectricityExportEconomicsAnalytics,
+  '/ldes-economics': LdesEconomicsAnalytics,
+  '/gas-transition-analytics': GasTransitionAnalytics,
+  '/prosumer-analytics': ProsumerAnalytics,
+  '/tnsp-analytics': TnspAnalytics,
+  '/dnsp-analytics': DnspPerformanceAnalytics,
+  '/reliability-standard-analytics': ReliabilityStandardAnalytics,
+  '/storage-optimisation-analytics': StorageOptimisationAnalytics,
+  '/settlement-analytics': SettlementAnalytics,
+  '/realtime-operations': RealtimeOperationsDashboard,
+  '/renewable-auction': RenewableAuctionAnalytics,
+  '/voll-analytics': VollAnalytics,
+  '/demand-flexibility-analytics': DemandFlexibilityAnalytics,
+  '/futures-price-discovery': FuturesPriceDiscovery,
+  '/electricity-price-index': ElectricityPriceIndex,
+  '/interconnector-upgrade-analytics': InterconnectorUpgradeAnalytics,
+  '/mlf-analytics': MlfAnalytics,
+  '/csp-analytics': CspAnalytics,
+  '/carbon-intensity-analytics': CarbonIntensityAnalytics,
+  '/network-tariff-reform-analytics': NetworkTariffReformAnalytics,
+  '/tariff-cross-subsidy': TariffCrossSubsidyAnalytics,
+  '/ai-digital-twin-analytics': AiDigitalTwinAnalytics,
+  '/esoo-adequacy-analytics': EsooAdequacyAnalytics,
+  '/social-licence-analytics': SocialLicenceAnalytics,
+  '/electricity-options': ElectricityOptionsAnalytics,
+  '/grid-forming-inverter': GridFormingInverterAnalytics,
+  '/capacity-mechanism': CapacityMechanismAnalytics,
+  '/demand-forecast-accuracy': DemandForecastAccuracyAnalytics,
+  '/transmission-investment': TransmissionInvestmentAnalytics,
+  '/rez-progress': RezProgressAnalytics,
+  '/storage-revenue': StorageRevenueAnalytics,
+  '/carbon-price-pathway': CarbonPricePathwayAnalytics,
+  '/spot-price-forecast': SpotPriceForecastAnalytics,
+  '/ancillary-cost-allocation': AncillaryCostAllocationAnalytics,
+  '/wholesale-liquidity': MarketLiquidityAnalytics,
+  '/generator-retirement': GeneratorRetirementAnalytics,
+  '/consumer-hardship': ConsumerHardshipAnalytics,
+  '/dsr-aggregator': DsrAggregatorAnalytics,
+  '/power-system-events': PowerSystemEventsAnalytics,
+  '/merchant-renewable': MerchantRenewableAnalytics,
+  '/retailer-competition': RetailerCompetitionAnalytics,
+  '/storage-cost-curves': StorageCostCurvesAnalytics,
+  '/extreme-weather-resilience': ExtremeWeatherResilienceAnalytics,
+  '/spot-price-volatility-regime': SpotPriceVolatilityRegimeAnalytics,
+  '/industrial-electrification': IndustrialElectrificationAnalytics,
+  '/offshore-wind-dev-analytics': OffshoreWindDevAnalytics,
+  '/pumped-hydro-resource-assessment': PumpedHydroResourceAssessmentAnalytics,
+  '/frequency-control-performance': FrequencyControlPerformanceAnalytics,
+  '/cost-reflective-tariff-reform': CostReflectiveTariffReformAnalytics,
+  '/ev-fleet-grid-impact': EVFleetGridImpactAnalytics,
+  '/nem-market-microstructure': NEMMarketMicrostructureAnalytics,
+  '/rooftop-solar-grid': RooftopSolarGridAnalytics,
+  '/rec-market-analytics': RECMarketAnalytics,
+  '/energy-poverty-analytics': EnergyPovertyAnalytics,
+  '/hedge-effectiveness': HedgeEffectivenessAnalytics,
+  '/cbam-trade-exposure': CBAMTradeExposureAnalytics,
+  '/demand-response-programs': DemandResponseProgramAnalytics,
+  '/interconnector-congestion': InterconnectorCongestionAnalytics,
+  '/ppa-market': PPAMarketAnalytics,
+  '/ppa-structuring': PPAStructuringAnalytics,
+  '/battery-dispatch-strategy': BatteryDispatchStrategyAnalytics,
+  '/generation-mix-transition': GenerationMixTransitionAnalytics,
+  '/storage-duration-economics': StorageDurationEconomicsAnalytics,
+  '/ancillary-market-depth': AncillaryServicesMarketDepthAnalytics,
+  '/sra-analytics': SRAAnalyticsPage,
+  '/spot-market-stress': SpotMarketStressAnalytics,
+  '/electricity-workforce': ElectricityWorkforceAnalytics,
+  '/rez-transmission': REZTransmissionAnalytics,
+  '/network-regulatory-framework': NetworkRegulatoryFrameworkAnalytics,
+  '/price-model-comparison': PriceModelComparisonAnalytics,
+  '/gas-electricity-nexus': GasElectricityNexusAnalytics,
+  '/bidding-compliance': BiddingComplianceAnalytics,
+  '/community-energy-analytics': CommunityEnergyAnalytics,
+  '/grid-cybersecurity': GridCybersecurityAnalytics,
+  '/market-participant-financial': MarketParticipantFinancialAnalytics,
+  '/digital-transformation': DigitalTransformationAnalytics,
+  '/energy-transition-finance': EnergyTransitionFinanceAnalytics,
+  '/negative-price-events': NegativePriceEventAnalytics,
+  '/cer-orchestration': CEROrchestrationAnalytics,
+  '/system-load-balancing': SystemLoadBalancingAnalytics,
+  '/carbon-accounting': CarbonAccountingAnalytics,
+  '/wholesale-bidding-strategy': WholesaleBiddingStrategyAnalytics,
+  '/ldes-analytics': LDESAnalytics,
+  '/emergency-management': EmergencyManagementAnalytics,
+  '/consumer-switching-retail-churn': ConsumerSwitchingRetailChurnAnalytics,
+  '/solar-thermal-csp': SolarThermalCSPAnalytics,
+  '/nem-post-reform-market-design': NEMPostReformMarketDesignAnalytics,
+  '/electricity-price-forecasting-models': ElectricityPriceForecastingModelAnalytics,
+  '/large-industrial-demand': LargeIndustrialDemandAnalytics,
+  '/network-investment-pipeline': NetworkInvestmentPipelineAnalytics,
+  '/nem-demand-forecast': NEMDemandForecastAnalytics,
+  '/hydrogen-fuel-cell-vehicles': HydrogenFuelCellVehicleAnalytics,
+  '/spot-price-spike-prediction': SpotPriceSpikePredictionAnalytics,
+  '/grid-edge-technology': GridEdgeTechnologyAnalytics,
+  '/bess-degradation': EnergyStorageDegradationAnalytics,
+  '/clean-hydrogen-production-cost': CleanHydrogenProductionCostAnalytics,
+  '/ancillary-services-procurement': AncillaryServicesProcurementAnalytics,
+  '/rez-connection-queue': REZConnectionQueueAnalytics,
+  '/australian-carbon-policy': AustralianCarbonPolicyAnalytics,
+  '/market-design-simulation': MarketDesignSimulationAnalytics,
+  '/power-system-stability': PowerSystemStabilityAnalytics,
+  '/energy-retail-competition': EnergyRetailCompetitionAnalytics,
+  '/clean-energy-finance': CleanEnergyFinanceAnalytics,
+  '/nuclear-energy-economics': NuclearEnergyEconomicsAnalytics,
+  '/behind-meter-commercial': BehindMeterCommercialAnalytics,
+  '/capacity-investment-scheme': CapacityInvestmentSchemeAnalytics,
+  '/demand-flexibility-market': DemandFlexibilityMarketAnalytics,
+  '/energy-asset-life-extension': EnergyAssetLifeExtensionAnalytics,
+  '/green-ammonia-export': GreenAmmoniaExportAnalytics,
+  '/electricity-export-cable': ElectricityExportCableAnalytics,
+  '/industrial-decarbonisation': IndustrialDecarbonisationAnalytics,
+  '/community-energy-storage': CommunityEnergyStorageAnalytics,
+  '/nem-generation-mix': NEMGenerationMixAnalytics,
+  '/consumer-energy-affordability': ConsumerEnergyAffordabilityAnalytics,
+  '/electricity-price-risk': ElectricityPriceRiskAnalytics,
+  '/ev-fleet-depot': EVFleetDepotAnalytics,
+  '/wind-farm-wake': WindFarmWakeAnalytics,
+  '/market-bidding-strategy': MarketBiddingStrategyAnalytics,
+  '/solar-pv-soiling': SolarPVSoilingAnalytics,
+  '/ot-ics-cyber-security': OTICSCyberSecurityAnalytics,
+  '/stpasa-adequacy': STPASAAdequacyAnalytics,
+  '/generator-performance-standards': GeneratorPerformanceStandardsAnalytics,
+  '/biomass-bioenergy': BiomassBioenergyAnalytics,
+  '/electricity-frequency-performance': ElectricityFrequencyPerformanceAnalytics,
+  '/lgc-market': LGCMarketAnalytics,
+  '/wave-tidal-ocean': WaveTidalOceanAnalytics,
+  '/reactive-power-voltage': ReactivePowerVoltageAnalytics,
+  '/battery-revenue-stack': BatteryRevenueStackAnalytics,
+  '/digital-energy-twin': DigitalEnergyTwinAnalytics,
+  '/network-protection-system': NetworkProtectionSystemAnalytics,
+  '/pumped-hydro-dispatch': PumpedHydroDispatchAnalytics,
+  '/retail-market-design': RetailMarketDesignAnalytics,
+  '/spot-market-depth-x': SpotMarketDepthXAnalytics,
+  '/solar-farm-operations': SolarFarmOperationsAnalytics,
+  '/distribution-network-planning': DistributionNetworkPlanningAnalytics,
+  '/grid-flexibility-services': GridFlexibilityServicesAnalytics,
+  '/hydrogen-refuelling-station': HydrogenRefuellingStationAnalytics,
+  '/offshore-wind-finance': OffshoreWindFinanceAnalytics,
+  '/carbon-offset-project': CarbonOffsetProjectAnalytics,
+  '/power-grid-climate-resilience': PowerGridClimateResilienceAnalytics,
+  '/energy-storage-tech-comparison': EnergyStorageTechComparisonAnalytics,
+  '/power-to-x-economics': PowerToXEconomicsAnalytics,
+  '/electricity-market-microstructure': ElectricityMarketMicrostructureAnalytics,
+  '/grid-decarbonisation-pathway': GridDecarbonisationPathwayAnalytics,
+  '/rooftop-solar-network-impact': RooftopSolarNetworkImpactAnalytics,
+  '/electricity-network-tariff-reform': ElectricityNetworkTariffReformAnalytics,
+  '/long-duration-energy-storage': LongDurationEnergyStorageAnalytics,
+  '/hydrogen-pipeline-infrastructure': HydrogenPipelineInfrastructureAnalytics,
+  '/carbon-capture-storage-project': CarbonCaptureStorageProjectAnalytics,
+  '/energy-poverty-vulnerable-consumer': EnergyPovertyVulnerableConsumerAnalytics,
+  '/nuclear-small-modular-reactor': NuclearSmallModularReactorAnalytics,
+  '/electricity-market-transparency': ElectricityMarketTransparencyAnalytics,
+  '/geothermal-energy-development': GeothermalEnergyDevelopmentAnalytics,
+  '/solar-thermal-power-plant': SolarThermalPowerPlantAnalytics,
+  '/energy-trading-algorithmic-strategy': EnergyTradingAlgorithmicStrategyAnalytics,
+  '/ev-grid-integration-v2g': EVGridIntegrationV2GAnalytics,
+  '/biomethane-gas-grid-injection': BiomethaneGasGridInjectionAnalytics,
+  '/electricity-market-forecasting-accuracy': ElectricityMarketForecastingAccuracyAnalytics,
+  '/national-energy-transition-investment': NationalEnergyTransitionInvestmentAnalytics,
+  '/electricity-spot-price-seasonality': ElectricitySpotPriceSeasonalityAnalytics,
+  '/grid-congestion-constraint': GridCongestionConstraintAnalytics,
+  '/electricity-market-competition-concentration': ElectricityMarketCompetitionConcentrationAnalytics,
+  '/renewable-energy-zone-development': RenewableEnergyZoneDevelopmentAnalytics,
+  '/battery-storage-degradation-lifetime': BatteryStorageDegradationLifetimeAnalytics,
+  '/electricity-consumer-switching-churn': ElectricityConsumerSwitchingChurnAnalytics,
+  '/nem-inertia-synchronous-condenser': NEMInertiaSynchronousCondenserAnalytics,
+  '/offshore-wind-leasing-site': OffshoreWindLeasingSiteAnalytics,
+  '/electricity-market-regulatory-appeals': ElectricityMarketRegulatoryAppealsAnalytics,
+  '/distributed-energy-resource-management': DistributedEnergyResourceManagementAnalytics,
+  '/market-price-formation-review': MarketPriceFormationReviewAnalytics,
+  '/residential-solar-self-consumption': ResidentialSolarSelfConsumptionAnalytics,
+  '/energy-infrastructure-cyber-threat': EnergyInfrastructureCyberThreatAnalytics,
+  '/wholesale-gas-market': WholesaleGasMarketAnalytics,
+  '/electricity-demand-forecasting-ml': ElectricityDemandForecastingMLAnalytics,
+  '/energy-storage-merchant-revenue': EnergyStorageMerchantRevenueAnalytics,
+  '/industrial-electrification-x': IndustrialElectrificationXAnalytics,
+  '/transmission-access-reform': TransmissionAccessReformAnalytics,
+  '/hydrogen-export-terminal': HydrogenExportTerminalAnalytics,
+  '/grid-edge-technology-x': GridEdgeTechnologyXAnalytics,
+  '/energy-retailer-margin': EnergyRetailerMarginAnalytics,
+  '/ev-fleet-charging': EvFleetChargingAnalytics,
+  '/carbon-border-adjustment': CarbonBorderAdjustmentAnalytics,
+  '/power-purchase-agreement-market': PowerPurchaseAgreementMarketAnalytics,
+  '/distributed-solar-forecasting': DistributedSolarForecastingAnalytics,
+  '/electricity-market-liquidity': ElectricityMarketLiquidityAnalytics,
+  '/energy-transition-finance-x': EnergyTransitionFinanceXAnalytics,
+  '/nem-frequency-control': NemFrequencyControlAnalytics,
+  '/battery-second-life': BatterySecondLifeAnalytics,
+  '/utility-solar-farm-operations': UtilitySolarFarmOperationsAnalytics,
+  '/wind-farm-wake-effect': WindFarmWakeEffectAnalytics,
+  '/energy-poverty-hardship': EnergyPovertyHardshipAnalytics,
+  '/electricity-network-capital-investment': ElectricityNetworkCapitalInvestmentAnalytics,
+  '/gas-to-power-transition': GasToPowerTransitionAnalytics,
+  '/carbon-offset-market': CarbonOffsetMarketAnalytics,
+  '/power-system-stability-x': PowerSystemStabilityXAnalytics,
+  '/aemo-market-operations': AemoMarketOperationsAnalytics,
+  '/renewable-energy-certificate': RenewableEnergyCertificateAnalytics,
+  '/energy-storage-dispatch-optimisation': EnergyStorageDispatchOptimisationAnalytics,
+  '/offshore-wind-project-finance': OffshoreWindProjectFinanceAnalytics,
+  '/national-energy-market-reform': NationalEnergyMarketReformAnalytics,
+  '/electricity-market-price-formation': ElectricityMarketPriceFormationAnalytics,
+  '/rez-auction-cis': RezAuctionCisAnalytics,
+  '/grid-modernisation-digital-twin': GridModernisationDigitalTwinAnalytics,
+  '/energy-market-credit-risk': EnergyMarketCreditRiskAnalytics,
+  '/electricity-consumer-behaviour': ElectricityConsumerBehaviourAnalytics,
+  '/thermal-coal-power-transition': ThermalCoalPowerTransitionAnalytics,
+  '/demand-response-aggregator': DemandResponseAggregatorAnalytics,
+  '/energy-commodity-trading': EnergyCommodityTradingAnalytics,
+  '/network-tariff-design-reform': NetworkTariffDesignReformAnalytics,
+  '/hydrogen-valley-cluster': HydrogenValleyClusterAnalytics,
+  '/nem-congestion-rent': NemCongestionRentAnalytics,
+  '/electricity-retailer-churn': ElectricityRetailerChurnAnalytics,
+  '/energy-asset-maintenance': EnergyAssetMaintenanceAnalytics,
+  '/coal-seam-gas': CoalSeamGasAnalytics,
+  '/ev-battery-technology': EvBatteryTechnologyAnalytics,
+  '/nem-demand-forecasting-accuracy': NemDemandForecastingAccuracyAnalytics,
+  '/power-system-inertia': PowerSystemInertiaAnalytics,
+  '/electricity-network-investment-deferral': ElectricityNetworkInvestmentDeferralAnalytics,
+  '/rez-capacity-factor': RezCapacityFactorAnalytics,
+  '/energy-retailer-hedging': EnergyRetailerHedgingAnalytics,
+  '/gas-power-plant-flexibility': GasPowerPlantFlexibilityAnalytics,
+  '/solar-irradiance-resource': SolarIrradianceResourceAnalytics,
+  '/electricity-price-cap-intervention': ElectricityPriceCapInterventionAnalytics,
+  '/biogas-landfill': BiogasLandfillAnalytics,
+  '/wind-resource-variability': WindResourceVariabilityAnalytics,
+  '/energy-storage-duration': EnergyStorageDurationAnalytics,
+  '/nem-settlement-residue-auction': NemSettlementResidueAuctionAnalytics,
+  '/hydrogen-electrolysis-cost': HydrogenElectrolysisCostAnalytics,
+  '/electricity-demand-elasticity': ElectricityDemandElasticityAnalytics,
+  '/nuclear-energy-feasibility': NuclearEnergyFeasibilityAnalytics,
+  '/transmission-congestion-revenue': TransmissionCongestionRevenueAnalytics,
+  '/electricity-market-design-reform': ElectricityMarketDesignReformAnalytics,
+  '/carbon-capture-utilisation': CarbonCaptureUtilisationAnalytics,
+  '/grid-scale-battery-degradation': GridScaleBatteryDegradationAnalytics,
+  '/electricity-export': AustraliaElectricityExportAnalytics,
+  '/dsm-programs': DemandSideManagementProgramAnalytics,
+  '/grid-topology': PowerGridTopologyAnalytics,
+  '/rooftop-solar-fit': RooftopSolarFeedInTariffAnalytics,
+  '/lng-export': LngExportAnalytics,
+  '/settings': Settings,
+  '/community-microgrids': EnergyCommunityMicrogridAnalytics,
+  '/ewml-dashboard': ElectricityWholesaleMarketLiquidityAnalytics,
+  '/marine-energy': TidalWaveMarineEnergyAnalytics,
+  '/geothermal-energy': GeothermalEnergyAnalytics,
+  '/storage-arbitrage': EnergyStorageArbitrageAnalytics,
+  '/carbon-border-adjustment-x': CarbonBorderAdjustmentXAnalytics,
+  '/fcas-procurement': FcasProcurementAnalytics,
+  '/electricity-futures-options': ElectricityFuturesOptionsAnalytics,
+  '/rec-lgc-stc': RenewableEnergyCertificateXAnalytics,
+  '/der-management-x': DistributedEnergyResourceManagementXAnalytics,
+  '/coal-mine-energy': CoalMineEnergyAnalytics,
+  '/nem-5min-settlement': NemFiveMinuteSettlementAnalytics,
+  '/network-congestion-relief': NetworkCongestionReliefAnalytics,
+  '/market-concentration-bidding': MarketConcentrationBiddingAnalytics,
+  '/industrial-energy-efficiency': IndustrialEnergyEfficiencyAnalytics,
+  '/retailer-financial-health': RetailerFinancialHealthAnalytics,
+  '/solar-farm-performance': SolarFarmPerformanceAnalytics,
+  '/gas-network-pipeline': GasNetworkPipelineAnalytics,
+  '/electricity-price-forecasting': ElectricityPriceForecastingAnalytics,
+  '/network-asset-life-cycle': NetworkAssetLifeCycleAnalytics,
+  '/wind-farm-wake-turbine': WindFarmWakeTurbineAnalytics,
+  '/energy-poverty-hardship-x': EnergyPovertyHardshipXAnalytics,
+  'hydrogen-refuelling-transport': HydrogenRefuellingTransportAnalytics,
+  'electricity-spot-price-events': ElectricitySpotPriceEventAnalytics,
+  'large-scale-renewable-auction': LargeScaleRenewableAuctionAnalytics,
+  'nem-ancillary-services': NemAncillaryServicesAnalytics,
+  'australian-carbon-credit': AustralianCarbonCreditAnalytics,
+  'ev-grid-integration': ElectricVehicleGridIntegrationAnalytics,
+  'generator-capacity-adequacy': GeneratorCapacityAdequacyAnalytics,
+  'smart-grid-cybersecurity': SmartGridCybersecurityAnalytics,
+  'pumped-hydro-reservoir': PumpedHydroReservoirAnalytics,
+  '/etjj-dashboard': EnergyTransitionJobsAnalytics,
+  '/nifr-dashboard': InterconnectorFlowRightsAnalytics,
+  '/cefa-dashboard-x': CleanEnergyFinanceXAnalytics,
+  '/bess-performance': BessPerformanceAnalytics,
+  '/elca-dashboard': LoadCurveAnalytics,
+  '/ngts-dashboard': NaturalGasTradingAnalytics,
+  '/aeos-dashboard': EnergyOptimisationAnalytics,
+  '/aemc-rule-change': AemcRuleChangeAnalytics,
+  '/renx-dashboard': RenewableExportAnalytics,
+  '/cppa-dashboard-x': CorporatePpaAnalytics,
+  '/nzem-dashboard': NetZeroEmissionsAnalytics,
+  '/epsa-dashboard': PriceSensitivityAnalytics,
+  '/grpt-dashboard': GridReliabilityAnalytics,
+  '/mats-dashboard': MarketTradingStrategyAnalytics,
+  '/emga-dashboard': EmergingMarketsAnalytics,
+  '/epro-dashboard': PortfolioRiskOptimisationAnalytics,
+  '/aehm-dashboard': EnergyHubMicrostructureAnalytics,
+  '/fmrp-dashboard': FrequencyReservePlanningAnalytics,
+  '/daro-dashboard': DistributedAssetOptimisationAnalytics,
+  '/ecsa-dashboard': ConsumerSegmentationAnalytics,
+  '/gena-dashboard': GenerationExpansionAnalytics,
+  '/nema-dashboard': MarketAnomalyDetectionAnalytics,
+  '/wcms-dashboard': WindCapacityMarketAnalytics,
+  '/spar-dashboard': SolarParkRegistryAnalytics,
+  '/energy-storage-duration-x': EnergyStorageDurationXAnalytics,
+  '/offshore-wind-development': OffshoreWindDevelopmentAnalytics,
+  '/nem-participant-financial': NemParticipantFinancialAnalytics,
+  '/green-tariff-hydrogen': GreenTariffHydrogenAnalytics,
+  '/nem-price-review': NemPriceReviewAnalytics,
+  '/renewable-certificate-nem': RenewableCertificateNemAnalytics,
+  '/demand-curve-price-anchor': DemandCurvePriceAnchorAnalytics,
+  '/market-evolution-policy': MarketEvolutionPolicyAnalytics,
+  '/energy-grid-topology': EnergyGridTopologyAnalytics,
+  '/carbon-voluntary-exchange': CarbonVoluntaryExchangeAnalytics,
+  '/renewable-market-sensitivity': RenewableMarketSensitivityAnalytics,
+  '/natural-gas-pipeline': NaturalGasPipelineAnalytics,
+  '/battery-chemistry-risk': BatteryChemistryRiskAnalytics,
+  '/aemo-5min-settlement': Aemo5MinSettlementAnalytics,
+  '/retail-competition': ElectricityRetailCompetitionAnalytics,
+  '/demand-response-aggregation': DemandResponseAggregationAnalytics,
+  '/grid-frequency': GridFrequencyResponseAnalytics,
+  '/hydrogen-economy-outlook': HydrogenEconomyOutlookAnalytics,
+  '/network-augmentation': NetworkAugmentationDeferralAnalytics,
+  '/ev-fleet-grid': EvFleetGridIntegrationAnalytics,
+  '/grid-emissions-intensity': GridEmissionsIntensityAnalytics,
+  '/microgrid-resilience': MicrogridResilienceAnalytics,
+  '/power-quality': PowerQualityMonitoringAnalytics,
+  '/energy-poverty': EnergyPovertyAffordabilityAnalytics,
+  '/vpp-operations': VirtualPowerPlantOperationsAnalytics,
+  '/coal-retirement': CoalFleetRetirementPathwayAnalytics,
+  '/pumped-hydro': PumpedHydroStorageAnalytics,
+  '/smart-meter': SmartMeterDataAnalytics,
+  '/east-coast-gas': EastCoastGasMarketAnalytics,
+  '/isp-analytics': IntegratedSystemPlanAnalytics,
+  '/community-battery': CommunityBatteryAnalytics,
+  '/energy-cyber-security': EnergySectorCyberSecurityAnalytics,
+  '/wholesale-market-reform': WholesaleMarketReformAnalytics,
+}
+
 // ---------------------------------------------------------------------------
-// Sidebar — Accordion grouped navigation
+// Sidebar — Flat category navigation
 // ---------------------------------------------------------------------------
 
 const PINNED_PATHS = new Set(['/', '/live', '/copilot', '/genie', '/alerts'])
@@ -1115,46 +1592,276 @@ function classifyNavItem(to: string, label: string): string {
   return 'other'
 }
 
-function Sidebar() {
-  const location = useLocation()
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+const CATEGORY_SUBGROUPS: Record<string, { key: string; label: string; pattern: RegExp }[]> = {
+  operations: [
+    { key: 'realtime', label: 'Real-Time Ops', pattern: /realtime|live.ops|nem.live|5.?min/ },
+    { key: 'notices', label: 'Notices & Events', pattern: /notice|event|surveillance|emergency/ },
+    { key: 'dispatch', label: 'Dispatch & Settlement', pattern: /dispatch|settlement|aemo.*oper|system.operator/ },
+    { key: 'monitoring', label: 'Monitoring', pattern: /monitor|transparen|stpasa/ },
+  ],
+  prices: [
+    { key: 'spot', label: 'Spot Prices', pattern: /spot|price.analy|price.set|price.cap|negative.price|price.index|seasonal|price.event|price.form|price.review|price.anchor/ },
+    { key: 'futures', label: 'Futures & Forward', pattern: /future|forward|option|discover/ },
+    { key: 'trading', label: 'Trading', pattern: /trading|commodity|algo|merit|bidding|wholesale.*bidd|desk/ },
+    { key: 'hedging', label: 'Hedging & Risk', pattern: /hedg|otc|risk|stress|voll|credit|participant.*fin|market.power|concentration/ },
+    { key: 'forecasting', label: 'Forecasting', pattern: /forecast|predict|spike.*analy|volatil|model.comp/ },
+    { key: 'settlement', label: 'Settlement', pattern: /settl|sra|congestion.re[vn]/ },
+    { key: 'structure', label: 'Market Structure', pattern: /depth|liquid|share|micro|market.evolution/ },
+  ],
+  generation: [
+    { key: 'fleet', label: 'Generator Fleet', pattern: /generator|fleet|efor|availab|perform|capacity.*adequ/ },
+    { key: 'coal', label: 'Coal & Thermal', pattern: /coal|thermal|retire/ },
+    { key: 'gas-gen', label: 'Gas Generation', pattern: /gas.*gen|gas.*econ|gas.*flex|gas.*power/ },
+    { key: 'dispatch', label: 'Dispatch & Mix', pattern: /dispatch|generation.*mix|expansion|outage|planned/ },
+  ],
+  renewables: [
+    { key: 'solar', label: 'Solar', pattern: /solar(?!.*ev)|irradianc|soiling|csp|rooftop(?!.*grid)/ },
+    { key: 'wind', label: 'Wind', pattern: /wind|wake/ },
+    { key: 'offshore', label: 'Offshore Wind', pattern: /offshore/ },
+    { key: 'ppa', label: 'PPA & Certificates', pattern: /ppa|rec|lgc|stc|certif|cer|merchant|renew.*auction/ },
+    { key: 'integration', label: 'Integration', pattern: /curtail|integrat|sustain|biomass|bioenergy/ },
+  ],
+  storage: [
+    { key: 'bess', label: 'Battery (BESS)', pattern: /batter|bess/ },
+    { key: 'phes', label: 'Pumped Hydro', pattern: /pump|phes|hydro/ },
+    { key: 'ldes', label: 'Long Duration', pattern: /ldes|long.dur|duration/ },
+    { key: 'economics', label: 'Economics', pattern: /econ|cost|revenue|arbitrage|merchant|lca|optimis/ },
+    { key: 'tech', label: 'Technology', pattern: /tech|roadmap|degrad|second.life|chemist|comparison|community.*batter/ },
+  ],
+  network: [
+    { key: 'transmission', label: 'Transmission', pattern: /transmiss|tnsp|interconnect|congestion|flow/ },
+    { key: 'distribution', label: 'Distribution', pattern: /dnsp|distribut|augment|protection/ },
+    { key: 'rez', label: 'REZ & Planning', pattern: /rez|renewable.*energy.*zone|connection.*queue/ },
+    { key: 'pricing', label: 'Network Pricing', pattern: /mlf|tariff|tuos|rab|rit|investment|asset.*life/ },
+    { key: 'grid', label: 'Grid & Topology', pattern: /grid.mod|topology|modernis|cyber/ },
+  ],
+  demand: [
+    { key: 'forecast', label: 'Demand Forecast', pattern: /forecast|ml|accuracy/ },
+    { key: 'load', label: 'Load & Statistics', pattern: /load|statist|duration|curve|minimum|weather/ },
+    { key: 'response', label: 'Demand Response', pattern: /response|flex|dsm|dsr|aggregat|industrial|elasticit|large/ },
+  ],
+  system: [
+    { key: 'fcas', label: 'FCAS Market', pattern: /fcas|ancillar|procure|cost.alloc|service/ },
+    { key: 'frequency', label: 'Frequency', pattern: /frequen|causer|control|reserve/ },
+    { key: 'stability', label: 'System Stability', pattern: /inertia|stability|black.start|reactive|power.quality|synchron|grid.form|strength|load.balanc|reliab/ },
+    { key: 'security', label: 'Security', pattern: /security|pasa|adequ|esoo/ },
+  ],
+  der: [
+    { key: 'vpp', label: 'VPP & DERMS', pattern: /vpp|derms|orchestrat|virtual|distributed.*asset/ },
+    { key: 'ev', label: 'EV & V2G', pattern: /ev|v2g|vehicle|charging|depot|fleet.*grid/ },
+    { key: 'solar-der', label: 'Rooftop & BTM', pattern: /rooftop|behind|btm|prosumer|self.consum|feed.in|solar.*grid/ },
+    { key: 'smart', label: 'Smart Grid', pattern: /smart|meter|microgrid|community|digital.*twin|grid.edge|cyber/ },
+  ],
+  gas: [
+    { key: 'market', label: 'Gas Market', pattern: /gas.market|wholesale.*gas|east.coast|trading/ },
+    { key: 'network', label: 'Gas Network', pattern: /pipeline|network|lng|export/ },
+    { key: 'transition', label: 'Gas Transition', pattern: /transition|coal.seam|nexus|biomethane|biogas/ },
+  ],
+  emerging: [
+    { key: 'hydrogen', label: 'Hydrogen', pattern: /hydrogen|electroly|refuell|valley|h2|green.tariff/ },
+    { key: 'nuclear', label: 'Nuclear', pattern: /nuclear|smr|feasib/ },
+    { key: 'other-emerging', label: 'Other', pattern: /geotherm|wave|tidal|ocean|marine|power.to.x|ammonia|fuel.cell/ },
+  ],
+  climate: [
+    { key: 'carbon', label: 'Carbon & Emissions', pattern: /carbon|emission|offset|credit|voluntary|capture|accounting|intensity|safeguard/ },
+    { key: 'policy', label: 'Climate Policy', pattern: /cbam|border|net.zero|decarbon|pathway|policy/ },
+    { key: 'risk', label: 'Climate Risk', pattern: /climate|resilien|extreme|physical|equity|social|afford/ },
+  ],
+  retail: [
+    { key: 'market', label: 'Retail Market', pattern: /retail.*market|competition|offer|comparison|design|margin|financial/ },
+    { key: 'consumer', label: 'Consumer', pattern: /consumer|poverty|hardship|afford|switching|churn|segment|behaviour/ },
+    { key: 'tariff', label: 'Tariffs', pattern: /tariff|cross.subsid|cost.reflect/ },
+  ],
+  policy: [
+    { key: 'regulation', label: 'Regulation', pattern: /regulat|aemc|rule|appeal/ },
+    { key: 'market-design', label: 'Market Design', pattern: /market.design|reform|capacity.mechan|cis|post.reform|simulation|evolution/ },
+    { key: 'planning', label: 'Planning', pattern: /isp|workforce|transition.*invest|finance|job/ },
+  ],
+  analytics: [
+    { key: 'ml', label: 'ML & AI', pattern: /ml|model|anomaly|digital.*twin|optimis/ },
+    { key: 'data', label: 'Data & Catalog', pattern: /data|catalog|scenario|histor|trend/ },
+    { key: 'forecasting', label: 'Forecasting', pattern: /forecast/ },
+  ],
+}
 
-  // Build grouped navigation from flat NAV_ITEMS
-  const { pinnedItems, navGroups, settingsItem } = useMemo(() => {
-    const pinnedItems = NAV_ITEMS.filter(item => PINNED_PATHS.has(item.to))
-    const settingsItem = NAV_ITEMS.find(item => item.to === '/settings')
-    const remaining = NAV_ITEMS.filter(item => !PINNED_PATHS.has(item.to) && item.to !== '/settings')
+function subClassifyNavItem(categoryKey: string, to: string, label: string): string {
+  const subGroups = CATEGORY_SUBGROUPS[categoryKey]
+  if (!subGroups) return 'other'
+  const s = (to + ' ' + label).toLowerCase()
+  for (const sg of subGroups) {
+    if (sg.pattern.test(s)) return sg.key
+  }
+  return 'other'
+}
 
-    const grouped = new Map<string, typeof NAV_ITEMS[number][]>()
-    for (const item of remaining) {
-      const key = classifyNavItem(item.to, item.label)
-      if (!grouped.has(key)) grouped.set(key, [])
-      grouped.get(key)!.push(item)
+function CategoryPage() {
+  const { groupKey } = useParams<{ groupKey: string }>()
+  const [activePath, setActivePath] = useState<string | null>(null)
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const menuBarRef = useRef<HTMLDivElement>(null)
+
+  const group = useMemo(() => {
+    const def = GROUP_DEFS.find(g => g.key === groupKey)
+    if (!def) return null
+    const items = NAV_ITEMS.filter(
+      item => !PINNED_PATHS.has(item.to) && item.to !== '/settings' && classifyNavItem(item.to, item.label) === groupKey
+    )
+    return { ...def, items }
+  }, [groupKey])
+
+  // Build sub-grouped menus
+  const menus = useMemo(() => {
+    if (!group || !groupKey) return []
+    const subDefs = CATEGORY_SUBGROUPS[groupKey] ?? []
+    const grouped = new Map<string, typeof NAV_ITEMS>()
+
+    for (const item of group.items) {
+      const sk = subClassifyNavItem(groupKey, item.to, item.label)
+      if (!grouped.has(sk)) grouped.set(sk, [])
+      grouped.get(sk)!.push(item)
     }
 
-    const navGroups = GROUP_DEFS
-      .filter(g => grouped.has(g.key) && grouped.get(g.key)!.length > 0)
-      .map(g => ({ ...g, items: grouped.get(g.key)! }))
+    const result = subDefs
+      .filter(sd => grouped.has(sd.key) && grouped.get(sd.key)!.length > 0)
+      .map(sd => ({ ...sd, items: grouped.get(sd.key)! }))
 
-    return { pinnedItems, navGroups, settingsItem }
-  }, [])
+    // Add "Other" bucket for unclassified items
+    const otherItems = grouped.get('other')
+    if (otherItems && otherItems.length > 0) {
+      result.push({ key: 'other', label: 'More', pattern: /.*/, items: otherItems })
+    }
 
-  // Auto-expand group containing active route
+    return result
+  }, [group, groupKey])
+
+  // Reset when group changes
   useEffect(() => {
-    for (const group of navGroups) {
-      if (group.items.some(item => item.to === location.pathname)) {
-        setExpandedGroups(prev => {
-          if (prev[group.key]) return prev
-          return { ...prev, [group.key]: true }
-        })
-        break
+    setActivePath(null)
+    setOpenMenu(null)
+  }, [groupKey])
+
+  // Set first item as default active
+  useEffect(() => {
+    if (!activePath && menus.length > 0 && menus[0].items.length > 0) {
+      setActivePath(menus[0].items[0].to)
+    }
+  }, [menus, activePath])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!openMenu) return
+    const handler = (e: MouseEvent) => {
+      if (menuBarRef.current && !menuBarRef.current.contains(e.target as Node)) {
+        setOpenMenu(null)
       }
     }
-  }, [location.pathname, navGroups])
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openMenu])
 
-  const toggleGroup = useCallback((key: string) => {
-    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }))
-  }, [])
+  if (!group || group.items.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+        Category not found
+      </div>
+    )
+  }
+
+  const ActiveComponent = activePath ? ROUTE_MAP[activePath] : null
+  const activeLabel = group.items.find(i => i.to === activePath)?.label
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Menu bar */}
+      <div className="sticky top-0 z-20 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-[#30363D] shrink-0">
+        {/* Category title row */}
+        <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+          <group.Icon size={16} className="text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{group.label}</h2>
+          {activeLabel && (
+            <span className="text-xs text-gray-400 ml-1">/ {activeLabel}</span>
+          )}
+        </div>
+        {/* Menu items row */}
+        <div ref={menuBarRef} className="relative flex items-center px-4 pb-0">
+          {menus.map(menu => {
+            const isOpen = openMenu === menu.key
+            const hasActive = menu.items.some(i => i.to === activePath)
+            return (
+              <div key={menu.key} className="relative">
+                <button
+                  onClick={() => setOpenMenu(isOpen ? null : menu.key)}
+                  className={[
+                    'px-3 py-2 text-xs font-medium transition-colors border-b-2',
+                    isOpen
+                      ? 'text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                      : hasActive
+                        ? 'text-gray-800 dark:text-gray-200 border-blue-600 dark:border-blue-400'
+                        : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                  ].join(' ')}
+                >
+                  {menu.label}
+                  <span className="ml-1 text-[10px] text-gray-400">{menu.items.length}</span>
+                </button>
+                {/* Dropdown */}
+                {isOpen && (
+                  <div className="absolute top-full left-0 mt-0 min-w-[220px] max-h-[60vh] overflow-y-auto bg-white dark:bg-[#1C2128] border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-lg z-30">
+                    {menu.items.map(item => {
+                      const isActive = item.to === activePath
+                      return (
+                        <button
+                          key={item.to}
+                          onClick={() => {
+                            setActivePath(item.to)
+                            setOpenMenu(null)
+                          }}
+                          className={[
+                            'flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors',
+                            isActive
+                              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800',
+                          ].join(' ')}
+                        >
+                          <item.Icon size={14} className="shrink-0 text-gray-400" />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      {/* Active page content */}
+      <div className="flex-1 overflow-auto">
+        {ActiveComponent ? <ActiveComponent /> : <div className="p-6 text-gray-400 text-sm">Select a dashboard from the menu above</div>}
+      </div>
+    </div>
+  )
+}
+
+function Sidebar() {
+  const location = useLocation()
+
+  const pinnedItems = useMemo(
+    () => NAV_ITEMS.filter(item => PINNED_PATHS.has(item.to)),
+    []
+  )
+
+  // Check if current path belongs to a category (for highlighting when on individual routes)
+  const activeCategoryKey = useMemo(() => {
+    // If directly on a /cat/xxx route
+    const catMatch = location.pathname.match(/^\/cat\/(\w+)/)
+    if (catMatch) return catMatch[1]
+    // If on an individual page route, find which category it belongs to
+    const navItem = NAV_ITEMS.find(item => item.to === location.pathname)
+    if (navItem && !PINNED_PATHS.has(navItem.to) && navItem.to !== '/settings') {
+      return classifyNavItem(navItem.to, navItem.label)
+    }
+    return null
+  }, [location.pathname])
 
   return (
     <aside className="flex flex-col w-56 min-h-screen text-gray-100 shrink-0" style={{ backgroundColor: 'var(--db-sidebar)' }}>
@@ -1174,7 +1881,7 @@ function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
-        {/* Pinned items — always visible */}
+        {/* Pinned items */}
         {pinnedItems.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
@@ -1193,69 +1900,39 @@ function Sidebar() {
 
         <div className="h-px bg-white/10 my-2 mx-2" />
 
-        {/* Accordion groups */}
-        {navGroups.map(group => {
-          const isOpen = expandedGroups[group.key] ?? false
-          const hasActive = group.items.some(item => item.to === location.pathname)
+        {/* Category links — flat, no accordion */}
+        {GROUP_DEFS.map(group => {
+          const isActive = activeCategoryKey === group.key
           return (
-            <div key={group.key} className="mb-0.5">
-              <button
-                onClick={() => toggleGroup(group.key)}
-                className={`flex items-center justify-between w-full px-3 py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${
-                  hasActive
-                    ? 'text-[#FF3621] bg-white/5'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <group.Icon size={14} />
-                  {group.label}
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="text-[10px] font-normal text-gray-600">{group.items.length}</span>
-                  {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                </span>
-              </button>
-              {isOpen && (
-                <div className="ml-3 border-l border-white/10 pl-1 py-0.5">
-                  {group.items.map(({ to, label, Icon }) => (
-                    <NavLink
-                      key={to}
-                      to={to}
-                      className={({ isActive }) =>
-                        `flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
-                          isActive
-                            ? 'bg-white/10 text-white font-medium'
-                            : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                        }`
-                      }
-                    >
-                      <Icon size={14} />
-                      <span className="truncate">{label}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              )}
-            </div>
+            <NavLink
+              key={group.key}
+              to={`/cat/${group.key}`}
+              className={() =>
+                `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                }`
+              }
+            >
+              <group.Icon size={18} />
+              {group.label}
+            </NavLink>
           )
         })}
       </nav>
 
-      {/* Footer — Settings + attribution */}
+      {/* Footer */}
       <div className="border-t border-white/10 px-2 py-2">
-        {settingsItem && (
-          <NavLink
-            to={settingsItem.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-              }`
-            }
-          >
-            <SettingsIcon size={18} />
-            Settings
-          </NavLink>
-        )}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+            }`
+          }
+        >
+          <SettingsIcon size={18} />
+          Settings
+        </NavLink>
         <div className="px-3 py-1 text-[10px] text-gray-500">
           Powered by Databricks
         </div>
@@ -1291,6 +1968,7 @@ export default function App() {
           <TopBar />
           <main className="flex-1 overflow-auto">
             <Routes>
+              <Route path="/cat/:groupKey" element={<CategoryPage />} />
               <Route path="/"          element={<Home />}       />
               <Route path="/live"      element={<LiveMarket />} />
               <Route path="/forecasts" element={<Forecasts />}  />
