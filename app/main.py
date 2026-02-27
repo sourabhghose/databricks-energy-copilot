@@ -4423,6 +4423,212 @@ async def nem_suspension_timeline():
     return d["timeline"]
 
 # =========================================================================
+# Price Setter & Marginal Generator Analytics
+# =========================================================================
+
+@app.get("/api/price-setter/dashboard")
+async def price_setter_dashboard(region: str = "SA1"):
+    import random as _r
+    _r.seed(hash(region) % 10000)
+
+    fuels = ["Wind", "Solar", "Gas OCGT", "Gas CCGT", "Battery", "Coal", "Hydro"]
+    stations = {
+        "Wind": [("ARWF1", "Ararat Wind Farm"), ("HDWF1", "Hallet Wind Farm"), ("MLWF1", "Macarthur Wind")],
+        "Solar": [("DDSF1", "Darlington Point Solar"), ("BALBG1", "Bald Hills Solar"), ("LRSF1", "Limondale Solar")],
+        "Gas OCGT": [("CALL_B_1", "Callide B1"), ("OSPS1", "Osborne PS"), ("PPCCGT", "Pelican Point")],
+        "Gas CCGT": [("PPCCGT", "Pelican Point"), ("TORRA1", "Torrens Island A1")],
+        "Battery": [("HPRG1", "Hornsdale Power Reserve"), ("VBBL1", "Victorian Big Battery")],
+        "Coal": [("BW01", "Bayswater 1"), ("ER01", "Eraring 1"), ("VP5", "Vales Point 5")],
+        "Hydro": [("MURRAY1", "Murray 1"), ("TUMUT3", "Tumut 3")],
+    }
+
+    # Generate 24 interval records (5-min intervals, last 2 hours)
+    records = []
+    for i in range(24):
+        fuel = _r.choice(fuels)
+        duid, sname = _r.choice(stations[fuel])
+        price = round(_r.gauss(85 if region == "SA1" else 65, 40), 2)
+        strategic = _r.random() < 0.12
+        records.append({
+            "interval": f"{6 + i // 12}:{(i % 12) * 5:02d}",
+            "region": region,
+            "duid": duid,
+            "station_name": sname,
+            "fuel_type": fuel,
+            "dispatch_price": price,
+            "dispatch_quantity_mw": round(_r.uniform(50, 500), 1),
+            "offer_band": f"Band {_r.randint(1, 10)}",
+            "offer_price": round(price * _r.uniform(0.7, 1.0), 2),
+            "is_strategic": strategic,
+            "shadow_price_mw": round(_r.uniform(0.5, 8.0), 1),
+        })
+
+    # Fuel type stats
+    fuel_stats = []
+    remaining = 100.0
+    for j, fuel in enumerate(fuels):
+        pct = round(_r.uniform(5, 30), 1) if j < len(fuels) - 1 else round(remaining, 1)
+        remaining -= pct
+        if remaining < 0:
+            pct += remaining
+            remaining = 0
+        fuel_stats.append({
+            "fuel_type": fuel,
+            "intervals_as_price_setter": _r.randint(10, 80),
+            "pct_of_all_intervals": round(max(pct, 1.0), 1),
+            "avg_price_aud_mwh": round(_r.uniform(40, 200), 0),
+            "max_price_aud_mwh": round(_r.uniform(200, 5000), 0),
+            "economic_rent_est_m_aud": round(_r.uniform(0.1, 15.0), 2),
+        })
+
+    # Frequency stats
+    freq_stats = []
+    for fuel in fuels:
+        for duid, sname in stations[fuel][:1]:
+            freq_stats.append({
+                "duid": duid,
+                "station_name": sname,
+                "fuel_type": fuel,
+                "region": region,
+                "capacity_mw": _r.randint(100, 800),
+                "intervals_as_price_setter": _r.randint(5, 60),
+                "pct_intervals": round(_r.uniform(1, 25), 1),
+                "avg_price_when_setter": round(_r.uniform(30, 250), 0),
+                "max_price_when_setter": round(_r.uniform(200, 8000), 0),
+                "estimated_daily_price_power_aud": round(_r.uniform(500, 50000), 0),
+                "strategic_bids_pct": round(_r.uniform(0, 35), 1),
+            })
+    freq_stats.sort(key=lambda x: x["intervals_as_price_setter"], reverse=True)
+
+    dominant = max(freq_stats, key=lambda x: x["intervals_as_price_setter"])
+    dominant_fuel = max(fuel_stats, key=lambda x: x["pct_of_all_intervals"])
+    strategic_pct = round(sum(1 for r in records if r["is_strategic"]) / max(len(records), 1) * 100, 1)
+    avg_price = round(sum(r["dispatch_price"] for r in records) / max(len(records), 1), 0)
+    current = records[-1] if records else None
+
+    return {
+        "timestamp": "2026-02-27T08:00:00Z",
+        "region": region,
+        "total_intervals_today": len(records),
+        "dominant_price_setter": dominant["station_name"],
+        "dominant_fuel_type": dominant_fuel["fuel_type"],
+        "strategic_bid_frequency_pct": strategic_pct,
+        "avg_price_today": avg_price,
+        "current_price_setter": current["station_name"] if current else "Unknown",
+        "current_price": current["dispatch_price"] if current else 0,
+        "price_setter_records": records,
+        "frequency_stats": freq_stats,
+        "fuel_type_stats": fuel_stats,
+    }
+
+@app.get("/api/price-setter/records")
+async def price_setter_records(region: str = "SA1"):
+    data = await price_setter_dashboard(region)
+    return data["price_setter_records"]
+
+@app.get("/api/price-setter/frequency")
+async def price_setter_frequency(region: str = "SA1"):
+    data = await price_setter_dashboard(region)
+    return data["frequency_stats"]
+
+# =========================================================================
+# Spot Price Cap & CPT Analytics
+# =========================================================================
+
+def _build_spot_cap_data():
+    import random as _r
+    _r.seed(42)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+
+    events = []
+    for i in range(30):
+        reg = _r.choice(regions)
+        is_floor = _r.random() < 0.25
+        spot = round(_r.uniform(-1100, -900), 2) if is_floor else round(_r.uniform(14000, 15500), 2)
+        events.append({
+            "event_id": f"CE-2025-{i+1:04d}",
+            "region": reg,
+            "trading_interval": f"2025-{_r.randint(1,12):02d}-{_r.randint(1,28):02d}T{_r.randint(6,20):02d}:{_r.choice(['00','05','10','15','20','25','30','35','40','45','50','55'])}:00",
+            "spot_price": spot,
+            "market_price_cap": 15500,
+            "below_floor": is_floor,
+            "floor_price": -1000,
+            "cumulative_price_at_interval": round(_r.uniform(200000, 1350000), 2),
+            "dispatch_intervals_capped": _r.randint(0, 12) if not is_floor else 0,
+        })
+
+    cpt_records = []
+    for reg in regions:
+        for q in ["Q1-2025", "Q2-2025", "Q3-2025", "Q4-2025"]:
+            base_cum = _r.uniform(400000, 1200000)
+            cpt_records.append({
+                "region": reg,
+                "trading_date": f"2025-{['03','06','09','12'][['Q1-2025','Q2-2025','Q3-2025','Q4-2025'].index(q)]}-28",
+                "cumulative_price": round(base_cum, 2),
+                "cpt_threshold": 1300000,
+                "pct_of_cpt": round(base_cum / 1300000 * 100, 2),
+                "daily_avg_price": round(_r.uniform(50, 200), 2),
+                "cap_events_today": _r.randint(0, 5),
+                "floor_events_today": _r.randint(0, 2),
+                "days_until_reset": _r.randint(1, 90),
+                "quarter": q,
+            })
+
+    regional_summaries = []
+    for reg in regions:
+        regional_summaries.append({
+            "region": reg,
+            "year": 2025,
+            "total_cap_events": _r.randint(10, 60),
+            "total_floor_events": _r.randint(2, 20),
+            "avg_price_during_cap_events": round(_r.uniform(12000, 15500), 0),
+            "max_cumulative_price": round(_r.uniform(600000, 1350000), 0),
+            "cpt_breaches": _r.randint(0, 2),
+            "total_cpt_periods": _r.randint(3, 8),
+            "revenue_impact_m_aud": round(_r.uniform(5, 80), 1),
+        })
+
+    active_cpt = [r for r in regions if _r.random() < 0.4]
+    total_cap = sum(s["total_cap_events"] for s in regional_summaries)
+    total_floor = sum(s["total_floor_events"] for s in regional_summaries)
+
+    return {
+        "timestamp": "2025-12-28T14:30:00+11:00",
+        "market_price_cap_aud": 15500,
+        "market_floor_price_aud": -1000,
+        "cumulative_price_threshold_aud": 1300000,
+        "cpt_period_days": 336,
+        "national_cap_events_ytd": total_cap,
+        "national_floor_events_ytd": total_floor,
+        "active_cpt_regions": active_cpt,
+        "cap_events": events,
+        "cpt_tracker": cpt_records,
+        "regional_summaries": regional_summaries,
+    }
+
+@app.get("/api/spot-cap/dashboard")
+async def spot_cap_dashboard():
+    return _build_spot_cap_data()
+
+@app.get("/api/spot-cap/cpt-tracker")
+async def spot_cap_cpt_tracker(region: str = None, quarter: str = None):
+    data = _build_spot_cap_data()
+    records = data["cpt_tracker"]
+    if region:
+        records = [r for r in records if r["region"] == region]
+    if quarter:
+        records = [r for r in records if r["quarter"] == quarter]
+    return records
+
+@app.get("/api/spot-cap/cap-events")
+async def spot_cap_events(region: str = None):
+    data = _build_spot_cap_data()
+    events = data["cap_events"]
+    if region:
+        events = [e for e in events if e["region"] == region]
+    return events
+
+# =========================================================================
 # API 404 catch-all (must be BEFORE the SPA catch-all)
 # =========================================================================
 
