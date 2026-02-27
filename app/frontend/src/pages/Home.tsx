@@ -204,7 +204,7 @@ function MarketSummaryWidget() {
 
       {/* Narrative text */}
       <div className="max-h-48 overflow-y-auto">
-        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
           {summary.narrative}
         </p>
       </div>

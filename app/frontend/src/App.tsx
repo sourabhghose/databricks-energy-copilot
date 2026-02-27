@@ -1265,7 +1265,7 @@ function Sidebar() {
 }
 
 function TopBar() {
-  const [isDark, toggleDark] = useDarkMode()
+  useDarkMode()
   return (
     <header className="h-12 flex items-center justify-between px-6 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-[#30363D] shrink-0">
       <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
@@ -1277,13 +1277,6 @@ function TopBar() {
           NEM Live
         </span>
         <span>{new Date().toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short' })} AEST</span>
-        <button
-          onClick={toggleDark}
-          className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-gray-500" />}
-        </button>
       </div>
     </header>
   )

@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { Send, Loader2, MessageSquare } from 'lucide-react'
 import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   id: string
@@ -53,6 +54,7 @@ function MarkdownContent({ content }: { content: string }) {
   return (
     <div className="prose-chat">
       <Markdown
+        remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ children }) => <h3 className="text-sm font-bold text-gray-900 mt-3 mb-1.5">{children}</h3>,
           h2: ({ children }) => <h3 className="text-sm font-bold text-gray-900 mt-3 mb-1.5">{children}</h3>,
@@ -77,13 +79,15 @@ function MarkdownContent({ content }: { content: string }) {
           },
           pre: ({ children }) => <>{children}</>,
           table: ({ children }) => (
-            <div className="overflow-x-auto my-2">
+            <div className="overflow-x-auto my-2 rounded-lg border border-gray-200">
               <table className="min-w-full text-xs border-collapse">{children}</table>
             </div>
           ),
-          thead: ({ children }) => <thead className="bg-gray-200">{children}</thead>,
-          th: ({ children }) => <th className="px-2 py-1.5 text-left font-semibold text-gray-700 border-b border-gray-300">{children}</th>,
-          td: ({ children }) => <td className="px-2 py-1 text-gray-700 border-b border-gray-100">{children}</td>,
+          thead: ({ children }) => <thead className="bg-gray-100">{children}</thead>,
+          tbody: ({ children }) => <tbody className="divide-y divide-gray-100">{children}</tbody>,
+          tr: ({ children }) => <tr className="hover:bg-gray-50 transition-colors">{children}</tr>,
+          th: ({ children }) => <th className="px-3 py-2 text-left font-semibold text-gray-700 text-[11px] uppercase tracking-wider border-b border-gray-200 whitespace-nowrap">{children}</th>,
+          td: ({ children }) => <td className="px-3 py-1.5 text-gray-700 whitespace-nowrap">{children}</td>,
           hr: () => <hr className="my-2 border-gray-200" />,
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-blue-300 pl-3 my-2 text-[13px] text-gray-600 italic">{children}</blockquote>
