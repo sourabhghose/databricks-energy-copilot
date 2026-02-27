@@ -4302,8 +4302,22 @@ async def electricity_market_transparency_dashboard():
     notices = [{"notice_id":f"MN-{i}","notice_date":f"2026-02-{random.randint(1,26):02d}","notice_type":nt,"region":random.choice(["NSW1","QLD1","VIC1","SA1"]),"lead_time_minutes":random.randint(15,120),"accuracy_pct":round(random.uniform(70,100),1),"market_impact_mwh":round(random.uniform(0,500)),"price_impact_mwh":round(random.uniform(-20,50),2),"participants_affected":random.randint(5,50)} for i,nt in enumerate(["Inter-Regional Transfer Limit","Constraint","LOR Warning","Price Revision","System Normal"])]
     audits = [{"audit_id":f"AUD-{i}","auditor":"AER","participant":n,"audit_year":2025,"audit_type":at,"findings_count":random.randint(1,8),"critical_findings":random.randint(0,2),"recommendations":random.randint(2,10),"remediation_status":random.choice(["Complete","In Progress"]),"penalty_issued_m":round(random.uniform(0,2),1)} for i,(n,at) in enumerate([("Origin","Bidding Compliance"),("AGL","Settlement Accuracy"),("EnergyAustralia","Reporting Timeliness")])]
     info_gaps = [{"metric_name":mn,"region":"NEM","information_advantage_score":round(random.uniform(2,8),1),"data_lag_minutes":lag,"public_access":pa,"participant_only":not pa,"institutional_advantage_score":round(random.uniform(1,5),1),"retail_customer_access":ra,"improvement_priority":ip} for mn,lag,pa,ra,ip in [("Real-Time Dispatch",5,True,True,"LOW"),("Bid Stack Data",30,True,False,"MEDIUM"),("Settlement Data",1440,False,False,"HIGH"),("Network Constraints",60,True,False,"MEDIUM")]]
-    scores = [{"year":y,"region":"NEM","overall_transparency_score":round(random.uniform(6,9),1),"data_quality_score":round(random.uniform(7,9.5),1),"timeliness_score":round(random.uniform(6,9),1),"accessibility_score":round(random.uniform(5,8.5),1),"completeness_score":round(random.uniform(7,9.5),1),"participant_compliance_score":round(random.uniform(7,9),1),"public_confidence_index":round(random.uniform(6,8.5),1)} for y in [2022,2023,2024,2025]]
-    return {"data_quality":data_quality,"compliance":compliance,"market_notices":notices,"audits":audits,"information_gaps":info_gaps,"transparency_scores":scores,"summary":{"overall_score":8.2,"data_completeness_pct":98.5}}
+    scores = [{"year":y,"region":r,"overall_transparency_score":round(random.uniform(60,92),1),"data_quality_score":round(random.uniform(70,95),1),"timeliness_score":round(random.uniform(55,90),1),"accessibility_score":round(random.uniform(50,85),1),"completeness_score":round(random.uniform(70,95),1),"participant_compliance_score":round(random.uniform(70,90),1),"public_confidence_index":round(random.uniform(60,85),1)} for r in ["NEM","NSW","VIC","QLD","SA","TAS"] for y in [2020,2021,2022,2023,2024]]
+    avg_completeness = sum(d["completeness_pct"] for d in data_quality) / max(len(data_quality), 1)
+    avg_uptime = sum(d["api_uptime_pct"] for d in data_quality) / max(len(data_quality), 1)
+    total_penalties = sum(a["penalty_issued_m"] for a in audits) + sum(c["penalty_aud"] for c in compliance) / 1_000_000
+    best_region = max([(r, sum(s["overall_transparency_score"] for s in scores if s["region"] == r and s["year"] == 2024)) for r in ["NSW","VIC","QLD","SA","TAS"]], key=lambda x: x[1])[0]
+    avg_score = sum(s["overall_transparency_score"] for s in scores if s["year"] == 2024) / max(sum(1 for s in scores if s["year"] == 2024), 1)
+    emt_summary = {
+        "avg_data_completeness_pct": round(avg_completeness, 1),
+        "avg_api_uptime_pct": round(avg_uptime, 2),
+        "total_penalties_m": round(total_penalties, 2),
+        "avg_transparency_score": round(avg_score, 1),
+        "highest_transparency_region": best_region,
+        "overall_score": round(avg_score, 1),
+        "data_completeness_pct": round(avg_completeness, 1),
+    }
+    return {"data_quality":data_quality,"compliance":compliance,"market_notices":notices,"audits":audits,"information_gaps":info_gaps,"transparency_scores":scores,"summary":emt_summary}
 
 @app.get("/api/aemo-market-operations/dashboard", summary="AEMO market operations", tags=["Market Data"])
 async def aemo_market_operations_dashboard():
