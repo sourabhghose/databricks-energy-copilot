@@ -14,7 +14,7 @@ AUS Energy Copilot is an AI-powered market intelligence and trading assistant fo
 
 The product ingests open-source data from AEMO/NEMWEB, OpenElectricity, and Bureau of Meteorology weather feeds, processes it through a medallion lakehouse architecture, and serves it through three interfaces: interactive dashboards, natural language Genie analytics, and an AI agent copilot.
 
-**Target users:** Energy traders, portfolio analysts, market analysts, and trading desk managers operating in the Australian NEM.
+**Target users:** Energy traders, portfolio analysts, market analysts, and trading desk managers operating in the Australian NEM. Phase 4 extends to Distribution Network Service Providers (DNSPs) with network operations, DER management, and reliability analytics.
 
 ---
 
@@ -1075,26 +1075,310 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
 
 ---
 
-## 18. Full Product Roadmap Summary
+# Phase 4: Network Operations & Distribution Intelligence
+
+**Estimated Duration:** 14-20 weeks (following Phase 3 completion)
+**Prerequisites:** Phase 1 operational (market data, forecasting, copilot)
+
+---
+
+## 18. Phase 4 — Executive Summary
+
+Phase 4 extends AUS Energy Copilot beyond the wholesale market to serve **Distribution Network Service Providers (DNSPs)** — the poles-and-wires businesses that deliver electricity to homes and businesses. This phase adds network asset monitoring, DER (Distributed Energy Resource) visibility, outage analytics, regulatory compliance dashboards, and network planning tools. It positions the platform for a new customer segment: DNSPs like Ausgrid, Endeavour Energy, SA Power Networks, Ergon Energy, CitiPower/Powercor, and AusNet Services.
+
+DNSPs face mounting pressure from rooftop solar proliferation, battery adoption, EV charging load growth, and increasing AEMO/AER regulatory requirements. Their existing SCADA/ADMS systems generate vast volumes of data but lack the AI-driven analytics layer to convert network telemetry into actionable intelligence. AUS Energy Copilot fills this gap by bringing lakehouse analytics, AI forecasting, and a conversational copilot to the distribution network.
+
+---
+
+## 19. Phase 4 — Target Users & Personas
+
+### P5: Network Operations Engineer (Primary)
+- **Goal**: Maintain network reliability and power quality within regulatory limits
+- **Needs**: Real-time asset loading, voltage monitoring, fault detection, outage management, DER curtailment visibility
+- **AI Copilot Use**: "Which zone substations are above 80% utilization right now?", "Show me all voltage excursions in the Blacktown area today", "Why did feeder FDR-2145 trip at 3pm?"
+
+### P6: Network Planning Engineer (Primary)
+- **Goal**: Plan network augmentation and demand management to defer capex
+- **Needs**: Load growth forecasts, hosting capacity analysis, DER penetration scenarios, constraint identification, augmentation cost-benefit
+- **AI Copilot Use**: "What's the 10-year peak demand forecast for the Canterbury zone substation?", "Which feeders will exceed hosting capacity by 2028 under the high-solar scenario?", "What's the cost of augmenting vs a demand management solution for the Penrith constraint?"
+
+### P7: Regulatory & Performance Manager (Secondary)
+- **Goal**: Meet AER determination targets and report on network performance
+- **Needs**: SAIDI/SAIFI tracking, guaranteed service level (GSL) monitoring, capex/opex efficiency, customer minutes off supply, regulatory benchmarking
+- **AI Copilot Use**: "Are we on track to meet the AER SAIDI target for this year?", "Show me GSL payment liability by region for Q3", "Compare our reliability performance against the AER peer group"
+
+### P8: DER Integration Manager (Secondary)
+- **Goal**: Manage the growing fleet of rooftop solar, batteries, and EVs on the distribution network
+- **Needs**: Solar hosting capacity maps, export curtailment analytics, virtual power plant (VPP) performance, EV charging load forecasts, dynamic operating envelope compliance
+- **AI Copilot Use**: "What percentage of solar systems were curtailed in the Randwick area today?", "Show me the VPP dispatch performance for the SA Home Battery Scheme", "Forecast the EV charging load impact on zone substation XYZ for 2028"
+
+---
+
+## 20. Phase 4 — Product Scope
+
+### 20.1 Network Asset Monitoring & Visibility
+
+#### Asset Registry & Hierarchy
+- **Network asset model**: Zone substations → Distribution substations → Feeders → Distribution transformers → Customer connection points
+- **Asset metadata**: Nameplate rating, installation year, condition score, replacement cost, maintenance history, geographic coordinates
+- **Data sources**: DNSP GIS/AM systems (exported as CSV/Parquet), SCADA telemetry (real-time and historical)
+
+#### Real-Time Network Dashboard
+- **Zone substation loading**: Current MW load vs nameplate capacity, utilization % with color-coded thresholds (green < 60%, amber 60-80%, red > 80%, critical > 100%)
+- **Feeder loading**: Active/reactive power, current, power factor per feeder
+- **Voltage monitoring**: Bus voltage at zone substations and key monitoring points, flagging excursions outside ±6% of nominal (AS 61000.3.100)
+- **Power quality metrics**: Harmonic distortion (THD), flicker, voltage unbalance
+- **Network topology view**: Interactive map showing asset hierarchy, DER locations, and real-time status
+- **Temperature monitoring**: Transformer oil temperature, ambient temperature, thermal loading estimates
+
+#### Asset Health & Condition
+- **Condition-based monitoring**: Transformer dissolved gas analysis (DGA), oil quality, partial discharge, tap changer health
+- **Asset health index**: Composite score per asset based on age, condition, loading history, fault history, and criticality
+- **Predictive failure model**: ML model (XGBoost) predicting asset failure probability within 12 months based on telemetry patterns
+- **Replacement priority ranking**: Risk-weighted prioritization considering: failure probability × consequence (customers affected × outage duration × cost)
+- **Copilot tool**: `get_asset_health(asset_id)` — returns health index, risk factors, recommended actions
+
+### 20.2 Outage Management & Reliability Analytics
+
+#### Outage Tracking
+- **Outage event capture**: Start time, end time, affected feeders, affected customers, cause code (vegetation, animal, equipment failure, weather, third party, unknown), restoration steps
+- **Data source**: DNSP OMS (Outage Management System) export — or manual entry via copilot
+- **Live outage map**: Geographic display of current outages with affected area polygons and estimated restoration times
+
+#### Reliability KPIs (AER Metrics)
+- **SAIDI** (System Average Interruption Duration Index): Minutes off supply per customer per year, tracked daily/monthly/yearly against AER target
+- **SAIFI** (System Average Interruption Frequency Index): Number of interruptions per customer per year
+- **CAIDI** (Customer Average Interruption Duration): Average duration per interruption event
+- **MAIFI** (Momentary Average Interruption Frequency): Momentary interruptions (< 1 minute)
+- **Worst-performing feeder tracking**: Identify the bottom 5% feeders by SAIDI contribution
+- **Exclusion event management**: Track major event days (MEDs) excluded from AER reliability reporting per the 2.5-beta methodology
+- **Trend analysis**: Year-on-year comparison, rolling 5-year average, seasonal patterns
+
+#### Guaranteed Service Level (GSL) Monitoring
+- **GSL payment tracking**: Customers eligible for GSL payments (e.g., > N interruptions per year, or > M hours cumulative)
+- **GSL liability forecast**: Projected GSL payments based on YTD reliability performance
+- **Copilot tool**: `get_reliability_metrics(region, period)` — returns SAIDI, SAIFI, CAIDI with trends and AER target comparison
+
+### 20.3 Distributed Energy Resources (DER) Management
+
+#### DER Visibility
+- **DER fleet dashboard**: Total installed rooftop solar (MW), batteries (MW/MWh), EVs by zone substation and feeder
+- **Real-time DER output**: Estimated aggregate solar generation and battery dispatch per feeder (via smart meter data or SCADA)
+- **DER growth tracker**: Monthly new connections by technology type (solar, battery, EV charger), with growth rate trends
+- **Reverse power flow detection**: Flag feeders experiencing reverse power flow (net export) and duration/magnitude
+
+#### Hosting Capacity Analysis
+- **Static hosting capacity**: Maximum DER export (kW) per distribution transformer and feeder before voltage rise exceeds limits
+- **Dynamic hosting capacity**: Time-varying capacity based on current load, voltage, and network configuration
+- **Hosting capacity map**: Interactive geographic view showing available capacity by area (green = ample, amber = constrained, red = full)
+- **Scenario modeling**: Project hosting capacity under DER growth scenarios (BAU, high solar, high EV, combined)
+- **Copilot tool**: `get_hosting_capacity(feeder_id, scenario)` — returns current and projected capacity with limiting constraint
+
+#### Export Curtailment Analytics
+- **Curtailment dashboard**: Volume of solar export curtailed (MWh) by feeder and reason (voltage, thermal, DNSP limit, AEMO backstop)
+- **Dynamic Operating Envelope (DOE) compliance**: Track DOE limit issuance and customer compliance rates
+- **Curtailment equity analysis**: Identify customers disproportionately curtailed due to network position (end-of-feeder)
+- **Lost energy value**: Calculate financial impact of curtailment on customers (curtailed MWh × feed-in tariff)
+
+#### Virtual Power Plant (VPP) & Demand Response
+- **VPP performance tracking**: Dispatch events, response volume, response accuracy, and revenue per VPP program
+- **Demand response program analytics**: DR event performance (MW shed vs target), participation rates, reliability impact
+- **Network support contracts**: Track non-network solutions (batteries, VPPs, DR) contracted to defer network augmentation, with performance vs contracted capacity
+
+### 20.4 Network Demand Forecasting & Planning
+
+#### Demand Forecasting
+- **Spatial demand forecast**: 10-year peak demand forecast by zone substation and feeder, incorporating:
+  - Underlying load growth (economic/demographic drivers)
+  - Rooftop solar impact (reduced daytime peak, increased evening ramp)
+  - Battery impact (peak shaving)
+  - EV charging load (residential overnight + commercial daytime fast charging)
+  - Energy efficiency trends
+- **Scenario-based forecasting**: High/medium/low growth scenarios aligned with AEMO ISP inputs
+- **Model**: Gradient-boosted ensemble (XGBoost) trained on 5+ years of smart meter data, weather, and economic indicators
+- **Forecast accuracy tracking**: Actual vs forecast comparison by zone substation, with MAE/MAPE metrics
+
+#### Network Constraint Identification
+- **Constraint register**: All identified network constraints (thermal, voltage, fault level), with constraint type, limiting asset, current utilization, and year of breach under each scenario
+- **N-1 contingency analysis**: Flag assets where loss of a single element causes remaining elements to exceed emergency ratings
+- **Constraint cost estimation**: Estimated cost of unserved energy or alternative supply if constraint is not addressed
+
+#### Augmentation Planning
+- **Augmentation options register**: For each constraint, list options: network build (new assets), non-network (demand management, DER, VPP), or hybrid
+- **Cost-benefit analysis**: NPV comparison of augmentation vs non-network alternatives, considering deferral value
+- **Regulatory Investment Test (RIT-D) support**: Generate data for RIT-D analysis (credible options, market benefit assessment)
+- **Copilot tool**: `get_constraint_analysis(zone_substation, horizon_years)` — returns constraints, breach year, options, and recommended action
+
+### 20.5 EV Integration & Load Management
+
+#### EV Charging Load Analytics
+- **EV registration tracking**: Estimated EVs per feeder based on vehicle registration data and charging point locations
+- **Charging load profiles**: Typical residential overnight, commercial daytime, and fast-charger profiles by time-of-day
+- **Network impact assessment**: Identify feeders and transformers at risk of overload under EV growth scenarios
+- **Managed charging analytics**: Track uptake and effectiveness of managed/smart charging programs (shifting load from peak to off-peak)
+- **Copilot tool**: `forecast_ev_impact(feeder_id, ev_growth_scenario, year)` — returns peak load impact, upgrade requirement, and managed charging benefit
+
+### 20.6 Phase 4 — Copilot Agent Extensions
+
+New tools added to the Mosaic AI agent:
+
+| Tool | Input | Output | Description |
+|------|-------|--------|-------------|
+| `get_asset_health(asset_id)` | Asset identifier | Health index, risk factors, recommendations | Asset condition assessment |
+| `get_network_loading(zone_substation)` | Zone substation name | Current MW, utilization %, DER output | Real-time loading status |
+| `get_reliability_metrics(region, period)` | DNSP region, time period | SAIDI, SAIFI, CAIDI, AER targets | Reliability KPI dashboard |
+| `get_outage_summary(region, period)` | Region, date range | Outage events, causes, affected customers | Outage history analysis |
+| `get_hosting_capacity(feeder_id, scenario)` | Feeder, growth scenario | Available capacity kW, limiting constraint | DER hosting capacity |
+| `get_curtailment_analysis(feeder_id, period)` | Feeder, date range | Curtailed MWh, affected customers, reasons | Solar curtailment reporting |
+| `get_constraint_analysis(zone_sub, horizon)` | Zone substation, years | Constraints, breach year, options | Network planning assessment |
+| `forecast_ev_impact(feeder, scenario, year)` | Feeder, EV scenario, target year | Peak load delta MW, upgrade needs | EV load forecasting |
+| `get_vpp_performance(program, period)` | VPP program, date range | Dispatch events, response accuracy | VPP/DR performance tracking |
+| `get_der_fleet(zone_substation)` | Zone substation | Solar MW, battery MW/MWh, EVs | DER fleet visibility |
+
+### 20.7 Phase 4 — Frontend Extensions
+
+#### New Tabs
+- **Network tab**: Zone substation loading map, real-time utilization dashboard, voltage monitoring, power quality
+- **Assets tab**: Asset health index table, predictive failure alerts, condition monitoring trends, replacement priority
+- **Outages tab**: Live outage map, reliability KPI tracker (SAIDI/SAIFI vs AER target), worst-performing feeders, GSL liability
+- **DER tab**: DER fleet dashboard, hosting capacity map, curtailment analytics, VPP performance, DOE compliance
+- **Planning tab**: Spatial demand forecast, constraint register, augmentation options, RIT-D analysis, EV impact scenarios
+
+#### Enhanced Existing Tabs
+- **Home tab**: Add network KPI summary (SAIDI YTD vs target, current overloaded assets, active outages, DER curtailment today)
+- **Copilot Chat**: All Phase 4 tools available; suggested questions updated with network operations queries
+- **Alerts tab**: Add network-level alerts (asset overload, voltage excursion, hosting capacity breach, reliability target at risk, GSL payment threshold)
+
+### 20.8 Phase 4 — Data Architecture Extensions
+
+#### New Data Sources
+
+| Source | Data | Frequency | Ingestion |
+|--------|------|-----------|-----------|
+| SCADA/ADMS | Substation and feeder telemetry (MW, MVAr, kV, current, temperature) | 1-5 minute intervals | Streaming (Kafka/Autoloader) |
+| Smart Meters | Customer interval consumption/export data (30-minute NMI reads) | Daily | Batch (SFTP → Autoloader) |
+| GIS/Asset Management | Network asset registry, topology, condition scores | Weekly | Batch (API or CSV export) |
+| OMS | Outage events, cause codes, restoration times | Event-driven | Streaming or batch (API) |
+| DER Register | CER (Clean Energy Regulator) Small Generation Unit data, battery registrations | Monthly | Batch (CSV download) |
+| BoM Weather | Temperature, rainfall, wind, solar radiation by weather station | 30-minute | Existing Phase 1 pipeline |
+| ABS/Economic | Population growth, building approvals, economic indicators by region | Quarterly | Batch (API) |
+| EV Registration | State motor vehicle registry data, charge point locations | Monthly | Batch (CSV/API) |
+
+#### New Gold Layer Tables
+
+| Table | Description |
+|-------|-------------|
+| `gold.network_assets` | Master asset registry with hierarchy, ratings, condition, coordinates |
+| `gold.asset_loading_5min` | 5-minute zone substation and feeder loading (MW, MVAr, utilization %) |
+| `gold.asset_health_index` | Composite health score per asset, updated weekly |
+| `gold.asset_failure_predictions` | ML-predicted failure probability per asset (12-month horizon) |
+| `gold.voltage_monitoring` | Bus voltage readings with excursion flags |
+| `gold.power_quality` | THD, flicker, unbalance metrics by monitoring point |
+| `gold.outage_events` | Outage records with cause, duration, affected customers |
+| `gold.reliability_kpis` | Daily/monthly/yearly SAIDI, SAIFI, CAIDI, MAIFI by region |
+| `gold.gsl_tracking` | GSL-eligible customers and projected payments |
+| `gold.der_fleet` | Installed DER by technology, capacity, location, connection date |
+| `gold.der_output_estimated` | Estimated aggregate DER output per feeder (30-minute) |
+| `gold.hosting_capacity` | Static and dynamic hosting capacity per transformer and feeder |
+| `gold.curtailment_events` | Solar export curtailment events with volume, reason, affected customers |
+| `gold.doe_compliance` | Dynamic Operating Envelope limit issuance and compliance rates |
+| `gold.vpp_dispatch_events` | VPP and DR dispatch records with performance vs target |
+| `gold.demand_forecast_spatial` | 10-year spatial demand forecast by zone substation and scenario |
+| `gold.network_constraints` | Identified constraints with type, breach year, and options |
+| `gold.ev_charging_profiles` | EV charging load profiles and growth projections |
+| `gold.ev_network_impact` | Projected EV impact on transformers and feeders by scenario |
+
+#### New Lakebase Tables
+
+| Table | Purpose |
+|-------|---------|
+| `network_assets` | Editable asset master with condition updates |
+| `outage_log` | Manual outage entries and annotations |
+| `constraint_register` | Active network constraints and assigned options |
+| `augmentation_projects` | Planned augmentation projects with status and cost |
+| `non_network_contracts` | Demand management and VPP contracts |
+| `ev_programs` | Managed charging program configurations |
+
+### 20.9 Phase 4 — New Genie Spaces
+
+#### Space 9: Network Operations
+**Tables/Views**: `gold.asset_loading_5min`, `gold.voltage_monitoring`, `gold.outage_events`, `gold.reliability_kpis`
+
+**Sample Questions**:
+- "Which zone substations exceeded 80% utilization today?"
+- "Show me SAIDI by region for the past 12 months compared to AER targets"
+- "What were the top 5 causes of outages in the Central region this quarter?"
+- "List all voltage excursion events in the past week"
+
+#### Space 10: DER & Hosting Capacity
+**Tables/Views**: `gold.der_fleet`, `gold.hosting_capacity`, `gold.curtailment_events`, `gold.vpp_dispatch_events`
+
+**Sample Questions**:
+- "What is the total installed rooftop solar capacity by zone substation?"
+- "Which feeders have less than 20% hosting capacity remaining?"
+- "How much solar energy was curtailed last month and what was the financial impact?"
+- "Show me VPP dispatch performance for the summer peak program"
+
+#### Space 11: Network Planning
+**Tables/Views**: `gold.demand_forecast_spatial`, `gold.network_constraints`, `gold.ev_network_impact`
+
+**Sample Questions**:
+- "What is the 10-year peak demand forecast for Canterbury zone substation under the high-growth scenario?"
+- "Which zone substations will breach capacity before 2030?"
+- "What's the projected EV charging load impact on the top 10 constrained feeders by 2028?"
+- "Compare augmentation cost vs non-network solution cost for the Penrith constraint"
+
+### 20.10 Phase 4 — Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Asset overload detection latency | < 5 minutes from SCADA reading | Streaming pipeline monitoring |
+| Demand forecast accuracy (zone sub, 1-year MAE) | < 5% | Actual vs forecast comparison |
+| Hosting capacity calculation refresh | Daily (static), 5-minute (dynamic) | Pipeline monitoring |
+| Asset failure prediction AUC | > 0.85 | MLflow model metrics |
+| Reliability KPI dashboard freshness | < 1 hour from OMS update | Dashboard monitoring |
+| EV impact forecast error (5-year, peak MW) | < 15% | Backtest validation |
+| Network copilot query resolution | > 75% without escalation | Agent evaluation |
+| DER curtailment reporting latency | < 24 hours | Pipeline monitoring |
+| DNSP user adoption (monthly active) | > 80% of registered users | App analytics |
+
+### 20.11 Phase 4 — Estimated Timeline
+
+| Sprint | Duration | Focus |
+|--------|----------|-------|
+| Sprint 23 | 2 weeks | Network asset model, SCADA/GIS data ingestion, asset registry gold table |
+| Sprint 24 | 2 weeks | Real-time network loading dashboard, voltage monitoring, power quality |
+| Sprint 25 | 2 weeks | Outage management data model, reliability KPI engine (SAIDI/SAIFI), outage dashboard |
+| Sprint 26 | 2 weeks | Asset health index, predictive failure ML model, asset condition dashboard |
+| Sprint 27 | 2 weeks | DER fleet dashboard, hosting capacity calculation engine, hosting capacity map |
+| Sprint 28 | 2 weeks | Curtailment analytics, DOE compliance, VPP/DR performance tracking |
+| Sprint 29 | 2 weeks | Spatial demand forecasting model, network constraint identification, planning dashboard |
+| Sprint 30 | 2 weeks | EV integration analytics, managed charging impact, EV scenario modeling |
+| Sprint 31 | 2 weeks | New copilot tools (10), Genie spaces (3), network alerts |
+| Sprint 32 | 2 weeks | Integration testing, DNSP user testing, performance tuning, launch |
+
+---
+
+## 21. Full Product Roadmap Summary
 
 ```
-Phase 1 (Weeks 1-10)         Phase 2 (Weeks 11-24)         Phase 3 (Weeks 25-46)
-Market Intelligence           Lightweight ETRM              Full Trading Platform
-& AI Copilot                  & Risk                        & Market Expansion
-─────────────────             ──────────────────            ─────────────────────
-✦ Data pipelines              ✦ Deal capture                ✦ AI bid optimization
-✦ Medallion lakehouse         ✦ Portfolio tracking           ✦ AEMO bid submission
-✦ NemSight-like dashboard     ✦ Forward curves              ✦ Advanced VaR/CVaR
-✦ Price/demand forecasts      ✦ Mark-to-market              ✦ Option Greeks & vol
-✦ AI copilot (13 tools)       ✦ Basic risk (VaR, Greeks)    ✦ Battery optimization
-✦ Genie spaces (3)            ✦ PPA valuation               ✦ Gas markets (STTM/DWGM)
-✦ Alerting                    ✦ FCAS analytics              ✦ WEM expansion
-                              ✦ Settlement recon            ✦ Multi-tenancy
-                              ✦ Copilot +10 tools           ✦ Copilot +10 tools
-                              ✦ Genie spaces +2             ✦ Genie spaces +3
+Phase 1 (Wk 1-10)       Phase 2 (Wk 11-24)       Phase 3 (Wk 25-46)       Phase 4 (Wk 47-66)
+Market Intelligence      Lightweight ETRM          Full Trading Platform    Network Operations
+& AI Copilot             & Risk                    & Market Expansion       & Distribution Intel
+─────────────────        ──────────────────        ─────────────────────    ─────────────────────
+✦ Data pipelines         ✦ Deal capture            ✦ AI bid optimization   ✦ SCADA/GIS ingestion
+✦ Medallion lakehouse    ✦ Portfolio tracking       ✦ AEMO bid submission   ✦ Asset health & failure
+✦ NemSight-like dash     ✦ Forward curves          ✦ Advanced VaR/CVaR     ✦ Outage management
+✦ Price/demand fcst      ✦ Mark-to-market          ✦ Option Greeks & vol   ✦ DER & hosting capacity
+✦ AI copilot (13 tools)  ✦ Basic risk (VaR)        ✦ Battery optimization  ✦ Reliability (SAIDI)
+✦ Genie spaces (3)       ✦ PPA valuation           ✦ Gas markets           ✦ Demand forecasting
+✦ Alerting               ✦ FCAS analytics          ✦ WEM expansion         ✦ EV integration
+                         ✦ Settlement recon        ✦ Multi-tenancy         ✦ Network planning
+                         ✦ Copilot +10 tools       ✦ Copilot +10 tools     ✦ Copilot +10 tools
+                         ✦ Genie spaces +2         ✦ Genie spaces +3       ✦ Genie spaces +3
 
-         MVP                     Trading-Ready                  Enterprise-Grade
-     (NemSight++)             (SimEnergy-level)              (EOT Alternative)
+         MVP                Trading-Ready             Enterprise-Grade         DNSP-Ready
+     (NemSight++)        (SimEnergy-level)           (EOT Alternative)     (Full Value Chain)
 ```
 
 | Phase | Cumulative Copilot Tools | Cumulative Genie Spaces | Cumulative Gold Tables |
@@ -1102,10 +1386,11 @@ Market Intelligence           Lightweight ETRM              Full Trading Platfor
 | Phase 1 | 13 | 3 | 15 |
 | Phase 2 | 23 | 5 | 26 |
 | Phase 3 | 33 | 8 | 42 |
+| Phase 4 | 43 | 11 | 62 |
 
 ---
 
-## 19. Glossary
+## 22. Glossary
 
 | Term | Definition | Phase |
 |------|-----------|-------|
@@ -1142,3 +1427,18 @@ Market Intelligence           Lightweight ETRM              Full Trading Platfor
 | **MILP** | Mixed-Integer Linear Programming — optimization technique for battery dispatch | 3 |
 | **Gentailer** | Vertically integrated generator-retailer (e.g., Alinta, Energy Australia, AGL, Origin) | All |
 | **NER** | National Electricity Rules — regulatory framework governing the NEM | 3 |
+| **DNSP** | Distribution Network Service Provider — operates poles and wires delivering electricity to customers (e.g., Ausgrid, Endeavour, SA Power Networks) | 4 |
+| **SAIDI** | System Average Interruption Duration Index — total minutes off supply per customer per year | 4 |
+| **SAIFI** | System Average Interruption Frequency Index — number of interruptions per customer per year | 4 |
+| **CAIDI** | Customer Average Interruption Duration Index — average outage duration per event | 4 |
+| **MAIFI** | Momentary Average Interruption Frequency Index — brief interruptions (< 1 minute) per customer | 4 |
+| **DER** | Distributed Energy Resources — customer-sited generation and storage (rooftop solar, batteries, EVs) | 4 |
+| **Hosting Capacity** | Maximum DER export a feeder or transformer can accommodate before voltage/thermal limits are breached | 4 |
+| **DOE** | Dynamic Operating Envelope — time-varying export/import limits issued to DER based on real-time network conditions | 4 |
+| **VPP** | Virtual Power Plant — aggregated fleet of DER dispatched as a single resource for grid services | 4 |
+| **GSL** | Guaranteed Service Level — regulated payment DNSPs must make to customers experiencing excessive outages | 4 |
+| **RIT-D** | Regulatory Investment Test for Distribution — cost-benefit analysis required before major DNSP capital expenditure | 4 |
+| **SCADA** | Supervisory Control and Data Acquisition — real-time telemetry system for monitoring network assets | 4 |
+| **ADMS** | Advanced Distribution Management System — software platform for managing distribution network operations | 4 |
+| **THD** | Total Harmonic Distortion — measure of power quality (waveform distortion from harmonics) | 4 |
+| **N-1 Contingency** | Network planning criterion: system must remain secure after loss of any single element | 4 |
