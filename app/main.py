@@ -4276,12 +4276,24 @@ async def emergency_management_dashboard():
 async def stpasa_adequacy_dashboard():
     regions = ["NSW1","QLD1","VIC1","SA1","TAS1"]
     outlooks = [{"outlook_id":f"STPASA-{r}-{d}","region":r,"run_date":"2026-02-26","period":f"Day {d}","assessment_period_start":f"2026-02-{26+d:02d}T00:00:00","assessment_period_end":f"2026-02-{26+d:02d}T23:59:59","surplus_mw":round(random.uniform(500,3000)),"reserve_requirement_mw":round(random.uniform(800,2500)),"scheduled_capacity_mw":round(random.uniform(8000,14000)),"forecast_demand_mw":round(random.uniform(5000,12000)),"reliability_status":random.choice(["ADEQUATE","ADEQUATE","TIGHT"]),"probability_lrc_pct":round(random.uniform(0,8),2),"triggered_rert":False,"required_reserves_mw":round(random.uniform(500,2000))} for r in regions for d in range(1,8)]
-    supply = [{"supply_id":f"SUP-{r}-{h}","region":r,"run_date":"2026-02-26","assessment_hour":h,"available_generation_mw":round(random.uniform(8000,15000)),"forced_outages_mw":round(random.uniform(200,1000)),"planned_outages_mw":round(random.uniform(300,1500)),"interconnector_import_mw":round(random.uniform(-500,800)),"demand_response_mw":round(random.uniform(0,200)),"scheduled_total_mw":round(random.uniform(7000,14000)),"forecast_demand_mw":round(random.uniform(5000,12000)),"reserve_mw":round(random.uniform(500,3000)),"reserve_pct":round(random.uniform(5,25),1),"LOR_level":"LOR0"} for r in regions[:3] for h in [8,12,16,18]]
+    supply = [{"supply_id":f"SUP-{r}-{h}","region":r,"run_date":"2026-02-26","assessment_hour":h,"available_generation_mw":round(random.uniform(8000,15000)),"forced_outages_mw":round(random.uniform(200,1000)),"planned_outages_mw":round(random.uniform(300,1500)),"interconnector_import_mw":round(random.uniform(-500,800)),"demand_response_mw":round(random.uniform(0,200)),"scheduled_total_mw":round(random.uniform(7000,14000)),"forecast_demand_mw":round(random.uniform(5000,12000)),"reserve_mw":round(random.uniform(500,3000)),"reserve_pct":round(random.uniform(5,25),1),"LOR_level":("LOR1" if r == "SA1" and h == 16 else "LOR2" if r == "SA1" and h == 18 else "None")} for r in regions for h in [8,12,16,18]]
     outages = [{"outage_id":f"OUT-{i}","region":r,"unit_name":n,"technology":t,"capacity_mw":cap,"outage_type":ot,"start_date":"2026-02-28","end_date":"2026-03-15","return_date":"2026-03-15","reliability_impact":random.choice(["LOW","MEDIUM"]),"replacement_source":"Market","surplus_impact_mw":round(-cap*random.uniform(0.5,1))} for i,(r,n,t,cap,ot) in enumerate([("NSW1","Bayswater U3","BLACK_COAL",660,"Planned"),("VIC1","Loy Yang A U2","BROWN_COAL",560,"Planned"),("QLD1","Callide C U4","BLACK_COAL",420,"Forced")])]
     demand_fc = [{"forecast_id":f"DF-{r}","region":r,"forecast_date":"2026-02-26","period_start":"2026-02-27","forecast_50_mw":round(random.uniform(5000,12000)),"forecast_10_mw":round(random.uniform(4000,10000)),"forecast_90_mw":round(random.uniform(6000,14000)),"actual_mw":round(random.uniform(5000,12000)),"forecast_error_mw":round(random.uniform(-500,500)),"peak_flag":False,"weather_driver":"Temperature","temperature_c":round(random.uniform(22,38),1)} for r in regions]
     ic = [{"ic_id":f"IC-{ic}","interconnector":ic,"run_date":"2026-02-26","period":"2026-02-27","max_import_mw":mi,"max_export_mw":me,"scheduled_flow_mw":round(random.uniform(-mi,me)),"contribution_to_reserves_mw":round(random.uniform(0,300)),"congested":random.choice([True,False,False]),"constraint_binding":False,"flow_direction":random.choice(["FORWARD","REVERSE"])} for ic,mi,me in [("N-Q-MNSP1",700,1100),("VIC1-NSW1",1350,1600),("V-SA",680,460),("T-V-MNSP1",594,478)]]
     rert = [{"rert_id":"RERT-ST-001","region":"SA1","activation_date":"2026-02-20","stage":"Pre-activation","trigger_lor_level":"LOR2","contracted_mw":200,"activated_mw":0,"provider_type":"Industrial DR","activation_cost_m":0.5,"duration_hours":0,"effectiveness_pct":0,"avoided_energy_unserved_mwh":0}]
-    return {"outlooks":outlooks,"supply_records":supply,"outages":outages,"demand_forecasts":demand_fc,"interconnector_records":ic,"rert_activations":rert,"summary":{"national_surplus_mw":4200,"lowest_reserve_region":"SA1","lor_warnings_active":0}}
+    regions_with_lor = sum(1 for s in supply if s["LOR_level"] != "LOR0")
+    avg_reserve = sum(s["reserve_pct"] for s in supply) / max(len(supply), 1)
+    total_surplus = sum(o["surplus_mw"] for o in outlooks) / max(len(regions), 1)
+    stpa_summary = {
+        "regions_with_lor": regions_with_lor,
+        "total_surplus_mw": round(total_surplus),
+        "avg_reserve_pct": round(avg_reserve, 1),
+        "rert_activations_ytd": len(rert),
+        "national_surplus_mw": 4200,
+        "lowest_reserve_region": "SA1",
+        "lor_warnings_active": regions_with_lor,
+    }
+    return {"outlooks":outlooks,"supply_records":supply,"outages":outages,"demand_forecasts":demand_fc,"interconnector_records":ic,"rert_activations":rert,"summary":stpa_summary}
 
 @app.get("/api/electricity-market-transparency/dashboard", summary="Market transparency", tags=["Market Data"])
 async def electricity_market_transparency_dashboard():
