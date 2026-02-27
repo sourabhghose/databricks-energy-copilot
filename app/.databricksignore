@@ -1,0 +1,8 @@
+frontend/node_modules/
+__pycache__/
+*.pyc
+.env
+.databricks/
+_spot_endpoints.py
+_spot_endpoints_2.py
+_new_endpoints.py
