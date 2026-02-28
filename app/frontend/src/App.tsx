@@ -1464,15 +1464,15 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/network-asset-life-cycle': NetworkAssetLifeCycleAnalytics,
   '/wind-farm-wake-turbine': WindFarmWakeTurbineAnalytics,
   '/energy-poverty-hardship-x': EnergyPovertyHardshipXAnalytics,
-  'hydrogen-refuelling-transport': HydrogenRefuellingTransportAnalytics,
-  'electricity-spot-price-events': ElectricitySpotPriceEventAnalytics,
-  'large-scale-renewable-auction': LargeScaleRenewableAuctionAnalytics,
-  'nem-ancillary-services': NemAncillaryServicesAnalytics,
-  'australian-carbon-credit': AustralianCarbonCreditAnalytics,
-  'ev-grid-integration': ElectricVehicleGridIntegrationAnalytics,
-  'generator-capacity-adequacy': GeneratorCapacityAdequacyAnalytics,
-  'smart-grid-cybersecurity': SmartGridCybersecurityAnalytics,
-  'pumped-hydro-reservoir': PumpedHydroReservoirAnalytics,
+  '/hydrogen-refuelling-transport': HydrogenRefuellingTransportAnalytics,
+  '/electricity-spot-price-events': ElectricitySpotPriceEventAnalytics,
+  '/large-scale-renewable-auction': LargeScaleRenewableAuctionAnalytics,
+  '/nem-ancillary-services': NemAncillaryServicesAnalytics,
+  '/australian-carbon-credit': AustralianCarbonCreditAnalytics,
+  '/ev-grid-integration': ElectricVehicleGridIntegrationAnalytics,
+  '/generator-capacity-adequacy': GeneratorCapacityAdequacyAnalytics,
+  '/smart-grid-cybersecurity': SmartGridCybersecurityAnalytics,
+  '/pumped-hydro-reservoir': PumpedHydroReservoirAnalytics,
   '/etjj-dashboard': EnergyTransitionJobsAnalytics,
   '/nifr-dashboard': InterconnectorFlowRightsAnalytics,
   '/cefa-dashboard-x': CleanEnergyFinanceXAnalytics,
@@ -2379,15 +2379,15 @@ export default function App() {
               <Route path="/network-asset-life-cycle" element={<NetworkAssetLifeCycleAnalytics />} />
               <Route path="/wind-farm-wake-turbine" element={<WindFarmWakeTurbineAnalytics />} />
               <Route path="/energy-poverty-hardship-x" element={<EnergyPovertyHardshipXAnalytics />} />
-              <Route path="hydrogen-refuelling-transport" element={<HydrogenRefuellingTransportAnalytics />} />
-              <Route path="electricity-spot-price-events" element={<ElectricitySpotPriceEventAnalytics />} />
-              <Route path="large-scale-renewable-auction" element={<LargeScaleRenewableAuctionAnalytics />} />
-              <Route path="nem-ancillary-services" element={<NemAncillaryServicesAnalytics />} />
-              <Route path="australian-carbon-credit" element={<AustralianCarbonCreditAnalytics />} />
-              <Route path="ev-grid-integration" element={<ElectricVehicleGridIntegrationAnalytics />} />
-              <Route path="generator-capacity-adequacy" element={<GeneratorCapacityAdequacyAnalytics />} />
-              <Route path="smart-grid-cybersecurity" element={<SmartGridCybersecurityAnalytics />} />
-              <Route path="pumped-hydro-reservoir" element={<PumpedHydroReservoirAnalytics />} />
+              <Route path="/hydrogen-refuelling-transport" element={<HydrogenRefuellingTransportAnalytics />} />
+              <Route path="/electricity-spot-price-events" element={<ElectricitySpotPriceEventAnalytics />} />
+              <Route path="/large-scale-renewable-auction" element={<LargeScaleRenewableAuctionAnalytics />} />
+              <Route path="/nem-ancillary-services" element={<NemAncillaryServicesAnalytics />} />
+              <Route path="/australian-carbon-credit" element={<AustralianCarbonCreditAnalytics />} />
+              <Route path="/ev-grid-integration" element={<ElectricVehicleGridIntegrationAnalytics />} />
+              <Route path="/generator-capacity-adequacy" element={<GeneratorCapacityAdequacyAnalytics />} />
+              <Route path="/smart-grid-cybersecurity" element={<SmartGridCybersecurityAnalytics />} />
+              <Route path="/pumped-hydro-reservoir" element={<PumpedHydroReservoirAnalytics />} />
               <Route path="/etjj-dashboard" element={<EnergyTransitionJobsAnalytics />} />
               <Route path="/nifr-dashboard" element={<InterconnectorFlowRightsAnalytics />} />
               <Route path="/cefa-dashboard-x" element={<CleanEnergyFinanceXAnalytics />} />

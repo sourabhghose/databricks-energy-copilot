@@ -3155,6 +3155,10 @@ export interface CarbonCreditMarketDashboard {
 const BASE_URL = ''
 const headers = { Accept: 'application/json' }
 
+function getHeaders(): Record<string, string> {
+  return { Accept: 'application/json' }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, {
     headers: { Accept: 'application/json' },

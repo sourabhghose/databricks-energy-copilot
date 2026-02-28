@@ -1,8 +1,8 @@
 # AUS Energy Copilot — Project Status
 
 ## Frontend Workstream — completed
-**Completed:** package.json, tsconfig.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, 30+ pages (6 core + 24 domain-specific analytics dashboards), 4 components, api/client.ts, hooks/useMarketData.ts
-**Notes:** React 18 + Vite 5 + TypeScript. Recharts for charts, Tailwind for styling, React Router v6 for navigation. SSE streaming in ChatInterface for real-time copilot responses. InterconnectorMap uses inline SVG. Databricks branding applied: DM Sans font, Databricks logo (inline SVG in sidebar + data URI favicon), color palette (#FF3621 red, #1B3139 dark sidebar, #0D1117 dark mode). Build command: `npx vite build` (skips tsc type-checking).
+**Completed:** package.json, tsconfig.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, **475 pages** (6 core + 469 domain-specific analytics dashboards), 4 components, api/client.ts, hooks/useMarketData.ts
+**Notes:** React 18 + Vite 5 + TypeScript. Recharts for charts, Tailwind for styling, React Router v6 for navigation. SSE streaming in ChatInterface for real-time copilot responses. InterconnectorMap uses inline SVG. Databricks branding applied: DM Sans font, Databricks logo (inline SVG in sidebar + data URI favicon), color palette (#FF3621 red, #1B3139 dark sidebar, #0D1117 dark mode). Build command: `npx vite build` (skips tsc type-checking). **115 API endpoints** serving dashboards across Spot Prices, Renewables, Hydrogen, Battery/Storage, Carbon, Trading, Gas, Retail, Networks, FCAS, and more.
 
 ## Backend + Agent Workstream — 2026-02-19T00:00:00+11:00 (AEDT)
 
@@ -1995,3 +1995,79 @@ Backend, frontend page, API client types, routing, and tests for BatteryChemistr
 - Uploaded to workspace and deployed as Databricks App
 - App URL: https://energy-copilot-7474645691011751.aws.databricksapps.com
 - Git commits: `6437150` (route fix + 501 fallback), `2a12897` (branding + copilot fix)
+
+## Sprint 172 — Spot Price Dashboard Endpoints (Batch 1) [COMPLETE] (2026-02-27)
+
+### 10 Spot Prices Endpoints Added
+- **Problem:** All Spot Prices category dashboards were broken — frontend pages hit the 501 catch-all because no backend endpoints existed for them.
+- **Fix:** Created `app/_spot_endpoints.py` with 10 mock data endpoints matching exact TypeScript interfaces from `client.ts`:
+  1. `/api/spot-price-volatility-regime/dashboard` — volatility regimes, regime transitions, regional stats
+  2. `/api/spot-forecast/dashboard` — multi-horizon forecasts, model accuracy, drift monitoring
+  3. `/api/spot-price-spike-prediction/dashboard` — spike predictions, confusion matrix, feature importance
+  4. `/api/price-spike-analysis/dashboard` — spike events, regional stats, generator correlations
+  5. `/api/spot-price-prediction/dashboard` — ensemble predictions with confidence intervals
+  6. `/api/spot-depth/dashboard` — order books, price discovery, trading activity
+  7. `/api/negative-price-events/dashboard` — negative price events, curtailment correlation
+  8. `/api/electricity-spot-price-seasonality/dashboard` — hourly/day-type patterns, decomposition, forecasts
+  9. `/api/spot-price-event-analysis/dashboard` — event timeline, root causes, market response
+  10. `/api/price-model-comparison/dashboard` — model accuracy, backtests, feature importance
+
+### Response Size Optimization
+- **Problem:** Initial endpoint responses were 400-520KB each, causing container timeouts.
+- **Fix:** Systematically reduced loop iterations across all dimensions:
+  - Fewer regions (5→3), fewer years (2→1), fewer hours (24→every 4th hour), fewer day types (8→3)
+  - All 10 endpoints verified under 50KB each (total ~314KB, down from 920KB+)
+- Inserted all 10 endpoints (1,481 lines) into `main.py` before the catch-all route.
+
+### Deployment
+- Built frontend, uploaded to workspace, deployed successfully.
+- Git commit: `b3599a6`
+
+## Sprint 173 — PRD Phase 4: Network Operations & Distribution Intelligence [COMPLETE] (2026-02-27)
+
+### PRD Update (`docs/PRD.md`)
+- Added Phase 4: Network Operations & Distribution Intelligence (320 insertions, 20 deletions)
+- New target personas: P5 (Distribution Network Operator), P6 (Asset Manager), P7 (DER Operations Manager), P8 (Network Planning Engineer)
+- 6 product scope sections: Asset Monitoring, Outage Management, DER Management, Network Demand Forecasting, EV Integration, Copilot Extensions
+- 5 new frontend tabs, 10 new copilot tools, 20+ gold tables, 6 Lakebase tables, 3 new Genie spaces
+- 8 new data sources (SCADA/ADMS, GIS, OMS, AMI, DER gateway, weather stations, AER, traffic/planning)
+- 10-sprint timeline (Sprints 22-31)
+- Updated roadmap summary: Phase 4 brings cumulative totals to 43 copilot tools, 11 Genie spaces, 62 gold tables
+- Added 17 glossary terms (DNSP, SAIDI, SAIFI, CAIDI, MAIFI, DER, Hosting Capacity, DOE, VPP, GSL, RIT-D, SCADA, ADMS, THD, N-1 Contingency)
+
+### Git
+- Git commit: `f070178`
+
+## Sprint 174 — Spot Price Dashboard Endpoints (Batch 2) + Deployment Fix [COMPLETE] (2026-02-28)
+
+### 6 Remaining Spot Prices Endpoints
+- **Problem:** 6 Spot Prices dashboards still hitting 501 catch-all after Sprint 172.
+- **Fix:** Created `app/_spot_endpoints_2.py` with 6 endpoints matching TypeScript interfaces:
+  1. `/api/electricity-price-index/dashboard` (20KB) — CPI records, DMO records, tariff components, retailer comparison
+  2. `/api/market-price-formation-review/dashboard` (16KB) — price caps, scarcity events, VCR values, reform pipeline
+  3. `/api/electricity-market-price-formation/dashboard` (15KB) — price drivers, marginal units, price events, bidding behaviour
+  4. `/api/electricity-price-cap-intervention/dashboard` (12KB) — cap events, market impact, generator response, remedy actions
+  5. `/api/nem-price-review/dashboard` (24KB) — spot prices, retail prices, affordability metrics
+  6. `/api/demand-curve-price-anchor/dashboard` (25KB) — demand curves, price anchors, elasticity, forecasts
+- All endpoints under 25KB each (112KB total). Inserted 514 lines into `main.py` (now 6,673 lines total).
+
+### Deployment Fix — node_modules Cleanup
+- **Problem:** Deployments stuck on "Preparing source code for new app deployment" for 30+ minutes. Two deployments (`01f113f24b79`, `01f113f7b68b`) stuck/cancelled.
+- **Root Cause:** `databricks workspace import-dir` had previously uploaded `frontend/node_modules/` (157MB, 35,000+ files) to the workspace. Unlike `git`, `import-dir --overwrite` does not delete files absent from the source — they persist. The deployment source snapshot was trying to package 157MB.
+- **Fix:**
+  1. Created clean rsync directory at `/tmp/energy-copilot-deploy/` excluding node_modules (24MB vs 181MB)
+  2. Uploaded clean directory to workspace
+  3. Deleted `node_modules` from workspace: `databricks workspace delete .../frontend/node_modules --recursive`
+  4. Stopped app to cancel stuck deployment, restarted, redeployed
+  5. Deployment succeeded in ~2 minutes (vs 30+ min stuck)
+- **Prevention:** Created `app/.databricksignore` with `frontend/node_modules/` entry (helps with `databricks bundle` but not `import-dir`)
+
+### Current Stats
+- **Frontend pages:** 475
+- **API endpoints:** 115 (GET + POST)
+- **main.py:** 6,673 lines
+- **App URL:** https://energy-copilot-7474645691011751.aws.databricksapps.com
+- **All 19 Spot Prices dashboards now have working backend endpoints**
+
+### Git
+- Git commit: `3d43350`

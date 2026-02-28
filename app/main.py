@@ -17,10 +17,12 @@ import logging
 import math
 import os
 import random
+import random as _r
 import time
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta, date
+from datetime import datetime as _dt, timedelta as _td
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -6622,6 +6624,94 @@ def demand_curve_price_anchor_dashboard():
             "most_elastic_region": _r.choice(regions),
             "total_demand_response_mw": round(_r.uniform(800, 2500), 0),
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/market-stress/dashboard  ->  MarketStressDashboard
+# ---------------------------------------------------------------------------
+
+@app.get("/api/market-stress/dashboard")
+def market_stress_dashboard():
+    _r.seed(777)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    severities = ["MILD", "MODERATE", "SEVERE", "EXTREME"]
+    triggers = [
+        "Heatwave exceeding 45°C across eastern seaboard",
+        "Simultaneous coal unit trips (3+ units)",
+        "Gas supply disruption — Longford plant outage",
+        "Basslink interconnector failure",
+        "Wind drought across SA and VIC (48hr+)",
+        "Cyber attack on SCADA systems",
+        "Major bushfire cutting transmission lines",
+        "LNG export surge reducing domestic gas supply",
+    ]
+    scenario_names = [
+        "Eastern Seaboard Heatwave", "Multi-Unit Coal Trip", "Gas Supply Shock",
+        "Basslink Outage", "Prolonged Wind Drought", "Cyber Disruption",
+        "Bushfire Transmission Loss", "LNG Export Squeeze",
+    ]
+
+    scenarios = []
+    for i, name in enumerate(scenario_names):
+        scenarios.append({
+            "scenario_id": f"STRESS-{i+1:03d}",
+            "name": name,
+            "description": f"Stress test scenario: {name.lower()}",
+            "trigger_event": triggers[i],
+            "severity": severities[min(i // 2, 3)],
+            "probability_pct": round(_r.uniform(2, 35), 1),
+            "duration_days": _r.randint(1, 14),
+        })
+
+    metrics = ["PRICE", "AVAILABILITY", "RELIABILITY", "REVENUE"]
+    results = []
+    for sc in scenarios[:5]:
+        for reg in regions[:3]:
+            for met in metrics:
+                baseline = round(_r.uniform(50, 500), 2) if met == "PRICE" else round(_r.uniform(85, 99), 1)
+                impact = round(_r.uniform(5, 120), 1)
+                results.append({
+                    "scenario_id": sc["scenario_id"],
+                    "region": reg,
+                    "metric": met,
+                    "baseline_value": baseline,
+                    "stressed_value": round(baseline * (1 + impact / 100), 2),
+                    "impact_pct": impact,
+                    "recovery_days": _r.randint(1, 21),
+                })
+
+    components = [
+        "Coal Fleet (aging)", "Gas Pipeline Network", "Interconnector Capacity",
+        "Rooftop Solar Inverters", "BESS Fleet", "SCADA/EMS Systems",
+        "Market IT Systems", "Transmission Towers (bushfire zones)",
+    ]
+    vulnerabilities = []
+    for comp in components:
+        vulnerabilities.append({
+            "component": comp,
+            "vulnerability_score": round(_r.uniform(0.2, 0.95), 2),
+            "single_point_of_failure": _r.random() > 0.6,
+            "mitigation_status": _r.choice(["Mitigated", "Partial", "Unmitigated", "Under Review"]),
+        })
+
+    kpis = []
+    for sc in scenarios[:6]:
+        kpis.append({
+            "scenario": sc["name"],
+            "avg_price_spike_pct": round(_r.uniform(50, 800), 1),
+            "max_price_aud_mwh": round(_r.uniform(1000, 16600), 0),
+            "unserved_energy_mwh": round(_r.uniform(0, 5000), 0),
+            "affected_consumers_k": round(_r.uniform(10, 2500), 0),
+            "economic_cost_m_aud": round(_r.uniform(5, 500), 1),
+        })
+
+    return {
+        "timestamp": _dt.utcnow().isoformat() + "Z",
+        "scenarios": scenarios,
+        "results": results,
+        "vulnerabilities": vulnerabilities,
+        "kpis": kpis,
     }
 
 
