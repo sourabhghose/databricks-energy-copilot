@@ -2071,3 +2071,36 @@ Backend, frontend page, API client types, routing, and tests for BatteryChemistr
 
 ### Git
 - Git commit: `3d43350`
+
+## Sprint 175 — Fix 14 Broken Dashboards + Missing Imports [COMPLETE] (2026-03-01)
+
+### Root Cause: Missing Module-Level Imports
+- All endpoints from `_spot_endpoints.py` used `_r` (alias for `random`) and `_dt`/`_td` (aliases for `datetime`/`timedelta`), but these were only imported inside individual functions, not at module level.
+- Fix: Added `import random as _r` and `from datetime import datetime as _dt, timedelta as _td` at the top of main.py.
+
+### Missing `getHeaders()` in client.ts
+- Newer API client functions (Sprint 163+) used `fetch(url, { headers: getHeaders() })` but `getHeaders()` was never defined.
+- Fix: Added `function getHeaders(): Record<string, string> { return { Accept: 'application/json' } }` to client.ts.
+
+### Missing `/api/market-stress/dashboard` Endpoint
+- `MarketStressTesting.tsx` called `/api/market-stress/dashboard` but only `/api/spot-market-stress/dashboard` existed (different component).
+- Fix: Created new endpoint with scenarios, stress test results, vulnerabilities, and KPIs.
+
+### 9 Routes Missing Leading `/`
+- Route paths in App.tsx route map and `<Route>` elements were missing the leading `/`, causing pages to show "Select a dashboard" placeholder.
+- Fixed: electricity-spot-price-events, hydrogen-refuelling-transport, large-scale-renewable-auction, nem-ancillary-services, australian-carbon-credit, ev-grid-integration, generator-capacity-adequacy, smart-grid-cybersecurity, pumped-hydro-reservoir.
+
+### Missing `/api/demand-forecast/dashboard` Endpoint
+- `DemandForecastAnalytics.tsx` called this endpoint but it didn't exist (501 catch-all).
+- Fix: Created endpoint with 75 forecast records (5 regions × 3 horizons × 5 dates) and 30 PASA reliability records.
+
+### Audited All 76 Endpoints Across 6 Subcategories
+- Futures & Forward (6): all passing
+- Trading (12): all passing (including trading desk)
+- Hedging & Risk (10): all passing
+- Forecasting (13): all passing after demand-forecast fix
+- Settlement (10): all passing
+- Market Structure (9): all passing
+
+### Git
+- Commits: `e46afbd` (14 dashboard fixes + route fixes), `073cb3a` (demand-forecast endpoint)
