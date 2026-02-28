@@ -6715,6 +6715,78 @@ def market_stress_dashboard():
     }
 
 
+# ---------------------------------------------------------------------------
+# /api/demand-forecast/dashboard  ->  DemandForecastDashboard
+# ---------------------------------------------------------------------------
+
+@app.get("/api/demand-forecast/dashboard")
+def demand_forecast_dashboard():
+    _r.seed(888)
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    models = ["AEMO_ST_PASA", "AEMO_MT_PASA", "ML_ENHANCED"]
+    conditions = ["HOT", "MODERATE", "COLD", "STORM"]
+    horizons = [1, 24, 168]
+    base_demands = {"NSW1": 8500, "QLD1": 6200, "VIC1": 5800, "SA1": 1800, "TAS1": 1100}
+
+    forecast_records = []
+    for reg in regions:
+        base = base_demands[reg]
+        for h in horizons:
+            for d in range(5):
+                actual = base + _r.uniform(-800, 800)
+                error_scale = 1 + h * 0.02
+                forecast = actual + _r.uniform(-200, 200) * error_scale
+                error = forecast - actual
+                mae_pct = round(abs(error) / actual * 100, 2)
+                forecast_records.append({
+                    "region": reg,
+                    "forecast_date": (_dt(2024, 7, 1) + _td(days=d)).strftime("%Y-%m-%d"),
+                    "forecast_horizon_h": h,
+                    "forecast_mw": round(forecast, 1),
+                    "actual_mw": round(actual, 1),
+                    "error_mw": round(error, 1),
+                    "mae_pct": mae_pct,
+                    "forecast_model": _r.choice(models),
+                    "temperature_c": round(_r.uniform(8, 42), 1),
+                    "conditions": _r.choice(conditions),
+                })
+
+    pasa_records = []
+    months = ["2024-07", "2024-08", "2024-09", "2024-10", "2024-11", "2024-12"]
+    for reg in regions:
+        base = base_demands[reg]
+        for m in months:
+            cap = base * _r.uniform(1.15, 1.45)
+            d10 = base * _r.uniform(1.05, 1.25)
+            d50 = base * _r.uniform(0.85, 1.05)
+            margin = round((cap - d10) / d10 * 100, 1)
+            pasa_records.append({
+                "region": reg,
+                "month": m,
+                "reserve_margin_pct": margin,
+                "ues_mwh": round(_r.uniform(0, 50), 1) if margin < 10 else 0.0,
+                "lrc_mw": round(cap - d10, 0),
+                "capacity_available_mw": round(cap, 0),
+                "demand_10poe_mw": round(d10, 0),
+                "demand_50poe_mw": round(d50, 0),
+                "reliability_standard_met": margin >= 10,
+            })
+
+    mae_1h = round(sum(r["mae_pct"] for r in forecast_records if r["forecast_horizon_h"] == 1) / max(1, sum(1 for r in forecast_records if r["forecast_horizon_h"] == 1)), 2)
+    mae_24h = round(sum(r["mae_pct"] for r in forecast_records if r["forecast_horizon_h"] == 24) / max(1, sum(1 for r in forecast_records if r["forecast_horizon_h"] == 24)), 2)
+    mae_168h = round(sum(r["mae_pct"] for r in forecast_records if r["forecast_horizon_h"] == 168) / max(1, sum(1 for r in forecast_records if r["forecast_horizon_h"] == 168)), 2)
+
+    return {
+        "timestamp": _dt.utcnow().isoformat() + "Z",
+        "regions": regions,
+        "avg_mae_1h_pct": mae_1h,
+        "avg_mae_24h_pct": mae_24h,
+        "avg_mae_168h_pct": mae_168h,
+        "forecast_records": forecast_records,
+        "pasa_records": pasa_records,
+    }
+
+
 # =========================================================================
 # API 404 catch-all (must be BEFORE the SPA catch-all)
 # =========================================================================
