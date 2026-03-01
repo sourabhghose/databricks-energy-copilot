@@ -6866,18 +6866,19 @@ def _genie_headers():
     return auth, host
 
 
-@app.post("/api/genie/spaces/{space_id}/conversations")
-async def genie_start_conversation(space_id: str):
-    """Start a new Genie conversation in the given space."""
+@app.post("/api/genie/spaces/{space_id}/start-conversation")
+async def genie_start_conversation(space_id: str, request: Request):
+    """Start a new Genie conversation with an initial question."""
     try:
+        body = await request.json()
         headers, host = _genie_headers()
         headers["Content-Type"] = "application/json"
         import httpx
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
-                f"{host}/api/2.0/genie/spaces/{space_id}/conversations",
+                f"{host}/api/2.0/genie/spaces/{space_id}/start-conversation",
                 headers=headers,
-                json={},
+                json=body,
             )
             resp.raise_for_status()
             return resp.json()
@@ -6887,13 +6888,13 @@ async def genie_start_conversation(space_id: str):
 
 @app.post("/api/genie/spaces/{space_id}/conversations/{conversation_id}/messages")
 async def genie_send_message(space_id: str, conversation_id: str, request: Request):
-    """Send a message to a Genie conversation and return the response."""
+    """Send a follow-up message to an existing Genie conversation."""
     try:
         body = await request.json()
         headers, host = _genie_headers()
         headers["Content-Type"] = "application/json"
         import httpx
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
                 f"{host}/api/2.0/genie/spaces/{space_id}/conversations/{conversation_id}/messages",
                 headers=headers,

@@ -48,14 +48,24 @@ async function fetchSpaces(): Promise<GenieSpace[]> {
   return data.spaces
 }
 
-async function startConversation(spaceId: string): Promise<string> {
-  const r = await fetch(`${BASE}/api/genie/spaces/${spaceId}/conversations`, {
+async function startConversation(
+  spaceId: string,
+  content: string
+): Promise<{ conversation_id: string; message_id: string }> {
+  const r = await fetch(`${BASE}/api/genie/spaces/${spaceId}/start-conversation`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
   })
-  if (!r.ok) throw new Error('Failed to start conversation')
+  if (!r.ok) {
+    const errBody = await r.text()
+    throw new Error(`Failed to start conversation: ${errBody}`)
+  }
   const data = await r.json()
-  return data.conversation_id
+  return {
+    conversation_id: data.conversation_id,
+    message_id: data.message_id,
+  }
 }
 
 async function sendMessage(
@@ -71,7 +81,10 @@ async function sendMessage(
       body: JSON.stringify({ content }),
     }
   )
-  if (!r.ok) throw new Error('Failed to send message')
+  if (!r.ok) {
+    const errBody = await r.text()
+    throw new Error(`Failed to send message: ${errBody}`)
+  }
   return r.json()
 }
 
@@ -302,6 +315,75 @@ function ChatView({
     inputRef.current?.focus()
   }, [])
 
+  const updateGenieMsg = useCallback(
+    (idx: number, update: Partial<ChatMessage>) => {
+      setMessages((prev) => {
+        const copy = [...prev]
+        copy[idx] = { ...copy[idx], ...update }
+        return copy
+      })
+    },
+    []
+  )
+
+  const extractAttachments = useCallback(
+    async (
+      result: Record<string, unknown>,
+      convId: string,
+      messageId: string
+    ): Promise<Partial<ChatMessage>> => {
+      const attachments = result.attachments as Record<string, unknown>[] | undefined
+      let textContent = ''
+      let sql = ''
+      let columns: string[] = []
+      let rows: unknown[][] = []
+
+      if (attachments && attachments.length > 0) {
+        for (const att of attachments) {
+          if (att.text) {
+            const t = att.text as Record<string, unknown>
+            textContent += (t.content as string) || ''
+          }
+          if (att.query) {
+            const q2 = att.query as Record<string, unknown>
+            sql = (q2.query as string) || ''
+            try {
+              const qr = await getQueryResult(space.space_id, convId, messageId)
+              const statement = qr.statement_response as Record<string, unknown> | undefined
+              if (statement) {
+                const manifest = statement.manifest as Record<string, unknown> | undefined
+                const resultData = statement.result as Record<string, unknown> | undefined
+                if (manifest?.schema) {
+                  const schema = manifest.schema as Record<string, unknown>
+                  const cols = schema.columns as { name: string }[] | undefined
+                  columns = cols?.map((c) => c.name) || []
+                }
+                if (resultData?.data_array) {
+                  rows = resultData.data_array as unknown[][]
+                }
+              }
+            } catch {
+              // Query result not available yet
+            }
+          }
+        }
+      }
+
+      if (!textContent && !sql) {
+        textContent = 'I processed your question but have no results to show.'
+      }
+
+      return {
+        content: textContent,
+        sql: sql || undefined,
+        columns: columns.length ? columns : undefined,
+        rows: rows.length ? rows : undefined,
+        status: 'done' as const,
+      }
+    },
+    [space.space_id]
+  )
+
   const handleSend = useCallback(
     async (question: string) => {
       if (!question.trim() || sending) return
@@ -309,135 +391,61 @@ function ChatView({
       setInput('')
       setSending(true)
 
-      // Add user message
-      setMessages((prev) => [...prev, { role: 'user', content: q }])
-
-      // Add pending genie message
+      // Add user message + pending genie message
       const genieIdx = messages.length + 1
       setMessages((prev) => [
         ...prev,
+        { role: 'user', content: q },
         { role: 'genie', content: '', status: 'pending' },
       ])
 
       try {
-        // Start conversation if needed
         let convId = conversationId
+        let messageId: string
+
         if (!convId) {
-          convId = await startConversation(space.space_id)
+          // First message — use start-conversation which sends the question too
+          updateGenieMsg(genieIdx, { status: 'running' })
+          const resp = await startConversation(space.space_id, q)
+          convId = resp.conversation_id
+          messageId = resp.message_id
           setConversationId(convId)
+        } else {
+          // Follow-up message
+          updateGenieMsg(genieIdx, { status: 'running' })
+          const resp = await sendMessage(space.space_id, convId, q)
+          messageId = resp.message_id
         }
 
-        // Update to running
-        setMessages((prev) => {
-          const copy = [...prev]
-          copy[genieIdx] = { ...copy[genieIdx], status: 'running' }
-          return copy
-        })
-
-        // Send message
-        const { message_id } = await sendMessage(space.space_id, convId, q)
-
-        // Poll for completion
+        // Poll for completion (up to 2 minutes)
         let result: Record<string, unknown> | null = null
         for (let i = 0; i < 60; i++) {
           await new Promise((r) => setTimeout(r, 2000))
-          result = await pollMessage(space.space_id, convId, message_id)
-          const status = (result as Record<string, unknown>).status as string | undefined
+          result = await pollMessage(space.space_id, convId, messageId)
+          const status = result.status as string | undefined
           if (status === 'COMPLETED' || status === 'FAILED') break
         }
 
-        const status = (result as Record<string, unknown>)?.status as string | undefined
+        const status = result?.status as string | undefined
 
         if (status === 'FAILED') {
-          setMessages((prev) => {
-            const copy = [...prev]
-            copy[genieIdx] = {
-              ...copy[genieIdx],
-              status: 'error',
-              content: 'Genie could not answer this question.',
-              error:
-                ((result as Record<string, unknown>)?.error as string) ||
-                'Query failed',
-            }
-            return copy
+          updateGenieMsg(genieIdx, {
+            status: 'error',
+            content: 'Genie could not answer this question.',
+            error: (result?.error as string) || 'Query failed',
           })
           setSending(false)
           return
         }
 
-        // Extract attachments
-        const attachments = (result as Record<string, unknown>)?.attachments as
-          | Record<string, unknown>[]
-          | undefined
-
-        let textContent = ''
-        let sql = ''
-        let columns: string[] = []
-        let rows: unknown[][] = []
-
-        if (attachments && attachments.length > 0) {
-          for (const att of attachments) {
-            if (att.text) {
-              const t = att.text as Record<string, unknown>
-              textContent += (t.content as string) || ''
-            }
-            if (att.query) {
-              const q2 = att.query as Record<string, unknown>
-              sql = (q2.query as string) || ''
-
-              // Try to get query results
-              try {
-                const qr = await getQueryResult(
-                  space.space_id,
-                  convId,
-                  message_id
-                )
-                const statement = qr.statement_response as Record<string, unknown> | undefined
-                if (statement) {
-                  const manifest = statement.manifest as Record<string, unknown> | undefined
-                  const resultData = statement.result as Record<string, unknown> | undefined
-                  if (manifest?.schema) {
-                    const schema = manifest.schema as Record<string, unknown>
-                    const cols = schema.columns as { name: string }[] | undefined
-                    columns = cols?.map((c) => c.name) || []
-                  }
-                  if (resultData?.data_array) {
-                    rows = resultData.data_array as unknown[][]
-                  }
-                }
-              } catch {
-                // Query result not available
-              }
-            }
-          }
-        }
-
-        if (!textContent && !sql) {
-          textContent = 'I processed your question but have no results to show.'
-        }
-
-        setMessages((prev) => {
-          const copy = [...prev]
-          copy[genieIdx] = {
-            role: 'genie',
-            content: textContent,
-            sql: sql || undefined,
-            columns: columns.length ? columns : undefined,
-            rows: rows.length ? rows : undefined,
-            status: 'done',
-          }
-          return copy
-        })
+        // Extract text, SQL, and results from attachments
+        const genieResult = await extractAttachments(result!, convId, messageId)
+        updateGenieMsg(genieIdx, genieResult)
       } catch (err) {
-        setMessages((prev) => {
-          const copy = [...prev]
-          copy[genieIdx] = {
-            role: 'genie',
-            content: '',
-            status: 'error',
-            error: err instanceof Error ? err.message : 'Unknown error',
-          }
-          return copy
+        updateGenieMsg(genieIdx, {
+          status: 'error',
+          content: '',
+          error: err instanceof Error ? err.message : 'Unknown error',
         })
       } finally {
         setSending(false)
