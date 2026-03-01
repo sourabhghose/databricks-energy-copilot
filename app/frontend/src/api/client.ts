@@ -3245,6 +3245,14 @@ export const api = {
    * expected by the LiveMarket page and InterconnectorMap component.
    */
   async getInterconnectors(): Promise<InterconnectorFlow[]> {
+    // Map AEMO interconnector IDs to the display names used by InterconnectorMap
+    const IC_ID_MAP: Record<string, string> = {
+      'N-Q-MNSP1': 'QNI',
+      'VIC1-NSW1': 'VIC1-NSW1',
+      'V-SA': 'V-SA',
+      'T-V-MNSP1': 'V-TAS',
+      'V-S-MNSP1': 'Murraylink',
+    }
     const res = await fetch('/api/interconnectors', {
       headers: { Accept: 'application/json' },
     })
@@ -3253,7 +3261,7 @@ export const api = {
     const ics = summary.interconnectors || summary
     if (!Array.isArray(ics)) return []
     return ics.map((ic: InterconnectorRecord) => ({
-      id: ic.interconnectorid,
+      id: IC_ID_MAP[ic.interconnectorid] || ic.interconnectorid,
       from: ic.from_region,
       to: ic.to_region,
       flowMw: ic.mw_flow,
