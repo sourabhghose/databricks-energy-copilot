@@ -1,9 +1,33 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Sparkles, Send, Loader2, Database, ChevronRight, ArrowLeft, Table2, Code, AlertCircle, Zap, Sun, Network, CloudSun } from 'lucide-react'
+import {
+  Sparkles,
+  Send,
+  Loader2,
+  Database,
+  ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
+  Table2,
+  Code,
+  AlertCircle,
+  Zap,
+  Sun,
+  Network,
+  CloudSun,
+  MessageSquare,
+  Clock,
+  Activity,
+  Trash2,
+} from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface QuestionCategory {
+  label: string
+  questions: string[]
+}
 
 interface GenieSpace {
   space_id: string
@@ -11,7 +35,8 @@ interface GenieSpace {
   description: string
   icon: string
   tables: string[]
-  sample_questions: string[]
+  question_categories?: QuestionCategory[]
+  sample_questions?: string[]
 }
 
 interface ChatMessage {
@@ -127,20 +152,20 @@ function SpaceCard({
   return (
     <button
       onClick={onSelect}
-      className="group text-left bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all p-5 flex flex-col gap-3"
+      className="group text-left bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all p-5 flex flex-col gap-3"
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-          <Icon size={20} className="text-purple-600" />
+        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center group-hover:from-blue-200 group-hover:to-blue-300 transition-colors">
+          <Icon size={20} className="text-blue-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">
+          <h3 className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">
             {space.title}
           </h3>
         </div>
         <ChevronRight
           size={16}
-          className="text-gray-300 group-hover:text-purple-400 transition-colors shrink-0"
+          className="text-gray-300 group-hover:text-blue-400 transition-colors shrink-0"
         />
       </div>
       <p className="text-xs text-gray-500 leading-relaxed">{space.description}</p>
@@ -173,25 +198,22 @@ function ResultsTable({ columns, rows }: { columns: string[]; rows: unknown[][] 
   const displayRows = rows.slice(0, 100)
   return (
     <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-full text-xs">
+      <table className="min-w-full text-xs border-collapse">
         <thead>
-          <tr className="bg-gray-50 border-b border-gray-200">
+          <tr className="bg-gray-100">
             {columns.map((col) => (
               <th
                 key={col}
-                className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap"
+                className="px-3 py-2 text-left font-semibold text-gray-700 text-[11px] uppercase tracking-wider border-b border-gray-200 whitespace-nowrap"
               >
                 {col}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-gray-100">
           {displayRows.map((row, i) => (
-            <tr
-              key={i}
-              className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
-            >
+            <tr key={i} className="hover:bg-gray-50 transition-colors">
               {row.map((cell, j) => (
                 <td key={j} className="px-3 py-1.5 text-gray-700 whitespace-nowrap">
                   {cell === null ? (
@@ -215,19 +237,25 @@ function ResultsTable({ columns, rows }: { columns: string[]; rows: unknown[][] 
 }
 
 // ---------------------------------------------------------------------------
-// Chat message bubble
+// Chat message bubble — matches Copilot style with AI/You avatars
 // ---------------------------------------------------------------------------
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+      {!isUser && (
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-[10px] font-bold mr-2.5 mt-0.5 shrink-0 shadow-sm">
+          AI
+        </div>
+      )}
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+        className={[
+          'max-w-[85%] rounded-2xl',
           isUser
-            ? 'bg-purple-600 text-white rounded-br-md'
-            : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
-        }`}
+            ? 'bg-blue-600 text-white rounded-br-sm px-4 py-2.5 text-[13px] leading-relaxed'
+            : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm px-4 py-3 shadow-sm',
+        ].join(' ')}
       >
         {/* Status indicator */}
         {msg.status === 'pending' && (
@@ -237,7 +265,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           </div>
         )}
         {msg.status === 'running' && (
-          <div className="flex items-center gap-2 text-xs text-purple-500 mb-1">
+          <div className="flex items-center gap-2 text-xs text-blue-500 mb-1">
             <Loader2 size={12} className="animate-spin" />
             Genie is thinking...
           </div>
@@ -245,7 +273,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 
         {/* Text content */}
         {msg.content && (
-          <p className={`text-sm leading-relaxed ${isUser ? '' : 'text-gray-700'}`}>
+          <p className={`text-[13px] leading-relaxed ${isUser ? '' : 'text-gray-700'}`}>
             {msg.content}
           </p>
         )}
@@ -265,7 +293,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
               <Code size={12} />
               View SQL query
             </summary>
-            <pre className="mt-2 text-[11px] bg-gray-900 text-green-400 rounded-lg px-3 py-2 overflow-x-auto font-mono leading-relaxed">
+            <pre className="mt-2 text-[11px] bg-gray-800 text-gray-100 rounded-lg px-3 py-2 overflow-x-auto font-mono leading-relaxed">
               {msg.sql}
             </pre>
           </details>
@@ -282,12 +310,122 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           </div>
         )}
       </div>
+      {isUser && (
+        <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-[10px] font-bold ml-2.5 mt-0.5 shrink-0">
+          You
+        </div>
+      )}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Chat view for a single space
+// Sidebar — categorized questions + session stats
+// ---------------------------------------------------------------------------
+
+function Sidebar({
+  space,
+  onSelectQuestion,
+  messageCount,
+  queriesRun,
+  sidebarOpen,
+  onToggle,
+}: {
+  space: GenieSpace
+  onSelectQuestion: (q: string) => void
+  messageCount: number
+  queriesRun: number
+  sidebarOpen: boolean
+  onToggle: () => void
+}) {
+  const categories = space.question_categories || []
+  // Fallback: if no categories but has sample_questions, wrap them in one category
+  const displayCategories =
+    categories.length > 0
+      ? categories
+      : space.sample_questions
+        ? [{ label: 'Suggested', questions: space.sample_questions }]
+        : []
+
+  if (!sidebarOpen) return null
+
+  return (
+    <aside className="w-[240px] shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden">
+      {/* Space info */}
+      <div className="px-3 py-3 border-b border-gray-200">
+        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Genie Space
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={12} className="text-blue-500 shrink-0" />
+            <span className="text-xs font-semibold text-gray-800 leading-tight">
+              Databricks AI/BI Genie
+            </span>
+          </div>
+          <div className="text-[11px] text-gray-400 leading-snug">{space.title}</div>
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <span className="w-2 h-2 rounded-full shrink-0 bg-green-500" />
+            <span className="text-xs font-medium text-green-600">Online</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Example questions — categorised & scrollable */}
+      <div className="px-3 py-3 border-b border-gray-200 flex-1 overflow-y-auto">
+        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Example Questions
+        </div>
+        <div className="flex flex-col gap-3">
+          {displayCategories.map((cat) => (
+            <div key={cat.label}>
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                {cat.label}
+              </div>
+              <div className="flex flex-col gap-1">
+                {cat.questions.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => onSelectQuestion(q)}
+                    className="text-left text-[11px] px-2 py-1.5 rounded-md border border-gray-150 bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors leading-snug"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Session stats */}
+      <div className="px-3 py-3">
+        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Session Stats
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <MessageSquare size={11} />
+              <span>Messages</span>
+            </div>
+            <span className="text-xs font-semibold text-gray-700">{messageCount}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Activity size={11} />
+              <span>Queries run</span>
+            </div>
+            <span className="text-xs font-semibold text-gray-700">{queriesRun}</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chat view for a single space — matches Copilot layout
 // ---------------------------------------------------------------------------
 
 function ChatView({
@@ -301,8 +439,10 @@ function ChatView({
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [queriesRun, setQueriesRun] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const Icon = ICON_MAP[space.icon] || Sparkles
 
   // Auto-scroll to bottom
@@ -312,7 +452,19 @@ function ChatView({
 
   // Focus input on mount
   useEffect(() => {
-    inputRef.current?.focus()
+    textareaRef.current?.focus()
+  }, [])
+
+  // Cmd/Ctrl+K — focus the input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        textareaRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   const updateGenieMsg = useCallback(
@@ -347,6 +499,7 @@ function ChatView({
           if (att.query) {
             const q2 = att.query as Record<string, unknown>
             sql = (q2.query as string) || ''
+            setQueriesRun((prev) => prev + 1)
             try {
               const qr = await getQueryResult(space.space_id, convId, messageId)
               const statement = qr.statement_response as Record<string, unknown> | undefined
@@ -404,14 +557,12 @@ function ChatView({
         let messageId: string
 
         if (!convId) {
-          // First message — use start-conversation which sends the question too
           updateGenieMsg(genieIdx, { status: 'running' })
           const resp = await startConversation(space.space_id, q)
           convId = resp.conversation_id
           messageId = resp.message_id
           setConversationId(convId)
         } else {
-          // Follow-up message
           updateGenieMsg(genieIdx, { status: 'running' })
           const resp = await sendMessage(space.space_id, convId, q)
           messageId = resp.message_id
@@ -421,7 +572,7 @@ function ChatView({
         let result: Record<string, unknown> | null = null
         for (let i = 0; i < 60; i++) {
           await new Promise((r) => setTimeout(r, 2000))
-          result = await pollMessage(space.space_id, convId, messageId)
+          result = await pollMessage(space.space_id, convId!, messageId)
           const status = result.status as string | undefined
           if (status === 'COMPLETED' || status === 'FAILED') break
         }
@@ -438,8 +589,7 @@ function ChatView({
           return
         }
 
-        // Extract text, SQL, and results from attachments
-        const genieResult = await extractAttachments(result!, convId, messageId)
+        const genieResult = await extractAttachments(result!, convId!, messageId)
         updateGenieMsg(genieIdx, genieResult)
       } catch (err) {
         updateGenieMsg(genieIdx, {
@@ -451,90 +601,164 @@ function ChatView({
         setSending(false)
       }
     },
-    [conversationId, messages.length, sending, space.space_id]
+    [conversationId, messages.length, sending, space.space_id, updateGenieMsg, extractAttachments]
   )
+
+  const handleClearChat = useCallback(() => {
+    setMessages([])
+    setConversationId(null)
+    setQueriesRun(0)
+    setInput('')
+    setSending(false)
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      void handleSend(input)
+    }
+  }
+
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value)
+    const el = e.target
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }
+
+  // Gather all questions for the empty state
+  const allQuestions =
+    space.question_categories
+      ? space.question_categories.flatMap((c) => c.questions).slice(0, 6)
+      : space.sample_questions?.slice(0, 6) || []
+
+  const isEmpty = messages.length === 0
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-3 border-b border-gray-200 bg-white shrink-0 flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-          <Icon size={16} className="text-purple-600" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900 truncate">{space.title}</h2>
-          <p className="text-[11px] text-gray-400 truncate">{space.description}</p>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mb-4">
-              <Sparkles size={24} className="text-purple-500" />
-            </div>
-            <h3 className="text-base font-semibold text-gray-700 mb-1">
-              Ask anything about your data
-            </h3>
-            <p className="text-xs text-gray-400 mb-6 max-w-sm">
-              Genie will write and execute SQL queries against your NEM tables automatically.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
-              {space.sample_questions.map((q) => (
-                <button
-                  key={q}
-                  onClick={() => handleSend(q)}
-                  disabled={sending}
-                  className="text-left text-xs px-3 py-2.5 rounded-lg border border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50 transition-all text-gray-600 hover:text-purple-700 disabled:opacity-50"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} />
-        ))}
-      </div>
-
-      {/* Input */}
-      <div className="px-6 py-3 border-t border-gray-200 bg-white shrink-0">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleSend(input)
-          }}
-          className="flex items-center gap-2"
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about your NEM data..."
-            disabled={sending}
-            className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-gray-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400"
-          />
+      {/* Header row — matches Copilot header */}
+      <div className="px-6 py-3 border-b border-gray-200 bg-white shrink-0 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <button
-            type="submit"
-            disabled={!input.trim() || sending}
-            className="p-2.5 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+            onClick={onBack}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600 shrink-0"
           >
-            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            <ArrowLeft size={18} />
           </button>
-        </form>
-        <p className="text-[10px] text-gray-300 mt-1.5 text-center">
-          Powered by Databricks AI/BI Genie &middot; Queries run against Unity Catalog gold tables
-        </p>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shrink-0">
+            <Icon size={16} className="text-blue-600" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold text-gray-900 truncate">{space.title}</h2>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">
+              AI/BI Genie &middot; ask anything in plain English &middot; Cmd+K to focus
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Query count badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 border border-gray-200 text-xs text-gray-600">
+            <Activity size={12} className="text-blue-500 shrink-0" />
+            <span>
+              <span className="font-semibold">{queriesRun}</span>
+              <span className="text-gray-400 ml-0.5">queries</span>
+            </span>
+          </div>
+          <button
+            onClick={handleClearChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 hover:text-red-600 hover:border-red-200 transition-colors"
+          >
+            <Trash2 size={13} />
+            Clear Chat
+          </button>
+        </div>
+      </div>
+
+      {/* Body: chat + collapsible sidebar */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Chat area */}
+        <div className="flex-1 min-w-0 flex flex-col relative bg-gray-50">
+          {/* Messages */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
+            {isEmpty ? (
+              <div className="flex flex-col items-center justify-center h-full px-6 py-12 text-center">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mb-4">
+                  <Sparkles size={22} className="text-blue-500" />
+                </div>
+                <h3 className="text-base font-semibold text-gray-800 mb-1">
+                  {space.title}
+                </h3>
+                <p className="text-sm text-gray-400 max-w-xs mb-6">
+                  Ask anything about your NEM data. Genie will write and execute SQL automatically.
+                </p>
+                <div className="flex flex-col gap-2 w-full max-w-sm">
+                  {allQuestions.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleSend(q)}
+                      disabled={sending}
+                      className="text-left text-sm px-4 py-2.5 rounded-xl border border-blue-100 bg-blue-50/60 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              messages.map((msg, i) => <MessageBubble key={i} msg={msg} />)
+            )}
+          </div>
+
+          {/* Sidebar toggle button */}
+          <button
+            onClick={() => setSidebarOpen((o) => !o)}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            className="absolute top-3 right-2 z-10 p-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            {sidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+
+          {/* Input area — matches Copilot */}
+          <div className="border-t border-gray-200 px-5 py-3 bg-white shrink-0">
+            <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about NEM data — prices, generation, forecasts, constraints... (Cmd+Enter to send)"
+                rows={1}
+                disabled={sending}
+                className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none max-h-40 leading-relaxed disabled:opacity-50"
+              />
+              <button
+                onClick={() => void handleSend(input)}
+                disabled={!input.trim() || sending}
+                className="shrink-0 p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                aria-label="Send message"
+              >
+                {sending ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Send size={16} />
+                )}
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5 text-center">
+              Cmd+Enter to send &middot; Powered by Databricks AI/BI Genie &middot; Queries run against Unity Catalog gold tables
+            </p>
+          </div>
+        </div>
+
+        {/* Collapsible sidebar */}
+        <Sidebar
+          space={space}
+          onSelectQuestion={(q) => handleSend(q)}
+          messageCount={messages.filter((m) => m.role === 'user').length}
+          queriesRun={queriesRun}
+          sidebarOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen((o) => !o)}
+        />
       </div>
     </div>
   )
@@ -569,21 +793,23 @@ export default function Genie() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-200 bg-white shrink-0">
-        <div className="flex items-center gap-2.5 mb-1">
-          <Sparkles size={20} className="text-purple-500" />
-          <h2 className="text-xl font-bold text-gray-900">Genie Analytics</h2>
+      <div className="px-6 py-3 border-b border-gray-200 bg-white shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Sparkles size={20} className="text-blue-500" />
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Genie Analytics</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              AI-powered data exploration — ask natural language questions against your NEM data
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500">
-          Ask natural language questions against your NEM data. Genie writes and executes SQL automatically.
-        </p>
       </div>
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
         {loading && (
           <div className="flex items-center justify-center h-full">
-            <Loader2 size={24} className="animate-spin text-purple-400" />
+            <Loader2 size={24} className="animate-spin text-blue-400" />
           </div>
         )}
 
@@ -610,11 +836,11 @@ export default function Genie() {
             </div>
 
             {/* Info */}
-            <div className="mt-8 max-w-4xl bg-purple-50/60 border border-purple-100 rounded-xl px-5 py-4">
+            <div className="mt-8 max-w-4xl bg-blue-50/60 border border-blue-100 rounded-xl px-5 py-4">
               <div className="flex items-start gap-3">
-                <Sparkles size={16} className="text-purple-400 shrink-0 mt-0.5" />
+                <Sparkles size={16} className="text-blue-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-gray-600 leading-relaxed">
-                  <span className="font-semibold text-purple-700">How it works: </span>
+                  <span className="font-semibold text-blue-700">How it works: </span>
                   Select a Genie space, then ask questions in plain English. Genie uses AI to
                   generate SQL queries against your Unity Catalog gold tables, executes them on your
                   SQL warehouse, and returns the results — all within this interface.

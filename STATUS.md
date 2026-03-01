@@ -2104,3 +2104,64 @@ Backend, frontend page, API client types, routing, and tests for BatteryChemistr
 
 ### Git
 - Commits: `e46afbd` (14 dashboard fixes + route fixes), `073cb3a` (demand-forecast endpoint)
+
+---
+
+## Sprint 176 — Genie AI/BI Integration & UI Overhaul (2026-03-01)
+
+### Genie Spaces Created
+- Created 4 Databricks AI/BI Genie spaces via REST API (`POST /api/2.0/genie/spaces`)
+- Each space configured with Unity Catalog gold tables, text instructions, example SQL queries, and sample questions
+- API quirks discovered: `serialized_space` must be JSON string, tables sorted by identifier, IDs must be valid sorted 32-hex UUIDs, max 1 text_instruction
+
+### Genie Space IDs (v2 — recreated to update sample questions)
+| Space | ID |
+|-------|----|
+| NEM Spot Market Intelligence | `01f1151e4cea13f3abdca55d4894e777` |
+| NEM Generation & Renewables | `01f1151e5c7316948adc16d6623ad6c1` |
+| NEM Network & Interconnectors | `01f1151e5e4012fa91e403fc47fcb0a4` |
+| NEM Forecasting & Weather | `01f1151e60481c12abe205ed51ccc8f3` |
+
+### Genie Backend Proxy (5 endpoints in main.py)
+- `GET /api/genie/spaces` — lists configured spaces with metadata
+- `POST /api/genie/spaces/{id}/start-conversation` — starts new conversation
+- `POST /api/genie/spaces/{id}/conversations/{cid}/messages` — sends follow-up
+- `GET /api/genie/spaces/{id}/conversations/{cid}/messages/{mid}` — polls status
+- `GET /api/genie/spaces/{id}/conversations/{cid}/messages/{mid}/query-result` — fetches SQL results
+- Auth via app service principal (`WorkspaceClient().config.authenticate()`)
+- Host fix: `w.config.host` in Databricks Apps returns the app URL (`.databricksapps.com`), not the workspace URL — code detects this and uses correct workspace host
+
+### Genie Permissions Granted to App Service Principal
+- `CAN_MANAGE` on all 4 Genie spaces (via `/api/2.0/permissions/genie/{id}`)
+- `CAN_USE` on SQL warehouse `4d44ca1635a22803`
+- `USE CATALOG`, `USE SCHEMA`, `SELECT` on `energy_copilot_catalog.gold`
+- SP identified by applicationId `67aaaa6b-778c-4c8b-b2f0-9f9b9728b3bb`
+
+### Genie.tsx — Copilot-Style UI Overhaul
+- Redesigned from purple theme to blue theme matching Copilot page
+- AI/You avatar bubbles (gradient blue "AI" circle, gray "You" circle)
+- Collapsible right sidebar with categorized example questions and session stats
+- Textarea input with auto-resize and Cmd+Enter to send (was single-line input)
+- Header with query count badge and Clear Chat button
+- Cmd+K shortcut to focus input
+- Each space has 4 question categories with ~6 questions each (~24 per space)
+
+### Copilot vs Genie — Architecture Comparison
+| | Copilot (`/copilot`) | Genie (`/genie`) |
+|---|---|---|
+| Engine | Claude Sonnet 4.6 via Databricks FMAPI | Databricks AI/BI Genie |
+| Data access | Pre-fetched from 10 internal API endpoints, injected into system prompt | Direct SQL against Unity Catalog gold tables |
+| Output | Streaming markdown text | SQL query + tabular results |
+| Strength | Reasoning, explanations, market knowledge | Precise data queries, real numbers |
+| Scope | Anything NEM-related | Scoped to configured gold tables |
+
+Copilot's `_build_market_context()` fetches live data from: spot prices, market summary, price spikes, interconnector flows, generation mix (all 5 regions), price volatility, BESS fleet, alerts, demand response, and price forecasts — all injected into Claude's system prompt before each response.
+
+### 36 Missing API Endpoints Added
+- Added 36 endpoints across 6 categories that were returning 501 (catch-all):
+  - Forecasting (9), Futures (5), Hedging (10), Settlement (9), More (3)
+  - Each uses `_r.seed(<unique_seed>)` for reproducible mock data
+  - All 36 tested locally (36/36 passing)
+
+### Git
+- Commits: `8d3b5cb` (36 missing endpoints), `d6e6f12` (Genie page), `63fa3f1` (Genie API fix)
