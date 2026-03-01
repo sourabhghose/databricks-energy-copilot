@@ -1,191 +1,619 @@
-import { useRef } from 'react'
-import { Sparkles, ExternalLink, Info, Send } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Sparkles, Send, Loader2, Database, ChevronRight, ArrowLeft, Table2, Code, AlertCircle, Zap, Sun, Network, CloudSun } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
-// Vite env var helpers — typed access without casting throughout the file
+// Types
 // ---------------------------------------------------------------------------
 
-const env = (import.meta as Record<string, unknown> & { env: Record<string, string> }).env
-const GENIE_SPACE_ID: string = env.VITE_GENIE_SPACE_ID ?? ''
-const GENIE_URL: string = env.VITE_GENIE_URL ?? ''
+interface GenieSpace {
+  space_id: string
+  title: string
+  description: string
+  icon: string
+  tables: string[]
+  sample_questions: string[]
+}
 
-// Derive the iframe URL: prefer explicit VITE_GENIE_URL, otherwise build from space ID
-const IFRAME_URL: string =
-  GENIE_URL ||
-  (GENIE_SPACE_ID
-    ? `https://<workspace>.azuredatabricks.net/genie/spaces/${GENIE_SPACE_ID}`
-    : '')
-
-// ---------------------------------------------------------------------------
-// Preset queries posted to the Genie iframe via postMessage
-// ---------------------------------------------------------------------------
-
-const PRESET_QUERIES = [
-  'Show me average daily prices by region for the last 7 days',
-  'What was the maximum demand in each region this month?',
-  'Show generation by fuel type for NSW1 last week',
-] as const
+interface ChatMessage {
+  role: 'user' | 'genie'
+  content: string
+  sql?: string
+  columns?: string[]
+  rows?: unknown[][]
+  status?: 'pending' | 'running' | 'done' | 'error'
+  error?: string
+}
 
 // ---------------------------------------------------------------------------
-// Setup instructions panel (shown when VITE_GENIE_SPACE_ID is not set)
+// Icon mapping
 // ---------------------------------------------------------------------------
 
-function SetupPanel() {
+const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  zap: Zap,
+  sun: Sun,
+  network: Network,
+  'cloud-sun': CloudSun,
+}
+
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+
+const BASE = ''
+
+async function fetchSpaces(): Promise<GenieSpace[]> {
+  const r = await fetch(`${BASE}/api/genie/spaces`)
+  if (!r.ok) throw new Error('Failed to fetch spaces')
+  const data = await r.json()
+  return data.spaces
+}
+
+async function startConversation(spaceId: string): Promise<string> {
+  const r = await fetch(`${BASE}/api/genie/spaces/${spaceId}/conversations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!r.ok) throw new Error('Failed to start conversation')
+  const data = await r.json()
+  return data.conversation_id
+}
+
+async function sendMessage(
+  spaceId: string,
+  conversationId: string,
+  content: string
+): Promise<{ message_id: string }> {
+  const r = await fetch(
+    `${BASE}/api/genie/spaces/${spaceId}/conversations/${conversationId}/messages`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    }
+  )
+  if (!r.ok) throw new Error('Failed to send message')
+  return r.json()
+}
+
+async function pollMessage(
+  spaceId: string,
+  conversationId: string,
+  messageId: string
+): Promise<Record<string, unknown>> {
+  const r = await fetch(
+    `${BASE}/api/genie/spaces/${spaceId}/conversations/${conversationId}/messages/${messageId}`
+  )
+  if (!r.ok) throw new Error('Failed to poll message')
+  return r.json()
+}
+
+async function getQueryResult(
+  spaceId: string,
+  conversationId: string,
+  messageId: string
+): Promise<Record<string, unknown>> {
+  const r = await fetch(
+    `${BASE}/api/genie/spaces/${spaceId}/conversations/${conversationId}/messages/${messageId}/query-result`
+  )
+  if (!r.ok) throw new Error('Failed to fetch query result')
+  return r.json()
+}
+
+// ---------------------------------------------------------------------------
+// Space selector card
+// ---------------------------------------------------------------------------
+
+function SpaceCard({
+  space,
+  onSelect,
+}: {
+  space: GenieSpace
+  onSelect: () => void
+}) {
+  const Icon = ICON_MAP[space.icon] || Sparkles
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-6 py-12 text-gray-500">
-      <Sparkles size={48} className="text-purple-200 mb-4" />
-      <h3 className="text-lg font-semibold text-gray-700 mb-2">Genie AI Analytics</h3>
-      <p className="text-sm text-gray-500 max-w-md mb-6">
-        Set{' '}
-        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">
-          VITE_GENIE_SPACE_ID
-        </code>{' '}
-        in your{' '}
-        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono">
-          .env.local
-        </code>{' '}
-        file to connect to your Databricks Genie space.
-      </p>
-
-      {/* Code block */}
-      <div className="w-full max-w-sm mb-6">
-        <pre className="text-left bg-gray-900 text-green-400 text-xs font-mono rounded-lg px-4 py-3 leading-relaxed overflow-x-auto">
-          {`VITE_GENIE_SPACE_ID=your-space-id-here`}
-        </pre>
+    <button
+      onClick={onSelect}
+      className="group text-left bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all p-5 flex flex-col gap-3"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+          <Icon size={20} className="text-purple-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900 group-hover:text-purple-700 transition-colors">
+            {space.title}
+          </h3>
+        </div>
+        <ChevronRight
+          size={16}
+          className="text-gray-300 group-hover:text-purple-400 transition-colors shrink-0"
+        />
       </div>
-
-      {/* Docs link placeholder */}
-      <p className="text-xs text-gray-400 mb-8">
-        <a
-          href="#databricks-genie-docs"
-          className="text-blue-500 hover:underline"
-          onClick={e => e.preventDefault()}
-        >
-          View Databricks Genie documentation
-        </a>
-      </p>
-
-      {/* What Genie is */}
-      <div className="bg-purple-50 border border-purple-100 rounded-lg px-5 py-4 max-w-lg text-left flex gap-3 mb-8">
-        <Info size={16} className="text-purple-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-gray-600 leading-relaxed">
-          <span className="font-semibold text-purple-700">What is Genie?</span>{' '}
-          Genie allows natural language queries directly against your NEM data in Unity Catalog
-          using AI-powered SQL generation. Ask questions like "average price last week" and Genie
-          writes and runs the SQL automatically.
-        </p>
-      </div>
-
-      {/* Placeholder feature list */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl text-left">
-        {[
-          {
-            title: 'NEM Prices & Demand',
-            desc: 'Query spot prices, demand trends, and volatility periods across all regions.',
-          },
-          {
-            title: 'Generation & Fuel Mix',
-            desc: 'Analyse generation by fuel type, renewable penetration, and dispatch patterns.',
-          },
-          {
-            title: 'Interconnectors & Constraints',
-            desc: 'Explore flow patterns, binding constraints, and cross-regional arbitrage.',
-          },
-        ].map(item => (
-          <div key={item.title} className="bg-white rounded-lg border border-gray-200 p-4">
-            <h4 className="text-sm font-semibold text-gray-700 mb-1">{item.title}</h4>
-            <p className="text-xs text-gray-500">{item.desc}</p>
-          </div>
+      <p className="text-xs text-gray-500 leading-relaxed">{space.description}</p>
+      <div className="flex flex-wrap gap-1.5 mt-1">
+        {space.tables.slice(0, 4).map((t) => (
+          <span
+            key={t}
+            className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-gray-100 text-gray-500"
+          >
+            <Database size={9} />
+            {t}
+          </span>
         ))}
+        {space.tables.length > 4 && (
+          <span className="text-[10px] text-gray-400 px-1">
+            +{space.tables.length - 4} more
+          </span>
+        )}
+      </div>
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Results table
+// ---------------------------------------------------------------------------
+
+function ResultsTable({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
+  if (!columns.length || !rows.length) return null
+  const displayRows = rows.slice(0, 100)
+  return (
+    <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
+      <table className="min-w-full text-xs">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            {columns.map((col) => (
+              <th
+                key={col}
+                className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap"
+              >
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {displayRows.map((row, i) => (
+            <tr
+              key={i}
+              className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+            >
+              {row.map((cell, j) => (
+                <td key={j} className="px-3 py-1.5 text-gray-700 whitespace-nowrap">
+                  {cell === null ? (
+                    <span className="text-gray-300 italic">null</span>
+                  ) : (
+                    String(cell)
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > 100 && (
+        <div className="px-3 py-2 text-xs text-gray-400 bg-gray-50 border-t border-gray-200">
+          Showing 100 of {rows.length} rows
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Chat message bubble
+// ---------------------------------------------------------------------------
+
+function MessageBubble({ msg }: { msg: ChatMessage }) {
+  const isUser = msg.role === 'user'
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+          isUser
+            ? 'bg-purple-600 text-white rounded-br-md'
+            : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
+        }`}
+      >
+        {/* Status indicator */}
+        {msg.status === 'pending' && (
+          <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
+            <Loader2 size={12} className="animate-spin" />
+            Starting conversation...
+          </div>
+        )}
+        {msg.status === 'running' && (
+          <div className="flex items-center gap-2 text-xs text-purple-500 mb-1">
+            <Loader2 size={12} className="animate-spin" />
+            Genie is thinking...
+          </div>
+        )}
+
+        {/* Text content */}
+        {msg.content && (
+          <p className={`text-sm leading-relaxed ${isUser ? '' : 'text-gray-700'}`}>
+            {msg.content}
+          </p>
+        )}
+
+        {/* Error */}
+        {msg.error && (
+          <div className="flex items-center gap-2 mt-2 text-xs text-red-500">
+            <AlertCircle size={12} />
+            {msg.error}
+          </div>
+        )}
+
+        {/* SQL query */}
+        {msg.sql && (
+          <details className="mt-3">
+            <summary className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+              <Code size={12} />
+              View SQL query
+            </summary>
+            <pre className="mt-2 text-[11px] bg-gray-900 text-green-400 rounded-lg px-3 py-2 overflow-x-auto font-mono leading-relaxed">
+              {msg.sql}
+            </pre>
+          </details>
+        )}
+
+        {/* Results table */}
+        {msg.columns && msg.rows && (
+          <div className="mt-2">
+            <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+              <Table2 size={12} />
+              {msg.rows.length} row{msg.rows.length !== 1 ? 's' : ''} returned
+            </div>
+            <ResultsTable columns={msg.columns} rows={msg.rows} />
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Genie page
+// Chat view for a single space
+// ---------------------------------------------------------------------------
+
+function ChatView({
+  space,
+  onBack,
+}: {
+  space: GenieSpace
+  onBack: () => void
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [conversationId, setConversationId] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const Icon = ICON_MAP[space.icon] || Sparkles
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages])
+
+  // Focus input on mount
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleSend = useCallback(
+    async (question: string) => {
+      if (!question.trim() || sending) return
+      const q = question.trim()
+      setInput('')
+      setSending(true)
+
+      // Add user message
+      setMessages((prev) => [...prev, { role: 'user', content: q }])
+
+      // Add pending genie message
+      const genieIdx = messages.length + 1
+      setMessages((prev) => [
+        ...prev,
+        { role: 'genie', content: '', status: 'pending' },
+      ])
+
+      try {
+        // Start conversation if needed
+        let convId = conversationId
+        if (!convId) {
+          convId = await startConversation(space.space_id)
+          setConversationId(convId)
+        }
+
+        // Update to running
+        setMessages((prev) => {
+          const copy = [...prev]
+          copy[genieIdx] = { ...copy[genieIdx], status: 'running' }
+          return copy
+        })
+
+        // Send message
+        const { message_id } = await sendMessage(space.space_id, convId, q)
+
+        // Poll for completion
+        let result: Record<string, unknown> | null = null
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 2000))
+          result = await pollMessage(space.space_id, convId, message_id)
+          const status = (result as Record<string, unknown>).status as string | undefined
+          if (status === 'COMPLETED' || status === 'FAILED') break
+        }
+
+        const status = (result as Record<string, unknown>)?.status as string | undefined
+
+        if (status === 'FAILED') {
+          setMessages((prev) => {
+            const copy = [...prev]
+            copy[genieIdx] = {
+              ...copy[genieIdx],
+              status: 'error',
+              content: 'Genie could not answer this question.',
+              error:
+                ((result as Record<string, unknown>)?.error as string) ||
+                'Query failed',
+            }
+            return copy
+          })
+          setSending(false)
+          return
+        }
+
+        // Extract attachments
+        const attachments = (result as Record<string, unknown>)?.attachments as
+          | Record<string, unknown>[]
+          | undefined
+
+        let textContent = ''
+        let sql = ''
+        let columns: string[] = []
+        let rows: unknown[][] = []
+
+        if (attachments && attachments.length > 0) {
+          for (const att of attachments) {
+            if (att.text) {
+              const t = att.text as Record<string, unknown>
+              textContent += (t.content as string) || ''
+            }
+            if (att.query) {
+              const q2 = att.query as Record<string, unknown>
+              sql = (q2.query as string) || ''
+
+              // Try to get query results
+              try {
+                const qr = await getQueryResult(
+                  space.space_id,
+                  convId,
+                  message_id
+                )
+                const statement = qr.statement_response as Record<string, unknown> | undefined
+                if (statement) {
+                  const manifest = statement.manifest as Record<string, unknown> | undefined
+                  const resultData = statement.result as Record<string, unknown> | undefined
+                  if (manifest?.schema) {
+                    const schema = manifest.schema as Record<string, unknown>
+                    const cols = schema.columns as { name: string }[] | undefined
+                    columns = cols?.map((c) => c.name) || []
+                  }
+                  if (resultData?.data_array) {
+                    rows = resultData.data_array as unknown[][]
+                  }
+                }
+              } catch {
+                // Query result not available
+              }
+            }
+          }
+        }
+
+        if (!textContent && !sql) {
+          textContent = 'I processed your question but have no results to show.'
+        }
+
+        setMessages((prev) => {
+          const copy = [...prev]
+          copy[genieIdx] = {
+            role: 'genie',
+            content: textContent,
+            sql: sql || undefined,
+            columns: columns.length ? columns : undefined,
+            rows: rows.length ? rows : undefined,
+            status: 'done',
+          }
+          return copy
+        })
+      } catch (err) {
+        setMessages((prev) => {
+          const copy = [...prev]
+          copy[genieIdx] = {
+            role: 'genie',
+            content: '',
+            status: 'error',
+            error: err instanceof Error ? err.message : 'Unknown error',
+          }
+          return copy
+        })
+      } finally {
+        setSending(false)
+      }
+    },
+    [conversationId, messages.length, sending, space.space_id]
+  )
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-3 border-b border-gray-200 bg-white shrink-0 flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+          <Icon size={16} className="text-purple-600" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-gray-900 truncate">{space.title}</h2>
+          <p className="text-[11px] text-gray-400 truncate">{space.description}</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4 bg-gray-50/50">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center py-12">
+            <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mb-4">
+              <Sparkles size={24} className="text-purple-500" />
+            </div>
+            <h3 className="text-base font-semibold text-gray-700 mb-1">
+              Ask anything about your data
+            </h3>
+            <p className="text-xs text-gray-400 mb-6 max-w-sm">
+              Genie will write and execute SQL queries against your NEM tables automatically.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
+              {space.sample_questions.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => handleSend(q)}
+                  disabled={sending}
+                  className="text-left text-xs px-3 py-2.5 rounded-lg border border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50 transition-all text-gray-600 hover:text-purple-700 disabled:opacity-50"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {messages.map((msg, i) => (
+          <MessageBubble key={i} msg={msg} />
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="px-6 py-3 border-t border-gray-200 bg-white shrink-0">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleSend(input)
+          }}
+          className="flex items-center gap-2"
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask a question about your NEM data..."
+            disabled={sending}
+            className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-gray-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all disabled:bg-gray-50 disabled:text-gray-400"
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || sending}
+            className="p-2.5 rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-200 disabled:text-gray-400 transition-colors"
+          >
+            {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+          </button>
+        </form>
+        <p className="text-[10px] text-gray-300 mt-1.5 text-center">
+          Powered by Databricks AI/BI Genie &middot; Queries run against Unity Catalog gold tables
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main Genie page
 // ---------------------------------------------------------------------------
 
 export default function Genie() {
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [spaces, setSpaces] = useState<GenieSpace[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeSpace, setActiveSpace] = useState<GenieSpace | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const sendPresetQuery = (query: string) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: 'genie_query', query },
-      '*'
-    )
+  useEffect(() => {
+    fetchSpaces()
+      .then((s) => {
+        setSpaces(s)
+        setLoading(false)
+      })
+      .catch((e) => {
+        setError(e.message)
+        setLoading(false)
+      })
+  }, [])
+
+  if (activeSpace) {
+    return <ChatView space={activeSpace} onBack={() => setActiveSpace(null)} />
   }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-white shrink-0 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-purple-500" />
-            <h2 className="text-xl font-bold text-gray-900">Genie Analytics</h2>
-          </div>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Natural language analytics over NEM prices, generation, and interconnectors
-          </p>
+      <div className="px-6 py-5 border-b border-gray-200 bg-white shrink-0">
+        <div className="flex items-center gap-2.5 mb-1">
+          <Sparkles size={20} className="text-purple-500" />
+          <h2 className="text-xl font-bold text-gray-900">Genie Analytics</h2>
         </div>
-        {IFRAME_URL && (
-          <a
-            href={IFRAME_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 shrink-0"
-          >
-            Open in Databricks
-            <ExternalLink size={13} />
-          </a>
-        )}
+        <p className="text-sm text-gray-500">
+          Ask natural language questions against your NEM data. Genie writes and executes SQL automatically.
+        </p>
       </div>
-
-      {/* Genie info box — always visible */}
-      <div className="px-6 py-3 border-b border-gray-200 bg-purple-50/60 shrink-0">
-        <div className="flex items-start gap-2 max-w-4xl">
-          <Info size={14} className="text-purple-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-gray-600 leading-relaxed">
-            <span className="font-semibold text-purple-700">Genie</span> allows natural language
-            queries directly against your NEM data in Unity Catalog using AI-powered SQL
-            generation.
-          </p>
-        </div>
-      </div>
-
-      {/* Preset query buttons */}
-      {IFRAME_URL && (
-        <div className="px-6 py-3 border-b border-gray-100 bg-white shrink-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-gray-500 mr-1 shrink-0">Quick queries:</span>
-            {PRESET_QUERIES.map(q => (
-              <button
-                key={q}
-                onClick={() => sendPresetQuery(q)}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors"
-              >
-                <Send size={11} />
-                {q}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Content */}
-      <div className="flex-1 min-h-0">
-        {IFRAME_URL ? (
-          <iframe
-            ref={iframeRef}
-            src={IFRAME_URL}
-            title="Databricks Genie Analytics"
-            className="w-full h-full border-0"
-            allow="clipboard-write"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-          />
-        ) : (
-          <SetupPanel />
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
+        {loading && (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 size={24} className="animate-spin text-purple-400" />
+          </div>
+        )}
+
+        {error && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <AlertCircle size={32} className="text-red-300 mb-3" />
+            <p className="text-sm text-red-500">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+              Choose a Genie Space
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
+              {spaces.map((space) => (
+                <SpaceCard
+                  key={space.space_id}
+                  space={space}
+                  onSelect={() => setActiveSpace(space)}
+                />
+              ))}
+            </div>
+
+            {/* Info */}
+            <div className="mt-8 max-w-4xl bg-purple-50/60 border border-purple-100 rounded-xl px-5 py-4">
+              <div className="flex items-start gap-3">
+                <Sparkles size={16} className="text-purple-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-gray-600 leading-relaxed">
+                  <span className="font-semibold text-purple-700">How it works: </span>
+                  Select a Genie space, then ask questions in plain English. Genie uses AI to
+                  generate SQL queries against your Unity Catalog gold tables, executes them on your
+                  SQL warehouse, and returns the results — all within this interface.
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

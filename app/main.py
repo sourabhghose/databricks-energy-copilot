@@ -6788,6 +6788,158 @@ def demand_forecast_dashboard():
 
 
 # =========================================================================
+# Genie AI/BI Space proxy endpoints
+# =========================================================================
+
+_GENIE_SPACES = [
+    {
+        "space_id": "01f1150f2d9d121f8b06c0867f395604",
+        "title": "NEM Spot Market Intelligence",
+        "description": "Spot prices, demand, price spikes, negative pricing, and anomaly events across all NEM regions.",
+        "icon": "zap",
+        "tables": ["nem_prices_5min", "nem_prices_30min", "nem_daily_summary", "daily_market_summary", "anomaly_events", "demand_actuals"],
+        "sample_questions": [
+            "What was the average spot price by region last week?",
+            "Show me all price spike events above $1000/MWh",
+            "Which region had the most negative pricing intervals?",
+            "What is the daily price volatility trend for SA1?",
+            "Show peak demand by region for the last 30 days",
+        ],
+    },
+    {
+        "space_id": "01f1150f2e40113fb08038e471628297",
+        "title": "NEM Generation & Renewables",
+        "description": "Generation by fuel type, renewable penetration, emissions intensity, and capacity factors.",
+        "icon": "sun",
+        "tables": ["nem_generation_by_fuel", "nem_daily_summary", "generation_forecasts"],
+        "sample_questions": [
+            "What is the current renewable energy share by region?",
+            "Show the generation mix for NSW1 over the last month",
+            "Which fuel type has the highest emissions intensity?",
+            "How does wind generation vary by time of day?",
+            "What is the trend in coal generation share?",
+        ],
+    },
+    {
+        "space_id": "01f1150f2ed91af88393964a36ed4e64",
+        "title": "NEM Network & Interconnectors",
+        "description": "Interconnector flows, congestion events, network constraints, and inter-regional transfers.",
+        "icon": "network",
+        "tables": ["nem_interconnectors", "nem_constraints_active", "nem_daily_summary"],
+        "sample_questions": [
+            "Which interconnector is most congested?",
+            "Show the flow pattern between NSW and QLD over the last week",
+            "What are the most binding network constraints?",
+            "When does Basslink typically export to Tasmania?",
+            "What is the average utilization of each interconnector?",
+        ],
+    },
+    {
+        "space_id": "01f1150f2f95139da2181460ecdd4136",
+        "title": "NEM Forecasting & Weather",
+        "description": "Demand forecasts, price forecasts, generation forecasts, and weather conditions.",
+        "icon": "cloud-sun",
+        "tables": ["demand_forecasts", "price_forecasts", "generation_forecasts", "weather_nem_regions", "demand_actuals"],
+        "sample_questions": [
+            "How accurate are the demand forecasts for NSW1?",
+            "Show the price forecast vs actual for the last 24 hours",
+            "What is the current temperature and wind speed by region?",
+            "Which region has the highest spike probability?",
+            "How does solar radiation affect price forecasts?",
+        ],
+    },
+]
+
+
+@app.get("/api/genie/spaces")
+def list_genie_spaces():
+    """Return the list of configured Genie spaces."""
+    return {"spaces": _GENIE_SPACES}
+
+
+def _genie_headers():
+    """Get auth headers for Genie API calls using the app's service principal."""
+    from databricks.sdk import WorkspaceClient
+    w = WorkspaceClient()
+    auth = w.config.authenticate()
+    host = w.config.host.rstrip("/")
+    return auth, host
+
+
+@app.post("/api/genie/spaces/{space_id}/conversations")
+async def genie_start_conversation(space_id: str):
+    """Start a new Genie conversation in the given space."""
+    try:
+        headers, host = _genie_headers()
+        headers["Content-Type"] = "application/json"
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{host}/api/2.0/genie/spaces/{space_id}/conversations",
+                headers=headers,
+                json={},
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
+
+@app.post("/api/genie/spaces/{space_id}/conversations/{conversation_id}/messages")
+async def genie_send_message(space_id: str, conversation_id: str, request: Request):
+    """Send a message to a Genie conversation and return the response."""
+    try:
+        body = await request.json()
+        headers, host = _genie_headers()
+        headers["Content-Type"] = "application/json"
+        import httpx
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                f"{host}/api/2.0/genie/spaces/{space_id}/conversations/{conversation_id}/messages",
+                headers=headers,
+                json=body,
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
+
+@app.get("/api/genie/spaces/{space_id}/conversations/{conversation_id}/messages/{message_id}")
+async def genie_get_message(space_id: str, conversation_id: str, message_id: str):
+    """Poll a Genie message for its result (SQL query and data)."""
+    try:
+        headers, host = _genie_headers()
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{host}/api/2.0/genie/spaces/{space_id}/conversations/{conversation_id}/messages/{message_id}",
+                headers=headers,
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
+
+@app.get("/api/genie/spaces/{space_id}/conversations/{conversation_id}/messages/{message_id}/query-result")
+async def genie_get_query_result(space_id: str, conversation_id: str, message_id: str):
+    """Get the SQL query result data for a Genie message."""
+    try:
+        headers, host = _genie_headers()
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{host}/api/2.0/genie/spaces/{space_id}/conversations/{conversation_id}/messages/{message_id}/query-result",
+                headers=headers,
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except Exception as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
+
+# =========================================================================
 # BATCH: Forecasting endpoints (9)
 # =========================================================================
 
