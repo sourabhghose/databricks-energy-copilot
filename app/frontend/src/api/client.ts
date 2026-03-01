@@ -3240,11 +3240,25 @@ export const api = {
   },
 
   /**
-   * Get current interconnector flows across the NEM (legacy flat list).
-   * @deprecated Use getInterconnectorsSummary for the full summary with congestion data.
+   * Get current interconnector flows across the NEM.
+   * Maps the backend InterconnectorSummary response to the flat InterconnectorFlow[] format
+   * expected by the LiveMarket page and InterconnectorMap component.
    */
-  getInterconnectors(): Promise<InterconnectorFlow[]> {
-    return get<InterconnectorFlow[]>('/api/interconnectors')
+  async getInterconnectors(): Promise<InterconnectorFlow[]> {
+    const res = await fetch('/api/interconnectors', {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error('Failed to fetch interconnector data')
+    const summary = await res.json()
+    const ics = summary.interconnectors || summary
+    if (!Array.isArray(ics)) return []
+    return ics.map((ic: InterconnectorRecord) => ({
+      id: ic.interconnectorid,
+      from: ic.from_region,
+      to: ic.to_region,
+      flowMw: ic.mw_flow,
+      limitMw: ic.mw_flow_limit,
+    }))
   },
 
   /**
