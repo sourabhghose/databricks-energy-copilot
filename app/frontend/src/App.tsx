@@ -1520,9 +1520,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/grid-emissions-intensity': GridEmissionsIntensityAnalytics,
   '/microgrid-resilience': MicrogridResilienceAnalytics,
   '/power-quality': PowerQualityMonitoringAnalytics,
-  '/energy-poverty': EnergyPovertyAffordabilityAnalytics,
   '/vpp-operations': VirtualPowerPlantOperationsAnalytics,
-  '/coal-retirement': CoalFleetRetirementPathwayAnalytics,
   '/pumped-hydro': PumpedHydroStorageAnalytics,
   '/smart-meter': SmartMeterDataAnalytics,
   '/east-coast-gas': EastCoastGasMarketAnalytics,
@@ -2435,9 +2433,7 @@ export default function App() {
               <Route path="/grid-emissions-intensity" element={<GridEmissionsIntensityAnalytics />} />
               <Route path="/microgrid-resilience" element={<MicrogridResilienceAnalytics />} />
               <Route path="/power-quality" element={<PowerQualityMonitoringAnalytics />} />
-              <Route path="/energy-poverty" element={<EnergyPovertyAffordabilityAnalytics />} />
               <Route path="/vpp-operations" element={<VirtualPowerPlantOperationsAnalytics />} />
-              <Route path="/coal-retirement" element={<CoalFleetRetirementPathwayAnalytics />} />
               <Route path="/pumped-hydro" element={<PumpedHydroStorageAnalytics />} />
               <Route path="/smart-meter" element={<SmartMeterDataAnalytics />} />
               <Route path="/east-coast-gas" element={<EastCoastGasMarketAnalytics />} />
