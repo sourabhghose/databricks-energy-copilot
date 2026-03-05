@@ -219,6 +219,197 @@ Build an AI-first market intelligence platform that:
 | ML forecasts | < 10 minutes after new dispatch | Triggered batch |
 | Daily market summary | By 06:00 AEST daily | Scheduled batch |
 
+### 5.4 Next Step: Adopt NEMWEB Solution Accelerator for Bronze/Silver Ingestion
+
+**Repository:** `databricks-industry-solutions/australian-energy-nemweb-analytics` (private, Databricks)
+**Author:** David O'Keeffe (Databricks)
+**Status:** Phase 3 in progress (streaming WIP, batch fully functional)
+
+#### Overview
+
+A Databricks Solution Accelerator providing a production-grade NEMWEB ingestion pipeline using **Databricks Asset Bundles (DABs)** + **Lakeflow SDP** + **Unity Catalog**. It replaces our custom `nemweb_downloader.py` / `01_nemweb_ingest.py` scripts with a declarative, serverless pipeline covering **25+ NEMWEB report types** (vs our current ~5).
+
+#### Architecture
+
+- **Deployment:** Databricks Asset Bundles (`databricks.yml`), single `./scripts/deploy.sh dev` command
+- **Pipeline:** Lakeflow SDP (serverless), runs every 5 minutes via Databricks Job
+- **Data source:** Custom Spark DataSource V2 (`NemwebArrowDataSource`) — downloads NEMWEB ZIPs, parses CSV, returns Arrow batches
+- **Schema evolution:** Auto-detects new/removed columns in NEMWEB CSV files
+- **DQ checks:** DQX YAML expectations on silver/gold tables
+- **ML:** XGBoost demand forecasting + price spike classification, registered in Unity Catalog
+
+#### NEMWEB Coverage Comparison
+
+| Report Type | Our Pipeline | Accelerator |
+|---|---|---|
+| DISPATCHPRICE (5-min prices) | Yes | Yes |
+| DISPATCH_UNIT_SCADA | Yes | Yes |
+| DISPATCHINTERCONNECTORRES | Yes | Yes |
+| DISPATCHCONSTRAINT | Partial (bronze only) | Yes (bronze + silver) |
+| DISPATCHLOAD | No | Yes |
+| DISPATCH_REGION_SUM | No | Yes |
+| DISPATCH_LOCAL_PRICE | No | Yes |
+| TRADINGPRICE / TRADING_REGION | Yes | Yes |
+| PREDISPATCH (price, load, constraint, interconnector, local price) | No | Yes |
+| P5MIN (unit, constraint, case, local price, region, interconnector) | No | Yes |
+| STPASA (case, region, constraint, interconnector, DUID availability) | No | Yes |
+| MTPASA (interconnector, constraint) | No | Yes |
+| BIDPEROFFER / BIDDAYOFFER | No | Yes |
+| GENCONSET / GENCON | No | Yes |
+| Rooftop PV (actual + forecast) | Via APVI | Via NEMWEB |
+| FCAS (dispatch requirements) | No | Yes |
+| Generator registration (stations, DUIDs, participants, loss factors) | Partial (one-time) | Yes (scheduled refresh) |
+| Demand forecasts | No | Yes |
+| Weather (BOM / Open-Meteo) | Yes | No |
+| Solar (APVI API) | Yes | No |
+
+#### Tables Produced
+
+**Bronze (~40 tables):** `bronze_nem_dispatch_price`, `bronze_nem_dispatch_unit_scada`, `bronze_nem_dispatch_constraint`, `bronze_nem_dispatch_interconnector`, `bronze_nem_dispatch_case`, `bronze_nem_dispatch_region_sum`, `bronze_nem_dispatch_local_price`, `bronze_nem_dispatch_interconnector_res`, `bronze_nem_trading_price`, `bronze_nem_trading_region`, `bronze_nem_operational_demand`, `bronze_nem_predispatch_price`, `bronze_nem_predispatch_load`, `bronze_nem_predispatch_constraint`, `bronze_nem_predispatch_interconnector`, `bronze_nem_predispatch_local_price`, `bronze_nem_predispatch_region_sum`, `bronze_nem_predispatch_case`, `bronze_nem_predispatch_blocked_constraint`, `bronze_nem_p5min_unit`, `bronze_nem_p5min_constraint`, `bronze_nem_p5min_case`, `bronze_nem_p5min_local_price`, `bronze_nem_p5min_region`, `bronze_nem_p5min_interconnector`, `bronze_nem_p5min_blocked_constraint`, `bronze_nem_stpasa_case`, `bronze_nem_stpasa_interconnector`, `bronze_nem_stpasa_region`, `bronze_nem_stpasa_constraint`, `bronze_nem_stpasa_duid_availability`, `bronze_nem_mtpasa`, `bronze_nem_mtpasa_interconnector`, `bronze_nem_mtpasa_constraint`, `bronze_nem_bid_dayoffer`, `bronze_nem_bid_peroffer`, `bronze_nem_gencon`, `bronze_nem_genconset`, `bronze_nem_genconset_invoke`, `bronze_nem_dispatch_fcas_req_run`, `bronze_nem_rooftop_pv_actual`, `bronze_nem_rooftop_pv_forecast`, `bronze_nem_demand_forecast`, `bronze_nem_demand_operational_forecast`, `bronze_nem_genunits`, `bronze_nem_dudetail`, `bronze_nem_stations`, `bronze_nem_participants`, `bronze_nem_interconnector_master`, `bronze_nem_regions`, `bronze_nem_loss_factors`, `bronze_nem_interconnector_constraint`, `bronze_nem_transmission_loss_factor`, `bronze_nemweb_file_manifest`
+
+**Silver (~8 tables):** `silver_nem_dispatch_price`, `silver_nem_trading_price`, `silver_nem_facility_dimension`, `silver_nem_dispatch_unit_scada`, `silver_nem_interconnector_flow`, `silver_nem_curtailment`, `silver_nem_interval_completeness`, `silver_nem_file_freshness`
+
+**Gold (~5 tables):** `gold_nem_dispatch_price_30min`, `gold_nem_dispatch_price_daily`, `gold_nem_generation_by_fuel_type`, `gold_nem_interconnector_flow_30min`, `gold_nem_curtailment_30min`
+
+#### Integration Plan
+
+1. **Deploy the accelerator** to `energy_copilot_catalog` — change `databricks.yml` variables (catalog, schema, warehouse)
+2. **Create views** mapping accelerator gold tables to our existing table names:
+   - `gold_nem_dispatch_price_30min` → `gold.nem_prices_5min` (view with column renames)
+   - `gold_nem_generation_by_fuel_type` → `gold.nem_generation_by_fuel` (view)
+   - `gold_nem_interconnector_flow_30min` → `gold.nem_interconnectors` (view)
+3. **Keep our weather + solar pipelines** — the accelerator doesn't cover Open-Meteo or APVI API
+4. **Keep our Copilot / Genie / App layer unchanged** — just reads from richer gold tables
+5. **Retire** `nemweb_downloader.py`, `01_nemweb_ingest.py`, `00_historical_backfill.py`
+6. **Adopt their ML models** for demand forecasting + price spike detection (replaces our forecast pipeline stubs)
+
+#### Key Benefits
+
+- **5x more NEMWEB data** — fills Tier 1 gaps (bids, FCAS, constraints, predispatch, STPASA, MTPASA, rooftop PV, demand forecasts)
+- **Production-grade SDP** — declarative, serverless, schema evolution tracking, DQ checks
+- **DABs deployment** — reproducible, CI/CD-ready, multi-environment
+- **Built-in ML** — demand forecasting + price spike classification out of the box
+
+#### Caveats
+
+- **Private repo** (Databricks License) — confirm internal reuse rights
+- **Depends on forked OpenElectricity SDK** — custom wheel with PySpark integration (PR #14 pending merge to upstream)
+- **Phase 3 streaming not fully deployed** — current folder scanning code written but wheel not rebuilt
+- **Gold table names differ** from ours — need views or rename to maintain API compatibility
+- **Azure workspace** (original) — needs testing on AWS (our workspace is AWS `fevm-energy-copilot`)
+
+### 5.5 Data Gap Action Plan — From 11 Real Endpoints to ~150
+
+Currently 11 of ~155 dashboard endpoints query real data (all in `home.py`). The remaining serve hardcoded mock data. This action plan closes the gap in ~15 days of pipeline work.
+
+#### Dashboard Coverage After Each Step
+
+| Step | Action | Real Endpoints | Cumulative |
+|---|---|---|---|
+| Current state | 11 home.py endpoints query gold tables | 11 | 11 |
+| Step 1 | Deploy NEMWEB accelerator + build silver/gold views | +99 | ~110 |
+| Step 2 | Add settlement + SRA ingestion | +11 | ~121 |
+| Step 3 | Add AEMO Market Notices API | +3 | ~124 |
+| Step 4 | Scrape ASX Energy free end-of-day futures prices | +15 | ~139 |
+| Step 5 | Load static lookups (emissions, DER register, LGC) | +8 | ~147 |
+| Step 6 | Add Gas Bulletin Board API | +1 | ~148 |
+| Step 7 | Keep synthetic (credit risk, cyber, retail) | +0 | ~148 |
+
+#### Step 1: Deploy NEMWEB Solution Accelerator (3-5 days)
+
+**Unlocks:** ~110 endpoints (home, spot prices, generation, interconnectors, forecasting, bidding, constraints, curtailment, FCAS, PSS, rooftop PV)
+
+- Deploy `australian-energy-nemweb-analytics` DAB to `energy_copilot_catalog`
+- Build silver/gold aggregation views for bids, FCAS, STPASA (accelerator has bronze, needs aggregation)
+- Create compatibility views mapping accelerator gold table names to our existing schema
+- Keep our weather (Open-Meteo) and solar (APVI) pipelines
+- Retire custom `nemweb_downloader.py`, `01_nemweb_ingest.py`, `00_historical_backfill.py`
+
+#### Step 2: Add Settlement & SRA Ingestion (2-3 days)
+
+**Unlocks:** ~11 endpoints (Settlement Analytics, 5-Min Settlement, SRA Analytics, Congestion Revenue)
+
+| Data | Source | Method |
+|---|---|---|
+| Settlement statements (trading amounts, FCAS payments) | NEMWEB `/Reports/Current/Settlements/` | CSV ZIP download — same pattern as dispatch. Add to accelerator's `NemwebArrowDataSource` or standalone notebook |
+| SRA auction results | NEMWEB `/Reports/Current/SRA_Results/` | CSV ZIP download — bronze table, aggregate to gold |
+
+#### Step 3: Add AEMO Market Notices API (1 day)
+
+**Unlocks:** ~3 endpoints (Market Events, Market Notices, Alerts)
+
+| Data | Source | Method |
+|---|---|---|
+| Market notices (LOR, directions, interventions) | AEMO Market Notices API (`api.aemo.com.au`) | REST API → JSON → Delta. Paginated GET, ~100 notices/day. Free, public |
+
+#### Step 4: ASX Energy Futures — Free End-of-Day Prices (2 days)
+
+**Unlocks:** ~15 of 27 futures/hedging endpoints (futures dashboard, forward curves, price discovery, hedging portfolio)
+
+| Data | Source | Method |
+|---|---|---|
+| Base/peak/cap futures settlement prices | ASX Energy (`asxenergy.com.au/futures_au`) | Free end-of-day CSV with 20-min delay. Daily scrape → bronze → gold. Covers base load, peak, $300 cap contracts for NSW, QLD, VIC, SA |
+| Options data (Greeks, OI, vol surface) | ASX Energy (paid) or Bloomberg/Refinitiv | **Not available free** — keep synthetic for 12 options-specific endpoints, label as "illustrative" |
+
+**Note:** Forward curves can also be derived from AEMO settlement file contract data (Step 2), providing a second independent source.
+
+#### Step 5: Static Lookup Tables (2 days)
+
+**Unlocks:** ~8 endpoints (Carbon/Emissions, DER, Sustainability)
+
+| Data | Source | Method | Refresh |
+|---|---|---|---|
+| Emissions factors (NGA scope 2, kg CO2/MWh per fuel) | DCEEW National Greenhouse Accounts | One-time CSV load, ~30 rows | Annual |
+| LGC/STC certificate prices | CER LGC Registry + ASX Environmental | End-of-day scrape or manual CSV | Daily/weekly |
+| DER Register (rooftop PV, battery by postcode) | CER DER Register API (`api.rec-registry.gov.au`) | REST API bulk download, ~1M records | Monthly |
+| AER enforcement actions | AER Enforcement Register (web) | Simple scrape, ~50 entries/year | Quarterly |
+| Retail DMO/VDO prices | AER Annual Retail Report | Manual XLSX extract | Annual |
+
+#### Step 6: Gas Bulletin Board API (2-3 days)
+
+**Unlocks:** ~1 dashboard (Gas Market)
+
+| Data | Source | Method |
+|---|---|---|
+| Gas hub prices (Wallumbilla, Sydney, Adelaide, Brisbane) | AEMO GBB API (`api.aemo.com.au/gbb`) | REST API → JSON → Delta. Free, public, well-documented |
+| Pipeline flows and capacity | AEMO GBB API | Same endpoint, different data tables |
+
+#### Step 7: Keep Synthetic — Customer-Specific Data (0 days)
+
+**~7 endpoints remain synthetic by design** — these require customer-specific or restricted data:
+
+| Dashboard | Why Synthetic | Path to Real Data |
+|---|---|---|
+| Credit Risk / Counterparty Exposure | Requires customer's own ETRM/portfolio system | Phase 2 deal capture integration (section 15.1) |
+| Cyber Security (OT/ICS) | Requires internal SOC/ASD data | Customer-provided or keep as capability demo |
+| Options Greeks / Vol Surface | Requires paid ASX Energy or Bloomberg feed | Customer brings their own market data subscription |
+| Retail Market Shares | AER publishes annually as PDF, no API | Manual annual update or keep as illustrative |
+
+#### Estimated Timeline
+
+| Week | Steps | Outcome |
+|---|---|---|
+| Week 1 | Step 1 (accelerator deployment + views) | ~110 real endpoints |
+| Week 2 | Steps 2 + 3 (settlement, SRA, market notices) | ~124 real endpoints |
+| Week 3 | Steps 4 + 5 + 6 (ASX futures, static lookups, gas) | ~148 real endpoints |
+
+**Result:** 148 of 155 endpoints serving real data within 3 weeks. The remaining 7 are synthetic by design (customer-specific data).
+
+#### Data Source Summary After Completion
+
+| Source | Endpoints Powered | Access | Cost |
+|---|---|---|---|
+| NEMWEB (via accelerator) | ~110 | Public, free | $0 |
+| NEMWEB (settlement + SRA, new pipelines) | ~11 | Public, free | $0 |
+| AEMO Market Notices API | ~3 | Public, free | $0 |
+| ASX Energy (free EOD) | ~15 | Public, 20-min delayed | $0 |
+| Open-Meteo (existing pipeline) | ~5 | Public, free | $0 |
+| APVI (existing pipeline) | ~2 | Public, free | $0 |
+| Static lookups (DCEEW, CER, AER) | ~8 | Public, free | $0 |
+| AEMO GBB (gas) | ~1 | Public, free | $0 |
+| Synthetic (customer-specific) | ~7 | N/A | $0 |
+| **Total** | **~155** | | **$0** |
+
 ---
 
 ## 6. AI/ML Models Specification
