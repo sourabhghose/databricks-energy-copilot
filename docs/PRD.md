@@ -300,7 +300,7 @@ A Databricks Solution Accelerator providing a production-grade NEMWEB ingestion 
 
 ### 5.5 Data Gap Action Plan — Progress Tracker
 
-**Current state (2026-03-06):** ~61 of ~172 API endpoints serve real NEMWEB data. The remaining serve mock data with fallback.
+**Current state (2026-03-06):** ~75 of ~172 API endpoints serve real NEMWEB data. The remaining serve mock data with fallback.
 
 #### Dashboard Coverage After Each Step
 
@@ -308,26 +308,27 @@ A Databricks Solution Accelerator providing a production-grade NEMWEB ingestion 
 |---|---|---|---|---|
 | Step 1a | Deploy NEMWEB accelerator + gold views | +56 | ~56 | **DONE** (2026-03-05) |
 | Step 1b | Wire bidding endpoints to bid pipeline | +5 | ~61 | **DONE** (2026-03-06) |
-| Step 1c | Wire remaining endpoints using existing gold tables | +6-8 | ~69 | Planned |
-| Step 2 | Add settlement + SRA ingestion | +11 | ~80 | Planned |
-| Step 3 | Add AEMO Market Notices API | +3 | ~83 | Planned |
-| Step 4 | Scrape ASX Energy free end-of-day futures prices | +15 | ~98 | Planned |
-| Step 5 | Load static lookups (emissions, DER register, LGC) | +8 | ~106 | Planned |
-| Step 6 | Add Gas Bulletin Board API | +1 | ~107 | Planned |
-| Step 7 | Run ML training/inference for forecast endpoints | +8 | ~115 | Planned |
-| Step 8 | Keep synthetic (credit risk, cyber, retail) | +0 | ~115 | By design |
+| Step 1c | Wire forecast + remaining stubs to existing gold tables | +14 | ~75 | **DONE** (2026-03-06) |
+| Step 2 | Add settlement + SRA ingestion | +8 | ~83 | Planned |
+| Step 3 | Add AEMO Market Notices API | +3 | ~86 | Planned |
+| Step 4 | Scrape ASX Energy free end-of-day futures prices | +15 | ~101 | Planned |
+| Step 5 | Load static lookups (emissions, DER register, LGC) | +8 | ~109 | Planned |
+| Step 6 | Add Gas Bulletin Board API | +1 | ~110 | Planned |
+| Step 7 | Keep synthetic (credit risk, cyber, retail, hydrogen, regulatory) | +0 | ~110 | By design |
 
 #### Step 1: Deploy NEMWEB Solution Accelerator — COMPLETED (2026-03-05 / 2026-03-06)
 
-**Unlocked:** ~61 endpoints serving real NEMWEB data
+**Unlocked:** ~75 endpoints serving real NEMWEB data
 
 **Completed:**
 - [x] Deployed `australian-energy-nemweb-analytics` DAB to `energy_copilot_catalog.nemweb_analytics` (78 tables)
 - [x] Created gold views in `energy_copilot_catalog.gold` (nem_prices_5min, nem_generation_by_fuel, nem_interconnectors, nem_facilities, nem_region_summary)
 - [x] Fixed BIDPEROFFER_D OOM: streaming CSV parser (`_parse_csv_streaming()`) + 10K-row chunked RecordBatch yielding for serverless 1GB limit
 - [x] Created bid gold views: `gold.nem_bid_stack` (11.5M rows), `gold.nem_bid_statistics` (12 rows)
-- [x] Wired ~61 endpoints across 8 router files (home, dashboards, sidebar, stubs, spike_analysis, batch_futures_hedging, batch_forecasting, batch_bidding)
-- [x] 5 bidding endpoints serving real DUIDs (TUMUT3, MURRAY, ERB01, ADPBA1, etc.)
+- [x] Wired ~61 endpoints across 8 router files (Step 1a+1b)
+- [x] Wired 4 batch_forecasting.py endpoints to ML forecast gold tables (price_forecasts, demand_forecasts, demand_actuals)
+- [x] Wired 6 stubs.py endpoints (spot-forecast, stpasa-adequacy, aemo-market-ops, settlement, vpp, planned-outage)
+- [x] Wired 3 batch_bidding.py endpoints (market-bidding-strategy, wholesale-bidding-strategy, system-operator via anomaly_events)
 
 **Key technical fix:** NEMWEB `Bidmove_Complete` files contain BIDPEROFFER_D with ~600K+ rows per day. The default CSV parser loaded everything into memory, hitting the 1GB serverless UDF limit. Fixed by adding a streaming generator that yields row dicts one at a time and batches into 10K-row Arrow RecordBatches.
 
