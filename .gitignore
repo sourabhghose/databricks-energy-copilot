@@ -107,6 +107,12 @@ mlflow.db
 ehthumbs.db
 Thumbs.db
 
+# Screenshots and diagrams (root only)
+# ------------------------------------------------------------
+/*.png
+*.mmd
+architecture-config.json
+
 # ------------------------------------------------------------
 # Secrets & credentials
 # ------------------------------------------------------------

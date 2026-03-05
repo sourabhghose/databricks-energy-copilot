@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException
 
-from .shared import _NEM_REGIONS, _AEST, logger
+from .shared import _NEM_REGIONS, _AEST, _CATALOG, _query_gold, logger
 from .home import (
     prices_latest,
     market_summary_latest,
@@ -250,6 +250,117 @@ async def _build_market_context() -> str:
     except Exception as exc:
         logger.warning("Context: merit order failed: %s", exc)
 
+    # 12. Key market participants — top generators by capacity per region
+    try:
+        rows = _query_gold(
+            f"SELECT region_id, station_name, fuel_type, capacity_mw "
+            f"FROM {_CATALOG}.gold.nem_facilities "
+            f"WHERE capacity_mw IS NOT NULL "
+            f"ORDER BY capacity_mw DESC"
+        )
+        if rows:
+            # Group by region, take top 5 per region
+            by_region: dict[str, list] = {}
+            for r in rows:
+                rid = r["region_id"]
+                by_region.setdefault(rid, [])
+                if len(by_region[rid]) < 5:
+                    by_region[rid].append(r)
+            for rid in sorted(by_region):
+                lines = []
+                for g in by_region[rid]:
+                    lines.append(
+                        f"  {g['station_name']}: {g['capacity_mw']:.0f} MW ({g['fuel_type']})"
+                    )
+                parts.append(
+                    f"KEY MARKET PARTICIPANTS — {rid} (top 5 by capacity):\n" + "\n".join(lines)
+                )
+    except Exception as exc:
+        logger.warning("Context: key participants failed: %s", exc)
+
+    # 13. Price trend — monthly average spot prices over last 90 days
+    try:
+        rows = _query_gold(
+            f"SELECT region_id, "
+            f"DATE_TRUNC('month', interval_datetime) AS month, "
+            f"ROUND(AVG(rrp), 2) AS avg_price, "
+            f"ROUND(MAX(rrp), 2) AS max_price, "
+            f"COUNT(*) AS intervals "
+            f"FROM {_CATALOG}.gold.nem_prices_5min "
+            f"WHERE interval_datetime >= CURRENT_DATE - INTERVAL 90 DAY "
+            f"GROUP BY region_id, DATE_TRUNC('month', interval_datetime) "
+            f"ORDER BY region_id, month"
+        )
+        if rows:
+            lines = []
+            for r in rows:
+                month_str = str(r["month"])[:7]  # YYYY-MM
+                lines.append(
+                    f"  {r['region_id']} {month_str}: avg ${r['avg_price']}/MWh, "
+                    f"peak ${r['max_price']}/MWh ({r['intervals']} intervals)"
+                )
+            parts.append("PRICE TREND (monthly avg, last 90 days):\n" + "\n".join(lines))
+    except Exception as exc:
+        logger.warning("Context: price trend failed: %s", exc)
+
+    # 14. Renewable penetration — NEM-wide renewable vs non-renewable share
+    try:
+        rows = _query_gold(
+            f"SELECT is_renewable, "
+            f"ROUND(SUM(total_mw), 1) AS total_mw, "
+            f"COUNT(DISTINCT fuel_type) AS fuel_types "
+            f"FROM {_CATALOG}.gold.nem_generation_by_fuel "
+            f"WHERE interval_datetime = ("
+            f"  SELECT MAX(interval_datetime) FROM {_CATALOG}.gold.nem_generation_by_fuel"
+            f") "
+            f"GROUP BY is_renewable"
+        )
+        if rows:
+            renew_mw = 0.0
+            fossil_mw = 0.0
+            for r in rows:
+                if r["is_renewable"]:
+                    renew_mw = float(r["total_mw"])
+                else:
+                    fossil_mw = float(r["total_mw"])
+            total = renew_mw + fossil_mw
+            if total > 0:
+                parts.append(
+                    f"RENEWABLE PENETRATION (latest interval, NEM-wide): "
+                    f"renewable {renew_mw:.0f} MW ({renew_mw / total * 100:.1f}%), "
+                    f"non-renewable {fossil_mw:.0f} MW ({fossil_mw / total * 100:.1f}%), "
+                    f"total {total:.0f} MW"
+                )
+    except Exception as exc:
+        logger.warning("Context: renewable penetration failed: %s", exc)
+
+    # 15. Interconnector congestion — currently congested interconnectors
+    try:
+        rows = _query_gold(
+            f"SELECT interconnector_id, from_region, to_region, "
+            f"mw_flow, export_limit_mw, import_limit_mw, utilization_pct "
+            f"FROM {_CATALOG}.gold.nem_interconnectors "
+            f"WHERE interval_datetime = ("
+            f"  SELECT MAX(interval_datetime) FROM {_CATALOG}.gold.nem_interconnectors"
+            f") "
+            f"AND is_congested = true"
+        )
+        if rows:
+            lines = []
+            for r in rows:
+                lines.append(
+                    f"  {r['interconnector_id']} ({r['from_region']}→{r['to_region']}): "
+                    f"{r['mw_flow']:.0f} MW flow, utilisation {r['utilization_pct']:.1f}%, "
+                    f"export limit {r['export_limit_mw']:.0f} MW, import limit {r['import_limit_mw']:.0f} MW"
+                )
+            parts.append(
+                f"CONGESTED INTERCONNECTORS ({len(rows)} currently congested):\n" + "\n".join(lines)
+            )
+        else:
+            parts.append("CONGESTED INTERCONNECTORS: None currently congested")
+    except Exception as exc:
+        logger.warning("Context: interconnector congestion failed: %s", exc)
+
     return "\n\n".join(parts)
 
 
@@ -311,6 +422,10 @@ async def copilot_chat(req: ChatRequest):
         f"- For total NEM output: use the NEM TOTAL GENERATION line.\n"
         f"- For battery questions: use the BESS FLEET and BESS UNIT DETAIL sections.\n"
         f"- For forecast questions: use the PRICE FORECAST sections.\n"
+        f"- For participant/generator questions: use the KEY MARKET PARTICIPANTS sections.\n"
+        f"- For price trend questions: use the PRICE TREND section showing monthly averages.\n"
+        f"- For renewable penetration: use the RENEWABLE PENETRATION section for NEM-wide share.\n"
+        f"- For congestion questions: use the CONGESTED INTERCONNECTORS section.\n"
         f"- Format responses cleanly with markdown tables where appropriate."
     )
 

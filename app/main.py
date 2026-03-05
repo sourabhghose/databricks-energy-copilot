@@ -127,6 +127,7 @@ from routers.genie import router as genie_router  # noqa: E402
 from routers.batch_forecasting import router as batch_forecasting_router  # noqa: E402
 from routers.batch_futures_hedging import router as batch_futures_hedging_router  # noqa: E402
 from routers.batch_bidding import router as batch_bidding_router  # noqa: E402
+from routers.auto_stubs import router as auto_stubs_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(dashboards_router)
@@ -140,6 +141,7 @@ app.include_router(genie_router)
 app.include_router(batch_forecasting_router)
 app.include_router(batch_futures_hedging_router)
 app.include_router(batch_bidding_router)
+app.include_router(auto_stubs_router)
 
 # ---------------------------------------------------------------------------
 # API 404 catch-all (must be BEFORE the SPA catch-all)
