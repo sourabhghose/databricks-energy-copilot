@@ -7,12 +7,65 @@ from .shared import _query_gold, _CATALOG, logger
 router = APIRouter()
 
 
+def _get_price_stats():
+    """Shared helper: fetch regional price stats from gold tables."""
+    try:
+        rows = _query_gold(f"""
+            SELECT region_id, AVG(rrp) AS avg_price, STDDEV(rrp) AS price_vol,
+                   MAX(rrp) AS max_price, MIN(rrp) AS min_price,
+                   PERCENTILE_APPROX(rrp, 0.9) AS p90_price,
+                   PERCENTILE_APPROX(rrp, 0.1) AS p10_price,
+                   COUNT(*) AS intervals
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY region_id
+        """)
+        if rows and len(rows) >= 3:
+            return {r["region_id"]: {
+                "avg": float(r["avg_price"] or 80), "vol": float(r["price_vol"] or 20),
+                "max": float(r["max_price"] or 300), "min": float(r["min_price"] or 0),
+                "p90": float(r["p90_price"] or 150), "p10": float(r["p10_price"] or 30),
+                "intervals": int(r["intervals"] or 0)
+            } for r in rows}
+    except Exception:
+        pass
+    return None
+
+
 # =========================================================================
 # BATCH: Futures endpoints (5)
 # =========================================================================
 
 @router.get("/api/futures/dashboard")
 def futures_dashboard(region: str = "NSW1"):
+    ps = _get_price_stats()
+    if ps and region in ps:
+        s = ps[region]
+        qtrs = ["Q1-2026", "Q2-2026", "Q3-2026", "Q4-2026", "Q1-2027", "Q2-2027"]
+        contracts = [{"contract_code": f"BL-{region}-{q}", "region": region,
+            "contract_type": _r.choice(["Base", "Peak"]),
+            "year": int(q.split("-")[1]), "quarter": int(q[1]),
+            "settlement_price": round(s["avg"] * (1 + i * 0.02), 2),
+            "peak_price": round(s["p90"] * (1 + i * 0.015), 2),
+            "change_1d": round(_r.uniform(-8, 8), 2), "change_1w": round(_r.uniform(-15, 15), 2),
+            "open_interest": _r.randint(500, 5000), "volume_today": _r.randint(50, 800),
+            "last_trade": _dt.utcnow().isoformat() + "Z"} for i, q in enumerate(qtrs)]
+        impl_vol = min(s["vol"] / max(s["avg"], 1) * 100, 80)
+        fc = [{"date": f"2026-{m:02d}-01", "base_price": round(s["avg"] * (1 + (m - 1) * 0.01), 2),
+            "peak_price": round(s["p90"] * (1 + (m - 1) * 0.008), 2),
+            "implied_volatility": round(impl_vol + _r.uniform(-5, 5), 1)} for m in range(1, 13)]
+        he = [{"hedge_type": ht, "region": region, "contract": f"BL-{region}-Q1-2026",
+            "notional_mwh": _r.randint(10000, 100000),
+            "hedge_price": round(s["avg"] * _r.uniform(0.85, 1.1), 2),
+            "spot_realised": round(s["avg"], 2),
+            "pnl_aud": round(_r.uniform(-500000, 500000), 0),
+            "effectiveness_pct": round(_r.uniform(60, 99), 1)} for ht in ["Swap", "Cap", "Collar", "Floor"]]
+        return {"timestamp": _dt.utcnow().isoformat() + "Z", "region": region,
+                "contracts": contracts, "forward_curve": fc, "hedge_effectiveness": he,
+                "market_summary": {"avg_base_price": round(s["avg"], 1), "avg_peak_price": round(s["p90"], 1),
+                    "total_open_interest": sum(c["open_interest"] for c in contracts),
+                    "implied_vol_avg": round(impl_vol, 1)}}
+
     _r.seed(7010)
     qtrs = ["Q1-2026", "Q2-2026", "Q3-2026", "Q4-2026", "Q1-2027", "Q2-2027"]
     contracts = [{"contract_code": f"BL-{region}-{q}", "region": region, "contract_type": _r.choice(["Base", "Peak"]), "year": int(q.split("-")[1]), "quarter": int(q[1]), "settlement_price": round(_r.uniform(50, 180), 2), "peak_price": round(_r.uniform(60, 250), 2), "change_1d": round(_r.uniform(-8, 8), 2), "change_1w": round(_r.uniform(-15, 15), 2), "open_interest": _r.randint(500, 5000), "volume_today": _r.randint(50, 800), "last_trade": "2025-12-20T14:30:00Z"} for q in qtrs]
@@ -23,6 +76,57 @@ def futures_dashboard(region: str = "NSW1"):
 
 @router.get("/api/electricity-futures-options/dashboard")
 def efot_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    if ps and len(ps) >= 3:
+        contracts = []
+        for i, reg in enumerate(regions * 3):
+            s = ps.get(reg, {"avg": 80, "vol": 20, "p90": 150})
+            contracts.append({"contract_id": f"EFOT-{i+1:04d}",
+                "contract_type": _r.choice(["Base Swap", "Peak Swap", "Cap", "Asian Option"]),
+                "region": reg, "delivery_year": 2026, "settlement_month": _r.randint(1, 12),
+                "strike_price_mwh": round(s["avg"] * _r.uniform(0.8, 1.2), 2),
+                "market_price_mwh": round(s["avg"] * _r.uniform(0.9, 1.15), 2),
+                "open_interest_mwh": round(_r.uniform(10000, 200000), 0),
+                "volume_traded_mwh": round(_r.uniform(1000, 50000), 0),
+                "implied_volatility_pct": round(min(s["vol"] / max(s["avg"], 1) * 100, 80) + _r.uniform(-5, 5), 1)})
+        nsw = ps.get("NSW1", {"avg": 80, "vol": 20})
+        ohlc = [{"contract_id": f"EFOT-{_r.randint(1,12):04d}", "trade_date_offset": -d,
+            "open_mwh": round(nsw["avg"] * _r.uniform(0.85, 1.15), 2),
+            "high_mwh": round(nsw["avg"] * _r.uniform(1.0, 1.3), 2),
+            "low_mwh": round(nsw["avg"] * _r.uniform(0.7, 1.0), 2),
+            "close_mwh": round(nsw["avg"] * _r.uniform(0.85, 1.15), 2),
+            "volume_mwh": round(_r.uniform(5000, 50000), 0),
+            "vwap_mwh": round(nsw["avg"] * _r.uniform(0.9, 1.1), 2)} for d in range(20)]
+        hp = [{"program_id": f"HP-{i+1:03d}", "participant_name": p,
+            "hedge_type": _r.choice(["Swap", "Cap", "Collar"]), "region": _r.choice(regions),
+            "hedged_volume_twh": round(_r.uniform(1, 15), 1),
+            "hedge_ratio_pct": round(_r.uniform(40, 95), 1),
+            "avg_strike_mwh": round(nsw["avg"] * _r.uniform(0.8, 1.2), 2),
+            "portfolio_delta_mwh": round(_r.uniform(-5000, 5000), 0),
+            "mark_to_market_m_aud": round(_r.uniform(-50, 80), 1),
+            "var_95_m_aud": round(_r.uniform(5, 40), 1)} for i, p in enumerate(["AGL", "Origin", "EnergyAustralia", "Snowy Hydro", "Alinta"])]
+        md = [{"region": reg, "contract_type": ct, "quarter": f"Q{q}", "year": 2026,
+            "bid_volume_mwh": round(_r.uniform(5000, 50000), 0),
+            "ask_volume_mwh": round(_r.uniform(5000, 50000), 0),
+            "bid_ask_spread_mwh": round(_r.uniform(0.5, 5), 2),
+            "market_maker_count": _r.randint(3, 10),
+            "liquidity_score": round(_r.uniform(0.3, 0.95), 2)} for reg in regions for ct in ["Base", "Peak"] for q in [1, 2]]
+        avg_vol = sum(min(ps.get(r, {"vol": 20, "avg": 80})["vol"] / max(ps.get(r, {"avg": 80})["avg"], 1) * 100, 80) for r in regions) / 4
+        vol = [{"region": reg, "year": 2026, "month": m,
+            "realised_vol_30d": round(min(ps.get(reg, {"vol": 20, "avg": 80})["vol"] / max(ps.get(reg, {"avg": 80})["avg"], 1) * 100, 80), 1),
+            "implied_vol": round(avg_vol + _r.uniform(-5, 5), 1),
+            "vol_risk_premium_pct": round(_r.uniform(-5, 15), 1),
+            "skew": round(_r.uniform(-0.5, 1.5), 2),
+            "kurtosis": round(_r.uniform(2, 8), 2)} for reg in regions[:2] for m in range(1, 7)]
+        return {"contracts": contracts, "daily_ohlc": ohlc, "hedging_programs": hp, "market_depth": md, "volatility": vol,
+                "summary": {"total_open_interest_twh": round(sum(c["open_interest_mwh"] for c in contracts) / 1e6, 1),
+                    "avg_implied_volatility_pct": round(avg_vol, 1), "most_liquid_region": "NSW1",
+                    "total_hedging_volume_twh": round(sum(h["hedged_volume_twh"] for h in hp), 1),
+                    "avg_hedge_ratio_pct": round(sum(h["hedge_ratio_pct"] for h in hp) / len(hp), 1),
+                    "var_95_portfolio_m_aud": round(sum(h["var_95_m_aud"] for h in hp), 1),
+                    "active_contracts": len(contracts)}}
+
     _r.seed(7011)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     contracts = [{"contract_id": f"EFOT-{i+1:04d}", "contract_type": _r.choice(["Base Swap", "Peak Swap", "Cap", "Asian Option"]), "region": reg, "delivery_year": _r.choice([2025, 2026]), "settlement_month": _r.randint(1, 12), "strike_price_mwh": round(_r.uniform(50, 200), 2), "market_price_mwh": round(_r.uniform(45, 220), 2), "open_interest_mwh": round(_r.uniform(10000, 200000), 0), "volume_traded_mwh": round(_r.uniform(1000, 50000), 0), "implied_volatility_pct": round(_r.uniform(15, 60), 1)} for i, reg in enumerate(regions * 3)]
@@ -35,6 +139,48 @@ def efot_dashboard():
 
 @router.get("/api/futures-market-risk/dashboard")
 def futures_market_risk_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    if ps and len(ps) >= 3:
+        var_recs = [{"date": _dt.utcnow().strftime("%Y-%m-%d"), "region": reg, "portfolio_type": pt,
+            "notional_position_m_aud": round(_r.uniform(10, 200), 1),
+            "var_95_m_aud": round(ps.get(reg, {"vol": 20})["vol"] * _r.uniform(0.5, 2), 1),
+            "var_99_m_aud": round(ps.get(reg, {"vol": 20})["vol"] * _r.uniform(1, 3), 1),
+            "cvar_95_m_aud": round(ps.get(reg, {"vol": 20})["vol"] * _r.uniform(1, 2.5), 1),
+            "delta_mwh": round(_r.uniform(-50000, 50000), 0),
+            "gamma": round(_r.uniform(-1, 1), 3), "vega": round(_r.uniform(0, 500), 1),
+            "theta_daily_aud": round(_r.uniform(-5000, 0), 0)}
+            for reg in regions[:2] for pt in ["Generator", "Retailer"]]
+        he = [{"quarter": f"Q{q}-2026", "region": reg, "participant": p,
+            "hedge_ratio_pct": round(_r.uniform(50, 95), 1),
+            "hedge_instrument": _r.choice(["Swap", "Cap", "Collar"]),
+            "avg_hedge_price": round(ps.get(reg, {"avg": 80})["avg"] * _r.uniform(0.85, 1.1), 2),
+            "avg_spot_price": round(ps.get(reg, {"avg": 80})["avg"], 2),
+            "hedge_gain_loss_m_aud": round(_r.uniform(-20, 30), 1),
+            "effectiveness_score_pct": round(_r.uniform(60, 98), 1),
+            "basis_risk_m_aud": round(_r.uniform(0.5, 8), 1)}
+            for q in [1, 2] for reg in regions[:2] for p in ["AGL", "Origin"]]
+        br = [{"region": reg, "year": 2026, "quarter": f"Q{q}",
+            "futures_settlement_price": round(ps.get(reg, {"avg": 80})["avg"] * 1.05, 2),
+            "spot_price_avg": round(ps.get(reg, {"avg": 80})["avg"], 2),
+            "basis_aud": round(ps.get(reg, {"avg": 80})["avg"] * 0.05, 2),
+            "basis_volatility": round(_r.uniform(5, 25), 1),
+            "max_basis_aud_mwh": round(_r.uniform(10, 40), 2),
+            "min_basis_aud_mwh": round(_r.uniform(-40, -5), 2),
+            "risk_exposure_m_aud": round(_r.uniform(1, 15), 1)} for reg in regions for q in [1, 2]]
+        fp = [{"participant": p, "participant_type": pt, "region": _r.choice(regions),
+            "contract_quarter": "Q1-2026",
+            "long_position_mw": round(_r.uniform(0, 2000), 0),
+            "short_position_mw": round(_r.uniform(0, 2000), 0),
+            "net_position_mw": round(_r.uniform(-1500, 1500), 0),
+            "avg_entry_price": round(ps.get("NSW1", {"avg": 80})["avg"] * _r.uniform(0.8, 1.15), 2),
+            "mark_to_market_m_aud": round(_r.uniform(-30, 30), 1),
+            "margin_posted_m_aud": round(_r.uniform(5, 50), 1)}
+            for p, pt in [("AGL","Gentailer"),("Origin","Gentailer"),("Snowy","Generator"),("Shell","Trader"),("Macquarie","Financial")]]
+        return {"timestamp": _dt.utcnow().isoformat() + "Z", "var_records": var_recs, "hedge_effectiveness": he, "basis_risk": br, "futures_positions": fp,
+                "portfolio_var_95_m_aud": round(sum(v["var_95_m_aud"] for v in var_recs), 1),
+                "avg_hedge_ratio_pct": round(sum(h["hedge_ratio_pct"] for h in he) / max(len(he), 1), 1),
+                "total_open_interest_mw": 18200, "avg_basis_risk_aud_mwh": round(sum(b["basis_aud"] for b in br) / max(len(br), 1), 1)}
     _r.seed(7012)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     var_recs = [{"date": f"2025-12-{d:02d}", "region": reg, "portfolio_type": pt, "notional_position_m_aud": round(_r.uniform(10, 200), 1), "var_95_m_aud": round(_r.uniform(1, 30), 1), "var_99_m_aud": round(_r.uniform(2, 45), 1), "cvar_95_m_aud": round(_r.uniform(2, 40), 1), "delta_mwh": round(_r.uniform(-50000, 50000), 0), "gamma": round(_r.uniform(-1, 1), 3), "vega": round(_r.uniform(0, 500), 1), "theta_daily_aud": round(_r.uniform(-5000, 0), 0)} for d in [15, 20] for reg in regions[:2] for pt in ["Generator", "Retailer"]]
@@ -46,6 +192,37 @@ def futures_market_risk_dashboard():
 
 @router.get("/api/futures-price-discovery/dashboard")
 def futures_price_discovery_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    if ps and len(ps) >= 3:
+        ts = [{"region": reg, "contract_month": f"2026-{m:02d}",
+            "product": _r.choice(["Base", "Peak"]),
+            "settlement_price_aud_mwh": round(ps.get(reg, {"avg": 80})["avg"] * (1 + (m - 1) * 0.01), 2),
+            "open_interest_lots": _r.randint(100, 3000),
+            "daily_volume_lots": _r.randint(10, 500),
+            "implied_vol_pct": round(min(ps.get(reg, {"vol": 20, "avg": 80})["vol"] / max(ps.get(reg, {"avg": 80})["avg"], 1) * 100, 80), 1),
+            "days_to_expiry": _r.randint(30, 365)} for reg in regions for m in range(1, 7)]
+        basis = [{"region": reg, "month": f"2026-{m:02d}",
+            "futures_price": round(ps.get(reg, {"avg": 80})["avg"] * 1.05, 2),
+            "spot_price": round(ps.get(reg, {"avg": 80})["avg"], 2),
+            "basis_aud": round(ps.get(reg, {"avg": 80})["avg"] * 0.05, 2),
+            "basis_pct": 5.0, "convergence_trend": _r.choice(["Converging", "Stable"]),
+            "seasonal_factor": _r.choice(["Summer Premium", "Winter Lift", "Shoulder Dip", "Neutral"])}
+            for reg in regions[:3] for m in range(1, 7)]
+        carry = [{"region": reg, "near_contract": "Q1-2026", "far_contract": "Q2-2026",
+            "carry_cost_aud": round(_r.uniform(-5, 15), 2),
+            "storage_premium_aud": round(_r.uniform(0, 3), 2),
+            "risk_premium_aud": round(_r.uniform(1, 10), 2),
+            "convenience_yield_pct": round(_r.uniform(0, 8), 2)} for reg in regions]
+        cs = [{"region": reg, "snapshot_date": _dt.utcnow().strftime("%Y-%m-%d"),
+            "curve_shape": "Contango" if ps.get(reg, {"avg": 80})["avg"] < ps.get(reg, {"p90": 150}).get("p90", 150) else "Backwardation",
+            "q1_price": round(ps.get(reg, {"avg": 80})["avg"], 2),
+            "q2_price": round(ps.get(reg, {"avg": 80})["avg"] * 1.02, 2),
+            "q3_price": round(ps.get(reg, {"avg": 80})["avg"] * 1.05, 2),
+            "q4_price": round(ps.get(reg, {"avg": 80})["avg"] * 1.03, 2),
+            "annual_slope_pct": round(_r.uniform(-15, 20), 2),
+            "inflection_quarter": _r.choice(["Q1", "Q2", "Q3", "Q4"])} for reg in regions]
+        return {"timestamp": _dt.utcnow().isoformat() + "Z", "term_structures": ts, "basis_records": basis, "carry_records": carry, "curve_shapes": cs}
     _r.seed(7013)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     ts = [{"region": reg, "contract_month": f"2026-{m:02d}", "product": _r.choice(["Base", "Peak"]), "settlement_price_aud_mwh": round(_r.uniform(55, 180), 2), "open_interest_lots": _r.randint(100, 3000), "daily_volume_lots": _r.randint(10, 500), "implied_vol_pct": round(_r.uniform(15, 55), 1), "days_to_expiry": _r.randint(30, 365)} for reg in regions for m in range(1, 7)]
@@ -57,6 +234,40 @@ def futures_price_discovery_dashboard():
 
 @router.get("/api/electricity-options/dashboard")
 def eov_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    if ps and len(ps) >= 3:
+        nsw = ps.get("NSW1", {"avg": 80, "vol": 20, "p90": 150})
+        impl_vol = min(nsw["vol"] / max(nsw["avg"], 1) * 100, 80)
+        ob = [{"option_id": f"OPT-{i+1:04d}", "underlying": f"BL-{reg}-Q1-2026", "region": reg,
+            "expiry": "2026-03-31",
+            "strike_per_mwh": round(ps.get(reg, {"avg": 80})["avg"] * _r.uniform(0.7, 1.3), 2),
+            "option_type": _r.choice(["Call", "Put"]),
+            "premium_per_mwh": round(_r.uniform(2, 30), 2),
+            "delta": round(_r.uniform(-1, 1), 3), "gamma": round(_r.uniform(0, 0.05), 4),
+            "theta": round(_r.uniform(-2, 0), 3), "vega": round(_r.uniform(0, 50), 2),
+            "implied_vol_pct": round(impl_vol + _r.uniform(-10, 10), 1),
+            "moneyness": _r.choice(["ITM", "ATM", "OTM"]),
+            "open_interest_mwh": round(_r.uniform(5000, 100000), 0)} for i, reg in enumerate(regions * 4)]
+        vs = [{"tenor_months": t, "strike_pct_atm": s,
+            "implied_vol_pct": round(impl_vol + _r.uniform(-10, 15), 1), "region": reg}
+            for t in [1, 3, 6, 12] for s in [80, 90, 100, 110, 120] for reg in regions[:2]]
+        strats = [{"strategy_name": sn, "strategy_type": st, "legs": _r.randint(1, 4),
+            "max_profit_per_mwh": round(_r.uniform(5, 50), 2),
+            "max_loss_per_mwh": round(_r.uniform(2, 30), 2),
+            "breakeven_low": round(nsw["avg"] * 0.8, 2), "breakeven_high": round(nsw["avg"] * 1.3, 2),
+            "net_premium": round(_r.uniform(-10, 15), 2), "use_case": uc,
+            "suitability": _r.choice(["Generator", "Retailer", "Trader"])}
+            for sn, st, uc in [("Bull Call Spread","Vertical","Upside protection"),("Bear Put Spread","Vertical","Downside hedge"),
+                ("Collar","Combination","Range bound"),("Straddle","Volatility","Vol play"),("Cap","Single","Price ceiling")]]
+        hv = [{"date": f"2026-{m:02d}-15", "region": reg,
+            "realized_vol_30d": round(min(ps.get(reg, {"vol": 20, "avg": 80})["vol"] / max(ps.get(reg, {"avg": 80})["avg"], 1) * 100, 80), 1),
+            "realized_vol_90d": round(min(ps.get(reg, {"vol": 20, "avg": 80})["vol"] / max(ps.get(reg, {"avg": 80})["avg"], 1) * 100 * 0.85, 70), 1),
+            "implied_vol": round(impl_vol + _r.uniform(-5, 5), 1),
+            "vol_risk_premium": round(_r.uniform(-5, 15), 1)} for reg in regions[:3] for m in range(1, 7)]
+        return {"options_book": ob, "vol_surface": vs, "strategies": strats, "hist_vol": hv,
+                "summary": {"total_open_interest_gwh": round(sum(o["open_interest_mwh"] for o in ob) / 1e6, 1),
+                    "avg_implied_vol_pct": round(impl_vol, 1), "put_call_ratio": 0.85, "most_traded_strike": round(nsw["avg"])}}
     _r.seed(7014)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     ob = [{"option_id": f"OPT-{i+1:04d}", "underlying": f"BL-{reg}-Q1-2026", "region": reg, "expiry": "2026-03-31", "strike_per_mwh": round(_r.uniform(50, 200), 2), "option_type": _r.choice(["Call", "Put"]), "premium_per_mwh": round(_r.uniform(2, 30), 2), "delta": round(_r.uniform(-1, 1), 3), "gamma": round(_r.uniform(0, 0.05), 4), "theta": round(_r.uniform(-2, 0), 3), "vega": round(_r.uniform(0, 50), 2), "implied_vol_pct": round(_r.uniform(15, 60), 1), "moneyness": _r.choice(["ITM", "ATM", "OTM"]), "open_interest_mwh": round(_r.uniform(5000, 100000), 0)} for i, reg in enumerate(regions * 4)]
@@ -72,6 +283,60 @@ def eov_dashboard():
 
 @router.get("/api/electricity-price-risk/dashboard")
 def eprm_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    participants = ["AGL", "Origin", "EnergyAustralia", "Snowy Hydro", "Alinta"]
+    if ps and len(ps) >= 3:
+        portfolios = [{"portfolio_id": f"PF-{i+1:03d}", "entity_name": p,
+            "entity_type": _r.choice(["Gentailer","Generator","Retailer"]),
+            "region": regions[i%4],
+            "total_load_twh": round(_r.uniform(5,30),1), "total_generation_twh": round(_r.uniform(5,35),1),
+            "net_position_twh": round(_r.uniform(-10,10),1),
+            "hedge_ratio_pct": round(_r.uniform(50,95),1), "open_position_twh": round(_r.uniform(0.5,8),1),
+            "var_95_m": round(ps.get(regions[i%4], {"vol":20})["vol"] * _r.uniform(1,4),1),
+            "cvar_95_m": round(ps.get(regions[i%4], {"vol":20})["vol"] * _r.uniform(2,5),1),
+            "max_loss_scenario_m": round(ps.get(regions[i%4], {"vol":20})["vol"] * _r.uniform(5,10),1)}
+            for i, p in enumerate(participants)]
+        hedges = [{"hedge_id": f"H-{i+1:04d}", "portfolio_id": f"PF-{(i%5)+1:03d}",
+            "product_type": _r.choice(["Swap","Cap","Collar","Floor"]),
+            "region": _r.choice(regions),
+            "volume_mw": round(_r.uniform(50,500),0),
+            "strike_price_dolpermwh": round(ps.get("NSW1",{"avg":80})["avg"] * _r.uniform(0.8,1.2),2),
+            "market_price_dolpermwh": round(ps.get("NSW1",{"avg":80})["avg"],2),
+            "start_date":"2025-07-01","end_date":"2026-06-30",
+            "mtm_value_m": round(_r.uniform(-20,30),1), "premium_paid_m": round(_r.uniform(0.5,10),1),
+            "hedge_effectiveness_pct": round(_r.uniform(60,99),1),
+            "counterparty": _r.choice(["Macquarie","Shell","BP","Trafigura"])} for i in range(15)]
+        var_recs = [{"var_id": f"V-{i+1:03d}", "portfolio_id": f"PF-{(i%5)+1:03d}",
+            "calculation_date": _dt.utcnow().strftime("%Y-%m-%d"),
+            "methodology": _r.choice(["Historical","Monte Carlo","Parametric"]),
+            "confidence_level_pct": cl, "time_horizon_days": _r.choice([1,10,30]),
+            "var_m": round(_r.uniform(5,60),1), "cvar_m": round(_r.uniform(8,80),1),
+            "scenario_99_m": round(_r.uniform(15,120),1), "stressed_var_m": round(_r.uniform(20,150),1),
+            "correlation_risk_m": round(_r.uniform(1,15),1), "basis_risk_m": round(_r.uniform(0.5,10),1)}
+            for i, cl in enumerate([95,99]*5)]
+        scenarios = [{"scenario_id": f"SC-{i+1:02d}", "scenario_name": s, "year": 2026,
+            "avg_price_dolpermwh": round(ps.get("NSW1",{"avg":80})["avg"] * mult, 2),
+            "peak_price_dolpermwh": round(ps.get("NSW1",{"max":300})["max"] * mult, 2),
+            "price_vol_pct": round(_r.uniform(20,80),1),
+            "portfolio_pnl_m": round(_r.uniform(-200,100),1),
+            "hedge_benefit_m": round(_r.uniform(0,80),1),
+            "worst_30day_loss_m": round(_r.uniform(10,150),1)}
+            for i, (s, mult) in enumerate([("Base",1),("High Gas",1.5),("Drought",1.8),("Renewable Surge",0.6),("Demand Spike",2)])]
+        corr = [{"correlation_id": f"CR-{i+1:02d}", "factor_pair": fp, "correlation_coefficient": round(_r.uniform(-0.8,0.95),2),
+            "r_squared": round(_r.uniform(0.1,0.9),2), "lag_days": _r.randint(0,5), "data_period_years": 5,
+            "statistical_significance": True, "hedging_implication": _r.choice(["Natural hedge","Basis risk","Diversification benefit"])}
+            for i, fp in enumerate(["Gas-Elec","Wind-Price","Solar-Demand","Temp-Demand","Coal-Elec","Carbon-Elec"])]
+        reg_cap = [{"capital_id": f"RC-{i+1:02d}", "entity_name": p, "regulatory_framework": "AEMO Prudential",
+            "capital_requirement_m": round(_r.uniform(20,200),0), "current_capital_m": round(_r.uniform(25,250),0),
+            "coverage_ratio_pct": round(_r.uniform(100,180),1), "liquidity_buffer_m": round(_r.uniform(5,50),0),
+            "stressed_requirement_m": round(_r.uniform(30,300),0),
+            "compliance_status": _r.choice(["Compliant","Compliant","Watch"]), "review_date": "2026-03-31"}
+            for i, p in enumerate(participants)]
+        return {"portfolios": portfolios, "hedges": hedges, "var_records": var_recs, "scenarios": scenarios, "correlations": corr, "regulatory_capital": reg_cap,
+                "summary": {"total_var_95_m": round(sum(v["var_m"] for v in var_recs if v["confidence_level_pct"]==95)),
+                    "avg_hedge_ratio_pct": round(sum(pf["hedge_ratio_pct"] for pf in portfolios)/len(portfolios)),
+                    "total_open_positions_twh": round(sum(pf["open_position_twh"] for pf in portfolios),1)}}
     _r.seed(7015)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     participants = ["AGL", "Origin", "EnergyAustralia", "Snowy Hydro", "Alinta"]
@@ -86,6 +351,46 @@ def eprm_dashboard():
 
 @router.get("/api/energy-market-credit-risk-x/dashboard")
 def emcrx_dashboard():
+    ps = _get_price_stats()
+    ptypes = ["Gentailer", "Generator", "Retailer", "Trader", "Financial"]
+    if ps and len(ps) >= 3:
+        total_vol = sum(s["vol"] for s in ps.values())
+        participants = [{"participant_name": p, "participant_type": pt,
+            "credit_rating": _r.choice(["AAA","AA","A","BBB","BB"]),
+            "credit_outlook": _r.choice(["Stable","Positive","Negative"]),
+            "prudential_requirement_m": round(_r.uniform(20,300),0),
+            "credit_support_lodged_m": round(_r.uniform(25,350),0),
+            "net_market_exposure_m": round(total_vol * _r.uniform(1,5),0),
+            "leverage_ratio_pct": round(_r.uniform(20,70),1),
+            "interest_coverage": round(_r.uniform(2,10),1)}
+            for p, pt in [("AGL","Gentailer"),("Origin","Gentailer"),("EnergyAustralia","Retailer"),
+                ("Snowy Hydro","Generator"),("Shell Energy","Trader"),("Macquarie","Financial"),("Alinta","Generator")]]
+        exposures = [{"quarter": f"Q{q}-2026", "region": reg, "participant_type": pt,
+            "total_market_exposure_m": round(_r.uniform(50,500),0),
+            "unsecured_exposure_m": round(_r.uniform(5,80),0),
+            "collateral_coverage_pct": round(_r.uniform(80,150),1),
+            "largest_single_exposure_m": round(_r.uniform(10,100),0),
+            "concentration_risk_score": round(_r.uniform(0.2,0.8),2)}
+            for q in [1,2] for reg in ["NSW1","QLD1","VIC1"] for pt in ptypes[:3]]
+        defaults = [{"year": y, "event_type": _r.choice(["Payment Default","Margin Call Failure","Insolvency"]),
+            "participant_type": _r.choice(ptypes[:3]),
+            "default_amount_m": round(_r.uniform(5,200),0), "recovery_pct": round(_r.uniform(20,85),1),
+            "days_to_resolution": _r.randint(30,365), "aemo_intervention": _r.choice([True,False])} for y in [2020,2021,2022,2023,2024]]
+        prud = [{"metric_name": mn, "region": _r.choice(["NSW1","QLD1","VIC1"]), "quarter": "Q1-2026",
+            "avg_value": round(_r.uniform(50,200),1), "threshold_value": round(_r.uniform(80,250),1),
+            "breach_count": _r.randint(0,5), "trend": _r.choice(["Improving","Stable","Deteriorating"])}
+            for mn in ["MCL","Trading Limit","Prudential Margin","Reallocation Limit"]]
+        stress = [{"scenario": s, "region": _r.choice(["NSW1","QLD1","VIC1"]),
+            "total_exposure_m": round(_r.uniform(200,2000),0),
+            "potential_default_m": round(_r.uniform(10,300),0),
+            "systemic_risk_score": round(_r.uniform(0.1,0.9),2),
+            "recovery_fund_adequacy_pct": round(_r.uniform(60,150),1),
+            "mitigation_available": _r.choice([True,True,False])}
+            for s in ["Extreme Price","Participant Failure","Correlated Default","Liquidity Crisis"]]
+        return {"participants": participants, "exposures": exposures, "default_history": defaults,
+                "prudential_metrics": prud, "stress_tests": stress,
+                "summary": {"total_market_exposure_m": round(sum(p["net_market_exposure_m"] for p in participants)),
+                    "avg_credit_rating": "A", "breach_count_ytd": sum(p["breach_count"] for p in prud)}}
     _r.seed(7016)
     ptypes = ["Gentailer", "Generator", "Retailer", "Trader", "Financial"]
     participants = [{"participant_name": p, "participant_type": pt, "credit_rating": _r.choice(["AAA", "AA", "A", "BBB", "BB"]), "credit_outlook": _r.choice(["Stable", "Positive", "Negative"]), "prudential_requirement_m": round(_r.uniform(20, 300), 0), "credit_support_lodged_m": round(_r.uniform(25, 350), 0), "net_market_exposure_m": round(_r.uniform(5, 150), 0), "leverage_ratio_pct": round(_r.uniform(20, 70), 1), "interest_coverage": round(_r.uniform(2, 10), 1)} for p, pt in [("AGL", "Gentailer"), ("Origin", "Gentailer"), ("EnergyAustralia", "Retailer"), ("Snowy Hydro", "Generator"), ("Shell Energy", "Trader"), ("Macquarie", "Financial"), ("Alinta", "Generator")]]
@@ -98,6 +403,50 @@ def emcrx_dashboard():
 
 @router.get("/api/hedge-effectiveness/dashboard")
 def hef_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    companies = ["AGL", "Origin", "EnergyAustralia", "Snowy Hydro"]
+    if ps and len(ps) >= 3:
+        nsw = ps.get("NSW1", {"avg": 80, "vol": 20})
+        positions = [{"portfolio_id": f"PF-{i+1:03d}", "company": c, "region": regions[i%4],
+            "contract_type": _r.choice(["Swap","Cap","Collar","Floor"]),
+            "position": _r.choice(["Long","Short"]),
+            "notional_mw": round(_r.uniform(50,500),0),
+            "strike_price": round(ps.get(regions[i%4],{"avg":80})["avg"] * _r.uniform(0.85,1.15),2),
+            "market_price": round(ps.get(regions[i%4],{"avg":80})["avg"],2),
+            "mtm_value_m": round(_r.uniform(-15,20),1), "delta": round(_r.uniform(-1,1),3),
+            "gamma": round(_r.uniform(-0.02,0.02),4), "vega": round(_r.uniform(0,30),2),
+            "expiry": "2026-06-30"} for i, c in enumerate(companies*3)]
+        basis = [{"region": reg, "hedge_region": hreg, "quarter": f"Q{q}-2026",
+            "spot_price_hedge_region": round(ps.get(hreg,{"avg":80})["avg"],2),
+            "spot_price_physical_region": round(ps.get(reg,{"avg":80})["avg"],2),
+            "basis_differential": round(ps.get(reg,{"avg":80})["avg"] - ps.get(hreg,{"avg":80})["avg"],2),
+            "basis_risk_pct": round(_r.uniform(2,15),1),
+            "correlation": round(_r.uniform(0.7,0.99),3),
+            "avg_interconnector_constraint_hrs": _r.randint(0,200)}
+            for reg in regions[:2] for hreg in regions[2:4] for q in [1,2]]
+        pnl = [{"month": f"2026-{m:02d}", "portfolio_id": f"PF-{(m%4)+1:03d}",
+            "physical_pnl_m": round(_r.uniform(-10,15),1), "hedge_pnl_m": round(_r.uniform(-8,12),1),
+            "net_pnl_m": round(_r.uniform(-5,10),1), "hedge_ratio_pct": round(_r.uniform(60,95),1),
+            "var_95_m": round(nsw["vol"] * _r.uniform(0.5,2),1),
+            "cvar_95_m": round(nsw["vol"] * _r.uniform(1,3),1),
+            "realized_vol_annualized": round(min(nsw["vol"]/max(nsw["avg"],1)*100*_r.uniform(0.8,1.2),80),1)} for m in range(1,7)]
+        hr = [{"company": c, "region": reg, "quarter": f"Q{q}-2026",
+            "optimal_hedge_ratio": round(_r.uniform(70,95),1), "actual_hedge_ratio": round(_r.uniform(55,100),1),
+            "deviation_from_optimal_pct": round(_r.uniform(-15,15),1),
+            "cost_of_over_hedging_m": round(_r.uniform(0,5),1), "cost_of_under_hedging_m": round(_r.uniform(0,8),1),
+            "recommendation": _r.choice(["Maintain","Increase Hedge","Reduce Hedge"])}
+            for c in companies[:2] for reg in regions[:2] for q in [1,2]]
+        rp = [{"year": y, "region": reg,
+            "avg_annual_spot_price": round(ps.get(reg,{"avg":80})["avg"] * _r.uniform(0.8,1.2),2),
+            "avg_hedge_price": round(ps.get(reg,{"avg":80})["avg"] * _r.uniform(0.9,1.1),2),
+            "hedge_premium_pct": round(_r.uniform(-5,15),1), "hedge_savings_m": round(_r.uniform(-20,50),1),
+            "unhedged_cost_m": round(_r.uniform(100,500),0), "hedged_cost_m": round(_r.uniform(80,450),0),
+            "effectiveness_pct": round(_r.uniform(60,98),1)} for y in [2024,2025,2026] for reg in regions[:2]]
+        return {"positions": positions, "basis_risk": basis, "pnl_attribution": pnl, "hedge_ratios": hr, "rolling_performance": rp,
+                "summary": {"avg_effectiveness_pct": round(sum(r["effectiveness_pct"] for r in rp)/max(len(rp),1),1),
+                    "total_hedge_savings_m": round(sum(r["hedge_savings_m"] for r in rp)),
+                    "optimal_ratio_deviation_pct": round(sum(abs(h["deviation_from_optimal_pct"]) for h in hr)/max(len(hr),1),1)}}
     _r.seed(7017)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     companies = ["AGL", "Origin", "EnergyAustralia", "Snowy Hydro"]
@@ -111,6 +460,59 @@ def hef_dashboard():
 
 @router.get("/api/market-power/dashboard")
 def market_power_dashboard():
+    # Use real facilities for HHI concentration
+    try:
+        fac_rows = _query_gold(f"""
+            SELECT region_id, fuel_type, station_name, SUM(capacity_mw) AS total_cap
+            FROM {_CATALOG}.gold.nem_facilities
+            WHERE capacity_mw > 10
+            GROUP BY region_id, fuel_type, station_name
+            ORDER BY total_cap DESC
+        """)
+    except Exception:
+        fac_rows = None
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    if fac_rows and len(fac_rows) >= 10:
+        from collections import defaultdict
+        reg_cap = defaultdict(lambda: defaultdict(list))
+        for f in fac_rows:
+            reg_cap[f["region_id"]][f["fuel_type"]].append(float(f["total_cap"] or 0))
+        hhi = []
+        for reg in regions:
+            for ft in list(reg_cap.get(reg, {}).keys())[:3]:
+                caps = reg_cap[reg][ft]
+                total = sum(caps)
+                if total == 0:
+                    continue
+                shares = [c / total * 100 for c in caps]
+                hhi_score = int(sum(s ** 2 for s in shares))
+                top3 = round(sum(sorted(shares, reverse=True)[:3]), 1)
+                struct = "Competitive" if hhi_score < 1500 else ("Moderately Concentrated" if hhi_score < 2500 else "Highly Concentrated")
+                hhi.append({"region": reg, "fuel_type": ft, "hhi_score": hhi_score,
+                    "num_competitors": len(caps), "top3_share_pct": min(top3, 100),
+                    "market_structure": struct, "trend_direction": _r.choice(["Improving","Stable","Worsening"]),
+                    "change_vs_last_year": round(_r.uniform(-200,200),0)})
+        pivotal = [{"participant_id": f"GEN-{i+1:03d}", "participant_name": p,
+            "region": _r.choice(regions[:4]),
+            "pivotal_status": _r.choice(["Pivotal","Quasi-Pivotal","Non-Pivotal"]),
+            "capacity_mw": round(_r.uniform(1000,8000),0),
+            "residual_supply_index": round(_r.uniform(0.8,1.5),2),
+            "occurrence_frequency_pct": round(_r.uniform(5,60),1),
+            "strategic_capacity_mw": round(_r.uniform(200,3000),0),
+            "avg_rebids_per_day": round(_r.uniform(1,15),1)}
+            for i, p in enumerate(["AGL","Origin","EnergyAustralia","Snowy Hydro","CS Energy","Stanwell","Alinta"])]
+        trends = [{"participant_name": p, "participant_type": _r.choice(["Gentailer","Generator"]),
+            "year": y, "quarter": f"Q{q}",
+            "generation_share_pct": round(_r.uniform(5,25),1), "retail_share_pct": round(_r.uniform(5,30),1),
+            "capacity_mw": round(_r.uniform(2000,10000),0)}
+            for p in ["AGL","Origin","EnergyAustralia","Snowy Hydro"] for y in [2025,2026] for q in [1,2,3,4]]
+        overall_hhi = int(sum(h["hhi_score"] for h in hhi)/max(len(hhi),1)) if hhi else 1850
+        sa_hhi = next((h["hhi_score"] for h in hhi if h["region"]=="SA1"), 2800)
+        return {"timestamp": _dt.utcnow().isoformat()+"Z", "nem_overall_hhi": overall_hhi, "sa1_hhi": sa_hhi,
+                "concentration_trend": "Moderately Concentrated",
+                "pivotal_suppliers_count": sum(1 for p in pivotal if p["pivotal_status"]=="Pivotal"),
+                "quasi_pivotal_count": sum(1 for p in pivotal if p["pivotal_status"]=="Quasi-Pivotal"),
+                "market_review_status": "Under Review", "hhi_records": hhi, "pivotal_suppliers": pivotal, "share_trends": trends}
     _r.seed(7018)
     regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
     fuel_types = ["Black Coal", "Gas", "Hydro", "Wind", "Solar", "Battery"]
@@ -122,6 +524,46 @@ def market_power_dashboard():
 
 @router.get("/api/hedging/dashboard")
 def hedging_main_dashboard():
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    if ps and len(ps) >= 3:
+        contracts = [{"contract_id": f"HC-{i+1:04d}",
+            "contract_type": _r.choice(["Swap","Cap","Collar","Floor","Asian Option"]),
+            "region": reg, "counterparty": _r.choice(["Macquarie","Shell","BP","Trafigura","Origin"]),
+            "start_date": "2025-07-01", "end_date": "2026-06-30",
+            "strike_price": round(ps.get(reg,{"avg":80})["avg"] * _r.uniform(0.8,1.2),2),
+            "volume_mw": round(_r.uniform(20,500),0),
+            "volume_mwh": round(_r.uniform(50000,2000000),0),
+            "premium_paid_aud": round(_r.uniform(50000,2000000),0),
+            "mtm_value_aud": round(_r.uniform(-500000,800000),0),
+            "pnl_aud": round(_r.uniform(-300000,500000),0),
+            "hedge_period": f"Q{_r.randint(1,4)}-2026", "status": _r.choice(["Active","Active","Expired"]),
+            "underlying": f"BL-{reg}"} for i, reg in enumerate(_r.choices(regions, k=20))]
+        portfolio = [{"region": reg,
+            "total_hedged_mw": round(_r.uniform(500,3000),0),
+            "expected_generation_mw": round(_r.uniform(600,4000),0),
+            "hedge_ratio_pct": round(_r.uniform(50,95),1),
+            "avg_swap_price": round(ps.get(reg,{"avg":80})["avg"] * _r.uniform(0.9,1.1),2),
+            "mtm_total_aud": round(_r.uniform(-2000000,5000000),0),
+            "unrealised_pnl_aud": round(_r.uniform(-1000000,3000000),0),
+            "var_95_aud": round(ps.get(reg,{"vol":20})["vol"] * _r.uniform(20000,100000),0),
+            "var_99_aud": round(ps.get(reg,{"vol":20})["vol"] * _r.uniform(40000,200000),0),
+            "cap_protection_pct": round(_r.uniform(30,80),1),
+            "num_active_contracts": sum(1 for c in contracts if c["region"]==reg and c["status"]=="Active")}
+            for reg in regions]
+        qp = [{"quarter": f"Q{q}-2026",
+            "hedged_mw": round(_r.uniform(1000,5000),0),
+            "spot_ref": round(ps.get("NSW1",{"avg":80})["avg"],2),
+            "contract_price": round(ps.get("NSW1",{"avg":80})["avg"]*_r.uniform(0.9,1.1),2)} for q in [1,2,3,4]]
+        total_mtm = sum(c["mtm_value_aud"] for c in contracts)
+        total_pnl = sum(c["pnl_aud"] for c in contracts)
+        avg_hedge = round(sum(p["hedge_ratio_pct"] for p in portfolio)/len(portfolio),1)
+        return {"timestamp": _dt.utcnow().isoformat()+"Z",
+                "total_portfolio_mtm_aud": total_mtm, "total_unrealised_pnl_aud": total_pnl,
+                "portfolio_var_95_aud": round(sum(p["var_95_aud"] for p in portfolio)),
+                "weighted_avg_hedge_price": round(sum(p["avg_swap_price"] for p in portfolio)/len(portfolio),1),
+                "overall_hedge_ratio_pct": avg_hedge,
+                "contracts": contracts, "portfolio_by_region": portfolio, "quarterly_position": qp}
     _r.seed(7019)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     contracts = [{"contract_id": f"HC-{i+1:04d}", "contract_type": _r.choice(["Swap", "Cap", "Collar", "Floor", "Asian Option"]), "region": _r.choice(regions), "counterparty": _r.choice(["Macquarie", "Shell", "BP", "Trafigura", "Origin"]), "start_date": "2025-07-01", "end_date": "2026-06-30", "strike_price": round(_r.uniform(50, 180), 2), "volume_mw": round(_r.uniform(20, 500), 0), "volume_mwh": round(_r.uniform(50000, 2000000), 0), "premium_paid_aud": round(_r.uniform(50000, 2000000), 0), "mtm_value_aud": round(_r.uniform(-500000, 800000), 0), "pnl_aud": round(_r.uniform(-300000, 500000), 0), "hedge_period": f"Q{_r.randint(1,4)}-2026", "status": _r.choice(["Active", "Active", "Expired"]), "underlying": f"BL-{_r.choice(regions)}"} for i in range(20)]
@@ -132,6 +574,29 @@ def hedging_main_dashboard():
 
 @router.get("/api/hedging/contracts")
 def hedging_contracts(region: str = None, contract_type: str = None, status: str = None):
+    ps = _get_price_stats()
+    regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+    if ps and len(ps) >= 3:
+        contracts = [{"contract_id": f"HC-{i+1:04d}",
+            "contract_type": _r.choice(["Swap","Cap","Collar","Floor"]),
+            "region": reg, "counterparty": _r.choice(["Macquarie","Shell","BP","Trafigura"]),
+            "start_date": "2025-07-01", "end_date": "2026-06-30",
+            "strike_price": round(ps.get(reg,{"avg":80})["avg"] * _r.uniform(0.8,1.2),2),
+            "volume_mw": round(_r.uniform(20,500),0),
+            "volume_mwh": round(_r.uniform(50000,2000000),0),
+            "premium_paid_aud": round(_r.uniform(50000,2000000),0),
+            "mtm_value_aud": round(_r.uniform(-500000,800000),0),
+            "pnl_aud": round(_r.uniform(-300000,500000),0),
+            "hedge_period": f"Q{_r.randint(1,4)}-2026",
+            "status": _r.choice(["Active","Active","Expired"]),
+            "underlying": f"BL-{reg}"} for i, reg in enumerate(_r.choices(regions, k=25))]
+        if region:
+            contracts = [c for c in contracts if c["region"] == region]
+        if contract_type:
+            contracts = [c for c in contracts if c["contract_type"] == contract_type]
+        if status:
+            contracts = [c for c in contracts if c["status"] == status]
+        return contracts
     _r.seed(7020)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     contracts = [{"contract_id": f"HC-{i+1:04d}", "contract_type": _r.choice(["Swap", "Cap", "Collar", "Floor"]), "region": _r.choice(regions), "counterparty": _r.choice(["Macquarie", "Shell", "BP", "Trafigura"]), "start_date": "2025-07-01", "end_date": "2026-06-30", "strike_price": round(_r.uniform(50, 180), 2), "volume_mw": round(_r.uniform(20, 500), 0), "volume_mwh": round(_r.uniform(50000, 2000000), 0), "premium_paid_aud": round(_r.uniform(50000, 2000000), 0), "mtm_value_aud": round(_r.uniform(-500000, 800000), 0), "pnl_aud": round(_r.uniform(-300000, 500000), 0), "hedge_period": f"Q{_r.randint(1,4)}-2026", "status": _r.choice(["Active", "Active", "Expired"]), "underlying": f"BL-{_r.choice(regions)}"} for i in range(25)]
@@ -383,6 +848,63 @@ def congestion_revenue_dashboard():
 
 @router.get("/api/nem-congestion-rent/dashboard")
 def ncra_dashboard():
+    # Use real interconnector data for congestion rents
+    try:
+        ic_rows = _query_gold(f"""
+            SELECT interconnector_id, from_region, to_region,
+                   AVG(ABS(mw_flow)) AS avg_flow, MAX(ABS(mw_flow)) AS max_flow,
+                   AVG(export_limit_mw) AS avg_limit,
+                   SUM(CASE WHEN is_congested THEN 1 ELSE 0 END) AS congested_intervals,
+                   COUNT(*) AS total_intervals
+            FROM {_CATALOG}.gold.nem_interconnectors
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY interconnector_id, from_region, to_region
+        """)
+        price_rows = _query_gold(f"""
+            SELECT region_id, AVG(rrp) AS avg_price FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY region_id
+        """)
+    except Exception:
+        ic_rows = None
+        price_rows = None
+    interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
+    if ic_rows and len(ic_rows) >= 2 and price_rows:
+        price_map = {r["region_id"]: float(r["avg_price"] or 80) for r in price_rows}
+        ics = []
+        rb = []
+        for ic in ic_rows:
+            avg_f = float(ic["avg_flow"] or 0)
+            max_f = float(ic["max_flow"] or 0)
+            limit = float(ic["avg_limit"] or 1000)
+            cong = int(ic["congested_intervals"] or 0)
+            total = int(ic["total_intervals"] or 1)
+            from_r = ic["from_region"]
+            to_r = ic["to_region"]
+            price_diff = price_map.get(from_r, 80) - price_map.get(to_r, 80)
+            rent = abs(avg_f * price_diff * total * 5 / 60) / 1e6  # $M
+            ics.append({"interconnector": ic["interconnector_id"],
+                "capacity_mw": round(limit), "avg_flow_mw": round(avg_f),
+                "total_rent_m_aud": round(rent, 1),
+                "binding_hours": round(cong * 5 / 60),
+                "congestion_frequency_pct": round(cong / max(total, 1) * 100, 1)})
+            rb.append({"from_region": from_r, "to_region": to_r,
+                "avg_price_diff_aud": round(price_diff, 2),
+                "max_diff_aud": round(abs(price_diff) * 3, 2),
+                "correlation": round(_r.uniform(0.5, 0.95), 2)})
+        constraints = [{"constraint_id": f"C-{i+1:03d}", "constraint_name": cn,
+            "interconnector": ics[i % len(ics)]["interconnector"] if ics else "NSW1-QLD1",
+            "binding_hours": _r.randint(100, 2000), "marginal_value_aud": round(_r.uniform(5, 200), 2),
+            "cost_impact_m_aud": round(_r.uniform(1, 50), 1)}
+            for i, cn in enumerate(["N>>Q_NIL","V>>SA_NIL","T>>V_NIL","System_Normal","N>>V_Thermal","SA_Wind_Limit"])]
+        dist = [{"participant_type": pt, "share_pct": round(_r.uniform(5,30),1),
+            "total_m_aud": round(_r.uniform(10,100),1)} for pt in ["Generator","Retailer","Network","Customer"]]
+        total_rent = sum(ic["total_rent_m_aud"] for ic in ics)
+        most_cong = max(ics, key=lambda x: x["congestion_frequency_pct"])["interconnector"] if ics else "NSW1-QLD1"
+        return {"interconnectors": ics, "constraints": constraints, "regional_basis": rb, "distribution": dist,
+                "summary": {"total_congestion_rent_m_aud": round(total_rent, 1), "most_congested": most_cong,
+                    "avg_binding_hours": round(sum(ic["binding_hours"] for ic in ics)/max(len(ics),1)),
+                    "yoy_change_pct": round(_r.uniform(-10, 20), 1)}}
     _r.seed(7030)
     interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
     ics = [{"interconnector": ic, "capacity_mw": _r.randint(500, 1500), "avg_flow_mw": round(_r.uniform(100, 900), 0), "total_rent_m_aud": round(_r.uniform(10, 150), 1), "binding_hours": _r.randint(500, 4000), "congestion_frequency_pct": round(_r.uniform(10, 60), 1)} for ic in interconnectors_list]
@@ -394,6 +916,31 @@ def ncra_dashboard():
 
 @router.get("/api/sra/dashboard")
 def sra_main_dashboard():
+    ps = _get_price_stats()
+    interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
+    if ps and len(ps) >= 3:
+        ar = [{"auction_id": f"AUC-{i+1:04d}", "interconnector": ic, "direction": _r.choice(["Forward","Counter"]),
+            "quarter": f"Q{q}-2026",
+            "clearing_price_aud": round(ps.get("NSW1",{"vol":20})["vol"] * _r.uniform(100,3000),0),
+            "units_offered": _r.randint(50,300), "units_sold": _r.randint(30,250),
+            "total_proceeds_m_aud": round(_r.uniform(0.5,20),1)}
+            for i, (ic, q) in enumerate([(ic, q) for ic in interconnectors_list for q in [1,2,3,4]])]
+        units = [{"unit_id": f"SRU-{i+1:04d}", "interconnector": _r.choice(interconnectors_list),
+            "direction": _r.choice(["Forward","Counter"]),
+            "holder": _r.choice(["AGL","Origin","Snowy Hydro","Macquarie","Shell"]),
+            "acquisition_price_aud": round(_r.uniform(1000,50000),0),
+            "current_value_aud": round(_r.uniform(800,60000),0),
+            "quarter": "Q1-2026"} for i in range(15)]
+        icr = [{"interconnector": ic, "quarter": "Q1-2026",
+            "total_residue_m_aud": round(_r.uniform(5,60),1),
+            "distributed_m_aud": round(_r.uniform(4,55),1),
+            "retained_m_aud": round(_r.uniform(0.5,5),1)} for ic in interconnectors_list]
+        return {"timestamp": _dt.utcnow().isoformat()+"Z", "current_quarter": "Q1-2026",
+                "total_sra_units_active": sum(1 for u in units),
+                "total_sra_revenue_this_quarter": sum(a["total_proceeds_m_aud"] for a in ar) * 1e6,
+                "best_performing_interconnector": max(icr, key=lambda x: x["total_residue_m_aud"])["interconnector"],
+                "total_residues_distributed_aud": round(sum(r["distributed_m_aud"] for r in icr) * 1e6),
+                "auction_results": ar, "active_units": units, "interconnector_revenue": icr}
     _r.seed(7031)
     interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
     ar = [{"auction_id": f"AUC-{i+1:04d}", "interconnector": ic, "direction": _r.choice(["Forward", "Counter"]), "quarter": f"Q{q}-2026", "clearing_price_aud": round(_r.uniform(2000, 80000), 0), "units_offered": _r.randint(50, 300), "units_sold": _r.randint(30, 250), "total_proceeds_m_aud": round(_r.uniform(0.5, 20), 1)} for i, (ic, q) in enumerate([(ic, q) for ic in interconnectors_list for q in [1, 2, 3, 4]])]
@@ -404,6 +951,34 @@ def sra_main_dashboard():
 
 @router.get("/api/sra-analytics/dashboard")
 def sraa_dashboard():
+    ps = _get_price_stats()
+    interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
+    if ps and len(ps) >= 3:
+        ar = [{"auction_id": f"SRAA-{i+1:04d}", "interconnector": _r.choice(interconnectors_list),
+            "quarter": f"Q{q}-{y}", "direction": _r.choice(["Forward","Counter"]),
+            "clearing_price_aud_per_unit": round(ps.get("NSW1",{"vol":20})["vol"] * _r.uniform(50,2500),0),
+            "units_traded": _r.randint(20,300),
+            "participation_ratio_pct": round(_r.uniform(50,95),1)}
+            for i in range(12) for q in [1,2] for y in [2025,2026]]
+        holders = [{"holder_name": h, "holder_type": _r.choice(["Gentailer","Financial","Trader"]),
+            "total_units": _r.randint(50,500),
+            "total_investment_m_aud": round(_r.uniform(5,80),1),
+            "realized_return_pct": round(_r.uniform(-20,50),1)}
+            for h in ["AGL","Origin","Macquarie","Shell","Snowy Hydro","Alinta"]]
+        residues = [{"interconnector": ic, "quarter": f"Q{q}-2026",
+            "total_residue_m_aud": round(_r.uniform(5,60),1),
+            "per_unit_residue_aud": round(_r.uniform(500,40000),0),
+            "forecast_vs_actual_pct": round(_r.uniform(-30,40),1)} for ic in interconnectors_list for q in [1,2]]
+        ics = [{"interconnector": ic, "avg_utilization_pct": round(_r.uniform(40,85),1),
+            "congestion_frequency_pct": round(_r.uniform(15,55),1),
+            "sra_value_correlation": round(_r.uniform(0.4,0.9),2)} for ic in interconnectors_list]
+        pb = [{"participant": p, "bidding_frequency": _r.randint(5,50),
+            "avg_bid_price_aud": round(_r.uniform(2000,40000),0),
+            "success_rate_pct": round(_r.uniform(30,85),1)} for p in ["AGL","Origin","Macquarie","Shell"]]
+        return {"auction_results": ar, "holders": holders, "residues": residues, "interconnectors": ics, "participant_behaviour": pb,
+                "summary": {"total_auction_proceeds_m_aud": round(sum(a["clearing_price_aud_per_unit"] * a["units_traded"] for a in ar[:10])/1e6,1),
+                    "avg_return_pct": round(sum(h["realized_return_pct"] for h in holders)/len(holders),1),
+                    "most_active_participant": "AGL"}}
     _r.seed(7032)
     interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
     ar = [{"auction_id": f"SRAA-{i+1:04d}", "interconnector": _r.choice(interconnectors_list), "quarter": f"Q{q}-{y}", "direction": _r.choice(["Forward", "Counter"]), "clearing_price_aud_per_unit": round(_r.uniform(1000, 60000), 0), "units_traded": _r.randint(20, 300), "participation_ratio_pct": round(_r.uniform(50, 95), 1)} for i in range(12) for q in [1, 2] for y in [2025, 2026]]
@@ -416,6 +991,35 @@ def sraa_dashboard():
 
 @router.get("/api/nem-settlement-residue-auction/dashboard")
 def nsra_dashboard():
+    ps = _get_price_stats()
+    interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
+    if ps and len(ps) >= 3:
+        auctions = [{"auction_id": f"NSRA-{i+1:04d}", "interconnector": ic, "quarter": f"Q{q}-2026",
+            "auction_date": _dt.utcnow().strftime("%Y-%m-%d"),
+            "clearing_price_aud": round(ps.get("NSW1",{"vol":20})["vol"]*_r.uniform(100,3000),0),
+            "units_available": _r.randint(50,300), "units_sold": _r.randint(30,280),
+            "oversubscription_ratio": round(_r.uniform(0.8,3.0),1)}
+            for i, (ic, q) in enumerate([(ic, q) for ic in interconnectors_list for q in [1,2]])]
+        holders = [{"holder_name": h, "total_units_held": _r.randint(30,400),
+            "interconnectors_count": _r.randint(1,4), "total_value_m_aud": round(_r.uniform(5,60),1),
+            "strategy": _r.choice(["Hedge","Speculative","Portfolio"])}
+            for h in ["AGL","Origin","Macquarie","Shell","Snowy Hydro"]]
+        flows = [{"interconnector": ic, "quarter": "Q1-2026",
+            "settlement_residue_m_aud": round(_r.uniform(5,50),1),
+            "units_settled": _r.randint(50,300), "per_unit_residue_aud": round(_r.uniform(500,30000),0)}
+            for ic in interconnectors_list]
+        ma = [{"quarter": f"Q{q}-2026", "total_auction_value_m_aud": round(_r.uniform(30,150),0),
+            "participants_count": _r.randint(10,30), "new_participants": _r.randint(0,5)} for q in [1,2,3,4]]
+        icm = [{"interconnector": ic, "capacity_mw": _r.randint(500,1500),
+            "avg_utilization_pct": round(_r.uniform(40,80),1),
+            "congestion_rent_correlation": round(_r.uniform(0.5,0.9),2),
+            "forecast_accuracy_pct": round(_r.uniform(60,90),1)} for ic in interconnectors_list]
+        return {"auctions": auctions, "sra_holders": holders, "settlement_residue_flows": flows,
+                "market_activity": ma, "interconnector_metrics": icm,
+                "summary": {"total_units_active": sum(h["total_units_held"] for h in holders),
+                    "total_market_value_m_aud": round(sum(h["total_value_m_aud"] for h in holders),1),
+                    "avg_clearing_price_aud": round(sum(a["clearing_price_aud"] for a in auctions)/max(len(auctions),1)),
+                    "quarterly_turnover_pct": 35}}
     _r.seed(7033)
     interconnectors_list = ["NSW1-QLD1", "VIC1-NSW1", "VIC1-SA1", "VIC1-TAS1"]
     auctions = [{"auction_id": f"NSRA-{i+1:04d}", "interconnector": ic, "quarter": f"Q{q}-2026", "auction_date": f"2025-{_r.randint(9,12):02d}-{_r.randint(1,28):02d}", "clearing_price_aud": round(_r.uniform(2000, 70000), 0), "units_available": _r.randint(50, 300), "units_sold": _r.randint(30, 280), "oversubscription_ratio": round(_r.uniform(0.8, 3.0), 1)} for i, (ic, q) in enumerate([(ic, q) for ic in interconnectors_list for q in [1, 2]])]
@@ -432,6 +1036,39 @@ def nsra_dashboard():
 
 @router.get("/api/carbon-price-pathway/dashboard")
 def cpp_dashboard():
+    ps = _get_price_stats()
+    if ps and len(ps) >= 3:
+        # Use real electricity prices to derive implied carbon cost
+        nsw_avg = ps.get("NSW1", {"avg": 80})["avg"]
+        scenarios = [{"scenario_name": s, "year": y,
+            "carbon_price_aud_t": round(base * (1 + (y - 2025) * rate), 2),
+            "emissions_mt": round(200 * (1 - (y - 2025) * red_rate)),
+            "reduction_vs_2005_pct": round((y - 2005) * red_rate * 100, 1),
+            "policy_mechanism": mech}
+            for s, base, rate, red_rate, mech in [("Net Zero 2050", 32.5, 0.08, 0.025, "Safeguard Mechanism"),
+                ("Current Policy", 32.5, 0.03, 0.012, "Baseline & Credit"),
+                ("Accelerated", 45, 0.12, 0.035, "ETS"),
+                ("Delayed Action", 20, 0.02, 0.008, "Carbon Tax")]
+            for y in [2025, 2028, 2030, 2035]]
+        sf = [{"facility_name": f, "sector": sec,
+            "baseline_mt": round(_r.uniform(0.1,5),2),
+            "actual_emissions_mt": round(_r.uniform(0.08,5.5),2),
+            "shortfall_mt": round(_r.uniform(-0.5,1),2),
+            "compliance_status": _r.choice(["Compliant","Shortfall","Surrender Required"])}
+            for f, sec in [("Eraring PS","Electricity"),("Bayswater PS","Electricity"),
+                ("Loy Yang A","Electricity"),("Tomago Aluminium","Manufacturing"),
+                ("BlueScope Steel","Manufacturing"),("Woodside NWS","Oil & Gas")]]
+        pt = [{"sector": sec, "carbon_cost_aud_mwh": round(nsw_avg * pct, 2),
+            "passthrough_rate_pct": round(_r.uniform(50, 100), 1),
+            "consumer_impact_aud_yr": round(nsw_avg * pct * 5000 / 1000)}
+            for sec, pct in [("Electricity", 0.05), ("Gas", 0.08), ("Transport", 0.03), ("Manufacturing", 0.06)]]
+        ab = [{"option": opt, "abatement_cost_aud_t": round(_r.uniform(10, 200), 0),
+            "potential_mt": round(_r.uniform(1, 50), 0),
+            "readiness": _r.choice(["Available", "Near-term", "Long-term"])}
+            for opt in ["Renewables","Energy Efficiency","CCS","Green Hydrogen","Electrification","Nature-based"]]
+        return {"scenarios": scenarios, "safeguard_facilities": sf, "passthrough_records": pt, "abatement_options": ab,
+                "summary": {"current_carbon_price_aud_t": 32.5, "safeguard_covered_mt": 140,
+                    "compliance_rate_pct": 88, "projected_2030_price_aud_t": 55}}
     _r.seed(7034)
     scenarios = [{"scenario_name": s, "year": y, "carbon_price_aud_t": round(_r.uniform(15, 80), 2), "emissions_mt": round(_r.uniform(50, 200), 0), "reduction_vs_2005_pct": round(_r.uniform(20, 65), 1), "policy_mechanism": _r.choice(["Safeguard Mechanism", "ETS", "Carbon Tax", "Baseline & Credit"])} for s in ["Net Zero 2050", "Current Policy", "Accelerated", "Delayed Action"] for y in [2025, 2028, 2030, 2035]]
     sf = [{"facility_name": f, "sector": sec, "baseline_mt": round(_r.uniform(0.1, 5), 2), "actual_emissions_mt": round(_r.uniform(0.08, 5.5), 2), "shortfall_mt": round(_r.uniform(-0.5, 1), 2), "compliance_status": _r.choice(["Compliant", "Shortfall", "Surrender Required"])} for f, sec in [("Eraring PS", "Electricity"), ("Bayswater PS", "Electricity"), ("Loy Yang A", "Electricity"), ("Tomago Aluminium", "Manufacturing"), ("BlueScope Steel", "Manufacturing"), ("Woodside NWS", "Oil & Gas")]]
@@ -442,6 +1079,33 @@ def cpp_dashboard():
 
 @router.get("/api/price-sensitivity/dashboard")
 def epsa_dashboard():
+    # --- real-data block ---
+    ps = _get_price_stats()
+    if ps:
+        regions = list(ps.keys())
+        drivers = ["Gas Price", "Coal Price", "Carbon Price", "Demand", "Wind Output", "Solar Output", "Interconnector", "Hydro Availability"]
+        sens = []
+        for reg in regions:
+            s = ps[reg]
+            for d in drivers:
+                base_impact = round(s["vol"] * _r.uniform(-0.5, 0.8), 2)
+                sens.append({"region": reg, "driver": d, "elasticity": round(base_impact / max(s["avg"], 1), 2), "base_price_impact_aud_mwh": base_impact, "r_squared": round(_r.uniform(0.15, 0.75), 2)})
+        scenarios = []
+        for sn in ["High Gas", "Low Renewables", "Drought", "Demand Surge", "Carbon Increase"]:
+            for reg in regions[:2]:
+                s = ps[reg]
+                shock = {"High Gas": 1.4, "Low Renewables": 1.25, "Drought": 1.6, "Demand Surge": 1.3, "Carbon Increase": 1.15}.get(sn, 1.2)
+                scenarios.append({"scenario_name": sn, "region": reg, "base_price_aud_mwh": round(s["avg"], 2), "scenario_price_aud_mwh": round(s["avg"] * shock, 2), "price_change_pct": round((shock - 1) * 100, 1)})
+        corr = [{"factor_a": fa, "factor_b": fb, "correlation": round(_r.uniform(-0.8, 0.9), 2), "significance": _r.choice(["High", "Medium", "Low"])} for fa, fb in [("Gas Price", "Electricity Price"), ("Wind Output", "Electricity Price"), ("Temperature", "Demand"), ("Solar Output", "Midday Price"), ("Coal Price", "Baseload Price")]]
+        tr = []
+        for reg in regions[:3]:
+            s = ps[reg]
+            for sc in ["Extreme Heat", "Generator Failure", "Gas Supply Disruption"]:
+                tail = round(s["p90"] * _r.uniform(2, 5), 0)
+                tr.append({"region": reg, "scenario": sc, "tail_price_aud_mwh": tail, "probability_pct": round(_r.uniform(0.5, 8), 1), "expected_loss_m_aud": round(tail * _r.uniform(0.01, 0.05), 0)})
+        most_sens = max(regions, key=lambda r: ps[r]["vol"])
+        return {"sensitivity": sens, "scenarios": scenarios, "correlations": corr, "tail_risks": tr, "summary": {"most_sensitive_region": most_sens, "highest_elasticity_driver": "Gas Price", "avg_base_price_mwh": round(sum(ps[r]["avg"] for r in regions) / len(regions), 1), "max_tail_risk_mwh": round(max(ps[r]["p90"] for r in regions) * 5, 0)}}
+    # --- mock fallback ---
     _r.seed(7035)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     drivers = ["Gas Price", "Coal Price", "Carbon Price", "Demand", "Wind Output", "Solar Output", "Interconnector", "Hydro Availability"]
@@ -454,6 +1118,46 @@ def epsa_dashboard():
 
 @router.get("/api/market-evolution-policy/dashboard")
 def mepa_dashboard():
+    # --- real-data block ---
+    try:
+        gen_rows = _query_gold(f"""
+            SELECT fuel_type, is_renewable, SUM(total_mw) AS total_mw, SUM(unit_count) AS units
+            FROM {_CATALOG}.gold.nem_generation_by_fuel
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 7 DAYS
+            GROUP BY fuel_type, is_renewable
+        """)
+        if gen_rows and len(gen_rows) >= 5:
+            total_gen = sum(float(r["total_mw"] or 0) for r in gen_rows)
+            renew_gen = sum(float(r["total_mw"] or 0) for r in gen_rows if r.get("is_renewable"))
+            coal_gen = sum(float(r["total_mw"] or 0) for r in gen_rows if "coal" in str(r.get("fuel_type", "")).lower())
+            gas_gen = sum(float(r["total_mw"] or 0) for r in gen_rows if "gas" in str(r.get("fuel_type", "")).lower())
+            storage_gen = sum(float(r["total_mw"] or 0) for r in gen_rows if "battery" in str(r.get("fuel_type", "")).lower())
+            ren_pct = round(renew_gen / max(total_gen, 1) * 100, 1)
+            coal_pct = round(coal_gen / max(total_gen, 1) * 100, 1)
+            gas_pct = round(gas_gen / max(total_gen, 1) * 100, 1)
+            stor_pct = round(storage_gen / max(total_gen, 1) * 100, 1)
+            ps = _get_price_stats()
+            avg_price = round(sum(ps[r]["avg"] for r in ps) / max(len(ps), 1), 1) if ps else 85.0
+            policies = [{"policy_id": f"POL-{i+1:03d}", "policy_name": p, "status": st, "implementation_date": d, "impact_category": cat, "estimated_impact_m_aud": imp} for i, (p, st, d, cat, imp) in enumerate([
+                ("Capacity Investment Scheme", "Active", "2023-11-01", "Investment", 1500),
+                ("Renewable Energy Target", "Active", "2020-01-01", "Generation", 800),
+                ("Safeguard Mechanism", "Active", "2023-07-01", "Emissions", 600),
+                ("Consumer Energy Resources", "Active", "2024-01-01", "Demand", 400),
+                ("Transmission Planning", "Active", "2024-06-01", "Network", 2000),
+                ("ISP 2024", "Active", "2024-06-01", "Planning", 1200),
+                ("Battery Incentive Scheme", "Proposed", "2025-01-01", "Storage", 500),
+            ])]
+            mi = []
+            for ind, u, val in [("Renewable Share", "%", ren_pct), ("Wholesale Price", "AUD/MWh", avg_price), ("Emissions Intensity", "tCO2/MWh", round(0.8 * (1 - ren_pct / 100), 2)), ("Storage Capacity", "GW", round(storage_gen / 1000, 1)), ("DER Penetration", "%", round(ren_pct * 0.4, 1))]:
+                for y in [2024, 2025, 2026]:
+                    factor = 1 + (y - 2025) * 0.05
+                    mi.append({"indicator": ind, "year": y, "value": round(val * factor, 1), "trend": "Increasing" if "Renewable" in ind or "Storage" in ind or "DER" in ind else "Decreasing" if "Emissions" in ind else "Stable", "unit": u})
+            trans = [{"year": y, "coal_share_pct": round(coal_pct * (1 - (y - 2024) * 0.04), 1), "gas_share_pct": round(gas_pct, 1), "renewable_share_pct": round(ren_pct + (y - 2024) * 2, 1), "storage_share_pct": round(stor_pct + (y - 2024) * 1.5, 1), "total_capacity_gw": round(total_gen / 1000, 0)} for y in [2024, 2025, 2026, 2028, 2030]]
+            consumer = [{"year": y, "avg_retail_price_c_kwh": round(avg_price * 0.04 + 15, 1), "solar_households_pct": round(30 + (y - 2024) * 2, 1), "battery_households_pct": round(5 + (y - 2024) * 2, 1), "ev_share_pct": round(5 + (y - 2024) * 3, 1), "demand_response_mw": round(1000 + (y - 2024) * 300, 0)} for y in [2024, 2025, 2026, 2028, 2030]]
+            return {"policies": policies, "market_indicators": mi, "transition": trans, "consumer": consumer, "summary": {"renewable_share_current_pct": ren_pct, "coal_retirement_year": 2038, "total_investment_pipeline_b_aud": 85, "consumer_savings_target_pct": 15, "policy_count_active": 5}}
+    except Exception:
+        pass
+    # --- mock fallback ---
     _r.seed(7036)
     policies = [{"policy_id": f"POL-{i+1:03d}", "policy_name": p, "status": _r.choice(["Active", "Proposed", "Under Review"]), "implementation_date": f"202{_r.randint(4,7)}-{_r.randint(1,12):02d}-01", "impact_category": cat, "estimated_impact_m_aud": round(_r.uniform(50, 2000), 0)} for i, (p, cat) in enumerate([("Capacity Investment Scheme", "Investment"), ("Renewable Energy Target", "Generation"), ("Safeguard Mechanism", "Emissions"), ("Consumer Energy Resources", "Demand"), ("Transmission Planning", "Network"), ("ISP 2024", "Planning"), ("Battery Incentive Scheme", "Storage")])]
     mi = [{"indicator": ind, "year": y, "value": round(_r.uniform(10, 200), 1), "trend": _r.choice(["Increasing", "Decreasing", "Stable"]), "unit": u} for ind, u in [("Renewable Share", "%"), ("Wholesale Price", "AUD/MWh"), ("Emissions Intensity", "tCO2/MWh"), ("Storage Capacity", "GW"), ("DER Penetration", "%")] for y in [2023, 2024, 2025]]
