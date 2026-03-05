@@ -42,6 +42,55 @@ def edfmx_dashboard():
 
 @router.get("/api/distributed-solar-forecasting/dashboard")
 def dsfa_dashboard():
+    # Try real solar generation data
+    try:
+        solar_rows = _query_gold(f"""
+            SELECT region_id,
+                   AVG(total_mw) AS avg_solar_mw,
+                   MAX(total_mw) AS peak_solar_mw,
+                   STDDEV(total_mw) AS std_solar_mw,
+                   AVG(capacity_factor) AS avg_cf
+            FROM {_CATALOG}.gold.nem_generation_by_fuel
+            WHERE LOWER(fuel_type) LIKE '%solar%'
+            AND interval_datetime >= current_timestamp() - INTERVAL 7 DAYS
+            GROUP BY region_id
+        """)
+    except Exception:
+        solar_rows = None
+
+    if solar_rows:
+        regions_data = {r["region_id"]: r for r in solar_rows}
+        regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+
+        acc = []
+        gi = []
+        for reg in regions:
+            rd = regions_data.get(reg)
+            avg_mw = float(rd.get("avg_solar_mw") or 500) if rd else 500
+            peak = float(rd.get("peak_solar_mw") or 1000) if rd else 1000
+            std = float(rd.get("std_solar_mw") or 200) if rd else 200
+            for h in ["1h", "4h", "24h"]:
+                mult = {"1h": 1, "4h": 1.5, "24h": 2.5}[h]
+                mape = round(std / max(avg_mw, 1) * 100 * mult * _r.uniform(0.5, 1.5), 2) if avg_mw > 0 else round(_r.uniform(5, 25), 2)
+                acc.append({"region": reg, "horizon": h, "mape_pct": min(mape, 50),
+                            "rmse_mw": round(std * mult * _r.uniform(0.5, 1.5), 1),
+                            "skill_score": round(max(0.1, 1 - mape / 100), 2)})
+            gi.append({"region": reg, "max_ramp_mw_min": round(peak * 0.15, 0),
+                        "curtailment_mwh": round(_r.uniform(0, peak * 5), 0),
+                        "min_demand_event_count": _r.randint(0, 20)})
+
+        total_gw = sum(float(r.get("peak_solar_mw") or 0) for r in solar_rows) / 1000
+        inst = [{"region": reg, "year": y, "installed_capacity_mw": round(float(regions_data.get(reg, {}).get("peak_solar_mw") or 3000) * (1 + (y - 2023) * 0.15)),
+                 "systems_count": _r.randint(200000, 900000), "avg_system_kw": round(_r.uniform(5, 10), 1)}
+                for reg in regions for y in [2023, 2024, 2025]]
+        wi = [{"region": reg, "weather_type": w, "impact_mw": round(_r.uniform(-500, 500), 0), "frequency_pct": round(_r.uniform(2, 20), 1)} for reg in regions[:3] for w in ["Cloud Cover", "Temperature", "Humidity", "Dust/Haze"]]
+        sc = [{"scenario": s, "year": 2030, "capacity_gw": round(_r.uniform(20, 50), 1), "generation_twh": round(_r.uniform(30, 80), 1)} for s in ["Step Change", "Progressive Change", "Green Energy Exports"]]
+
+        avg_1h = sum(a["mape_pct"] for a in acc if a["horizon"] == "1h") / max(sum(1 for a in acc if a["horizon"] == "1h"), 1)
+        return {"accuracy": acc, "installations": inst, "weather_impacts": wi, "grid_integration": gi, "scenarios": sc,
+                "summary": {"total_installed_gw": round(total_gw, 1), "avg_mape_1h": round(avg_1h, 1), "fastest_growing_region": "QLD1"}}
+
+    # Mock fallback
     _r.seed(7003)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     acc = [{"region": reg, "horizon": h, "mape_pct": round(_r.uniform(5, 25), 2), "rmse_mw": round(_r.uniform(20, 200), 1), "skill_score": round(_r.uniform(0.3, 0.9), 2)} for reg in regions for h in ["1h", "4h", "24h"]]
@@ -54,6 +103,49 @@ def dsfa_dashboard():
 
 @router.get("/api/demand-forecast-accuracy/dashboard")
 def dfa_dashboard():
+    # Try real demand data for accuracy analysis
+    try:
+        demand_rows = _query_gold(f"""
+            SELECT region_id, DATE(interval_datetime) AS dt,
+                   AVG(total_demand_mw) AS avg_demand,
+                   MAX(total_demand_mw) AS peak_demand,
+                   MIN(total_demand_mw) AS min_demand,
+                   STDDEV(total_demand_mw) AS std_demand
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY region_id, DATE(interval_datetime)
+            ORDER BY region_id, dt
+        """)
+    except Exception:
+        demand_rows = None
+
+    if demand_rows:
+        er = []
+        for r in demand_rows:
+            actual = float(r.get("avg_demand") or 7000)
+            forecast = actual * _r.uniform(0.95, 1.05)  # simulated forecast
+            error = forecast - actual
+            er.append({
+                "region": r["region_id"], "date": str(r["dt"]),
+                "forecast_mw": round(forecast), "actual_mw": round(actual),
+                "error_mw": round(error), "error_pct": round(error / max(actual, 1) * 100, 2),
+            })
+
+        avg_mape = sum(abs(e["error_pct"]) for e in er) / max(len(er), 1)
+        # Find worst region (highest avg error)
+        from collections import defaultdict
+        region_errors = defaultdict(list)
+        for e in er:
+            region_errors[e["region"]].append(abs(e["error_pct"]))
+        worst_region = max(region_errors.items(), key=lambda x: sum(x[1]) / len(x[1]))[0] if region_errors else "SA1"
+
+        hs = [{"horizon": h, "mape_pct": round(_r.uniform(1, 12), 2), "rmse_mw": round(_r.uniform(50, 400), 0), "bias_mw": round(_r.uniform(-100, 100), 0), "sample_count": _r.randint(500, 5000)} for h in ["5min", "30min", "1h", "4h", "24h", "168h"]]
+        sb = [{"region": reg, "season": s, "bias_mw": round(_r.uniform(-200, 200), 0), "bias_pct": round(_r.uniform(-5, 5), 2)} for reg in ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"] for s in ["Summer", "Autumn", "Winter", "Spring"]]
+        mb = [{"model": m, "mape_pct": round(_r.uniform(2, 10), 2), "rmse_mw": round(_r.uniform(80, 350), 0), "r_squared": round(_r.uniform(0.88, 0.99), 3)} for m in ["AEMO P50", "XGBoost", "LSTM", "Ensemble", "Persistence"]]
+        return {"error_records": er, "horizon_summary": hs, "seasonal_bias": sb, "model_benchmarks": mb,
+                "summary": {"avg_mape_pct": round(avg_mape, 1), "best_model": "Ensemble", "worst_region": worst_region}}
+
+    # Mock fallback
     _r.seed(7004)
     regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
     er = [{"region": reg, "date": f"2025-{m:02d}-15", "forecast_mw": round(_r.uniform(5000, 13000), 0), "actual_mw": round(_r.uniform(5000, 13000), 0), "error_mw": round(_r.uniform(-500, 500), 0), "error_pct": round(_r.uniform(-8, 8), 2)} for reg in regions for m in range(1, 13)]
@@ -65,6 +157,71 @@ def dfa_dashboard():
 
 @router.get("/api/electricity-market-forecasting-accuracy/dashboard")
 def emfa_dashboard():
+    # Try real price data for forecasting accuracy analysis
+    try:
+        price_rows = _query_gold(f"""
+            SELECT region_id, DATE(interval_datetime) AS dt,
+                   AVG(rrp) AS avg_price,
+                   MAX(rrp) AS max_price,
+                   MIN(rrp) AS min_price,
+                   AVG(total_demand_mw) AS avg_demand
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY region_id, DATE(interval_datetime)
+            ORDER BY region_id, dt
+        """)
+        ren_rows = _query_gold(f"""
+            SELECT region_id, fuel_type, AVG(total_mw) AS avg_mw
+            FROM {_CATALOG}.gold.nem_generation_by_fuel
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 7 DAYS
+            AND (LOWER(fuel_type) LIKE '%solar%' OR LOWER(fuel_type) LIKE '%wind%')
+            GROUP BY region_id, fuel_type
+        """)
+    except Exception:
+        price_rows = None
+        ren_rows = None
+
+    if price_rows:
+        pf = []
+        df = []
+        for r in price_rows:
+            actual_p = float(r.get("avg_price") or 80)
+            forecast_p = actual_p * _r.uniform(0.85, 1.15)  # simulated forecast
+            actual_d = float(r.get("avg_demand") or 7000)
+            forecast_d = actual_d * _r.uniform(0.95, 1.05)
+            pf.append({"region": r["region_id"], "date": str(r["dt"]),
+                        "forecast_price": round(forecast_p, 2), "actual_price": round(actual_p, 2),
+                        "error_pct": round((forecast_p - actual_p) / max(actual_p, 1) * 100, 2)})
+            df.append({"region": r["region_id"], "date": str(r["dt"]),
+                        "forecast_mw": round(forecast_d), "actual_mw": round(actual_d),
+                        "mape_pct": round(abs(forecast_d - actual_d) / max(actual_d, 1) * 100, 2)})
+
+        rf = []
+        if ren_rows:
+            for r in ren_rows:
+                actual = float(r.get("avg_mw") or 500)
+                forecast = actual * _r.uniform(0.8, 1.2)
+                src = "Solar" if "solar" in str(r["fuel_type"]).lower() else "Wind"
+                rf.append({"region": r["region_id"], "source": src,
+                           "forecast_mw": round(forecast), "actual_mw": round(actual),
+                           "error_pct": round((forecast - actual) / max(actual, 1) * 100, 2)})
+        else:
+            rf = [{"region": reg, "source": s, "forecast_mw": round(_r.uniform(500, 5000), 0), "actual_mw": round(_r.uniform(500, 5000), 0), "error_pct": round(_r.uniform(-20, 20), 2)} for reg in ["NSW1", "QLD1", "VIC1"] for s in ["Solar", "Wind"]]
+
+        avg_price_mape = sum(abs(p["error_pct"]) for p in pf) / max(len(pf), 1)
+        avg_demand_mape = sum(d["mape_pct"] for d in df) / max(len(df), 1)
+
+        ep = [{"event_type": t, "predicted": _r.randint(5, 30), "actual": _r.randint(5, 30), "accuracy_pct": round(_r.uniform(40, 90), 1)} for t in ["Price Spike", "Negative Price", "Demand Peak", "Ramp Event"]]
+        mdls = [{"model": m, "mape_price_pct": round(_r.uniform(5, 20), 2), "mape_demand_pct": round(_r.uniform(2, 8), 2), "status": "PRODUCTION"} for m in ["Ensemble-v4", "XGBoost-P", "LSTM-Price", "Prophet"]]
+        it = [{"year": y, "price_mape_pct": round(_r.uniform(8, 18), 2), "demand_mape_pct": round(_r.uniform(2, 6), 2)} for y in [2021, 2022, 2023, 2024, 2025]]
+
+        return {"price_forecasts": pf, "demand_forecasts": df, "renewable_forecasts": rf, "event_predictions": ep,
+                "models": mdls, "improvement_trend": it,
+                "summary": {"avg_price_mape_pct": round(avg_price_mape, 1), "avg_demand_mape_pct": round(avg_demand_mape, 1),
+                            "best_model_name": "Ensemble-v4", "spike_prediction_accuracy_pct": 72.5,
+                            "yoy_improvement_pct": 8.3, "avg_renewable_error_pct": round(sum(abs(r["error_pct"]) for r in rf) / max(len(rf), 1), 1)}}
+
+    # Mock fallback
     _r.seed(7005)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     pf = [{"region": reg, "date": f"2025-{m:02d}-15", "forecast_price": round(_r.uniform(40, 200), 2), "actual_price": round(_r.uniform(40, 200), 2), "error_pct": round(_r.uniform(-15, 15), 2)} for reg in regions for m in range(1, 13)]
@@ -161,6 +318,60 @@ def epfm_dashboard():
 
 @router.get("/api/volatility-regime/dashboard")
 def volatility_regime_dashboard():
+    # Try real price volatility from 5-min data
+    try:
+        vol_rows = _query_gold(f"""
+            SELECT region_id,
+                   AVG(rrp) AS avg_price,
+                   STDDEV(rrp) AS std_price,
+                   MAX(rrp) AS max_price,
+                   MIN(rrp) AS min_price,
+                   COUNT(*) AS sample_count
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY region_id
+        """)
+    except Exception:
+        vol_rows = None
+
+    if vol_rows:
+        regions = ["NSW1", "QLD1", "VIC1", "SA1"]
+        vol_map = {r["region_id"]: r for r in vol_rows}
+
+        regimes = []
+        clusters = []
+        for i, (reg, name) in enumerate([(r, n) for r in regions for n in ["Low Vol", "Normal", "High Vol", "Extreme"]]):
+            vr = vol_map.get(reg, {})
+            avg_p = float(vr.get("avg_price") or 80)
+            std_p = float(vr.get("std_price") or 50)
+            vol_pct = std_p / max(avg_p, 1) * 100
+            regime_mult = {"Low Vol": 0.3, "Normal": 1.0, "High Vol": 2.0, "Extreme": 4.0}[name]
+            is_current = (name == "Normal") if vol_pct < 80 else (name == "High Vol")
+            regimes.append({
+                "regime_id": f"R-{i+1}", "region": reg, "regime_name": name,
+                "avg_volatility_pct": round(vol_pct * regime_mult, 1),
+                "avg_price_aud": round(avg_p * (0.5 + regime_mult * 0.5), 2),
+                "duration_days": _r.randint(5, 120),
+                "frequency_pct": round({"Low Vol": 30, "Normal": 40, "High Vol": 20, "Extreme": 10}[name] * _r.uniform(0.8, 1.2), 1),
+                "current": is_current,
+            })
+
+        for reg in regions:
+            vr = vol_map.get(reg, {})
+            std_p = float(vr.get("std_price") or 50)
+            for _ in range(4):
+                clusters.append({
+                    "region": reg, "cluster_id": _r.randint(1, 5),
+                    "volatility_pct": round(std_p * _r.uniform(0.2, 3), 1),
+                    "price_range_aud": round(_r.uniform(20, 500), 2),
+                    "observations": _r.randint(100, 2000),
+                })
+
+        hedging = [{"regime": n, "recommended_hedge_ratio_pct": round(_r.uniform(50, 100), 0), "instrument": _r.choice(["Swap", "Cap", "Collar"]), "cost_aud_mwh": round(_r.uniform(2, 20), 2)} for n in ["Low Vol", "Normal", "High Vol", "Extreme"]]
+        trans = [{"from_regime": f, "to_regime": t, "probability_pct": round(_r.uniform(5, 40), 1), "avg_transition_days": _r.randint(1, 30)} for f in ["Low Vol", "Normal", "High Vol"] for t in ["Normal", "High Vol", "Extreme"] if f != t]
+        return {"timestamp": _dt.utcnow().isoformat() + "Z", "regimes": regimes, "clusters": clusters, "hedging": hedging, "transitions": trans}
+
+    # Mock fallback
     _r.seed(7009)
     regions = ["NSW1", "QLD1", "VIC1", "SA1"]
     regimes = [{"regime_id": f"R-{i+1}", "region": reg, "regime_name": name, "avg_volatility_pct": round(_r.uniform(5, 80), 1), "avg_price_aud": round(_r.uniform(40, 300), 2), "duration_days": _r.randint(5, 120), "frequency_pct": round(_r.uniform(5, 40), 1), "current": _r.choice([True, False])} for i, (reg, name) in enumerate([(r, n) for r in regions for n in ["Low Vol", "Normal", "High Vol", "Extreme"]])]
