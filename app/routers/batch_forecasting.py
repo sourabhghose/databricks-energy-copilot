@@ -2,6 +2,7 @@ from __future__ import annotations
 import random as _r
 from datetime import datetime as _dt
 from fastapi import APIRouter, Query
+from .shared import _query_gold, _CATALOG, logger
 
 router = APIRouter()
 
@@ -77,6 +78,53 @@ def emfa_dashboard():
 
 @router.get("/api/nem-demand-forecast/dashboard")
 def ndf_dashboard():
+    # Try real demand data for NEM demand forecast
+    try:
+        demand_rows = _query_gold(f"""
+            SELECT region_id,
+                   MAX(total_demand_mw) AS peak_demand,
+                   AVG(total_demand_mw) AS avg_demand,
+                   MAX(available_gen_mw) AS max_capacity
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 30 DAYS
+            GROUP BY region_id
+        """)
+    except Exception:
+        demand_rows = None
+
+    if demand_rows:
+        regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+        region_data = {r["region_id"]: r for r in demand_rows}
+        rf = []
+        pd_list = []
+        for reg in regions:
+            rd = region_data.get(reg)
+            if not rd:
+                continue
+            peak = float(rd["peak_demand"] or 0)
+            avg_d = float(rd["avg_demand"] or 0)
+            cap = float(rd["max_capacity"] or 0)
+            for y in [2026, 2027, 2028, 2030]:
+                growth = 1 + (y - 2026) * 0.018  # ~1.8% growth
+                rf.append({"region": reg, "year": y, "summer_peak_mw": round(peak * growth), "winter_peak_mw": round(peak * growth * 0.9), "annual_energy_twh": round(avg_d * 8.76 / 1000 * growth, 1), "growth_pct": 1.8})
+            pd_list.append({"region": reg, "year": 2026, "peak_demand_mw": round(peak), "poe_10_mw": round(peak * 1.1), "poe_50_mw": round(avg_d), "poe_90_mw": round(avg_d * 0.85)})
+
+        if rf:
+            gd = [{"driver": d, "impact_mw": imp, "direction": dir_, "certainty": cert} for d, imp, dir_, cert in [("Population Growth", 1500, "Increasing", "High"), ("EV Uptake", 2000, "Increasing", "Medium"), ("Rooftop Solar", -1800, "Decreasing", "High"), ("Battery Storage", -500, "Decreasing", "Medium"), ("Industrial Load", 800, "Increasing", "Low"), ("Data Centres", 1200, "Increasing", "Medium"), ("Electrification", 2500, "Increasing", "High")]]
+            sens = [{"parameter": p, "low_case_mw": low, "base_case_mw": 0, "high_case_mw": high} for p, low, high in [("Temperature", -1000, 2000), ("Economic Growth", -800, 1500), ("EV Penetration", -200, 3000), ("Solar Uptake", -2000, -500)]]
+            ro = []
+            for reg in regions:
+                rd = region_data.get(reg)
+                if not rd:
+                    continue
+                peak = float(rd["peak_demand"] or 0)
+                cap = float(rd["max_capacity"] or 0)
+                margin = (cap - peak) / max(peak, 1) * 100
+                ro.append({"region": reg, "year": 2026, "unserved_energy_mwh": 0 if margin > 10 else round(peak * 0.01, 1), "reliability_standard_met": margin > 10})
+            total_peak = sum(float(region_data.get(r, {}).get("peak_demand") or 0) for r in regions)
+            return {"regional_forecasts": rf, "peak_demands": pd_list, "growth_drivers": gd, "sensitivities": sens, "reliability_outlook": ro, "summary": {"total_nem_peak_mw": round(total_peak), "growth_rate_pct": 1.8, "highest_growth_region": "QLD1"}}
+
+    # Mock fallback
     _r.seed(7006)
     regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
     rf = [{"region": reg, "year": y, "summer_peak_mw": round(_r.uniform(8000, 15000), 0), "winter_peak_mw": round(_r.uniform(7000, 13000), 0), "annual_energy_twh": round(_r.uniform(20, 80), 1), "growth_pct": round(_r.uniform(-2, 5), 2)} for reg in regions for y in [2025, 2026, 2027, 2028, 2030]]

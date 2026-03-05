@@ -2,7 +2,7 @@ from __future__ import annotations
 import random as _r
 from datetime import datetime as _dt
 from fastapi import APIRouter, Query
-from .shared import _NEM_REGIONS
+from .shared import _NEM_REGIONS, _query_gold, _CATALOG, logger
 
 router = APIRouter()
 
@@ -410,6 +410,93 @@ def market_bidding_strategy_dashboard():
 
 @router.get("/api/market-concentration-bidding/dashboard")
 def market_concentration_bidding_dashboard():
+    # Try real facility data for market concentration
+    try:
+        cap_rows = _query_gold(f"""
+            SELECT station_name, network_region, fuel_type,
+                   SUM(capacity_MW) AS total_cap
+            FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension
+            WHERE capacity_MW > 0
+            GROUP BY station_name, network_region, fuel_type
+            ORDER BY total_cap DESC
+        """)
+    except Exception:
+        cap_rows = None
+
+    if cap_rows:
+        # Map stations to participant groups
+        _PMAP = {"bayswater": "AGL Energy", "liddell": "AGL Energy", "loy yang": "AGL Energy", "eraring": "Origin Energy", "shoalhaven": "Origin Energy", "yallourn": "EnergyAustralia", "tallawarra": "EnergyAustralia", "snowy": "Snowy Hydro", "tumut": "Snowy Hydro", "murray": "Snowy Hydro", "callide": "CS Energy", "stanwell": "Stanwell", "gladstone": "Stanwell"}
+        participant_caps = {}
+        region_totals = {}
+        for r in cap_rows:
+            station = r.get("station_name", "")
+            reg = r.get("network_region", "")
+            cap = float(r.get("total_cap") or 0)
+            region_totals[reg] = region_totals.get(reg, 0) + cap
+            company = "Other"
+            for pattern, co in _PMAP.items():
+                if pattern in station.lower():
+                    company = co
+                    break
+            key = company
+            if key not in participant_caps:
+                participant_caps[key] = {"cap": 0, "regions": set()}
+            participant_caps[key]["cap"] += cap
+            participant_caps[key]["regions"].add(reg)
+
+        total_cap = sum(region_totals.values())
+        participants = []
+        for i, (co, data) in enumerate(sorted(participant_caps.items(), key=lambda x: -x[1]["cap"])):
+            share = round(data["cap"] / max(total_cap, 1) * 100, 1)
+            participants.append({
+                "participant_id": f"P{i+1:03d}", "participant_name": co,
+                "registered_capacity_mw": round(data["cap"]),
+                "market_share_pct": share,
+                "region_presence": ",".join(sorted(data["regions"])),
+                "participant_type": "Generator",
+                "hhi_contribution": round(share ** 2, 0),
+                "pivotal_supplier_events_2024": 0,
+                "market_power_index": round(share / 100, 2),
+            })
+
+        if participants:
+            # HHI per region
+            hhi_trends = []
+            for reg in _NEM_REGIONS:
+                reg_total = region_totals.get(reg, 0)
+                if reg_total <= 0:
+                    continue
+                shares = []
+                for co, data in participant_caps.items():
+                    # Approximate per-region share
+                    if reg in data["regions"]:
+                        s = data["cap"] / len(data["regions"]) / max(reg_total, 1) * 100
+                        shares.append(s)
+                hhi = sum(s ** 2 for s in shares)
+                top3 = sum(sorted(shares, reverse=True)[:3])
+                hhi_trends.append({"region": reg, "year": 2026, "half": 1, "hhi_generation": round(hhi), "hhi_capacity": round(hhi * 0.9), "top_3_market_share_pct": round(top3, 1), "pivotal_supplier_pct": round(max(shares) if shares else 0, 1), "concentration_level": "Highly Concentrated" if hhi > 2500 else ("Concentrated" if hhi > 1500 else "Moderate")})
+
+            avg_hhi = round(sum(h["hhi_generation"] for h in hhi_trends) / max(len(hhi_trends), 1)) if hhi_trends else 0
+            most_conc = max(hhi_trends, key=lambda h: h["hhi_generation"])["region"] if hhi_trends else "SA1"
+            top3_share = sorted(participants, key=lambda p: -p["market_share_pct"])
+            return {
+                "participants": participants[:10],
+                "bidding_bands": [],
+                "hhi_trends": hhi_trends,
+                "surveillance": [],
+                "competition": [],
+                "summary": {
+                    "avg_hhi_2024": avg_hhi,
+                    "most_concentrated_region": most_conc,
+                    "total_pivotal_events_2024": 0,
+                    "total_surveillance_events": 0,
+                    "avg_market_power_index": round(sum(p["market_power_index"] for p in participants[:10]) / max(len(participants[:10]), 1), 2),
+                    "market_share_top3_pct": round(sum(p["market_share_pct"] for p in top3_share[:3]), 1),
+                    "avg_price_cost_markup_pct": 0,
+                },
+            }
+
+    # Mock fallback
     _r.seed(8040)
     companies = ["AGL Energy", "Origin Energy", "EnergyAustralia", "Snowy Hydro", "Stanwell", "CS Energy", "Alinta Energy", "Engie", "Delta Electricity", "Sunset Power"]
     participants = [{

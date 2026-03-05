@@ -17,6 +17,63 @@ router = APIRouter()
 @router.get("/api/bess/fleet", summary="BESS fleet overview", tags=["BESS"])
 async def bess_fleet():
     """Return BESS fleet summary matching BessFleetSummary shape."""
+    # Try real battery data from NEMWEB
+    try:
+        batt_rows = _query_gold(f"""
+            SELECT f.duid, f.station_name, f.network_region AS region, f.capacity_MW,
+                   s.generation_MW AS current_mw
+            FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension f
+            JOIN (
+                SELECT duid, generation_MW, interval,
+                       ROW_NUMBER() OVER (PARTITION BY duid ORDER BY interval DESC) AS rn
+                FROM {_CATALOG}.nemweb_analytics.silver_nem_dispatch_unit_scada
+                WHERE interval >= current_timestamp() - INTERVAL 1 HOUR
+            ) s ON f.duid = s.duid AND s.rn = 1
+            WHERE LOWER(f.fuel_type) LIKE '%battery%'
+               OR LOWER(f.fuel_type) LIKE '%storage%'
+            ORDER BY f.capacity_MW DESC
+            LIMIT 20
+        """)
+    except Exception:
+        batt_rows = None
+
+    if batt_rows:
+        units = []
+        for r in batt_rows:
+            mw = float(r.get("current_mw") or 0)
+            cap = float(r.get("capacity_MW") or 1)
+            mode = "discharging" if mw > 1 else ("charging" if mw < -1 else "standby")
+            units.append({
+                "duid": r.get("duid", ""),
+                "station_name": r.get("station_name", ""),
+                "region": r.get("region", ""),
+                "capacity_mwh": round(cap * 2, 0),  # approximate MWh as 2h duration
+                "power_mw": round(cap, 0),
+                "soc_pct": round(max(5, min(95, 50 + mw / max(cap, 1) * 30)), 1),
+                "mode": mode,
+                "current_mw": round(mw, 1),
+                "cycles_today": 0,
+                "revenue_today_aud": 0,
+                "efficiency_pct": 89.0,
+            })
+        if units:
+            discharging = sum(1 for u in units if u["mode"] == "discharging")
+            charging = sum(1 for u in units if u["mode"] == "charging")
+            idle = sum(1 for u in units if u["mode"] == "standby")
+            total_soc = sum(u["soc_pct"] for u in units) / len(units)
+            return {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_capacity_mwh": sum(u["capacity_mwh"] for u in units),
+                "total_power_mw": sum(u["power_mw"] for u in units),
+                "units_discharging": discharging,
+                "units_charging": charging,
+                "units_idle": idle,
+                "fleet_avg_soc_pct": round(total_soc, 1),
+                "fleet_revenue_today_aud": 0,
+                "units": units,
+            }
+
+    # Mock fallback
     rng = random.Random(int(time.time() // 30))
     base_units = [
         {"duid": "HPRG1", "station_name": "Hornsdale Power Reserve", "region": "SA1", "capacity_mwh": 194, "power_mw": 150, "base_soc": 72.5, "mode": "discharging", "base_current_mw": 120.3, "cycles_today": 2, "revenue_today_aud": 45200, "efficiency_pct": 87.5},
@@ -61,6 +118,46 @@ async def bess_dispatch(
     count: int = Query(48),
 ):
     """Return dispatch intervals matching BessDispatchInterval[] shape."""
+    # Try real SCADA dispatch data for this DUID
+    try:
+        scada_rows = _query_gold(f"""
+            SELECT s.interval, s.duid, s.generation_MW,
+                   p.rrp
+            FROM {_CATALOG}.nemweb_analytics.silver_nem_dispatch_unit_scada s
+            LEFT JOIN {_CATALOG}.nemweb_analytics.silver_nem_trading_price p
+              ON p.interval = s.interval
+              AND p.region_id = (
+                  SELECT network_region FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension
+                  WHERE duid = '{duid}' LIMIT 1
+              )
+            WHERE s.duid = '{duid}'
+              AND s.interval >= current_timestamp() - INTERVAL 4 HOURS
+            ORDER BY s.interval DESC
+            LIMIT {min(count, 200)}
+        """)
+    except Exception:
+        scada_rows = None
+
+    if scada_rows:
+        points = []
+        soc = 50.0  # estimated starting SoC
+        for r in reversed(scada_rows):  # oldest first for SoC tracking
+            mw = float(r.get("generation_MW") or 0)
+            rrp = float(r.get("rrp") or 0)
+            soc = max(5, min(95, soc - mw * 5 / 60 / 200 * 100))  # approximate
+            revenue = round(abs(mw) * rrp * 5 / 60, 2) if mw > 0 else 0.0
+            points.append({
+                "interval_datetime": str(r.get("interval", "")),
+                "duid": duid,
+                "mw": round(mw, 1),
+                "soc_pct": round(soc, 1),
+                "rrp_at_dispatch": round(rrp, 2),
+                "revenue_aud": revenue,
+            })
+        if points:
+            return points
+
+    # Mock fallback
     now = datetime.now(timezone.utc)
     rng = random.Random(hash(duid) + int(now.timestamp() // 30))
     soc = rng.uniform(40, 80)
@@ -441,6 +538,61 @@ async def trading_positions():
 @router.get("/api/trading/spreads", summary="Inter-region spreads", tags=["Trading"])
 async def trading_spreads():
     """Return RegionSpread[] matching frontend interface."""
+    # Try real price data for inter-region spreads
+    try:
+        price_rows = _query_gold(f"""
+            SELECT region_id, AVG(rrp) AS avg_price
+            FROM {_CATALOG}.gold.nem_prices_5min
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 1 HOUR
+            GROUP BY region_id
+        """)
+        ic_rows = _query_gold(f"""
+            SELECT interconnector_id, AVG(mw_flow) AS avg_flow,
+                   MAX(export_limit_mw) AS export_cap, MAX(import_limit_mw) AS import_cap
+            FROM {_CATALOG}.gold.nem_interconnectors
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 1 HOUR
+            GROUP BY interconnector_id
+        """)
+    except Exception:
+        price_rows = None
+        ic_rows = None
+
+    if price_rows:
+        prices = {r["region_id"]: float(r["avg_price"] or 0) for r in price_rows}
+        ic_map = {}
+        if ic_rows:
+            for r in ic_rows:
+                ic_map[r["interconnector_id"]] = {
+                    "flow": float(r.get("avg_flow") or 0),
+                    "cap": max(abs(float(r.get("export_cap") or 1000)), abs(float(r.get("import_cap") or 1000))),
+                }
+        interconnectors = {"NSW1-QLD1": "QNI", "VIC1-SA1": "Heywood", "NSW1-VIC1": "VNI", "QLD1-SA1": "Terranora", "VIC1-TAS1": "Basslink"}
+        ic_id_map = {"NSW1-QLD1": "N-Q-MNSP1", "VIC1-SA1": "V-SA", "NSW1-VIC1": "VIC1-NSW1", "QLD1-SA1": "N-Q-MNSP1", "VIC1-TAS1": "T-V-MNSP1"}
+        pairs = [("NSW1", "QLD1"), ("VIC1", "SA1"), ("NSW1", "VIC1"), ("QLD1", "SA1"), ("VIC1", "TAS1")]
+        spreads = []
+        for r1, r2 in pairs:
+            p1 = prices.get(r1, 70)
+            p2 = prices.get(r2, 70)
+            spot_spread = round(p1 - p2, 2)
+            ic_key = f"{r1}-{r2}"
+            ic_data = ic_map.get(ic_id_map.get(ic_key, ""), {"flow": 0, "cap": 1000})
+            flow = round(ic_data["flow"], 0)
+            cap = round(ic_data["cap"], 0)
+            spreads.append({
+                "region_from": r1,
+                "region_to": r2,
+                "interconnector": interconnectors.get(ic_key, "Unknown"),
+                "spot_spread_aud_mwh": spot_spread,
+                "forward_spread_aud_mwh": round(spot_spread * 0.9, 2),
+                "flow_mw": flow,
+                "capacity_mw": cap,
+                "congestion_revenue_m_aud": round(abs(spot_spread) * abs(flow) / 1e6 * 24, 3),
+                "arbitrage_opportunity": abs(spot_spread) > 10,
+            })
+        if spreads:
+            return spreads
+
+    # Mock fallback
     rng = random.Random(int(time.time() // 30))
     interconnectors = {"NSW1-QLD1": "QNI", "VIC1-SA1": "Heywood", "NSW1-VIC1": "VNI", "QLD1-SA1": "Terranora", "VIC1-TAS1": "Basslink"}
     pairs = [("NSW1", "QLD1"), ("VIC1", "SA1"), ("NSW1", "VIC1"), ("QLD1", "SA1"), ("VIC1", "TAS1")]

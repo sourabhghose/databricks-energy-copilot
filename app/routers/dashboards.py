@@ -526,6 +526,7 @@ def _build_curtailment_dashboard() -> CurtailmentDashboard:
                    avg_total_curtailment_MW,
                    avg_solar_curtailment_pct, avg_wind_curtailment_pct
             FROM {_CATALOG}.nemweb_analytics.gold_nem_curtailment_30min
+            WHERE avg_total_curtailment_MW > 0
             ORDER BY interval_window.start DESC
             LIMIT 50
         """)
@@ -954,11 +955,11 @@ def _build_carbon_dashboard() -> CarbonDashboard:
     # Try real generation by fuel data
     try:
         gen_rows = _query_gold(f"""
-            SELECT network_region, fuel_type, is_renewable,
-                   SUM(total_generation_MW) AS total_mw
+            SELECT region_id AS network_region, fuel_type,
+                   SUM(total_mw) AS total_mw
             FROM {_CATALOG}.gold.nem_generation_by_fuel
-            WHERE interval_datetime >= current_timestamp() - INTERVAL 1 HOUR
-            GROUP BY network_region, fuel_type, is_renewable
+            WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS
+            GROUP BY region_id, fuel_type
         """)
     except Exception:
         gen_rows = None
