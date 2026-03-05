@@ -2251,4 +2251,10 @@ nem_facilities:         duid, station_name, region_id, fuel_type, is_renewable, 
 - `batch_forecasting.py` remaining endpoints — require ML forecast tables
 - `stubs.py` remaining endpoints — Phase 2-4 features
 
-**Deployed:** `d0258bc` — ~56 endpoints wired to real NEMWEB data total
+### Pass 4: Fix facility dimension view + query migration
+- Commit `cf20618` — root cause: `gold.nem_facilities` was built from `silver_nem_dispatch_unit_scada` (null fuel_type, hardcoded NULL region_id)
+- Fix: recreated view to source from `bronze_facilities_fueltech_dim` (650 rows, 5 regions, 16 fuel types)
+- Migrated 4 queries from `silver_nem_facility_dimension` → `gold.nem_facilities` with correct columns
+- Result: **all 16 Step 1b endpoints now returning real data** (0 mock fallbacks)
+
+**Deployed:** `cf20618` — ~56 endpoints wired to real NEMWEB data total, facility dimension fixed
