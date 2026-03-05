@@ -2165,3 +2165,90 @@ Copilot's `_build_market_context()` fetches live data from: spot prices, market 
 
 ### Git
 - Commits: `8d3b5cb` (36 missing endpoints), `d6e6f12` (Genie page), `63fa3f1` (Genie API fix)
+
+---
+
+## Sprint 177 — Backend Router Refactor (2026-03-02)
+
+### Refactor: main.py → 12 APIRouter modules
+Split the 8,060-line monolith `app/main.py` into a thin 183-line entry point + 14 files under `app/routers/`. Purely mechanical — no logic changes, all 173 API paths preserved.
+
+**New structure:**
+```
+app/
+  main.py                        (183 lines — init, middleware, include_router, catch-alls)
+  routers/
+    __init__.py                  (empty)
+    shared.py                    (169 lines — logging, cache, SQL helpers, NEM constants)
+    health.py                    (107 lines — 4 routes)
+    dashboards.py                (1,408 lines — 12 routes, Pydantic models + _build_* helpers)
+    home.py                      (712 lines — 11 routes, real SQL + mock fallback)
+    sidebar.py                   (1,120 lines — 26 routes, sidebar nav + realtime-ops)
+    copilot.py                   (423 lines — 5 routes, LLM chat/debug/sessions)
+    stubs.py                     (375 lines — 31 routes, missing dashboard placeholders)
+    market_events.py             (280 lines — 11 routes, NEM suspension/price setter/spot cap)
+    spike_analysis.py            (2,162 lines — 18 routes, spike/price/volatility analysis)
+    genie.py                     (308 lines — 5 routes, Genie AI/BI proxy)
+    batch_forecasting.py         (122 lines — 9 routes, forecasting + volatility-regime)
+    batch_futures_hedging.py     (329 lines — 27 routes, futures/hedging/settlement/misc)
+    batch_bidding.py             (488 lines — 9 routes, bidding analytics)
+```
+
+**Cross-module imports (no circular deps):**
+- DAG: `shared ← home/sidebar ← copilot`
+- `copilot.py` imports 8 functions from `home.py` + 4 from `sidebar.py` for `_build_market_context()`
+
+**Deployed:** `8e236fa` — app running, all 173 routes verified
+
+## Step 1b: Wire Mock Endpoints to Real NEMWEB Data — 2026-03-05
+
+### Pass 1: Initial wiring (~25 endpoints in home.py)
+- Commit `fc359f8` — wired ~25 endpoints in `home.py` to gold views (`nem_prices_5min`, `nem_generation_by_fuel`, `nem_interconnectors`, `nem_region_summary`, `nem_facilities`)
+- Pattern: `_query_gold(SQL)` → transform → return; fall back to existing mock if SQL fails
+
+### Pass 2: NEM Real-Time + 13 more endpoints
+- Commit `069dec8` — NEM Real-Time Operational Overview dashboard
+- Commit `c406b7e` — 13 additional endpoints across dashboards.py, sidebar.py, spike_analysis.py, market_events.py
+
+### Pass 3: 18 Tier 1+2 endpoints + column name fixes
+- Commit `d0258bc` — wired 18 more endpoints across 7 router files:
+  - `dashboards.py` — curtailment, carbon dashboard
+  - `sidebar.py` — BESS fleet, BESS dispatch, trading spreads
+  - `stubs.py` — carbon intensity, load curve, rooftop solar, participant market share
+  - `batch_futures_hedging.py` — VoLL analytics, NEM 5-min settlement, congestion revenue
+  - `spike_analysis.py` — spot market stress, demand forecast
+  - `batch_forecasting.py` — NEM demand forecast
+  - `batch_bidding.py` — market concentration
+- **Gold view column name fixes** (discovered during testing):
+  - `network_region` → `region_id` in `nem_generation_by_fuel`
+  - `total_generation_MW` → `total_mw` in `nem_generation_by_fuel`
+  - `export_limit`/`import_limit` → `export_limit_mw`/`import_limit_mw` in `nem_interconnectors`
+  - `available_generation` → `available_gen_mw` (from `nem_prices_5min`, not `nem_region_summary`)
+
+### Verification results (post column-fix deploy)
+**10 endpoints returning REAL data:**
+- Load Curve (120 hourly profiles), VoLL Analytics (3 regions), Spot Market Stress (30 tail risk metrics)
+- Carbon Intensity (NSW 673.5 kgCO2/MWh), Carbon Dashboard (22.7% renewable)
+- Rooftop Solar (96 generation records), NEM 5-Min Settlement (100 intervals)
+- NEM Demand Forecast (20 regional forecasts), Trading Spreads (5 pairs), BESS Dispatch (48 records)
+
+**6 endpoints on mock fallback:**
+- BESS Fleet, Participant Market Share, Market Concentration (empty `silver_nem_facility_dimension`)
+- Curtailment, Congestion Revenue, Demand Forecast (partial data / derived mock enrichment)
+
+### Gold view actual column schemas (reference)
+```
+nem_prices_5min:        region_id, rrp, total_demand_mw, available_gen_mw, net_interchange_mw, interval_datetime
+nem_generation_by_fuel: region_id, fuel_type, is_renewable, total_mw, unit_count, capacity_factor, emissions_tco2e, emissions_intensity, interval_datetime
+nem_interconnectors:    interconnector_id, from_region, to_region, mw_flow, export_limit_mw, import_limit_mw, utilization_pct, is_congested, interval_datetime
+nem_region_summary:     region_id, interval_datetime, total_demand, rrp
+nem_facilities:         duid, station_name, region_id, fuel_type, is_renewable, capacity_mw (503 rows, fuel_type/region_id mostly NULL)
+```
+
+### Skip list (no suitable NEMWEB data)
+- `batch_futures_hedging.py` remaining endpoints — require futures/contract data
+- `batch_bidding.py` remaining endpoints — require bid data (not yet ingested)
+- `batch_forecasting.py` remaining endpoints — require ML forecast tables
+- `stubs.py` remaining endpoints — Phase 2-4 features
+
+**Deployed:** `d0258bc` — ~56 endpoints wired to real NEMWEB data total
