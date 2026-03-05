@@ -20,9 +20,9 @@ async def bess_fleet():
     # Try real battery data from NEMWEB
     try:
         batt_rows = _query_gold(f"""
-            SELECT f.duid, f.station_name, f.network_region AS region, f.capacity_MW,
+            SELECT f.duid, f.station_name, f.region_id AS region, f.capacity_mw,
                    s.generation_MW AS current_mw
-            FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension f
+            FROM {_CATALOG}.gold.nem_facilities f
             JOIN (
                 SELECT duid, generation_MW, interval,
                        ROW_NUMBER() OVER (PARTITION BY duid ORDER BY interval DESC) AS rn
@@ -31,7 +31,7 @@ async def bess_fleet():
             ) s ON f.duid = s.duid AND s.rn = 1
             WHERE LOWER(f.fuel_type) LIKE '%battery%'
                OR LOWER(f.fuel_type) LIKE '%storage%'
-            ORDER BY f.capacity_MW DESC
+            ORDER BY f.capacity_mw DESC
             LIMIT 20
         """)
     except Exception:
@@ -127,7 +127,7 @@ async def bess_dispatch(
             LEFT JOIN {_CATALOG}.nemweb_analytics.silver_nem_trading_price p
               ON p.interval = s.interval
               AND p.region_id = (
-                  SELECT network_region FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension
+                  SELECT region_id FROM {_CATALOG}.gold.nem_facilities
                   WHERE duid = '{duid}' LIMIT 1
               )
             WHERE s.duid = '{duid}'

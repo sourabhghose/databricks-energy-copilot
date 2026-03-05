@@ -143,13 +143,13 @@ async def participant_market_share_dashboard():
     # Try real facility + SCADA data for market share
     try:
         share_rows = _query_gold(f"""
-            SELECT f.station_name, f.network_region AS region, f.fuel_type, f.is_renewable,
-                   SUM(f.capacity_MW) AS total_capacity,
-                   SUM(CASE WHEN f.is_renewable THEN f.capacity_MW ELSE 0 END) AS renewable_cap,
+            SELECT f.station_name, f.region_id AS region, f.fuel_type, f.is_renewable,
+                   SUM(f.capacity_mw) AS total_capacity,
+                   SUM(CASE WHEN f.is_renewable THEN f.capacity_mw ELSE 0 END) AS renewable_cap,
                    COUNT(DISTINCT f.duid) AS unit_count
-            FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension f
-            WHERE f.capacity_MW > 0
-            GROUP BY f.station_name, f.network_region, f.fuel_type, f.is_renewable
+            FROM {_CATALOG}.gold.nem_facilities f
+            WHERE f.capacity_mw > 0
+            GROUP BY f.station_name, f.region_id, f.fuel_type, f.is_renewable
             ORDER BY total_capacity DESC
             LIMIT 100
         """)

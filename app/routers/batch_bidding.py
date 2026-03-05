@@ -413,11 +413,11 @@ def market_concentration_bidding_dashboard():
     # Try real facility data for market concentration
     try:
         cap_rows = _query_gold(f"""
-            SELECT station_name, network_region, fuel_type,
-                   SUM(capacity_MW) AS total_cap
-            FROM {_CATALOG}.nemweb_analytics.silver_nem_facility_dimension
-            WHERE capacity_MW > 0
-            GROUP BY station_name, network_region, fuel_type
+            SELECT station_name, region_id AS network_region, fuel_type,
+                   SUM(capacity_mw) AS total_cap
+            FROM {_CATALOG}.gold.nem_facilities
+            WHERE capacity_mw > 0
+            GROUP BY station_name, region_id, fuel_type
             ORDER BY total_cap DESC
         """)
     except Exception:
