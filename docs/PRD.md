@@ -1111,6 +1111,43 @@ New tools added to the Mosaic AI agent:
 | Sprint 10 | 2 weeks | Settlement reconciliation, new copilot tools, new Genie spaces |
 | Sprint 11 | 2 weeks | Integration testing, copilot evaluation, UX polish, launch |
 
+### 15.13 Phase 2 — Implementation Status & Enhancement Backlog
+
+**Completed (PRD 15.1 — Deal Capture & Portfolio Management):**
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Trade entry form (7 NEM contract types) | Done | DealCapture.tsx — SPOT, FORWARD, SWAP, FUTURE, OPTION, PPA, REC |
+| AI-assisted deal entry | Done | Copilot `create_trade` FMAPI tool |
+| Bulk CSV import | Done | POST `/api/deals/trades/bulk-import` |
+| Trade amendment with audit trail | Done | PUT endpoint + `trade_amendments` table |
+| Trade cancellation (soft delete) | Done | DELETE endpoint sets status=CANCELLED |
+| Position summary (region × quarter) | Done | Portfolio.tsx — net/gross MW, trade count |
+| Exposure heatmap (region × month) | Done | Color-coded green/red intensity grid |
+| P&L chart (realized + unrealized) | Done | Recharts bar chart by region |
+| Trade blotter (filterable, expandable) | Done | TradeBlotter.tsx — legs + amendment history |
+| Counterparty management | Done | CRUD endpoints + dropdown in deal form |
+| Portfolio management | Done | 3 portfolios, trade assignment |
+| 6 Delta tables with CDF | Done | trades, trade_legs, trade_amendments, counterparties, portfolios, portfolio_trades |
+| Seed data (50 trades, 5 counterparties) | Done | setup/13_seed_deal_data.py |
+| Batch leg generation | Done | `_insert_gold_batch()` — chunks of 50 rows per INSERT |
+
+**Enhancement Backlog (Phase 2 remaining scope — PRD 15.2–15.6):**
+
+| ID | Feature | PRD Section | Priority | Complexity | Description |
+|----|---------|-------------|----------|------------|-------------|
+| E1 | **Forward Curve Construction** | 15.2 | High | Large | Bootstrap curves from ASX futures, shape to hourly with peak/off-peak ratios, seasonal adjustments, solar/wind cannibalization. Store versioned in `gold.forward_curves`. |
+| E2 | **Mark-to-Market Valuation** | 15.2 | High | Large | Daily MtM batch job: value portfolio against forward curves. Forwards/swaps (DCF), Options (Black-76), PPAs (hourly cashflow × shaped curves), RECs (spot × volume). P&L attribution (price, volume, curve roll, time decay). |
+| E3 | **VaR & Portfolio Greeks** | 15.3 | High | Medium | Parametric VaR (95/99%), Delta/Gamma/Vega/Theta per region. Historical volatility from `nem_prices_5min`. |
+| E4 | **Stress Testing** | 15.3 | Medium | Medium | Pre-defined scenarios: SA heatwave (+300% price), wind drought (-80% wind), coal trip (2GW NSW), interconnector failure. Custom user-defined scenarios. |
+| E5 | **Credit Risk** | 15.3 | Medium | Small | Counterparty exposure vs credit limits, alerts at 80%, exposure aging (current/30d/90d). |
+| E6 | **PPA Valuation Copilot** | 15.4 | Medium | Large | `value_ppa()` tool: hourly generation projection, shaped forward curves, NPV with Monte Carlo (1000 paths), P10/P50/P90, breakeven strike, capture price discount. |
+| E7 | **FCAS Market Analytics** | 15.5 | Low | Large | Ingest 8 FCAS markets, price dashboard, bidstack analysis, co-optimization view, battery FCAS revenue tracker, FCAS price forecast models. |
+| E8 | **Settlement Reconciliation** | 15.6 | Low | Medium | Match AEMO preliminary/final settlement files against internal positions. Variance analysis (>$1K threshold). Copilot tool for explaining variances. |
+| E9 | **Synced Tables for Deal Data** | 15.1 | Medium | Small | Run `pipelines/12_recreate_synced_tables_continuous.py` to create 4 new synced tables (trades, trade_legs, counterparties, portfolios) for Lakebase reads. |
+| E10 | **Additional Copilot Tools** | 15.7 | Medium | Medium | `get_portfolio_pnl`, `get_portfolio_risk`, `get_forward_curve`, `explain_pnl_move`, `run_stress_test`, `value_ppa`, `get_fcas_forecast`, `get_settlement_variance` |
+| E11 | **New Genie Spaces** | 15.10 | Low | Small | Trading & Portfolio space, Risk Analytics space (from PRD 15.10) |
+
 ---
 
 # Phase 3: Bidding, Advanced Risk & Market Expansion
