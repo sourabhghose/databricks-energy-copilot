@@ -1,8 +1,27 @@
 #!/bin/bash
 # ============================================================
-# Energy Copilot — One-Command Deploy
+# DEPRECATED — Use Databricks Asset Bundles instead:
+#
+#   databricks bundle deploy --target dev --profile=<your-profile>
+#   databricks bundle run job_00_setup --target dev
+#   ./post_deploy.sh <your-profile> dev
+#
+# See README.md for full instructions.
 # ============================================================
-# Usage:  ./deploy.sh [PROFILE]
+echo ""
+echo "WARNING: deploy.sh is DEPRECATED."
+echo "Use 'databricks bundle deploy' instead. See README.md."
+echo ""
+echo "To continue anyway, set FORCE_LEGACY_DEPLOY=1"
+echo ""
+if [ "${FORCE_LEGACY_DEPLOY:-}" != "1" ]; then
+    exit 1
+fi
+
+# ============================================================
+# Energy Copilot — One-Command Deploy (LEGACY)
+# ============================================================
+# Usage:  FORCE_LEGACY_DEPLOY=1 ./deploy.sh [PROFILE]
 #
 # Deploys everything to a Databricks workspace:
 #   1. Creates catalog, schemas, and tables

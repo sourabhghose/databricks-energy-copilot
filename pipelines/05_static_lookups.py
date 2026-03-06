@@ -14,7 +14,10 @@ Target schema: energy_copilot_catalog.gold
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, BooleanType
 
-CATALOG = "energy_copilot_catalog"
+try:
+    CATALOG = dbutils.widgets.get("catalog")
+except Exception:
+    CATALOG = "energy_copilot_catalog"
 GOLD_SCHEMA = f"{CATALOG}.gold"
 
 

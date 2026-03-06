@@ -1,0 +1,88 @@
+---
+title: Energy Copilot — Deployment Flow
+---
+flowchart TD
+    A(["`**databricks auth login**
+    Authenticate to Workspace`"])
+
+    B["`**databricks bundle validate**
+    Check config, resolve vars, lint`"]
+
+    C["`**databricks bundle deploy --target dev**
+    Provision all resources`"]
+
+    subgraph PARALLEL["Parallel Resource Provisioning"]
+        direction LR
+        P1["`**App**
+        FastAPI + React`"]
+        P2["`**10 Jobs**
+        Serverless`"]
+        P3["`**4 DLT Pipelines**
+        Bronze → Silver → Gold`"]
+        P4["`**2 Model Serving**
+        Endpoints`"]
+        P5["`**5 MLflow**
+        Experiments`"]
+    end
+
+    D["`**databricks bundle run job_00_setup**
+    Bootstrap environment`"]
+
+    subgraph SETUP["Sequential Setup Steps"]
+        direction TB
+        S1["Create Schemas"]
+        S2["Create Tables"]
+        S3["90-Day Backfill"]
+        S1 --> S2 --> S3
+    end
+
+    E["`**./post_deploy.sh**
+    Post-deployment configuration`"]
+
+    subgraph POST["Post-Deploy Steps"]
+        direction TB
+        Q1["Get App SP UUID"]
+        Q2["Grant Lakebase Perms"]
+        Q3["Create Synced Tables"]
+        Q4["Create Genie Spaces"]
+        Q1 --> Q2 --> Q3 --> Q4
+    end
+
+    F["`**databricks bundle run job_09_simulator**
+    Start live data ingestion`"]
+
+    G(["`**App Live!**
+    https://energy-copilot-...databricksapps.com`"])
+
+    A --> B
+    B --> C
+    C --> PARALLEL
+    PARALLEL --> D
+    D --> SETUP
+    SETUP --> E
+    E --> POST
+    POST --> F
+    F --> G
+
+    style A fill:#1a73e8,color:#fff,stroke:#1557b0,stroke-width:2px
+    style G fill:#34a853,color:#fff,stroke:#1e7e34,stroke-width:2px
+    style B fill:#4285f4,color:#fff,stroke:#1a73e8,stroke-width:1px
+    style C fill:#4285f4,color:#fff,stroke:#1a73e8,stroke-width:1px
+    style D fill:#4285f4,color:#fff,stroke:#1a73e8,stroke-width:1px
+    style E fill:#4285f4,color:#fff,stroke:#1a73e8,stroke-width:1px
+    style F fill:#4285f4,color:#fff,stroke:#1a73e8,stroke-width:1px
+    style P1 fill:#e8f0fe,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style P2 fill:#e8f0fe,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style P3 fill:#e8f0fe,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style P4 fill:#e8f0fe,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style P5 fill:#e8f0fe,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style S1 fill:#fce8b2,color:#1a1a1a,stroke:#f9a825,stroke-width:1px
+    style S2 fill:#fce8b2,color:#1a1a1a,stroke:#f9a825,stroke-width:1px
+    style S3 fill:#fce8b2,color:#1a1a1a,stroke:#f9a825,stroke-width:1px
+    style Q1 fill:#d2e3fc,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style Q2 fill:#d2e3fc,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style Q3 fill:#d2e3fc,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style Q4 fill:#d2e3fc,color:#1a1a1a,stroke:#4285f4,stroke-width:1px
+    style PARALLEL fill:#f8f9fa,stroke:#dadce0,stroke-width:2px,color:#5f6368
+    style SETUP fill:#fffde7,stroke:#f9a825,stroke-width:2px,color:#5f6368
+    style POST fill:#e8f0fe,stroke:#4285f4,stroke-width:2px,color:#5f6368

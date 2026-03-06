@@ -293,7 +293,7 @@ def _genie_headers():
         if ws_host and "databricksapps.com" not in ws_host:
             host = ws_host
         else:
-            host = "https://fevm-energy-copilot.cloud.databricks.com"
+            host = os.environ.get("DATABRICKS_HOST", "")
     return auth, host
 
 

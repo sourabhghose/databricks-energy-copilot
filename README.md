@@ -4,10 +4,10 @@
 ![React 18](https://img.shields.io/badge/React-18-61dafb?logo=react)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi)
 ![Databricks](https://img.shields.io/badge/Databricks-Runtime%2015.4-FF3621?logo=databricks)
-![Claude Sonnet 4.5](https://img.shields.io/badge/Claude-Sonnet%204.5-8B5CF6?logo=anthropic)
+![Claude Sonnet 4.6](https://img.shields.io/badge/Claude-Sonnet%204.6-8B5CF6?logo=anthropic)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
 
-AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM) intelligence platform deployed on Databricks. It ingests live 5-minute dispatch data from AEMO NEMWEB, OpenElectricity, Open-Meteo, and APVI rooftop solar into a Unity Catalog Medallion lakehouse, trains 21 LightGBM and IsolationForest models for price/demand/wind/solar forecasting and anomaly detection, and surfaces everything through a FastAPI backend and React 18 frontend. An agentic AI copilot backed by Claude Sonnet 4.5 with 13 RAG-enabled tools answers free-form market questions in real time, while Databricks Genie Spaces enable natural-language SQL analytics over the full historical dataset.
+AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM) intelligence platform deployed on Databricks. It ingests live 5-minute dispatch data from AEMO NEMWEB, OpenElectricity, Open-Meteo, and APVI rooftop solar into a Unity Catalog Medallion lakehouse, trains 21 LightGBM and IsolationForest models for price/demand/wind/solar forecasting and anomaly detection, and surfaces everything through a FastAPI backend and React 18 frontend. An agentic AI copilot backed by Claude Sonnet 4.6 with 7 FMAPI tools answers free-form market questions in real time, while 6 Databricks Genie Spaces enable natural-language SQL analytics over the full historical dataset.
 
 ---
 
@@ -25,79 +25,141 @@ AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM)
 ┌─────────────────────────────────────────────────────────────────┐
 │              Databricks Delta Lake (Unity Catalog)              │
 │   Bronze (raw) → Silver (cleaned) → Gold (aggregated+features) │
-│   Catalog: energy_copilot | 40 Delta tables | DLT pipelines    │
+│   Catalog: energy_copilot_catalog | 40+ Delta tables | DLT     │
 └──────────────────────┬──────────────────────────────────────────┘
                        │
         ┌──────────────┼──────────────┐
         ▼              ▼              ▼
 ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐
-│  ML Models   │ │  AI Agent    │ │   Databricks Genie       │
-│ LightGBM ×20 │ │ Claude 4.5   │ │   (NL→SQL analytics)     │
-│ IsoForest ×1 │ │ 13 RAG tools │ │                          │
-│ MLflow UC    │ │ VS + AEMO    │ │                          │
+│  ML Models   │ │  AI Copilot  │ │   Databricks Genie       │
+│ LightGBM ×20 │ │ Claude 4.6   │ │   6 Spaces (NL→SQL)      │
+│ IsoForest ×1 │ │ 7 FMAPI tools│ │                          │
+│ MLflow UC    │ │ VS + RAG     │ │                          │
 └──────┬───────┘ └──────┬───────┘ └──────────────────────────┘
        │                │
        ▼                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              FastAPI Backend (app/backend/main.py)              │
-│   /api/prices  /api/forecasts  /api/generation  /api/chat      │
-│   /api/alerts  /api/market-summary  /api/system/health         │
-│   Rate limiting · SSE streaming · Lakebase (Postgres) sessions │
+│              FastAPI Backend (13 router modules)                │
+│   Lakebase (10-38ms) ← Synced Tables ← Gold ← SQL WH (400ms) │
+│   Rate limiting · SSE streaming · Dashboard snapshots           │
 └──────────────────────┬──────────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                React 18 + Vite 5 Frontend                       │
-│   Home · LiveMarket · Forecasts · Copilot · Genie               │
-│   Alerts · Monitoring                                           │
+│   475 pages · Copilot · Genie · Dashboards · Forecasts          │
 │   Recharts · Tailwind · React Router v6                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Data Serving Layers
 
-## Quick Start
+The app uses a tiered data serving architecture for optimal latency:
 
-### One-command deploy to Databricks
+![Data Serving Layers](docs/images/data-serving-layers.png)
 
-```bash
-# 1. Authenticate with your Databricks workspace
-databricks auth login <workspace-url> --profile=fe-vm-energy-copilot
-
-# 2. Deploy everything (tables, data, simulator, app)
-./deploy.sh fe-vm-energy-copilot
-```
-
-This single command:
-1. Creates the Unity Catalog schemas and all 26 Delta tables
-2. Uploads simulator and backfill notebooks to the workspace
-3. Runs a 90-day historical data backfill (~130K price rows across 9 gold tables)
-4. Starts the live NEM simulator (writes fresh data every 30 seconds)
-5. Builds the React frontend and deploys the Databricks App
-
-### Local development
-
-```bash
-# Run backend in mock mode (no Databricks needed)
-cd app && uvicorn main:app --reload --port 8000
-
-# Run frontend
-cd app/frontend && npm install && npm run dev
-# Open http://localhost:5173
-```
-
-All endpoints fall through to realistic mock data when running locally outside Databricks, so the full UI is usable for development without any cloud credentials.
+| Layer | Latency | Description |
+|-------|---------|-------------|
+| **Lakebase (Postgres)** | 10–38ms | Synced Tables replicate Gold Delta tables into a managed Postgres instance. Primary serving path. |
+| **Dashboard Snapshots** | <10ms | Pre-computed JSON payloads stored in `dashboard_snapshots` table, synced to Lakebase. |
+| **SQL Warehouse** | 400–1000ms | Fallback path querying Gold tables directly via `databricks-sql-connector`. |
+| **In-Memory Cache** | <1ms | Thread-safe TTL cache (10–30s) avoids repeated queries within the same window. |
 
 ---
 
-## Docker Compose
+## Quick Start — Databricks Asset Bundle Deploy
+
+The entire platform deploys with a single `databricks bundle deploy` command. No manual notebook uploads, no workspace file management, no hardcoded configuration.
+
+![Deployment Flow](docs/images/deployment-flow.png)
+
+### Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Databricks Workspace | Serverless-enabled, Unity Catalog active |
+| Databricks CLI | v0.209.0+ (`brew tap databricks/tap && brew install databricks`) |
+| Node.js + npm | For frontend build (`brew install node`) |
+| Databricks Apps | Enabled on the workspace |
+
+### Deploy in 4 Steps
 
 ```bash
-cp .env.example .env.local  # fill in secrets
-docker-compose up
+# Step 1 — Authenticate
+databricks auth login https://your-workspace.cloud.databricks.com --profile=my-profile
+
+# Step 2 — Deploy all resources (App, Jobs, Pipelines, Serving Endpoints, Experiments)
+databricks bundle deploy --target dev --profile=my-profile
+
+# Step 3 — One-time setup: create schemas, tables, run 90-day historical backfill
+databricks bundle run job_00_setup --target dev --profile=my-profile
+
+# Step 4 — Post-deploy: Lakebase permissions, Synced Tables, Genie Spaces
+./post_deploy.sh my-profile dev
 ```
 
-The `docker-compose.yml` starts two services: `backend` (FastAPI on port 8000) and `frontend` (Vite dev server on port 5173). The backend healthcheck (`GET /health`) is used as a `depends_on` condition for the frontend service.
+To start the live data simulator (writes fresh NEM data every 30 seconds):
+
+```bash
+databricks bundle run job_09_simulator --target dev --profile=my-profile
+```
+
+### What Gets Deployed
+
+`databricks bundle deploy` creates all resources in a single operation:
+
+![Bundle Architecture](docs/images/bundle-architecture.png)
+
+| Resource | Count | Description |
+|----------|-------|-------------|
+| **Databricks App** | 1 | FastAPI backend + React frontend, with SQL Warehouse and Lakebase resources |
+| **Jobs** | 10 | Ingest (NEMWEB, OpenElec, Weather, Solar), ML Forecast, Market Summary, Data Quality, Simulator, Snapshots, Setup |
+| **DLT Pipelines** | 4 | Serverless DLT: NEMWEB, OpenElectricity, Weather, Solar |
+| **Model Serving** | 2 | Price Forecast (5 regional models) + Anomaly Detection |
+| **MLflow Experiments** | 5 | Price, Demand, Wind, Solar, Anomaly |
+
+### Validate Before Deploying
+
+```bash
+databricks bundle validate --target dev --profile=my-profile
+```
+
+This checks all YAML syntax, variable references, and resource definitions without making any changes.
+
+### Environment Variables (Bundle-Managed)
+
+All environment variables are set automatically by the bundle via `resources/app.yml`. No manual configuration needed:
+
+| Variable | Set By | Description |
+|----------|--------|-------------|
+| `DATABRICKS_CATALOG` | Bundle | Unity Catalog name (default: `energy_copilot_catalog`) |
+| `LAKEBASE_INSTANCE_NAME` | Bundle | Lakebase Postgres instance (default: `energy-copilot-db`) |
+| `LAKEBASE_DATABASE` | Bundle | Lakebase database name (default: `energy_copilot_db`) |
+| `VS_ENDPOINT_NAME` | Bundle | Vector Search endpoint for RAG |
+| `VS_INDEX_NAME` | Bundle | Vector Search index for AEMO documents |
+| `PGHOST`, `PGPORT`, `PGUSER` | Apps Runtime | Auto-injected by Databricks Apps when Lakebase resource is registered |
+
+### Bundle Variables
+
+Customize deployment via bundle variables:
+
+```bash
+# Deploy with custom catalog name
+databricks bundle deploy --target dev --var="catalog=my_custom_catalog"
+
+# Deploy to production
+databricks bundle deploy --target prod --var="notification_email=ops@mycompany.com"
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `catalog` | `energy_copilot_catalog` | Unity Catalog name |
+| `lakebase_instance_name` | `energy-copilot-db` | Lakebase instance |
+| `lakebase_database` | `energy_copilot_db` | Lakebase database |
+| `warehouse_id` | (lookup) | SQL Warehouse ID (auto-discovered) |
+| `app_name` | `energy-copilot` | Databricks App name |
+| `vs_endpoint_name` | `energy-copilot-vs-endpoint` | Vector Search endpoint |
+| `notification_email` | (empty) | Job failure notification email |
 
 ---
 
@@ -105,37 +167,57 @@ The `docker-compose.yml` starts two services: `backend` (FastAPI on port 8000) a
 
 ```
 energy-copilot/
-├── deploy.sh              # One-command deploy (tables + data + simulator + app)
+├── databricks.yml                # Bundle config (variables + includes)
+├── resources/
+│   ├── app.yml                   # Databricks App (FastAPI + React + Lakebase)
+│   ├── jobs.yml                  # 10 serverless jobs (ingest, ML, simulator, setup)
+│   ├── pipelines.yml             # 4 serverless DLT pipelines
+│   ├── model_serving.yml         # 2 model serving endpoints
+│   └── experiments.yml           # 5 MLflow experiments
 ├── app/
-│   ├── main.py            # FastAPI backend (queries gold tables via databricks-sql-connector)
-│   ├── frontend/          # React 18 + Vite 5 SPA (10 dashboard pages)
-│   ├── requirements.txt   # Python dependencies
-│   └── app.yaml           # Databricks Apps deployment config
-├── setup/
-│   ├── 00_create_catalog.sql   # Unity Catalog DDL
-│   ├── 01_create_schemas.sql   # Schema definitions
-│   ├── 02_create_tables.sql    # Full table DDL (bronze/silver/gold)
-│   ├── 10_nem_simulator.py     # Live data simulator (writes every 30s)
-│   └── 11_historical_backfill.py # 90-day historical data generator
-├── agent/
-│   ├── copilot_agent.py   # Mosaic AI Agent (raw Anthropic SDK + LangChain fallback)
-│   ├── tools/             # 13 LangChain tools (market data, forecasts, analysis, RAG)
-│   ├── rag/               # AEMO document chunking + Vector Search indexer
-│   └── evaluation/        # 50-pair eval dataset + LLM-judge harness
-├── models/
-│   ├── price_forecast/    # LightGBM multi-horizon price forecaster (5 regions)
-│   ├── demand_forecast/   # LightGBM demand forecaster
-│   ├── wind_forecast/     # LightGBM wind generation forecaster
-│   ├── solar_forecast/    # LightGBM solar generation forecaster (night-excluded)
-│   └── anomaly_detection/ # IsolationForest + rule-based anomaly detector
+│   ├── main.py                   # FastAPI backend (194 lines, 13 router includes)
+│   ├── app.yaml                  # Databricks Apps config (command only)
+│   ├── requirements.txt          # Python dependencies
+│   ├── routers/
+│   │   ├── shared.py             # Foundation: logging, cache, SQL, Lakebase, NEM constants
+│   │   ├── home.py               # Home dashboard endpoints (prices, generation, interconnectors)
+│   │   ├── dashboards.py         # Multi-dashboard endpoints (carbon, gas, region comparisons)
+│   │   ├── sidebar.py            # Sidebar data (weather, BESS, DR, alerts, merit order)
+│   │   ├── copilot.py            # AI Copilot (Claude Sonnet 4.6 + 7 FMAPI tools + RAG)
+│   │   ├── genie.py              # Genie AI/BI proxy (6 spaces, NL→SQL)
+│   │   ├── batch_forecasting.py  # Price/demand forecast endpoints
+│   │   ├── batch_bidding.py      # Bid stack, withholding, market concentration
+│   │   ├── batch_futures_hedging.py  # ASX futures, carbon, SRA, hedging
+│   │   ├── spike_analysis.py     # Spike detection and analysis
+│   │   ├── stubs.py              # Illustrative endpoints (hydrogen, regulatory, tariff)
+│   │   └── auto_stubs.py         # 305 auto-generated real-data endpoints
+│   └── frontend/                 # React 18 + Vite 5 SPA (475 pages)
 ├── pipelines/
-│   ├── 01_nemweb_ingest.py    # DLT Bronze→Silver→Gold (prices, gen, interconnectors)
-│   ├── 05_forecast_pipeline.py # ML inference pipeline (20 models, every 5 min)
-│   └── 06_market_summary.py    # Daily market narrative via Claude Sonnet 4.5
-├── tests/                 # pytest suite (unit + integration)
-├── databricks.yml         # Databricks Asset Bundle (6 jobs, 4 DLT pipelines)
-├── Makefile               # Developer convenience targets
-└── docs/DEPLOYMENT.md     # Step-by-step deployment guide
+│   ├── 01_nemweb_ingest.py       # DLT Bronze→Silver→Gold (prices, gen, interconnectors)
+│   ├── 02_openelec_ingest.py     # OpenElectricity API ingest
+│   ├── 03_weather_ingest.py      # Open-Meteo NWP weather ingest
+│   ├── 04_solar_ingest.py        # APVI rooftop solar ingest
+│   ├── 05_forecast_pipeline.py   # ML inference (20 LightGBM + IsolationForest)
+│   ├── 06_market_summary.py      # Daily market narrative (Claude AI)
+│   ├── 09_dashboard_snapshot_generator.py  # Pre-compute dashboard JSON
+│   ├── 11_grant_lakebase_perms.py          # Lakebase SP permissions
+│   └── 12_recreate_synced_tables_continuous.py  # Synced Table creation
+├── setup/
+│   ├── 00_create_catalog.sql     # Unity Catalog DDL
+│   ├── 01_create_schemas.sql     # Schema definitions
+│   ├── 02_create_tables.sql      # Full table DDL (bronze/silver/gold)
+│   ├── 04_create_genie_spaces.py # Genie AI/BI space creation
+│   ├── 10_nem_simulator.py       # Live data simulator (writes every 30s)
+│   └── 11_historical_backfill.py # 90-day historical data generator
+├── post_deploy.sh                # Post-deploy: Lakebase + Genie setup
+├── deploy.sh                     # DEPRECATED — use bundle deploy
+├── models/                       # ML model packages (price, demand, wind, solar, anomaly)
+├── agent/                        # Copilot agent tools + RAG
+├── tests/                        # pytest suite
+└── docs/
+    ├── DEPLOYMENT.md             # Detailed deployment guide
+    ├── PRD.md                    # Product requirements (Phases 1-4)
+    └── images/                   # Architecture diagrams
 ```
 
 ---
@@ -158,7 +240,7 @@ The simulator models realistic patterns: diurnal demand curves, solar peak at mi
 | Table | Description | Update Frequency |
 |-------|-------------|------------------|
 | `nem_prices_5min` | Spot prices by region | Every 30s |
-| `nem_generation_by_fuel` | Generation mix (7 fuel types × 5 regions) | Every 30s |
+| `nem_generation_by_fuel` | Generation mix (7 fuel types x 5 regions) | Every 30s |
 | `nem_interconnectors` | Interconnector flows (5 links) | Every 30s |
 | `demand_actuals` | Demand and rooftop solar | Every 30s |
 | `weather_nem_regions` | Temperature, wind, solar radiation | Every 30s |
@@ -166,6 +248,10 @@ The simulator models realistic patterns: diurnal demand curves, solar peak at mi
 | `price_forecasts` | 3-horizon price forecasts | Every 5 min |
 | `demand_forecasts` | 3-horizon demand forecasts | Every 5 min |
 | `nem_daily_summary` | Daily regional summaries | Daily |
+| `dashboard_snapshots` | Pre-computed dashboard JSON | Every 5 min |
+| `asx_futures_eod` | ASX energy futures | Daily |
+| `gas_hub_prices` | Gas hub prices (5 hubs) | Daily |
+| `emissions_factors` | NGA emission factors by fuel | Quarterly |
 
 ### Live Data Sources (optional)
 
@@ -188,7 +274,40 @@ The simulator models realistic patterns: diurnal demand curves, solar peak at mi
 | Solar Forecast | 5 | LightGBM | <10% | Sun angle proxy, seasonality sin/cos, cloud proxy, night-interval excluded |
 | Anomaly Detection | NEM-wide | IsolationForest + rules | F1 >0.7 | Price/demand rolling mean/std, spike rules (>$5000), negative price (<-$100), regional spread |
 
-All models are registered in MLflow Model Registry (Unity Catalog) under the `energy_copilot.ml` schema with a `production` alias. The forecast inference pipeline (`pipelines/05_forecast_pipeline.py`) loads models via `models:/<name>@production` and writes output to `gold.nem_forecasts_realtime` every 5 minutes.
+All models are registered in MLflow Model Registry (Unity Catalog) under the `energy_copilot.ml` schema with a `production` alias.
+
+---
+
+## AI Copilot
+
+The Copilot (`/copilot`) uses **Claude Sonnet 4.6 via Databricks Foundation Model API** with two modes:
+
+1. **Context-Stuffing**: Pre-fetches 16 live data sources (prices, spikes, interconnectors, generation mix, volatility, BESS, alerts, DR, forecasts, weather, participants, price trend, renewable %, congestion) and injects into the system prompt.
+
+2. **FMAPI Tool Calling**: 7 tools that the LLM can invoke dynamically with a multi-turn loop (max 5 rounds):
+
+| Tool | Description | Data Source |
+|------|-------------|-------------|
+| `query_spot_prices` | NEM RRP by region | `gold.nem_prices_5min` |
+| `query_generation_mix` | Fuel type breakdown | `gold.nem_generation_by_fuel` |
+| `query_interconnectors` | Flows, limits, congestion | `gold.nem_interconnectors` |
+| `query_price_forecasts` | Predicted RRP + confidence | `gold.price_forecasts` |
+| `query_weather` | Temperature, wind, solar | `gold.weather_nem_regions` |
+| `query_demand_forecasts` | Predicted demand MW | `gold.demand_forecasts` |
+| `search_market_rules` | NEM rules/procedures RAG | Vector Search index |
+
+## Genie AI/BI Spaces
+
+The Genie page (`/genie`) provides 6 Databricks AI/BI Genie spaces for natural-language SQL analytics:
+
+| Space | Description | Tables |
+|-------|-------------|--------|
+| NEM Spot Market | Spot prices, demand, spikes, anomalies | `nem_prices_5min`, `anomaly_events`, `demand_actuals` |
+| Generation & Renewables | Fuel mix, emissions, capacity factors | `nem_generation_by_fuel`, `nem_daily_summary` |
+| Network & Interconnectors | Flows, congestion, constraints | `nem_interconnectors`, `nem_constraints_active` |
+| Forecasting & Weather | Price/demand forecasts, weather | `price_forecasts`, `demand_forecasts`, `weather_nem_regions` |
+| Bidding & Trading | Generator fleet, market concentration | `nem_facilities`, `nem_generation_by_fuel`, `nem_prices_5min` |
+| Storage & Battery | Battery fleet, arbitrage, grid integration | `nem_facilities`, `nem_generation_by_fuel`, `nem_interconnectors` |
 
 ---
 
@@ -199,108 +318,61 @@ Key endpoints wired to Unity Catalog gold tables (with mock fallback):
 | Method | Path | Gold Table | Description |
 |--------|------|------------|-------------|
 | `GET` | `/health` | — | Service health, SQL connection status |
-| `GET` | `/api/prices/latest` | `nem_prices_5min` | Latest spot prices for all 5 NEM regions with trend indicators |
+| `GET` | `/api/health/datasource` | — | Lakebase connection status + query stats |
+| `GET` | `/api/prices/latest` | `nem_prices_5min` | Latest spot prices for all 5 NEM regions |
 | `GET` | `/api/prices/history` | `nem_prices_5min` | 24h of 5-minute price points for a region |
-| `GET` | `/api/prices/volatility` | `nem_prices_5min` | 24h volatility metrics (avg, stddev, min, max, spike count) |
-| `GET` | `/api/prices/spikes` | `anomaly_events` | Recent price spike events |
-| `GET` | `/api/generation` | `nem_generation_by_fuel` | Generation mix time series (24h, by fuel type) |
-| `GET` | `/api/generation/mix` | `nem_generation_by_fuel` | Current generation mix percentages and renewable share |
-| `GET` | `/api/interconnectors` | `nem_interconnectors` | Interconnector flows, limits, and congestion |
-| `GET` | `/api/forecasts` | `price_forecasts` | Multi-horizon price forecasts with confidence intervals |
-| `GET` | `/api/market-summary/latest` | `daily_market_summary` | AI-generated market narrative |
-| `POST` | `/api/chat` | All (via context) | SSE-streaming copilot chat (Claude Sonnet 4.6 via Databricks Foundation Model API) |
+| `GET` | `/api/prices/volatility` | `nem_prices_5min` | 24h volatility metrics |
+| `GET` | `/api/interconnectors` | `nem_interconnectors` | Interconnector flows, limits, congestion |
+| `GET` | `/api/forecasts` | `price_forecasts` | Multi-horizon price forecasts with confidence |
+| `POST` | `/api/chat` | All (via context) | SSE-streaming copilot chat (Claude Sonnet 4.6) |
+| `GET` | `/api/genie/spaces` | — | List 6 Genie AI/BI spaces |
 
-All endpoints include 25-second TTL caching (aligned to the 30-second simulator cadence) and automatically fall through to mock data when the SQL connection is unavailable.
+All endpoints include TTL caching (10-30s) and automatically fall through to mock data when the SQL connection is unavailable. Response headers `X-Data-Source` and `X-Query-Ms` indicate which backend served the data and latency.
 
 ---
 
-## Development
+## Local Development
 
 ```bash
-# Run the full test suite (unit tests only; no live cloud services required)
-make test
+# Run backend in mock mode (no Databricks needed)
+cd app && uvicorn main:app --reload --port 8000
 
-# Lint and format check
-make lint
-
-# Start the backend (mock mode, no Databricks needed)
-make backend
-
-# Start the frontend dev server
-make frontend
+# Run frontend
+cd app/frontend && npm install && npm run dev
+# Open http://localhost:5173
 ```
 
-Available `make` targets: `test`, `lint`, `format`, `backend`, `frontend`, `docker-up`, `docker-down`, `eval`, `help`.
+All endpoints fall through to realistic mock data when running locally outside Databricks, so the full UI is usable for development without any cloud credentials.
 
-### Running tests manually
+### Running Tests
 
 ```bash
-# From repo root
 pytest tests/ -v -k "not integration"
-
-# With coverage
 pytest tests/ --cov=app --cov=agent --cov=models -v
 ```
-
-Integration tests (requiring live Databricks) are gated by the `ENERGY_COPILOT_INTEGRATION_TEST=1` environment variable and are excluded from the standard CI run.
-
----
-
-## Environment Variables
-
-When deployed as a Databricks App, authentication is handled automatically via the Databricks SDK — no manual tokens or environment variables required. The app auto-discovers the workspace host, authenticates via OAuth, and finds the SQL warehouse.
-
-For local development, no environment variables are needed — all endpoints serve mock data automatically.
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ALLOW_ORIGINS` | No | CORS allowed origins (default: `*`) |
-| `RATE_LIMIT_REQUESTS` | No | Max requests per IP per window (default: 60) |
-| `LOG_LEVEL` | No | Logging level (default: `INFO`) |
-
----
-
-## Sprint Status
-
-- [x] Sprint 0: Foundation — Unity Catalog, Bronze DLT pipelines, 12-month historical backfill, Lakebase Postgres tables
-- [x] Sprint 1: Silver/Gold Medallion + Dashboard — cleaned/aggregated layers, Home + Live Market pages, backend rewrite (db.py, mock_data.py)
-- [x] Sprint 2: Forecasting Models — 20 LightGBM models (price, demand, wind, solar x 5 regions) + IsolationForest anomaly detector
-- [x] Sprint 3: AI Copilot Agent — 14 UC function tools, AEMO RAG Vector Search index, Claude Sonnet 4.5, streaming Chat UI
-- [x] Sprint 4: Genie Spaces, Alerts, Databricks Asset Bundle, CI/CD pipeline, Deployment guide
-- [x] Sprint 5: Docker Compose, shared pytest fixtures, Home market-summary widget, Alerts page wiring
-- [x] Sprint 6: Wind/Solar model depth (Optuna HPO, capacity factor features), CI config quality fixes
-- [x] Sprint 7a: Wind + Solar evaluate.py (capacity-weighted bias, ramp accuracy, seasonal MAPE)
-- [x] Sprint 7b: Agent eval CI job, production hardening (rate limiting, X-Request-ID), extended market summary fields
-- [x] Sprint 7c: Demand evaluate.py, LiveMarket spike indicator, Forecasts confidence band
-- [x] Sprint 8a: Price + Anomaly evaluate.py depth (per-horizon MAE, spike recall, per-event-type F1)
-- [x] Sprint 8b: Forecast + Market Summary pipelines rewrite (production inference, narrative quality checks)
-- [x] Sprint 8c: System Monitoring frontend — /api/system/health endpoint, Monitoring page (21-model grid, infra cards)
-- [x] Sprint 9a: README rewrite (full architecture, ML table, API table, sprint checklist), Sprint 8 endpoint tests
 
 ---
 
 ## Deployment
 
-### Automated (recommended)
+### Bundle Deploy (Recommended)
+
+See the [Quick Start](#quick-start--databricks-asset-bundle-deploy) section above, or the detailed guide at [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+### Legacy Deploy (Deprecated)
+
+The old `deploy.sh` script is deprecated. It still works if you set `FORCE_LEGACY_DEPLOY=1`:
 
 ```bash
-./deploy.sh <databricks-cli-profile>
+FORCE_LEGACY_DEPLOY=1 ./deploy.sh my-profile
 ```
 
-The deploy script handles the full sequence:
-
-1. **Create schemas** — `bronze`, `silver`, `gold`, `ml`, `tools` in `energy_copilot_catalog`
-2. **Create tables** — 4 bronze + 5 silver + 13 gold Delta tables with auto-optimize
-3. **Upload notebooks** — simulator and backfill to workspace
-4. **Run historical backfill** — 90-day backfill (waits for completion, prints progress)
-5. **Start live simulator** — creates a Databricks Job that writes data every 30 seconds
-6. **Deploy app** — builds frontend, uploads to workspace, deploys as a Databricks App
-
-The script is idempotent — safe to re-run. It finds existing jobs, uses `CREATE IF NOT EXISTS` for tables, and the backfill skips if data already exists.
-
-### Manual
-
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for step-by-step manual instructions.
+But the bundle deploy approach is strongly recommended as it:
+- Deploys everything in a single command
+- Manages all resources declaratively (jobs, pipelines, app, serving endpoints)
+- Uses serverless compute (no cluster management)
+- Supports multiple targets (dev/prod) with variable overrides
+- Is idempotent and version-controlled
 
 ---
 

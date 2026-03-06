@@ -3,6 +3,44 @@
 All notable changes to AUS Energy Copilot are documented here.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Bundle Deploy] - 2026-03-06
+
+### Added
+- **Databricks Asset Bundle deployment** — single `databricks bundle deploy` command deploys all resources (App, 10 Jobs, 4 DLT Pipelines, 2 Model Serving Endpoints, 5 MLflow Experiments)
+- `resources/app.yml` — Databricks App resource with SQL Warehouse + Lakebase database resources
+- `resources/jobs.yml` — 10 serverless jobs (setup, ingest x4, ML, market summary, data quality, simulator, snapshots)
+- `resources/pipelines.yml` — 4 serverless DLT pipelines (no cluster blocks)
+- `resources/model_serving.yml` — Price Forecast (5 regions) + Anomaly Detection endpoints
+- `resources/experiments.yml` — 5 MLflow experiments
+- `post_deploy.sh` — Post-deploy script for Lakebase permissions, Synced Tables, and Genie Space creation
+- `job_00_setup` — One-time setup job (schemas + tables + 90-day backfill)
+- `job_09_simulator` — NEM simulator job (manual start, continuous)
+- `job_10_dashboard_snapshots` — Dashboard snapshot generator (every 5 min)
+- Bundle variables: `catalog`, `lakebase_instance_name`, `lakebase_database`, `warehouse_id`, `app_name`, `vs_endpoint_name`, `notification_email`
+- Architecture diagrams in `docs/images/` (deployment flow, bundle architecture, data serving layers)
+
+### Changed
+- `databricks.yml` — Rewritten to use variables + `include: resources/*.yml` + targets only (was monolithic 544 lines)
+- `app/app.yaml` — Simplified to `command:` only (env vars now managed by bundle in `resources/app.yml`)
+- `app/routers/shared.py` — `_CATALOG` now reads from `DATABRICKS_CATALOG` env var (was hardcoded)
+- `app/routers/genie.py` — Workspace URL fallback reads from `DATABRICKS_HOST` env var (was hardcoded to `fevm-energy-copilot.cloud.databricks.com`)
+- `app/routers/copilot.py` — VS endpoint/index now read from `VS_ENDPOINT_NAME`/`VS_INDEX_NAME` env vars
+- 6 pipeline notebooks — Added `dbutils.widgets.get("catalog")` widget pattern (was hardcoded catalog name)
+- 2 Lakebase notebooks — Parameterized SP UUID, instance name, database name via widgets
+- All jobs — Replaced `new_cluster:` with `environment_key: default` for serverless compute
+- All DLT pipelines — Removed `clusters:` blocks for serverless execution
+- All notification emails — Replaced hardcoded `ops@energy-copilot.internal` with `${var.notification_email}`
+- README.md — Complete rewrite with bundle deploy instructions, architecture diagrams, and comprehensive reference
+- docs/DEPLOYMENT.md — Complete rewrite covering bundle deploy workflow
+
+### Deprecated
+- `deploy.sh` — Now prints deprecation warning and exits unless `FORCE_LEGACY_DEPLOY=1` is set
+
+### Removed
+- Broken `batch_scoring_notebook` sub-task in job_05 (used `existing_cluster_id: ""`)
+- `python_wheel_task` in job_08 (replaced with `notebook_task` for serverless compatibility)
+- Hardcoded cluster configs (`new_cluster` blocks with `i3.xlarge`, `SPOT_WITH_FALLBACK`, `spark_version`)
+
 ## [Sprint 171] - 2026-02-26
 
 ### Fixed

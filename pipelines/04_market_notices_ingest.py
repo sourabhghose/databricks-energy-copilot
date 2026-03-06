@@ -31,7 +31,10 @@ NOTICE_SCHEMA = StructType([
     StructField("reason", StringType(), True),
 ])
 
-CATALOG = "energy_copilot_catalog"
+try:
+    CATALOG = dbutils.widgets.get("catalog")
+except Exception:
+    CATALOG = "energy_copilot_catalog"
 SCHEMA = "nemweb_analytics"
 
 

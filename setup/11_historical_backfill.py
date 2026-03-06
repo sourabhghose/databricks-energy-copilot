@@ -17,7 +17,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 spark.conf.set("spark.sql.session.timeZone", "Australia/Sydney")
-CATALOG = "energy_copilot_catalog"
+try:
+    CATALOG = dbutils.widgets.get("catalog")
+except Exception:
+    CATALOG = "energy_copilot_catalog"
 AEST = timezone(timedelta(hours=10))
 
 DAYS_BACK = 90

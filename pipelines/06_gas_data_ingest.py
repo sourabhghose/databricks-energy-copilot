@@ -17,7 +17,10 @@ from pyspark.sql.functions import (
 )
 
 
-CATALOG = "energy_copilot_catalog"
+try:
+    CATALOG = dbutils.widgets.get("catalog")
+except Exception:
+    CATALOG = "energy_copilot_catalog"
 SCHEMA = "nemweb_analytics"
 
 # AEMO GBB public CSV URLs (no authentication required)

@@ -1,0 +1,52 @@
+---
+title: Energy Copilot — Bundle Resource Architecture
+---
+flowchart LR
+    YAML["databricks.yml<br/>(Bundle Root)"]
+
+    subgraph APP["resources/app.yml"]
+        direction TB
+        A1["App\nenergy-copilot"]
+        A2["SQL Warehouse"]
+        A3["Lakebase DB"]
+    end
+
+    subgraph JOBS["resources/jobs.yml"]
+        direction TB
+        J0["Job 00 — Setup"]
+        J1["Job 01-04 — Ingest"]
+        J2["Job 05 — ML"]
+        J3["Job 06 — Summary"]
+        J4["Job 08 — DQ"]
+        J5["Job 09 — Simulator"]
+        J6["Job 10 — Snapshots"]
+    end
+
+    subgraph PIPELINES["resources/pipelines.yml"]
+        direction TB
+        P1["DLT NEMWEB"]
+        P2["DLT OpenElec"]
+        P3["DLT Weather"]
+        P4["DLT Solar"]
+    end
+
+    subgraph SERVING["resources/model_serving.yml"]
+        direction TB
+        S1["Price Forecast Endpoint<br/>(5 regions)"]
+        S2["Anomaly Detection Endpoint"]
+    end
+
+    subgraph EXPERIMENTS["resources/experiments.yml"]
+        direction TB
+        E1["MLflow Experiment 1"]
+        E2["MLflow Experiment 2"]
+        E3["MLflow Experiment 3"]
+        E4["MLflow Experiment 4"]
+        E5["MLflow Experiment 5"]
+    end
+
+    YAML --> APP
+    YAML --> JOBS
+    YAML --> PIPELINES
+    YAML --> SERVING
+    YAML --> EXPERIMENTS

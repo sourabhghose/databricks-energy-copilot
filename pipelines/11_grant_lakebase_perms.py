@@ -17,23 +17,36 @@ import socket
 import uuid
 from databricks.sdk import WorkspaceClient
 
+try:
+    instance_name = dbutils.widgets.get("lakebase_instance_name")
+except Exception:
+    instance_name = "energy-copilot-db"
+try:
+    db_name = dbutils.widgets.get("lakebase_db")
+except Exception:
+    db_name = "energy_copilot_db"
+try:
+    sp_user = dbutils.widgets.get("app_sp_uuid")
+except Exception:
+    sp_user = "67aaaa6b-778c-4c8b-b2f0-9f9b9728b3bb"
+
 w = WorkspaceClient()
-instance = w.database.get_database_instance(name="energy-copilot-db")
+instance = w.database.get_database_instance(name=instance_name)
 host = instance.read_write_dns
 ip = socket.gethostbyname(host)
 username = w.current_user.me().user_name
 cred = w.database.generate_database_credential(
     request_id=str(uuid.uuid4()),
-    instance_names=["energy-copilot-db"],
+    instance_names=[instance_name],
 )
 
-print(f"Connecting as {username} to {host} ({ip}), dbname=energy_copilot_db")
+print(f"Connecting as {username} to {host} ({ip}), dbname={db_name}")
 
 conn = None
 for port in [443, 5432]:
     try:
         conn = psycopg.connect(
-            host=host, hostaddr=ip, port=port, dbname="energy_copilot_db",
+            host=host, hostaddr=ip, port=port, dbname=db_name,
             user=username, password=cred.token, sslmode="require", connect_timeout=10,
         )
         print(f"Connected on port {port}")
@@ -44,8 +57,6 @@ for port in [443, 5432]:
 assert conn, "Could not connect to Lakebase"
 conn.autocommit = True
 cur = conn.cursor()
-
-sp_user = "67aaaa6b-778c-4c8b-b2f0-9f9b9728b3bb"
 
 # Grant USAGE on gold schema
 cur.execute(f'GRANT USAGE ON SCHEMA gold TO "{sp_user}"')

@@ -19,14 +19,31 @@ import uuid
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.database import SyncedDatabaseTable, SyncedTableSpec, SyncedTableSchedulingPolicy
 
+try:
+    instance_name = dbutils.widgets.get("lakebase_instance_name")
+except Exception:
+    instance_name = "energy-copilot-db"
+try:
+    db_name = dbutils.widgets.get("lakebase_db")
+except Exception:
+    db_name = "energy_copilot_db"
+try:
+    sp_user = dbutils.widgets.get("app_sp_uuid")
+except Exception:
+    sp_user = "67aaaa6b-778c-4c8b-b2f0-9f9b9728b3bb"
+try:
+    CATALOG = dbutils.widgets.get("catalog")
+except Exception:
+    CATALOG = f"{CATALOG"
+
 w = WorkspaceClient()
-instance = w.database.get_database_instance(name="energy-copilot-db")
+instance = w.database.get_database_instance(name=instance_name)
 host = instance.read_write_dns
 ip = socket.gethostbyname(host)
 username = w.current_user.me().user_name
 cred = w.database.generate_database_credential(
     request_id=str(uuid.uuid4()),
-    instance_names=["energy-copilot-db"],
+    instance_names=[instance_name],
 )
 
 conn = None
@@ -48,26 +65,26 @@ cur = conn.cursor()
 # Tables to recreate with CONTINUOUS sync
 tables = [
     {
-        "synced_name": "energy_copilot_catalog.gold.nem_prices_5min_dedup_synced",
-        "source": "energy_copilot_catalog.gold.nem_prices_5min_dedup",
+        "synced_name": f"{CATALOG}.gold.nem_prices_5min_dedup_synced",
+        "source": f"{CATALOG}.gold.nem_prices_5min_dedup",
         "pk": ["region_id", "interval_datetime"],
         "pg_table": "gold.nem_prices_5min_dedup_synced",
     },
     {
-        "synced_name": "energy_copilot_catalog.gold.nem_interconnectors_dedup_synced",
-        "source": "energy_copilot_catalog.gold.nem_interconnectors_dedup",
+        "synced_name": f"{CATALOG}.gold.nem_interconnectors_dedup_synced",
+        "source": f"{CATALOG}.gold.nem_interconnectors_dedup",
         "pk": ["interconnector_id", "interval_datetime"],
         "pg_table": "gold.nem_interconnectors_dedup_synced",
     },
     {
-        "synced_name": "energy_copilot_catalog.gold.nem_generation_by_fuel_synced",
-        "source": "energy_copilot_catalog.gold.nem_generation_by_fuel_dedup",
+        "synced_name": f"{CATALOG}.gold.nem_generation_by_fuel_synced",
+        "source": f"{CATALOG}.gold.nem_generation_by_fuel_dedup",
         "pk": ["region_id", "fuel_type", "interval_datetime"],
         "pg_table": "gold.nem_generation_by_fuel_synced",
     },
     {
-        "synced_name": "energy_copilot_catalog.gold.dashboard_snapshots_synced",
-        "source": "energy_copilot_catalog.gold.dashboard_snapshots",
+        "synced_name": f"{CATALOG}.gold.dashboard_snapshots_synced",
+        "source": f"{CATALOG}.gold.dashboard_snapshots",
         "pk": ["endpoint_path", "region"],
         "pg_table": "gold.dashboard_snapshots_synced",
     },
@@ -96,15 +113,13 @@ for t in tables:
 # COMMAND ----------
 
 # Step 3: Recreate synced tables with CONTINUOUS scheduling
-sp_user = "67aaaa6b-778c-4c8b-b2f0-9f9b9728b3bb"
-
 for t in tables:
     try:
         result = w.database.create_synced_database_table(
             SyncedDatabaseTable(
                 name=t["synced_name"],
-                database_instance_name="energy-copilot-db",
-                logical_database_name="energy_copilot_db",
+                database_instance_name=instance_name,
+                logical_database_name=db_name,
                 spec=SyncedTableSpec(
                     source_table_full_name=t["source"],
                     primary_key_columns=t["pk"],
@@ -126,10 +141,10 @@ time.sleep(10)  # Wait for tables to be created
 # Reconnect (token may have changed)
 cred2 = w.database.generate_database_credential(
     request_id=str(uuid.uuid4()),
-    instance_names=["energy-copilot-db"],
+    instance_names=[instance_name],
 )
 conn2 = psycopg.connect(
-    host=host, hostaddr=ip, port=conn.info.port, dbname="energy_copilot_db",
+    host=host, hostaddr=ip, port=conn.info.port, dbname=db_name,
     user=username, password=cred2.token, sslmode="require", connect_timeout=10,
 )
 conn2.autocommit = True

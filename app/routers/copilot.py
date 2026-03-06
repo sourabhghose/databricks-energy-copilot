@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -136,8 +137,8 @@ _FMAPI_TOOLS = [
 # Vector Search client (lazy-loaded)
 # ---------------------------------------------------------------------------
 _vs_index = None
-_VS_ENDPOINT = "energy-copilot-vs-endpoint"
-_VS_INDEX_NAME = "energy_copilot_catalog.gold.aemo_docs_vs_index"
+_VS_ENDPOINT = os.environ.get("VS_ENDPOINT_NAME", "energy-copilot-vs-endpoint")
+_VS_INDEX_NAME = os.environ.get("VS_INDEX_NAME", f"{_CATALOG}.gold.aemo_docs_vs_index")
 
 
 def _dispatch_tool(name: str, arguments: dict) -> str:

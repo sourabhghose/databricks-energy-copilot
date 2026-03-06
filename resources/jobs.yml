@@ -1,0 +1,302 @@
+# ============================================================
+# Jobs — All serverless (environment_key, no new_cluster)
+# ============================================================
+
+resources:
+  jobs:
+
+    # -----------------------------------------------------------------
+    # Job 00 — One-Time Setup (schemas, tables, backfill)
+    # -----------------------------------------------------------------
+    job_00_setup:
+      name: "[${bundle.target}] 00 — Initial Setup"
+      description: "One-time setup: create schemas, create tables, run 90-day historical backfill."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "00_setup"
+      tasks:
+        - task_key: create_schemas
+          notebook_task:
+            notebook_path: setup/01_create_schemas.sql
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: create_tables
+          depends_on:
+            - task_key: create_schemas
+          notebook_task:
+            notebook_path: setup/02_create_tables.sql
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: backfill
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: setup/11_historical_backfill.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 01 — NEMWEB Ingest (every 5 min)
+    # -----------------------------------------------------------------
+    job_01_nemweb_ingest:
+      name: "[${bundle.target}] 01 — NEMWEB Ingest"
+      description: "Bronze→Silver→Gold DLT pipeline for NEMWEB dispatch data. 5-minute cadence."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "01_nemweb_ingest"
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: nemweb_ingest
+          notebook_task:
+            notebook_path: pipelines/01_nemweb_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 02 — OpenElectricity Ingest (every 30 min)
+    # -----------------------------------------------------------------
+    job_02_openelec_ingest:
+      name: "[${bundle.target}] 02 — OpenElectricity Ingest"
+      description: "Incremental ingest from OpenElectricity API (renewable generation, capacity factors)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "02_openelec_ingest"
+      schedule:
+        quartz_cron_expression: "0 */30 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: openelec_ingest
+          notebook_task:
+            notebook_path: pipelines/02_openelec_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 03 — Weather Ingest (every hour at :10)
+    # -----------------------------------------------------------------
+    job_03_weather_ingest:
+      name: "[${bundle.target}] 03 — Weather Ingest"
+      description: "Open-Meteo BOM ACCESS-G NWP ingest (+1h/+4h/+24h forecast horizons)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "03_weather_ingest"
+      schedule:
+        quartz_cron_expression: "0 10 */1 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: weather_ingest
+          notebook_task:
+            notebook_path: pipelines/03_weather_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 04 — Solar Ingest (every hour at :20)
+    # -----------------------------------------------------------------
+    job_04_solar_ingest:
+      name: "[${bundle.target}] 04 — Solar Ingest"
+      description: "APVI rooftop solar ingest (ACT→NSW1 region mapping)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "04_solar_ingest"
+      schedule:
+        quartz_cron_expression: "0 20 */1 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: solar_ingest
+          notebook_task:
+            notebook_path: pipelines/04_solar_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 05 — Forecast Pipeline (every 5 min at :02)
+    # -----------------------------------------------------------------
+    job_05_forecast_pipeline:
+      name: "[${bundle.target}] 05 — Forecast Pipeline"
+      description: "ML inference: LightGBM price/demand/wind/solar + IsolationForest anomaly detection."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "05_forecast_pipeline"
+      schedule:
+        quartz_cron_expression: "0 2 */5 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: forecast_pipeline
+          notebook_task:
+            notebook_path: pipelines/05_forecast_pipeline.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - lightgbm>=4.0.0
+              - scikit-learn>=1.4.0
+              - mlflow>=2.13.0
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 06 — Daily Market Summary (05:30 AEST = 19:30 UTC)
+    # -----------------------------------------------------------------
+    job_06_market_summary:
+      name: "[${bundle.target}] 06 — Daily Market Summary"
+      description: "Claude Sonnet AI-generated daily NEM market narrative. Runs at 05:30 AEST."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "06_market_summary"
+      schedule:
+        quartz_cron_expression: "0 30 19 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: market_summary
+          notebook_task:
+            notebook_path: pipelines/06_market_summary.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - anthropic>=0.44.0
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 08 — Data Quality Report (daily 06:00 AEST = 20:00 UTC)
+    # -----------------------------------------------------------------
+    job_08_data_quality_report:
+      name: "[${bundle.target}] 08 — Data Quality Report"
+      description: "Daily data quality report: DLT expectations, Gold table freshness, row counts, null rates."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "08_data_quality_report"
+      schedule:
+        quartz_cron_expression: "0 0 20 * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: data_quality_report
+          notebook_task:
+            notebook_path: pipelines/08_data_quality_report.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+
+    # -----------------------------------------------------------------
+    # Job 09 — NEM Simulator (manual start, continuous)
+    # -----------------------------------------------------------------
+    job_09_simulator:
+      name: "[${bundle.target}] 09 — NEM Simulator"
+      description: "Writes simulated NEM market data every 30s. Start manually, runs continuously."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "09_simulator"
+      tasks:
+        - task_key: nem_simulator
+          notebook_task:
+            notebook_path: setup/10_nem_simulator.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      timeout_seconds: 0
+
+    # -----------------------------------------------------------------
+    # Job 10 — Dashboard Snapshot Generator (every 5 min)
+    # -----------------------------------------------------------------
+    job_10_dashboard_snapshots:
+      name: "[${bundle.target}] 10 — Dashboard Snapshots"
+      description: "Pre-computes JSON payloads for dashboard endpoints. Enables sub-10ms Lakebase reads."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "10_snapshots"
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: snapshot_generator
+          notebook_task:
+            notebook_path: pipelines/09_dashboard_snapshot_generator.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1

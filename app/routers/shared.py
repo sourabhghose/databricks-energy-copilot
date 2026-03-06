@@ -121,7 +121,7 @@ _AEST = timezone(timedelta(hours=10))
 # ---------------------------------------------------------------------------
 # SQL query helper — query gold tables via Databricks SQL
 # ---------------------------------------------------------------------------
-_CATALOG = "energy_copilot_catalog"
+_CATALOG = os.environ.get("DATABRICKS_CATALOG", "energy_copilot_catalog")
 _sql_connection = None
 
 

@@ -1,0 +1,66 @@
+# ============================================================
+# DLT Pipelines — Serverless (no cluster spec needed)
+# ============================================================
+
+resources:
+  pipelines:
+
+    dlt_nemweb_ingest:
+      name: "[${bundle.target}] DLT — NEMWEB Ingest (01)"
+      description: "Delta Live Tables pipeline for NEMWEB Bronze→Silver→Gold medallion. Autoloader streaming."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/01_nemweb_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+    dlt_openelec_ingest:
+      name: "[${bundle.target}] DLT — OpenElectricity Ingest (02)"
+      description: "Delta Live Tables pipeline for OpenElectricity API incremental ingest."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/02_openelec_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+    dlt_weather_ingest:
+      name: "[${bundle.target}] DLT — Weather Ingest (03)"
+      description: "Delta Live Tables pipeline for Open-Meteo NWP weather data."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/03_weather_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW
+
+    dlt_solar_ingest:
+      name: "[${bundle.target}] DLT — Solar Ingest (04)"
+      description: "Delta Live Tables pipeline for APVI rooftop solar data."
+      catalog: ${var.catalog}
+      target: gold
+      libraries:
+        - notebook:
+            path: pipelines/04_solar_ingest.py
+      configuration:
+        catalog: ${var.catalog}
+      development: ${bundle.target == "dev"}
+      continuous: false
+      photon: true
+      channel: PREVIEW

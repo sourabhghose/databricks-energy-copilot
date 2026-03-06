@@ -13,7 +13,10 @@ import json
 from datetime import datetime, timezone
 from pyspark.sql import functions as F
 
-CATALOG = "energy_copilot_catalog"
+try:
+    CATALOG = dbutils.widgets.get("catalog")
+except Exception:
+    CATALOG = "energy_copilot_catalog"
 GOLD = f"{CATALOG}.gold"
 SNAPSHOTS = f"{GOLD}.dashboard_snapshots"
 
