@@ -1214,6 +1214,30 @@ async def surveillance_dashboard():
 @router.get("/api/market-notices", summary="AEMO market notices", tags=["Live Ops"])
 async def market_notices():
     """Return list of recent AEMO market notices."""
+    # Try real market notice data
+    rows = _query_gold(f"""
+        SELECT notice_id, notice_type, category, region, reason,
+               effective_date, external_reference
+        FROM {_CATALOG}.gold.nem_market_notices
+        ORDER BY effective_date DESC
+        LIMIT 20
+    """)
+    if rows and len(rows) >= 3:
+        notices = []
+        for r in rows:
+            cat = (r.get("category") or "OTHER").upper()
+            sev = "critical" if cat in ("SYSTEM_SECURITY", "MARKET_INTERVENTION") else "warning" if cat == "CONSTRAINT" else "info"
+            notices.append({
+                "id": f"MN-{r['notice_id']}",
+                "type": r.get("notice_type") or cat,
+                "severity": sev,
+                "message": (r.get("reason") or "")[:200],
+                "issued_at": str(r.get("effective_date") or "").replace(" ", "T"),
+                "region": r.get("region") or "NEM",
+            })
+        return notices
+
+    # Mock fallback
     rng = random.Random(int(time.time() // 30))
     now = datetime.now(timezone.utc)
     notice_types = [
@@ -1257,10 +1281,18 @@ async def live_ops_status():
             "latency_ms": round(rng.uniform(15, 250), 0) if up else None,
             "last_check": (now - timedelta(seconds=rng.randint(5, 120))).isoformat(),
         })
+    # Get real notice count from last 24h
+    notice_count_rows = _query_gold(f"""
+        SELECT COUNT(*) AS cnt
+        FROM {_CATALOG}.gold.nem_market_notices
+        WHERE effective_date >= current_timestamp() - INTERVAL 24 HOURS
+    """)
+    active_notices = int((notice_count_rows[0] if notice_count_rows else {}).get("cnt") or rng.randint(2, 8))
+
     return {
         "overall": "operational" if all(s["status"] == "operational" for s in statuses) else "degraded",
         "services": statuses,
-        "active_market_notices": rng.randint(2, 8),
+        "active_market_notices": active_notices,
         "nem_trading_interval": now.strftime("%Y-%m-%dT%H:%M:00Z"),
     }
 
@@ -1273,6 +1305,45 @@ async def live_ops_status():
 @router.get("/api/market/notices", summary="Market notices (frontend path)", tags=["Live Ops"])
 async def market_notices_frontend(severity: str = Query(None), notice_type: str = Query(None), limit: int = Query(20)):
     """Return MarketNotice[] matching frontend interface."""
+    safe_limit = min(max(1, limit), 50)
+
+    # Try real market notice data
+    rows = _query_gold(f"""
+        SELECT notice_id, notice_type, category, region, reason,
+               effective_date, external_reference
+        FROM {_CATALOG}.gold.nem_market_notices
+        ORDER BY effective_date DESC
+        LIMIT {safe_limit * 2}
+    """)
+    if rows and len(rows) >= 3:
+        notices = []
+        for r in rows:
+            cat = (r.get("category") or "OTHER").upper()
+            ntype = r.get("notice_type") or cat
+            sev = "critical" if cat in ("SYSTEM_SECURITY", "MARKET_INTERVENTION") else "warning" if cat == "CONSTRAINT" else "info"
+            reg = r.get("region")
+            regions_affected = [reg] if reg else []
+
+            if severity and sev != severity:
+                continue
+            if notice_type and ntype != notice_type:
+                continue
+
+            notices.append({
+                "notice_id": f"MN-{r['notice_id']}",
+                "notice_type": ntype,
+                "creation_date": str(r.get("effective_date") or "").replace(" ", "T"),
+                "external_reference": r.get("external_reference") or "",
+                "reason": (r.get("reason") or "")[:300],
+                "regions_affected": regions_affected,
+                "severity": sev,
+                "resolved": True,
+            })
+            if len(notices) >= safe_limit:
+                break
+        return notices
+
+    # Mock fallback
     rng = random.Random(int(time.time() // 30))
     now = datetime.now(timezone.utc)
     notice_types = [

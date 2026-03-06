@@ -2096,7 +2096,22 @@ async def electricity_market_transparency_dashboard():
 
     data_quality = [{"report_month":f"2025-{m:02d}","data_type":dt,"completeness_pct":round(random.uniform(95,100),1),"timeliness_score":round(random.uniform(7,10),1),"error_rate_pct":round(random.uniform(0.1,2),2),"corrections_issued":random.randint(0,5),"user_complaints":random.randint(0,3),"api_uptime_pct":round(random.uniform(99,99.99),2),"revision_frequency":round(random.uniform(0.5,3),1)} for dt in ["Dispatch","Settlement","Bids","Forecasts"] for m in range(1,13)]
     compliance = [{"participant":n,"participant_type":pt,"reporting_period":"2025","reports_due":52,"reports_submitted":random.randint(48,52),"reports_late":random.randint(0,4),"data_errors":random.randint(0,8),"non_compliance_notices":random.randint(0,2),"penalty_aud":round(random.uniform(0,50000)),"exemptions_granted":random.randint(0,1)} for n,pt in [("Origin","Generator"),("AGL","Generator"),("EnergyAustralia","Retailer"),("Snowy Hydro","Generator")]]
-    notices = [{"notice_id":f"MN-{i}","notice_date":f"2026-02-{random.randint(1,26):02d}","notice_type":nt,"region":random.choice(["NSW1","QLD1","VIC1","SA1"]),"lead_time_minutes":random.randint(15,120),"accuracy_pct":round(random.uniform(70,100),1),"market_impact_mwh":round(random.uniform(0,500)),"price_impact_mwh":round(random.uniform(-20,50),2),"participants_affected":random.randint(5,50)} for i,nt in enumerate(["Inter-Regional Transfer Limit","Constraint","LOR Warning","Price Revision","System Normal"])]
+    # Try real market notices for transparency dashboard
+    notice_rows = _query_gold(f"""
+        SELECT notice_id, notice_type, category, region, effective_date
+        FROM {_CATALOG}.gold.nem_market_notices
+        ORDER BY effective_date DESC
+        LIMIT 10
+    """)
+    if notice_rows and len(notice_rows) >= 3:
+        notices = [{"notice_id": f"MN-{r['notice_id']}", "notice_date": str(r.get("effective_date") or "")[:10],
+                     "notice_type": r.get("notice_type") or r.get("category") or "General",
+                     "region": r.get("region") or "NEM",
+                     "lead_time_minutes": random.randint(15, 120), "accuracy_pct": round(random.uniform(70, 100), 1),
+                     "market_impact_mwh": round(random.uniform(0, 500)), "price_impact_mwh": round(random.uniform(-20, 50), 2),
+                     "participants_affected": random.randint(5, 50)} for r in notice_rows[:5]]
+    else:
+        notices = [{"notice_id":f"MN-{i}","notice_date":f"2026-02-{random.randint(1,26):02d}","notice_type":nt,"region":random.choice(["NSW1","QLD1","VIC1","SA1"]),"lead_time_minutes":random.randint(15,120),"accuracy_pct":round(random.uniform(70,100),1),"market_impact_mwh":round(random.uniform(0,500)),"price_impact_mwh":round(random.uniform(-20,50),2),"participants_affected":random.randint(5,50)} for i,nt in enumerate(["Inter-Regional Transfer Limit","Constraint","LOR Warning","Price Revision","System Normal"])]
     audits = [{"audit_id":f"AUD-{i}","auditor":"AER","participant":n,"audit_year":2025,"audit_type":at,"findings_count":random.randint(1,8),"critical_findings":random.randint(0,2),"recommendations":random.randint(2,10),"remediation_status":random.choice(["Complete","In Progress"]),"penalty_issued_m":round(random.uniform(0,2),1)} for i,(n,at) in enumerate([("Origin","Bidding Compliance"),("AGL","Settlement Accuracy"),("EnergyAustralia","Reporting Timeliness")])]
 
     # Build info gaps with real facility counts if available
@@ -2213,12 +2228,36 @@ async def aemo_market_operations_dashboard():
                 "intervention_count": random.randint(0, 5),
             })
 
-        # Constraint-based notices from IC congestion
+        # Real market notice counts by category + IC congestion notices
         notices = []
-        if ic_congestion:
+        mn_daily_rows = _query_gold(f"""
+            SELECT category, region, SUM(notice_count) AS total_count
+            FROM {_CATALOG}.gold.nem_market_notice_daily
+            GROUP BY category, region
+        """)
+        if mn_daily_rows:
+            by_type = {}
+            for r in mn_daily_rows:
+                cat = r.get("category") or "OTHER"
+                reg = r.get("region") or "NEM"
+                cnt = int(r.get("total_count") or 0)
+                key = (cat, reg)
+                by_type[key] = by_type.get(key, 0) + cnt
+            for (cat, reg), cnt in sorted(by_type.items(), key=lambda x: -x[1])[:8]:
+                ntype_map = {"CONSTRAINT": "Constraint", "PRICES": "Price Revision",
+                             "SYSTEM_SECURITY": "LOR", "MARKET_INTERVENTION": "Direction", "OTHER": "General Notice"}
+                notices.append({
+                    "notice_type": ntype_map.get(cat, cat),
+                    "region": reg if reg != "NEM" else random.choice(regions[:3]),
+                    "month": dispatch_rows[0]["month"] if dispatch_rows else "2026-03",
+                    "count": cnt,
+                    "avg_duration_min": round(cnt * random.uniform(15, 60)),
+                    "avg_price_impact": round(random.uniform(-10, 30), 2),
+                    "total_unserved_energy_mwh": 0,
+                })
+        elif ic_congestion:
             for ic in ic_congestion:
                 cong = int(ic.get("congested_count") or 0)
-                total = int(ic.get("total_intervals") or 1)
                 notices.append({
                     "notice_type": "Constraint",
                     "region": ic["from_region"],
