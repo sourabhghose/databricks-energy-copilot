@@ -111,15 +111,15 @@ async def datasource_health():
 
     sql_ok = _get_sql_connection() is not None
 
-    # Lakebase diagnostics — report exactly why it's not connected
-    lb_host = os.environ.get("LAKEBASE_HOST", "")
+    # Lakebase diagnostics
+    lb_host = os.environ.get("PGHOST") or os.environ.get("LAKEBASE_HOST", "")
     lb_instance = os.environ.get("LAKEBASE_INSTANCE_NAME", "")
     lb_error = None
     lb_token_ok = False
 
     if not lb_host:
-        lb_error = "LAKEBASE_HOST env var not set"
-    elif not lb_instance:
+        lb_error = "Neither PGHOST nor LAKEBASE_HOST env var set"
+    elif not lb_instance and not os.environ.get("PGHOST"):
         lb_error = "LAKEBASE_INSTANCE_NAME env var not set"
     else:
         # Try generating a token

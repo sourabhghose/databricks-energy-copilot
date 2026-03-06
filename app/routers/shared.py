@@ -207,6 +207,8 @@ def _get_lakebase_token():
 def _get_lakebase_pool():
     """Lazily create a psycopg3 connection pool for Lakebase with OAuth token.
 
+    Prefers PG* env vars auto-injected by Databricks Apps when a database
+    resource is registered, falling back to LAKEBASE_* manual config.
     Uses psycopg3 (not psycopg2) because Lakebase on port 443 requires
     TLS handling that psycopg2 cannot negotiate.  psycopg3 + hostaddr works.
     """
@@ -214,9 +216,10 @@ def _get_lakebase_pool():
     if _lakebase_pool is not None:
         return _lakebase_pool
 
-    host = os.environ.get("LAKEBASE_HOST")
+    # Prefer PG* env vars (auto-set by Databricks Apps resource), fall back to LAKEBASE_*
+    host = os.environ.get("PGHOST") or os.environ.get("LAKEBASE_HOST")
     if not host:
-        _lakebase_last_error = "LAKEBASE_HOST not set"
+        _lakebase_last_error = "Neither PGHOST nor LAKEBASE_HOST set"
         return None
 
     token = _get_lakebase_token()
@@ -228,24 +231,27 @@ def _get_lakebase_pool():
         import socket
         from psycopg_pool import ConnectionPool
 
-        # Get username from SDK
-        try:
-            from databricks.sdk import WorkspaceClient
-            username = WorkspaceClient().current_user.me().user_name
-        except Exception:
-            username = os.environ.get("LAKEBASE_USER", "databricks")
+        # Get username: PGUSER (Apps-injected) > SDK > LAKEBASE_USER
+        username = os.environ.get("PGUSER")
+        if not username:
+            try:
+                from databricks.sdk import WorkspaceClient
+                username = WorkspaceClient().current_user.me().user_name
+            except Exception:
+                username = os.environ.get("LAKEBASE_USER", "databricks")
 
-        port = int(os.environ.get("LAKEBASE_PORT", "443"))
-        dbname = os.environ.get("LAKEBASE_DATABASE", "energy_copilot_db")
+        port = int(os.environ.get("PGPORT") or os.environ.get("LAKEBASE_PORT", "443"))
+        dbname = os.environ.get("PGDATABASE") or os.environ.get("LAKEBASE_DATABASE", "energy_copilot_db")
+        sslmode = os.environ.get("PGSSLMODE", "require")
 
         # Resolve DNS to IP — required for psycopg3 hostaddr param
         ip = socket.gethostbyname(host)
-        logger.info("Lakebase pool connecting: host=%s ip=%s port=%d db=%s user=%s",
-                     host, ip, port, dbname, username)
+        logger.info("Lakebase pool connecting: host=%s ip=%s port=%d db=%s user=%s sslmode=%s",
+                     host, ip, port, dbname, username, sslmode)
 
         conninfo = (
             f"host={host} hostaddr={ip} port={port} dbname={dbname} "
-            f"user={username} password={token} sslmode=require connect_timeout=10"
+            f"user={username} password={token} sslmode={sslmode} connect_timeout=10"
         )
 
         _lakebase_pool = ConnectionPool(
@@ -254,8 +260,9 @@ def _get_lakebase_pool():
             max_size=5,
             open=False,
         )
+        _lakebase_pool.open(wait=False)
         _lakebase_last_error = None
-        logger.info("Lakebase psycopg3 pool created: %s -> %s", host, ip)
+        logger.info("Lakebase psycopg3 pool created and opened: %s -> %s", host, ip)
         return _lakebase_pool
     except Exception as exc:
         _lakebase_last_error = f"{type(exc).__name__}: {exc}"

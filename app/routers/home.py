@@ -13,19 +13,19 @@ router = APIRouter()
 @router.get("/api/prices/latest", summary="Latest spot prices", tags=["Market Data"])
 async def prices_latest():
     """Current spot prices for all 5 NEM regions with trend indicators."""
-    # Try Lakebase (Postgres) first for sub-10ms reads
+    # Try Lakebase (Postgres) first — wide window to handle sync lag
     rows = _query_lakebase("""
-        WITH latest AS (
+        WITH ranked AS (
             SELECT region_id, rrp, interval_datetime,
-                   LAG(rrp) OVER (PARTITION BY region_id ORDER BY interval_datetime) AS prev_rrp
+                   ROW_NUMBER() OVER (PARTITION BY region_id ORDER BY interval_datetime DESC) AS rn
             FROM gold.nem_prices_5min_dedup_synced
-            WHERE interval_datetime >= NOW() - INTERVAL '1 hour'
+            WHERE interval_datetime >= NOW() - INTERVAL '12 hours'
         )
-        SELECT region_id, rrp, interval_datetime, prev_rrp
-        FROM latest
-        WHERE (region_id, interval_datetime) IN (
-            SELECT region_id, MAX(interval_datetime) FROM latest GROUP BY region_id
-        )
+        SELECT a.region_id, a.rrp, a.interval_datetime,
+               b.rrp AS prev_rrp
+        FROM ranked a
+        LEFT JOIN ranked b ON a.region_id = b.region_id AND b.rn = 2
+        WHERE a.rn = 1
     """)
     # Fallback to SQL Warehouse
     if not rows:
