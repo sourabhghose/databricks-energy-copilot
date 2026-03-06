@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    sourcemap: true,
+  },
   server: {
     port: 3000,
     proxy: {

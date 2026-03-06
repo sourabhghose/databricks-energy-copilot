@@ -436,7 +436,7 @@ export default function WeatherDemand() {
         {/* Events table */}
         {loading && !drData ? (
           <div className="h-40 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" />
-        ) : drData && drData.events.length > 0 ? (
+        ) : drData && drData.events?.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -498,7 +498,7 @@ export default function WeatherDemand() {
         )}
 
         {/* Region MW bar */}
-        {drData && Object.keys(drData.region_summaries).length > 0 && (
+        {drData?.region_summaries && Object.keys(drData.region_summaries).length > 0 && (
           <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
             <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
               MW Activated by Region (Today)

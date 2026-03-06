@@ -411,7 +411,7 @@ export default function CurtailmentAnalytics() {
     fetchData()
   }, [fetchData])
 
-  const filteredEvents = dashboard?.curtailment_events.filter((e) => {
+  const filteredEvents = (dashboard?.curtailment_events ?? []).filter((e) => {
     if (regionFilter && e.region !== regionFilter) return false
     if (causeFilter && e.cause !== causeFilter) return false
     return true

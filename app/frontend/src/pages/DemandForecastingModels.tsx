@@ -591,7 +591,7 @@ export default function DemandForecastingModels() {
   const bestMape  = useMemo(() => nsw1Models.length ? Math.min(...nsw1Models.map(m => m.mape_pct)) : 0, [nsw1Models])
   const bestRmse  = useMemo(() => nsw1Models.length ? Math.min(...nsw1Models.map(m => m.rmse_mw)) : 0, [nsw1Models])
   const bestR2    = useMemo(() => nsw1Models.length ? Math.max(...nsw1Models.map(m => m.r_squared)) : 0, [nsw1Models])
-  const modelCount = useMemo(() => new Set(data?.models.map(m => m.name) ?? []).size, [data])
+  const modelCount = useMemo(() => new Set(data?.models?.map(m => m.name) ?? []).size, [data])
 
   if (loading) {
     return (
@@ -611,7 +611,7 @@ export default function DemandForecastingModels() {
     )
   }
 
-  if (!data) return null
+  if (!data || !Array.isArray(data.models)) return null
 
   return (
     <div className="p-6 space-y-6 text-white">

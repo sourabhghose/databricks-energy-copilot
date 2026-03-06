@@ -206,7 +206,7 @@ export default function SolarResourceAnalytics() {
     )
   }
 
-  if (error || !data) {
+  if (error || !data || !Array.isArray(data.monthly_irradiance)) {
     return (
       <div className="flex items-center justify-center h-64 text-red-400">
         {error ?? 'No data available'}

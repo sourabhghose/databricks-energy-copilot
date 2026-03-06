@@ -1692,6 +1692,43 @@ function subClassifyNavItem(categoryKey: string, to: string, label: string): str
   return 'other'
 }
 
+// Error boundary for individual page components within CategoryPage
+import React from 'react'
+class PageErrorBoundary extends React.Component<
+  { children: React.ReactNode; pageName?: string },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; pageName?: string }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+  componentDidUpdate(prevProps: { pageName?: string }) {
+    if (prevProps.pageName !== this.props.pageName) {
+      this.setState({ hasError: false, error: null })
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
+          <p className="text-sm">This dashboard encountered an error while loading.</p>
+          <p className="text-xs text-gray-500">{this.state.error?.message}</p>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function CategoryPage() {
   const { groupKey } = useParams<{ groupKey: string }>()
   const [activePath, setActivePath] = useState<string | null>(null)
@@ -1834,7 +1871,7 @@ function CategoryPage() {
       </div>
       {/* Active page content */}
       <div className="flex-1 overflow-auto">
-        {ActiveComponent ? <ActiveComponent /> : <div className="p-6 text-gray-400 text-sm">Select a dashboard from the menu above</div>}
+        {ActiveComponent ? <PageErrorBoundary pageName={activePath ?? undefined}><ActiveComponent /></PageErrorBoundary> : <div className="p-6 text-gray-400 text-sm">Select a dashboard from the menu above</div>}
       </div>
     </div>
   )
