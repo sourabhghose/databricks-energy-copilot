@@ -1,3 +1,4 @@
+# Databricks notebook source
 # =============================================================================
 # 06_register_uc_functions.py
 # AUS Energy Copilot -- Register Unity Catalog SQL/Python functions as AI agent tools

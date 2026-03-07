@@ -1,3 +1,4 @@
+-- Databricks notebook source
 -- =============================================================================
 -- 00_create_catalog.sql
 -- AUS Energy Copilot — Unity Catalog setup

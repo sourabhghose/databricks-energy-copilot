@@ -33843,3 +33843,152 @@ export const curvesApi = {
     return get<CurveSnapshots>(`/api/curves/snapshots?${params}`)
   },
 }
+
+// ---------------------------------------------------------------------------
+// Risk Management API (E2/E3/E5)
+// ---------------------------------------------------------------------------
+
+export interface MtMResult {
+  mtm_id: string
+  valuation_date: string
+  trade_id: string
+  portfolio_id: string
+  region: string
+  trade_type: string
+  direction: string
+  mtm_value: number
+  unrealised_pnl: number
+  market_price: number
+  contract_price: number
+  volume_mw: number
+  remaining_days: number
+  discount_factor: number
+}
+
+export interface MtMSummary {
+  results: MtMResult[]
+  total_mtm: number
+  trades_valued: number
+  valuation_date: string
+}
+
+export interface PnLAttribution {
+  attribution_id: string
+  valuation_date: string
+  portfolio_id: string
+  region: string
+  price_effect: number
+  volume_effect: number
+  new_trades_effect: number
+  time_decay: number
+  total_pnl: number
+}
+
+export interface VaRResult {
+  metric_id: string
+  valuation_date: string
+  portfolio_id: string
+  region: string
+  var_95_1d: number
+  var_99_1d: number
+  var_95_10d: number
+  var_99_10d: number
+  delta_mw: number
+  gamma: number
+  vega: number
+  theta: number
+  volatility_annual: number
+}
+
+export interface GreeksResult {
+  region: string
+  delta_mw: number
+  gamma: number
+  vega: number
+  theta: number
+  volatility_annual: number
+}
+
+export interface CreditExposure {
+  exposure_id: string
+  valuation_date: string
+  counterparty_id: string
+  counterparty_name: string
+  current_exposure: number
+  potential_future_exposure: number
+  credit_limit: number
+  credit_utilization: number
+  credit_rating: string
+  exposure_current_bucket: number
+  exposure_30_90_bucket: number
+  exposure_90plus_bucket: number
+  alert_level: string
+}
+
+export const riskApi = {
+  runMtm(portfolioId?: string, valuationDate?: string): Promise<{ status: string; trades_valued: number; total_mtm: number; daily_pnl: number }> {
+    const params = new URLSearchParams()
+    if (portfolioId) params.set('portfolio_id', portfolioId)
+    if (valuationDate) params.set('valuation_date', valuationDate)
+    return post<Record<string, never>, { status: string; trades_valued: number; total_mtm: number; daily_pnl: number }>(`/api/risk/mtm/run?${params}`, {})
+  },
+
+  getMtmLatest(portfolioId?: string): Promise<MtMSummary> {
+    const params = new URLSearchParams()
+    if (portfolioId) params.set('portfolio_id', portfolioId)
+    return get<MtMSummary>(`/api/risk/mtm/latest?${params}`)
+  },
+
+  getMtmHistory(portfolioId: string, days = 30): Promise<{ history: Array<{ valuation_date: string; total_mtm: number }>; portfolio_id: string }> {
+    return get(`/api/risk/mtm/history?portfolio_id=${portfolioId}&days=${days}`)
+  },
+
+  getPnlAttribution(portfolioId?: string, valuationDate?: string): Promise<{ attribution: PnLAttribution[] }> {
+    const params = new URLSearchParams()
+    if (portfolioId) params.set('portfolio_id', portfolioId)
+    if (valuationDate) params.set('valuation_date', valuationDate)
+    return get(`/api/risk/pnl/attribution?${params}`)
+  },
+
+  getPnlSummary(): Promise<{ portfolios: any[]; grand_total_pnl: number }> {
+    return get('/api/risk/pnl/summary')
+  },
+
+  calculateVar(portfolioId: string, valuationDate?: string): Promise<any> {
+    const params = new URLSearchParams({ portfolio_id: portfolioId })
+    if (valuationDate) params.set('valuation_date', valuationDate)
+    return post(`/api/risk/var/calculate?${params}`, {})
+  },
+
+  getVarLatest(portfolioId?: string): Promise<{ metrics: VaRResult[] }> {
+    const params = new URLSearchParams()
+    if (portfolioId) params.set('portfolio_id', portfolioId)
+    return get(`/api/risk/var/latest?${params}`)
+  },
+
+  getVarHistory(portfolioId: string, days = 30): Promise<{ history: Array<{ valuation_date: string; var_95_1d: number; var_99_1d: number; var_95_10d: number; var_99_10d: number }> }> {
+    return get(`/api/risk/var/history?portfolio_id=${portfolioId}&days=${days}`)
+  },
+
+  getGreeks(portfolioId: string): Promise<{ greeks: GreeksResult[]; portfolio_id: string }> {
+    return get(`/api/risk/greeks?portfolio_id=${portfolioId}`)
+  },
+
+  calculateCredit(valuationDate?: string): Promise<any> {
+    const params = new URLSearchParams()
+    if (valuationDate) params.set('valuation_date', valuationDate)
+    return post(`/api/risk/credit/calculate?${params}`, {})
+  },
+
+  getCreditSummary(): Promise<{ exposures: CreditExposure[] }> {
+    return get('/api/risk/credit/summary')
+  },
+
+  getCreditCounterparty(counterpartyId: string): Promise<{ counterparty_id: string; history: CreditExposure[] }> {
+    return get(`/api/risk/credit/counterparty/${counterpartyId}`)
+  },
+
+  getCreditAlerts(): Promise<{ alerts: CreditExposure[] }> {
+    return get('/api/risk/credit/alerts')
+  },
+}

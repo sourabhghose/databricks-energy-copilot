@@ -1,3 +1,4 @@
+# Databricks notebook source
 # =============================================================================
 # 04_create_genie_spaces.py
 # AUS Energy Copilot — Create Genie Spaces via Databricks SDK

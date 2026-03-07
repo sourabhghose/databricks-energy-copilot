@@ -7,20 +7,15 @@ resources:
 
     price_forecast_experiment:
       name: /Shared/energy_copilot/experiments/price_forecast
-      description: "LightGBM multi-horizon price forecast — 5 NEM regions, horizons 5min to 7d."
 
     demand_forecast_experiment:
       name: /Shared/energy_copilot/experiments/demand_forecast
-      description: "LightGBM regional demand forecast — MAPE target < 3%."
 
     wind_forecast_experiment:
       name: /Shared/energy_copilot/experiments/wind_forecast
-      description: "LightGBM wind generation forecast — NWP windspeed_100m as primary driver."
 
     solar_forecast_experiment:
       name: /Shared/energy_copilot/experiments/solar_forecast
-      description: "LightGBM solar generation forecast — night-hours excluded, zero-clamped inference."
 
     anomaly_forecast_experiment:
       name: /Shared/energy_copilot/experiments/anomaly_forecast
-      description: "IsolationForest + rule-based anomaly detector — price spikes, negative pricing, separation."

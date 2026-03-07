@@ -578,6 +578,7 @@ import DealCapture from './pages/DealCapture'
 import PortfolioPage from './pages/Portfolio'
 import TradeBlotter from './pages/TradeBlotter'
 import ForwardCurves from './pages/ForwardCurves'
+import RiskDashboard from './pages/RiskDashboard'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -600,6 +601,7 @@ const NAV_ITEMS = [
   { to: '/portfolio',       label: 'Portfolio',        Icon: Briefcase      },
   { to: '/trade-blotter',   label: 'Trade Blotter',    Icon: Receipt        },
   { to: '/forward-curves',  label: 'Forward Curves',   Icon: TrendingUp     },
+  { to: '/risk-dashboard',  label: 'Risk Dashboard',   Icon: Shield         },
   { to: '/sustainability',  label: 'Sustainability',   Icon: Leaf            },
   { to: '/biomass-bioenergy', label: 'Biomass & Bioenergy', Icon: Leaf       },
   { to: '/merit-order',     label: 'Merit Order',      Icon: TrendingUp      },
@@ -1082,6 +1084,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/portfolio': PortfolioPage,
   '/trade-blotter': TradeBlotter,
   '/forward-curves': ForwardCurves,
+  '/risk-dashboard': RiskDashboard,
   '/sustainability': Sustainability,
   '/merit-order': MeritOrder,
   '/ml-dashboard': MlDashboardPage,
@@ -1582,6 +1585,7 @@ function classifyNavItem(to: string, label: string): string {
     '/frequency': 'system', '/pasa': 'system',
     '/deal-capture': 'prices', '/portfolio': 'prices',
     '/trade-blotter': 'prices', '/forward-curves': 'prices',
+    '/risk-dashboard': 'prices',
   }
   if (exact[to]) return exact[to]
 
@@ -2038,6 +2042,7 @@ export default function App() {
               <Route path="/portfolio"       element={<PortfolioPage />}    />
               <Route path="/trade-blotter"   element={<TradeBlotter />}     />
               <Route path="/forward-curves"  element={<ForwardCurves />}    />
+              <Route path="/risk-dashboard"  element={<RiskDashboard />}    />
               <Route path="/sustainability" element={<Sustainability />}  />
               <Route path="/merit-order"   element={<MeritOrder />}       />
               <Route path="/ml-dashboard" element={<MlDashboardPage />}  />

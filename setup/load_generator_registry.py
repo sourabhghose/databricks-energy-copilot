@@ -1,3 +1,4 @@
+# Databricks notebook source
 """
 setup/load_generator_registry.py
 =================================

@@ -113,6 +113,37 @@ tables = [
         "pk": ["portfolio_id"],
         "pg_table": "gold.portfolios_synced",
     },
+    {
+        "synced_name": f"{CATALOG}.gold.portfolio_trades_synced",
+        "source": f"{CATALOG}.gold.portfolio_trades",
+        "pk": ["portfolio_id", "trade_id"],
+        "pg_table": "gold.portfolio_trades_synced",
+    },
+    # E2/E3/E5: Risk management tables
+    {
+        "synced_name": f"{CATALOG}.gold.portfolio_mtm_synced",
+        "source": f"{CATALOG}.gold.portfolio_mtm",
+        "pk": ["mtm_id"],
+        "pg_table": "gold.portfolio_mtm_synced",
+    },
+    {
+        "synced_name": f"{CATALOG}.gold.pnl_attribution_synced",
+        "source": f"{CATALOG}.gold.pnl_attribution",
+        "pk": ["attribution_id"],
+        "pg_table": "gold.pnl_attribution_synced",
+    },
+    {
+        "synced_name": f"{CATALOG}.gold.risk_metrics_synced",
+        "source": f"{CATALOG}.gold.risk_metrics",
+        "pk": ["metric_id"],
+        "pg_table": "gold.risk_metrics_synced",
+    },
+    {
+        "synced_name": f"{CATALOG}.gold.credit_exposure_synced",
+        "source": f"{CATALOG}.gold.credit_exposure",
+        "pk": ["exposure_id"],
+        "pg_table": "gold.credit_exposure_synced",
+    },
 ]
 
 # COMMAND ----------

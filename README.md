@@ -7,7 +7,7 @@
 ![Claude Sonnet 4.6](https://img.shields.io/badge/Claude-Sonnet%204.6-8B5CF6?logo=anthropic)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
 
-AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM) intelligence platform deployed on Databricks. It ingests live 5-minute dispatch data from AEMO NEMWEB, OpenElectricity, Open-Meteo, and APVI rooftop solar into a Unity Catalog Medallion lakehouse, trains 21 LightGBM and IsolationForest models for price/demand/wind/solar forecasting and anomaly detection, and surfaces everything through a FastAPI backend and React 18 frontend. An agentic AI copilot backed by Claude Sonnet 4.6 with 7 FMAPI tools answers free-form market questions in real time, while 6 Databricks Genie Spaces enable natural-language SQL analytics over the full historical dataset.
+AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM) intelligence platform deployed on Databricks. It ingests live 5-minute dispatch data from AEMO NEMWEB, OpenElectricity, Open-Meteo, APVI rooftop solar, AER retail tariffs, CER LGC registry, and AEMO ISP data into a Unity Catalog Medallion lakehouse, trains 21 LightGBM and IsolationForest models for price/demand/wind/solar forecasting and anomaly detection, and surfaces everything through a FastAPI backend and React 18 frontend. An agentic AI copilot backed by Claude Sonnet 4.6 with 10 FMAPI tools (including deal capture and forward curves) answers free-form market questions in real time, while 6 Databricks Genie Spaces enable natural-language SQL analytics over the full historical dataset. The entire platform deploys from scratch with `databricks bundle deploy` + one setup job.
 
 ---
 
@@ -39,7 +39,7 @@ AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM)
        │                │
        ▼                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              FastAPI Backend (13 router modules)                │
+│              FastAPI Backend (15 router modules)                │
 │   Lakebase (10-38ms) ← Synced Tables ← Gold ← SQL WH (400ms) │
 │   Rate limiting · SSE streaming · Dashboard snapshots           │
 └──────────────────────┬──────────────────────────────────────────┘
@@ -47,7 +47,7 @@ AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM)
                        ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                React 18 + Vite 5 Frontend                       │
-│   475 pages · Copilot · Genie · Dashboards · Forecasts          │
+│   479 pages · Copilot · Genie · Dashboards · Deal Capture       │
 │   Recharts · Tailwind · React Router v6                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -175,7 +175,7 @@ energy-copilot/
 │   ├── model_serving.yml         # 2 model serving endpoints
 │   └── experiments.yml           # 5 MLflow experiments
 ├── app/
-│   ├── main.py                   # FastAPI backend (194 lines, 13 router includes)
+│   ├── main.py                   # FastAPI backend (~199 lines, 15 router includes)
 │   ├── app.yaml                  # Databricks Apps config (command only)
 │   ├── requirements.txt          # Python dependencies
 │   ├── routers/
@@ -183,15 +183,19 @@ energy-copilot/
 │   │   ├── home.py               # Home dashboard endpoints (prices, generation, interconnectors)
 │   │   ├── dashboards.py         # Multi-dashboard endpoints (carbon, gas, region comparisons)
 │   │   ├── sidebar.py            # Sidebar data (weather, BESS, DR, alerts, merit order)
-│   │   ├── copilot.py            # AI Copilot (Claude Sonnet 4.6 + 7 FMAPI tools + RAG)
+│   │   │   ├── copilot.py            # AI Copilot (Claude Sonnet 4.6 + 10 FMAPI tools + RAG)
 │   │   ├── genie.py              # Genie AI/BI proxy (6 spaces, NL→SQL)
+│   │   ├── deals.py              # Deal Capture, Portfolio, Trade Blotter CRUD
+│   │   ├── curves.py             # Forward curve construction (ASX bootstrap)
 │   │   ├── batch_forecasting.py  # Price/demand forecast endpoints
 │   │   ├── batch_bidding.py      # Bid stack, withholding, market concentration
 │   │   ├── batch_futures_hedging.py  # ASX futures, carbon, SRA, hedging
 │   │   ├── spike_analysis.py     # Spike detection and analysis
-│   │   ├── stubs.py              # Illustrative endpoints (hydrogen, regulatory, tariff)
+│   │   ├── stubs.py              # Illustrative endpoints (hydrogen, regulatory)
 │   │   └── auto_stubs.py         # 305 auto-generated real-data endpoints
-│   └── frontend/                 # React 18 + Vite 5 SPA (475 pages)
+│   │   └── risk.py               # Risk dashboard (VaR, CVaR, exposure)
+│   │   └── market_events.py      # Market events feed
+│   └── frontend/                 # React 18 + Vite 5 SPA (479 pages)
 ├── pipelines/
 │   ├── 01_nemweb_ingest.py       # DLT Bronze→Silver→Gold (prices, gen, interconnectors)
 │   ├── 02_openelec_ingest.py     # OpenElectricity API ingest
@@ -199,16 +203,22 @@ energy-copilot/
 │   ├── 04_solar_ingest.py        # APVI rooftop solar ingest
 │   ├── 05_forecast_pipeline.py   # ML inference (20 LightGBM + IsolationForest)
 │   ├── 06_market_summary.py      # Daily market narrative (Claude AI)
+│   ├── 08_data_quality_report.py # Daily data quality checks
+│   ├── 09_aer_tariff_ingest.py   # AER CDR retail tariff ingest (+ seed fallback)
 │   ├── 09_dashboard_snapshot_generator.py  # Pre-compute dashboard JSON
+│   ├── 10_opennem_facility_timeseries.py   # OpenNEM facility generation (+ seed fallback)
+│   ├── 11_cer_lgc_ingest.py      # CER LGC registry + spot prices (+ seed fallback)
 │   ├── 11_grant_lakebase_perms.py          # Lakebase SP permissions
+│   ├── 12_isp_data_ingest.py     # AEMO ISP project tracker + REZ (+ seed fallback)
 │   └── 12_recreate_synced_tables_continuous.py  # Synced Table creation
 ├── setup/
 │   ├── 00_create_catalog.sql     # Unity Catalog DDL
 │   ├── 01_create_schemas.sql     # Schema definitions
-│   ├── 02_create_tables.sql      # Full table DDL (bronze/silver/gold)
+│   ├── 02_create_tables.py       # Table DDL + SP grants (authoritative)
 │   ├── 04_create_genie_spaces.py # Genie AI/BI space creation
 │   ├── 10_nem_simulator.py       # Live data simulator (writes every 30s)
-│   └── 11_historical_backfill.py # 90-day historical data generator
+│   ├── 11_historical_backfill.py # 90-day historical data generator
+│   └── 13_seed_deal_data.py      # Seed trades, counterparties, portfolios
 ├── post_deploy.sh                # Post-deploy: Lakebase + Genie setup
 ├── deploy.sh                     # DEPRECATED — use bundle deploy
 ├── models/                       # ML model packages (price, demand, wind, solar, anomaly)
@@ -252,15 +262,30 @@ The simulator models realistic patterns: diurnal demand curves, solar peak at mi
 | `asx_futures_eod` | ASX energy futures | Daily |
 | `gas_hub_prices` | Gas hub prices (5 hubs) | Daily |
 | `emissions_factors` | NGA emission factors by fuel | Quarterly |
+| `retail_tariffs` | AER CDR retail energy plans | Daily |
+| `tariff_components` | Usage/supply/demand rate components | Daily |
+| `facility_generation_ts` | Facility-level power timeseries | Every 30 min |
+| `lgc_registry` | CER LGC creation volumes by station | Quarterly |
+| `lgc_spot_prices` | LGC spot prices (CER/broker) | Quarterly |
+| `isp_projects` | AEMO ISP project tracker | Annual |
+| `isp_capacity_outlook` | ISP capacity by scenario/year/fuel | Annual |
+| `rez_assessments` | REZ development status and scores | Annual |
+| `forward_curves` | ASX-bootstrapped forward curves | On snapshot |
+| `trades` | Energy trade records (CRUD) | Real-time |
+| `counterparties` | Trading counterparties | Real-time |
+| `portfolios` | Trading portfolios | Real-time |
 
 ### Live Data Sources (optional)
 
 | Source | URL | Refresh | Notes |
 |--------|-----|---------|-------|
 | **NEMWEB** | `nemweb.com.au/REPORTS/CURRENT/` | 5 min | Primary dispatch data (prices, generation, interconnectors, FCAS); no API key required |
-| **OpenElectricity** | `api.openelectricity.org.au/v4` | Hourly | Cleaner REST API; used for historical backfill and cross-validation |
+| **OpenElectricity** | `api.openelectricity.org.au/v4` | Hourly | Cleaner REST API; facility-level timeseries and historical backfill |
 | **Open-Meteo** | `api.open-meteo.com` | Hourly | BOM ACCESS-G gridded NWP (temperature, wind speed, solar irradiance); free for non-commercial use |
 | **APVI** | `pv-map.apvi.org.au/api` | 15 min | Rooftop solar generation by postcode aggregated to NEM region |
+| **AER CDR** | `cdr.energymadeeasy.gov.au` | Daily | Retail energy plans via Consumer Data Right API; no auth required |
+| **CER** | `cer.gov.au` | Quarterly | LGC registry + spot prices via CSV downloads |
+| **AEMO ISP** | `aemo.com.au/.../isp` | Annual | ISP 2024 project tracker, capacity outlook, REZ assessments |
 
 ---
 
@@ -284,7 +309,7 @@ The Copilot (`/copilot`) uses **Claude Sonnet 4.6 via Databricks Foundation Mode
 
 1. **Context-Stuffing**: Pre-fetches 16 live data sources (prices, spikes, interconnectors, generation mix, volatility, BESS, alerts, DR, forecasts, weather, participants, price trend, renewable %, congestion) and injects into the system prompt.
 
-2. **FMAPI Tool Calling**: 7 tools that the LLM can invoke dynamically with a multi-turn loop (max 5 rounds):
+2. **FMAPI Tool Calling**: 10 tools that the LLM can invoke dynamically with a multi-turn loop (max 5 rounds):
 
 | Tool | Description | Data Source |
 |------|-------------|-------------|
@@ -295,6 +320,9 @@ The Copilot (`/copilot`) uses **Claude Sonnet 4.6 via Databricks Foundation Mode
 | `query_weather` | Temperature, wind, solar | `gold.weather_nem_regions` |
 | `query_demand_forecasts` | Predicted demand MW | `gold.demand_forecasts` |
 | `search_market_rules` | NEM rules/procedures RAG | Vector Search index |
+| `create_trade` | Create energy trade from NL | `gold.trades` |
+| `get_portfolio_position` | Portfolio position lookup | `gold.portfolios` |
+| `get_forward_curve` | ASX-bootstrapped curve | `gold.forward_curves` |
 
 ## Genie AI/BI Spaces
 

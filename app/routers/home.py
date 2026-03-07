@@ -849,3 +849,46 @@ async def generation_mix_pct(region: str = Query("NSW1")):
         "renewable_percentage": round(renewable_mw / total_gen * 100, 1) if total_gen > 0 else 0,
         "carbon_intensity_kg_co2_mwh": round(rng.uniform(0.4, 0.85), 2), "region": region, "fuel_mix": fuel_mix,
     }
+
+
+@router.get("/api/generation/facility/{facility_id}", summary="Facility generation timeseries", tags=["Market Data"])
+async def generation_facility(facility_id: str, hours: int = Query(24)):
+    """Return power timeseries for a specific generator facility."""
+    safe_hours = min(max(1, hours), 168)
+    try:
+        rows = _query_gold(f"""
+            SELECT facility_id, network_region, fuel_type, interval_datetime, power_mw, energy_mwh
+            FROM {_CATALOG}.gold.facility_generation_ts
+            WHERE facility_id = '{facility_id}'
+              AND interval_datetime >= current_timestamp() - INTERVAL {safe_hours} HOURS
+            ORDER BY interval_datetime
+            LIMIT 500
+        """)
+    except Exception:
+        rows = None
+
+    if rows and len(rows) >= 2:
+        return {
+            "facility_id": facility_id,
+            "network_region": rows[0].get("network_region") or "",
+            "fuel_type": rows[0].get("fuel_type") or "",
+            "timeseries": [
+                {
+                    "timestamp": str(r.get("interval_datetime") or "").replace(" ", "T"),
+                    "power_mw": round(float(r.get("power_mw") or 0), 1),
+                    "energy_mwh": round(float(r.get("energy_mwh") or 0), 1),
+                }
+                for r in rows
+            ],
+        }
+
+    # Mock fallback
+    rng = random.Random(hash(facility_id) + int(time.time() // 30))
+    now = datetime.now(timezone.utc)
+    cap = rng.uniform(100, 600)
+    ts = []
+    for i in range(safe_hours * 2):
+        t = now - timedelta(minutes=30 * (safe_hours * 2 - i))
+        power = round(cap * rng.uniform(0.3, 0.95), 1)
+        ts.append({"timestamp": t.isoformat(), "power_mw": power, "energy_mwh": round(power * 0.5, 1)})
+    return {"facility_id": facility_id, "network_region": "NSW1", "fuel_type": "Unknown", "timeseries": ts}

@@ -1,3 +1,4 @@
+-- Databricks notebook source
 -- =============================================================================
 -- 01_create_schemas.sql
 -- AUS Energy Copilot — Schema definitions with full comments
@@ -7,7 +8,10 @@
 -- Target: energy_copilot catalog (Unity Catalog, ap-southeast-2)
 -- =============================================================================
 
-USE CATALOG energy_copilot;
+-- Catalog is parameterized — pass via widget or defaults to energy_copilot_catalog
+-- WIDGET catalog DEFAULT "energy_copilot_catalog"
+
+USE CATALOG energy_copilot_catalog;
 
 -- =============================================================================
 -- BRONZE SCHEMA
@@ -16,7 +20,7 @@ USE CATALOG energy_copilot;
 -- Data is never modified after insert; source format is preserved.
 -- =============================================================================
 
-CREATE SCHEMA IF NOT EXISTS energy_copilot.bronze
+CREATE SCHEMA IF NOT EXISTS energy_copilot_catalog.bronze
   COMMENT 'Bronze layer — append-only raw data from NEMWEB (11 tables),
            OpenElectricity API, Open-Meteo weather API, and APVI rooftop solar API.
            Schema owner: energy-copilot-data-engineers.
@@ -29,7 +33,7 @@ CREATE SCHEMA IF NOT EXISTS energy_copilot.bronze
 -- One-to-one or many-to-one mapping from Bronze sources.
 -- =============================================================================
 
-CREATE SCHEMA IF NOT EXISTS energy_copilot.silver
+CREATE SCHEMA IF NOT EXISTS energy_copilot_catalog.silver
   COMMENT 'Silver layer — cleaned and validated NEM market and weather data.
            13 tables covering: dispatch prices, dispatch generation,
            dispatch interconnectors, dispatch constraints, trading prices,
@@ -46,7 +50,7 @@ CREATE SCHEMA IF NOT EXISTS energy_copilot.silver
 -- Serves: dashboard (React app), Genie spaces, ML inference, agent tools.
 -- =============================================================================
 
-CREATE SCHEMA IF NOT EXISTS energy_copilot.gold
+CREATE SCHEMA IF NOT EXISTS energy_copilot_catalog.gold
   COMMENT 'Gold layer — analytics-ready NEM market data and ML forecasts.
            16 tables: 5-min prices, 30-min prices, generation by fuel, interconnectors,
            active constraints, FCAS prices, demand actuals, weather per NEM region,
@@ -61,7 +65,7 @@ CREATE SCHEMA IF NOT EXISTS energy_copilot.gold
 -- MLflow experiment artefacts, feature store tables, evaluation results.
 -- =============================================================================
 
-CREATE SCHEMA IF NOT EXISTS energy_copilot.ml
+CREATE SCHEMA IF NOT EXISTS energy_copilot_catalog.ml
   COMMENT 'ML layer — MLflow experiment tracking tables, feature store definitions,
            model evaluation results, and backtesting artefacts.
            Hosts 20 forecast models (5 NEM regions × 4 types: price, demand,
@@ -75,7 +79,7 @@ CREATE SCHEMA IF NOT EXISTS energy_copilot.ml
 -- 14 functions covering market data, forecasts, analysis, and RAG.
 -- =============================================================================
 
-CREATE SCHEMA IF NOT EXISTS energy_copilot.tools
+CREATE SCHEMA IF NOT EXISTS energy_copilot_catalog.tools
   COMMENT 'Tools schema — 14 Unity Catalog functions registered as Mosaic AI agent tools.
            Categories:
              Market data (6): get_latest_prices, get_price_history, get_generation_mix,

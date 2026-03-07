@@ -10,14 +10,14 @@ resources:
     # -----------------------------------------------------------------
     job_00_setup:
       name: "[${bundle.target}] 00 — Initial Setup"
-      description: "One-time setup: create schemas, create tables, run 90-day historical backfill."
+      description: "One-time setup: create schemas, tables, SP grants, seed external data, run backfill."
       tags:
         environment: ${bundle.target}
         pipeline: "00_setup"
       tasks:
         - task_key: create_schemas
           notebook_task:
-            notebook_path: setup/01_create_schemas.sql
+            notebook_path: ../setup/01_create_schemas.sql
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -25,7 +25,48 @@ resources:
           depends_on:
             - task_key: create_schemas
           notebook_task:
-            notebook_path: setup/02_create_tables.sql
+            notebook_path: ../setup/02_create_tables.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        # Seed external data (run in parallel after tables exist)
+        - task_key: seed_isp_data
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/12_isp_data_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: seed_lgc_data
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/11_cer_lgc_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: seed_tariff_data
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/09_aer_tariff_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: seed_facility_data
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/10_opennem_facility_timeseries.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: seed_deal_data
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../setup/13_seed_deal_data.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -33,7 +74,7 @@ resources:
           depends_on:
             - task_key: create_tables
           notebook_task:
-            notebook_path: setup/11_historical_backfill.py
+            notebook_path: ../setup/11_historical_backfill.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -59,7 +100,7 @@ resources:
       tasks:
         - task_key: nemweb_ingest
           notebook_task:
-            notebook_path: pipelines/01_nemweb_ingest.py
+            notebook_path: ../pipelines/01_nemweb_ingest.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -68,9 +109,7 @@ resources:
           spec:
             client: "1"
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
     # Job 02 — OpenElectricity Ingest (every 30 min)
@@ -88,7 +127,7 @@ resources:
       tasks:
         - task_key: openelec_ingest
           notebook_task:
-            notebook_path: pipelines/02_openelec_ingest.py
+            notebook_path: ../pipelines/02_openelec_ingest.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -97,9 +136,7 @@ resources:
           spec:
             client: "1"
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
     # Job 03 — Weather Ingest (every hour at :10)
@@ -117,7 +154,7 @@ resources:
       tasks:
         - task_key: weather_ingest
           notebook_task:
-            notebook_path: pipelines/03_weather_ingest.py
+            notebook_path: ../pipelines/03_weather_ingest.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -126,9 +163,7 @@ resources:
           spec:
             client: "1"
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
     # Job 04 — Solar Ingest (every hour at :20)
@@ -146,7 +181,7 @@ resources:
       tasks:
         - task_key: solar_ingest
           notebook_task:
-            notebook_path: pipelines/04_solar_ingest.py
+            notebook_path: ../pipelines/04_solar_ingest.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -155,9 +190,7 @@ resources:
           spec:
             client: "1"
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
     # Job 05 — Forecast Pipeline (every 5 min at :02)
@@ -175,7 +208,7 @@ resources:
       tasks:
         - task_key: forecast_pipeline
           notebook_task:
-            notebook_path: pipelines/05_forecast_pipeline.py
+            notebook_path: ../pipelines/05_forecast_pipeline.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -188,9 +221,7 @@ resources:
               - scikit-learn>=1.4.0
               - mlflow>=2.13.0
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
     # Job 06 — Daily Market Summary (05:30 AEST = 19:30 UTC)
@@ -208,7 +239,7 @@ resources:
       tasks:
         - task_key: market_summary
           notebook_task:
-            notebook_path: pipelines/06_market_summary.py
+            notebook_path: ../pipelines/06_market_summary.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -219,9 +250,7 @@ resources:
             dependencies:
               - anthropic>=0.44.0
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
     # Job 08 — Data Quality Report (daily 06:00 AEST = 20:00 UTC)
@@ -239,7 +268,7 @@ resources:
       tasks:
         - task_key: data_quality_report
           notebook_task:
-            notebook_path: pipelines/08_data_quality_report.py
+            notebook_path: ../pipelines/08_data_quality_report.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -248,12 +277,108 @@ resources:
           spec:
             client: "1"
       max_concurrent_runs: 1
-      email_notifications:
-        on_failure:
-          - ${var.notification_email}
+      # email_notifications configured when notification_email variable is set
 
     # -----------------------------------------------------------------
-    # Job 09 — NEM Simulator (manual start, continuous)
+    # Job 09 — AER Retail Tariff Ingest (daily)
+    # -----------------------------------------------------------------
+    job_09_aer_tariffs:
+      name: "[${bundle.target}] 09 — AER Tariff Ingest"
+      description: "Fetch retail energy plans from AER CDR API. Daily cadence."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "09_aer_tariffs"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: aer_tariff_ingest
+          notebook_task:
+            notebook_path: ../pipelines/09_aer_tariff_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      # email_notifications configured when notification_email variable is set
+
+    # -----------------------------------------------------------------
+    # Job 10a — OpenNEM Facility Timeseries (every 30 min)
+    # -----------------------------------------------------------------
+    job_10_opennem_facilities:
+      name: "[${bundle.target}] 10a — OpenNEM Facility Timeseries"
+      description: "Fetch facility-level power timeseries from OpenElectricity API."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "10_opennem"
+      schedule:
+        quartz_cron_expression: "0 15 */1 * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: opennem_facility_ingest
+          notebook_task:
+            notebook_path: ../pipelines/10_opennem_facility_timeseries.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+      # email_notifications configured when notification_email variable is set
+
+    # -----------------------------------------------------------------
+    # Job 11 — CER LGC Ingest (quarterly / manual)
+    # -----------------------------------------------------------------
+    job_11_cer_lgc:
+      name: "[${bundle.target}] 11 — CER LGC Ingest"
+      description: "Download CER LGC registry and spot price data. Quarterly."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "11_cer_lgc"
+      tasks:
+        - task_key: cer_lgc_ingest
+          notebook_task:
+            notebook_path: ../pipelines/11_cer_lgc_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 12 — AEMO ISP Data Ingest (annual / manual)
+    # -----------------------------------------------------------------
+    job_12_isp_data:
+      name: "[${bundle.target}] 12 — AEMO ISP Data Ingest"
+      description: "Parse AEMO ISP 2024 project tracker, capacity outlook, and REZ assessments."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "12_isp_data"
+      tasks:
+        - task_key: isp_data_ingest
+          notebook_task:
+            notebook_path: ../pipelines/12_isp_data_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 09x — NEM Simulator (manual start, continuous)
     # -----------------------------------------------------------------
     job_09_simulator:
       name: "[${bundle.target}] 09 — NEM Simulator"
@@ -264,7 +389,7 @@ resources:
       tasks:
         - task_key: nem_simulator
           notebook_task:
-            notebook_path: setup/10_nem_simulator.py
+            notebook_path: ../setup/10_nem_simulator.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
@@ -291,7 +416,7 @@ resources:
       tasks:
         - task_key: snapshot_generator
           notebook_task:
-            notebook_path: pipelines/09_dashboard_snapshot_generator.py
+            notebook_path: ../pipelines/09_dashboard_snapshot_generator.py
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default

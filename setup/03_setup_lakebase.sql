@@ -1,3 +1,4 @@
+-- Databricks notebook source
 -- =============================================================================
 -- 03_setup_lakebase.sql
 -- AUS Energy Copilot — Lakebase (Postgres) operational tables

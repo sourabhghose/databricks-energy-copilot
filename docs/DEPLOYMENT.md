@@ -88,13 +88,12 @@ This single command creates/updates:
 
 | Resource | What Happens |
 |----------|--------------|
-| **App** (`energy-copilot`) | Uploads `app/` directory, creates the Databricks App with SQL Warehouse and Lakebase resources, sets all env vars |
-| **10 Jobs** | Creates serverless jobs for ingest, ML, market summary, data quality, simulator, snapshots, and one-time setup |
-| **4 DLT Pipelines** | Creates serverless DLT pipelines for NEMWEB, OpenElectricity, Weather, and Solar ingest |
-| **2 Model Serving Endpoints** | Creates price forecast (5 regional models) and anomaly detection endpoints |
+| **14 Jobs** | Creates serverless jobs: setup, ingest (NEMWEB, OpenElec, Weather, Solar, AER tariffs, OpenNEM facilities, CER LGC, AEMO ISP), ML forecast, market summary, data quality, simulator, snapshots |
 | **5 MLflow Experiments** | Creates experiment tracking for price, demand, wind, solar, and anomaly models |
 
-Deployment typically takes 2-5 minutes. The app will begin deploying asynchronously.
+**Note:** The App is deployed separately via `databricks apps deploy` (not managed by the bundle). Model Serving endpoints are commented out until models are trained.
+
+Deployment typically takes 2-5 minutes.
 
 ### Step 4 — One-Time Setup (Schemas, Tables, Backfill)
 
@@ -102,13 +101,20 @@ Deployment typically takes 2-5 minutes. The app will begin deploying asynchronou
 databricks bundle run job_00_setup --target dev --profile=my-profile
 ```
 
-This job runs three tasks sequentially:
+This job runs 8 tasks (2 sequential, then 6 in parallel):
 
 | Task | Description | Duration |
 |------|-------------|----------|
 | `create_schemas` | Creates `bronze`, `silver`, `gold`, `ml`, `tools` schemas in the catalog | ~30s |
-| `create_tables` | Creates all Delta tables with auto-optimize properties | ~2 min |
+| `create_tables` | Creates all Delta tables + grants SP permissions (USAGE/SELECT on gold, MODIFY on deal tables) | ~2 min |
+| `seed_isp_data` | AEMO ISP 2024 projects, capacity outlook, REZ assessments (seed fallback if API unreachable) | ~1 min |
+| `seed_lgc_data` | CER LGC registry + spot prices (seed fallback) | ~1 min |
+| `seed_tariff_data` | AER CDR retail tariffs + components (seed fallback) | ~1 min |
+| `seed_facility_data` | OpenNEM facility generation timeseries (seed fallback) | ~1 min |
+| `seed_deal_data` | 5 counterparties, 3 portfolios, 50 sample trades | ~1 min |
 | `backfill` | Generates 90 days of synthetic NEM data (~130K rows across 9 gold tables) | 15-30 min |
+
+Tasks 3-8 run in parallel after `create_tables` completes.
 
 Monitor progress in the Databricks Jobs UI or via CLI:
 

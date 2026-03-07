@@ -1,3 +1,4 @@
+# Databricks notebook source
 """
 Pipeline 06: AEMO Gas Bulletin Board (GBB) Data Ingestion
 

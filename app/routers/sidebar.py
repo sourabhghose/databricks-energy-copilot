@@ -207,6 +207,21 @@ async def weather_demand(
         rows = None
 
     if rows and len(rows) >= 4:
+        # Try to get BOM observed temperature for this region
+        bom_temp = None
+        try:
+            bom_rows = _query_gold(f"""
+                SELECT temperature_c, observation_time
+                FROM {_CATALOG}.nemweb_analytics.gold_bom_observations
+                WHERE nem_region = '{region}'
+                ORDER BY observation_time DESC
+                LIMIT 1
+            """)
+            if bom_rows:
+                bom_temp = float(bom_rows[0].get("temperature_c") or 0)
+        except Exception:
+            pass
+
         # Compute baseline as rolling mean for deviation calc
         demands = [float(r.get("total_demand_mw") or 0) for r in rows if r.get("total_demand_mw")]
         baseline = sum(demands) / max(len(demands), 1) if demands else 7000
@@ -214,7 +229,7 @@ async def weather_demand(
         for r in rows:
             temp = float(r.get("temperature_c") or 22)
             demand = float(r.get("total_demand_mw") or baseline)
-            points.append({
+            point = {
                 "timestamp": str(r["ts"]).replace(" ", "T"),
                 "region": region,
                 "temperature_c": round(temp, 1),
@@ -224,7 +239,10 @@ async def weather_demand(
                 "demand_deviation_mw": round(demand - baseline, 0),
                 "wind_speed_kmh": round(float(r.get("wind_speed_kmh") or 15), 1),
                 "solar_irradiance_wm2": round(float(r.get("solar_radiation_wm2") or 0), 1),
-            })
+            }
+            if bom_temp is not None:
+                point["observed_temperature_c"] = round(bom_temp, 1)
+            points.append(point)
         return points
 
     # Mock fallback
@@ -1657,6 +1675,37 @@ async def forecast_accuracy(region: str = Query("NSW1")):
 @router.get("/api/constraints", summary="Binding constraints", tags=["Market Data"])
 async def constraints(region: str = Query("NSW1"), hours_back: int = Query(24), binding_only: str = Query("true")):
     """Return ConstraintRecord[] matching frontend interface."""
+    safe_hours = min(max(1, hours_back), 168)
+    binding_filter = "AND is_binding = true" if binding_only == "true" else ""
+    region_filter = f"AND region = '{region}'" if region != "NEM" else ""
+
+    try:
+        rows = _query_gold(f"""
+            SELECT interval_datetime, constraint_id, constraint_type,
+                   rhs, marginal_value, violation_degree, is_binding, region
+            FROM {_CATALOG}.nemweb_analytics.gold_nem_constraints
+            WHERE interval_datetime >= current_timestamp() - INTERVAL {safe_hours} HOURS
+              {binding_filter} {region_filter}
+            ORDER BY interval_datetime DESC
+            LIMIT 50
+        """)
+    except Exception:
+        rows = None
+
+    if rows and len(rows) >= 2:
+        return [
+            {
+                "interval_datetime": str(r.get("interval_datetime") or "").replace(" ", "T"),
+                "constraintid": r.get("constraint_id") or "",
+                "constraint_type": r.get("constraint_type") or "SYSTEM",
+                "rhs": round(float(r.get("rhs") or 0), 0),
+                "marginalvalue": round(float(r.get("marginal_value") or 0), 2),
+                "violationdegree": round(float(r.get("violation_degree") or 0), 2),
+            }
+            for r in rows
+        ]
+
+    # Mock fallback
     rng = random.Random(hash(region) + int(time.time() // 30))
     now = datetime.now(timezone.utc)
     constraint_names = [

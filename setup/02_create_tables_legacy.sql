@@ -1,3 +1,4 @@
+-- Databricks notebook source
 -- =============================================================================
 -- 02_create_tables.sql
 -- AUS Energy Copilot — Full table DDL

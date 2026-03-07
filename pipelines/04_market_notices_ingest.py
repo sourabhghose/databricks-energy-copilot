@@ -1,3 +1,4 @@
+# Databricks notebook source
 """
 Pipeline 04: AEMO Market Notices Ingestion
 

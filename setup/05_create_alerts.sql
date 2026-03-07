@@ -1,3 +1,4 @@
+-- Databricks notebook source
 -- =============================================================================
 -- 05_create_alerts.sql
 -- AUS Energy Copilot -- Databricks SQL Alert query definitions

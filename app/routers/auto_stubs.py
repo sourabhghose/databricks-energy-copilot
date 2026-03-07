@@ -235,6 +235,239 @@ def _build_grid_response(label, seed):
     return None
 
 
+def _constraints_data():
+    """Fetch network constraints data."""
+    return _get_cached('constraints', lambda: _query_gold(f"""
+        SELECT constraint_id, constraint_type, region, is_binding,
+               AVG(ABS(marginal_value)) AS avg_marginal_value,
+               COUNT(*) AS intervals
+        FROM {_CATALOG}.nemweb_analytics.gold_nem_constraints
+        WHERE interval_datetime >= current_timestamp() - INTERVAL 7 DAYS
+        GROUP BY constraint_id, constraint_type, region, is_binding
+        ORDER BY avg_marginal_value DESC
+        LIMIT 50
+    """))
+
+
+def _isp_projects_data():
+    """Fetch ISP project data."""
+    return _get_cached('isp_projects', lambda: _query_gold(f"""
+        SELECT project_name, type, status, expected_completion, capex_m_aud,
+               tnsp, route_km, capacity_mw
+        FROM {_CATALOG}.gold.isp_projects
+        ORDER BY capex_m_aud DESC
+    """))
+
+
+def _isp_capacity_data():
+    """Fetch ISP capacity outlook data."""
+    return _get_cached('isp_capacity', lambda: _query_gold(f"""
+        SELECT scenario, year, region, fuel_type, capacity_mw, generation_twh
+        FROM {_CATALOG}.gold.isp_capacity_outlook
+        ORDER BY year, region, fuel_type
+    """))
+
+
+def _rez_data():
+    """Fetch REZ assessment data."""
+    return _get_cached('rez', lambda: _query_gold(f"""
+        SELECT rez_name, region, solar_capacity_mw, wind_capacity_mw,
+               network_capacity_mw, development_status, score
+        FROM {_CATALOG}.gold.rez_assessments
+        ORDER BY score DESC
+    """))
+
+
+def _tariff_data():
+    """Fetch retail tariff data."""
+    return _get_cached('tariffs', lambda: _query_gold(f"""
+        SELECT t.plan_id, t.retailer, t.state, t.fuel_type, t.plan_type,
+               c.component_type, c.rate_aud_kwh, c.daily_supply_charge_aud, c.tou_period
+        FROM {_CATALOG}.gold.retail_tariffs t
+        LEFT JOIN {_CATALOG}.gold.tariff_components c ON t.plan_id = c.plan_id
+        ORDER BY t.retailer, t.state
+    """))
+
+
+def _lgc_data():
+    """Fetch LGC registry and spot price data."""
+    return _get_cached('lgc', lambda: _query_gold(f"""
+        SELECT power_station, state, fuel_type, capacity_mw, lgc_created_mwh, year, quarter
+        FROM {_CATALOG}.gold.lgc_registry
+        ORDER BY lgc_created_mwh DESC
+    """))
+
+
+def _lgc_spot_data():
+    """Fetch LGC spot price data."""
+    return _get_cached('lgc_spot', lambda: _query_gold(f"""
+        SELECT trade_date, price_aud_mwh, source
+        FROM {_CATALOG}.gold.lgc_spot_prices
+        ORDER BY trade_date DESC
+        LIMIT 100
+    """))
+
+
+def _build_constraints_response(label, seed):
+    """Build response for network constraints endpoints."""
+    rows = _constraints_data()
+    if rows:
+        binding = [r for r in rows if r.get("is_binding")]
+        by_type = {}
+        for r in rows:
+            ct = r.get("constraint_type", "UNKNOWN")
+            by_type.setdefault(ct, 0)
+            by_type[ct] += 1
+        return {
+            "summary": {"title": label, "total_constraints": len(rows),
+                        "binding_count": len(binding),
+                        "constraint_types": len(by_type),
+                        "last_updated": _dt.utcnow().isoformat()},
+            "records": [{"constraint_id": r.get("constraint_id"),
+                         "constraint_type": r.get("constraint_type"),
+                         "region": r.get("region"),
+                         "is_binding": r.get("is_binding"),
+                         "avg_marginal_value": round(float(r.get("avg_marginal_value") or 0), 2),
+                         "intervals": int(r.get("intervals") or 0)} for r in rows[:20]],
+            "by_type": [{"type": k, "count": v} for k, v in sorted(by_type.items(), key=lambda x: -x[1])]
+        }
+    return None
+
+
+def _build_isp_response(label, seed):
+    """Build response for ISP project endpoints."""
+    rows = _isp_projects_data()
+    if rows:
+        total_capex = sum(float(r.get("capex_m_aud") or 0) for r in rows)
+        total_cap = sum(float(r.get("capacity_mw") or 0) for r in rows)
+        by_status = {}
+        for r in rows:
+            s = r.get("status", "Unknown")
+            by_status.setdefault(s, 0)
+            by_status[s] += 1
+        return {
+            "summary": {"title": label, "total_projects": len(rows),
+                        "total_capex_m_aud": round(total_capex, 0),
+                        "total_capacity_mw": round(total_cap, 0),
+                        "last_updated": _dt.utcnow().isoformat()},
+            "records": [{"project_name": r.get("project_name"), "type": r.get("type"),
+                         "status": r.get("status"),
+                         "expected_completion": r.get("expected_completion"),
+                         "capex_m_aud": float(r.get("capex_m_aud") or 0),
+                         "tnsp": r.get("tnsp"),
+                         "route_km": float(r.get("route_km") or 0),
+                         "capacity_mw": float(r.get("capacity_mw") or 0)} for r in rows],
+            "by_status": [{"status": k, "count": v} for k, v in sorted(by_status.items(), key=lambda x: -x[1])]
+        }
+    return None
+
+
+def _build_isp_capacity_response(label, seed):
+    """Build response for ISP capacity outlook endpoints."""
+    rows = _isp_capacity_data()
+    if rows:
+        by_year = {}
+        for r in rows:
+            y = str(r.get("year", ""))
+            by_year.setdefault(y, {"capacity_mw": 0, "generation_twh": 0})
+            by_year[y]["capacity_mw"] += float(r.get("capacity_mw") or 0)
+            by_year[y]["generation_twh"] += float(r.get("generation_twh") or 0)
+        return {
+            "summary": {"title": label, "scenarios": 1, "years": len(by_year),
+                        "data_points": len(rows),
+                        "last_updated": _dt.utcnow().isoformat()},
+            "records": [{"scenario": r.get("scenario"), "year": r.get("year"),
+                         "region": r.get("region"), "fuel_type": r.get("fuel_type"),
+                         "capacity_mw": float(r.get("capacity_mw") or 0),
+                         "generation_twh": float(r.get("generation_twh") or 0)} for r in rows],
+            "by_year": [{"year": k, "total_capacity_mw": round(v["capacity_mw"], 0),
+                         "total_generation_twh": round(v["generation_twh"], 1)} for k, v in sorted(by_year.items())]
+        }
+    return None
+
+
+def _build_rez_response(label, seed):
+    """Build response for REZ endpoints."""
+    rows = _rez_data()
+    if rows:
+        total_solar = sum(float(r.get("solar_capacity_mw") or 0) for r in rows)
+        total_wind = sum(float(r.get("wind_capacity_mw") or 0) for r in rows)
+        by_status = {}
+        for r in rows:
+            s = r.get("development_status", "Unknown")
+            by_status.setdefault(s, 0)
+            by_status[s] += 1
+        return {
+            "summary": {"title": label, "total_zones": len(rows),
+                        "total_solar_mw": round(total_solar, 0),
+                        "total_wind_mw": round(total_wind, 0),
+                        "avg_score": round(sum(float(r.get("score") or 0) for r in rows) / max(len(rows), 1), 1),
+                        "last_updated": _dt.utcnow().isoformat()},
+            "records": [{"rez_name": r.get("rez_name"), "region": r.get("region"),
+                         "solar_capacity_mw": float(r.get("solar_capacity_mw") or 0),
+                         "wind_capacity_mw": float(r.get("wind_capacity_mw") or 0),
+                         "network_capacity_mw": float(r.get("network_capacity_mw") or 0),
+                         "development_status": r.get("development_status"),
+                         "score": float(r.get("score") or 0)} for r in rows],
+            "by_status": [{"status": k, "count": v} for k, v in sorted(by_status.items(), key=lambda x: -x[1])]
+        }
+    return None
+
+
+def _build_tariff_response(label, seed):
+    """Build response for tariff/retail endpoints."""
+    rows = _tariff_data()
+    if rows:
+        retailers = set(r.get("retailer") for r in rows if r.get("retailer"))
+        states = set(r.get("state") for r in rows if r.get("state"))
+        avg_rate = sum(float(r.get("rate_aud_kwh") or 0) for r in rows if r.get("rate_aud_kwh")) / max(sum(1 for r in rows if r.get("rate_aud_kwh")), 1)
+        return {
+            "summary": {"title": label, "retailers": len(retailers),
+                        "states": len(states), "plans": len(set(r.get("plan_id") for r in rows)),
+                        "avg_rate_aud_kwh": round(avg_rate, 4),
+                        "last_updated": _dt.utcnow().isoformat()},
+            "records": [{"plan_id": r.get("plan_id"), "retailer": r.get("retailer"),
+                         "state": r.get("state"), "fuel_type": r.get("fuel_type"),
+                         "plan_type": r.get("plan_type"),
+                         "component_type": r.get("component_type"),
+                         "rate_aud_kwh": float(r.get("rate_aud_kwh") or 0),
+                         "daily_supply_charge_aud": float(r.get("daily_supply_charge_aud") or 0),
+                         "tou_period": r.get("tou_period")} for r in rows[:30]]
+        }
+    return None
+
+
+def _build_lgc_response(label, seed):
+    """Build response for LGC/REC market endpoints."""
+    rows = _lgc_data()
+    spot = _lgc_spot_data()
+    if rows:
+        total_lgc = sum(float(r.get("lgc_created_mwh") or 0) for r in rows)
+        by_fuel = {}
+        for r in rows:
+            ft = r.get("fuel_type", "unknown")
+            by_fuel.setdefault(ft, 0)
+            by_fuel[ft] += float(r.get("lgc_created_mwh") or 0)
+        result = {
+            "summary": {"title": label, "total_generators": len(rows),
+                        "total_lgc_created_mwh": round(total_lgc, 0),
+                        "fuel_types": len(by_fuel),
+                        "last_updated": _dt.utcnow().isoformat()},
+            "records": [{"power_station": r.get("power_station"), "state": r.get("state"),
+                         "fuel_type": r.get("fuel_type"),
+                         "capacity_mw": float(r.get("capacity_mw") or 0),
+                         "lgc_created_mwh": float(r.get("lgc_created_mwh") or 0),
+                         "year": r.get("year"), "quarter": r.get("quarter")} for r in rows[:20]],
+            "by_fuel_type": [{"fuel_type": k, "lgc_mwh": round(v, 0)} for k, v in sorted(by_fuel.items(), key=lambda x: -x[1])]
+        }
+        if spot:
+            result["spot_prices"] = [{"trade_date": s.get("trade_date"),
+                                       "price_aud_mwh": float(s.get("price_aud_mwh") or 0),
+                                       "source": s.get("source")} for s in spot[:20]]
+        return result
+    return None
+
+
 @router.get("/api/aemc-rule-change/dashboard")
 def aemc_rule_change_dashboard():
     _r.seed(6000)
@@ -1078,6 +1311,9 @@ def congestion_dashboard():
 
 @router.get("/api/constraints/dashboard")
 def constraints_dashboard():
+    result = _build_constraints_response("Constraints > Dashboard", 6072)
+    if result:
+        return result
     _r.seed(6072)
     return {
         "summary": {"title": "Constraints > Dashboard", "status": "operational",
@@ -3174,6 +3410,9 @@ def interconnector_upgrade_dashboard():
 
 @router.get("/api/isp-progress/actionable-projects")
 def isp_progress_actionable_projects():
+    result = _build_isp_response("ISP Progress > Actionable Projects", 6250)
+    if result and "records" in result:
+        return result["records"]
     _r.seed(6250)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Isp Progress > Actionable Projects", "value": round(_r.uniform(10, 500), 2),
@@ -3181,6 +3420,9 @@ def isp_progress_actionable_projects():
 
 @router.get("/api/isp-progress/capacity-milestones")
 def isp_progress_capacity_milestones():
+    result = _build_isp_capacity_response("ISP Progress > Capacity Milestones", 6251)
+    if result and "records" in result:
+        return result["records"]
     _r.seed(6251)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Isp Progress > Capacity Milestones", "value": round(_r.uniform(10, 500), 2),
@@ -3188,6 +3430,12 @@ def isp_progress_capacity_milestones():
 
 @router.get("/api/isp-progress/delivery-risks")
 def isp_progress_delivery_risks():
+    result = _build_isp_response("ISP Progress > Delivery Risks", 6252)
+    if result and "records" in result:
+        return [{"project_name": r["project_name"], "status": r["status"],
+                 "expected_completion": r["expected_completion"],
+                 "risk_level": "High" if r["status"] in ("Planning", "Feasibility", "Assessment") else "Medium" if r["status"] == "Approved" else "Low",
+                 "capex_m_aud": r["capex_m_aud"]} for r in result["records"]]
     _r.seed(6252)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Isp Progress > Delivery Risks", "value": round(_r.uniform(10, 500), 2),
@@ -3195,6 +3443,9 @@ def isp_progress_delivery_risks():
 
 @router.get("/api/isp-progress/scenarios")
 def isp_progress_scenarios():
+    result = _build_isp_capacity_response("ISP Progress > Scenarios", 6253)
+    if result and "by_year" in result:
+        return result["by_year"]
     _r.seed(6253)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Isp Progress > Scenarios", "value": round(_r.uniform(10, 500), 2),
@@ -3202,6 +3453,11 @@ def isp_progress_scenarios():
 
 @router.get("/api/isp/tnsp-programs")
 def isp_tnsp_programs():
+    result = _build_isp_response("ISP > TNSP Programs", 6254)
+    if result and "records" in result:
+        return [{"project_name": r["project_name"], "tnsp": r["tnsp"],
+                 "type": r["type"], "status": r["status"],
+                 "route_km": r["route_km"], "capex_m_aud": r["capex_m_aud"]} for r in result["records"]]
     _r.seed(6254)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Isp > Tnsp Programs", "value": round(_r.uniform(10, 500), 2),
@@ -3754,7 +4010,7 @@ def network_regulatory_framework_dashboard():
 
 @router.get("/api/network-tariff-design-reform/dashboard")
 def network_tariff_design_reform_dashboard():
-    result = _build_pricing_response("Network Tariff Design Reform > Dashboard", 6301)
+    result = _build_tariff_response("Network Tariff Design Reform > Dashboard", 6301)
     if result:
         return result
     _r.seed(6301)
@@ -3768,7 +4024,7 @@ def network_tariff_design_reform_dashboard():
 
 @router.get("/api/network-tariff-reform/der-impacts")
 def network_tariff_reform_der_impacts():
-    result = _build_pricing_response("Network Tariff Reform > Der Impacts", 6302)
+    result = _build_tariff_response("Network Tariff Reform > DER Impacts", 6302)
     if result and "records" in result:
         return result["records"]
     _r.seed(6302)
@@ -3778,7 +4034,7 @@ def network_tariff_reform_der_impacts():
 
 @router.get("/api/network-tariff-reform/reforms")
 def network_tariff_reform_reforms():
-    result = _build_pricing_response("Network Tariff Reform > Reforms", 6303)
+    result = _build_tariff_response("Network Tariff Reform > Reforms", 6303)
     if result and "records" in result:
         return result["records"]
     _r.seed(6303)
@@ -3788,7 +4044,7 @@ def network_tariff_reform_reforms():
 
 @router.get("/api/network-tariff-reform/revenue")
 def network_tariff_reform_revenue():
-    result = _build_pricing_response("Network Tariff Reform > Revenue", 6304)
+    result = _build_tariff_response("Network Tariff Reform > Revenue", 6304)
     if result and "records" in result:
         return result["records"]
     _r.seed(6304)
@@ -3798,7 +4054,7 @@ def network_tariff_reform_revenue():
 
 @router.get("/api/network-tariff-reform/tariffs")
 def network_tariff_reform_tariffs():
-    result = _build_pricing_response("Network Tariff Reform > Tariffs", 6305)
+    result = _build_tariff_response("Network Tariff Reform > Tariffs", 6305)
     if result and "records" in result:
         return result["records"]
     _r.seed(6305)
@@ -4299,6 +4555,9 @@ def realtime_interconnectors():
 
 @router.get("/api/rec-market-analytics/dashboard")
 def rec_market_analytics_dashboard():
+    result = _build_lgc_response("REC Market Analytics > Dashboard", 6349)
+    if result:
+        return result
     _r.seed(6349)
     return {
         "summary": {"title": "Rec Market Analytics > Dashboard", "status": "operational",
@@ -4310,6 +4569,9 @@ def rec_market_analytics_dashboard():
 
 @router.get("/api/rec-market/lgc-creation")
 def rec_market_lgc_creation():
+    result = _build_lgc_response("REC Market > LGC Creation", 6350)
+    if result and "records" in result:
+        return result["records"]
     _r.seed(6350)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Rec Market > Lgc Creation", "value": round(_r.uniform(10, 500), 2),
@@ -4317,9 +4579,11 @@ def rec_market_lgc_creation():
 
 @router.get("/api/rec-market/lgc-spot")
 def rec_market_lgc_spot():
-    result = _build_pricing_response("Rec Market > Lgc Spot", 6351)
-    if result and "records" in result:
-        return result["records"]
+    spot = _lgc_spot_data()
+    if spot:
+        return [{"trade_date": s.get("trade_date"),
+                 "price_aud_mwh": float(s.get("price_aud_mwh") or 0),
+                 "source": s.get("source")} for s in spot[:20]]
     _r.seed(6351)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Rec Market > Lgc Spot", "value": round(_r.uniform(10, 500), 2),
@@ -4327,6 +4591,9 @@ def rec_market_lgc_spot():
 
 @router.get("/api/rec-market/stc")
 def rec_market_stc():
+    result = _build_lgc_response("REC Market > STC", 6352)
+    if result and "records" in result:
+        return result["records"]
     _r.seed(6352)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Rec Market > Stc", "value": round(_r.uniform(10, 500), 2),
@@ -4334,6 +4601,9 @@ def rec_market_stc():
 
 @router.get("/api/rec-market/surplus-deficit")
 def rec_market_surplus_deficit():
+    result = _build_lgc_response("REC Market > Surplus Deficit", 6353)
+    if result and "by_fuel_type" in result:
+        return result["by_fuel_type"]
     _r.seed(6353)
     return [{"id": j + 1, "region": _r.choice(["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]),
               "label": "Rec Market > Surplus Deficit", "value": round(_r.uniform(10, 500), 2),
@@ -4341,6 +4611,9 @@ def rec_market_surplus_deficit():
 
 @router.get("/api/rec-tracking/dashboard")
 def rec_tracking_dashboard():
+    result = _build_lgc_response("REC Tracking > Dashboard", 6354)
+    if result:
+        return result
     _r.seed(6354)
     return {
         "summary": {"title": "Rec Tracking > Dashboard", "status": "operational",
@@ -4486,7 +4759,7 @@ def retail_market_design_dashboard():
 
 @router.get("/api/retail-offer-comparison/dashboard")
 def retail_offer_comparison_dashboard():
-    result = _build_pricing_response("Retail Offer Comparison > Dashboard", 6365)
+    result = _build_tariff_response("Retail Offer Comparison > Dashboard", 6365)
     if result:
         return result
     _r.seed(6365)
@@ -4500,7 +4773,7 @@ def retail_offer_comparison_dashboard():
 
 @router.get("/api/retail-offer-comparison/dmo-comparison")
 def retail_offer_comparison_dmo_comparison():
-    result = _build_pricing_response("Retail Offer Comparison > Dmo Comparison", 6366)
+    result = _build_tariff_response("Retail Offer Comparison > DMO Comparison", 6366)
     if result and "records" in result:
         return result["records"]
     _r.seed(6366)
@@ -4510,7 +4783,7 @@ def retail_offer_comparison_dmo_comparison():
 
 @router.get("/api/retail-offer-comparison/offers")
 def retail_offer_comparison_offers():
-    result = _build_pricing_response("Retail Offer Comparison > Offers", 6367)
+    result = _build_tariff_response("Retail Offer Comparison > Offers", 6367)
     if result and "records" in result:
         return result["records"]
     _r.seed(6367)
@@ -4530,7 +4803,7 @@ def retail_offer_comparison_solar_fit():
 
 @router.get("/api/retail-offer-comparison/tariff-structures")
 def retail_offer_comparison_tariff_structures():
-    result = _build_pricing_response("Retail Offer Comparison > Tariff Structures", 6369)
+    result = _build_tariff_response("Retail Offer Comparison > Tariff Structures", 6369)
     if result and "records" in result:
         return result["records"]
     _r.seed(6369)
@@ -4568,7 +4841,7 @@ def retailer_financial_health_dashboard():
 
 @router.get("/api/rez-auction-cis/dashboard")
 def rez_auction_cis_dashboard():
-    result = _build_renewable_response("Rez Auction Cis > Dashboard", 6372)
+    result = _build_rez_response("REZ Auction CIS > Dashboard", 6372)
     if result:
         return result
     _r.seed(6372)
@@ -4582,7 +4855,7 @@ def rez_auction_cis_dashboard():
 
 @router.get("/api/rez-capacity-factor/dashboard")
 def rez_capacity_factor_dashboard():
-    result = _build_renewable_response("Rez Capacity Factor > Dashboard", 6373)
+    result = _build_rez_response("REZ Capacity Factor > Dashboard", 6373)
     if result:
         return result
     _r.seed(6373)
@@ -4596,7 +4869,7 @@ def rez_capacity_factor_dashboard():
 
 @router.get("/api/rez-capacity/build-out")
 def rez_capacity_build_out():
-    result = _build_renewable_response("Rez Capacity > Build Out", 6374)
+    result = _build_rez_response("REZ Capacity > Build Out", 6374)
     if result and "records" in result:
         return result["records"]
     _r.seed(6374)
@@ -4606,7 +4879,7 @@ def rez_capacity_build_out():
 
 @router.get("/api/rez-capacity/dashboard")
 def rez_capacity_dashboard():
-    result = _build_renewable_response("Rez Capacity > Dashboard", 6375)
+    result = _build_rez_response("REZ Capacity > Dashboard", 6375)
     if result:
         return result
     _r.seed(6375)
@@ -4620,7 +4893,7 @@ def rez_capacity_dashboard():
 
 @router.get("/api/rez-capacity/network-augmentations")
 def rez_capacity_network_augmentations():
-    result = _build_renewable_response("Rez Capacity > Network Augmentations", 6376)
+    result = _build_rez_response("REZ Capacity > Network Augmentations", 6376)
     if result and "records" in result:
         return result["records"]
     _r.seed(6376)
@@ -4630,7 +4903,7 @@ def rez_capacity_network_augmentations():
 
 @router.get("/api/rez-capacity/projects")
 def rez_capacity_projects():
-    result = _build_renewable_response("Rez Capacity > Projects", 6377)
+    result = _build_rez_response("REZ Capacity > Projects", 6377)
     if result and "records" in result:
         return result["records"]
     _r.seed(6377)
@@ -4640,7 +4913,7 @@ def rez_capacity_projects():
 
 @router.get("/api/rez-capacity/zones")
 def rez_capacity_zones():
-    result = _build_renewable_response("Rez Capacity > Zones", 6378)
+    result = _build_rez_response("REZ Capacity > Zones", 6378)
     if result and "records" in result:
         return result["records"]
     _r.seed(6378)
@@ -4650,7 +4923,7 @@ def rez_capacity_zones():
 
 @router.get("/api/rez-connection-queue/dashboard")
 def rez_connection_queue_dashboard():
-    result = _build_renewable_response("Rez Connection Queue > Dashboard", 6379)
+    result = _build_rez_response("REZ Connection Queue > Dashboard", 6379)
     if result:
         return result
     _r.seed(6379)
@@ -4664,7 +4937,7 @@ def rez_connection_queue_dashboard():
 
 @router.get("/api/rez-progress/dashboard")
 def rez_progress_dashboard():
-    result = _build_renewable_response("Rez Progress > Dashboard", 6380)
+    result = _build_rez_response("REZ Progress > Dashboard", 6380)
     if result:
         return result
     _r.seed(6380)
@@ -4678,7 +4951,7 @@ def rez_progress_dashboard():
 
 @router.get("/api/rez-transmission/dashboard")
 def rez_transmission_dashboard():
-    result = _build_renewable_response("Rez Transmission > Dashboard", 6381)
+    result = _build_rez_response("REZ Transmission > Dashboard", 6381)
     if result:
         return result
     _r.seed(6381)
@@ -5283,7 +5556,7 @@ def system_operator_rert_activations():
 
 @router.get("/api/tariff-cross-subsidy/dashboard")
 def tariff_cross_subsidy_dashboard():
-    result = _build_pricing_response("Tariff Cross Subsidy > Dashboard", 6436)
+    result = _build_tariff_response("Tariff Cross Subsidy > Dashboard", 6436)
     if result:
         return result
     _r.seed(6436)
@@ -5297,7 +5570,7 @@ def tariff_cross_subsidy_dashboard():
 
 @router.get("/api/tariff-reform/dashboard")
 def tariff_reform_dashboard():
-    result = _build_pricing_response("Tariff Reform > Dashboard", 6437)
+    result = _build_tariff_response("Tariff Reform > Dashboard", 6437)
     if result:
         return result
     _r.seed(6437)

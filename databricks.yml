@@ -43,11 +43,11 @@ targets:
     mode: development
     default: true
     workspace:
-      host: ${DATABRICKS_HOST}
+      host: https://fevm-energy-copilot.cloud.databricks.com
 
   prod:
     mode: production
     workspace:
-      host: ${DATABRICKS_HOST}
+      host: https://fevm-energy-copilot.cloud.databricks.com
     variables:
       catalog: energy_copilot

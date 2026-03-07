@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException
 
-from .shared import _NEM_REGIONS, _AEST, _CATALOG, _query_gold, logger
+from .shared import _NEM_REGIONS, _AEST, _CATALOG, _query_gold, _sql_escape, logger
 from .home import (
     prices_latest,
     market_summary_latest,
@@ -177,6 +177,48 @@ _FMAPI_TOOLS = [
                 "properties": {
                     "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
                     "profile": {"type": "string", "description": "Load profile: FLAT (default), PEAK, or OFF_PEAK", "enum": ["FLAT", "PEAK", "OFF_PEAK"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_mtm_valuation",
+            "description": "Run mark-to-market valuation for all trades or a specific portfolio. Values trades against forward curves to compute MtM, unrealised P&L, and daily P&L attribution. Returns total MtM and breakdown by portfolio.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "portfolio_name": {"type": "string", "description": "Optional portfolio name to filter. Omit for all portfolios."},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_risk_metrics",
+            "description": "Get Value-at-Risk (VaR) and portfolio Greeks (delta, gamma, vega, theta) for a portfolio. Shows risk exposure at 95% and 99% confidence levels for 1-day and 10-day horizons.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "portfolio_name": {"type": "string", "description": "Portfolio name to analyse. Required."},
+                },
+                "required": ["portfolio_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_credit_exposure",
+            "description": "Get counterparty credit exposure summary showing current exposure, potential future exposure (PFE), credit utilisation, and alerts (WARNING/CRITICAL).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "counterparty_name": {"type": "string", "description": "Optional counterparty name to filter."},
                 },
                 "required": [],
             },
@@ -418,6 +460,46 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
                     lines.append(f"{pt['month']:<10} ${pt['price_mwh']:>7.2f} {pt['source']:<15}")
                 return json.dumps({"text": "\n".join(lines), "points": points}, default=str)
             return json.dumps({"error": f"No forward curve data for {region}"})
+
+        elif name == "run_mtm_valuation":
+            from .risk import _run_mtm_core
+            portfolio_name = arguments.get("portfolio_name")
+            portfolio_id = None
+            if portfolio_name:
+                rows = _query_gold(
+                    f"SELECT portfolio_id FROM {_CATALOG}.gold.portfolios "
+                    f"WHERE LOWER(name) LIKE LOWER('%{_sql_escape(portfolio_name)}%') LIMIT 1"
+                )
+                if rows:
+                    portfolio_id = rows[0]["portfolio_id"]
+            result = _run_mtm_core(portfolio_id=portfolio_id)
+            return json.dumps(result, default=str)
+
+        elif name == "get_risk_metrics":
+            from .risk import _calculate_var_greeks
+            portfolio_name = arguments.get("portfolio_name", "")
+            rows = _query_gold(
+                f"SELECT portfolio_id FROM {_CATALOG}.gold.portfolios "
+                f"WHERE LOWER(name) LIKE LOWER('%{_sql_escape(portfolio_name)}%') LIMIT 1"
+            )
+            if not rows:
+                return json.dumps({"error": f"Portfolio '{portfolio_name}' not found"})
+            result = _calculate_var_greeks(portfolio_id=rows[0]["portfolio_id"])
+            return json.dumps(result, default=str)
+
+        elif name == "get_credit_exposure":
+            from .risk import _calculate_credit_exposure
+            result = _calculate_credit_exposure()
+            cp_name = arguments.get("counterparty_name")
+            if cp_name and result.get("exposures"):
+                filtered = [
+                    e for e in result["exposures"]
+                    if cp_name.lower() in str(e.get("counterparty_name", "")).lower()
+                ]
+                if filtered:
+                    result["exposures"] = filtered
+                    result["counterparties"] = len(filtered)
+            return json.dumps(result, default=str)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

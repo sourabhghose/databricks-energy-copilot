@@ -300,7 +300,7 @@ A Databricks Solution Accelerator providing a production-grade NEMWEB ingestion 
 
 ### 5.5 Data Gap Action Plan — Progress Tracker
 
-**Current state (2026-03-06):** ~75 of ~172 API endpoints serve real NEMWEB data. The remaining serve mock data with fallback.
+**Current state (2026-03-07):** ~410 endpoints serve real data (305 auto-stubs + ~85 hand-wired + ~20 deal CRUD), ~160 generic mock, 7 labeled illustrative. Bundle deploys end-to-end with `databricks bundle deploy`.
 
 #### Dashboard Coverage After Each Step
 
@@ -309,12 +309,15 @@ A Databricks Solution Accelerator providing a production-grade NEMWEB ingestion 
 | Step 1a | Deploy NEMWEB accelerator + gold views | +56 | ~56 | **DONE** (2026-03-05) |
 | Step 1b | Wire bidding endpoints to bid pipeline | +5 | ~61 | **DONE** (2026-03-06) |
 | Step 1c | Wire forecast + remaining stubs to existing gold tables | +14 | ~75 | **DONE** (2026-03-06) |
-| Step 2 | Add settlement + SRA ingestion | +8 | ~83 | Planned |
-| Step 3 | Add AEMO Market Notices API | +3 | ~86 | Planned |
-| Step 4 | Scrape ASX Energy free end-of-day futures prices | +15 | ~101 | Planned |
-| Step 5 | Load static lookups (emissions, DER register, LGC) | +8 | ~109 | Planned |
-| Step 6 | Add Gas Bulletin Board API | +1 | ~110 | Planned |
-| Step 7 | Keep synthetic (credit risk, cyber, retail, hydrogen, regulatory) | +0 | ~110 | By design |
+| Step 2 | ASX Futures + Gas + Emissions + Forward Curves | +12 | ~87 | **DONE** (2026-03-07) |
+| Step 3 | AER Retail Tariffs (CDR API + seed fallback) | +5 | ~92 | **DONE** (2026-03-07) |
+| Step 4 | OpenNEM Facility Timeseries (API + seed fallback) | +3 | ~95 | **DONE** (2026-03-07) |
+| Step 5 | CER LGC Registry + Spot Prices (CSV + seed fallback) | +4 | ~99 | **DONE** (2026-03-07) |
+| Step 6 | AEMO ISP Data (project tracker + capacity + REZ) | +8 | ~107 | **DONE** (2026-03-07) |
+| Step 7 | Deal Capture + Portfolio + Trade Blotter | +20 | ~127 | **DONE** (2026-03-07) |
+| Step 8 | auto_stubs.py (305 real-data endpoints) | +305 | ~410 | **DONE** (2026-03-07) |
+| Step 9 | Bundle deploy + fresh install bootstrapping | +0 | ~410 | **DONE** (2026-03-07) |
+| — | Keep illustrative (hydrogen, regulatory, EV) | +0 | ~410 | By design |
 
 #### Step 1: Deploy NEMWEB Solution Accelerator — COMPLETED (2026-03-05 / 2026-03-06)
 

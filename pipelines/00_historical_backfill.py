@@ -1,3 +1,4 @@
+# Databricks notebook source
 """
 AUS Energy Copilot — Historical NEMWEB Backfill Pipeline
 ============================================================

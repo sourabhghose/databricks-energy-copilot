@@ -1,3 +1,4 @@
+# Databricks notebook source
 """
 Pipeline 05: Static Lookup Tables
 

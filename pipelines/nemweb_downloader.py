@@ -1,3 +1,4 @@
+# Databricks notebook source
 """
 nemweb_downloader.py — NEMWEB polling and download utility.
 

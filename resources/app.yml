@@ -1,47 +1,28 @@
 # ============================================================
 # Databricks App Resource — Energy Copilot
+# NOTE: App is deployed manually via `databricks apps deploy`.
+# The config below is for reference only — commenting out to
+# avoid conflicts with the already-deployed app.
 # ============================================================
 
-resources:
-  apps:
-    energy_copilot_app:
-      name: ${var.app_name}
-      description: "AUS Energy Copilot — NEM Market Intelligence"
-      source_code_path: ./app
-      config:
-        command:
-          - python
-          - -m
-          - uvicorn
-          - "main:app"
-          - --host
-          - 0.0.0.0
-          - --port
-          - "8000"
-          - --workers
-          - "1"
-        env:
-          - name: DATABRICKS_CATALOG
-            value: ${var.catalog}
-          - name: LAKEBASE_INSTANCE_NAME
-            value: ${var.lakebase_instance_name}
-          - name: LAKEBASE_DATABASE
-            value: ${var.lakebase_database}
-          - name: VS_ENDPOINT_NAME
-            value: ${var.vs_endpoint_name}
-          - name: VS_INDEX_NAME
-            value: ${var.catalog}.gold.aemo_docs_vs_index
-          - name: LOG_LEVEL
-            value: INFO
-          - name: PYTHONPATH
-            value: /app
-      resources:
-        - name: sql-warehouse
-          sql_warehouse:
-            id: ${var.warehouse_id}
-            permission: CAN_USE
-        - name: lakebase-db
-          database:
-            instance_name: ${var.lakebase_instance_name}
-            database_name: ${var.lakebase_database}
-            permission: CAN_CONNECT_AND_CREATE
+# resources:
+#   apps:
+#     energy_copilot_app:
+#       name: ${var.app_name}
+#       source_code_path: ../app
+#       config:
+#         command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+#         env:
+#           - name: DATABRICKS_CATALOG
+#             value: ${var.catalog}
+#           - name: LAKEBASE_INSTANCE_NAME
+#             value: ${var.lakebase_instance_name}
+#           - name: LAKEBASE_DATABASE
+#             value: ${var.lakebase_database}
+#           - name: VS_ENDPOINT_NAME
+#             value: ${var.vs_endpoint_name}
+#       resources:
+#         - name: sql-warehouse
+#           sql_warehouse:
+#             id: ${var.warehouse_id}
+#             permission: CAN_USE

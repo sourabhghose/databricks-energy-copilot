@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from .shared import (
     _CATALOG, _NEM_REGIONS, _query_gold, _query_with_fallback,
     _insert_gold, _insert_gold_batch, _update_gold, _execute_gold,
-    _invalidate_cache, logger,
+    _invalidate_cache, _query_lakebase_fresh, logger,
 )
 
 router = APIRouter()
@@ -152,6 +152,52 @@ async def list_trades(
     offset: int = Query(0, ge=0),
 ):
     """List trades with optional filters and pagination."""
+    # --- Lakebase fast path ---
+    try:
+        lb_where = ["1=1"]
+        if region:
+            lb_where.append(f"t.region = '{region}'")
+        if status:
+            lb_where.append(f"t.status = '{status}'")
+        if trade_type:
+            lb_where.append(f"t.trade_type = '{trade_type}'")
+        if start_date:
+            lb_where.append(f"t.start_date >= '{start_date}'")
+        if end_date:
+            lb_where.append(f"t.end_date <= '{end_date}'")
+        lb_wc = " AND ".join(lb_where)
+
+        if portfolio_id:
+            lb_sql = (
+                f"SELECT t.*, c.name as counterparty_name "
+                f"FROM gold.trades_synced t "
+                f"LEFT JOIN gold.counterparties_synced c ON t.counterparty_id = c.counterparty_id "
+                f"INNER JOIN gold.portfolio_trades_synced pt ON t.trade_id = pt.trade_id "
+                f"WHERE pt.portfolio_id = '{portfolio_id}' AND {lb_wc} "
+                f"ORDER BY t.created_at DESC LIMIT {limit} OFFSET {offset}"
+            )
+        else:
+            lb_sql = (
+                f"SELECT t.*, c.name as counterparty_name "
+                f"FROM gold.trades_synced t "
+                f"LEFT JOIN gold.counterparties_synced c ON t.counterparty_id = c.counterparty_id "
+                f"WHERE {lb_wc} "
+                f"ORDER BY t.created_at DESC LIMIT {limit} OFFSET {offset}"
+            )
+        lb_rows = _query_lakebase_fresh(lb_sql)
+        if lb_rows is not None:
+            lb_count_sql = f"SELECT COUNT(*) as cnt FROM gold.trades_synced t WHERE {lb_wc}"
+            lb_count = _query_lakebase_fresh(lb_count_sql)
+            total = lb_count[0]["cnt"] if lb_count else len(lb_rows)
+            for r in lb_rows:
+                for k in ("created_at", "updated_at", "start_date", "end_date"):
+                    if k in r and r[k] is not None:
+                        r[k] = str(r[k])
+            return {"trades": lb_rows, "total": total, "limit": limit, "offset": offset, "data_source": "lakebase"}
+    except Exception as exc:
+        logger.warning("Lakebase list_trades failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     where_parts = ["1=1"]
     if region:
         where_parts.append(f"t.region = '{region}'")
@@ -206,6 +252,37 @@ async def list_trades(
 @router.get("/api/deals/trades/{trade_id}")
 async def get_trade(trade_id: str):
     """Get a single trade with its legs."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            f"SELECT t.*, c.name as counterparty_name "
+            f"FROM gold.trades_synced t "
+            f"LEFT JOIN gold.counterparties_synced c ON t.counterparty_id = c.counterparty_id "
+            f"WHERE t.trade_id = '{trade_id}'"
+        )
+        if lb_rows is not None:
+            if not lb_rows:
+                return JSONResponse(status_code=404, content={"error": "Trade not found"})
+            trade = lb_rows[0]
+            for k in ("created_at", "updated_at", "start_date", "end_date"):
+                if k in trade and trade[k] is not None:
+                    trade[k] = str(trade[k])
+            lb_legs = _query_lakebase_fresh(
+                f"SELECT * FROM gold.trade_legs_synced WHERE trade_id = '{trade_id}' "
+                f"ORDER BY settlement_date"
+            )
+            legs = lb_legs if lb_legs else []
+            for leg in legs:
+                for k in ("settlement_date", "interval_start", "interval_end"):
+                    if k in leg and leg[k] is not None:
+                        leg[k] = str(leg[k])
+            trade["legs"] = legs
+            trade["data_source"] = "lakebase"
+            return trade
+    except Exception as exc:
+        logger.warning("Lakebase get_trade failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT t.*, c.name as counterparty_name "
         f"FROM {_SCHEMA}.trades t "
@@ -418,6 +495,22 @@ async def bulk_import_trades(file: UploadFile = File(...)):
 @router.get("/api/deals/trades/{trade_id}/legs")
 async def list_trade_legs(trade_id: str):
     """List all settlement legs for a trade."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            f"SELECT * FROM gold.trade_legs_synced WHERE trade_id = '{trade_id}' "
+            f"ORDER BY settlement_date"
+        )
+        if lb_rows is not None:
+            for r in lb_rows:
+                for k in ("settlement_date", "interval_start", "interval_end"):
+                    if k in r and r[k] is not None:
+                        r[k] = str(r[k])
+            return {"legs": lb_rows, "count": len(lb_rows), "data_source": "lakebase"}
+    except Exception as exc:
+        logger.warning("Lakebase list_trade_legs failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT * FROM {_SCHEMA}.trade_legs WHERE trade_id = '{trade_id}' "
         f"ORDER BY settlement_date"
@@ -457,6 +550,22 @@ async def list_amendments(trade_id: str):
 @router.get("/api/deals/portfolios")
 async def list_portfolios():
     """List all portfolios with trade counts."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            "SELECT p.*, "
+            "(SELECT COUNT(*) FROM gold.portfolio_trades_synced pt WHERE pt.portfolio_id = p.portfolio_id) as trade_count "
+            "FROM gold.portfolios_synced p ORDER BY p.name"
+        )
+        if lb_rows is not None:
+            for r in lb_rows:
+                if "created_at" in r and r["created_at"] is not None:
+                    r["created_at"] = str(r["created_at"])
+            return {"portfolios": lb_rows, "data_source": "lakebase"}
+    except Exception as exc:
+        logger.warning("Lakebase list_portfolios failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT p.*, "
         f"(SELECT COUNT(*) FROM {_SCHEMA}.portfolio_trades pt WHERE pt.portfolio_id = p.portfolio_id) as trade_count "
@@ -490,6 +599,32 @@ async def create_portfolio(body: PortfolioCreate):
 @router.get("/api/deals/portfolios/{portfolio_id}")
 async def get_portfolio(portfolio_id: str):
     """Get portfolio detail with trade summary."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            f"SELECT * FROM gold.portfolios_synced WHERE portfolio_id = '{portfolio_id}'"
+        )
+        if lb_rows is not None:
+            if not lb_rows:
+                return JSONResponse(status_code=404, content={"error": "Portfolio not found"})
+            portfolio = lb_rows[0]
+            if "created_at" in portfolio and portfolio["created_at"] is not None:
+                portfolio["created_at"] = str(portfolio["created_at"])
+            lb_trades = _query_lakebase_fresh(
+                f"SELECT t.trade_type, t.region, t.buy_sell, t.status, "
+                f"COUNT(*) as count, SUM(t.volume_mw) as total_mw "
+                f"FROM gold.trades_synced t "
+                f"INNER JOIN gold.portfolio_trades_synced pt ON t.trade_id = pt.trade_id "
+                f"WHERE pt.portfolio_id = '{portfolio_id}' AND t.status != 'CANCELLED' "
+                f"GROUP BY t.trade_type, t.region, t.buy_sell, t.status"
+            )
+            portfolio["trade_summary"] = lb_trades or []
+            portfolio["data_source"] = "lakebase"
+            return portfolio
+    except Exception as exc:
+        logger.warning("Lakebase get_portfolio failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT * FROM {_SCHEMA}.portfolios WHERE portfolio_id = '{portfolio_id}'"
     )
@@ -516,6 +651,26 @@ async def get_portfolio(portfolio_id: str):
 @router.get("/api/deals/portfolios/{portfolio_id}/position")
 async def portfolio_position(portfolio_id: str):
     """Net MW position by region and quarter."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            f"SELECT t.region, "
+            f"'Q' || EXTRACT(QUARTER FROM t.start_date)::INT || ' ' || EXTRACT(YEAR FROM t.start_date)::INT as quarter, "
+            f"SUM(CASE WHEN t.buy_sell = 'BUY' THEN t.volume_mw ELSE -t.volume_mw END) as net_mw, "
+            f"SUM(t.volume_mw) as gross_mw, "
+            f"COUNT(*) as trade_count "
+            f"FROM gold.trades_synced t "
+            f"INNER JOIN gold.portfolio_trades_synced pt ON t.trade_id = pt.trade_id "
+            f"WHERE pt.portfolio_id = '{portfolio_id}' AND t.status != 'CANCELLED' "
+            f"GROUP BY t.region, EXTRACT(QUARTER FROM t.start_date), EXTRACT(YEAR FROM t.start_date) "
+            f"ORDER BY t.region, EXTRACT(YEAR FROM t.start_date), EXTRACT(QUARTER FROM t.start_date)"
+        )
+        if lb_rows is not None:
+            return {"positions": lb_rows, "portfolio_id": portfolio_id, "data_source": "lakebase"}
+    except Exception as exc:
+        logger.warning("Lakebase portfolio_position failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT t.region, "
         f"CONCAT('Q', QUARTER(t.start_date), ' ', YEAR(t.start_date)) as quarter, "
@@ -584,6 +739,24 @@ async def portfolio_pnl(portfolio_id: str):
 @router.get("/api/deals/portfolios/{portfolio_id}/exposure")
 async def portfolio_exposure(portfolio_id: str):
     """Exposure heatmap data: region x month grid of MW exposure."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            f"SELECT t.region, "
+            f"TO_CHAR(t.start_date, 'YYYY-MM') as month, "
+            f"SUM(CASE WHEN t.buy_sell = 'BUY' THEN t.volume_mw ELSE -t.volume_mw END) as net_mw "
+            f"FROM gold.trades_synced t "
+            f"INNER JOIN gold.portfolio_trades_synced pt ON t.trade_id = pt.trade_id "
+            f"WHERE pt.portfolio_id = '{portfolio_id}' AND t.status != 'CANCELLED' "
+            f"GROUP BY t.region, TO_CHAR(t.start_date, 'YYYY-MM') "
+            f"ORDER BY t.region, month"
+        )
+        if lb_rows is not None:
+            return {"exposure": lb_rows, "portfolio_id": portfolio_id, "data_source": "lakebase"}
+    except Exception as exc:
+        logger.warning("Lakebase portfolio_exposure failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT t.region, "
         f"CONCAT(YEAR(t.start_date), '-', LPAD(MONTH(t.start_date), 2, '0')) as month, "
@@ -630,6 +803,20 @@ async def remove_trade_from_portfolio(portfolio_id: str, trade_id: str):
 @router.get("/api/deals/counterparties")
 async def list_counterparties():
     """List all counterparties."""
+    # --- Lakebase fast path ---
+    try:
+        lb_rows = _query_lakebase_fresh(
+            "SELECT * FROM gold.counterparties_synced ORDER BY name"
+        )
+        if lb_rows is not None:
+            for r in lb_rows:
+                if "created_at" in r and r["created_at"] is not None:
+                    r["created_at"] = str(r["created_at"])
+            return {"counterparties": lb_rows, "data_source": "lakebase"}
+    except Exception as exc:
+        logger.warning("Lakebase list_counterparties failed: %s", exc)
+
+    # --- SQL Warehouse fallback ---
     rows = _query_gold(
         f"SELECT * FROM {_SCHEMA}.counterparties ORDER BY name"
     )
