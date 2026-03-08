@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
-import { Play, Pause, SkipForward, SkipBack, RefreshCw, Clock } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, RefreshCw, Clock, Link2 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,18 +48,31 @@ function fuelColor(ft: string): string {
 // ---------------------------------------------------------------------------
 
 export default function MarketReplay() {
-    const [region, setRegion] = useState('NSW1')
+    const [searchParams, setSearchParams] = useSearchParams()
+
+    const [region, setRegion] = useState(() => searchParams.get('region') || 'NSW1')
     const [date, setDate] = useState(() => {
+        const qd = searchParams.get('date')
+        if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) return qd
         const d = new Date()
         d.setDate(d.getDate() - 1)
         return d.toISOString().slice(0, 10)
     })
     const [snapshots, setSnapshots] = useState<ReplaySnapshot[]>([])
-    const [index, setIndex] = useState(0)
+    const [index, setIndex] = useState(() => {
+        const qi = searchParams.get('index')
+        return qi ? Math.max(0, Number(qi)) : 0
+    })
     const [playing, setPlaying] = useState(false)
     const [speed, setSpeed] = useState(1)
     const [loading, setLoading] = useState(false)
+    const [copyMsg, setCopyMsg] = useState<string | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    // Sync state → URL search params
+    useEffect(() => {
+        setSearchParams({ region, date, index: String(index) }, { replace: true })
+    }, [region, date, index, setSearchParams])
 
     // Fetch range
     const loadRange = useCallback(async () => {
@@ -140,6 +154,18 @@ export default function MarketReplay() {
                     <button onClick={loadRange} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
                         <RefreshCw size={16} className={loading ? 'animate-spin text-blue-500' : 'text-gray-500'} />
                     </button>
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(window.location.href)
+                            setCopyMsg('Link copied!')
+                            setTimeout(() => setCopyMsg(null), 2000)
+                        }}
+                        className="flex items-center gap-1 px-2 py-1.5 rounded text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"
+                        title="Copy shareable link"
+                    >
+                        <Link2 size={14} /> Copy link
+                    </button>
+                    {copyMsg && <span className="text-xs text-green-500">{copyMsg}</span>}
                 </div>
             </div>
 

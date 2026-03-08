@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Shield, RefreshCw, AlertTriangle, TrendingUp, DollarSign } from 'lucide-react'
+import { Shield, RefreshCw, AlertTriangle, TrendingUp, DollarSign, Gauge } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -13,13 +13,14 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts'
-import { riskApi } from '../api/client'
+import { riskApi, riskLimitsApi } from '../api/client'
 import type {
   MtMResult,
   PnLAttribution,
   VaRResult,
   GreeksResult,
   CreditExposure,
+  LimitMonitorResult,
 } from '../api/client'
 
 const TABS = ['MtM & P&L', 'VaR & Greeks', 'Credit Risk'] as const
@@ -184,6 +185,9 @@ export default function RiskDashboard() {
           </select>
         </div>
       </div>
+
+      {/* Limit Monitor */}
+      <LimitMonitorSection portfolioId={selectedPortfolio} />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-700">
@@ -503,6 +507,90 @@ export default function RiskDashboard() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Limit Monitor Section
+// ---------------------------------------------------------------------------
+
+function LimitMonitorSection({ portfolioId }: { portfolioId: string }) {
+  const [monitors, setMonitors] = useState<LimitMonitorResult[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const loadMonitors = async () => {
+    setLoading(true)
+    try {
+      const res = await riskLimitsApi.monitor(portfolioId || undefined)
+      setMonitors(res.monitors || [])
+    } catch { /* ignore */ }
+    setLoading(false)
+  }
+
+  useEffect(() => { loadMonitors() }, [portfolioId])
+
+  // Always show the section (even empty) so users know it exists
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Gauge className="w-4 h-4 text-blue-400" />
+          <h2 className="text-sm font-semibold text-gray-200 uppercase tracking-wide">Limit Monitor</h2>
+          <span className="text-xs text-gray-500">{monitors.length} limits</span>
+        </div>
+        <button
+          onClick={loadMonitors}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200"
+        >
+          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-700">
+              {['Type', 'Region', 'Limit', 'Current', 'Utilisation', 'Status'].map(h => (
+                <th key={h} className="text-left px-3 py-2 text-xs text-gray-400 font-medium uppercase tracking-wide">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {monitors.map((m, i) => {
+              const pct = Math.min(m.utilization_pct, 100)
+              const barColor = m.status === 'BREACH' ? 'bg-red-500' : m.status === 'WARNING' ? 'bg-amber-500' : 'bg-green-500'
+              const statusColor = m.status === 'BREACH' ? 'bg-red-900/50 text-red-400' : m.status === 'WARNING' ? 'bg-amber-900/50 text-amber-400' : 'bg-green-900/50 text-green-400'
+              const rowBg = m.status === 'BREACH' ? 'bg-red-950/20' : m.status === 'WARNING' ? 'bg-amber-950/10' : ''
+              return (
+                <tr key={i} className={`border-b border-gray-700/50 hover:bg-gray-700/30 ${rowBg}`}>
+                  <td className="px-3 py-2 text-gray-200 font-medium text-xs">{m.limit_type.replace(/_/g, ' ')}</td>
+                  <td className="px-3 py-2 text-gray-400 text-xs">{m.region || 'All'}</td>
+                  <td className="px-3 py-2 text-gray-300 font-mono text-xs">{fmt(m.limit_value)}</td>
+                  <td className="px-3 py-2 text-gray-200 font-mono font-bold text-xs">{fmt(m.current_value)}</td>
+                  <td className="px-3 py-2 w-40">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div className={`h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-400 w-12 text-right">{m.utilization_pct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor}`}>
+                      {m.status}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+            {monitors.length === 0 && loading && (
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500 text-sm">Loading...</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

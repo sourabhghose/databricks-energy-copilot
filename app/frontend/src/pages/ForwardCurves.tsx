@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, RefreshCw, Download } from 'lucide-react'
+import { TrendingUp, RefreshCw, Download, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -10,8 +10,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { curvesApi } from '../api/client'
-import type { ForwardCurvePoint } from '../api/client'
+import { curvesApi, curvesConfigApi } from '../api/client'
+import type { ForwardCurvePoint, CurveConfig } from '../api/client'
 
 const NEM_REGIONS = ['NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'] as const
 const PROFILES = ['FLAT', 'PEAK', 'OFF_PEAK'] as const
@@ -290,6 +290,153 @@ export default function ForwardCurves() {
           </table>
         </div>
       </div>
+
+      {/* Curve Configuration Panel */}
+      <CurveConfigPanel onConfigSaved={fetchData} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Curve Configuration Panel
+// ---------------------------------------------------------------------------
+
+function CurveConfigPanel({ onConfigSaved }: { onConfigSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [configs, setConfigs] = useState<CurveConfig[]>([])
+  const [loading, setLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [resetMsg, setResetMsg] = useState<string | null>(null)
+
+  const loadConfigs = async () => {
+    setLoading(true)
+    try {
+      const res = await curvesConfigApi.getConfigs()
+      setConfigs(res.configs || [])
+    } catch { /* ignore */ }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (open) loadConfigs()
+  }, [open])
+
+  const seasonalConfigs = configs.filter(c => c.config_type === 'SEASONAL_FACTORS')
+  const peakConfigs = configs.filter(c => c.config_type === 'PEAK_RATIOS')
+
+  const handleSave = async (configId: string) => {
+    try {
+      await curvesConfigApi.updateConfig(configId, Number(editValue))
+      setEditingId(null)
+      loadConfigs()
+      onConfigSaved()
+    } catch { /* ignore */ }
+  }
+
+  const handleReset = async () => {
+    try {
+      const res = await curvesConfigApi.resetDefaults()
+      setResetMsg(`Reset ${res.count} configs`)
+      loadConfigs()
+      onConfigSaved()
+      setTimeout(() => setResetMsg(null), 3000)
+    } catch {
+      setResetMsg('Reset failed')
+      setTimeout(() => setResetMsg(null), 3000)
+    }
+  }
+
+  return (
+    <div className="bg-gray-800 rounded-lg">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-750 rounded-lg transition-colors"
+      >
+        <h2 className="text-sm font-semibold text-gray-200 uppercase tracking-wide">Curve Configuration</h2>
+        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded px-3 py-1.5"
+            >
+              <RotateCcw className="w-3 h-3" /> Reset to defaults
+            </button>
+            {loading && <span className="text-xs text-gray-500">Loading...</span>}
+            {resetMsg && <span className="text-xs text-green-400">{resetMsg}</span>}
+          </div>
+
+          {/* Seasonal Factors */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Seasonal Factors (by month)</h3>
+            <div className="grid grid-cols-6 gap-2">
+              {seasonalConfigs.map(c => (
+                <div key={c.config_id} className="bg-gray-750 rounded p-2 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">Month {c.period_key}</div>
+                  {editingId === c.config_id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        className="w-14 text-xs text-center bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-gray-200"
+                        onKeyDown={e => { if (e.key === 'Enter') handleSave(c.config_id); if (e.key === 'Escape') setEditingId(null) }}
+                        autoFocus
+                      />
+                      <button onClick={() => handleSave(c.config_id)} className="text-green-400 text-xs">OK</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingId(c.config_id); setEditValue(String(c.factor_value)) }}
+                      className="text-sm font-mono font-semibold text-gray-200 hover:text-blue-400 transition-colors"
+                    >
+                      {c.factor_value.toFixed(2)}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Peak Ratios */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Peak Ratios (by region)</h3>
+            <div className="grid grid-cols-5 gap-2">
+              {peakConfigs.map(c => (
+                <div key={c.config_id} className="bg-gray-750 rounded p-2 text-center">
+                  <div className="text-[10px] text-gray-500 mb-1">{c.period_key}</div>
+                  {editingId === c.config_id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        className="w-14 text-xs text-center bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-gray-200"
+                        onKeyDown={e => { if (e.key === 'Enter') handleSave(c.config_id); if (e.key === 'Escape') setEditingId(null) }}
+                        autoFocus
+                      />
+                      <button onClick={() => handleSave(c.config_id)} className="text-green-400 text-xs">OK</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingId(c.config_id); setEditValue(String(c.factor_value)) }}
+                      className="text-sm font-mono font-semibold text-gray-200 hover:text-blue-400 transition-colors"
+                    >
+                      {c.factor_value.toFixed(2)}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

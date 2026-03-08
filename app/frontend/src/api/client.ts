@@ -34312,6 +34312,161 @@ export interface ConstraintTimelineResponse {
   model_info: { version: string; last_trained: string; accuracy_pct: number; method: string }
 }
 
+// ---------------------------------------------------------------------------
+// Settlement Disputes
+// ---------------------------------------------------------------------------
+
+export interface SettlementDispute {
+  dispute_id: string
+  region: string
+  settlement_date: string
+  dispute_type: 'ENERGY_AMOUNT' | 'FCAS_RECOVERY' | 'SRA_RESIDUE' | 'PRICE'
+  aemo_amount_aud: number
+  internal_amount_aud: number
+  variance_aud: number
+  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'ESCALATED'
+  description: string
+  resolution_notes: string | null
+  raised_by: string
+  raised_at: string
+  resolved_at: string | null
+}
+
+export interface SettlementDisputeSummary {
+  total_disputes: number
+  open: number
+  under_review: number
+  resolved: number
+  escalated: number
+  total_variance_aud: number
+}
+
+export const settlementDisputesApi = {
+  list(region?: string, status?: string): Promise<{ disputes: SettlementDispute[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (region) qs.append('region', region)
+    if (status) qs.append('status', status)
+    return get(`/api/settlement/disputes?${qs}`)
+  },
+  create(data: {
+    region: string
+    settlement_date: string
+    dispute_type: string
+    aemo_amount_aud: number
+    internal_amount_aud: number
+    description: string
+    raised_by?: string
+  }): Promise<SettlementDispute> {
+    const params = new URLSearchParams()
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) params.set(k, String(v))
+    }
+    return post(`/api/settlement/disputes?${params.toString()}`, {})
+  },
+  update(disputeId: string, data: { status?: string; resolution_notes?: string }): Promise<{ updated: boolean }> {
+    const params = new URLSearchParams()
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) params.set(k, String(v))
+    }
+    return put(`/api/settlement/disputes/${disputeId}?${params.toString()}`, {})
+  },
+  summary(): Promise<SettlementDisputeSummary> {
+    return get('/api/settlement/disputes/summary')
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Curve Configuration
+// ---------------------------------------------------------------------------
+
+export interface CurveConfig {
+  config_id: string
+  config_type: 'SEASONAL_FACTORS' | 'PEAK_RATIOS'
+  region: string | null
+  period_key: string
+  factor_value: number
+  updated_by: string | null
+  updated_at: string
+}
+
+export const curvesConfigApi = {
+  getConfigs(): Promise<{ configs: CurveConfig[]; count: number }> {
+    return get('/api/curves/configs')
+  },
+  updateConfig(configId: string, factorValue: number): Promise<{ updated: boolean }> {
+    return put(`/api/curves/configs/${configId}?factor_value=${factorValue}`, {})
+  },
+  resetDefaults(): Promise<{ reset: boolean; count: number }> {
+    return post('/api/curves/configs/reset', {})
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Risk Limits
+// ---------------------------------------------------------------------------
+
+export interface RiskLimit {
+  limit_id: string
+  portfolio_id: string | null
+  limit_type: 'POSITION_MW' | 'VAR_AUD' | 'NOTIONAL_AUD' | 'CREDIT_AUD'
+  region: string | null
+  limit_value: number
+  warning_pct: number
+  breach_pct: number
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LimitMonitorResult {
+  limit_id: string
+  limit_type: string
+  region: string | null
+  limit_value: number
+  current_value: number
+  utilization_pct: number
+  status: 'OK' | 'WARNING' | 'BREACH'
+  warning_pct: number
+  breach_pct: number
+}
+
+export const riskLimitsApi = {
+  list(portfolioId?: string): Promise<{ limits: RiskLimit[]; count: number }> {
+    const qs = portfolioId ? `?portfolio_id=${portfolioId}` : ''
+    return get(`/api/risk/limits${qs}`)
+  },
+  create(data: {
+    limit_type: string
+    limit_value: number
+    portfolio_id?: string
+    region?: string
+    warning_pct?: number
+    breach_pct?: number
+    created_by?: string
+  }): Promise<RiskLimit> {
+    const params = new URLSearchParams()
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) params.set(k, String(v))
+    }
+    return post(`/api/risk/limits?${params.toString()}`, {})
+  },
+  update(limitId: string, data: { limit_value?: number; warning_pct?: number; breach_pct?: number; is_active?: boolean }): Promise<{ updated: boolean }> {
+    const params = new URLSearchParams()
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) params.set(k, String(v))
+    }
+    return put(`/api/risk/limits/${limitId}?${params.toString()}`, {})
+  },
+  delete(limitId: string): Promise<{ deleted: boolean }> {
+    return del(`/api/risk/limits/${limitId}`)
+  },
+  monitor(portfolioId?: string): Promise<{ monitors: LimitMonitorResult[]; count: number; portfolio_id: string | null }> {
+    const qs = portfolioId ? `?portfolio_id=${portfolioId}` : ''
+    return get(`/api/risk/limits/monitor${qs}`)
+  },
+}
+
 export const constraintsApi = {
   bindingHeatmap(region: string, days = 7): Promise<{ region: string; days: number; grid: BindingHeatmapCell[] }> {
     return get(`/api/constraints/binding-heatmap?region=${region}&days=${days}`)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { DollarSign, FileText, AlertTriangle, CheckCircle, Clock, XCircle, Loader2, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
-import { api } from '../api/client'
-import type { SettlementDashboard, SettlementRun, PrudentialRecord, SettlementResidueRecord, TecAdjustment } from '../api/client'
+import { DollarSign, FileText, AlertTriangle, CheckCircle, Clock, XCircle, Loader2, TrendingUp, TrendingDown, ArrowRight, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { api, settlementDisputesApi } from '../api/client'
+import type { SettlementDashboard, SettlementRun, PrudentialRecord, SettlementResidueRecord, TecAdjustment, SettlementDispute } from '../api/client'
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -501,6 +501,233 @@ export default function NemSettlement() {
 
       {/* TEC Adjustments */}
       <TecAdjustmentsTable adjustments={dashboard.tec_adjustments} />
+
+      {/* Settlement Disputes */}
+      <DisputesPanel />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Disputes Panel
+// ---------------------------------------------------------------------------
+
+const DISPUTE_STATUSES = ['ALL', 'OPEN', 'UNDER_REVIEW', 'RESOLVED', 'ESCALATED'] as const
+const DISPUTE_TYPES = ['ENERGY_AMOUNT', 'FCAS_RECOVERY', 'SRA_RESIDUE', 'PRICE'] as const
+const REGIONS = ['NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'] as const
+
+function DisputeStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    OPEN: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    UNDER_REVIEW: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+    RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    ESCALATED: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  }
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${map[status] ?? 'bg-gray-100 text-gray-700'}`}>
+      {status.replace(/_/g, ' ')}
+    </span>
+  )
+}
+
+function DisputesPanel() {
+  const [open, setOpen] = useState(false)
+  const [disputes, setDisputes] = useState<SettlementDispute[]>([])
+  const [statusFilter, setStatusFilter] = useState<string>('ALL')
+  const [loading, setLoading] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState({
+    region: 'NSW1',
+    settlement_date: new Date().toISOString().slice(0, 10),
+    dispute_type: 'ENERGY_AMOUNT' as string,
+    aemo_amount_aud: '',
+    internal_amount_aud: '',
+    description: '',
+  })
+
+  const loadDisputes = async () => {
+    setLoading(true)
+    try {
+      const res = await settlementDisputesApi.list(
+        undefined,
+        statusFilter === 'ALL' ? undefined : statusFilter
+      )
+      setDisputes(res.disputes || [])
+    } catch { /* ignore */ }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (open) loadDisputes()
+  }, [open, statusFilter])
+
+  const handleSubmit = async () => {
+    try {
+      await settlementDisputesApi.create({
+        region: formData.region,
+        settlement_date: formData.settlement_date,
+        dispute_type: formData.dispute_type,
+        aemo_amount_aud: Number(formData.aemo_amount_aud) || 0,
+        internal_amount_aud: Number(formData.internal_amount_aud) || 0,
+        description: formData.description,
+      })
+      setShowForm(false)
+      setFormData({ region: 'NSW1', settlement_date: new Date().toISOString().slice(0, 10), dispute_type: 'ENERGY_AMOUNT', aemo_amount_aud: '', internal_amount_aud: '', description: '' })
+      loadDisputes()
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={16} className="text-amber-500" />
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Settlement Disputes</h2>
+          <span className="text-xs text-gray-400">{disputes.length} disputes</span>
+        </div>
+        {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4">
+          {/* Controls */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+            >
+              {DISPUTE_STATUSES.map(s => (
+                <option key={s} value={s}>{s === 'ALL' ? 'All Statuses' : s.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1"
+            >
+              <Plus size={12} /> Raise Dispute
+            </button>
+            {loading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+          </div>
+
+          {/* Raise Dispute Form */}
+          {showForm && (
+            <div className="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 space-y-3 border border-gray-200 dark:border-gray-600">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Region</label>
+                  <select
+                    value={formData.region}
+                    onChange={e => setFormData({ ...formData, region: e.target.value })}
+                    className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  >
+                    {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Settlement Date</label>
+                  <input
+                    type="date"
+                    value={formData.settlement_date}
+                    onChange={e => setFormData({ ...formData, settlement_date: e.target.value })}
+                    className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Type</label>
+                  <select
+                    value={formData.dispute_type}
+                    onChange={e => setFormData({ ...formData, dispute_type: e.target.value })}
+                    className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  >
+                    {DISPUTE_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleSubmit}
+                    className="text-xs bg-green-600 hover:bg-green-500 text-white rounded px-4 py-1.5"
+                  >
+                    Submit
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">AEMO Amount ($)</label>
+                  <input
+                    type="number"
+                    value={formData.aemo_amount_aud}
+                    onChange={e => setFormData({ ...formData, aemo_amount_aud: e.target.value })}
+                    className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Internal Amount ($)</label>
+                  <input
+                    type="number"
+                    value={formData.internal_amount_aud}
+                    onChange={e => setFormData({ ...formData, internal_amount_aud: e.target.value })}
+                    className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  rows={2}
+                  placeholder="Describe the dispute..."
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Disputes Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-700">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">ID</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Region</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">AEMO ($)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Internal ($)</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Variance ($)</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {disputes.map(d => (
+                  <tr key={d.dispute_id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                    <td className="px-3 py-2 font-mono text-xs text-gray-600 dark:text-gray-400">{d.dispute_id.slice(0, 8)}</td>
+                    <td className="px-3 py-2"><RegionChip region={d.region} /></td>
+                    <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">{d.settlement_date}</td>
+                    <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">{d.dispute_type.replace(/_/g, ' ')}</td>
+                    <td className="px-3 py-2 text-right text-xs font-medium text-gray-800 dark:text-gray-200">${d.aemo_amount_aud.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right text-xs font-medium text-gray-800 dark:text-gray-200">${d.internal_amount_aud.toLocaleString()}</td>
+                    <td className={`px-3 py-2 text-right text-xs font-bold ${d.variance_aud >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      ${d.variance_aud.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2"><DisputeStatusBadge status={d.status} /></td>
+                  </tr>
+                ))}
+                {disputes.length === 0 && (
+                  <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-gray-400">No disputes found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

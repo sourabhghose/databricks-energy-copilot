@@ -22,6 +22,7 @@ from .shared import (
     _query_lakebase_fresh,
     _insert_gold,
     _insert_gold_batch,
+    _execute_gold,
     _sql_escape,
     logger,
 )
@@ -1189,7 +1190,7 @@ def _run_stress_test_core(
 
     total_impact = total_stressed_mtm - total_base_mtm
 
-    return {
+    result = {
         "scenario_id": scenario_id,
         "scenario_name": scenario["name"],
         "scenario_description": scenario["description"],
@@ -1203,6 +1204,28 @@ def _run_stress_test_core(
         "top_trade_impacts": trade_impacts[:10],
         "price_shocks_applied": scenario["price_shocks"],
     }
+
+    # Persist stress test result
+    try:
+        import json as _json
+        _insert_gold(f"{_SCHEMA}.stress_test_results", {
+            "run_id": str(uuid.uuid4()),
+            "portfolio_id": portfolio_id,
+            "scenario_id": scenario_id,
+            "scenario_name": _sql_escape(scenario["name"]),
+            "base_mtm_aud": round(total_base_mtm, 2),
+            "stressed_mtm_aud": round(total_stressed_mtm, 2),
+            "pnl_change_aud": round(total_impact, 2),
+            "pnl_change_pct": round(total_impact / max(abs(total_base_mtm), 1) * 100, 2),
+            "var_95_aud": 0,
+            "max_loss_aud": round(min(ti.get("impact", 0) for ti in trade_impacts) if trade_impacts else 0, 2),
+            "results_json": _sql_escape(_json.dumps(result, default=str)[:4000]),
+            "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    except Exception as e:
+        logger.warning("Failed to persist stress test result: %s", e)
+
+    return result
 
 
 @router.post("/api/risk/stress-test")
@@ -1312,3 +1335,188 @@ async def what_if_analysis(
 ):
     """Run a what-if scenario analysis on the portfolio."""
     return _what_if_core(scenario, portfolio_id, price_change_pct, region)
+
+
+# =========================================================================
+# Risk Limits CRUD + Monitor
+# =========================================================================
+
+@router.get("/api/risk/limits")
+async def list_risk_limits(
+    portfolio_id: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
+):
+    """List risk limits, optionally filtered by portfolio/active status."""
+    where_parts = []
+    if portfolio_id:
+        where_parts.append(f"portfolio_id = '{_sql_escape(portfolio_id)}'")
+    if is_active is not None:
+        where_parts.append(f"is_active = {'true' if is_active else 'false'}")
+    where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.risk_limits {where} ORDER BY limit_type, region"
+    )
+    if rows:
+        for r in rows:
+            for k in ("created_at", "updated_at"):
+                if k in r and r[k] is not None:
+                    r[k] = str(r[k])
+        return {"limits": rows, "count": len(rows)}
+    return {"limits": [], "count": 0}
+
+
+@router.post("/api/risk/limits")
+async def create_risk_limit(
+    portfolio_id: str = Query(...),
+    limit_type: str = Query(..., description="POSITION_MW, VAR_AUD, NOTIONAL_AUD, CREDIT_AUD"),
+    region: str = Query("ALL"),
+    limit_value: float = Query(...),
+    warning_pct: float = Query(0.80),
+    breach_pct: float = Query(1.0),
+    created_by: str = Query("app_user"),
+):
+    """Create a new risk limit."""
+    limit_id = str(uuid.uuid4())
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    _insert_gold(f"{_SCHEMA}.risk_limits", {
+        "limit_id": limit_id,
+        "portfolio_id": _sql_escape(portfolio_id),
+        "limit_type": _sql_escape(limit_type),
+        "region": _sql_escape(region),
+        "limit_value": limit_value,
+        "warning_pct": warning_pct,
+        "breach_pct": breach_pct,
+        "is_active": 1,
+        "created_by": _sql_escape(created_by),
+        "created_at": now_str,
+        "updated_at": now_str,
+    })
+    return {"status": "created", "limit_id": limit_id}
+
+
+@router.put("/api/risk/limits/{limit_id}")
+async def update_risk_limit(
+    limit_id: str,
+    limit_value: Optional[float] = Query(None),
+    warning_pct: Optional[float] = Query(None),
+    breach_pct: Optional[float] = Query(None),
+    is_active: Optional[bool] = Query(None),
+):
+    """Update a risk limit."""
+    set_parts = []
+    if limit_value is not None:
+        set_parts.append(f"limit_value = {limit_value}")
+    if warning_pct is not None:
+        set_parts.append(f"warning_pct = {warning_pct}")
+    if breach_pct is not None:
+        set_parts.append(f"breach_pct = {breach_pct}")
+    if is_active is not None:
+        set_parts.append(f"is_active = {'true' if is_active else 'false'}")
+    if not set_parts:
+        return {"status": "no_changes"}
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    set_parts.append(f"updated_at = '{now_str}'")
+    _execute_gold(
+        f"UPDATE {_SCHEMA}.risk_limits SET {', '.join(set_parts)} "
+        f"WHERE limit_id = '{_sql_escape(limit_id)}'"
+    )
+    return {"status": "updated", "limit_id": limit_id}
+
+
+@router.delete("/api/risk/limits/{limit_id}")
+async def delete_risk_limit(limit_id: str):
+    """Soft-delete a risk limit (set is_active=false)."""
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    _execute_gold(
+        f"UPDATE {_SCHEMA}.risk_limits SET is_active = false, updated_at = '{now_str}' "
+        f"WHERE limit_id = '{_sql_escape(limit_id)}'"
+    )
+    return {"status": "deleted", "limit_id": limit_id}
+
+
+@router.get("/api/risk/limits/monitor")
+async def monitor_risk_limits(portfolio_id: Optional[str] = Query(None)):
+    """Check current exposure vs risk limits. Returns utilization + status per limit."""
+    # Get active limits
+    where = ""
+    if portfolio_id:
+        where = f"AND portfolio_id = '{_sql_escape(portfolio_id)}'"
+    limits = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.risk_limits WHERE is_active = true {where}"
+    )
+    if not limits:
+        return {"monitors": [], "count": 0}
+
+    # Get latest MtM per portfolio/region for current values
+    mtm_rows = _query_gold(
+        f"SELECT portfolio_id, region, SUM(mtm_value) AS total_mtm, "
+        f"SUM(ABS(volume_mw * remaining_days / 365.0)) AS position_mw_yrs "
+        f"FROM {_SCHEMA}.portfolio_mtm "
+        f"WHERE valuation_date = (SELECT MAX(valuation_date) FROM {_SCHEMA}.portfolio_mtm) "
+        f"GROUP BY portfolio_id, region"
+    )
+    mtm_by_pr: Dict[str, Dict[str, Any]] = {}
+    for r in (mtm_rows or []):
+        key = f"{r.get('portfolio_id', '')}|{r.get('region', 'ALL')}"
+        mtm_by_pr[key] = r
+
+    # Get credit exposure
+    credit_rows = _query_gold(
+        f"SELECT SUM(current_exposure) AS total_credit "
+        f"FROM {_SCHEMA}.credit_exposure "
+        f"WHERE valuation_date = (SELECT MAX(valuation_date) FROM {_SCHEMA}.credit_exposure)"
+    )
+    total_credit = float(credit_rows[0]["total_credit"] or 0) if credit_rows else 0.0
+
+    monitors = []
+    for lim in limits:
+        lt = lim.get("limit_type", "")
+        pid = lim.get("portfolio_id", "")
+        reg = lim.get("region", "ALL")
+        limit_val = float(lim.get("limit_value", 0))
+        warn_pct = float(lim.get("warning_pct", 0.80))
+        breach_pct = float(lim.get("breach_pct", 1.0))
+
+        # Look up current value based on limit type
+        current = 0.0
+        key = f"{pid}|{reg}"
+        key_all = f"{pid}|ALL"
+        mtm_data = mtm_by_pr.get(key) or mtm_by_pr.get(key_all)
+
+        if lt == "POSITION_MW":
+            current = float(mtm_data.get("position_mw_yrs", 0)) if mtm_data else 0.0
+        elif lt == "VAR_AUD":
+            # Use latest VaR from risk_metrics
+            var_row = _query_gold(
+                f"SELECT var_95_1d FROM {_SCHEMA}.risk_metrics "
+                f"WHERE portfolio_id = '{_sql_escape(pid)}' "
+                f"ORDER BY created_at DESC LIMIT 1"
+            )
+            current = abs(float(var_row[0]["var_95_1d"])) if var_row else 0.0
+        elif lt == "NOTIONAL_AUD":
+            current = abs(float(mtm_data.get("total_mtm", 0))) if mtm_data else 0.0
+        elif lt == "CREDIT_AUD":
+            current = total_credit
+
+        utilization = current / limit_val if limit_val > 0 else 0.0
+        if utilization >= breach_pct:
+            status = "BREACH"
+        elif utilization >= warn_pct:
+            status = "WARNING"
+        else:
+            status = "OK"
+
+        monitors.append({
+            "limit_id": lim.get("limit_id", ""),
+            "portfolio_id": pid,
+            "limit_type": lt,
+            "region": reg,
+            "limit_value": limit_val,
+            "current_value": round(current, 2),
+            "utilization_pct": round(utilization * 100, 1),
+            "warning_pct": round(warn_pct * 100, 1),
+            "breach_pct": round(breach_pct * 100, 1),
+            "status": status,
+        })
+
+    return {"monitors": monitors, "count": len(monitors)}

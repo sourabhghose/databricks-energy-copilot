@@ -367,16 +367,16 @@ _GENIE_SPACES = [
         "title": "NEM FCAS & Ancillary Services",
         "description": "FCAS market pricing, providers, regulation vs contingency services, and battery FCAS revenue analytics.",
         "icon": "shield",
-        "tables": ["nem_facilities", "nem_generation_by_fuel", "nem_prices_5min"],
+        "tables": ["nem_facilities", "nem_generation_by_fuel", "nem_prices_5min", "gold_nem_fcas_prices"],
         "question_categories": [
             {
                 "label": "FCAS Pricing",
                 "questions": [
-                    "What is the average FCAS price by service type?",
-                    "Which FCAS service is most expensive right now?",
-                    "Show the relationship between spot price volatility and FCAS costs",
+                    "What is the average clearing price for each FCAS service type in the last 24 hours?",
+                    "Which FCAS service has the highest clearing price right now?",
+                    "Show the relationship between spot price volatility and FCAS clearing prices",
                     "What is the total FCAS cost as a percentage of energy market cost?",
-                    "How do FCAS prices vary by time of day?",
+                    "How do FCAS clearing prices vary by time of day and service?",
                 ],
             },
             {

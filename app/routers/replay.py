@@ -297,6 +297,34 @@ async def replay_range(
                         deduped_ics.append(ic)
                 snap["interconnectors"] = deduped_ics
 
+            # Batch-query weather for the focus region (hourly → map to 5-min snapshots)
+            try:
+                weather_rows = _query_gold(
+                    f"SELECT forecast_datetime, temperature_c, wind_speed_100m_kmh, solar_radiation_wm2 "
+                    f"FROM {_CATALOG}.gold.weather_nem_regions "
+                    f"WHERE nem_region = '{_sql_escape(region)}' "
+                    f"AND forecast_datetime BETWEEN '{ts_start}' AND '{ts_end}' "
+                    f"ORDER BY forecast_datetime"
+                )
+                if weather_rows:
+                    # Build hour→weather lookup
+                    wx_by_hour: Dict[str, Dict] = {}
+                    for w in weather_rows:
+                        hr_key = str(w["forecast_datetime"])[:13]  # "YYYY-MM-DD HH"
+                        wx_by_hour[hr_key] = {
+                            "temperature_c": float(w.get("temperature_c") or 0),
+                            "wind_kmh": float(w.get("wind_speed_100m_kmh") or 0),
+                            "solar_wm2": float(w.get("solar_radiation_wm2") or 0),
+                        }
+                    # Map weather to snapshots by hour prefix
+                    for snap in by_ts.values():
+                        ts_str = snap.get("timestamp", "")
+                        hr = ts_str[:13]
+                        if hr in wx_by_hour:
+                            snap["weather"] = wx_by_hour[hr]
+            except Exception:
+                pass
+
             snapshots = list(by_ts.values())
             # Thin to step interval
             if step > 5 and len(snapshots) > max_snapshots:

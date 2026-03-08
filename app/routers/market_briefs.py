@@ -8,6 +8,8 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Query
 
+from typing import Optional
+
 from .shared import _NEM_REGIONS, _CATALOG, _query_gold, _insert_gold, _sql_escape, logger
 
 router = APIRouter()
@@ -17,11 +19,14 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
+_RENEWABLE_FUELS = {"wind", "solar_utility", "solar_rooftop", "hydro", "battery"}
+
+
+def _generate_brief_core(brief_type: str = "daily", regions: Optional[List[str]] = None) -> Dict[str, Any]:
     """Generate a market intelligence brief from live data.
 
     Queries:
-    1. 24h price stats per region
+    1. Price stats (24h or 168h for weekly)
     2. Recent anomaly events
     3. Renewable share
     4. Interconnector congestion
@@ -32,7 +37,13 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
     sections: List[str] = []
     key_metrics: Dict[str, Any] = {}
 
-    # 1. Price stats (24h)
+    lookback_hours = 168 if brief_type == "weekly" else 24
+    region_filter = ""
+    if regions:
+        quoted = ", ".join(f"'{_sql_escape(r)}'" for r in regions)
+        region_filter = f"AND region_id IN ({quoted})"
+
+    # 1. Price stats
     price_stats = _query_gold(
         f"SELECT region_id, "
         f"ROUND(AVG(rrp), 2) AS avg_price, "
@@ -42,7 +53,8 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
         f"SUM(CASE WHEN rrp > 300 THEN 1 ELSE 0 END) AS spike_intervals, "
         f"SUM(CASE WHEN rrp < 0 THEN 1 ELSE 0 END) AS negative_intervals "
         f"FROM {_CATALOG}.gold.nem_prices_5min "
-        f"WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS "
+        f"WHERE interval_datetime >= current_timestamp() - INTERVAL {lookback_hours} HOURS "
+        f"{region_filter} "
         f"GROUP BY region_id ORDER BY region_id"
     )
 
@@ -86,7 +98,8 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
     anomaly_rows = _query_gold(
         f"SELECT region_id, rrp, interval_datetime "
         f"FROM {_CATALOG}.gold.nem_prices_5min "
-        f"WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS "
+        f"WHERE interval_datetime >= current_timestamp() - INTERVAL {lookback_hours} HOURS "
+        f"{region_filter} "
         f"AND (rrp > 500 OR rrp < -50) "
         f"ORDER BY ABS(rrp) DESC LIMIT 10"
     )
@@ -105,16 +118,16 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
         sections.append("\n## Key Events\n*No significant price events in last 24h*")
         key_metrics["key_events"] = 0
 
-    # 3. Renewable share
+    # 3. Renewable share (derive from fuel_type — no is_renewable column)
     gen_rows = _query_gold(
-        f"SELECT is_renewable, ROUND(SUM(total_mw), 1) AS total_mw "
+        f"SELECT fuel_type, ROUND(SUM(total_mw), 1) AS total_mw "
         f"FROM {_CATALOG}.gold.nem_generation_by_fuel "
         f"WHERE interval_datetime = ("
         f"  SELECT MAX(interval_datetime) FROM {_CATALOG}.gold.nem_generation_by_fuel"
-        f") GROUP BY is_renewable"
+        f") GROUP BY fuel_type"
     )
     if gen_rows:
-        renew_mw = sum(float(r["total_mw"]) for r in gen_rows if r.get("is_renewable"))
+        renew_mw = sum(float(r["total_mw"]) for r in gen_rows if str(r.get("fuel_type", "")).lower() in _RENEWABLE_FUELS)
         total_mw = sum(float(r["total_mw"]) for r in gen_rows)
         pct = (renew_mw / total_mw * 100) if total_mw > 0 else 0
         sections.append(
@@ -165,7 +178,11 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
         sections.append("\n## Watch Items\n*Weather data unavailable*")
 
     # Build final narrative
-    title = f"NEM {brief_type.title()} Brief — {now.strftime('%d %b %Y')}"
+    if brief_type == "weekly":
+        week_start = (now - timedelta(days=7)).strftime("%d %b")
+        title = f"NEM Weekly Brief — week ending {now.strftime('%d %b %Y')}"
+    else:
+        title = f"NEM {brief_type.title()} Brief — {now.strftime('%d %b %Y')}"
     narrative = "\n".join(sections)
     word_count = len(narrative.split())
 
@@ -179,7 +196,7 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
         "title": _sql_escape(title),
         "narrative": _sql_escape(narrative),
         "key_metrics": _sql_escape(json.dumps(key_metrics)),
-        "regions": _sql_escape(json.dumps(_NEM_REGIONS)),
+        "regions": _sql_escape(json.dumps(regions or _NEM_REGIONS)),
         "model_id": "heuristic-v1",
         "generated_at": now_str,
         "word_count": word_count,
@@ -192,7 +209,7 @@ def _generate_brief_core(brief_type: str = "daily") -> Dict[str, Any]:
         "title": title,
         "narrative": narrative,
         "key_metrics": key_metrics,
-        "regions": _NEM_REGIONS,
+        "regions": regions or _NEM_REGIONS,
         "generated_at": now_str,
         "word_count": word_count,
     }
@@ -293,10 +310,14 @@ async def latest_brief(brief_type: str = Query("daily")):
 
 
 @router.post("/api/market-briefs/generate", summary="Generate a market brief", tags=["Market Briefs"])
-async def generate_brief(brief_type: str = Query("daily")):
+async def generate_brief(
+    brief_type: str = Query("daily"),
+    regions: Optional[str] = Query(None, description="Comma-separated regions filter"),
+):
     """Trigger on-demand brief generation."""
     try:
-        return _generate_brief_core(brief_type)
+        region_list = [r.strip() for r in regions.split(",") if r.strip()] if regions else None
+        return _generate_brief_core(brief_type, regions=region_list)
     except Exception as exc:
         logger.warning("Brief generation failed: %s", exc)
         return {

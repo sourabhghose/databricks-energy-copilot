@@ -15,7 +15,9 @@ from .shared import (
     _query_gold,
     _CATALOG,
     _insert_gold_batch,
+    _insert_gold,
     _execute_gold,
+    _update_gold,
     _sql_escape,
     _NEM_REGIONS,
     logger,
@@ -45,6 +47,36 @@ QUARTER_MONTHS: Dict[int, List[int]] = {
 # Peak weighting: fraction of hours in peak period (~62% of weekday hours 7-22)
 _PEAK_WEIGHT = 0.45  # approx proportion of total hours that are peak
 _OFFPEAK_WEIGHT = 1.0 - _PEAK_WEIGHT
+
+
+def _load_curve_config() -> tuple:
+    """Load curve configuration from DB. Returns (seasonal_dict, peak_dict).
+
+    Falls back to hardcoded constants if table is empty or query fails.
+    """
+    try:
+        rows = _query_gold(
+            f"SELECT config_type, region, period_key, factor_value "
+            f"FROM {_CATALOG}.gold.curve_configs"
+        )
+        if rows:
+            seasonal: Dict[int, float] = {}
+            peak: Dict[str, float] = {}
+            for r in rows:
+                ct = r.get("config_type", "")
+                val = float(r.get("factor_value", 0))
+                if ct == "SEASONAL_FACTORS":
+                    try:
+                        seasonal[int(r["period_key"])] = val
+                    except (ValueError, TypeError):
+                        pass
+                elif ct == "PEAK_RATIOS":
+                    peak[r.get("region", r.get("period_key", ""))] = val
+            if len(seasonal) == 12 and len(peak) >= 1:
+                return seasonal, peak
+    except Exception:
+        pass
+    return SEASONAL_FACTORS, PEAK_RATIO
 
 
 def _fetch_asx_futures(region: Optional[str] = None, as_of: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
@@ -79,6 +111,9 @@ def _build_forward_curve(
     """
     if curve_date is None:
         curve_date = date.today().isoformat()
+
+    # Load configurable curve parameters from DB
+    seasonal_factors, peak_ratio = _load_curve_config()
 
     # 1. Fetch ASX futures for this region
     futures = _fetch_asx_futures(region=region, as_of=curve_date)
@@ -171,12 +206,12 @@ def _build_forward_curve(
         # Monthly decomposition within this quarter
         months = QUARTER_MONTHS[q]
         # Normalize seasonal factors for this quarter
-        q_factors = [SEASONAL_FACTORS[m] for m in months]
+        q_factors = [seasonal_factors.get(m, 1.0) for m in months]
         q_avg_factor = sum(q_factors) / len(q_factors)
 
         for m in months:
             month_str = f"{y}-{m:02d}"
-            seasonal_ratio = SEASONAL_FACTORS[m] / q_avg_factor
+            seasonal_ratio = seasonal_factors.get(m, 1.0) / q_avg_factor
             base_price = qprice * seasonal_ratio
 
             if source == "ASX_BOOTSTRAP":
@@ -186,9 +221,9 @@ def _build_forward_curve(
 
             # Apply profile shaping
             if profile == "PEAK":
-                price = base_price * PEAK_RATIO.get(region, 1.20)
+                price = base_price * peak_ratio.get(region, 1.20)
             elif profile == "OFF_PEAK":
-                peak_price = base_price * PEAK_RATIO.get(region, 1.20)
+                peak_price = base_price * peak_ratio.get(region, 1.20)
                 price = (base_price - _PEAK_WEIGHT * peak_price) / _OFFPEAK_WEIGHT
                 price = max(price, base_price * 0.6)  # floor at 60% of base
             else:  # FLAT
@@ -407,3 +442,66 @@ def curves_snapshots(
 
     snapshots = [{"curve_date": cd, "points": pts} for cd, pts in grouped.items()]
     return {"snapshots": snapshots, "region": region, "profile": profile}
+
+
+# =========================================================================
+# Curve Configuration CRUD
+# =========================================================================
+
+@router.get("/api/curves/configs")
+def get_curve_configs():
+    """List all curve configuration entries (seasonal factors + peak ratios)."""
+    rows = _query_gold(
+        f"SELECT config_id, config_type, region, period_key, factor_value, updated_by, updated_at "
+        f"FROM {_CATALOG}.gold.curve_configs ORDER BY config_type, period_key"
+    )
+    if rows:
+        for r in rows:
+            if r.get("updated_at"):
+                r["updated_at"] = str(r["updated_at"])
+        return {"configs": rows, "count": len(rows)}
+    return {"configs": [], "count": 0}
+
+
+@router.put("/api/curves/configs/{config_id}")
+def update_curve_config(
+    config_id: str,
+    factor_value: float = Query(...),
+    updated_by: str = Query("app_user"),
+):
+    """Update a single curve config factor value."""
+    from datetime import datetime, timezone
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    _execute_gold(
+        f"UPDATE {_CATALOG}.gold.curve_configs "
+        f"SET factor_value = {factor_value}, "
+        f"updated_by = '{_sql_escape(updated_by)}', "
+        f"updated_at = '{now_str}' "
+        f"WHERE config_id = '{_sql_escape(config_id)}'"
+    )
+    return {"status": "updated", "config_id": config_id, "factor_value": factor_value}
+
+
+@router.post("/api/curves/configs/reset")
+def reset_curve_configs():
+    """Reset all curve configs to hardcoded defaults."""
+    from datetime import datetime, timezone
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Update seasonal factors
+    for month, factor in SEASONAL_FACTORS.items():
+        _execute_gold(
+            f"UPDATE {_CATALOG}.gold.curve_configs "
+            f"SET factor_value = {factor}, updated_by = 'system_reset', updated_at = '{now_str}' "
+            f"WHERE config_type = 'SEASONAL_FACTORS' AND period_key = '{month}'"
+        )
+
+    # Update peak ratios
+    for region, ratio in PEAK_RATIO.items():
+        _execute_gold(
+            f"UPDATE {_CATALOG}.gold.curve_configs "
+            f"SET factor_value = {ratio}, updated_by = 'system_reset', updated_at = '{now_str}' "
+            f"WHERE config_type = 'PEAK_RATIOS' AND region = '{region}'"
+        )
+
+    return {"status": "reset", "seasonal_count": len(SEASONAL_FACTORS), "peak_count": len(PEAK_RATIO)}

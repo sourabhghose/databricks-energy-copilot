@@ -1800,6 +1800,31 @@ def _build_fcas_dashboard(region: str = "NSW1") -> Dict:
     # Volatility factor: higher vol → higher FCAS prices
     vol_factor = 1 + min(price_vol / 100, 1.5)
 
+    # Try real FCAS prices from gold_nem_fcas_prices (nemweb-accelerator pipeline)
+    real_fcas_prices: Dict[str, Dict[str, float]] = {}  # service -> {avg, max, min}
+    try:
+        _fcas_rows = _query_gold(f"""
+            SELECT service,
+                   AVG(clearing_price_aud_mw) AS avg_price,
+                   MAX(clearing_price_aud_mw) AS max_price,
+                   MIN(clearing_price_aud_mw) AS min_price
+            FROM {_CATALOG}.nemweb_analytics.gold_nem_fcas_prices
+            WHERE region_id = '{region}'
+              AND interval_datetime >= current_timestamp() - INTERVAL 24 HOURS
+            GROUP BY service
+        """)
+        if _fcas_rows:
+            for r in _fcas_rows:
+                svc_name = r.get("service", "")
+                if svc_name:
+                    real_fcas_prices[svc_name] = {
+                        "avg": float(r.get("avg_price") or 0),
+                        "max": float(r.get("max_price") or 0),
+                        "min": float(r.get("min_price") or 0),
+                    }
+    except Exception:
+        pass  # Fall back to heuristic derivation
+
     # Derive 8 FCAS service prices
     services = []
     total_fcas_cost = 0
@@ -1808,9 +1833,14 @@ def _build_fcas_dashboard(region: str = "NSW1") -> Dict:
     total_enabled = 0
 
     for svc in _FCAS_SERVICES:
-        lo, hi = _FCAS_PRICE_FACTORS[svc["service"]]
-        base_clearing = avg_price * rng.uniform(lo, hi) * vol_factor
-        clearing = round(max(1.0, base_clearing), 2)
+        # Use real FCAS price if available, else derive heuristically
+        real = real_fcas_prices.get(svc["service"])
+        if real and real["avg"] > 0:
+            clearing = round(real["avg"], 2)
+        else:
+            lo, hi = _FCAS_PRICE_FACTORS[svc["service"]]
+            base_clearing = avg_price * rng.uniform(lo, hi) * vol_factor
+            clearing = round(max(1.0, base_clearing), 2)
 
         # Requirements based on demand
         if svc["direction"] == "RAISE":
@@ -1836,6 +1866,10 @@ def _build_fcas_dashboard(region: str = "NSW1") -> Dict:
                 preferred = facility_rows[:5]
             main_prov = rng.choice(preferred)["station_name"] if preferred else "Unknown"
 
+        real = real_fcas_prices.get(svc["service"])
+        max_clearing = round(real["max"], 2) if real and real["max"] > 0 else round(clearing * rng.uniform(1.5, 4.0), 2)
+        min_clearing = round(real["min"], 2) if real and real["min"] > 0 else round(clearing * rng.uniform(0.2, 0.6), 2)
+
         services.append({
             **svc,
             "clearing_price_aud_mw": clearing,
@@ -1843,8 +1877,8 @@ def _build_fcas_dashboard(region: str = "NSW1") -> Dict:
             "requirement_mw": req_mw,
             "enabled_mw": enabled_mw,
             "utilisation_pct": round(enabled_mw / max(req_mw, 1) * 100, 1),
-            "max_clearing_today": round(clearing * rng.uniform(1.5, 4.0), 2),
-            "min_clearing_today": round(clearing * rng.uniform(0.2, 0.6), 2),
+            "max_clearing_today": max_clearing,
+            "min_clearing_today": min_clearing,
             "main_provider": main_prov,
         })
 
@@ -2087,6 +2121,120 @@ async def settlement_residues(interconnector: str = Query(None)):
     if interconnector:
         residues = [r for r in residues if interconnector.lower() in r["interconnector_id"].lower()]
     return residues
+
+
+# --- Settlement Disputes CRUD ---
+
+@router.get("/api/settlement/disputes", summary="List settlement disputes", tags=["Settlement"])
+async def list_disputes(
+    region: str = Query(None),
+    status: str = Query(None),
+    limit: int = Query(50),
+):
+    """List settlement disputes, optionally filtered by region/status."""
+    where_parts = []
+    if region:
+        where_parts.append(f"region = '{_sql_escape(region)}'")
+    if status:
+        where_parts.append(f"status = '{_sql_escape(status)}'")
+    where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+    rows = _query_gold(
+        f"SELECT * FROM {_CATALOG}.gold.settlement_disputes "
+        f"{where_clause} ORDER BY raised_at DESC LIMIT {min(limit, 200)}"
+    )
+    if rows:
+        for r in rows:
+            for k in ("settlement_date", "raised_at", "resolved_at"):
+                if k in r and r[k] is not None:
+                    r[k] = str(r[k])
+        return {"disputes": rows, "count": len(rows)}
+    return {"disputes": [], "count": 0}
+
+
+@router.post("/api/settlement/disputes", summary="Create dispute", tags=["Settlement"])
+async def create_dispute(
+    region: str = Query(...),
+    settlement_date: str = Query(...),
+    dispute_type: str = Query(...),
+    aemo_amount_aud: float = Query(...),
+    internal_amount_aud: float = Query(...),
+    description: str = Query(""),
+    raised_by: str = Query("app_user"),
+):
+    """Create a new settlement dispute. Variance auto-computed."""
+    dispute_id = str(uuid.uuid4())
+    variance = round(aemo_amount_aud - internal_amount_aud, 2)
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    _insert_gold(f"{_CATALOG}.gold.settlement_disputes", {
+        "dispute_id": dispute_id,
+        "region": _sql_escape(region),
+        "settlement_date": settlement_date,
+        "dispute_type": _sql_escape(dispute_type),
+        "aemo_amount_aud": aemo_amount_aud,
+        "internal_amount_aud": internal_amount_aud,
+        "variance_aud": variance,
+        "status": "OPEN",
+        "description": _sql_escape(description),
+        "resolution_notes": "",
+        "raised_by": _sql_escape(raised_by),
+        "raised_at": now_str,
+    })
+    return {
+        "status": "created",
+        "dispute_id": dispute_id,
+        "variance_aud": variance,
+    }
+
+
+@router.put("/api/settlement/disputes/{dispute_id}", summary="Update dispute", tags=["Settlement"])
+async def update_dispute(
+    dispute_id: str,
+    status: str = Query(None),
+    resolution_notes: str = Query(None),
+):
+    """Update a dispute status and/or resolution notes."""
+    set_parts = []
+    if status:
+        set_parts.append(f"status = '{_sql_escape(status)}'")
+        if status == "RESOLVED":
+            set_parts.append(f"resolved_at = current_timestamp()")
+    if resolution_notes is not None:
+        set_parts.append(f"resolution_notes = '{_sql_escape(resolution_notes)}'")
+    if not set_parts:
+        return {"status": "no_changes"}
+    _execute_gold(
+        f"UPDATE {_CATALOG}.gold.settlement_disputes "
+        f"SET {', '.join(set_parts)} "
+        f"WHERE dispute_id = '{_sql_escape(dispute_id)}'"
+    )
+    return {"status": "updated", "dispute_id": dispute_id}
+
+
+@router.get("/api/settlement/disputes/summary", summary="Dispute summary", tags=["Settlement"])
+async def dispute_summary():
+    """Counts by status + total variance."""
+    rows = _query_gold(
+        f"SELECT status, COUNT(*) AS cnt, SUM(ABS(variance_aud)) AS total_variance "
+        f"FROM {_CATALOG}.gold.settlement_disputes "
+        f"GROUP BY status"
+    )
+    summary = {}
+    total_variance = 0.0
+    total_count = 0
+    if rows:
+        for r in rows:
+            s = r["status"]
+            c = int(r["cnt"])
+            v = float(r.get("total_variance") or 0)
+            summary[s] = {"count": c, "total_variance_aud": round(v, 2)}
+            total_variance += v
+            total_count += c
+    return {
+        "by_status": summary,
+        "total_disputes": total_count,
+        "total_variance_aud": round(total_variance, 2),
+    }
 
 
 # --- DSP Dashboard ---
@@ -2457,7 +2605,8 @@ async def evaluate_alerts():
     triggered = []
     try:
         rules = _query_gold(
-            f"SELECT rule_id, region, alert_type, threshold_value, notification_channel "
+            f"SELECT rule_id, region, alert_type, threshold_value, notification_channel, "
+            f"COALESCE(cooldown_minutes, 60) AS cooldown_minutes "
             f"FROM {_CATALOG}.gold.alert_rules WHERE is_active = true"
         )
         if not rules:
@@ -2467,6 +2616,7 @@ async def evaluate_alerts():
             region = rule["region"]
             alert_type = rule["alert_type"]
             threshold = float(rule["threshold_value"])
+            cooldown = int(rule.get("cooldown_minutes") or 60)
 
             actual_value = None
             at_lower = alert_type.lower()
@@ -2496,8 +2646,38 @@ async def evaluate_alerts():
                     val = float(price_row[0]["rrp"])
                     if val < threshold:
                         actual_value = abs(val)  # trigger when price below threshold
+            elif at_lower == "fcas_price":
+                # Max FCAS clearing price in last 30 min
+                fcas_row = _query_gold(
+                    f"SELECT MAX(clearing_price_aud_mw) AS max_price "
+                    f"FROM {_CATALOG}.nemweb_analytics.gold_nem_fcas_prices "
+                    f"WHERE region_id = '{_sql_escape(region)}' "
+                    f"AND interval_datetime >= current_timestamp() - INTERVAL 30 MINUTES"
+                )
+                if fcas_row and fcas_row[0].get("max_price") is not None:
+                    actual_value = float(fcas_row[0]["max_price"])
+            elif at_lower == "forecast_spike":
+                # Max forecast demand in next 4 hours
+                forecast_row = _query_gold(
+                    f"SELECT MAX(predicted_demand_mw) AS max_demand "
+                    f"FROM {_CATALOG}.gold.demand_forecasts "
+                    f"WHERE region_id = '{_sql_escape(region)}' "
+                    f"AND interval_datetime BETWEEN current_timestamp() AND current_timestamp() + INTERVAL 4 HOURS"
+                )
+                if forecast_row and forecast_row[0].get("max_demand") is not None:
+                    actual_value = float(forecast_row[0]["max_demand"])
 
             if actual_value is not None and actual_value > threshold:
+                # Check cooldown: skip if recently triggered
+                recent = _query_gold(
+                    f"SELECT event_id FROM {_CATALOG}.gold.alert_history "
+                    f"WHERE rule_id = '{_sql_escape(rule['rule_id'])}' "
+                    f"AND triggered_at >= current_timestamp() - INTERVAL {cooldown} MINUTES "
+                    f"LIMIT 1"
+                )
+                if recent:
+                    continue  # cooldown active, skip
+
                 event_id = str(uuid.uuid4())
                 now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 _insert_gold(f"{_CATALOG}.gold.alert_history", {

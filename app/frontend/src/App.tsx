@@ -96,6 +96,7 @@ import {
   Upload,
   Rocket,
   CloudRain,
+  ChevronDown,
 } from 'lucide-react'
 
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
@@ -1553,7 +1554,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
 }
 
 // ---------------------------------------------------------------------------
-// Sidebar — Flat category navigation
+// Sidebar — Collapsible Front / Middle / Back Office sections
 // ---------------------------------------------------------------------------
 
 const PINNED_PATHS = new Set(['/', '/live', '/copilot', '/genie', '/alerts'])
@@ -1575,6 +1576,12 @@ const GROUP_DEFS: { key: string; label: string; Icon: React.ComponentType<{ size
   { key: 'policy',      label: 'Policy & Regulation',   Icon: FileText },
   { key: 'analytics',   label: 'Analytics & AI',        Icon: Brain },
   { key: 'other',       label: 'More',                  Icon: Layers },
+]
+
+const OFFICE_SECTIONS: { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }>; groups: string[] }[] = [
+  { key: 'front',  label: 'Front Office',  Icon: Briefcase,  groups: ['operations', 'prices', 'generation', 'gas', 'demand', 'system', 'renewables', 'storage'] },
+  { key: 'middle', label: 'Middle Office', Icon: BarChart3,  groups: ['network', 'analytics', 'der', 'climate'] },
+  { key: 'back',   label: 'Back Office',   Icon: Building2,  groups: ['retail', 'policy', 'emerging', 'other'] },
 ]
 
 /** Classify a nav item into a group key based on path and label keywords. */
@@ -1904,6 +1911,7 @@ function CategoryPage() {
 
 function Sidebar() {
   const location = useLocation()
+  const [expandedOffice, setExpandedOffice] = useState<string | null>('front')
 
   const pinnedItems = useMemo(
     () => NAV_ITEMS.filter(item => PINNED_PATHS.has(item.to)),
@@ -1922,6 +1930,14 @@ function Sidebar() {
     }
     return null
   }, [location.pathname])
+
+  // Auto-expand the office section containing the active page
+  useEffect(() => {
+    if (activeCategoryKey) {
+      const parentOffice = OFFICE_SECTIONS.find(o => o.groups.includes(activeCategoryKey))
+      if (parentOffice) setExpandedOffice(parentOffice.key)
+    }
+  }, [activeCategoryKey])
 
   return (
     <aside className="flex flex-col w-56 min-h-screen text-gray-100 shrink-0" style={{ backgroundColor: 'var(--db-sidebar)' }}>
@@ -1960,22 +1976,50 @@ function Sidebar() {
 
         <div className="h-px bg-white/10 my-2 mx-2" />
 
-        {/* Category links — flat, no accordion */}
-        {GROUP_DEFS.map(group => {
-          const isActive = activeCategoryKey === group.key
+        {/* Category links — grouped by office section */}
+        {OFFICE_SECTIONS.map(office => {
+          const isExpanded = expandedOffice === office.key
+          const officeGroups = GROUP_DEFS.filter(g => office.groups.includes(g.key))
+          const hasActiveChild = officeGroups.some(g => activeCategoryKey === g.key)
+
           return (
-            <NavLink
-              key={group.key}
-              to={`/cat/${group.key}`}
-              className={() =>
-                `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                }`
-              }
-            >
-              <group.Icon size={18} />
-              {group.label}
-            </NavLink>
+            <div key={office.key} className="mt-1">
+              <button
+                onClick={() => setExpandedOffice(isExpanded ? null : office.key)}
+                className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${
+                  hasActiveChild ? 'text-white' : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <office.Icon size={14} />
+                  <span>{office.label}</span>
+                  {hasActiveChild && !isExpanded && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
+                  )}
+                </span>
+                <ChevronDown size={14} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+              </button>
+
+              <div className={`overflow-hidden transition-all duration-200 ${isExpanded ? 'max-h-96' : 'max-h-0'}`}>
+                {officeGroups.map(group => {
+                  const isActive = activeCategoryKey === group.key
+                  return (
+                    <NavLink
+                      key={group.key}
+                      to={`/cat/${group.key}`}
+                      className={() =>
+                        `flex items-center gap-2.5 pl-8 pr-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                          isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`
+                      }
+                    >
+                      <group.Icon size={14} />
+                      {group.label}
+                    </NavLink>
+                  )
+                })}
+              </div>
+            </div>
           )
         })}
       </nav>
