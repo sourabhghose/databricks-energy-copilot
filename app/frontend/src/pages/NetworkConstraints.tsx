@@ -151,20 +151,17 @@ export default function NetworkConstraints() {
   // Derived data
   // ---------------------------------------------------------------------------
 
-  const filteredEquations: ConstraintEquation[] = dashboard
-    ? dashboard.constraint_equations.filter(e => {
-        if (regionFilter !== 'All' && e.region !== regionFilter) return false
-        if (bindingOnly && !e.binding) return false
-        return true
-      })
-    : []
+  const allEquations = dashboard?.constraint_equations ?? []
+  const filteredEquations: ConstraintEquation[] = allEquations.filter(e => {
+    if (regionFilter !== 'All' && e.region !== regionFilter) return false
+    if (bindingOnly && !e.binding) return false
+    return true
+  })
 
-  const chartData = dashboard
-    ? [...dashboard.constraint_equations]
-        .sort((a, b) => b.annual_cost_est_m_aud - a.annual_cost_est_m_aud)
-        .slice(0, 8)
-        .map(e => ({ name: e.constraint_id, cost: e.annual_cost_est_m_aud, binding: e.binding, slack: e.slack_mw }))
-    : []
+  const chartData = [...allEquations]
+    .sort((a, b) => b.annual_cost_est_m_aud - a.annual_cost_est_m_aud)
+    .slice(0, 8)
+    .map(e => ({ name: e.constraint_id, cost: e.annual_cost_est_m_aud, binding: e.binding, slack: e.slack_mw }))
 
   const violations: ConstraintViolationRecord[] = dashboard?.violations ?? []
 

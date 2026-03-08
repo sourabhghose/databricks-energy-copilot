@@ -2191,6 +2191,166 @@ async def evaluate_alerts():
 # CONSTRAINT ENHANCEMENTS — Feature 3
 # =========================================================================
 
+_NEMWEB = f"{_CATALOG}.nemweb_analytics"
+
+
+@router.get("/api/constraints/dashboard", summary="Constraint dashboard", tags=["Constraints"])
+async def constraint_dashboard_full():
+    """Full constraint dashboard matching ConstraintDashboard interface."""
+    now_str = datetime.now(timezone.utc).isoformat()
+    rng = random.Random(42)
+
+    try:
+        # Query real constraint data
+        rows = _query_gold(
+            f"SELECT constraint_id, constraint_type, rhs, marginal_value, "
+            f"violation_degree, is_binding, region, interval_datetime "
+            f"FROM {_NEMWEB}.gold_nem_constraints "
+            f"WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS "
+            f"ORDER BY ABS(marginal_value) DESC LIMIT 200"
+        )
+        if rows and len(rows) > 5:
+            # Build constraint equations
+            by_cid: dict = {}
+            for r in rows:
+                cid = r.get("constraint_id", "")
+                if cid not in by_cid:
+                    by_cid[cid] = {
+                        "constraint_id": cid,
+                        "constraint_name": cid.replace("_", " ").title()[:60],
+                        "constraint_type": r.get("constraint_type", "THERMAL"),
+                        "binding": bool(r.get("is_binding")),
+                        "region": r.get("region", "NEM"),
+                        "rhs_value": float(r.get("rhs") or 0),
+                        "lhs_value": float(r.get("rhs") or 0) - float(r.get("violation_degree") or 0),
+                        "slack_mw": max(0, float(r.get("rhs") or 0) - float(r.get("violation_degree") or 0)),
+                        "marginal_value": round(abs(float(r.get("marginal_value") or 0)), 2),
+                        "generic_equation": f"{cid} <= {float(r.get('rhs') or 0):.0f} MW",
+                        "connected_duids": [],
+                        "frequency_binding_pct": 0.0,
+                        "annual_cost_est_m_aud": 0.0,
+                        "_binding_count": 0,
+                        "_total_count": 0,
+                    }
+                entry = by_cid[cid]
+                entry["_total_count"] += 1
+                if r.get("is_binding"):
+                    entry["_binding_count"] += 1
+                    entry["binding"] = True
+
+            # Calculate binding frequency and cost
+            equations = []
+            for cid, eq in by_cid.items():
+                total = eq.pop("_total_count", 1)
+                bind_ct = eq.pop("_binding_count", 0)
+                eq["frequency_binding_pct"] = round(bind_ct / max(total, 1) * 100, 1)
+                eq["annual_cost_est_m_aud"] = round(eq["marginal_value"] * eq["frequency_binding_pct"] / 100 * 0.5, 2)
+                eq["slack_mw"] = round(abs(eq["rhs_value"]) * (1 - eq["frequency_binding_pct"] / 100), 1) if not eq["binding"] else 0.0
+                equations.append(eq)
+            equations.sort(key=lambda x: -x["marginal_value"])
+
+            # Region summaries
+            by_region: dict = {}
+            for eq in equations:
+                reg = eq["region"]
+                if reg not in by_region:
+                    by_region[reg] = {"region": reg, "active_constraints": 0, "binding_constraints": 0,
+                                      "critical_constraints": 0, "total_cost_m_aud_yr": 0.0,
+                                      "most_binding_constraint": "", "interconnector_limited": False}
+                by_region[reg]["active_constraints"] += 1
+                if eq["binding"]:
+                    by_region[reg]["binding_constraints"] += 1
+                if eq["marginal_value"] > 100:
+                    by_region[reg]["critical_constraints"] += 1
+                by_region[reg]["total_cost_m_aud_yr"] += eq["annual_cost_est_m_aud"]
+                if not by_region[reg]["most_binding_constraint"] or eq["marginal_value"] > 0:
+                    by_region[reg]["most_binding_constraint"] = eq["constraint_id"]
+
+            region_summaries = list(by_region.values())
+
+            # Build violations from binding constraints with high marginal value
+            violations = []
+            for eq in equations[:10]:
+                if eq["binding"] or eq["marginal_value"] > 50:
+                    violations.append({
+                        "violation_id": f"V-{eq['constraint_id'][:20]}",
+                        "constraint_id": eq["constraint_id"],
+                        "region": eq["region"],
+                        "dispatch_interval": now_str,
+                        "violation_mw": round(max(0, eq["marginal_value"] * 0.1), 1),
+                        "dispatch_price_impact": round(eq["marginal_value"] * 0.5, 1),
+                        "cause": "HIGH_DEMAND" if eq["marginal_value"] > 200 else "WIND_RAMP",
+                        "resolved": eq["marginal_value"] < 50,
+                    })
+
+            binding_count = sum(1 for eq in equations if eq["binding"])
+            most_constrained = max(region_summaries, key=lambda x: x["binding_constraints"])["region"] if region_summaries else "NSW1"
+
+            return {
+                "timestamp": now_str,
+                "total_active_constraints": len(equations),
+                "binding_constraints_now": binding_count,
+                "total_annual_constraint_cost_m_aud": round(sum(eq["annual_cost_est_m_aud"] for eq in equations), 1),
+                "most_constrained_region": most_constrained,
+                "violations_today": len(violations),
+                "region_summaries": region_summaries,
+                "constraint_equations": equations[:50],
+                "violations": violations,
+            }
+    except Exception as exc:
+        logger.warning("Constraint dashboard real query failed: %s", exc)
+
+    # Mock fallback
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    equations = []
+    for i in range(25):
+        reg = regions[i % 5]
+        binding = rng.random() < 0.3
+        mv = round(rng.uniform(0, 500), 2) if binding else round(rng.uniform(0, 50), 2)
+        rhs = round(rng.uniform(500, 5000), 0)
+        equations.append({
+            "constraint_id": f"C_{reg}_{i:03d}",
+            "constraint_name": f"Constraint {reg} #{i}",
+            "constraint_type": rng.choice(["THERMAL", "VOLTAGE", "STABILITY", "NETWORK"]),
+            "binding": binding, "region": reg,
+            "rhs_value": rhs, "lhs_value": rhs - rng.uniform(0, 200),
+            "slack_mw": 0.0 if binding else round(rng.uniform(5, 200), 1),
+            "marginal_value": mv,
+            "generic_equation": f"C_{reg}_{i:03d} <= {rhs:.0f} MW",
+            "connected_duids": [], "frequency_binding_pct": round(rng.uniform(0, 40), 1),
+            "annual_cost_est_m_aud": round(mv * 0.02, 2),
+        })
+    region_summaries = [
+        {"region": reg, "active_constraints": sum(1 for e in equations if e["region"] == reg),
+         "binding_constraints": sum(1 for e in equations if e["region"] == reg and e["binding"]),
+         "critical_constraints": sum(1 for e in equations if e["region"] == reg and e["marginal_value"] > 100),
+         "total_cost_m_aud_yr": round(sum(e["annual_cost_est_m_aud"] for e in equations if e["region"] == reg), 2),
+         "most_binding_constraint": next((e["constraint_id"] for e in equations if e["region"] == reg and e["binding"]), ""),
+         "interconnector_limited": rng.random() < 0.3}
+        for reg in regions
+    ]
+    violations = [
+        {"violation_id": f"V-{i}", "constraint_id": equations[i]["constraint_id"],
+         "region": equations[i]["region"], "dispatch_interval": now_str,
+         "violation_mw": round(rng.uniform(5, 100), 1),
+         "dispatch_price_impact": round(rng.uniform(10, 500), 1),
+         "cause": rng.choice(["WIND_RAMP", "HIGH_DEMAND", "OUTAGE", "NEMDE_INTERVENTION"]),
+         "resolved": rng.random() < 0.4}
+        for i in range(min(8, len(equations))) if equations[i]["binding"]
+    ]
+    binding_ct = sum(1 for e in equations if e["binding"])
+    return {
+        "timestamp": now_str,
+        "total_active_constraints": len(equations),
+        "binding_constraints_now": binding_ct,
+        "total_annual_constraint_cost_m_aud": round(sum(e["annual_cost_est_m_aud"] for e in equations), 1),
+        "most_constrained_region": max(region_summaries, key=lambda x: x["binding_constraints"])["region"],
+        "violations_today": len(violations),
+        "region_summaries": region_summaries,
+        "constraint_equations": equations,
+        "violations": violations,
+    }
+
 
 @router.get("/api/constraints/binding-heatmap", summary="Constraint binding heatmap", tags=["Constraints"])
 async def constraint_binding_heatmap(
