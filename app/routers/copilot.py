@@ -224,6 +224,68 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_alert_rule",
+            "description": "Create a new alert rule to monitor NEM market conditions. Supports price thresholds, demand surges, FCAS prices, and forecast spikes. Rules are evaluated every 5 minutes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "alert_type": {"type": "string", "description": "Type of alert", "enum": ["PRICE_THRESHOLD", "DEMAND_SURGE", "FCAS_PRICE", "FORECAST_SPIKE"]},
+                    "threshold_value": {"type": "number", "description": "Threshold value (e.g. 300 for $300/MWh price alert)"},
+                    "channel": {"type": "string", "description": "Notification channel", "enum": ["EMAIL", "SLACK", "IN_APP"]},
+                },
+                "required": ["region", "alert_type", "threshold_value"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "explain_anomaly",
+            "description": "Get an AI-powered root cause explanation for a market anomaly (price spike, negative price, congestion event). Analyses generation changes, interconnector congestion, weather conditions, and constraints.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "timestamp": {"type": "string", "description": "ISO timestamp of the event (e.g. 2026-03-08T14:30:00)"},
+                    "event_id": {"type": "string", "description": "Optional event ID for caching"},
+                },
+                "required": ["region"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_market_brief",
+            "description": "Generate a market intelligence brief summarising overnight prices, key events, renewable share, congestion, and weather watch items across all NEM regions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "brief_type": {"type": "string", "description": "Type of brief", "enum": ["daily", "weekly", "flash"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_constraint_forecast",
+            "description": "Get constraint binding heatmap showing when interconnector constraints are most likely to bind by hour-of-day and day-of-week for a specific NEM region.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "days": {"type": "integer", "description": "Lookback days (default 7)", "default": 7},
+                },
+                "required": ["region"],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -500,6 +562,59 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
                     result["exposures"] = filtered
                     result["counterparties"] = len(filtered)
             return json.dumps(result, default=str)
+
+        elif name == "create_alert_rule":
+            from .sidebar import _create_alert_rule_core
+            result = _create_alert_rule_core({
+                "region": arguments.get("region", "NSW1"),
+                "alert_type": arguments.get("alert_type", "PRICE_THRESHOLD"),
+                "threshold_value": arguments.get("threshold_value", 300),
+                "notification_channel": arguments.get("channel", "IN_APP"),
+                "created_by": "copilot",
+            })
+            return json.dumps(result, default=str)
+
+        elif name == "explain_anomaly":
+            from .alerts import _explain_anomaly_core
+            region = arguments.get("region", "NSW1")
+            timestamp = arguments.get("timestamp", "")
+            event_id = arguments.get("event_id", "")
+            if not timestamp:
+                from datetime import datetime as _dt, timezone as _tz
+                timestamp = _dt.now(_tz.utc).isoformat()
+            result = _explain_anomaly_core(event_id, region, timestamp)
+            return json.dumps(result, default=str)
+
+        elif name == "generate_market_brief":
+            from .market_briefs import _generate_brief_core
+            brief_type = arguments.get("brief_type", "daily")
+            result = _generate_brief_core(brief_type)
+            return json.dumps(result, default=str)
+
+        elif name == "get_constraint_forecast":
+            region = arguments.get("region", "NSW1")
+            days = arguments.get("days", 7)
+            rows = _query_gold(
+                f"SELECT HOUR(interval_datetime) AS hour_of_day, "
+                f"DAYOFWEEK(interval_datetime) AS day_of_week, "
+                f"COUNT(*) AS total_intervals, "
+                f"SUM(CASE WHEN is_congested = true THEN 1 ELSE 0 END) AS binding_count "
+                f"FROM {_CATALOG}.gold.nem_interconnectors "
+                f"WHERE (from_region = '{region}' OR to_region = '{region}') "
+                f"AND interval_datetime >= current_timestamp() - INTERVAL {days} DAYS "
+                f"GROUP BY HOUR(interval_datetime), DAYOFWEEK(interval_datetime) "
+                f"ORDER BY binding_count DESC LIMIT 20"
+            )
+            if rows:
+                lines = [f"Constraint binding heatmap for {region} (last {days} days):"]
+                lines.append(f"{'Hour':>4} {'Day':>4} {'Binding%':>9} {'Count':>6}")
+                for r in rows:
+                    total = int(r.get("total_intervals", 1))
+                    binding = int(r.get("binding_count", 0))
+                    pct = binding / max(total, 1) * 100
+                    lines.append(f"{r['hour_of_day']:>4} {r['day_of_week']:>4} {pct:>8.1f}% {binding:>6}")
+                return json.dumps({"text": "\n".join(lines), "data": rows}, default=str)
+            return json.dumps({"message": f"No constraint data for {region} in last {days} days"})
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
