@@ -27,6 +27,8 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'Which region has the cheapest electricity right now?',
       'Show me recent price spikes and their triggers',
       'How volatile are prices across regions today?',
+      'What is the price spread between NSW1 and QLD1 right now?',
+      'Have there been any negative price intervals today?',
     ],
   },
   {
@@ -37,6 +39,8 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'Which region has the highest carbon intensity?',
       'How much coal vs gas is running in QLD1?',
       'What is the total NEM generation output?',
+      'What is SA1\'s current wind and solar output in MW?',
+      'Which fuel type is the marginal generator in NSW1 right now?',
     ],
   },
   {
@@ -46,6 +50,7 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'Are any interconnectors congested right now?',
       'How much power is flowing from VIC to SA?',
       'What is the total interstate energy transfer?',
+      'Is Basslink exporting or importing to Tasmania?',
     ],
   },
   {
@@ -54,6 +59,47 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'How many batteries are charging vs discharging?',
       'What is the total BESS fleet capacity in the NEM?',
       'Summarise battery storage performance today',
+      'What is the current arbitrage spread for batteries in SA1?',
+    ],
+  },
+  {
+    label: 'Forecasting & Weather',
+    questions: [
+      'What is the demand forecast for NSW1 tonight?',
+      'Which region has the highest price spike probability right now?',
+      'What is the wind forecast for SA1 over the next 4 hours?',
+      'Show me today\'s temperature and demand correlation across regions',
+      'How accurate have the price forecasts been for VIC1 this week?',
+    ],
+  },
+  {
+    label: 'Stress Testing & What-If',
+    questions: [
+      'What would happen to our portfolio if SA prices spike 200%?',
+      'Run a wind drought stress test across the portfolio',
+      'What if there was a 2GW coal plant trip in NSW?',
+      'How would a QNI interconnector failure affect our positions?',
+      'What is our portfolio exposure to an SA heatwave scenario?',
+      'What if VIC demand surges 30% due to a cold snap?',
+      'Run a stress test: what if gas prices double?',
+      'How would a Basslink outage impact TAS1 prices and our trades?',
+      'What would happen if renewables dropped to 10% across the NEM?',
+      'Stress test our portfolio against a simultaneous SA heatwave and wind drought',
+    ],
+  },
+  {
+    label: 'Trading & Portfolio',
+    questions: [
+      'What is our current portfolio mark-to-market value?',
+      'Show me the P&L breakdown by region',
+      'Which trades have the largest exposure?',
+      'Create a 100MW FLAT FORWARD for NSW1 at $75/MWh with AGL',
+      'What is our net position in SA1?',
+      'Value a 200MW wind PPA in VIC at $60/MWh for 15 years',
+      'Value a 50MW solar PPA in SA at $45/MWh for 10 years',
+      'What is the credit utilization for Origin Energy?',
+      'Show me the forward curve for QLD1',
+      'Compare the NSW1 forward curve PEAK vs OFF_PEAK',
     ],
   },
   {
@@ -70,6 +116,8 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'Are there any active system alerts?',
       'Are there any LOR conditions right now?',
       'Give me a full market status briefing',
+      'Create an alert for NSW1 price above $300/MWh',
+      'Explain any anomalies detected in the last 24 hours',
     ],
   },
   {
@@ -79,6 +127,8 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'What NEM rules govern AEMO\'s intervention powers?',
       'How does the NEM dispatch process work?',
       'What is the market price cap and cumulative price threshold?',
+      'How does the 5-minute settlement process work?',
+      'What are the different FCAS markets and how do they interact?',
     ],
   },
 ]
