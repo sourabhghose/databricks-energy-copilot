@@ -1051,3 +1051,264 @@ async def credit_check(
 ):
     """Pre-trade credit check. Returns pass/warn/block status."""
     return _credit_check_core(counterparty_id, notional_aud, tenor_days)
+
+
+# ---------------------------------------------------------------------------
+# E4 — Stress Testing
+# ---------------------------------------------------------------------------
+
+_STRESS_SCENARIOS: Dict[str, Dict[str, Any]] = {
+    "sa_heatwave": {
+        "name": "SA Heatwave +300%",
+        "description": "Extreme heatwave in South Australia drives prices to 3x normal across SA1 and VIC1",
+        "price_shocks": {"SA1": 3.0, "VIC1": 1.8, "NSW1": 1.3, "QLD1": 1.1, "TAS1": 1.0},
+        "volume_shocks": {"SA1": 1.15, "VIC1": 1.10},
+        "generation_shocks": {"wind": 0.4, "solar_utility": 1.3},
+    },
+    "wind_drought": {
+        "name": "Wind Drought -80%",
+        "description": "Extended low-wind period across southern states, wind generation drops 80%",
+        "price_shocks": {"SA1": 2.5, "VIC1": 2.0, "NSW1": 1.5, "QLD1": 1.2, "TAS1": 1.8},
+        "volume_shocks": {},
+        "generation_shocks": {"wind": 0.2, "solar_utility": 1.0},
+    },
+    "coal_trip_2gw": {
+        "name": "Coal Plant Trip 2GW",
+        "description": "Major coal plant trip in NSW (e.g. Eraring 2GW offline), supply shortage",
+        "price_shocks": {"NSW1": 2.8, "QLD1": 1.6, "VIC1": 1.4, "SA1": 1.2, "TAS1": 1.1},
+        "volume_shocks": {"NSW1": 0.85},
+        "generation_shocks": {"coal_black": 0.5, "coal_brown": 0.8},
+    },
+    "interconnector_failure": {
+        "name": "QNI Interconnector Failure",
+        "description": "QLD-NSW interconnector failure isolates QLD, price divergence",
+        "price_shocks": {"QLD1": 2.2, "NSW1": 0.7, "VIC1": 0.8, "SA1": 0.9, "TAS1": 1.0},
+        "volume_shocks": {},
+        "generation_shocks": {},
+    },
+}
+
+
+def _run_stress_test_core(
+    portfolio_id: str, scenario_id: str, custom_shocks: Optional[Dict] = None,
+) -> Dict[str, Any]:
+    """Run a stress test against a portfolio."""
+
+    if scenario_id == "custom" and custom_shocks:
+        scenario = {
+            "name": "Custom Scenario",
+            "description": "User-defined stress scenario",
+            "price_shocks": custom_shocks.get("price_shocks", {}),
+            "volume_shocks": custom_shocks.get("volume_shocks", {}),
+            "generation_shocks": custom_shocks.get("generation_shocks", {}),
+        }
+    elif scenario_id in _STRESS_SCENARIOS:
+        scenario = _STRESS_SCENARIOS[scenario_id]
+    else:
+        return {"error": f"Unknown scenario: {scenario_id}. Available: {list(_STRESS_SCENARIOS.keys())}"}
+
+    # Fetch portfolio trades
+    trades = _query_gold(
+        f"SELECT t.trade_id, t.region, t.trade_type, t.buy_sell, t.volume_mw, "
+        f"t.price, t.start_date, t.end_date, t.profile "
+        f"FROM {_CATALOG}.gold.trades t "
+        f"LEFT JOIN {_CATALOG}.gold.portfolio_trades pt ON t.trade_id = pt.trade_id "
+        f"WHERE (pt.portfolio_id = '{_sql_escape(portfolio_id)}' OR '{_sql_escape(portfolio_id)}' = 'all') "
+        f"AND t.status IN ('CONFIRMED','SETTLED') "
+    )
+    if not trades:
+        trades = _query_gold(
+            f"SELECT trade_id, region, trade_type, buy_sell, volume_mw, price, "
+            f"start_date, end_date, profile "
+            f"FROM {_CATALOG}.gold.trades WHERE status IN ('CONFIRMED','SETTLED')"
+        )
+
+    # Get current forward curves for base case
+    base_curves: Dict[str, float] = {}
+    for region in _NEM_REGIONS:
+        try:
+            fc = _build_forward_curve(region, "FLAT", num_quarters=8)
+            if fc:
+                base_curves[region] = sum(p["price_mwh"] for p in fc) / len(fc)
+        except Exception:
+            base_curves[region] = 80.0  # fallback
+
+    # Calculate base MtM and stressed MtM per trade
+    trade_impacts = []
+    total_base_mtm = 0.0
+    total_stressed_mtm = 0.0
+
+    for t in (trades or []):
+        region = t.get("region", "NSW1")
+        volume = float(t.get("volume_mw", 0))
+        price = float(t.get("price", 0))
+        direction = 1.0 if t.get("buy_sell") == "BUY" else -1.0
+
+        start_d = t.get("start_date")
+        end_d = t.get("end_date")
+        try:
+            if isinstance(start_d, str):
+                start_d = datetime.fromisoformat(start_d.replace("Z", "+00:00"))
+            if isinstance(end_d, str):
+                end_d = datetime.fromisoformat(end_d.replace("Z", "+00:00"))
+            days = max((end_d - start_d).days, 1)
+        except Exception:
+            days = 90
+
+        market_price = base_curves.get(region, 80.0)
+        base_mtm = direction * volume * (market_price - price) * days * 24 / 365
+
+        # Apply stress shocks
+        price_shock = scenario["price_shocks"].get(region, 1.0)
+        stressed_price = market_price * price_shock
+        stressed_mtm = direction * volume * (stressed_price - price) * days * 24 / 365
+
+        impact = stressed_mtm - base_mtm
+        total_base_mtm += base_mtm
+        total_stressed_mtm += stressed_mtm
+
+        if abs(impact) > 1000:  # only report material impacts
+            trade_impacts.append({
+                "trade_id": t.get("trade_id", "")[:8],
+                "region": region,
+                "type": t.get("trade_type", ""),
+                "direction": t.get("buy_sell", ""),
+                "volume_mw": volume,
+                "base_mtm": round(base_mtm, 0),
+                "stressed_mtm": round(stressed_mtm, 0),
+                "impact": round(impact, 0),
+            })
+
+    trade_impacts.sort(key=lambda x: abs(x.get("impact", 0)), reverse=True)
+
+    # Regional breakdown
+    region_impacts: Dict[str, float] = {}
+    for ti in trade_impacts:
+        r = ti["region"]
+        region_impacts[r] = region_impacts.get(r, 0) + ti["impact"]
+
+    total_impact = total_stressed_mtm - total_base_mtm
+
+    return {
+        "scenario_id": scenario_id,
+        "scenario_name": scenario["name"],
+        "scenario_description": scenario["description"],
+        "portfolio_id": portfolio_id,
+        "trades_analysed": len(trades or []),
+        "base_mtm": round(total_base_mtm, 0),
+        "stressed_mtm": round(total_stressed_mtm, 0),
+        "total_impact": round(total_impact, 0),
+        "impact_pct": round(total_impact / max(abs(total_base_mtm), 1) * 100, 1),
+        "region_impacts": {k: round(v, 0) for k, v in region_impacts.items()},
+        "top_trade_impacts": trade_impacts[:10],
+        "price_shocks_applied": scenario["price_shocks"],
+    }
+
+
+@router.post("/api/risk/stress-test")
+async def stress_test(
+    portfolio_id: str = Query("all"),
+    scenario_id: str = Query(..., description="Scenario: sa_heatwave, wind_drought, coal_trip_2gw, interconnector_failure, custom"),
+):
+    """Run a stress test on a portfolio."""
+    return _run_stress_test_core(portfolio_id, scenario_id)
+
+
+@router.get("/api/risk/stress-test/scenarios")
+async def stress_test_scenarios():
+    """List available stress test scenarios."""
+    return [
+        {"id": k, "name": v["name"], "description": v["description"]}
+        for k, v in _STRESS_SCENARIOS.items()
+    ]
+
+
+# ---------------------------------------------------------------------------
+# E14 — Portfolio What-If Analysis
+# ---------------------------------------------------------------------------
+
+def _what_if_core(
+    scenario_description: str, portfolio_id: str = "all",
+    price_change_pct: Optional[float] = None,
+    region: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Run a what-if scenario analysis on the portfolio."""
+
+    # Parse scenario: if explicit price change given, use it
+    if price_change_pct is not None:
+        target_regions = [region] if region else list(_NEM_REGIONS)
+        shock_factor = 1.0 + (price_change_pct / 100.0)
+        price_shocks = {r: shock_factor for r in target_regions}
+        for r in _NEM_REGIONS:
+            if r not in price_shocks:
+                price_shocks[r] = 1.0
+        scenario_name = f"Price {'increase' if price_change_pct > 0 else 'decrease'} {abs(price_change_pct):.0f}%"
+        if region:
+            scenario_name += f" in {region}"
+    else:
+        # Interpret NL scenario description
+        desc_lower = scenario_description.lower()
+        price_shocks = {r: 1.0 for r in _NEM_REGIONS}
+
+        if "heatwave" in desc_lower or "heat" in desc_lower:
+            price_shocks = {"SA1": 3.0, "VIC1": 1.8, "NSW1": 1.3, "QLD1": 1.1, "TAS1": 1.0}
+            scenario_name = "Heatwave scenario"
+        elif "wind drought" in desc_lower or "low wind" in desc_lower:
+            price_shocks = {"SA1": 2.5, "VIC1": 2.0, "NSW1": 1.5, "QLD1": 1.2, "TAS1": 1.8}
+            scenario_name = "Wind drought scenario"
+        elif "coal" in desc_lower and ("trip" in desc_lower or "outage" in desc_lower):
+            price_shocks = {"NSW1": 2.8, "QLD1": 1.6, "VIC1": 1.4, "SA1": 1.2, "TAS1": 1.1}
+            scenario_name = "Coal plant trip scenario"
+        elif "interconnector" in desc_lower or "qni" in desc_lower:
+            price_shocks = {"QLD1": 2.2, "NSW1": 0.7, "VIC1": 0.8, "SA1": 0.9, "TAS1": 1.0}
+            scenario_name = "Interconnector failure scenario"
+        elif any(w in desc_lower for w in ["increase", "rise", "up", "higher", "spike"]):
+            # Extract percentage if present
+            import re
+            pct_match = re.search(r'(\d+)\s*%', desc_lower)
+            pct = float(pct_match.group(1)) if pct_match else 20.0
+            factor = 1.0 + pct / 100.0
+            # Check for specific region
+            for r in _NEM_REGIONS:
+                if r.lower() in desc_lower or r[:3].lower() in desc_lower:
+                    price_shocks[r] = factor
+                    break
+            else:
+                price_shocks = {r: factor for r in _NEM_REGIONS}
+            scenario_name = f"Price increase {pct:.0f}%"
+        elif any(w in desc_lower for w in ["decrease", "drop", "fall", "down", "lower"]):
+            import re
+            pct_match = re.search(r'(\d+)\s*%', desc_lower)
+            pct = float(pct_match.group(1)) if pct_match else 20.0
+            factor = 1.0 - pct / 100.0
+            for r in _NEM_REGIONS:
+                if r.lower() in desc_lower or r[:3].lower() in desc_lower:
+                    price_shocks[r] = factor
+                    break
+            else:
+                price_shocks = {r: factor for r in _NEM_REGIONS}
+            scenario_name = f"Price decrease {pct:.0f}%"
+        else:
+            price_shocks = {r: 1.2 for r in _NEM_REGIONS}
+            scenario_name = f"Custom: {scenario_description[:60]}"
+
+    # Run as stress test with custom shocks
+    result = _run_stress_test_core(
+        portfolio_id, "custom",
+        custom_shocks={"price_shocks": price_shocks},
+    )
+    result["scenario_name"] = scenario_name
+    result["scenario_description"] = scenario_description
+    result["scenario_id"] = "what_if"
+    return result
+
+
+@router.post("/api/risk/what-if")
+async def what_if_analysis(
+    scenario: str = Query(..., description="Natural language scenario description"),
+    portfolio_id: str = Query("all"),
+    price_change_pct: Optional[float] = Query(None, description="Explicit price change percentage"),
+    region: Optional[str] = Query(None, description="Target region for price change"),
+):
+    """Run a what-if scenario analysis on the portfolio."""
+    return _what_if_core(scenario, portfolio_id, price_change_pct, region)

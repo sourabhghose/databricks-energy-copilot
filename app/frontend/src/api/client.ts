@@ -34038,6 +34038,40 @@ export const riskApi = {
     })
     return post<Record<string, never>, PPAValuation>(`/api/risk/ppa/value?${qs}`, {})
   },
+  async runStressTest(portfolioId: string, scenarioId: string): Promise<StressTestResult> {
+    return post<Record<string, never>, StressTestResult>(`/api/risk/stress-test?portfolio_id=${portfolioId}&scenario_id=${scenarioId}`, {})
+  },
+  async getStressScenarios(): Promise<StressScenario[]> {
+    return get<StressScenario[]>('/api/risk/stress-test/scenarios')
+  },
+  async runWhatIf(params: { scenario: string; portfolio_id?: string; price_change_pct?: number; region?: string }): Promise<StressTestResult> {
+    const qs = new URLSearchParams({ scenario: params.scenario })
+    if (params.portfolio_id) qs.set('portfolio_id', params.portfolio_id)
+    if (params.price_change_pct !== undefined) qs.set('price_change_pct', String(params.price_change_pct))
+    if (params.region) qs.set('region', params.region)
+    return post<Record<string, never>, StressTestResult>(`/api/risk/what-if?${qs}`, {})
+  },
+}
+
+export interface StressScenario {
+  id: string
+  name: string
+  description: string
+}
+
+export interface StressTestResult {
+  scenario_id: string
+  scenario_name: string
+  scenario_description: string
+  portfolio_id: string
+  trades_analysed: number
+  base_mtm: number
+  stressed_mtm: number
+  total_impact: number
+  impact_pct: number
+  region_impacts: Record<string, number>
+  top_trade_impacts: Array<{ trade_id: string; region: string; type: string; direction: string; volume_mw: number; base_mtm: number; stressed_mtm: number; impact: number }>
+  price_shocks_applied: Record<string, number>
 }
 
 export interface CreditCheckResult {

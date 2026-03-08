@@ -335,6 +335,38 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_stress_test",
+            "description": "Run a stress test on the portfolio. Predefined scenarios: sa_heatwave (SA prices +300%), wind_drought (wind gen -80%), coal_trip_2gw (NSW coal offline), interconnector_failure (QNI failure). Returns base vs stressed MtM, regional impacts, and top trade impacts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "portfolio_id": {"type": "string", "description": "Portfolio ID or 'all'", "default": "all"},
+                    "scenario_id": {"type": "string", "description": "Scenario ID", "enum": ["sa_heatwave", "wind_drought", "coal_trip_2gw", "interconnector_failure"]},
+                },
+                "required": ["scenario_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "portfolio_what_if",
+            "description": "Run a what-if scenario analysis on the portfolio. Accepts natural language scenarios like 'What if SA prices spike 50%?' or 'What if there is a heatwave?'. Returns portfolio P&L impact, regional breakdown, and top affected trades.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scenario_description": {"type": "string", "description": "Natural language scenario description"},
+                    "portfolio_id": {"type": "string", "description": "Portfolio ID or 'all'", "default": "all"},
+                    "price_change_pct": {"type": "number", "description": "Explicit price change % (optional, overrides NL parsing)"},
+                    "region": {"type": "string", "description": "Target region (optional)", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": ["scenario_description"],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -752,6 +784,55 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
             lines.append(f"  Capture Discount: {result['capture_price_discount']:.0%}")
             lines.append(f"  Breakeven Strike: ${result['breakeven_strike']:.2f}/MWh")
             return json.dumps({"text": "\n".join(lines), "valuation": result}, default=str)
+
+        elif name == "run_stress_test":
+            from .risk import _run_stress_test_core
+            result = _run_stress_test_core(
+                portfolio_id=arguments.get("portfolio_id", "all"),
+                scenario_id=arguments.get("scenario_id", "sa_heatwave"),
+            )
+            if "error" in result:
+                return json.dumps(result)
+            lines = [f"Stress Test: {result['scenario_name']}"]
+            lines.append(f"  {result['scenario_description']}")
+            lines.append(f"\nPortfolio Impact ({result['trades_analysed']} trades):")
+            lines.append(f"  Base MtM:     ${result['base_mtm']:>14,.0f}")
+            lines.append(f"  Stressed MtM: ${result['stressed_mtm']:>14,.0f}")
+            lines.append(f"  Impact:       ${result['total_impact']:>14,.0f} ({result['impact_pct']:+.1f}%)")
+            if result.get("region_impacts"):
+                lines.append("\nRegional Breakdown:")
+                for r, v in sorted(result["region_impacts"].items(), key=lambda x: abs(x[1]), reverse=True):
+                    lines.append(f"  {r}: ${v:>12,.0f}")
+            if result.get("top_trade_impacts"):
+                lines.append("\nTop Affected Trades:")
+                for ti in result["top_trade_impacts"][:5]:
+                    lines.append(f"  {ti['trade_id']} {ti['direction']} {ti['volume_mw']}MW {ti['region']} → ${ti['impact']:,.0f}")
+            return json.dumps({"text": "\n".join(lines), "stress_test": result}, default=str)
+
+        elif name == "portfolio_what_if":
+            from .risk import _what_if_core
+            result = _what_if_core(
+                scenario_description=arguments.get("scenario_description", ""),
+                portfolio_id=arguments.get("portfolio_id", "all"),
+                price_change_pct=arguments.get("price_change_pct"),
+                region=arguments.get("region"),
+            )
+            if "error" in result:
+                return json.dumps(result)
+            lines = [f"What-If Analysis: {result['scenario_name']}"]
+            lines.append(f"\nPortfolio Impact ({result['trades_analysed']} trades):")
+            lines.append(f"  Base MtM:     ${result['base_mtm']:>14,.0f}")
+            lines.append(f"  Scenario MtM: ${result['stressed_mtm']:>14,.0f}")
+            lines.append(f"  Delta P&L:    ${result['total_impact']:>14,.0f} ({result['impact_pct']:+.1f}%)")
+            if result.get("region_impacts"):
+                lines.append("\nRegional P&L Impact:")
+                for r, v in sorted(result["region_impacts"].items(), key=lambda x: abs(x[1]), reverse=True):
+                    lines.append(f"  {r}: ${v:>12,.0f}")
+            if result.get("top_trade_impacts"):
+                lines.append("\nMost Affected Trades:")
+                for ti in result["top_trade_impacts"][:5]:
+                    lines.append(f"  {ti['trade_id']} {ti['direction']} {ti['volume_mw']}MW {ti['region']} → ${ti['impact']:,.0f}")
+            return json.dumps({"text": "\n".join(lines), "what_if": result}, default=str)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

@@ -269,6 +269,33 @@ _GENIE_SPACES = [
             },
         ],
     },
+    {
+        "space_id": "01f11acf42701ae38c6c58a01612ed72",
+        "title": "Portfolio & P&L",
+        "description": "Trade portfolio positions, mark-to-market valuations, P&L attribution, credit exposure, and risk metrics across all NEM regions.",
+        "icon": "briefcase",
+        "tables": ["approval_requests", "approval_rules", "counterparties", "credit_exposure", "pnl_attribution", "portfolio_mtm", "portfolios", "risk_metrics", "trades"],
+        "question_categories": [
+            {
+                "label": "Portfolio & MtM",
+                "questions": [
+                    "What is the total MtM value by region?",
+                    "Show me the P&L attribution breakdown for this month",
+                    "Which trades have the largest mark-to-market exposure?",
+                    "What is the net position in MW by region and quarter?",
+                ],
+            },
+            {
+                "label": "Credit & Risk",
+                "questions": [
+                    "Which counterparties have the highest credit exposure?",
+                    "Show me VaR metrics by portfolio",
+                    "What is the credit utilization for each counterparty?",
+                    "List all pending approval trades with notional above $1M",
+                ],
+            },
+        ],
+    },
 ]
 
 
