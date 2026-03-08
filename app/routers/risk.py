@@ -7,6 +7,7 @@ E5: Credit risk per counterparty
 from __future__ import annotations
 
 import math
+import random
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -819,3 +820,234 @@ async def credit_alerts():
             if k in r and r[k] is not None:
                 r[k] = str(r[k])
     return {"alerts": rows}
+
+
+# =========================================================================
+# PPA Valuation Engine (E6)
+# =========================================================================
+
+# Typical capacity factors by region and technology
+_CAPACITY_FACTORS: Dict[str, Dict[str, float]] = {
+    "solar_utility": {"NSW1": 0.24, "QLD1": 0.27, "VIC1": 0.20, "SA1": 0.26, "TAS1": 0.17},
+    "wind":          {"NSW1": 0.32, "QLD1": 0.30, "VIC1": 0.35, "SA1": 0.38, "TAS1": 0.40},
+}
+
+# Capture price discount vs flat price (solar gets less during middle-of-day oversupply)
+_CAPTURE_DISCOUNT: Dict[str, float] = {"solar_utility": 0.82, "wind": 0.92}
+
+
+def _value_ppa_core(
+    strike_price: float,
+    term_years: int,
+    technology: str,
+    region: str,
+    volume_mw: float,
+    escalation: float = 0.025,
+    n_simulations: int = 1000,
+) -> Dict[str, Any]:
+    """Monte Carlo PPA valuation with generation and price uncertainty."""
+    tech = technology.lower().replace(" ", "_")
+    if tech == "solar":
+        tech = "solar_utility"
+
+    cap_factor = _CAPACITY_FACTORS.get(tech, {}).get(region, 0.25)
+    capture_disc = _CAPTURE_DISCOUNT.get(tech, 0.90)
+    hours_per_year = 8760
+
+    # Get forward curve for price baseline
+    curve_points = _build_forward_curve(
+        region=region, profile="FLAT",
+        num_quarters=term_years * 4,
+    )
+    # Average annual forward prices
+    annual_forwards: List[float] = []
+    for yr in range(term_years):
+        year_months = set()
+        base_date = date.today()
+        for m in range(yr * 12, (yr + 1) * 12):
+            d = base_date + timedelta(days=m * 30)
+            year_months.add(f"{d.year}-{d.month:02d}")
+        yr_prices = [pt["price_mwh"] for pt in curve_points if pt["month"] in year_months]
+        if yr_prices:
+            annual_forwards.append(sum(yr_prices) / len(yr_prices))
+        elif annual_forwards:
+            annual_forwards.append(annual_forwards[-1] * (1 + escalation))
+        else:
+            annual_forwards.append(strike_price * 1.05)
+
+    vol = _get_historical_volatility(region)
+    wacc = _RISK_FREE_RATE + 0.03  # risk-adjusted discount
+
+    rng = random.Random(42)
+    npv_samples: List[float] = []
+    annual_cashflows_sum: List[Dict[str, float]] = [
+        {"cashflow": 0.0, "generation_mwh": 0.0, "revenue": 0.0, "cost": 0.0}
+        for _ in range(term_years)
+    ]
+
+    for _ in range(n_simulations):
+        sim_npv = 0.0
+        for yr in range(term_years):
+            # Price uncertainty
+            price_shock = math.exp(rng.gauss(0, vol * 0.5))
+            merchant_price = annual_forwards[yr] * price_shock * capture_disc
+
+            # Generation uncertainty (15% std dev)
+            gen_shock = 1.0 + rng.gauss(0, 0.15)
+            gen_mwh = volume_mw * cap_factor * hours_per_year * max(gen_shock, 0.3)
+
+            # Escalated strike
+            esc_strike = strike_price * ((1 + escalation) ** yr)
+
+            # Annual cashflow = (strike - merchant) * generation for seller PPA
+            annual_cf = (esc_strike - merchant_price) * gen_mwh
+            df = 1.0 / ((1 + wacc) ** (yr + 1))
+            sim_npv += annual_cf * df
+
+            annual_cashflows_sum[yr]["cashflow"] += annual_cf
+            annual_cashflows_sum[yr]["generation_mwh"] += gen_mwh
+            annual_cashflows_sum[yr]["revenue"] += esc_strike * gen_mwh
+            annual_cashflows_sum[yr]["cost"] += merchant_price * gen_mwh
+
+        npv_samples.append(sim_npv)
+
+    npv_samples.sort()
+    n = len(npv_samples)
+    expected_npv = sum(npv_samples) / n
+    p10_npv = npv_samples[int(n * 0.10)]
+    p50_npv = npv_samples[int(n * 0.50)]
+    p90_npv = npv_samples[int(n * 0.90)]
+
+    # Breakeven strike: find strike where expected NPV = 0
+    # Approximate: adjust strike proportionally
+    avg_gen_mwh = volume_mw * cap_factor * hours_per_year
+    avg_merchant = sum(af * capture_disc for af in annual_forwards) / len(annual_forwards) if annual_forwards else strike_price
+    breakeven_strike = avg_merchant  # simplified
+
+    annual_cashflows = []
+    for yr in range(term_years):
+        annual_cashflows.append({
+            "year": yr + 1,
+            "cashflow": round(annual_cashflows_sum[yr]["cashflow"] / n, 2),
+            "generation_mwh": round(annual_cashflows_sum[yr]["generation_mwh"] / n, 0),
+            "revenue": round(annual_cashflows_sum[yr]["revenue"] / n, 2),
+            "cost": round(annual_cashflows_sum[yr]["cost"] / n, 2),
+        })
+
+    return {
+        "region": region,
+        "technology": tech,
+        "volume_mw": volume_mw,
+        "strike_price": strike_price,
+        "term_years": term_years,
+        "escalation": escalation,
+        "capacity_factor": cap_factor,
+        "capture_price_discount": capture_disc,
+        "expected_npv": round(expected_npv, 2),
+        "p10_npv": round(p10_npv, 2),
+        "p50_npv": round(p50_npv, 2),
+        "p90_npv": round(p90_npv, 2),
+        "breakeven_strike": round(breakeven_strike, 2),
+        "simulations": n_simulations,
+        "annual_cashflows": annual_cashflows,
+    }
+
+
+@router.post("/api/risk/ppa/value")
+async def value_ppa(
+    strike_price: float = Query(...),
+    term_years: int = Query(..., ge=1, le=30),
+    technology: str = Query(..., description="solar_utility or wind"),
+    region: str = Query("NSW1"),
+    volume_mw: float = Query(100),
+    escalation: float = Query(0.025),
+    n_simulations: int = Query(1000, le=5000),
+):
+    """Monte Carlo PPA valuation. Returns NPV distribution and annual cashflows."""
+    if region not in _NEM_REGIONS:
+        return JSONResponse(status_code=400, content={"error": f"Invalid region: {region}"})
+    result = _value_ppa_core(
+        strike_price=strike_price,
+        term_years=term_years,
+        technology=technology,
+        region=region,
+        volume_mw=volume_mw,
+        escalation=escalation,
+        n_simulations=n_simulations,
+    )
+    return result
+
+
+# =========================================================================
+# Pre-Trade Credit Check (E12)
+# =========================================================================
+
+def _credit_check_core(
+    counterparty_id: str,
+    notional_aud: float,
+    tenor_days: int = 365,
+) -> Dict[str, Any]:
+    """Check credit availability for a proposed trade."""
+    # Get counterparty
+    cp_rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.counterparties "
+        f"WHERE counterparty_id = '{_sql_escape(counterparty_id)}'"
+    )
+    if not cp_rows:
+        return {"status": "error", "message": f"Counterparty {counterparty_id} not found"}
+
+    cp = cp_rows[0]
+    credit_limit = float(cp.get("credit_limit_aud", 0) or 0)
+    if credit_limit <= 0:
+        credit_limit = 10_000_000.0
+
+    # Get current exposure
+    exp_rows = _query_gold(
+        f"SELECT current_exposure FROM {_SCHEMA}.credit_exposure "
+        f"WHERE counterparty_id = '{_sql_escape(counterparty_id)}' "
+        f"AND valuation_date = (SELECT MAX(valuation_date) FROM {_SCHEMA}.credit_exposure "
+        f"WHERE counterparty_id = '{_sql_escape(counterparty_id)}')"
+    )
+    current_exposure = float(exp_rows[0]["current_exposure"]) if exp_rows else 0.0
+
+    # Proposed increment scaled by tenor and volatility
+    vol_multiplier = 1.0 + 0.1 * math.sqrt(tenor_days / 365.0)
+    proposed_increment = notional_aud * (tenor_days / 365.0) * vol_multiplier
+
+    new_total = current_exposure + proposed_increment
+    utilization = new_total / credit_limit if credit_limit > 0 else 1.0
+
+    if utilization > 1.0:
+        status = "block"
+        message = f"Exceeds credit limit. Utilization would be {utilization:.0%}."
+    elif utilization >= 0.90:
+        status = "warn"
+        message = f"Near credit limit. Utilization would be {utilization:.0%}. Override available."
+    elif utilization >= 0.80:
+        status = "warn"
+        message = f"Approaching credit limit. Utilization would be {utilization:.0%}."
+    else:
+        status = "pass"
+        message = f"Within credit limits. Utilization would be {utilization:.0%}."
+
+    return {
+        "status": status,
+        "counterparty_id": counterparty_id,
+        "counterparty_name": cp.get("name", ""),
+        "utilization_pct": round(utilization * 100, 1),
+        "current_exposure": round(current_exposure, 2),
+        "proposed_increment": round(proposed_increment, 2),
+        "new_total_exposure": round(new_total, 2),
+        "credit_limit": round(credit_limit, 2),
+        "message": message,
+    }
+
+
+@router.get("/api/credit/check")
+async def credit_check(
+    counterparty_id: str = Query(...),
+    notional_aud: float = Query(...),
+    tenor_days: int = Query(365, ge=1),
+):
+    """Pre-trade credit check. Returns pass/warn/block status."""
+    return _credit_check_core(counterparty_id, notional_aud, tenor_days)

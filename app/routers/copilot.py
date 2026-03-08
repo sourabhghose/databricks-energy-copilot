@@ -286,6 +286,55 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_portfolio_pnl",
+            "description": "Get P&L attribution and MtM summary for a portfolio. Shows price effect, volume effect, new trades effect, time decay, and total P&L. Also returns latest MtM valuation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "portfolio_name": {"type": "string", "description": "Portfolio name to look up"},
+                    "days_back": {"type": "integer", "description": "Number of days of history (default 30)", "default": 30},
+                },
+                "required": ["portfolio_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "explain_pnl_move",
+            "description": "Explain what drove the P&L change for a portfolio on a specific date. Breaks down into price, volume, new trades, and time decay effects by region.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "portfolio_name": {"type": "string", "description": "Portfolio name"},
+                    "valuation_date": {"type": "string", "description": "Date to explain (YYYY-MM-DD). Defaults to latest."},
+                },
+                "required": ["portfolio_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "value_ppa",
+            "description": "Value a Power Purchase Agreement (PPA) using Monte Carlo simulation. Returns expected NPV, P10/P50/P90 NPVs, breakeven strike, and annual cashflows. Supports solar and wind technologies.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "strike_price": {"type": "number", "description": "PPA strike price in $/MWh"},
+                    "term_years": {"type": "integer", "description": "Contract term in years"},
+                    "technology": {"type": "string", "description": "Generation technology", "enum": ["solar_utility", "wind"]},
+                    "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "volume_mw": {"type": "number", "description": "Capacity in MW"},
+                    "escalation": {"type": "number", "description": "Annual price escalation (default 0.025 = 2.5%)", "default": 0.025},
+                },
+                "required": ["strike_price", "term_years", "technology", "region", "volume_mw"],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -615,6 +664,94 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
                     lines.append(f"{r['hour_of_day']:>4} {r['day_of_week']:>4} {pct:>8.1f}% {binding:>6}")
                 return json.dumps({"text": "\n".join(lines), "data": rows}, default=str)
             return json.dumps({"message": f"No constraint data for {region} in last {days} days"})
+
+        elif name == "get_portfolio_pnl":
+            from .risk import _run_mtm_core
+            portfolio_name = arguments.get("portfolio_name", "")
+            rows = _query_gold(
+                f"SELECT portfolio_id, name FROM {_CATALOG}.gold.portfolios "
+                f"WHERE LOWER(name) LIKE LOWER('%{_sql_escape(portfolio_name)}%') LIMIT 1"
+            )
+            if not rows:
+                return json.dumps({"error": f"Portfolio '{portfolio_name}' not found"})
+            pid = rows[0]["portfolio_id"]
+            # Get latest MtM
+            mtm = _query_gold(
+                f"SELECT SUM(mtm_value) as total_mtm, COUNT(*) as trades_valued "
+                f"FROM {_CATALOG}.gold.portfolio_mtm "
+                f"WHERE portfolio_id = '{pid}' "
+                f"AND valuation_date = (SELECT MAX(valuation_date) FROM {_CATALOG}.gold.portfolio_mtm WHERE portfolio_id = '{pid}')"
+            )
+            # Get latest PnL attribution
+            attr = _query_gold(
+                f"SELECT * FROM {_CATALOG}.gold.pnl_attribution "
+                f"WHERE portfolio_id = '{pid}' "
+                f"AND valuation_date = (SELECT MAX(valuation_date) FROM {_CATALOG}.gold.pnl_attribution WHERE portfolio_id = '{pid}')"
+            )
+            result = {
+                "portfolio": rows[0]["name"],
+                "mtm_summary": mtm[0] if mtm else {"total_mtm": 0, "trades_valued": 0},
+                "pnl_attribution": attr or [],
+            }
+            return json.dumps(result, default=str)
+
+        elif name == "explain_pnl_move":
+            portfolio_name = arguments.get("portfolio_name", "")
+            valuation_date = arguments.get("valuation_date", "")
+            rows = _query_gold(
+                f"SELECT portfolio_id, name FROM {_CATALOG}.gold.portfolios "
+                f"WHERE LOWER(name) LIKE LOWER('%{_sql_escape(portfolio_name)}%') LIMIT 1"
+            )
+            if not rows:
+                return json.dumps({"error": f"Portfolio '{portfolio_name}' not found"})
+            pid = rows[0]["portfolio_id"]
+            date_filter = f"AND valuation_date = '{_sql_escape(valuation_date)}'" if valuation_date else (
+                f"AND valuation_date = (SELECT MAX(valuation_date) FROM {_CATALOG}.gold.pnl_attribution WHERE portfolio_id = '{pid}')"
+            )
+            attr = _query_gold(
+                f"SELECT * FROM {_CATALOG}.gold.pnl_attribution "
+                f"WHERE portfolio_id = '{pid}' {date_filter} "
+                f"ORDER BY ABS(total_pnl) DESC"
+            )
+            if not attr:
+                return json.dumps({"error": "No P&L attribution data. Run MtM valuation first."})
+            lines = [f"P&L Attribution for {rows[0]['name']}:"]
+            lines.append(f"{'Region':<8} {'Price':>12} {'Volume':>12} {'NewTrades':>12} {'Decay':>12} {'Total':>12}")
+            for a in attr:
+                lines.append(
+                    f"{a.get('region', '?'):<8} "
+                    f"${a.get('price_effect', 0):>10,.0f} "
+                    f"${a.get('volume_effect', 0):>10,.0f} "
+                    f"${a.get('new_trades_effect', 0):>10,.0f} "
+                    f"${a.get('time_decay', 0):>10,.0f} "
+                    f"${a.get('total_pnl', 0):>10,.0f}"
+                )
+            total = sum(float(a.get("total_pnl", 0) or 0) for a in attr)
+            lines.append(f"\nTotal P&L: ${total:,.0f}")
+            return json.dumps({"text": "\n".join(lines), "attribution": attr}, default=str)
+
+        elif name == "value_ppa":
+            from .risk import _value_ppa_core
+            result = _value_ppa_core(
+                strike_price=arguments.get("strike_price", 55),
+                term_years=arguments.get("term_years", 10),
+                technology=arguments.get("technology", "solar_utility"),
+                region=arguments.get("region", "NSW1"),
+                volume_mw=arguments.get("volume_mw", 100),
+                escalation=arguments.get("escalation", 0.025),
+            )
+            lines = [f"PPA Valuation: {result['volume_mw']}MW {result['technology']} in {result['region']}"]
+            lines.append(f"Strike: ${result['strike_price']}/MWh, Term: {result['term_years']}yr, Escalation: {result['escalation']:.1%}")
+            lines.append(f"\nNPV Distribution:")
+            lines.append(f"  Expected NPV: ${result['expected_npv']:,.0f}")
+            lines.append(f"  P10 (downside): ${result['p10_npv']:,.0f}")
+            lines.append(f"  P50 (median):   ${result['p50_npv']:,.0f}")
+            lines.append(f"  P90 (upside):   ${result['p90_npv']:,.0f}")
+            lines.append(f"\nKey Metrics:")
+            lines.append(f"  Capacity Factor: {result['capacity_factor']:.0%}")
+            lines.append(f"  Capture Discount: {result['capture_price_discount']:.0%}")
+            lines.append(f"  Breakeven Strike: ${result['breakeven_strike']:.2f}/MWh")
+            return json.dumps({"text": "\n".join(lines), "valuation": result}, default=str)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

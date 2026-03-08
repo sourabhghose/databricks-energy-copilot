@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from .shared import (
     _CATALOG, _NEM_REGIONS, _query_gold, _query_with_fallback,
     _insert_gold, _insert_gold_batch, _update_gold, _execute_gold,
-    _invalidate_cache, _query_lakebase_fresh, logger,
+    _invalidate_cache, _query_lakebase_fresh, _sql_escape, logger,
 )
 
 router = APIRouter()
@@ -30,7 +30,7 @@ _SCHEMA = f"{_CATALOG}.gold"
 # ---------------------------------------------------------------------------
 _TRADE_TYPES = {"SPOT", "FORWARD", "SWAP", "FUTURE", "OPTION", "PPA", "REC"}
 _PROFILES = {"FLAT", "PEAK", "OFF_PEAK", "SUPER_PEAK"}
-_STATUSES = {"DRAFT", "CONFIRMED", "SETTLED", "CANCELLED"}
+_STATUSES = {"DRAFT", "CONFIRMED", "SETTLED", "CANCELLED", "PENDING_APPROVAL"}
 _BUY_SELL = {"BUY", "SELL"}
 
 # NEM peak hours: 07:00–22:00 AEST (weekdays)
@@ -329,8 +329,65 @@ async def create_trade(body: TradeCreate):
     if body.end_date < body.start_date:
         return JSONResponse(status_code=400, content={"error": "end_date must be >= start_date"})
 
+    # --- E12: Pre-trade credit check ---
+    credit_warning = None
+    if body.counterparty_id:
+        try:
+            from .risk import _credit_check_core
+            days = (body.end_date - body.start_date).days or 1
+            notional = body.volume_mw * body.price * days
+            check = _credit_check_core(body.counterparty_id, notional, days)
+            if check.get("status") == "block":
+                return JSONResponse(status_code=403, content={
+                    "error": "Credit limit exceeded",
+                    "credit_check": check,
+                })
+            if check.get("status") == "warn":
+                credit_warning = check
+        except Exception as exc:
+            logger.warning("Credit check failed: %s", exc)
+
     trade_id = _new_id()
     now = _now_ts()
+
+    # --- E13: Check approval rules ---
+    days = (body.end_date - body.start_date).days or 1
+    notional_aud = body.volume_mw * body.price * days
+    approval_request_id = None
+    trade_status = body.status if body.status in _STATUSES else "DRAFT"
+
+    try:
+        rules = _query_gold(
+            f"SELECT * FROM {_SCHEMA}.approval_rules "
+            f"WHERE is_active = true AND event_type = 'trade_create' "
+            f"AND min_notional_aud <= {notional_aud} "
+            f"ORDER BY min_notional_aud DESC"
+        )
+        if rules:
+            # Filter by trade_type if rule specifies one
+            matching = [
+                r for r in rules
+                if not r.get("trade_type") or r["trade_type"] == body.trade_type
+            ]
+            if matching:
+                top_rule = matching[0]  # highest threshold match
+                trade_status = "PENDING_APPROVAL"
+                approval_request_id = _new_id()
+                _insert_gold(f"{_SCHEMA}.approval_requests", {
+                    "request_id": approval_request_id,
+                    "trade_id": trade_id,
+                    "rule_id": top_rule["approval_rule_id"],
+                    "event_type": "trade_create",
+                    "status": "PENDING",
+                    "notional_aud": notional_aud,
+                    "submitted_by": body.created_by,
+                    "submitted_at": now,
+                    "decided_by": "",
+                    "decided_at": None,
+                    "decision_reason": "",
+                })
+    except Exception as exc:
+        logger.warning("Approval rule check failed: %s", exc)
 
     trade_data = {
         "trade_id": trade_id,
@@ -342,7 +399,7 @@ async def create_trade(body: TradeCreate):
         "start_date": str(body.start_date),
         "end_date": str(body.end_date),
         "profile": body.profile,
-        "status": body.status if body.status in _STATUSES else "DRAFT",
+        "status": trade_status,
         "counterparty_id": body.counterparty_id or "",
         "portfolio_id": body.portfolio_id or "",
         "notes": body.notes or "",
@@ -369,12 +426,19 @@ async def create_trade(body: TradeCreate):
         })
 
     _invalidate_cache("sql:")
-    return {
+    result: Dict[str, Any] = {
         "trade_id": trade_id,
         "legs_created": len(legs) - leg_errors,
         "leg_errors": leg_errors,
         "status": "created",
     }
+    if approval_request_id:
+        result["approval_required"] = True
+        result["approval_request_id"] = approval_request_id
+        result["trade_status"] = "PENDING_APPROVAL"
+    if credit_warning:
+        result["credit_warning"] = credit_warning
+    return result
 
 
 @router.put("/api/deals/trades/{trade_id}")
@@ -844,3 +908,163 @@ async def create_counterparty(body: CounterpartyCreate):
     if not ok:
         return JSONResponse(status_code=500, content={"error": "Failed to create counterparty"})
     return {"counterparty_id": cid, "status": "created"}
+
+
+# =========================================================================
+# APPROVAL WORKFLOWS (E13)
+# =========================================================================
+
+class ApprovalRuleCreate(BaseModel):
+    rule_name: str
+    event_type: str = Field("trade_create", description="trade_create|trade_amend|trade_cancel")
+    trade_type: Optional[str] = None
+    min_notional_aud: float
+    required_approvers: int = Field(1, ge=1)
+    approver_role: str = Field("RISK_MANAGER", description="RISK_MANAGER|TRADING_HEAD|CFO")
+
+
+@router.get("/api/deals/approvals/rules")
+async def list_approval_rules():
+    """List active approval rules."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.approval_rules "
+        f"WHERE is_active = true ORDER BY min_notional_aud DESC"
+    )
+    if rows is None:
+        rows = []
+    for r in rows:
+        for k in ("created_at", "updated_at"):
+            if k in r and r[k] is not None:
+                r[k] = str(r[k])
+    return {"rules": rows}
+
+
+@router.post("/api/deals/approvals/rules")
+async def create_approval_rule(body: ApprovalRuleCreate):
+    """Create a new approval rule."""
+    rule_id = _new_id()
+    now = _now_ts()
+    ok = _insert_gold(f"{_SCHEMA}.approval_rules", {
+        "approval_rule_id": rule_id,
+        "rule_name": body.rule_name,
+        "event_type": body.event_type,
+        "trade_type": body.trade_type or "",
+        "min_notional_aud": body.min_notional_aud,
+        "required_approvers": body.required_approvers,
+        "approver_role": body.approver_role,
+        "is_active": True,
+        "created_at": now,
+        "updated_at": now,
+    })
+    if not ok:
+        return JSONResponse(status_code=500, content={"error": "Failed to create rule"})
+    return {"approval_rule_id": rule_id, "status": "created"}
+
+
+@router.get("/api/deals/approvals/pending")
+async def list_pending_approvals():
+    """List all pending approval requests with trade details."""
+    rows = _query_gold(
+        f"SELECT ar.*, t.trade_type, t.region, t.buy_sell, t.volume_mw, t.price, "
+        f"t.start_date, t.end_date, t.profile, t.counterparty_id, "
+        f"rl.rule_name, rl.approver_role "
+        f"FROM {_SCHEMA}.approval_requests ar "
+        f"INNER JOIN {_SCHEMA}.trades t ON ar.trade_id = t.trade_id "
+        f"LEFT JOIN {_SCHEMA}.approval_rules rl ON ar.rule_id = rl.approval_rule_id "
+        f"WHERE ar.status = 'PENDING' "
+        f"ORDER BY ar.submitted_at DESC"
+    )
+    if rows is None:
+        rows = []
+    for r in rows:
+        for k in ("submitted_at", "decided_at", "start_date", "end_date"):
+            if k in r and r[k] is not None:
+                r[k] = str(r[k])
+    return {"pending": rows, "count": len(rows)}
+
+
+@router.put("/api/deals/approvals/{request_id}/approve")
+async def approve_request(
+    request_id: str,
+    decided_by: str = Query("approver"),
+    reason: str = Query(""),
+):
+    """Approve a pending trade request."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.approval_requests "
+        f"WHERE request_id = '{_sql_escape(request_id)}'"
+    )
+    if not rows:
+        return JSONResponse(status_code=404, content={"error": "Request not found"})
+    req = rows[0]
+    if req.get("status") != "PENDING":
+        return JSONResponse(status_code=400, content={"error": f"Request already {req.get('status')}"})
+
+    # Maker-checker: approver != submitter
+    if decided_by == req.get("submitted_by") and decided_by != "system":
+        return JSONResponse(status_code=400, content={"error": "Maker-checker: approver cannot be the submitter"})
+
+    now = _now_ts()
+    # Update approval request
+    _update_gold(f"{_SCHEMA}.approval_requests", {
+        "status": "APPROVED",
+        "decided_by": decided_by,
+        "decided_at": now,
+        "decision_reason": reason,
+    }, f"request_id = '{_sql_escape(request_id)}'")
+
+    # Update trade status to CONFIRMED
+    trade_id = req.get("trade_id", "")
+    _update_gold(f"{_SCHEMA}.trades", {
+        "status": "CONFIRMED",
+        "updated_at": now,
+    }, f"trade_id = '{_sql_escape(trade_id)}'")
+
+    _invalidate_cache("sql:")
+    return {
+        "request_id": request_id,
+        "trade_id": trade_id,
+        "status": "APPROVED",
+        "decided_by": decided_by,
+    }
+
+
+@router.put("/api/deals/approvals/{request_id}/reject")
+async def reject_request(
+    request_id: str,
+    decided_by: str = Query("approver"),
+    reason: str = Query(""),
+):
+    """Reject a pending trade request."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.approval_requests "
+        f"WHERE request_id = '{_sql_escape(request_id)}'"
+    )
+    if not rows:
+        return JSONResponse(status_code=404, content={"error": "Request not found"})
+    req = rows[0]
+    if req.get("status") != "PENDING":
+        return JSONResponse(status_code=400, content={"error": f"Request already {req.get('status')}"})
+
+    now = _now_ts()
+    _update_gold(f"{_SCHEMA}.approval_requests", {
+        "status": "REJECTED",
+        "decided_by": decided_by,
+        "decided_at": now,
+        "decision_reason": reason,
+    }, f"request_id = '{_sql_escape(request_id)}'")
+
+    # Cancel the trade
+    trade_id = req.get("trade_id", "")
+    _update_gold(f"{_SCHEMA}.trades", {
+        "status": "CANCELLED",
+        "updated_at": now,
+    }, f"trade_id = '{_sql_escape(trade_id)}'")
+
+    _invalidate_cache("sql:")
+    return {
+        "request_id": request_id,
+        "trade_id": trade_id,
+        "status": "REJECTED",
+        "decided_by": decided_by,
+    }
