@@ -13,7 +13,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts'
-import { riskApi, riskLimitsApi } from '../api/client'
+import { riskApi, riskLimitsApi, advancedRiskApi } from '../api/client'
 import type {
   MtMResult,
   PnLAttribution,
@@ -23,7 +23,7 @@ import type {
   LimitMonitorResult,
 } from '../api/client'
 
-const TABS = ['MtM & P&L', 'VaR & Greeks', 'Credit Risk'] as const
+const TABS = ['MtM & P&L', 'VaR & Greeks', 'Credit Risk', 'Advanced VaR', 'Vol Surface', 'Scenarios'] as const
 type Tab = typeof TABS[number]
 
 const fmt = (n: number) =>
@@ -507,6 +507,244 @@ export default function RiskDashboard() {
           </div>
         </div>
       )}
+
+      {/* Tab 4: Advanced VaR (Phase 3) */}
+      {tab === 'Advanced VaR' && <AdvancedVarSection portfolioId={selectedPortfolio} />}
+
+      {/* Tab 5: Vol Surface (Phase 3) */}
+      {tab === 'Vol Surface' && <VolSurfaceSection />}
+
+      {/* Tab 6: Scenarios (Phase 3) */}
+      {tab === 'Scenarios' && <ScenarioLibrarySection />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Limit Monitor Section
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Advanced VaR Section (Phase 3 WS2)
+// ---------------------------------------------------------------------------
+
+function AdvancedVarSection({ portfolioId }: { portfolioId: string }) {
+  const [histVar, setHistVar] = useState<any>(null)
+  const [mcVar, setMcVar] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [h, m] = await Promise.all([
+        advancedRiskApi.historicalVar(portfolioId || undefined, 10, 0.95),
+        advancedRiskApi.monteCarloVar(portfolioId || undefined, 10, 0.95),
+      ])
+      setHistVar(h)
+      setMcVar(m)
+    } catch { /* */ }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [portfolioId])
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <button onClick={load} className="flex items-center gap-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded px-4 py-1.5">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Recalculate
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wide mb-4">Historical VaR</h3>
+          {histVar ? (
+            <div className="space-y-3">
+              <div className="flex justify-between"><span className="text-gray-400">Method</span><span className="text-white">{histVar.method}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Window</span><span className="text-white">{histVar.window_days} days</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">VaR (95%)</span><span className="text-amber-400 font-bold">{fmt(histVar.var_amount || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">CVaR (95%)</span><span className="text-red-400 font-bold">{fmt(histVar.cvar_amount || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Worst Loss</span><span className="text-red-400">{fmt(histVar.worst_loss || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Best Return</span><span className="text-green-400">{fmt(histVar.best_return || 0)}</span></div>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">Loading...</p>
+          )}
+        </div>
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wide mb-4">Monte Carlo VaR</h3>
+          {mcVar ? (
+            <div className="space-y-3">
+              <div className="flex justify-between"><span className="text-gray-400">Method</span><span className="text-white">{mcVar.method}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Simulations</span><span className="text-white">{(mcVar.num_simulations || 0).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">VaR (95%)</span><span className="text-amber-400 font-bold">{fmt(mcVar.var_amount || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">CVaR (95%)</span><span className="text-red-400 font-bold">{fmt(mcVar.cvar_amount || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Mean Return</span><span className="text-blue-400">{fmt(mcVar.mean_return || 0)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Std Dev</span><span className="text-gray-300">{fmt(mcVar.std_dev || 0)}</span></div>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">Loading...</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Vol Surface Section (Phase 3 WS2)
+// ---------------------------------------------------------------------------
+
+function VolSurfaceSection() {
+  const [surface, setSurface] = useState<any[]>([])
+  const [region, setRegion] = useState('NSW1')
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const res = await advancedRiskApi.volSurface(region)
+      setSurface(res.surface || [])
+    } catch { /* */ }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [region])
+
+  const tenors = [...new Set(surface.map(s => s.tenor_days))].sort((a, b) => a - b)
+  const strikes = [...new Set(surface.map(s => s.strike_pct))].sort((a, b) => a - b)
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <select value={region} onChange={e => setRegion(e.target.value)} className="text-sm bg-gray-700 text-gray-200 border border-gray-600 rounded px-3 py-1.5">
+          {['NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button onClick={load} className="flex items-center gap-1.5 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded px-4 py-1.5">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+      </div>
+      <div className="bg-gray-800 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wide mb-4">Implied Volatility Surface — {region}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left px-3 py-2 text-xs text-gray-400">Tenor (days)</th>
+                {strikes.map(s => <th key={s} className="text-right px-3 py-2 text-xs text-gray-400">{s}%</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {tenors.map(t => (
+                <tr key={t} className="border-b border-gray-700/50">
+                  <td className="px-3 py-2 text-gray-200 font-medium">{t}d</td>
+                  {strikes.map(s => {
+                    const pt = surface.find(p => p.tenor_days === t && p.strike_pct === s)
+                    const vol = pt?.implied_vol ?? 0
+                    const bg = vol > 0.5 ? 'text-red-400' : vol > 0.3 ? 'text-amber-400' : 'text-green-400'
+                    return <td key={s} className={`px-3 py-2 text-right ${bg}`}>{(vol * 100).toFixed(1)}%</td>
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {surface.length === 0 && <p className="py-8 text-center text-gray-500 text-sm">No vol surface data</p>}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Scenario Library Section (Phase 3 WS2)
+// ---------------------------------------------------------------------------
+
+function ScenarioLibrarySection() {
+  const [scenarios, setScenarios] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [stressResult, setStressResult] = useState<any>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const res = await advancedRiskApi.stressScenarios()
+      setScenarios(res.scenarios || [])
+    } catch { /* */ }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleReverseStress = async () => {
+    try {
+      const res = await advancedRiskApi.reverseStressTest(undefined, 1_000_000)
+      setStressResult(res)
+    } catch { /* */ }
+  }
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    MARKET: 'bg-blue-500/20 text-blue-400',
+    SUPPLY: 'bg-orange-500/20 text-orange-400',
+    DEMAND: 'bg-green-500/20 text-green-400',
+    REGULATORY: 'bg-purple-500/20 text-purple-400',
+    WEATHER: 'bg-teal-500/20 text-teal-400',
+    EXTREME: 'bg-red-500/20 text-red-400',
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <button onClick={load} className="flex items-center gap-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded px-4 py-1.5">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
+        <button onClick={handleReverseStress} className="flex items-center gap-1.5 text-sm bg-red-600 hover:bg-red-500 text-white rounded px-4 py-1.5">
+          Run Reverse Stress Test
+        </button>
+      </div>
+
+      {stressResult && (
+        <div className="bg-gray-800 rounded-lg p-4 border border-red-700/50">
+          <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wide mb-3">Reverse Stress Test Result</h3>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div><span className="text-gray-400">Target Loss</span><br /><span className="text-white font-bold">{fmt(stressResult.target_loss || 0)}</span></div>
+            <div><span className="text-gray-400">Scenarios Found</span><br /><span className="text-white font-bold">{stressResult.scenarios_breaching || 0}</span></div>
+            <div><span className="text-gray-400">Worst Scenario</span><br /><span className="text-red-400 font-bold">{stressResult.worst_scenario?.scenario_name || '—'}</span></div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-gray-800 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wide mb-4">Stress Scenario Library ({scenarios.length})</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-700">
+                {['Scenario', 'Category', 'Price', 'Demand', 'Wind', 'Solar', 'Gas'].map(h => (
+                  <th key={h} className="text-left px-3 py-2 text-xs text-gray-400 font-medium uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {scenarios.map((s, i) => (
+                <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <td className="px-3 py-2 text-gray-200 font-medium">{s.scenario_name}</td>
+                  <td className="px-3 py-2">
+                    <span className={`px-2 py-0.5 rounded text-xs ${CATEGORY_COLORS[s.category] || 'bg-gray-500/20 text-gray-400'}`}>{s.category}</span>
+                  </td>
+                  <td className={`px-3 py-2 ${s.price_shock_pct >= 0 ? 'text-red-400' : 'text-green-400'}`}>{s.price_shock_pct > 0 ? '+' : ''}{s.price_shock_pct}%</td>
+                  <td className={`px-3 py-2 ${s.demand_shock_pct >= 0 ? 'text-red-400' : 'text-green-400'}`}>{s.demand_shock_pct > 0 ? '+' : ''}{s.demand_shock_pct}%</td>
+                  <td className={`px-3 py-2 text-gray-300`}>{s.wind_shock_pct > 0 ? '+' : ''}{s.wind_shock_pct}%</td>
+                  <td className={`px-3 py-2 text-gray-300`}>{s.solar_shock_pct > 0 ? '+' : ''}{s.solar_shock_pct}%</td>
+                  <td className={`px-3 py-2 text-gray-300`}>{s.gas_shock_pct > 0 ? '+' : ''}{s.gas_shock_pct}%</td>
+                </tr>
+              ))}
+              {scenarios.length === 0 && (
+                <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-500">No scenarios loaded</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

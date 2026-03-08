@@ -582,6 +582,13 @@ import ForwardCurves from './pages/ForwardCurves'
 import RiskDashboard from './pages/RiskDashboard'
 import MarketReplay from './pages/MarketReplay'
 import MarketBriefs from './pages/MarketBriefs'
+import BiddingDashboard from './pages/BiddingDashboard'
+import BatteryDashboard from './pages/BatteryDashboard'
+import GasMarketDashboard from './pages/GasMarketDashboard'
+import WemDashboard from './pages/WemDashboard'
+import ComplianceDashboard from './pages/ComplianceDashboard'
+import EnvironmentalsDashboard from './pages/EnvironmentalsDashboard'
+import ReportsLibrary from './pages/ReportsLibrary'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1601,6 +1608,13 @@ function classifyNavItem(to: string, label: string): string {
     '/risk-dashboard': 'prices',
     '/market-replay': 'operations',
     '/market-briefs': 'operations',
+    '/bidding-dashboard': 'prices',
+    '/battery-dispatch': 'storage',
+    '/gas-market': 'gas',
+    '/wem-dashboard': 'operations',
+    '/compliance': 'policy',
+    '/environmentals': 'renewables',
+    '/reports': 'analytics',
   }
   if (exact[to]) return exact[to]
 
@@ -2095,6 +2109,13 @@ export default function App() {
               <Route path="/trade-blotter" element={<PageErrorBoundary pageName="/trade-blotter"><TradeBlotter /></PageErrorBoundary>} />
               <Route path="/forward-curves" element={<PageErrorBoundary pageName="/forward-curves"><ForwardCurves /></PageErrorBoundary>} />
               <Route path="/risk-dashboard" element={<PageErrorBoundary pageName="/risk-dashboard"><RiskDashboard /></PageErrorBoundary>} />
+              <Route path="/bidding-dashboard" element={<PageErrorBoundary pageName="/bidding-dashboard"><BiddingDashboard /></PageErrorBoundary>} />
+              <Route path="/battery-dispatch" element={<PageErrorBoundary pageName="/battery-dispatch"><BatteryDashboard /></PageErrorBoundary>} />
+              <Route path="/gas-market" element={<PageErrorBoundary pageName="/gas-market"><GasMarketDashboard /></PageErrorBoundary>} />
+              <Route path="/wem-dashboard" element={<PageErrorBoundary pageName="/wem-dashboard"><WemDashboard /></PageErrorBoundary>} />
+              <Route path="/compliance" element={<PageErrorBoundary pageName="/compliance"><ComplianceDashboard /></PageErrorBoundary>} />
+              <Route path="/environmentals" element={<PageErrorBoundary pageName="/environmentals"><EnvironmentalsDashboard /></PageErrorBoundary>} />
+              <Route path="/reports" element={<PageErrorBoundary pageName="/reports"><ReportsLibrary /></PageErrorBoundary>} />
               <Route path="/sustainability" element={<PageErrorBoundary pageName="/sustainability"><Sustainability /></PageErrorBoundary>} />
               <Route path="/merit-order" element={<PageErrorBoundary pageName="/merit-order"><MeritOrder /></PageErrorBoundary>} />
               <Route path="/ml-dashboard" element={<PageErrorBoundary pageName="/ml-dashboard"><MlDashboardPage /></PageErrorBoundary>} />

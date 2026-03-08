@@ -34491,3 +34491,230 @@ export const constraintsApi = {
     return get(`/api/constraints/forecast/timeline?${qs}`)
   },
 }
+
+
+// =========================================================================
+// Phase 3 — Interfaces & API Objects
+// =========================================================================
+
+// --- WS1: Bidding ---
+export interface BidRecord {
+  bid_id: string; generator_id: string; generator_name: string; region: string;
+  bid_type: string; bid_datetime: string; total_mw: number; status: string; reason: string;
+  band1_price: number; band1_mw: number; band2_price: number; band2_mw: number;
+  band3_price: number; band3_mw: number; band4_price: number; band4_mw: number;
+  band5_price: number; band5_mw: number; band6_price: number; band6_mw: number;
+  band7_price: number; band7_mw: number; band8_price: number; band8_mw: number;
+  band9_price: number; band9_mw: number; band10_price: number; band10_mw: number;
+}
+
+export interface BidOptimizationResult {
+  generator_id: string; region: string; strategy: string; capacity_mw: number; srmc: number;
+  recommended_bands: Array<{ band: number; price: number; mw: number }>;
+  total_bid_mw: number; expected_revenue_daily: number;
+  market_context: { avg_price_24h: number; volatility: number };
+}
+
+export interface ConformanceEvent {
+  event_id: string; generator_id: string; generator_name: string; region: string;
+  interval_datetime: string; target_mw: number; actual_mw: number; deviation_mw: number;
+  deviation_pct: number; conformance_status: string; penalty_flag: boolean; reason: string;
+}
+
+export interface RevenueRecord {
+  generator_id: string; generator_name: string; fuel_type: string;
+  energy_rev: number; fcas_rev: number; total_rev: number;
+  avg_cf: number; avg_spot: number;
+}
+
+export interface BiddingDashboardResponse {
+  region: string;
+  kpis: { total_bids: number; accepted_bids: number; conformance_rate: number; total_revenue: number; avg_capacity_factor: number };
+  recent_bids: BidRecord[];
+  conformance: { total_events: number; conforming_count: number; conformance_rate: number; penalty_count: number; compliance_grade: string };
+}
+
+export const biddingApi = {
+  dashboard(region = 'NSW1'): Promise<BiddingDashboardResponse> { return get(`/api/bidding/dashboard?region=${region}`) },
+  bids(region = 'NSW1', generatorId?: string): Promise<{ bids: BidRecord[] }> {
+    const qs = generatorId ? `&generator_id=${generatorId}` : ''; return get(`/api/bidding/bids?region=${region}${qs}`)
+  },
+  optimize(generatorId: string, region = 'NSW1', strategy = 'ML_OPTIMIZED'): Promise<BidOptimizationResult> {
+    return post(`/api/bidding/optimize?generator_id=${generatorId}&region=${region}&strategy=${strategy}`, {})
+  },
+  conformance(region = 'NSW1'): Promise<{ events: ConformanceEvent[] }> { return get(`/api/bidding/conformance?region=${region}`) },
+  revenue(region = 'NSW1'): Promise<{ revenue: RevenueRecord[] }> { return get(`/api/bidding/revenue?region=${region}`) },
+  compliance(region?: string): Promise<{ total_events: number; conformance_rate: number; compliance_grade: string }> {
+    const qs = region ? `?region=${region}` : ''; return get(`/api/bidding/compliance${qs}`)
+  },
+}
+
+// --- WS3: Battery ---
+export interface BatteryAsset {
+  asset_id: string; name: string; region: string; capacity_mw: number; storage_mwh: number;
+  efficiency_pct: number; fcas_capable: boolean; status: string; commissioning_date: string;
+}
+
+export interface BatteryScheduleItem {
+  hour: number; hour_of_day: number; action: string; power_mw: number;
+  soc_pct: number; price: number; revenue: number;
+}
+
+export interface BatteryOptResult {
+  asset_id: string; asset_name: string; region: string; capacity_mw: number; storage_mwh: number;
+  horizon_hours: number; schedule: BatteryScheduleItem[]; total_revenue: number;
+  charge_hours: number[]; discharge_hours: number[]; spread: number;
+}
+
+export interface BatteryPerfRecord {
+  asset_id: string; total_cycles: number; total_throughput: number;
+  arb_rev: number; fcas_rev: number; total_rev: number; avg_charge: number; avg_discharge: number;
+}
+
+export const batteryApi = {
+  dashboard(): Promise<{ fleet_summary: { total_assets: number; total_capacity_mw: number; total_storage_mwh: number; total_revenue_7d: number }; assets: BatteryAsset[]; performance: { assets: BatteryPerfRecord[] } }> {
+    return get('/api/battery/dashboard')
+  },
+  assets(): Promise<{ assets: BatteryAsset[] }> { return get('/api/battery/assets') },
+  schedule(assetId: string, days = 1): Promise<{ asset_id: string; schedule: Array<{ interval_datetime: string; action: string; power_mw: number; soc_pct: number }> }> {
+    return get(`/api/battery/schedule?asset_id=${assetId}&days=${days}`)
+  },
+  optimize(assetId: string, hours = 24): Promise<BatteryOptResult> {
+    return post(`/api/battery/optimize?asset_id=${assetId}&horizon_hours=${hours}`, {})
+  },
+  performance(assetId?: string, days = 7): Promise<{ period_days: number; assets: BatteryPerfRecord[]; fleet_total_revenue: number }> {
+    const qs = assetId ? `?asset_id=${assetId}&days=${days}` : `?days=${days}`; return get(`/api/battery/performance${qs}`)
+  },
+  revenue(): Promise<{ revenue: Array<{ asset_id: string; name: string; region: string; arb_rev: number; fcas_rev: number; total_rev: number }> }> {
+    return get('/api/battery/revenue')
+  },
+}
+
+// --- WS4: Gas ---
+export interface GasSttmPrice { record_id: string; hub: string; trade_date: string; ex_ante_price: number; ex_post_price: number }
+export interface GasDwgmPrice { record_id: string; trade_date: string; trading_interval: number; price_aud_gj: number }
+export interface GasSparkSpread { region: string; trade_date: string; electricity_price: number; gas_price: number; spark_spread: number; clean_spark_spread: number; carbon_cost: number }
+
+export const gasApi = {
+  dashboard(days = 30): Promise<{ period_days: number; sttm_summary: Array<{ hub: string; avg_price: number }>; dwgm_latest: GasDwgmPrice[]; spark_spread_summary: Array<{ region: string; avg_spark: number; avg_clean_spark: number }> }> {
+    return get(`/api/gas/dashboard?days=${days}`)
+  },
+  sttm(hub?: string, days = 30): Promise<{ prices: GasSttmPrice[] }> {
+    const qs = hub ? `?hub=${hub}&days=${days}` : `?days=${days}`; return get(`/api/gas/sttm${qs}`)
+  },
+  dwgm(days = 30): Promise<{ prices: GasDwgmPrice[] }> { return get(`/api/gas/dwgm?days=${days}`) },
+  sparkSpread(region?: string, days = 30): Promise<{ period_days: number; spreads: GasSparkSpread[]; summary_by_region: Array<{ region: string; avg_spark: number; avg_clean_spark: number }> }> {
+    const qs = region ? `?region=${region}&days=${days}` : `?days=${days}`; return get(`/api/gas/spark-spread${qs}`)
+  },
+  correlation(region = 'NSW1', days = 30): Promise<{ region: string; correlation: number; data: GasSparkSpread[] }> {
+    return get(`/api/gas/correlation?region=${region}&days=${days}`)
+  },
+}
+
+// --- WS5: WEM ---
+export interface WemPrice { trading_interval: string; balancing_price: number; total_balancing_demand_mw: number; price_flag: string }
+export interface WemGeneration { trading_interval: string; fuel_type: string; total_mw: number }
+
+export const wemApi = {
+  dashboard(days = 7): Promise<{ period_days: number; price_summary: { avg_price: number; max_price: number; vol: number }; generation_mix: Array<{ fuel_type: string; avg_mw: number }>; demand_summary: { avg_demand: number; peak_demand: number; min_demand: number } }> {
+    return get(`/api/wem/dashboard?days=${days}`)
+  },
+  prices(days = 7): Promise<{ period_days: number; prices: WemPrice[]; summary: { avg_price: number; max_price: number; vol: number } }> {
+    return get(`/api/wem/prices?days=${days}`)
+  },
+  generation(days = 7): Promise<{ generation: WemGeneration[] }> { return get(`/api/wem/generation?days=${days}`) },
+  demand(days = 7): Promise<{ demand: Array<{ trading_interval: string; total_demand_mw: number }> }> { return get(`/api/wem/demand?days=${days}`) },
+  comparison(days = 7): Promise<{ wem: { avg_price: number; max_price: number; avg_demand_mw: number }; nem_nsw1: { avg_price: number; max_price: number; avg_demand_mw: number }; price_differential: number }> {
+    return get(`/api/wem/comparison?days=${days}`)
+  },
+}
+
+// --- WS6: Compliance ---
+export interface ComplianceObligation {
+  obligation_id: string; obligation_type: string; title: string; description: string;
+  due_date: string; status: string; region: string; responsible_party: string; priority: string;
+}
+
+export const complianceApi = {
+  dashboard(region?: string): Promise<{ total_obligations: number; compliant_count: number; compliance_rate: number; overdue_count: number; status_breakdown: Array<{ status: string; cnt: number }>; upcoming_deadlines: ComplianceObligation[]; timeline: ComplianceObligation[] }> {
+    const qs = region ? `?region=${region}` : ''; return get(`/api/compliance/dashboard${qs}`)
+  },
+  obligations(region?: string, status?: string): Promise<{ obligations: ComplianceObligation[] }> {
+    const qs = new URLSearchParams(); if (region) qs.append('region', region); if (status) qs.append('status', status);
+    return get(`/api/compliance/obligations?${qs}`)
+  },
+  create(data: Partial<ComplianceObligation>): Promise<{ status: string; obligation_id: string }> {
+    return post('/api/compliance/obligations', data)
+  },
+  update(data: Partial<ComplianceObligation> & { obligation_id: string }): Promise<{ status: string }> {
+    return put('/api/compliance/obligations', data)
+  },
+}
+
+// --- WS6: Environmentals ---
+export interface EnvironmentalHolding {
+  holding_id: string; certificate_type: string; vintage_year: number; quantity: number;
+  unit_price: number; total_value: number; status: string; acquired_date: string; expiry_date: string;
+}
+
+export interface CertificateBalance {
+  balance_id: string; certificate_type: string; vintage_year: number;
+  opening_balance: number; acquired: number; surrendered: number; closing_balance: number;
+  liability: number; surplus_deficit: number;
+}
+
+export const environmentalsApi = {
+  dashboard(): Promise<{ certificate_position: Record<string, { held: number; committed: number; total_value: number }>; market_prices: Record<string, number>; carbon_exposure_summary: { total_annual_tco2: number; estimated_cost_aud: number }; balances: CertificateBalance[] }> {
+    return get('/api/environmentals/dashboard')
+  },
+  portfolio(certType?: string): Promise<{ holdings: EnvironmentalHolding[] }> {
+    const qs = certType ? `?certificate_type=${certType}` : ''; return get(`/api/environmentals/portfolio${qs}`)
+  },
+  addHolding(data: Partial<EnvironmentalHolding>): Promise<{ status: string; holding_id: string }> {
+    return post('/api/environmentals/portfolio', data)
+  },
+  balances(): Promise<{ balances: CertificateBalance[] }> { return get('/api/environmentals/balances') },
+  valueBundledPpa(data: { strike_price: number; volume_mw: number; technology: string; region: string; term_years?: number }): Promise<{ energy_npv: number; lgc_npv: number; total_npv: number; bundled_premium_pct: number; annual_cashflows: Array<{ year: number; total_cashflow: number }> }> {
+    return post('/api/environmentals/bundled-ppa', data)
+  },
+}
+
+// --- WS6: Reports ---
+export interface GeneratedReport {
+  report_id: string; report_type: string; title: string; report_date: string;
+  summary: string; status: string; created_at: string; content?: string;
+}
+
+export interface ReportTemplate {
+  type: string; title: string; description: string; sections: string[];
+}
+
+export const reportsApi = {
+  library(reportType?: string): Promise<{ reports: GeneratedReport[] }> {
+    const qs = reportType ? `?report_type=${reportType}` : ''; return get(`/api/reports/library${qs}`)
+  },
+  generate(reportType: string, title?: string): Promise<GeneratedReport & { content: string }> {
+    return post('/api/reports/generate', { report_type: reportType, title })
+  },
+  get(reportId: string): Promise<GeneratedReport & { content: string }> { return get(`/api/reports/${reportId}`) },
+  templates(): Promise<{ templates: ReportTemplate[] }> { return get('/api/reports/templates') },
+}
+
+// --- WS2: Advanced Risk (extensions) ---
+export const advancedRiskApi = {
+  historicalVar(portfolioId = 'all', horizonDays = 1, confidence = 0.95): Promise<{ method: string; var_amount?: number; cvar_amount?: number; results?: Array<Record<string, unknown>> }> {
+    return get(`/api/risk/var/historical?portfolio_id=${portfolioId}&horizon_days=${horizonDays}&confidence=${confidence}`)
+  },
+  monteCarloVar(portfolioId = 'all', horizonDays = 1, confidence = 0.95): Promise<{ method: string; var_amount?: number; cvar_amount?: number; results?: Array<Record<string, unknown>> }> {
+    return get(`/api/risk/var/monte-carlo?portfolio_id=${portfolioId}&horizon_days=${horizonDays}&confidence=${confidence}`)
+  },
+  volSurface(region = 'NSW1'): Promise<{ region: string; surface: Array<{ tenor_days: number; strike_pct: number; implied_vol: number; historical_vol: number }> }> {
+    return get(`/api/risk/vol-surface?region=${region}`)
+  },
+  reverseStressTest(targetLoss: number, portfolioId = 'all'): Promise<{ target_loss: number; matching_scenarios: Array<{ scenario_name: string; estimated_loss: number; severity: string }> }> {
+    return post(`/api/risk/reverse-stress-test?target_loss=${targetLoss}&portfolio_id=${portfolioId}`, {})
+  },
+  stressScenarios(): Promise<{ scenarios: Array<{ scenario_id: string; scenario_name: string; category: string; severity: string; price_shock_pct: number }> }> {
+    return get('/api/risk/stress-scenarios')
+  },
+}

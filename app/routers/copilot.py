@@ -410,6 +410,212 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    # --- Phase 3 Tools (15 new) ---
+    {
+        "type": "function",
+        "function": {
+            "name": "optimize_bid",
+            "description": "Generate an optimised 10-band bid for a NEM generator. Returns recommended price bands, MW allocations, and expected revenue. Strategies: PRICE_TAKER, MARGINAL_COST, ML_OPTIMIZED.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "generator_id": {"type": "string", "description": "Generator ID e.g. BAYSW1, ERGT01, HDWF1, LKBNL1, CALL_A_1"},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "strategy": {"type": "string", "enum": ["PRICE_TAKER", "MARGINAL_COST", "ML_OPTIMIZED"]},
+                },
+                "required": ["generator_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "suggest_rebid",
+            "description": "Suggest a rebid for a generator based on changed market conditions. Returns updated band recommendations with urgency level.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "generator_id": {"type": "string", "description": "Generator ID"},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "reason": {"type": "string", "description": "Rebid reason: price_change, constraint, outage, wind_change"},
+                },
+                "required": ["generator_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_bid_compliance",
+            "description": "Check bid and dispatch compliance for a generator — conformance rate, penalty count, compliance grade (A/B/C).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "generator_id": {"type": "string", "description": "Generator ID (optional)"},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_bid_vs_optimal",
+            "description": "Compare actual bidding outcomes vs ML-optimised strategy. Shows revenue uplift potential.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "generator_id": {"type": "string", "description": "Generator ID"},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": ["generator_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reverse_stress_test",
+            "description": "Find stress scenarios that would produce a specified portfolio loss. Searches the scenario library for matching severity.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_loss": {"type": "number", "description": "Target loss amount in AUD (negative, e.g. -1000000)"},
+                    "portfolio_id": {"type": "string", "description": "Portfolio ID or 'all'"},
+                },
+                "required": ["target_loss"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "optimize_battery",
+            "description": "Generate an optimised dispatch schedule for a battery asset. Returns charge/discharge hours, SoC profile, and expected revenue.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "asset_id": {"type": "string", "description": "Battery asset ID: HPR1, VBBG1, BCMG1"},
+                    "horizon_hours": {"type": "integer", "description": "Schedule horizon (default 24)", "default": 24},
+                },
+                "required": ["asset_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_gas_price",
+            "description": "Get eastern Australian gas prices — STTM hub prices (Sydney, Adelaide, Brisbane) and DWGM (Victorian market).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "hub": {"type": "string", "description": "STTM hub: Sydney, Adelaide, Brisbane. Omit for all."},
+                    "days": {"type": "integer", "description": "Lookback days (default 30)", "default": 30},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_spark_spread",
+            "description": "Get spark spread analytics — electricity vs gas cost of generation by NEM region. Shows spark spread, clean spark spread, and carbon cost.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "days": {"type": "integer", "description": "Lookback days (default 30)", "default": 30},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_wem_price",
+            "description": "Get Western Australian Electricity Market (WEM) balancing prices and market summary.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "description": "Lookback days (default 7)", "default": 7},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_compliance_status",
+            "description": "Get regulatory compliance status — obligations, conformance rate, overdue items, upcoming deadlines.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_lgc_position",
+            "description": "Get environmental certificate portfolio position — LGC, ACCU, STC holdings, balances, and market prices.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_carbon_exposure",
+            "description": "Calculate carbon exposure from generation portfolio — emissions by fuel type, annual tCO2, estimated cost.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "value_bundled_ppa",
+            "description": "Value a bundled PPA (electricity + LGCs). Returns energy NPV, LGC NPV, total NPV, and bundled premium.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "strike_price": {"type": "number", "description": "Strike price $/MWh"},
+                    "volume_mw": {"type": "number", "description": "Capacity MW"},
+                    "technology": {"type": "string", "enum": ["solar_utility", "wind"]},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "term_years": {"type": "integer", "description": "Term in years (default 10)"},
+                },
+                "required": ["strike_price", "volume_mw", "technology", "region"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_report",
+            "description": "Generate a structured report. Types: DAILY_RISK, WEEKLY_MARKET, MONTHLY_COMPLIANCE, QUARTERLY_ENVIRONMENTAL, AD_HOC_ANALYSIS.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "report_type": {"type": "string", "enum": ["DAILY_RISK", "WEEKLY_MARKET", "MONTHLY_COMPLIANCE", "QUARTERLY_ENVIRONMENTAL", "AD_HOC_ANALYSIS"]},
+                    "title": {"type": "string", "description": "Custom report title (optional)"},
+                },
+                "required": ["report_type"],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -943,6 +1149,118 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
                 for r in result["residues"]:
                     lines.append(f"  {r['interconnector_id']}: ${r['settlement_residue_aud']:,.2f} ({r['direction']}, {r['flow_mw']}MW avg)")
             return json.dumps({"text": "\n".join(lines), "reconciliation": result}, default=str)
+
+        # --- Phase 3 Tool Dispatchers ---
+        elif name == "optimize_bid":
+            from .bidding import _optimize_bid_core
+            result = _optimize_bid_core(
+                generator_id=arguments.get("generator_id", "BAYSW1"),
+                region=arguments.get("region", "NSW1"),
+                strategy=arguments.get("strategy", "ML_OPTIMIZED"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "suggest_rebid":
+            from .bidding import _suggest_rebid_core
+            result = _suggest_rebid_core(
+                generator_id=arguments.get("generator_id", "BAYSW1"),
+                region=arguments.get("region", "NSW1"),
+                reason=arguments.get("reason", "price_change"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_bid_compliance":
+            from .bidding import _get_bid_compliance_core
+            result = _get_bid_compliance_core(
+                generator_id=arguments.get("generator_id"),
+                region=arguments.get("region"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "compare_bid_vs_optimal":
+            from .bidding import _compare_bid_vs_optimal_core
+            result = _compare_bid_vs_optimal_core(
+                generator_id=arguments.get("generator_id", "BAYSW1"),
+                region=arguments.get("region", "NSW1"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "reverse_stress_test":
+            from .risk import _reverse_stress_test_core
+            result = _reverse_stress_test_core(
+                target_loss=float(arguments.get("target_loss", -1_000_000)),
+                portfolio_id=arguments.get("portfolio_id", "all"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "optimize_battery":
+            from .battery import _optimize_battery_core
+            result = _optimize_battery_core(
+                asset_id=arguments.get("asset_id", "HPR1"),
+                horizon_hours=int(arguments.get("horizon_hours", 24)),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_gas_price":
+            from .gas import _get_gas_price_core
+            result = _get_gas_price_core(
+                hub=arguments.get("hub"),
+                days=int(arguments.get("days", 30)),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_spark_spread":
+            from .gas import _get_spark_spread_core
+            result = _get_spark_spread_core(
+                region=arguments.get("region"),
+                days=int(arguments.get("days", 30)),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_wem_price":
+            from .wem import _get_wem_price_core
+            result = _get_wem_price_core(
+                days=int(arguments.get("days", 7)),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_compliance_status":
+            from .compliance import _get_compliance_status_core
+            result = _get_compliance_status_core(
+                region=arguments.get("region"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_lgc_position":
+            from .environmentals import _get_lgc_position_core
+            result = _get_lgc_position_core()
+            return json.dumps(result, default=str)
+
+        elif name == "get_carbon_exposure":
+            from .environmentals import _get_carbon_exposure_core
+            result = _get_carbon_exposure_core(
+                region=arguments.get("region"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "value_bundled_ppa":
+            from .environmentals import _value_bundled_ppa_core
+            result = _value_bundled_ppa_core(
+                strike_price=float(arguments.get("strike_price", 55)),
+                volume_mw=float(arguments.get("volume_mw", 100)),
+                technology=arguments.get("technology", "solar_utility"),
+                region=arguments.get("region", "NSW1"),
+                term_years=int(arguments.get("term_years", 10)),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "generate_report":
+            from .reports import _generate_report_core
+            result = _generate_report_core(
+                report_type=arguments.get("report_type", "DAILY_RISK"),
+                title=arguments.get("title"),
+            )
+            return json.dumps(result, default=str)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

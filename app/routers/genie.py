@@ -363,7 +363,7 @@ _GENIE_SPACES = [
         ],
     },
     {
-        "space_id": "01f11acf42701ae38c6c58a01612ed73",
+        "space_id": "01f11b0795a81b8fa0a0e20742cf5714",
         "title": "NEM FCAS & Ancillary Services",
         "description": "FCAS market pricing, providers, regulation vs contingency services, and battery FCAS revenue analytics.",
         "icon": "shield",
@@ -410,7 +410,7 @@ _GENIE_SPACES = [
         ],
     },
     {
-        "space_id": "01f11acf42701ae38c6c58a01612ed72",
+        "space_id": "01f11b079e1c1e7f81b273f49998cbe7",
         "title": "Portfolio & P&L",
         "description": "Trade portfolio positions, mark-to-market valuations, P&L attribution, credit exposure, and risk metrics across all NEM regions.",
         "icon": "briefcase",
@@ -467,6 +467,112 @@ _GENIE_SPACES = [
                     "List the 10 largest trades by volume (MW)",
                     "How many trades were created this week vs last week?",
                     "What is the total buy vs sell volume by region?",
+                ],
+            },
+        ],
+    },
+    {
+        "space_id": "01f11b079e541520b51e68fb151bf227",
+        "title": "NEM Bidding & Revenue Optimisation",
+        "description": "Generator bidding analytics, dispatch conformance, revenue attribution, and bid optimisation strategies.",
+        "icon": "target",
+        "tables": ["bids_submitted", "bid_optimization_results", "dispatch_conformance", "revenue_attribution"],
+        "question_categories": [
+            {
+                "label": "Bid Analysis",
+                "questions": [
+                    "Show all bids for Bayswater in the last 7 days",
+                    "What is the average bid price by band across NSW generators?",
+                    "Which generators have the most rebids?",
+                    "Show the bid stack by price band for QLD1",
+                    "What percentage of bids are accepted vs rejected?",
+                ],
+            },
+            {
+                "label": "Conformance",
+                "questions": [
+                    "What is the dispatch conformance rate by generator?",
+                    "Show all non-conforming events in the last 30 days",
+                    "Which generators have the highest deviation from dispatch targets?",
+                    "How many penalty events occurred this month?",
+                ],
+            },
+            {
+                "label": "Revenue",
+                "questions": [
+                    "What is the total revenue by generator this month?",
+                    "Compare energy revenue vs FCAS revenue across all generators",
+                    "Which generator has the highest capacity factor?",
+                    "Show daily revenue trends for coal vs wind generators",
+                ],
+            },
+        ],
+    },
+    {
+        "space_id": "01f11b079e891767a523d81b0e1268ce",
+        "title": "Gas Market Analytics",
+        "description": "Eastern Australian gas market data including STTM hub prices, DWGM Victorian market, and spark spread analytics.",
+        "icon": "flame",
+        "tables": ["gas_sttm_prices", "gas_dwgm_prices", "gas_spark_spreads", "gas_hub_prices"],
+        "question_categories": [
+            {
+                "label": "STTM Prices",
+                "questions": [
+                    "What is the average STTM gas price by hub this month?",
+                    "Show the ex-ante vs ex-post price for Sydney hub",
+                    "Which STTM hub has the highest gas prices?",
+                    "Show the daily STTM price trend for Adelaide over 90 days",
+                ],
+            },
+            {
+                "label": "DWGM",
+                "questions": [
+                    "What is the average DWGM price this week?",
+                    "Show DWGM price by trading interval today",
+                    "How does DWGM linepack correlate with price?",
+                ],
+            },
+            {
+                "label": "Spark Spreads",
+                "questions": [
+                    "What is the current spark spread by NEM region?",
+                    "Which region has the highest clean spark spread?",
+                    "Show the spark spread trend for NSW over 90 days",
+                    "How does the gas price affect electricity prices?",
+                ],
+            },
+        ],
+    },
+    {
+        "space_id": "01f11b079eba19ea9b3eec8e4f589f63",
+        "title": "WEM Market Analytics",
+        "description": "Western Australian Electricity Market — balancing prices, generation mix, demand, and NEM comparison.",
+        "icon": "globe",
+        "tables": ["wem_balancing_prices", "wem_generation", "wem_demand"],
+        "question_categories": [
+            {
+                "label": "Balancing Prices",
+                "questions": [
+                    "What is the average WEM balancing price this week?",
+                    "Show the WEM price distribution over the last 30 days",
+                    "How many high-price intervals occurred in the WEM?",
+                    "Compare WEM vs NEM NSW prices",
+                ],
+            },
+            {
+                "label": "Generation",
+                "questions": [
+                    "What is the WEM generation mix by fuel type?",
+                    "Show the renewable share in WEM over the past month",
+                    "How does coal vs gas generation compare in WEM?",
+                ],
+            },
+            {
+                "label": "Demand",
+                "questions": [
+                    "What is the peak WEM demand this month?",
+                    "Show demand vs forecast accuracy in WEM",
+                    "How does WEM demand correlate with temperature?",
                 ],
             },
         ],

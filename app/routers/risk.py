@@ -1520,3 +1520,185 @@ async def monitor_risk_limits(portfolio_id: Optional[str] = Query(None)):
         })
 
     return {"monitors": monitors, "count": len(monitors)}
+
+
+# =========================================================================
+# Phase 3 WS2: Advanced Risk Analytics
+# =========================================================================
+
+def _historical_var_core(portfolio_id: str = "all",
+                         horizon_days: int = 1,
+                         confidence: float = 0.95) -> Dict[str, Any]:
+    """Calculate Historical VaR from stored results or simulate."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.var_historical "
+        f"WHERE portfolio_id = '{_sql_escape(portfolio_id)}' "
+        f"AND horizon_days = {horizon_days} "
+        f"AND confidence_level = {confidence} "
+        f"ORDER BY calc_date DESC LIMIT 10"
+    )
+    if rows:
+        return {
+            "method": "historical",
+            "portfolio_id": portfolio_id,
+            "horizon_days": horizon_days,
+            "confidence": confidence,
+            "results": [{**r, "calc_date": str(r.get("calc_date", ""))} for r in rows],
+        }
+    # Fallback: compute from price data
+    price_rows = _query_gold(
+        f"SELECT rrp FROM {_SCHEMA}.nem_prices_5min "
+        f"WHERE interval_datetime >= current_timestamp() - INTERVAL 90 DAYS "
+        f"ORDER BY interval_datetime LIMIT 2000"
+    )
+    if not price_rows:
+        return {"error": "No price data for VaR calculation"}
+    prices = [float(r["rrp"]) for r in price_rows if r.get("rrp") is not None]
+    if len(prices) < 20:
+        return {"error": "Insufficient price data"}
+    returns = [(prices[i] - prices[i-1]) / max(abs(prices[i-1]), 0.01) for i in range(1, len(prices))]
+    returns.sort()
+    idx = int(len(returns) * (1 - confidence))
+    var_pct = abs(returns[max(idx, 0)])
+    cvar_pct = abs(sum(returns[:max(idx, 1)]) / max(idx, 1))
+    notional = 10_000_000  # assumed portfolio notional
+    return {
+        "method": "historical_computed",
+        "portfolio_id": portfolio_id,
+        "horizon_days": horizon_days,
+        "confidence": confidence,
+        "var_pct": round(var_pct, 6),
+        "cvar_pct": round(cvar_pct, 6),
+        "var_amount": round(var_pct * notional * math.sqrt(horizon_days), 2),
+        "cvar_amount": round(cvar_pct * notional * math.sqrt(horizon_days), 2),
+        "observations": len(returns),
+    }
+
+
+def _monte_carlo_var_core(portfolio_id: str = "all",
+                          horizon_days: int = 1,
+                          confidence: float = 0.95,
+                          num_sims: int = 10000) -> Dict[str, Any]:
+    """Monte Carlo VaR simulation."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.var_monte_carlo "
+        f"WHERE portfolio_id = '{_sql_escape(portfolio_id)}' "
+        f"ORDER BY calc_date DESC LIMIT 5"
+    )
+    if rows:
+        return {
+            "method": "monte_carlo",
+            "portfolio_id": portfolio_id,
+            "results": [{**r, "calc_date": str(r.get("calc_date", ""))} for r in rows],
+        }
+    # Simulate
+    rng = random.Random(42)
+    vol = 0.02  # daily vol
+    notional = 10_000_000
+    pnls = sorted([notional * rng.gauss(0, vol * math.sqrt(horizon_days)) for _ in range(num_sims)])
+    idx = int(num_sims * (1 - confidence))
+    var_amount = abs(pnls[idx])
+    cvar_amount = abs(sum(pnls[:idx]) / max(idx, 1))
+    return {
+        "method": "monte_carlo_computed",
+        "portfolio_id": portfolio_id,
+        "horizon_days": horizon_days,
+        "confidence": confidence,
+        "num_simulations": num_sims,
+        "var_amount": round(var_amount, 2),
+        "cvar_amount": round(cvar_amount, 2),
+        "mean_pnl": round(sum(pnls) / len(pnls), 2),
+        "std_pnl": round((sum((p - sum(pnls)/len(pnls))**2 for p in pnls) / len(pnls))**0.5, 2),
+    }
+
+
+def _vol_surface_core(region: str = "NSW1") -> Dict[str, Any]:
+    """Get volatility surface data for a region."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.vol_surface "
+        f"WHERE region = '{_sql_escape(region)}' "
+        f"ORDER BY tenor_days, strike_pct"
+    )
+    return {
+        "region": region,
+        "surface": [{**r, "calc_date": str(r.get("calc_date", ""))} for r in (rows or [])],
+    }
+
+
+def _reverse_stress_test_core(target_loss: float = -1_000_000,
+                               portfolio_id: str = "all") -> Dict[str, Any]:
+    """Find scenarios that produce a given loss level."""
+    scenarios = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.stress_test_library WHERE is_active = true"
+    )
+    if not scenarios:
+        return {"error": "No stress scenarios in library"}
+
+    results = []
+    for s in scenarios:
+        # Estimate portfolio impact from shock percentages
+        price_shock = float(s.get("price_shock_pct", 0) or 0) / 100
+        estimated_loss = -abs(price_shock) * 5_000_000  # rough scaling
+        if estimated_loss <= target_loss:
+            results.append({
+                "scenario_id": s.get("scenario_id", ""),
+                "scenario_name": s.get("scenario_name", ""),
+                "category": s.get("category", ""),
+                "severity": s.get("severity", ""),
+                "price_shock_pct": float(s.get("price_shock_pct", 0) or 0),
+                "estimated_loss": round(estimated_loss, 0),
+                "description": s.get("description", ""),
+            })
+    results.sort(key=lambda x: x["estimated_loss"])
+
+    return {
+        "target_loss": target_loss,
+        "portfolio_id": portfolio_id,
+        "matching_scenarios": results,
+        "total_scenarios_checked": len(scenarios),
+    }
+
+
+@router.get("/api/risk/var/historical")
+async def historical_var(
+    portfolio_id: str = Query("all"),
+    horizon_days: int = Query(1, ge=1, le=30),
+    confidence: float = Query(0.95),
+):
+    """Historical VaR calculation."""
+    return _historical_var_core(portfolio_id, horizon_days, confidence)
+
+
+@router.get("/api/risk/var/monte-carlo")
+async def monte_carlo_var(
+    portfolio_id: str = Query("all"),
+    horizon_days: int = Query(1, ge=1, le=30),
+    confidence: float = Query(0.95),
+    num_sims: int = Query(10000, le=50000),
+):
+    """Monte Carlo VaR simulation."""
+    return _monte_carlo_var_core(portfolio_id, horizon_days, confidence, num_sims)
+
+
+@router.get("/api/risk/vol-surface")
+async def vol_surface(region: str = Query("NSW1")):
+    """Get volatility surface for a region."""
+    return _vol_surface_core(region)
+
+
+@router.post("/api/risk/reverse-stress-test")
+async def reverse_stress_test(
+    target_loss: float = Query(-1_000_000),
+    portfolio_id: str = Query("all"),
+):
+    """Find scenarios that produce a target loss."""
+    return _reverse_stress_test_core(target_loss, portfolio_id)
+
+
+@router.get("/api/risk/stress-scenarios")
+async def stress_scenario_library():
+    """List all stress test scenarios."""
+    rows = _query_gold(
+        f"SELECT * FROM {_SCHEMA}.stress_test_library ORDER BY category, severity"
+    )
+    return {"scenarios": rows or []}
