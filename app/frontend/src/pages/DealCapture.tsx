@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Upload, Sparkles, Send } from 'lucide-react'
+import { Plus, Upload, Sparkles, Send, ShieldCheck, ShieldAlert, ShieldX, Clock } from 'lucide-react'
 import {
     dealApi,
+    riskApi,
     Counterparty,
     Portfolio,
     TradeCreateRequest,
+    CreditCheckResult,
 } from '../api/client'
 
 const TRADE_TYPES = ['SPOT', 'FORWARD', 'SWAP', 'FUTURE', 'OPTION', 'PPA', 'REC']
@@ -24,6 +26,10 @@ export default function DealCapture() {
     const [aiText, setAiText] = useState('')
     const [aiParsing, setAiParsing] = useState(false)
     const fileRef = useRef<HTMLInputElement>(null)
+    const [creditCheck, setCreditCheck] = useState<CreditCheckResult | null>(null)
+    const [creditLoading, setCreditLoading] = useState(false)
+    const [approvalInfo, setApprovalInfo] = useState<{ required: boolean; requestId: string } | null>(null)
+    const creditTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
     const [form, setForm] = useState<TradeCreateRequest>({
         trade_type: 'SWAP',
@@ -49,18 +55,48 @@ export default function DealCapture() {
         setForm(f => ({ ...f, [key]: val }))
     }, [])
 
+    // E12: Debounced credit check
+    useEffect(() => {
+        if (creditTimerRef.current) clearTimeout(creditTimerRef.current)
+        setCreditCheck(null)
+        if (!form.counterparty_id || !form.volume_mw || !form.price) return
+        creditTimerRef.current = setTimeout(async () => {
+            setCreditLoading(true)
+            try {
+                const start = new Date(form.start_date)
+                const end = new Date(form.end_date)
+                const days = Math.max(Math.ceil((end.getTime() - start.getTime()) / 86400000), 1)
+                const notional = form.volume_mw * form.price * days
+                const check = await riskApi.checkCredit(form.counterparty_id!, notional, days)
+                setCreditCheck(check)
+            } catch {}
+            setCreditLoading(false)
+        }, 800)
+        return () => { if (creditTimerRef.current) clearTimeout(creditTimerRef.current) }
+    }, [form.counterparty_id, form.volume_mw, form.price, form.start_date, form.end_date])
+
     const handleSubmit = useCallback(async () => {
+        if (creditCheck?.status === 'block') {
+            setResult({ ok: false, msg: 'Credit limit exceeded — cannot submit trade' })
+            return
+        }
         setSubmitting(true)
         setResult(null)
+        setApprovalInfo(null)
         try {
-            const res = await dealApi.createTrade(form)
-            setResult({ ok: true, msg: `Trade ${res.trade_id.slice(0, 8)}... created with ${res.legs_created} legs` })
+            const res = await dealApi.createTrade(form) as any
+            if (res.approval_required) {
+                setApprovalInfo({ required: true, requestId: res.approval_request_id })
+                setResult({ ok: true, msg: `Trade ${res.trade_id.slice(0, 8)}... submitted for approval` })
+            } else {
+                setResult({ ok: true, msg: `Trade ${res.trade_id.slice(0, 8)}... created with ${res.legs_created} legs` })
+            }
         } catch (e: any) {
             setResult({ ok: false, msg: e.message || 'Failed to create trade' })
         } finally {
             setSubmitting(false)
         }
-    }, [form])
+    }, [form, creditCheck])
 
     const handleBulkImport = useCallback(async () => {
         const file = fileRef.current?.files?.[0]
@@ -228,14 +264,37 @@ export default function DealCapture() {
                             value={form.notes || ''} onChange={e => setField('notes', e.target.value)} placeholder="Optional notes" />
                     </div>
                 </div>
-                <div className="flex items-center gap-4 mt-6">
+                {/* E12: Credit check indicator */}
+                {(creditCheck || creditLoading) && (
+                    <div className={`mt-4 rounded p-3 flex items-center gap-2 text-sm ${
+                        creditLoading ? 'bg-gray-700 text-gray-400' :
+                        creditCheck?.status === 'pass' ? 'bg-emerald-900/30 border border-emerald-700 text-emerald-400' :
+                        creditCheck?.status === 'warn' ? 'bg-amber-900/30 border border-amber-700 text-amber-400' :
+                        'bg-red-900/30 border border-red-700 text-red-400'
+                    }`}>
+                        {creditLoading ? <span>Checking credit...</span> :
+                         creditCheck?.status === 'pass' ? <><ShieldCheck size={16} /> {creditCheck.message} ({creditCheck.utilization_pct}% utilization)</> :
+                         creditCheck?.status === 'warn' ? <><ShieldAlert size={16} /> {creditCheck.message}</> :
+                         <><ShieldX size={16} /> {creditCheck?.message}</>}
+                    </div>
+                )}
+
+                {/* E13: Approval status banner */}
+                {approvalInfo?.required && (
+                    <div className="mt-4 rounded p-3 flex items-center gap-2 text-sm bg-blue-900/30 border border-blue-700 text-blue-400">
+                        <Clock size={16} />
+                        Submitted for Approval — Request ID: {approvalInfo.requestId.slice(0, 8)}...
+                    </div>
+                )}
+
+                <div className="flex items-center gap-4 mt-4">
                     <button
                         className="px-6 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-500 disabled:opacity-50 flex items-center gap-2"
                         onClick={handleSubmit}
-                        disabled={submitting}
+                        disabled={submitting || creditCheck?.status === 'block'}
                     >
                         <Plus size={16} />
-                        {submitting ? 'Creating...' : 'Create Trade'}
+                        {submitting ? 'Creating...' : creditCheck?.status === 'block' ? 'Credit Blocked' : 'Create Trade'}
                     </button>
                     {result && (
                         <span className={`text-sm ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>

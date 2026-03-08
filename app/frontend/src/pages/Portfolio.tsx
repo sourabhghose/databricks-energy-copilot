@@ -3,9 +3,10 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
     ResponsiveContainer, Cell,
 } from 'recharts'
-import { Briefcase, TrendingUp, TrendingDown, Grid } from 'lucide-react'
+import { Briefcase, TrendingUp, TrendingDown, Grid, AlertTriangle, Shield } from 'lucide-react'
 import {
-    dealApi, Portfolio as PortfolioType, PortfolioPosition, PnLEntry, ExposureCell, Trade,
+    dealApi, riskApi, Portfolio as PortfolioType, PortfolioPosition, PnLEntry, ExposureCell, Trade,
+    CreditExposure,
 } from '../api/client'
 
 function fmt(v: number, d = 0) {
@@ -33,11 +34,21 @@ export default function PortfolioPage() {
     const [trades, setTrades] = useState<Trade[]>([])
     const [loading, setLoading] = useState(false)
 
+    // E2/E3/E5 risk widgets
+    const [mtmTotal, setMtmTotal] = useState<number | null>(null)
+    const [mtmDailyPnl, setMtmDailyPnl] = useState<number | null>(null)
+    const [mtmTradesValued, setMtmTradesValued] = useState(0)
+    const [mtmRunning, setMtmRunning] = useState(false)
+    const [var95, setVar95] = useState<number | null>(null)
+    const [creditAlerts, setCreditAlerts] = useState<CreditExposure[]>([])
+
     useEffect(() => {
         dealApi.getPortfolios().then(r => {
             setPortfolios(r.portfolios)
             if (r.portfolios.length > 0) setSelectedId(r.portfolios[0].portfolio_id)
         }).catch(() => {})
+        // Fetch credit alerts once
+        riskApi.getCreditAlerts().then(r => setCreditAlerts(r.alerts || [])).catch(() => {})
     }, [])
 
     useEffect(() => {
@@ -48,7 +59,27 @@ export default function PortfolioPage() {
             dealApi.getPortfolioPnL(selectedId).then(r => setPnl(r.pnl)).catch(() => setPnl([])),
             dealApi.getExposureHeatmap(selectedId).then(r => setExposure(r.exposure)).catch(() => setExposure([])),
             dealApi.getTrades({ portfolio_id: selectedId, limit: 200 }).then(r => setTrades(r.trades)).catch(() => setTrades([])),
+            riskApi.getMtmLatest(selectedId).then(r => {
+                setMtmTotal(r.total_mtm)
+                setMtmTradesValued(r.trades_valued)
+            }).catch(() => {}),
+            riskApi.getVarLatest(selectedId).then(r => {
+                const totalVar = r.metrics.reduce((s: number, m: any) => s + (m.var_95_1d || 0), 0)
+                setVar95(totalVar)
+            }).catch(() => {}),
         ]).finally(() => setLoading(false))
+    }, [selectedId])
+
+    const handleRunMtm = useCallback(async () => {
+        if (!selectedId) return
+        setMtmRunning(true)
+        try {
+            const r = await riskApi.runMtm(selectedId)
+            setMtmTotal(r.total_mtm)
+            setMtmDailyPnl(r.daily_pnl)
+            setMtmTradesValued(r.trades_valued)
+        } catch {}
+        setMtmRunning(false)
     }, [selectedId])
 
     const totalPnl = pnl.reduce((s, p) => s + p.total, 0)
@@ -104,6 +135,60 @@ export default function PortfolioPage() {
                 <div className="bg-gray-800 rounded-lg p-4">
                     <p className="text-xs text-gray-400">Regions</p>
                     <p className="text-2xl font-bold mt-1 text-gray-100">{new Set(trades.map(t => t.region)).size}</p>
+                </div>
+            </div>
+
+            {/* Credit Alert Banner */}
+            {creditAlerts.length > 0 && (
+                <div className={`rounded-lg p-3 flex items-center gap-2 ${
+                    creditAlerts.some(a => a.alert_level === 'CRITICAL') ? 'bg-red-900/30 border border-red-700' : 'bg-amber-900/30 border border-amber-700'
+                }`}>
+                    <AlertTriangle size={18} className={creditAlerts.some(a => a.alert_level === 'CRITICAL') ? 'text-red-400' : 'text-amber-400'} />
+                    <span className="text-sm text-gray-200">
+                        {creditAlerts.length} counterpart{creditAlerts.length > 1 ? 'ies' : 'y'} at elevated credit utilization:
+                        {creditAlerts.slice(0, 3).map(a => ` ${a.counterparty_name} (${a.alert_level} ${(a.credit_utilization * 100).toFixed(0)}%)`).join(',')}
+                    </span>
+                </div>
+            )}
+
+            {/* MtM / VaR / Risk Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-800 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-gray-400">Mark-to-Market</p>
+                        <button
+                            className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+                            onClick={handleRunMtm}
+                            disabled={mtmRunning}
+                        >
+                            {mtmRunning ? 'Running...' : 'Run MtM'}
+                        </button>
+                    </div>
+                    <p className={`text-2xl font-bold mt-1 ${(mtmTotal ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {mtmTotal !== null ? fmtAud(mtmTotal) : '--'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{mtmTradesValued} trades valued</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-xs text-gray-400">Daily P&L</p>
+                    <p className={`text-2xl font-bold mt-1 ${(mtmDailyPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {mtmDailyPnl !== null ? fmtAud(mtmDailyPnl) : '--'}
+                    </p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                    <div className="flex items-center gap-1 mb-1">
+                        <Shield size={14} className="text-blue-400" />
+                        <p className="text-xs text-gray-400">VaR 95% 1-Day</p>
+                    </div>
+                    <p className="text-2xl font-bold mt-1 text-blue-400">
+                        {var95 !== null ? fmtAud(var95) : '--'}
+                    </p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                    <p className="text-xs text-gray-400">Credit Alerts</p>
+                    <p className={`text-2xl font-bold mt-1 ${creditAlerts.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {creditAlerts.length}
+                    </p>
                 </div>
             </div>
 
@@ -240,6 +325,7 @@ export default function PortfolioPage() {
                                             t.status === 'CONFIRMED' ? 'bg-emerald-900/50 text-emerald-400' :
                                             t.status === 'CANCELLED' ? 'bg-red-900/50 text-red-400' :
                                             t.status === 'SETTLED' ? 'bg-blue-900/50 text-blue-400' :
+                                            t.status === 'PENDING_APPROVAL' ? 'bg-amber-900/50 text-amber-400' :
                                             'bg-gray-700 text-gray-400'
                                         }`}>{t.status}</span>
                                     </td>

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
-import { Activity, BarChart2, Clock, Zap } from 'lucide-react'
+import { Activity, BarChart2, Clock, Zap, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useLatestPrices, usePriceHistory } from '../hooks/useMarketData'
 import PriceTicker from '../components/PriceTicker'
 import { api, MarketSummaryRecord } from '../api/client'
@@ -219,6 +220,104 @@ function MarketSummaryWidget() {
 }
 
 // ---------------------------------------------------------------------------
+// Latest Market Brief widget — collapsible card with "View all →" link
+// ---------------------------------------------------------------------------
+interface BriefData {
+  brief_id: string
+  title: string
+  narrative: string
+  brief_type: string
+  generated_at: string
+  word_count: number
+  key_metrics: Record<string, any>
+}
+
+function renderBriefMarkdown(text: string) {
+  return text.split('\n').map((line, i) => {
+    if (line.startsWith('## '))
+      return <h3 key={i} className="text-sm font-bold text-gray-800 dark:text-gray-200 mt-3 mb-1">{line.slice(3)}</h3>
+    if (line.startsWith('- ')) {
+      const content = line.slice(2).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      return <li key={i} className="text-sm text-gray-700 dark:text-gray-300 ml-4" dangerouslySetInnerHTML={{ __html: content }} />
+    }
+    if (line.trim() === '') return <div key={i} className="h-1" />
+    const content = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    return <p key={i} className="text-sm text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: content }} />
+  })
+}
+
+function LatestBriefWidget() {
+  const [brief, setBrief] = useState<BriefData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/market-briefs/latest?brief_type=daily')
+      .then(r => r.json())
+      .then(data => {
+        if (!cancelled && data.brief_id) setBrief(data)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 animate-pulse">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-3" />
+        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
+      </div>
+    )
+  }
+
+  if (!brief) return null
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <FileText size={18} className="text-blue-500 shrink-0" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                {brief.title}
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                {brief.brief_type}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
+              <span>{new Date(brief.generated_at).toLocaleString()}</span>
+              <span>{brief.word_count} words</span>
+            </div>
+          </div>
+        </div>
+        {expanded ? <ChevronUp size={16} className="text-gray-400 shrink-0" /> : <ChevronDown size={16} className="text-gray-400 shrink-0" />}
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+          <div className="prose prose-sm dark:prose-invert max-w-none max-h-64 overflow-y-auto">
+            {renderBriefMarkdown(brief.narrative)}
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <span className="text-xs text-gray-400">AI-generated market intelligence</span>
+            <Link to="/market-briefs" className="text-xs text-blue-500 hover:text-blue-600 font-medium">
+              View all briefs &rarr;
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 export default function Home() {
@@ -329,6 +428,11 @@ export default function Home() {
       {/* Daily AI Market Summary widget */}
       <section>
         <MarketSummaryWidget />
+      </section>
+
+      {/* Latest Market Brief — collapsible card */}
+      <section>
+        <LatestBriefWidget />
       </section>
 
       {/* NEM Demand Summary — one card per region */}

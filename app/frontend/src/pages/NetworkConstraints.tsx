@@ -10,8 +10,8 @@ import {
   Cell,
 } from 'recharts'
 import { GitBranch, AlertTriangle, RefreshCw, Zap, DollarSign, MapPin, Activity } from 'lucide-react'
-import { api } from '../api/client'
-import type { ConstraintDashboard, ConstraintEquation, ConstraintViolationRecord } from '../api/client'
+import { api, constraintsApi } from '../api/client'
+import type { ConstraintDashboard, ConstraintEquation, ConstraintViolationRecord, BindingHeatmapCell, PriceSeparation } from '../api/client'
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -117,6 +117,11 @@ export default function NetworkConstraints() {
   const [regionFilter, setRegionFilter] = useState<string>('All')
   const [bindingOnly, setBindingOnly] = useState(false)
 
+  // Binding heatmap + price separation (competitive gap feature 3)
+  const [heatmapData, setHeatmapData] = useState<BindingHeatmapCell[]>([])
+  const [separationData, setSeparationData] = useState<PriceSeparation[]>([])
+  const [heatmapRegion, setHeatmapRegion] = useState('NSW1')
+
   const fetchData = useCallback(async () => {
     try {
       const data = await api.getConstraintDashboard()
@@ -136,24 +141,27 @@ export default function NetworkConstraints() {
     return () => clearInterval(id)
   }, [fetchData])
 
+  // Load heatmap + separation
+  useEffect(() => {
+    constraintsApi.bindingHeatmap(heatmapRegion, 7).then(d => setHeatmapData(d.grid || [])).catch(() => {})
+    constraintsApi.priceSeparation(24).then(d => setSeparationData(d.spreads || [])).catch(() => {})
+  }, [heatmapRegion])
+
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
 
-  const filteredEquations: ConstraintEquation[] = dashboard
-    ? dashboard.constraint_equations.filter(e => {
-        if (regionFilter !== 'All' && e.region !== regionFilter) return false
-        if (bindingOnly && !e.binding) return false
-        return true
-      })
-    : []
+  const allEquations = dashboard?.constraint_equations ?? []
+  const filteredEquations: ConstraintEquation[] = allEquations.filter(e => {
+    if (regionFilter !== 'All' && e.region !== regionFilter) return false
+    if (bindingOnly && !e.binding) return false
+    return true
+  })
 
-  const chartData = dashboard
-    ? [...dashboard.constraint_equations]
-        .sort((a, b) => b.annual_cost_est_m_aud - a.annual_cost_est_m_aud)
-        .slice(0, 8)
-        .map(e => ({ name: e.constraint_id, cost: e.annual_cost_est_m_aud, binding: e.binding, slack: e.slack_mw }))
-    : []
+  const chartData = [...allEquations]
+    .sort((a, b) => b.annual_cost_est_m_aud - a.annual_cost_est_m_aud)
+    .slice(0, 8)
+    .map(e => ({ name: e.constraint_id, cost: e.annual_cost_est_m_aud, binding: e.binding, slack: e.slack_mw }))
 
   const violations: ConstraintViolationRecord[] = dashboard?.violations ?? []
 
@@ -498,6 +506,79 @@ export default function NetworkConstraints() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Binding Heatmap */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Binding Heatmap (Hour × Day-of-Week)</h3>
+          <select
+            value={heatmapRegion}
+            onChange={e => setHeatmapRegion(e.target.value)}
+            className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+          >
+            {REGIONS.filter(r => r !== 'All').map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div className="p-4 overflow-x-auto">
+          {heatmapData.length > 0 ? (
+            <table className="text-xs">
+              <thead>
+                <tr>
+                  <th className="px-1 py-1 text-gray-500">Hour</th>
+                  {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d, i) => (
+                    <th key={d} className="px-1 py-1 text-gray-500 w-10 text-center">{d}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 24 }, (_, hour) => (
+                  <tr key={hour}>
+                    <td className="px-1 py-0.5 text-gray-500 font-mono text-right">{String(hour).padStart(2, '0')}</td>
+                    {Array.from({ length: 7 }, (_, dayIdx) => {
+                      // Spark DAYOFWEEK: 1=Sun,2=Mon,...,7=Sat. dayIdx: 0=Mon,...,6=Sun
+                      const day = dayIdx === 6 ? 1 : dayIdx + 2
+                      const cell = heatmapData.find(c => c.hour === hour && c.day === day)
+                      const pct = cell?.binding_pct ?? 0
+                      const bg = pct > 30 ? 'bg-red-500' : pct > 15 ? 'bg-orange-400' : pct > 5 ? 'bg-yellow-300' : 'bg-green-100 dark:bg-green-900/30'
+                      const text = pct > 15 ? 'text-white' : 'text-gray-700 dark:text-gray-300'
+                      return (
+                        <td key={dayIdx} className={`px-1 py-0.5 text-center rounded ${bg} ${text}`} title={`${pct}% binding`}>
+                          {pct > 0 ? pct.toFixed(0) : ''}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="text-center text-gray-400 py-8 text-sm">No binding heatmap data available</div>
+          )}
+        </div>
+      </div>
+
+      {/* Price Separation */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Inter-Regional Price Separation (24h)</h3>
+        </div>
+        <div className="p-4">
+          {separationData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={separationData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="region_a" tickFormatter={(v: string, i: number) => `${separationData[i]?.region_a}-${separationData[i]?.region_b}`} tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} label={{ value: '$/MWh', angle: -90, position: 'insideLeft', style: { fontSize: 10 } }} />
+                <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, '']} />
+                <Bar dataKey="avg_spread" name="Avg Spread" fill="#3b82f6" />
+                <Bar dataKey="max_spread" name="Max Spread" fill="#ef4444" opacity={0.6} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="text-center text-gray-400 py-8 text-sm">No price separation data available</div>
+          )}
         </div>
       </div>
 

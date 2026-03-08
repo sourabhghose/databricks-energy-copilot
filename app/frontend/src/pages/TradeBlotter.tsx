@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, ChevronDown, ChevronRight, X, Edit2 } from 'lucide-react'
-import { dealApi, Trade, TradeLeg, TradeAmendment } from '../api/client'
+import { RefreshCw, ChevronDown, ChevronRight, X, Edit2, Check, Ban } from 'lucide-react'
+import { dealApi, Trade, TradeLeg, TradeAmendment, ApprovalRequest } from '../api/client'
 
 const REGIONS = ['', 'NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1']
 const TRADE_TYPES = ['', 'SPOT', 'FORWARD', 'SWAP', 'FUTURE', 'OPTION', 'PPA', 'REC']
-const STATUSES = ['', 'DRAFT', 'CONFIRMED', 'SETTLED', 'CANCELLED']
+const STATUSES = ['', 'DRAFT', 'CONFIRMED', 'SETTLED', 'CANCELLED', 'PENDING_APPROVAL']
 
 function fmt(v: number, d = 0) {
     return v.toLocaleString('en-AU', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -167,10 +167,21 @@ export default function TradeBlotter() {
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [amendTrade, setAmendTrade] = useState<Trade | null>(null)
 
+    // E13: Approval queue
+    const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
+    const [approvalReason, setApprovalReason] = useState('')
+
     // Filters
     const [filterRegion, setFilterRegion] = useState('')
     const [filterType, setFilterType] = useState('')
     const [filterStatus, setFilterStatus] = useState('')
+
+    const loadApprovals = useCallback(async () => {
+        try {
+            const r = await dealApi.getPendingApprovals()
+            setPendingApprovals(r.pending || [])
+        } catch {}
+    }, [])
 
     const loadTrades = useCallback(async () => {
         setLoading(true)
@@ -189,7 +200,25 @@ export default function TradeBlotter() {
         }
     }, [filterRegion, filterType, filterStatus])
 
-    useEffect(() => { loadTrades() }, [loadTrades])
+    useEffect(() => { loadTrades(); loadApprovals() }, [loadTrades, loadApprovals])
+
+    const handleApprove = useCallback(async (requestId: string) => {
+        try {
+            await dealApi.approveRequest(requestId, 'user', approvalReason || 'Approved')
+            setApprovalReason('')
+            loadApprovals()
+            loadTrades()
+        } catch {}
+    }, [approvalReason, loadApprovals, loadTrades])
+
+    const handleReject = useCallback(async (requestId: string) => {
+        try {
+            await dealApi.rejectRequest(requestId, 'user', approvalReason || 'Rejected')
+            setApprovalReason('')
+            loadApprovals()
+            loadTrades()
+        } catch {}
+    }, [approvalReason, loadApprovals, loadTrades])
 
     const handleCancel = useCallback(async (trade: Trade) => {
         if (!confirm(`Cancel trade ${trade.trade_id.slice(0, 8)}...?`)) return
@@ -211,6 +240,57 @@ export default function TradeBlotter() {
                     <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
                 </button>
             </div>
+
+            {/* E13: Pending Approvals Queue */}
+            {pendingApprovals.length > 0 && (
+                <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4">
+                    <h2 className="text-sm font-semibold text-amber-400 mb-3">
+                        Pending Approvals ({pendingApprovals.length})
+                    </h2>
+                    <div className="space-y-2">
+                        {pendingApprovals.map(a => (
+                            <div key={a.request_id} className="bg-gray-800 rounded p-3 flex items-center justify-between gap-4">
+                                <div className="flex-1 text-sm">
+                                    <span className="text-gray-200 font-medium">
+                                        {a.buy_sell} {a.volume_mw}MW {a.trade_type} {a.region}
+                                    </span>
+                                    <span className="text-gray-400 ml-2">
+                                        @ ${fmt(a.price ?? 0, 2)}/MWh
+                                    </span>
+                                    <span className="text-gray-500 ml-2">
+                                        Notional: ${fmt(a.notional_aud, 0)}
+                                    </span>
+                                    <span className="text-gray-600 ml-2 text-xs">
+                                        by {a.submitted_by} | Rule: {a.rule_name || a.approver_role}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        className="bg-gray-900 text-gray-100 rounded px-2 py-1 text-xs border border-gray-700 w-32"
+                                        placeholder="Reason..."
+                                        value={approvalReason}
+                                        onChange={e => setApprovalReason(e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                    />
+                                    <button
+                                        className="px-3 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-500 flex items-center gap-1"
+                                        onClick={() => handleApprove(a.request_id)}
+                                    >
+                                        <Check size={12} /> Approve
+                                    </button>
+                                    <button
+                                        className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-500 flex items-center gap-1"
+                                        onClick={() => handleReject(a.request_id)}
+                                    >
+                                        <Ban size={12} /> Reject
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex gap-3 items-center">
@@ -273,6 +353,7 @@ export default function TradeBlotter() {
                                                 t.status === 'CONFIRMED' ? 'bg-emerald-900/50 text-emerald-400' :
                                                 t.status === 'CANCELLED' ? 'bg-red-900/50 text-red-400' :
                                                 t.status === 'SETTLED' ? 'bg-blue-900/50 text-blue-400' :
+                                                t.status === 'PENDING_APPROVAL' ? 'bg-amber-900/50 text-amber-400' :
                                                 'bg-gray-700 text-gray-400'
                                             }`}>{t.status}</span>
                                         </td>

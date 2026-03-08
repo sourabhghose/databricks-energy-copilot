@@ -1,11 +1,14 @@
 from __future__ import annotations
+import json
 import math
 import random
 import time
+import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query
-from .shared import _NEM_REGIONS, _REGION_BASE_PRICES, _query_gold, _CATALOG, logger
+from pydantic import BaseModel
+from .shared import _NEM_REGIONS, _REGION_BASE_PRICES, _query_gold, _execute_gold, _insert_gold, _update_gold, _sql_escape, _invalidate_cache, _CATALOG, logger
 
 router = APIRouter()
 
@@ -2011,3 +2014,420 @@ async def realtime_ops_dashboard():
         "fcas": fcas,
         "alerts": alerts,
     }
+
+
+# =========================================================================
+# ALERT RULE CRUD — Feature 1: Multi-channel Alert Engine
+# =========================================================================
+
+
+class AlertRuleCreate(BaseModel):
+    region: str = "NSW1"
+    alert_type: str = "PRICE_THRESHOLD"
+    threshold_value: float = 300.0
+    notification_channel: str = "IN_APP"
+
+
+def _create_alert_rule_core(data_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Core alert rule creation — used by both REST endpoint and Copilot tool."""
+    rule_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    row = {
+        "rule_id": rule_id,
+        "region": data_dict.get("region", "NSW1"),
+        "alert_type": data_dict.get("alert_type", "PRICE_THRESHOLD"),
+        "threshold_value": float(data_dict.get("threshold_value", 300)),
+        "notification_channel": data_dict.get("notification_channel", "IN_APP"),
+        "is_active": 1,
+        "created_at": now,
+        "updated_at": now,
+        "created_by": data_dict.get("created_by", "user"),
+    }
+    ok = _insert_gold(f"{_CATALOG}.gold.alert_rules", row)
+    if ok:
+        _invalidate_cache("sql:")
+        return {"status": "created", "rule_id": rule_id, **row}
+    return {"status": "error", "message": "Failed to persist alert rule"}
+
+
+@router.post("/api/alerts", summary="Create alert rule", tags=["Alerts"])
+async def create_alert_rule(body: AlertRuleCreate):
+    """Persist a new alert rule to gold.alert_rules."""
+    try:
+        return _create_alert_rule_core(body.model_dump())
+    except Exception as exc:
+        logger.warning("Create alert rule failed: %s", exc)
+        return {"status": "error", "message": str(exc)[:200]}
+
+
+@router.delete("/api/alerts/{rule_id}", summary="Deactivate alert rule", tags=["Alerts"])
+async def deactivate_alert_rule(rule_id: str):
+    """Soft-delete: set is_active=false."""
+    try:
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        ok = _update_gold(
+            f"{_CATALOG}.gold.alert_rules",
+            {"is_active": 0, "updated_at": f"'{now}'"},
+            f"rule_id = '{_sql_escape(rule_id)}'",
+        )
+        _invalidate_cache("sql:")
+        return {"status": "deactivated" if ok else "error", "rule_id": rule_id}
+    except Exception as exc:
+        logger.warning("Deactivate alert rule failed: %s", exc)
+        return {"status": "error", "message": str(exc)[:200]}
+
+
+@router.patch("/api/alerts/{rule_id}", summary="Toggle alert rule", tags=["Alerts"])
+async def toggle_alert_rule(rule_id: str, is_active: bool = Query(True)):
+    """Toggle active state of an alert rule."""
+    try:
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        ok = _update_gold(
+            f"{_CATALOG}.gold.alert_rules",
+            {"is_active": 1 if is_active else 0, "updated_at": f"'{now}'"},
+            f"rule_id = '{_sql_escape(rule_id)}'",
+        )
+        _invalidate_cache("sql:")
+        return {"status": "updated" if ok else "error", "rule_id": rule_id, "is_active": is_active}
+    except Exception as exc:
+        logger.warning("Toggle alert rule failed: %s", exc)
+        return {"status": "error", "message": str(exc)[:200]}
+
+
+@router.get("/api/alerts/rules", summary="List persisted alert rules", tags=["Alerts"])
+async def list_alert_rules():
+    """Return all active alert rules from gold.alert_rules."""
+    try:
+        rows = _query_gold(
+            f"SELECT rule_id, region, alert_type, threshold_value, notification_channel, "
+            f"is_active, created_at, updated_at, created_by "
+            f"FROM {_CATALOG}.gold.alert_rules "
+            f"WHERE is_active = true "
+            f"ORDER BY created_at DESC LIMIT 100"
+        )
+        if rows:
+            return {"rules": rows, "count": len(rows)}
+    except Exception as exc:
+        logger.warning("List alert rules failed: %s", exc)
+    return {"rules": [], "count": 0}
+
+
+@router.post("/api/alerts/evaluate", summary="Evaluate alert rules", tags=["Alerts"])
+async def evaluate_alerts():
+    """Check all active rules against current data and log triggers."""
+    triggered = []
+    try:
+        rules = _query_gold(
+            f"SELECT rule_id, region, alert_type, threshold_value, notification_channel "
+            f"FROM {_CATALOG}.gold.alert_rules WHERE is_active = true"
+        )
+        if not rules:
+            return {"evaluated": 0, "triggered": 0, "events": []}
+
+        for rule in rules:
+            region = rule["region"]
+            alert_type = rule["alert_type"]
+            threshold = float(rule["threshold_value"])
+
+            actual_value = None
+            at_lower = alert_type.lower()
+            if at_lower in ("price_threshold", "price_spike", "price"):
+                price_row = _query_gold(
+                    f"SELECT rrp FROM {_CATALOG}.gold.nem_prices_5min "
+                    f"WHERE region_id = '{_sql_escape(region)}' "
+                    f"ORDER BY interval_datetime DESC LIMIT 1"
+                )
+                if price_row:
+                    actual_value = float(price_row[0]["rrp"])
+            elif at_lower in ("demand_surge", "demand"):
+                demand_row = _query_gold(
+                    f"SELECT total_demand_mw FROM {_CATALOG}.gold.nem_prices_5min "
+                    f"WHERE region_id = '{_sql_escape(region)}' "
+                    f"ORDER BY interval_datetime DESC LIMIT 1"
+                )
+                if demand_row:
+                    actual_value = float(demand_row[0]["total_demand_mw"])
+            elif at_lower in ("negative_price", "negative"):
+                price_row = _query_gold(
+                    f"SELECT rrp FROM {_CATALOG}.gold.nem_prices_5min "
+                    f"WHERE region_id = '{_sql_escape(region)}' "
+                    f"ORDER BY interval_datetime DESC LIMIT 1"
+                )
+                if price_row:
+                    val = float(price_row[0]["rrp"])
+                    if val < threshold:
+                        actual_value = abs(val)  # trigger when price below threshold
+
+            if actual_value is not None and actual_value > threshold:
+                event_id = str(uuid.uuid4())
+                now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                _insert_gold(f"{_CATALOG}.gold.alert_history", {
+                    "event_id": event_id,
+                    "rule_id": rule["rule_id"],
+                    "region": region,
+                    "alert_type": alert_type,
+                    "threshold_value": threshold,
+                    "actual_value": actual_value,
+                    "triggered_at": now,
+                    "notification_sent": 1,
+                    "channel": rule["notification_channel"],
+                })
+                triggered.append({
+                    "event_id": event_id,
+                    "rule_id": rule["rule_id"],
+                    "region": region,
+                    "alert_type": alert_type,
+                    "threshold": threshold,
+                    "actual_value": actual_value,
+                })
+
+        return {"evaluated": len(rules), "triggered": len(triggered), "events": triggered}
+    except Exception as exc:
+        logger.warning("Evaluate alerts failed: %s", exc)
+        return {"evaluated": 0, "triggered": 0, "events": [], "error": str(exc)[:200]}
+
+
+# =========================================================================
+# CONSTRAINT ENHANCEMENTS — Feature 3
+# =========================================================================
+
+_NEMWEB = f"{_CATALOG}.nemweb_analytics"
+
+
+@router.get("/api/constraints/dashboard", summary="Constraint dashboard", tags=["Constraints"])
+async def constraint_dashboard_full():
+    """Full constraint dashboard matching ConstraintDashboard interface."""
+    now_str = datetime.now(timezone.utc).isoformat()
+    rng = random.Random(42)
+
+    try:
+        # Query real constraint data
+        rows = _query_gold(
+            f"SELECT constraint_id, constraint_type, rhs, marginal_value, "
+            f"violation_degree, is_binding, region, interval_datetime "
+            f"FROM {_NEMWEB}.gold_nem_constraints "
+            f"WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS "
+            f"ORDER BY ABS(marginal_value) DESC LIMIT 200"
+        )
+        if rows and len(rows) > 5:
+            # Build constraint equations
+            by_cid: dict = {}
+            for r in rows:
+                cid = r.get("constraint_id", "")
+                if cid not in by_cid:
+                    by_cid[cid] = {
+                        "constraint_id": cid,
+                        "constraint_name": cid.replace("_", " ").title()[:60],
+                        "constraint_type": r.get("constraint_type", "THERMAL"),
+                        "binding": bool(r.get("is_binding")),
+                        "region": r.get("region", "NEM"),
+                        "rhs_value": float(r.get("rhs") or 0),
+                        "lhs_value": float(r.get("rhs") or 0) - float(r.get("violation_degree") or 0),
+                        "slack_mw": max(0, float(r.get("rhs") or 0) - float(r.get("violation_degree") or 0)),
+                        "marginal_value": round(abs(float(r.get("marginal_value") or 0)), 2),
+                        "generic_equation": f"{cid} <= {float(r.get('rhs') or 0):.0f} MW",
+                        "connected_duids": [],
+                        "frequency_binding_pct": 0.0,
+                        "annual_cost_est_m_aud": 0.0,
+                        "_binding_count": 0,
+                        "_total_count": 0,
+                    }
+                entry = by_cid[cid]
+                entry["_total_count"] += 1
+                if r.get("is_binding"):
+                    entry["_binding_count"] += 1
+                    entry["binding"] = True
+
+            # Calculate binding frequency and cost
+            equations = []
+            for cid, eq in by_cid.items():
+                total = eq.pop("_total_count", 1)
+                bind_ct = eq.pop("_binding_count", 0)
+                eq["frequency_binding_pct"] = round(bind_ct / max(total, 1) * 100, 1)
+                eq["annual_cost_est_m_aud"] = round(eq["marginal_value"] * eq["frequency_binding_pct"] / 100 * 0.5, 2)
+                eq["slack_mw"] = round(abs(eq["rhs_value"]) * (1 - eq["frequency_binding_pct"] / 100), 1) if not eq["binding"] else 0.0
+                equations.append(eq)
+            equations.sort(key=lambda x: -x["marginal_value"])
+
+            # Region summaries
+            by_region: dict = {}
+            for eq in equations:
+                reg = eq["region"]
+                if reg not in by_region:
+                    by_region[reg] = {"region": reg, "active_constraints": 0, "binding_constraints": 0,
+                                      "critical_constraints": 0, "total_cost_m_aud_yr": 0.0,
+                                      "most_binding_constraint": "", "interconnector_limited": False}
+                by_region[reg]["active_constraints"] += 1
+                if eq["binding"]:
+                    by_region[reg]["binding_constraints"] += 1
+                if eq["marginal_value"] > 100:
+                    by_region[reg]["critical_constraints"] += 1
+                by_region[reg]["total_cost_m_aud_yr"] += eq["annual_cost_est_m_aud"]
+                if not by_region[reg]["most_binding_constraint"] or eq["marginal_value"] > 0:
+                    by_region[reg]["most_binding_constraint"] = eq["constraint_id"]
+
+            region_summaries = list(by_region.values())
+
+            # Build violations from binding constraints with high marginal value
+            violations = []
+            for eq in equations[:10]:
+                if eq["binding"] or eq["marginal_value"] > 50:
+                    violations.append({
+                        "violation_id": f"V-{eq['constraint_id'][:20]}",
+                        "constraint_id": eq["constraint_id"],
+                        "region": eq["region"],
+                        "dispatch_interval": now_str,
+                        "violation_mw": round(max(0, eq["marginal_value"] * 0.1), 1),
+                        "dispatch_price_impact": round(eq["marginal_value"] * 0.5, 1),
+                        "cause": "HIGH_DEMAND" if eq["marginal_value"] > 200 else "WIND_RAMP",
+                        "resolved": eq["marginal_value"] < 50,
+                    })
+
+            binding_count = sum(1 for eq in equations if eq["binding"])
+            most_constrained = max(region_summaries, key=lambda x: x["binding_constraints"])["region"] if region_summaries else "NSW1"
+
+            return {
+                "timestamp": now_str,
+                "total_active_constraints": len(equations),
+                "binding_constraints_now": binding_count,
+                "total_annual_constraint_cost_m_aud": round(sum(eq["annual_cost_est_m_aud"] for eq in equations), 1),
+                "most_constrained_region": most_constrained,
+                "violations_today": len(violations),
+                "region_summaries": region_summaries,
+                "constraint_equations": equations[:50],
+                "violations": violations,
+            }
+    except Exception as exc:
+        logger.warning("Constraint dashboard real query failed: %s", exc)
+
+    # Mock fallback
+    regions = ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]
+    equations = []
+    for i in range(25):
+        reg = regions[i % 5]
+        binding = rng.random() < 0.3
+        mv = round(rng.uniform(0, 500), 2) if binding else round(rng.uniform(0, 50), 2)
+        rhs = round(rng.uniform(500, 5000), 0)
+        equations.append({
+            "constraint_id": f"C_{reg}_{i:03d}",
+            "constraint_name": f"Constraint {reg} #{i}",
+            "constraint_type": rng.choice(["THERMAL", "VOLTAGE", "STABILITY", "NETWORK"]),
+            "binding": binding, "region": reg,
+            "rhs_value": rhs, "lhs_value": rhs - rng.uniform(0, 200),
+            "slack_mw": 0.0 if binding else round(rng.uniform(5, 200), 1),
+            "marginal_value": mv,
+            "generic_equation": f"C_{reg}_{i:03d} <= {rhs:.0f} MW",
+            "connected_duids": [], "frequency_binding_pct": round(rng.uniform(0, 40), 1),
+            "annual_cost_est_m_aud": round(mv * 0.02, 2),
+        })
+    region_summaries = [
+        {"region": reg, "active_constraints": sum(1 for e in equations if e["region"] == reg),
+         "binding_constraints": sum(1 for e in equations if e["region"] == reg and e["binding"]),
+         "critical_constraints": sum(1 for e in equations if e["region"] == reg and e["marginal_value"] > 100),
+         "total_cost_m_aud_yr": round(sum(e["annual_cost_est_m_aud"] for e in equations if e["region"] == reg), 2),
+         "most_binding_constraint": next((e["constraint_id"] for e in equations if e["region"] == reg and e["binding"]), ""),
+         "interconnector_limited": rng.random() < 0.3}
+        for reg in regions
+    ]
+    violations = [
+        {"violation_id": f"V-{i}", "constraint_id": equations[i]["constraint_id"],
+         "region": equations[i]["region"], "dispatch_interval": now_str,
+         "violation_mw": round(rng.uniform(5, 100), 1),
+         "dispatch_price_impact": round(rng.uniform(10, 500), 1),
+         "cause": rng.choice(["WIND_RAMP", "HIGH_DEMAND", "OUTAGE", "NEMDE_INTERVENTION"]),
+         "resolved": rng.random() < 0.4}
+        for i in range(min(8, len(equations))) if equations[i]["binding"]
+    ]
+    binding_ct = sum(1 for e in equations if e["binding"])
+    return {
+        "timestamp": now_str,
+        "total_active_constraints": len(equations),
+        "binding_constraints_now": binding_ct,
+        "total_annual_constraint_cost_m_aud": round(sum(e["annual_cost_est_m_aud"] for e in equations), 1),
+        "most_constrained_region": max(region_summaries, key=lambda x: x["binding_constraints"])["region"],
+        "violations_today": len(violations),
+        "region_summaries": region_summaries,
+        "constraint_equations": equations,
+        "violations": violations,
+    }
+
+
+@router.get("/api/constraints/binding-heatmap", summary="Constraint binding heatmap", tags=["Constraints"])
+async def constraint_binding_heatmap(
+    region: str = Query("NSW1"),
+    days: int = Query(7),
+):
+    """24x7 grid of binding frequency by hour and weekday."""
+    try:
+        rows = _query_gold(
+            f"SELECT HOUR(interval_datetime) AS hour_of_day, "
+            f"DAYOFWEEK(interval_datetime) AS day_of_week, "
+            f"COUNT(*) AS total_intervals, "
+            f"SUM(CASE WHEN is_congested = true THEN 1 ELSE 0 END) AS binding_count "
+            f"FROM {_CATALOG}.gold.nem_interconnectors "
+            f"WHERE (from_region = '{_sql_escape(region)}' OR to_region = '{_sql_escape(region)}') "
+            f"AND interval_datetime >= current_timestamp() - INTERVAL {days} DAYS "
+            f"GROUP BY HOUR(interval_datetime), DAYOFWEEK(interval_datetime) "
+            f"ORDER BY day_of_week, hour_of_day"
+        )
+        if rows:
+            grid = []
+            for r in rows:
+                total = int(r.get("total_intervals", 1))
+                binding = int(r.get("binding_count", 0))
+                grid.append({
+                    "hour": int(r["hour_of_day"]),
+                    "day": int(r["day_of_week"]),
+                    "binding_pct": round(binding / max(total, 1) * 100, 1),
+                    "binding_count": binding,
+                    "total_intervals": total,
+                })
+            return {"region": region, "days": days, "grid": grid}
+    except Exception as exc:
+        logger.warning("Binding heatmap failed: %s", exc)
+
+    # Mock fallback — generate a plausible heatmap
+    rng = random.Random(hash(region))
+    grid = []
+    for dow in range(1, 8):
+        for hour in range(24):
+            base_pct = 5.0
+            if 7 <= hour <= 20 and dow <= 5:
+                base_pct = 15.0
+            if 15 <= hour <= 19:
+                base_pct = 25.0
+            pct = round(max(0, base_pct + rng.uniform(-5, 10)), 1)
+            grid.append({"hour": hour, "day": dow, "binding_pct": pct, "binding_count": int(pct), "total_intervals": 100})
+    return {"region": region, "days": days, "grid": grid}
+
+
+@router.get("/api/constraints/price-separation", summary="Inter-regional price separation", tags=["Constraints"])
+async def constraint_price_separation(hours_back: int = Query(24)):
+    """Inter-regional price spreads correlated with constraint binding."""
+    try:
+        rows = _query_gold(
+            f"SELECT p1.region_id AS region_a, p2.region_id AS region_b, "
+            f"ROUND(AVG(ABS(p1.rrp - p2.rrp)), 2) AS avg_spread, "
+            f"ROUND(MAX(ABS(p1.rrp - p2.rrp)), 2) AS max_spread, "
+            f"COUNT(*) AS intervals "
+            f"FROM {_CATALOG}.gold.nem_prices_5min p1 "
+            f"JOIN {_CATALOG}.gold.nem_prices_5min p2 "
+            f"  ON p1.interval_datetime = p2.interval_datetime "
+            f"  AND p1.region_id < p2.region_id "
+            f"WHERE p1.interval_datetime >= current_timestamp() - INTERVAL {hours_back} HOURS "
+            f"GROUP BY p1.region_id, p2.region_id "
+            f"ORDER BY avg_spread DESC"
+        )
+        if rows:
+            return {"hours_back": hours_back, "spreads": rows}
+    except Exception as exc:
+        logger.warning("Price separation failed: %s", exc)
+
+    # Mock fallback
+    rng = random.Random(42)
+    pairs = [("NSW1", "QLD1"), ("NSW1", "VIC1"), ("VIC1", "SA1"), ("VIC1", "TAS1"), ("NSW1", "SA1")]
+    spreads = []
+    for a, b in pairs:
+        avg = round(rng.uniform(2, 25), 2)
+        spreads.append({"region_a": a, "region_b": b, "avg_spread": avg, "max_spread": round(avg * rng.uniform(3, 8), 2), "intervals": 288})
+    return {"hours_back": hours_back, "spreads": spreads}

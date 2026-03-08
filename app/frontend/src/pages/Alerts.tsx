@@ -834,11 +834,19 @@ export default function Alerts() {
     }
   }, [loadAlerts])
 
-  const handleToggle = useCallback((id: string, next: boolean) => {
-    // TODO: wire to PATCH /api/alerts/:id when backend endpoint is available
+  const handleToggle = useCallback(async (id: string, next: boolean) => {
+    // Optimistic update
     setAlerts(prev =>
       prev.map(a => a.id === id ? { ...a, isActive: next } : a)
     )
+    try {
+      await fetch(`/api/alerts/${id}?is_active=${next}`, { method: 'PATCH', headers: { Accept: 'application/json' } })
+    } catch {
+      // If PATCH fails, revert
+      setAlerts(prev =>
+        prev.map(a => a.id === id ? { ...a, isActive: !next } : a)
+      )
+    }
   }, [])
 
   const handleCreated = useCallback((alert: Alert) => {

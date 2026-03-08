@@ -579,11 +579,15 @@ import PortfolioPage from './pages/Portfolio'
 import TradeBlotter from './pages/TradeBlotter'
 import ForwardCurves from './pages/ForwardCurves'
 import RiskDashboard from './pages/RiskDashboard'
+import MarketReplay from './pages/MarketReplay'
+import MarketBriefs from './pages/MarketBriefs'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
   { to: '/live',         label: 'Live Market',  Icon: Zap             },
   { to: '/realtime-operations', label: 'Live Ops Dashboard', Icon: Radio },
+  { to: '/market-replay',  label: 'Market Replay',  Icon: Clock           },
+  { to: '/market-briefs',  label: 'Market Briefs',  Icon: FileText        },
   { to: '/forecasts',    label: 'Forecasts',    Icon: TrendingUp      },
   { to: '/market-depth', label: 'Market Depth', Icon: TrendingUp      },
   { to: '/copilot',      label: 'Copilot',      Icon: MessageSquare   },
@@ -1085,6 +1089,8 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/trade-blotter': TradeBlotter,
   '/forward-curves': ForwardCurves,
   '/risk-dashboard': RiskDashboard,
+  '/market-replay': MarketReplay,
+  '/market-briefs': MarketBriefs,
   '/sustainability': Sustainability,
   '/merit-order': MeritOrder,
   '/ml-dashboard': MlDashboardPage,
@@ -1586,6 +1592,8 @@ function classifyNavItem(to: string, label: string): string {
     '/deal-capture': 'prices', '/portfolio': 'prices',
     '/trade-blotter': 'prices', '/forward-curves': 'prices',
     '/risk-dashboard': 'prices',
+    '/market-replay': 'operations',
+    '/market-briefs': 'operations',
   }
   if (exact[to]) return exact[to]
 
@@ -1713,6 +1721,7 @@ function subClassifyNavItem(categoryKey: string, to: string, label: string): str
 
 // Error boundary for individual page components within CategoryPage
 import React from 'react'
+import GenericDashboardFallback from './components/GenericDashboardFallback'
 class PageErrorBoundary extends React.Component<
   { children: React.ReactNode; pageName?: string },
   { hasError: boolean; error: Error | null }
@@ -1731,17 +1740,14 @@ class PageErrorBoundary extends React.Component<
   }
   render() {
     if (this.state.hasError) {
+      const pageName = this.props.pageName || ''
+      const apiPath = `/api${pageName}/dashboard`
       return (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
-          <p className="text-sm">This dashboard encountered an error while loading.</p>
-          <p className="text-xs text-gray-500">{this.state.error?.message}</p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
+        <GenericDashboardFallback
+          apiPath={apiPath}
+          errorMessage={this.state.error?.message}
+          onRetry={() => this.setState({ hasError: false, error: null })}
+        />
       )
     }
     return this.props.children
@@ -2024,485 +2030,487 @@ export default function App() {
             <Routes>
               <Route path="/cat/:groupKey" element={<CategoryPage />} />
               <Route path="/"          element={<Home />}       />
-              <Route path="/live"      element={<LiveMarket />} />
-              <Route path="/forecasts" element={<Forecasts />}  />
+              <Route path="/live" element={<PageErrorBoundary pageName="/live"><LiveMarket /></PageErrorBoundary>} />
+              <Route path="/forecasts" element={<PageErrorBoundary pageName="/forecasts"><Forecasts /></PageErrorBoundary>} />
               <Route path="/copilot"   element={<Copilot />}    />
               <Route path="/genie"     element={<Genie />}      />
-              <Route path="/alerts"        element={<Alerts />}       />
-              <Route path="/monitoring"    element={<Monitoring />}   />
-              <Route path="/market-depth"  element={<MarketDepth />}  />
-              <Route path="/price-analysis"    element={<PriceAnalysis />}    />
-              <Route path="/interconnectors"   element={<Interconnectors />}  />
-              <Route path="/generator-fleet"  element={<GeneratorFleet />}   />
-              <Route path="/market-notices"   element={<MarketNotices />}    />
-              <Route path="/weather-demand"   element={<WeatherDemand />}    />
-              <Route path="/bess"             element={<BessAnalytics />}    />
-              <Route path="/trading-desk"    element={<TradingDesk />}      />
-              <Route path="/deal-capture"    element={<DealCapture />}      />
-              <Route path="/portfolio"       element={<PortfolioPage />}    />
-              <Route path="/trade-blotter"   element={<TradeBlotter />}     />
-              <Route path="/forward-curves"  element={<ForwardCurves />}    />
-              <Route path="/risk-dashboard"  element={<RiskDashboard />}    />
-              <Route path="/sustainability" element={<Sustainability />}  />
-              <Route path="/merit-order"   element={<MeritOrder />}       />
-              <Route path="/ml-dashboard" element={<MlDashboardPage />}  />
-              <Route path="/data-catalog" element={<DataCatalog />}       />
-              <Route path="/scenario"       element={<ScenarioAnalysis />}  />
-              <Route path="/load-duration" element={<LoadDuration />}      />
-              <Route path="/trends"       element={<HistoricalTrends />}  />
-              <Route path="/frequency"    element={<FrequencyAnalytics />} />
-              <Route path="/futures"      element={<EnergyFutures />}      />
-              <Route path="/registry"     element={<ParticipantRegistry />} />
-              <Route path="/outages"      element={<OutageSchedule />}     />
-              <Route path="/der"          element={<DerDashboard />}       />
-              <Route path="/gas"          element={<GasMarket />}          />
-              <Route path="/retail"       element={<RetailMarket />}       />
-              <Route path="/network"      element={<NetworkAnalytics />}   />
-              <Route path="/rez"          element={<RezInfrastructure />}  />
-              <Route path="/curtailment"  element={<CurtailmentAnalytics />} />
-              <Route path="/dsp"          element={<DemandResponse />}     />
-              <Route path="/security"     element={<SystemSecurity />}     />
-              <Route path="/bidding"      element={<BiddingAnalytics />}   />
-              <Route path="/nem-events"   element={<NemEvents />}          />
-              <Route path="/fcas-market"  element={<FcasMarket />}         />
-              <Route path="/battery-econ" element={<BatteryEconomics />}  />
-              <Route path="/battery-economics" element={<BatteryEconomics />}  />
-              <Route path="/settlement"   element={<NemSettlement />}      />
-              <Route path="/carbon"       element={<CarbonAnalytics />}   />
-              <Route path="/hedging"      element={<HedgingAnalytics />}  />
-              <Route path="/hydro"        element={<HydroStorage />}       />
-              <Route path="/market-power" element={<MarketPower />}        />
-              <Route path="/pasa"         element={<PasaAnalytics />}      />
-              <Route path="/sra"          element={<SraAuction />}         />
-              <Route path="/ppa"          element={<PpaMarket />}          />
-              <Route path="/dispatch"     element={<DispatchAccuracy />}   />
-              <Route path="/regulatory"   element={<RegulatoryTracker />}  />
-              <Route path="/isp-tracker"  element={<IspTracker />}         />
-              <Route path="/solar-ev"     element={<SolarEvAnalytics />}   />
-              <Route path="/lrmc"         element={<LrmcAnalytics />}      />
-              <Route path="/constraints"  element={<NetworkConstraints />}  />
-              <Route path="/price-setter" element={<PriceSetterAnalytics />} />
-              <Route path="/tariff"       element={<TariffAnalytics />}    />
-              <Route path="/grid-mod"     element={<GridModernisation />}  />
-              <Route path="/spot-cap"      element={<SpotCapAnalytics />} />
-              <Route path="/causer-pays" element={<CauserPays />}       />
-              <Route path="/wem"          element={<WemOverview />}         />
-              <Route path="/inertia"      element={<InertiaAnalytics />}   />
-              <Route path="/tnsp"         element={<TnspAnalytics />}      />
-              <Route path="/surveillance" element={<MarketSurveillance />} />
-              <Route path="/hydrogen"     element={<HydrogenAnalytics />} />
-              <Route path="/offshore-wind" element={<OffshoreWind />}      />
-              <Route path="/offshore-wind-pipeline" element={<OffshoreWindPipeline />} />
-              <Route path="/cer"          element={<CerDashboard />}  />
-              <Route path="/phes"         element={<PhesAnalytics />}      />
-              <Route path="/safeguard"    element={<SafeguardAnalytics />} />
-              <Route path="/transmission" element={<TransmissionProjects />} />
-              <Route path="/dnsp"         element={<DnspAnalytics />}      />
-              <Route path="/vpp"          element={<VppDashboard />}       />
-              <Route path="/reform"       element={<MarketReformTracker />} />
-              <Route path="/tuos"         element={<TuosAnalytics />}      />
-              <Route path="/carbon-registry" element={<CarbonRegistry />}  />
-              <Route path="/ev"           element={<EvCharging />}          />
-              <Route path="/storage"      element={<StorageArbitrage />}    />
-              <Route path="/demand-forecast" element={<DemandForecastAnalytics />} />
-              <Route path="/rez-development" element={<RenewableEnergyZoneDevelopmentAnalytics />} />
-              <Route path="/congestion"   element={<CongestionAnalytics />} />
-              <Route path="/equity"           element={<EnergyEquity />}              />
-              <Route path="/demand-response" element={<DemandResponseAnalytics />} />
-              <Route path="/btm"            element={<BehindTheMeter />}         />
-              <Route path="/rab"            element={<RabAnalytics />}           />
-              <Route path="/realtime"       element={<NemRealTimeDashboard />}  />
-              <Route path="/rit"            element={<RitAnalytics />}          />
-              <Route path="/forward-curve"  element={<ForwardCurveAnalytics />} />
-              <Route path="/coal-retirement" element={<CoalRetirement />}       />
-              <Route path="/gas-gen"         element={<GasGenEconomics />}       />
-              <Route path="/consumer-protection" element={<ConsumerProtection />} />
-              <Route path="/efor"            element={<GeneratorAvailability />} />
-              <Route path="/climate-risk"    element={<ClimateRiskAnalytics />} />
-              <Route path="/smart-grid"      element={<SmartGridAnalytics />}   />
-              <Route path="/minimum-demand"  element={<MinimumDemandAnalytics />} />
-              <Route path="/market-events"  element={<MarketEventsAnalysis />}  />
-              <Route path="/battery-tech"   element={<BatteryTechAnalytics />}  />
-              <Route path="/community-energy" element={<CommunityEnergy />}     />
-              <Route path="/asset-management" element={<AssetManagement />}    />
-              <Route path="/decarbonization" element={<DecarbonizationPathway />} />
-              <Route path="/nuclear-ldes"      element={<NuclearLongDuration />}    />
-              <Route path="/nuclear-energy"   element={<NuclearEnergyAnalytics />} />
-              <Route path="/bidding-behaviour" element={<BiddingBehaviour />}    />
-              <Route path="/energy-poverty"    element={<EnergyPoverty />}       />
-              <Route path="/spot-forecast"     element={<SpotForecastDashboard />} />
-              <Route path="/hydrogen-economy"  element={<HydrogenEconomy />}      />
-              <Route path="/hydrogen-economy-analytics" element={<HydrogenEconomyAnalytics />} />
-              <Route path="/carbon-credit"     element={<CarbonCreditMarket />}  />
-              <Route path="/grid-resilience"   element={<GridResilience />}      />
-              <Route path="/ev-fleet"          element={<EvFleetCharging />}     />
-              <Route path="/rec-market"        element={<RecMarket />}           />
-              <Route path="/transmission-congestion" element={<TransmissionCongestion />} />
-              <Route path="/derms-orchestration" element={<DermsOrchestration />}   />
-              <Route path="/market-design"     element={<MarketDesignReform />}  />
-              <Route path="/rez-capacity"      element={<RezCapacityTracking />} />
-              <Route path="/retail-offer-comparison" element={<RetailOfferComparison />} />
-              <Route path="/system-operator"   element={<SystemOperatorActions />} />
-              <Route path="/network-tariff-reform" element={<NetworkTariffReform />} />
-              <Route path="/spike-analysis"    element={<PriceSpikeAnalysis />}  />
-              <Route path="/storage-revenue-stack" element={<StorageRevenueStack />} />
-              <Route path="/solar-resource"    element={<SolarResourceAnalytics />} />
-              <Route path="/futures-market-risk" element={<FuturesMarketRisk />}  />
-              <Route path="/wind-resource"         element={<WindResourceAnalytics />}  />
-              <Route path="/corporate-ppa-market" element={<CorporatePpaMarket />}    />
-              <Route path="/microgrid-raps"    element={<MicrogridRaps />}         />
-              <Route path="/market-liquidity"  element={<MarketLiquidity />}       />
-              <Route path="/thermal-efficiency" element={<ThermalEfficiency />}  />
-              <Route path="/industrial-demand-flex" element={<IndustrialDemandFlex />} />
-              <Route path="/storage-lca"       element={<StorageLca />}          />
-              <Route path="/interconnector-flow-analytics" element={<InterconnectorFlowAnalytics />} />
-              <Route path="/isp-progress"                 element={<IspProgressTracker />}           />
-              <Route path="/firming-technology-economics" element={<FirmingTechnologyEconomics />}  />
-              <Route path="/demand-forecasting-models"   element={<DemandForecastingModels />}     />
-              <Route path="/market-stress-testing"       element={<MarketStressTesting />}         />
-              <Route path="/capacity-investment-signals" element={<CapacityInvestmentSignals />}   />
-              <Route path="/frequency-control-analytics" element={<FrequencyControlAnalytics />}  />
-              <Route path="/rec-certificate-tracking"    element={<RecCertificateTracking />}      />
-              <Route path="/spot-market-depth"           element={<SpotMarketDepthAnalytics />}    />
-              <Route path="/storage-tech-roadmap"        element={<StorageTechRoadmap />}           />
-              <Route path="/renewable-integration-cost"  element={<RenewableIntegrationCost />}    />
-              <Route path="/planned-outage-analytics"    element={<PlannedOutageAnalytics />}      />
-              <Route path="/market-share-tracker"        element={<MarketShareTracker />}          />
-              <Route path="/volatility-regime-analytics" element={<VolatilityRegimeAnalytics />}   />
-              <Route path="/black-start-capability"      element={<BlackStartCapability />}         />
-              <Route path="/ancillary-services-cost"    element={<AncillaryServicesCost />}        />
-              <Route path="/cbam-trade-analytics"       element={<CbamTradeAnalytics />}          />
-              <Route path="/congestion-revenue-analytics" element={<CongestionRevenueAnalytics />} />
-              <Route path="/climate-physical-risk"       element={<ClimatePhysicalRisk />}         />
-              <Route path="/energy-affordability"        element={<EnergyAffordabilityAnalytics />} />
-              <Route path="/electrification-analytics"   element={<ElectrificationAnalytics />}     />
-              <Route path="/electricity-export-infra"    element={<ElectricityExportInfra />}       />
-              <Route path="/electricity-export-economics" element={<ElectricityExportEconomicsAnalytics />} />
-              <Route path="/ldes-economics"              element={<LdesEconomicsAnalytics />}       />
-              <Route path="/gas-transition-analytics"    element={<GasTransitionAnalytics />}       />
-              <Route path="/prosumer-analytics"          element={<ProsumerAnalytics />}            />
-              <Route path="/tnsp-analytics"                  element={<TnspAnalytics />}                        />
-              <Route path="/dnsp-analytics"                element={<DnspPerformanceAnalytics />}             />
-              <Route path="/reliability-standard-analytics" element={<ReliabilityStandardAnalytics />} />
-              <Route path="/storage-optimisation-analytics" element={<StorageOptimisationAnalytics />} />
-              <Route path="/settlement-analytics"          element={<SettlementAnalytics />}          />
-              <Route path="/realtime-operations" element={<RealtimeOperationsDashboard />} />
-              <Route path="/renewable-auction"           element={<RenewableAuctionAnalytics />} />
-              <Route path="/voll-analytics"              element={<VollAnalytics />}                />
-              <Route path="/demand-flexibility-analytics" element={<DemandFlexibilityAnalytics />} />
-              <Route path="/futures-price-discovery"      element={<FuturesPriceDiscovery />}      />
-              <Route path="/electricity-price-index"    element={<ElectricityPriceIndex />}      />
-              <Route path="/interconnector-upgrade-analytics" element={<InterconnectorUpgradeAnalytics />} />
-              <Route path="/mlf-analytics"               element={<MlfAnalytics />}               />
-              <Route path="/csp-analytics"               element={<CspAnalytics />}               />
-              <Route path="/carbon-intensity-analytics"  element={<CarbonIntensityAnalytics />}   />
-              <Route path="/network-tariff-reform-analytics" element={<NetworkTariffReformAnalytics />} />
-              <Route path="/tariff-cross-subsidy"            element={<TariffCrossSubsidyAnalytics />} />
-              <Route path="/ai-digital-twin-analytics"   element={<AiDigitalTwinAnalytics />}     />
-              <Route path="/esoo-adequacy-analytics"     element={<EsooAdequacyAnalytics />}      />
-              <Route path="/social-licence-analytics"    element={<SocialLicenceAnalytics />}     />
-              <Route path="/electricity-options"          element={<ElectricityOptionsAnalytics />} />
-              <Route path="/grid-forming-inverter"       element={<GridFormingInverterAnalytics />} />
-              <Route path="/capacity-mechanism"          element={<CapacityMechanismAnalytics />}  />
-              <Route path="/demand-forecast-accuracy" element={<DemandForecastAccuracyAnalytics />} />
-              <Route path="/transmission-investment" element={<TransmissionInvestmentAnalytics />} />
-              <Route path="/rez-progress"      element={<RezProgressAnalytics />} />
-              <Route path="/storage-revenue"   element={<StorageRevenueAnalytics />} />
-              <Route path="/carbon-price-pathway" element={<CarbonPricePathwayAnalytics />} />
-              <Route path="/spot-price-forecast" element={<SpotPriceForecastAnalytics />} />
-              <Route path="/ancillary-cost-allocation" element={<AncillaryCostAllocationAnalytics />} />
-              <Route path="/wholesale-liquidity" element={<MarketLiquidityAnalytics />} />
-              <Route path="/generator-retirement" element={<GeneratorRetirementAnalytics />} />
-              <Route path="/consumer-hardship"   element={<ConsumerHardshipAnalytics />}   />
-              <Route path="/dsr-aggregator"      element={<DsrAggregatorAnalytics />}      />
-              <Route path="/power-system-events" element={<PowerSystemEventsAnalytics />}  />
-              <Route path="/merchant-renewable"  element={<MerchantRenewableAnalytics />}  />
-              <Route path="/retailer-competition" element={<RetailerCompetitionAnalytics />} />
-              <Route path="/storage-cost-curves" element={<StorageCostCurvesAnalytics />} />
-              <Route path="/extreme-weather-resilience" element={<ExtremeWeatherResilienceAnalytics />} />
-              <Route path="/spot-price-volatility-regime" element={<SpotPriceVolatilityRegimeAnalytics />} />
-              <Route path="/industrial-electrification" element={<IndustrialElectrificationAnalytics />} />
-              <Route path="/offshore-wind-dev-analytics" element={<OffshoreWindDevAnalytics />} />
-              <Route path="/pumped-hydro-resource-assessment" element={<PumpedHydroResourceAssessmentAnalytics />} />
-              <Route path="/frequency-control-performance" element={<FrequencyControlPerformanceAnalytics />} />
-              <Route path="/cost-reflective-tariff-reform" element={<CostReflectiveTariffReformAnalytics />} />
-              <Route path="/ev-fleet-grid-impact"          element={<EVFleetGridImpactAnalytics />}          />
-              <Route path="/nem-market-microstructure"     element={<NEMMarketMicrostructureAnalytics />}     />
-              <Route path="/rooftop-solar-grid"            element={<RooftopSolarGridAnalytics />}            />
-              <Route path="/rec-market-analytics"          element={<RECMarketAnalytics />}                   />
-              <Route path="/energy-poverty-analytics"    element={<EnergyPovertyAnalytics />}              />
-              <Route path="/hedge-effectiveness"         element={<HedgeEffectivenessAnalytics />}         />
-              <Route path="/cbam-trade-exposure"         element={<CBAMTradeExposureAnalytics />}          />
-              <Route path="/demand-response-programs"   element={<DemandResponseProgramAnalytics />}     />
-              <Route path="/interconnector-congestion"   element={<InterconnectorCongestionAnalytics />}  />
-              <Route path="/ppa-market"                  element={<PPAMarketAnalytics />}                 />
-              <Route path="/ppa-structuring"             element={<PPAStructuringAnalytics />}            />
-              <Route path="/battery-dispatch-strategy"   element={<BatteryDispatchStrategyAnalytics />}   />
-              <Route path="/generation-mix-transition"   element={<GenerationMixTransitionAnalytics />}   />
-              <Route path="/storage-duration-economics" element={<StorageDurationEconomicsAnalytics />}  />
-              <Route path="/ancillary-market-depth"    element={<AncillaryServicesMarketDepthAnalytics />} />
-              <Route path="/sra-analytics"             element={<SRAAnalyticsPage />}                      />
-              <Route path="/spot-market-stress"        element={<SpotMarketStressAnalytics />}             />
-              <Route path="/electricity-workforce"     element={<ElectricityWorkforceAnalytics />}         />
-              <Route path="/rez-transmission"          element={<REZTransmissionAnalytics />}               />
-              <Route path="/network-regulatory-framework" element={<NetworkRegulatoryFrameworkAnalytics />} />
-              <Route path="/price-model-comparison"       element={<PriceModelComparisonAnalytics />}       />
-              <Route path="/gas-electricity-nexus"         element={<GasElectricityNexusAnalytics />}        />
-              <Route path="/bidding-compliance"           element={<BiddingComplianceAnalytics />}          />
-              <Route path="/community-energy-analytics"  element={<CommunityEnergyAnalytics />}            />
-              <Route path="/grid-cybersecurity"           element={<GridCybersecurityAnalytics />}           />
-              <Route path="/market-participant-financial" element={<MarketParticipantFinancialAnalytics />}  />
-              <Route path="/digital-transformation"       element={<DigitalTransformationAnalytics />}       />
-              <Route path="/energy-transition-finance"   element={<EnergyTransitionFinanceAnalytics />}     />
-              <Route path="/negative-price-events"        element={<NegativePriceEventAnalytics />}          />
-              <Route path="/cer-orchestration"             element={<CEROrchestrationAnalytics />}            />
-              <Route path="/system-load-balancing"         element={<SystemLoadBalancingAnalytics />}          />
-              <Route path="/carbon-accounting"             element={<CarbonAccountingAnalytics />}             />
-              <Route path="/wholesale-bidding-strategy"    element={<WholesaleBiddingStrategyAnalytics />}     />
-              <Route path="/ldes-analytics"                element={<LDESAnalytics />}                         />
-              <Route path="/emergency-management"          element={<EmergencyManagementAnalytics />}           />
-              <Route path="/consumer-switching-retail-churn" element={<ConsumerSwitchingRetailChurnAnalytics />} />
-              <Route path="/solar-thermal-csp" element={<SolarThermalCSPAnalytics />} />
-              <Route path="/nem-post-reform-market-design" element={<NEMPostReformMarketDesignAnalytics />} />
-              <Route path="/electricity-price-forecasting-models" element={<ElectricityPriceForecastingModelAnalytics />} />
-              <Route path="/large-industrial-demand" element={<LargeIndustrialDemandAnalytics />} />
-              <Route path="/network-investment-pipeline" element={<NetworkInvestmentPipelineAnalytics />} />
-              <Route path="/nem-demand-forecast" element={<NEMDemandForecastAnalytics />} />
-              <Route path="/hydrogen-fuel-cell-vehicles" element={<HydrogenFuelCellVehicleAnalytics />} />
-              <Route path="/spot-price-spike-prediction" element={<SpotPriceSpikePredictionAnalytics />} />
-              <Route path="/grid-edge-technology" element={<GridEdgeTechnologyAnalytics />} />
-              <Route path="/bess-degradation" element={<EnergyStorageDegradationAnalytics />} />
-              <Route path="/clean-hydrogen-production-cost" element={<CleanHydrogenProductionCostAnalytics />} />
-              <Route path="/ancillary-services-procurement" element={<AncillaryServicesProcurementAnalytics />} />
-              <Route path="/rez-connection-queue" element={<REZConnectionQueueAnalytics />} />
-              <Route path="/australian-carbon-policy" element={<AustralianCarbonPolicyAnalytics />} />
-              <Route path="/market-design-simulation" element={<MarketDesignSimulationAnalytics />} />
-              <Route path="/power-system-stability" element={<PowerSystemStabilityAnalytics />} />
-              <Route path="/energy-retail-competition" element={<EnergyRetailCompetitionAnalytics />} />
-              <Route path="/clean-energy-finance" element={<CleanEnergyFinanceAnalytics />} />
-              <Route path="/nuclear-energy-economics" element={<NuclearEnergyEconomicsAnalytics />} />
-              <Route path="/behind-meter-commercial" element={<BehindMeterCommercialAnalytics />} />
-              <Route path="/capacity-investment-scheme" element={<CapacityInvestmentSchemeAnalytics />} />
-              <Route path="/demand-flexibility-market" element={<DemandFlexibilityMarketAnalytics />} />
-              <Route path="/energy-asset-life-extension" element={<EnergyAssetLifeExtensionAnalytics />} />
-              <Route path="/green-ammonia-export" element={<GreenAmmoniaExportAnalytics />} />
-              <Route path="/electricity-export-cable" element={<ElectricityExportCableAnalytics />} />
-              <Route path="/industrial-decarbonisation" element={<IndustrialDecarbonisationAnalytics />} />
-              <Route path="/community-energy-storage" element={<CommunityEnergyStorageAnalytics />} />
-              <Route path="/nem-generation-mix" element={<NEMGenerationMixAnalytics />} />
-              <Route path="/consumer-energy-affordability" element={<ConsumerEnergyAffordabilityAnalytics />} />
-              <Route path="/electricity-price-risk" element={<ElectricityPriceRiskAnalytics />} />
-              <Route path="/ev-fleet-depot"    element={<EVFleetDepotAnalytics />}          />
-              <Route path="/wind-farm-wake"    element={<WindFarmWakeAnalytics />}          />
-              <Route path="/market-bidding-strategy" element={<MarketBiddingStrategyAnalytics />} />
-              <Route path="/solar-pv-soiling"  element={<SolarPVSoilingAnalytics />} />
-              <Route path="/ot-ics-cyber-security" element={<OTICSCyberSecurityAnalytics />} />
-              <Route path="/stpasa-adequacy" element={<STPASAAdequacyAnalytics />} />
-              <Route path="/generator-performance-standards" element={<GeneratorPerformanceStandardsAnalytics />} />
-              <Route path="/biomass-bioenergy" element={<BiomassBioenergyAnalytics />} />
-              <Route path="/electricity-frequency-performance" element={<ElectricityFrequencyPerformanceAnalytics />} />
-              <Route path="/lgc-market"                      element={<LGCMarketAnalytics />}                       />
-              <Route path="/wave-tidal-ocean" element={<WaveTidalOceanAnalytics />} />
-              <Route path="/reactive-power-voltage" element={<ReactivePowerVoltageAnalytics />} />
-              <Route path="/battery-revenue-stack" element={<BatteryRevenueStackAnalytics />} />
-              <Route path="/digital-energy-twin" element={<DigitalEnergyTwinAnalytics />} />
-              <Route path="/network-protection-system" element={<NetworkProtectionSystemAnalytics />} />
-              <Route path="/pumped-hydro-dispatch" element={<PumpedHydroDispatchAnalytics />} />
-              <Route path="/retail-market-design" element={<RetailMarketDesignAnalytics />} />
-              <Route path="/spot-market-depth-x" element={<SpotMarketDepthXAnalytics />} />
-              <Route path="/solar-farm-operations" element={<SolarFarmOperationsAnalytics />} />
-              <Route path="/distribution-network-planning" element={<DistributionNetworkPlanningAnalytics />} />
-              <Route path="/grid-flexibility-services" element={<GridFlexibilityServicesAnalytics />} />
-              <Route path="/hydrogen-refuelling-station" element={<HydrogenRefuellingStationAnalytics />} />
-              <Route path="/offshore-wind-finance"       element={<OffshoreWindFinanceAnalytics />}       />
-              <Route path="/carbon-offset-project"     element={<CarbonOffsetProjectAnalytics />}      />
-              <Route path="/power-grid-climate-resilience" element={<PowerGridClimateResilienceAnalytics />} />
-              <Route path="/energy-storage-tech-comparison" element={<EnergyStorageTechComparisonAnalytics />} />
-              <Route path="/power-to-x-economics" element={<PowerToXEconomicsAnalytics />} />
-              <Route path="/electricity-market-microstructure" element={<ElectricityMarketMicrostructureAnalytics />} />
-              <Route path="/grid-decarbonisation-pathway" element={<GridDecarbonisationPathwayAnalytics />} />
-              <Route path="/rooftop-solar-network-impact" element={<RooftopSolarNetworkImpactAnalytics />} />
-              <Route path="/electricity-network-tariff-reform" element={<ElectricityNetworkTariffReformAnalytics />} />
-              <Route path="/long-duration-energy-storage" element={<LongDurationEnergyStorageAnalytics />} />
-              <Route path="/hydrogen-pipeline-infrastructure" element={<HydrogenPipelineInfrastructureAnalytics />} />
-              <Route path="/carbon-capture-storage-project"  element={<CarbonCaptureStorageProjectAnalytics />}  />
-              <Route path="/energy-poverty-vulnerable-consumer" element={<EnergyPovertyVulnerableConsumerAnalytics />} />
-              <Route path="/nuclear-small-modular-reactor" element={<NuclearSmallModularReactorAnalytics />} />
-              <Route path="/electricity-market-transparency" element={<ElectricityMarketTransparencyAnalytics />} />
-              <Route path="/geothermal-energy-development" element={<GeothermalEnergyDevelopmentAnalytics />} />
-              <Route path="/solar-thermal-power-plant" element={<SolarThermalPowerPlantAnalytics />} />
-              <Route path="/energy-trading-algorithmic-strategy" element={<EnergyTradingAlgorithmicStrategyAnalytics />} />
-              <Route path="/ev-grid-integration-v2g" element={<EVGridIntegrationV2GAnalytics />} />
-              <Route path="/biomethane-gas-grid-injection" element={<BiomethaneGasGridInjectionAnalytics />} />
-              <Route path="/electricity-market-forecasting-accuracy" element={<ElectricityMarketForecastingAccuracyAnalytics />} />
-              <Route path="/national-energy-transition-investment" element={<NationalEnergyTransitionInvestmentAnalytics />} />
-              <Route path="/electricity-spot-price-seasonality" element={<ElectricitySpotPriceSeasonalityAnalytics />} />
-              <Route path="/grid-congestion-constraint" element={<GridCongestionConstraintAnalytics />} />
-              <Route path="/electricity-market-competition-concentration" element={<ElectricityMarketCompetitionConcentrationAnalytics />} />
-              <Route path="/renewable-energy-zone-development" element={<RenewableEnergyZoneDevelopmentAnalytics />} />
-              <Route path="/battery-storage-degradation-lifetime" element={<BatteryStorageDegradationLifetimeAnalytics />} />
-              <Route path="/electricity-consumer-switching-churn" element={<ElectricityConsumerSwitchingChurnAnalytics />} />
-              <Route path="/nem-inertia-synchronous-condenser" element={<NEMInertiaSynchronousCondenserAnalytics />} />
-              <Route path="/offshore-wind-leasing-site" element={<OffshoreWindLeasingSiteAnalytics />} />
-              <Route path="/electricity-market-regulatory-appeals" element={<ElectricityMarketRegulatoryAppealsAnalytics />} />
-              <Route path="/distributed-energy-resource-management" element={<DistributedEnergyResourceManagementAnalytics />} />
-              <Route path="/market-price-formation-review" element={<MarketPriceFormationReviewAnalytics />} />
-              <Route path="/residential-solar-self-consumption" element={<ResidentialSolarSelfConsumptionAnalytics />} />
-              <Route path="/energy-infrastructure-cyber-threat" element={<EnergyInfrastructureCyberThreatAnalytics />} />
-              <Route path="/wholesale-gas-market" element={<WholesaleGasMarketAnalytics />} />
-              <Route path="/electricity-demand-forecasting-ml" element={<ElectricityDemandForecastingMLAnalytics />} />
-              <Route path="/energy-storage-merchant-revenue" element={<EnergyStorageMerchantRevenueAnalytics />} />
-              <Route path="/industrial-electrification-x" element={<IndustrialElectrificationXAnalytics />} />
-              <Route path="/transmission-access-reform" element={<TransmissionAccessReformAnalytics />} />
-              <Route path="/hydrogen-export-terminal" element={<HydrogenExportTerminalAnalytics />} />
-              <Route path="/grid-edge-technology-x" element={<GridEdgeTechnologyXAnalytics />} />
-              <Route path="/energy-retailer-margin" element={<EnergyRetailerMarginAnalytics />} />
-              <Route path="/ev-fleet-charging" element={<EvFleetChargingAnalytics />} />
-              <Route path="/carbon-border-adjustment" element={<CarbonBorderAdjustmentAnalytics />} />
-              <Route path="/power-purchase-agreement-market" element={<PowerPurchaseAgreementMarketAnalytics />} />
-              <Route path="/distributed-solar-forecasting" element={<DistributedSolarForecastingAnalytics />} />
-              <Route path="/electricity-market-liquidity" element={<ElectricityMarketLiquidityAnalytics />} />
-              <Route path="/energy-transition-finance-x" element={<EnergyTransitionFinanceXAnalytics />} />
-              <Route path="/nem-frequency-control" element={<NemFrequencyControlAnalytics />} />
-              <Route path="/battery-second-life" element={<BatterySecondLifeAnalytics />} />
-              <Route path="/utility-solar-farm-operations" element={<UtilitySolarFarmOperationsAnalytics />} />
-              <Route path="/wind-farm-wake-effect" element={<WindFarmWakeEffectAnalytics />} />
-              <Route path="/energy-poverty-hardship" element={<EnergyPovertyHardshipAnalytics />} />
-              <Route path="/electricity-network-capital-investment" element={<ElectricityNetworkCapitalInvestmentAnalytics />} />
-              <Route path="/gas-to-power-transition" element={<GasToPowerTransitionAnalytics />} />
-              <Route path="/carbon-offset-market" element={<CarbonOffsetMarketAnalytics />} />
-              <Route path="/power-system-stability-x" element={<PowerSystemStabilityXAnalytics />} />
-              <Route path="/aemo-market-operations" element={<AemoMarketOperationsAnalytics />} />
-              <Route path="/renewable-energy-certificate" element={<RenewableEnergyCertificateAnalytics />} />
-              <Route path="/energy-storage-dispatch-optimisation" element={<EnergyStorageDispatchOptimisationAnalytics />} />
-              <Route path="/offshore-wind-project-finance" element={<OffshoreWindProjectFinanceAnalytics />} />
-              <Route path="/national-energy-market-reform" element={<NationalEnergyMarketReformAnalytics />} />
-              <Route path="/electricity-market-price-formation" element={<ElectricityMarketPriceFormationAnalytics />} />
-              <Route path="/rez-auction-cis" element={<RezAuctionCisAnalytics />} />
-              <Route path="/grid-modernisation-digital-twin" element={<GridModernisationDigitalTwinAnalytics />} />
-              <Route path="/energy-market-credit-risk" element={<EnergyMarketCreditRiskAnalytics />} />
-              <Route path="/electricity-consumer-behaviour" element={<ElectricityConsumerBehaviourAnalytics />} />
-              <Route path="/thermal-coal-power-transition" element={<ThermalCoalPowerTransitionAnalytics />} />
-              <Route path="/demand-response-aggregator" element={<DemandResponseAggregatorAnalytics />} />
-              <Route path="/energy-commodity-trading" element={<EnergyCommodityTradingAnalytics />} />
-              <Route path="/network-tariff-design-reform" element={<NetworkTariffDesignReformAnalytics />} />
-              <Route path="/hydrogen-valley-cluster" element={<HydrogenValleyClusterAnalytics />} />
-              <Route path="/nem-congestion-rent" element={<NemCongestionRentAnalytics />} />
-              <Route path="/electricity-retailer-churn" element={<ElectricityRetailerChurnAnalytics />} />
-              <Route path="/energy-asset-maintenance" element={<EnergyAssetMaintenanceAnalytics />} />
-              <Route path="/coal-seam-gas" element={<CoalSeamGasAnalytics />} />
-              <Route path="/ev-battery-technology" element={<EvBatteryTechnologyAnalytics />} />
-              <Route path="/nem-demand-forecasting-accuracy" element={<NemDemandForecastingAccuracyAnalytics />} />
-              <Route path="/power-system-inertia" element={<PowerSystemInertiaAnalytics />} />
-              <Route path="/electricity-network-investment-deferral" element={<ElectricityNetworkInvestmentDeferralAnalytics />} />
-              <Route path="/rez-capacity-factor" element={<RezCapacityFactorAnalytics />} />
-              <Route path="/energy-retailer-hedging" element={<EnergyRetailerHedgingAnalytics />} />
-              <Route path="/gas-power-plant-flexibility" element={<GasPowerPlantFlexibilityAnalytics />} />
-              <Route path="/solar-irradiance-resource" element={<SolarIrradianceResourceAnalytics />} />
-              <Route path="/electricity-price-cap-intervention" element={<ElectricityPriceCapInterventionAnalytics />} />
-              <Route path="/biogas-landfill" element={<BiogasLandfillAnalytics />} />
-              <Route path="/wind-resource-variability" element={<WindResourceVariabilityAnalytics />} />
-              <Route path="/energy-storage-duration" element={<EnergyStorageDurationAnalytics />} />
-              <Route path="/nem-settlement-residue-auction" element={<NemSettlementResidueAuctionAnalytics />} />
-              <Route path="/hydrogen-electrolysis-cost" element={<HydrogenElectrolysisCostAnalytics />} />
-              <Route path="/electricity-demand-elasticity" element={<ElectricityDemandElasticityAnalytics />} />
-              <Route path="/nuclear-energy-feasibility" element={<NuclearEnergyFeasibilityAnalytics />} />
-              <Route path="/transmission-congestion-revenue" element={<TransmissionCongestionRevenueAnalytics />} />
-              <Route path="/electricity-market-design-reform" element={<ElectricityMarketDesignReformAnalytics />} />
-              <Route path="/carbon-capture-utilisation" element={<CarbonCaptureUtilisationAnalytics />} />
-              <Route path="/grid-scale-battery-degradation" element={<GridScaleBatteryDegradationAnalytics />} />
-              <Route path="/electricity-export" element={<AustraliaElectricityExportAnalytics />} />
-              <Route path="/dsm-programs"      element={<DemandSideManagementProgramAnalytics />} />
-              <Route path="/grid-topology"     element={<PowerGridTopologyAnalytics />} />
-              <Route path="/rooftop-solar-fit" element={<RooftopSolarFeedInTariffAnalytics />} />
-              <Route path="/lng-export"        element={<LngExportAnalytics />}  />
+              <Route path="/alerts" element={<PageErrorBoundary pageName="/alerts"><Alerts /></PageErrorBoundary>} />
+              <Route path="/market-replay" element={<PageErrorBoundary pageName="/market-replay"><MarketReplay /></PageErrorBoundary>} />
+              <Route path="/market-briefs" element={<PageErrorBoundary pageName="/market-briefs"><MarketBriefs /></PageErrorBoundary>} />
+              <Route path="/monitoring" element={<PageErrorBoundary pageName="/monitoring"><Monitoring /></PageErrorBoundary>} />
+              <Route path="/market-depth" element={<PageErrorBoundary pageName="/market-depth"><MarketDepth /></PageErrorBoundary>} />
+              <Route path="/price-analysis" element={<PageErrorBoundary pageName="/price-analysis"><PriceAnalysis /></PageErrorBoundary>} />
+              <Route path="/interconnectors" element={<PageErrorBoundary pageName="/interconnectors"><Interconnectors /></PageErrorBoundary>} />
+              <Route path="/generator-fleet" element={<PageErrorBoundary pageName="/generator-fleet"><GeneratorFleet /></PageErrorBoundary>} />
+              <Route path="/market-notices" element={<PageErrorBoundary pageName="/market-notices"><MarketNotices /></PageErrorBoundary>} />
+              <Route path="/weather-demand" element={<PageErrorBoundary pageName="/weather-demand"><WeatherDemand /></PageErrorBoundary>} />
+              <Route path="/bess" element={<PageErrorBoundary pageName="/bess"><BessAnalytics /></PageErrorBoundary>} />
+              <Route path="/trading-desk" element={<PageErrorBoundary pageName="/trading-desk"><TradingDesk /></PageErrorBoundary>} />
+              <Route path="/deal-capture" element={<PageErrorBoundary pageName="/deal-capture"><DealCapture /></PageErrorBoundary>} />
+              <Route path="/portfolio" element={<PageErrorBoundary pageName="/portfolio"><PortfolioPage /></PageErrorBoundary>} />
+              <Route path="/trade-blotter" element={<PageErrorBoundary pageName="/trade-blotter"><TradeBlotter /></PageErrorBoundary>} />
+              <Route path="/forward-curves" element={<PageErrorBoundary pageName="/forward-curves"><ForwardCurves /></PageErrorBoundary>} />
+              <Route path="/risk-dashboard" element={<PageErrorBoundary pageName="/risk-dashboard"><RiskDashboard /></PageErrorBoundary>} />
+              <Route path="/sustainability" element={<PageErrorBoundary pageName="/sustainability"><Sustainability /></PageErrorBoundary>} />
+              <Route path="/merit-order" element={<PageErrorBoundary pageName="/merit-order"><MeritOrder /></PageErrorBoundary>} />
+              <Route path="/ml-dashboard" element={<PageErrorBoundary pageName="/ml-dashboard"><MlDashboardPage /></PageErrorBoundary>} />
+              <Route path="/data-catalog" element={<PageErrorBoundary pageName="/data-catalog"><DataCatalog /></PageErrorBoundary>} />
+              <Route path="/scenario" element={<PageErrorBoundary pageName="/scenario"><ScenarioAnalysis /></PageErrorBoundary>} />
+              <Route path="/load-duration" element={<PageErrorBoundary pageName="/load-duration"><LoadDuration /></PageErrorBoundary>} />
+              <Route path="/trends" element={<PageErrorBoundary pageName="/trends"><HistoricalTrends /></PageErrorBoundary>} />
+              <Route path="/frequency" element={<PageErrorBoundary pageName="/frequency"><FrequencyAnalytics /></PageErrorBoundary>} />
+              <Route path="/futures" element={<PageErrorBoundary pageName="/futures"><EnergyFutures /></PageErrorBoundary>} />
+              <Route path="/registry" element={<PageErrorBoundary pageName="/registry"><ParticipantRegistry /></PageErrorBoundary>} />
+              <Route path="/outages" element={<PageErrorBoundary pageName="/outages"><OutageSchedule /></PageErrorBoundary>} />
+              <Route path="/der" element={<PageErrorBoundary pageName="/der"><DerDashboard /></PageErrorBoundary>} />
+              <Route path="/gas" element={<PageErrorBoundary pageName="/gas"><GasMarket /></PageErrorBoundary>} />
+              <Route path="/retail" element={<PageErrorBoundary pageName="/retail"><RetailMarket /></PageErrorBoundary>} />
+              <Route path="/network" element={<PageErrorBoundary pageName="/network"><NetworkAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez" element={<PageErrorBoundary pageName="/rez"><RezInfrastructure /></PageErrorBoundary>} />
+              <Route path="/curtailment" element={<PageErrorBoundary pageName="/curtailment"><CurtailmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/dsp" element={<PageErrorBoundary pageName="/dsp"><DemandResponse /></PageErrorBoundary>} />
+              <Route path="/security" element={<PageErrorBoundary pageName="/security"><SystemSecurity /></PageErrorBoundary>} />
+              <Route path="/bidding" element={<PageErrorBoundary pageName="/bidding"><BiddingAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-events" element={<PageErrorBoundary pageName="/nem-events"><NemEvents /></PageErrorBoundary>} />
+              <Route path="/fcas-market" element={<PageErrorBoundary pageName="/fcas-market"><FcasMarket /></PageErrorBoundary>} />
+              <Route path="/battery-econ" element={<PageErrorBoundary pageName="/battery-econ"><BatteryEconomics /></PageErrorBoundary>} />
+              <Route path="/battery-economics" element={<PageErrorBoundary pageName="/battery-economics"><BatteryEconomics /></PageErrorBoundary>} />
+              <Route path="/settlement" element={<PageErrorBoundary pageName="/settlement"><NemSettlement /></PageErrorBoundary>} />
+              <Route path="/carbon" element={<PageErrorBoundary pageName="/carbon"><CarbonAnalytics /></PageErrorBoundary>} />
+              <Route path="/hedging" element={<PageErrorBoundary pageName="/hedging"><HedgingAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydro" element={<PageErrorBoundary pageName="/hydro"><HydroStorage /></PageErrorBoundary>} />
+              <Route path="/market-power" element={<PageErrorBoundary pageName="/market-power"><MarketPower /></PageErrorBoundary>} />
+              <Route path="/pasa" element={<PageErrorBoundary pageName="/pasa"><PasaAnalytics /></PageErrorBoundary>} />
+              <Route path="/sra" element={<PageErrorBoundary pageName="/sra"><SraAuction /></PageErrorBoundary>} />
+              <Route path="/ppa" element={<PageErrorBoundary pageName="/ppa"><PpaMarket /></PageErrorBoundary>} />
+              <Route path="/dispatch" element={<PageErrorBoundary pageName="/dispatch"><DispatchAccuracy /></PageErrorBoundary>} />
+              <Route path="/regulatory" element={<PageErrorBoundary pageName="/regulatory"><RegulatoryTracker /></PageErrorBoundary>} />
+              <Route path="/isp-tracker" element={<PageErrorBoundary pageName="/isp-tracker"><IspTracker /></PageErrorBoundary>} />
+              <Route path="/solar-ev" element={<PageErrorBoundary pageName="/solar-ev"><SolarEvAnalytics /></PageErrorBoundary>} />
+              <Route path="/lrmc" element={<PageErrorBoundary pageName="/lrmc"><LrmcAnalytics /></PageErrorBoundary>} />
+              <Route path="/constraints" element={<PageErrorBoundary pageName="/constraints"><NetworkConstraints /></PageErrorBoundary>} />
+              <Route path="/price-setter" element={<PageErrorBoundary pageName="/price-setter"><PriceSetterAnalytics /></PageErrorBoundary>} />
+              <Route path="/tariff" element={<PageErrorBoundary pageName="/tariff"><TariffAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-mod" element={<PageErrorBoundary pageName="/grid-mod"><GridModernisation /></PageErrorBoundary>} />
+              <Route path="/spot-cap" element={<PageErrorBoundary pageName="/spot-cap"><SpotCapAnalytics /></PageErrorBoundary>} />
+              <Route path="/causer-pays" element={<PageErrorBoundary pageName="/causer-pays"><CauserPays /></PageErrorBoundary>} />
+              <Route path="/wem" element={<PageErrorBoundary pageName="/wem"><WemOverview /></PageErrorBoundary>} />
+              <Route path="/inertia" element={<PageErrorBoundary pageName="/inertia"><InertiaAnalytics /></PageErrorBoundary>} />
+              <Route path="/tnsp" element={<PageErrorBoundary pageName="/tnsp"><TnspAnalytics /></PageErrorBoundary>} />
+              <Route path="/surveillance" element={<PageErrorBoundary pageName="/surveillance"><MarketSurveillance /></PageErrorBoundary>} />
+              <Route path="/hydrogen" element={<PageErrorBoundary pageName="/hydrogen"><HydrogenAnalytics /></PageErrorBoundary>} />
+              <Route path="/offshore-wind" element={<PageErrorBoundary pageName="/offshore-wind"><OffshoreWind /></PageErrorBoundary>} />
+              <Route path="/offshore-wind-pipeline" element={<PageErrorBoundary pageName="/offshore-wind-pipeline"><OffshoreWindPipeline /></PageErrorBoundary>} />
+              <Route path="/cer" element={<PageErrorBoundary pageName="/cer"><CerDashboard /></PageErrorBoundary>} />
+              <Route path="/phes" element={<PageErrorBoundary pageName="/phes"><PhesAnalytics /></PageErrorBoundary>} />
+              <Route path="/safeguard" element={<PageErrorBoundary pageName="/safeguard"><SafeguardAnalytics /></PageErrorBoundary>} />
+              <Route path="/transmission" element={<PageErrorBoundary pageName="/transmission"><TransmissionProjects /></PageErrorBoundary>} />
+              <Route path="/dnsp" element={<PageErrorBoundary pageName="/dnsp"><DnspAnalytics /></PageErrorBoundary>} />
+              <Route path="/vpp" element={<PageErrorBoundary pageName="/vpp"><VppDashboard /></PageErrorBoundary>} />
+              <Route path="/reform" element={<PageErrorBoundary pageName="/reform"><MarketReformTracker /></PageErrorBoundary>} />
+              <Route path="/tuos" element={<PageErrorBoundary pageName="/tuos"><TuosAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-registry" element={<PageErrorBoundary pageName="/carbon-registry"><CarbonRegistry /></PageErrorBoundary>} />
+              <Route path="/ev" element={<PageErrorBoundary pageName="/ev"><EvCharging /></PageErrorBoundary>} />
+              <Route path="/storage" element={<PageErrorBoundary pageName="/storage"><StorageArbitrage /></PageErrorBoundary>} />
+              <Route path="/demand-forecast" element={<PageErrorBoundary pageName="/demand-forecast"><DemandForecastAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez-development" element={<PageErrorBoundary pageName="/rez-development"><RenewableEnergyZoneDevelopmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/congestion" element={<PageErrorBoundary pageName="/congestion"><CongestionAnalytics /></PageErrorBoundary>} />
+              <Route path="/equity" element={<PageErrorBoundary pageName="/equity"><EnergyEquity /></PageErrorBoundary>} />
+              <Route path="/demand-response" element={<PageErrorBoundary pageName="/demand-response"><DemandResponseAnalytics /></PageErrorBoundary>} />
+              <Route path="/btm" element={<PageErrorBoundary pageName="/btm"><BehindTheMeter /></PageErrorBoundary>} />
+              <Route path="/rab" element={<PageErrorBoundary pageName="/rab"><RabAnalytics /></PageErrorBoundary>} />
+              <Route path="/realtime" element={<PageErrorBoundary pageName="/realtime"><NemRealTimeDashboard /></PageErrorBoundary>} />
+              <Route path="/rit" element={<PageErrorBoundary pageName="/rit"><RitAnalytics /></PageErrorBoundary>} />
+              <Route path="/forward-curve" element={<PageErrorBoundary pageName="/forward-curve"><ForwardCurveAnalytics /></PageErrorBoundary>} />
+              <Route path="/coal-retirement" element={<PageErrorBoundary pageName="/coal-retirement"><CoalRetirement /></PageErrorBoundary>} />
+              <Route path="/gas-gen" element={<PageErrorBoundary pageName="/gas-gen"><GasGenEconomics /></PageErrorBoundary>} />
+              <Route path="/consumer-protection" element={<PageErrorBoundary pageName="/consumer-protection"><ConsumerProtection /></PageErrorBoundary>} />
+              <Route path="/efor" element={<PageErrorBoundary pageName="/efor"><GeneratorAvailability /></PageErrorBoundary>} />
+              <Route path="/climate-risk" element={<PageErrorBoundary pageName="/climate-risk"><ClimateRiskAnalytics /></PageErrorBoundary>} />
+              <Route path="/smart-grid" element={<PageErrorBoundary pageName="/smart-grid"><SmartGridAnalytics /></PageErrorBoundary>} />
+              <Route path="/minimum-demand" element={<PageErrorBoundary pageName="/minimum-demand"><MinimumDemandAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-events" element={<PageErrorBoundary pageName="/market-events"><MarketEventsAnalysis /></PageErrorBoundary>} />
+              <Route path="/battery-tech" element={<PageErrorBoundary pageName="/battery-tech"><BatteryTechAnalytics /></PageErrorBoundary>} />
+              <Route path="/community-energy" element={<PageErrorBoundary pageName="/community-energy"><CommunityEnergy /></PageErrorBoundary>} />
+              <Route path="/asset-management" element={<PageErrorBoundary pageName="/asset-management"><AssetManagement /></PageErrorBoundary>} />
+              <Route path="/decarbonization" element={<PageErrorBoundary pageName="/decarbonization"><DecarbonizationPathway /></PageErrorBoundary>} />
+              <Route path="/nuclear-ldes" element={<PageErrorBoundary pageName="/nuclear-ldes"><NuclearLongDuration /></PageErrorBoundary>} />
+              <Route path="/nuclear-energy" element={<PageErrorBoundary pageName="/nuclear-energy"><NuclearEnergyAnalytics /></PageErrorBoundary>} />
+              <Route path="/bidding-behaviour" element={<PageErrorBoundary pageName="/bidding-behaviour"><BiddingBehaviour /></PageErrorBoundary>} />
+              <Route path="/energy-poverty" element={<PageErrorBoundary pageName="/energy-poverty"><EnergyPoverty /></PageErrorBoundary>} />
+              <Route path="/spot-forecast" element={<PageErrorBoundary pageName="/spot-forecast"><SpotForecastDashboard /></PageErrorBoundary>} />
+              <Route path="/hydrogen-economy" element={<PageErrorBoundary pageName="/hydrogen-economy"><HydrogenEconomy /></PageErrorBoundary>} />
+              <Route path="/hydrogen-economy-analytics" element={<PageErrorBoundary pageName="/hydrogen-economy-analytics"><HydrogenEconomyAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-credit" element={<PageErrorBoundary pageName="/carbon-credit"><CarbonCreditMarket /></PageErrorBoundary>} />
+              <Route path="/grid-resilience" element={<PageErrorBoundary pageName="/grid-resilience"><GridResilience /></PageErrorBoundary>} />
+              <Route path="/ev-fleet" element={<PageErrorBoundary pageName="/ev-fleet"><EvFleetCharging /></PageErrorBoundary>} />
+              <Route path="/rec-market" element={<PageErrorBoundary pageName="/rec-market"><RecMarket /></PageErrorBoundary>} />
+              <Route path="/transmission-congestion" element={<PageErrorBoundary pageName="/transmission-congestion"><TransmissionCongestion /></PageErrorBoundary>} />
+              <Route path="/derms-orchestration" element={<PageErrorBoundary pageName="/derms-orchestration"><DermsOrchestration /></PageErrorBoundary>} />
+              <Route path="/market-design" element={<PageErrorBoundary pageName="/market-design"><MarketDesignReform /></PageErrorBoundary>} />
+              <Route path="/rez-capacity" element={<PageErrorBoundary pageName="/rez-capacity"><RezCapacityTracking /></PageErrorBoundary>} />
+              <Route path="/retail-offer-comparison" element={<PageErrorBoundary pageName="/retail-offer-comparison"><RetailOfferComparison /></PageErrorBoundary>} />
+              <Route path="/system-operator" element={<PageErrorBoundary pageName="/system-operator"><SystemOperatorActions /></PageErrorBoundary>} />
+              <Route path="/network-tariff-reform" element={<PageErrorBoundary pageName="/network-tariff-reform"><NetworkTariffReform /></PageErrorBoundary>} />
+              <Route path="/spike-analysis" element={<PageErrorBoundary pageName="/spike-analysis"><PriceSpikeAnalysis /></PageErrorBoundary>} />
+              <Route path="/storage-revenue-stack" element={<PageErrorBoundary pageName="/storage-revenue-stack"><StorageRevenueStack /></PageErrorBoundary>} />
+              <Route path="/solar-resource" element={<PageErrorBoundary pageName="/solar-resource"><SolarResourceAnalytics /></PageErrorBoundary>} />
+              <Route path="/futures-market-risk" element={<PageErrorBoundary pageName="/futures-market-risk"><FuturesMarketRisk /></PageErrorBoundary>} />
+              <Route path="/wind-resource" element={<PageErrorBoundary pageName="/wind-resource"><WindResourceAnalytics /></PageErrorBoundary>} />
+              <Route path="/corporate-ppa-market" element={<PageErrorBoundary pageName="/corporate-ppa-market"><CorporatePpaMarket /></PageErrorBoundary>} />
+              <Route path="/microgrid-raps" element={<PageErrorBoundary pageName="/microgrid-raps"><MicrogridRaps /></PageErrorBoundary>} />
+              <Route path="/market-liquidity" element={<PageErrorBoundary pageName="/market-liquidity"><MarketLiquidity /></PageErrorBoundary>} />
+              <Route path="/thermal-efficiency" element={<PageErrorBoundary pageName="/thermal-efficiency"><ThermalEfficiency /></PageErrorBoundary>} />
+              <Route path="/industrial-demand-flex" element={<PageErrorBoundary pageName="/industrial-demand-flex"><IndustrialDemandFlex /></PageErrorBoundary>} />
+              <Route path="/storage-lca" element={<PageErrorBoundary pageName="/storage-lca"><StorageLca /></PageErrorBoundary>} />
+              <Route path="/interconnector-flow-analytics" element={<PageErrorBoundary pageName="/interconnector-flow-analytics"><InterconnectorFlowAnalytics /></PageErrorBoundary>} />
+              <Route path="/isp-progress" element={<PageErrorBoundary pageName="/isp-progress"><IspProgressTracker /></PageErrorBoundary>} />
+              <Route path="/firming-technology-economics" element={<PageErrorBoundary pageName="/firming-technology-economics"><FirmingTechnologyEconomics /></PageErrorBoundary>} />
+              <Route path="/demand-forecasting-models" element={<PageErrorBoundary pageName="/demand-forecasting-models"><DemandForecastingModels /></PageErrorBoundary>} />
+              <Route path="/market-stress-testing" element={<PageErrorBoundary pageName="/market-stress-testing"><MarketStressTesting /></PageErrorBoundary>} />
+              <Route path="/capacity-investment-signals" element={<PageErrorBoundary pageName="/capacity-investment-signals"><CapacityInvestmentSignals /></PageErrorBoundary>} />
+              <Route path="/frequency-control-analytics" element={<PageErrorBoundary pageName="/frequency-control-analytics"><FrequencyControlAnalytics /></PageErrorBoundary>} />
+              <Route path="/rec-certificate-tracking" element={<PageErrorBoundary pageName="/rec-certificate-tracking"><RecCertificateTracking /></PageErrorBoundary>} />
+              <Route path="/spot-market-depth" element={<PageErrorBoundary pageName="/spot-market-depth"><SpotMarketDepthAnalytics /></PageErrorBoundary>} />
+              <Route path="/storage-tech-roadmap" element={<PageErrorBoundary pageName="/storage-tech-roadmap"><StorageTechRoadmap /></PageErrorBoundary>} />
+              <Route path="/renewable-integration-cost" element={<PageErrorBoundary pageName="/renewable-integration-cost"><RenewableIntegrationCost /></PageErrorBoundary>} />
+              <Route path="/planned-outage-analytics" element={<PageErrorBoundary pageName="/planned-outage-analytics"><PlannedOutageAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-share-tracker" element={<PageErrorBoundary pageName="/market-share-tracker"><MarketShareTracker /></PageErrorBoundary>} />
+              <Route path="/volatility-regime-analytics" element={<PageErrorBoundary pageName="/volatility-regime-analytics"><VolatilityRegimeAnalytics /></PageErrorBoundary>} />
+              <Route path="/black-start-capability" element={<PageErrorBoundary pageName="/black-start-capability"><BlackStartCapability /></PageErrorBoundary>} />
+              <Route path="/ancillary-services-cost" element={<PageErrorBoundary pageName="/ancillary-services-cost"><AncillaryServicesCost /></PageErrorBoundary>} />
+              <Route path="/cbam-trade-analytics" element={<PageErrorBoundary pageName="/cbam-trade-analytics"><CbamTradeAnalytics /></PageErrorBoundary>} />
+              <Route path="/congestion-revenue-analytics" element={<PageErrorBoundary pageName="/congestion-revenue-analytics"><CongestionRevenueAnalytics /></PageErrorBoundary>} />
+              <Route path="/climate-physical-risk" element={<PageErrorBoundary pageName="/climate-physical-risk"><ClimatePhysicalRisk /></PageErrorBoundary>} />
+              <Route path="/energy-affordability" element={<PageErrorBoundary pageName="/energy-affordability"><EnergyAffordabilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/electrification-analytics" element={<PageErrorBoundary pageName="/electrification-analytics"><ElectrificationAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-export-infra" element={<PageErrorBoundary pageName="/electricity-export-infra"><ElectricityExportInfra /></PageErrorBoundary>} />
+              <Route path="/electricity-export-economics" element={<PageErrorBoundary pageName="/electricity-export-economics"><ElectricityExportEconomicsAnalytics /></PageErrorBoundary>} />
+              <Route path="/ldes-economics" element={<PageErrorBoundary pageName="/ldes-economics"><LdesEconomicsAnalytics /></PageErrorBoundary>} />
+              <Route path="/gas-transition-analytics" element={<PageErrorBoundary pageName="/gas-transition-analytics"><GasTransitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/prosumer-analytics" element={<PageErrorBoundary pageName="/prosumer-analytics"><ProsumerAnalytics /></PageErrorBoundary>} />
+              <Route path="/tnsp-analytics" element={<PageErrorBoundary pageName="/tnsp-analytics"><TnspAnalytics /></PageErrorBoundary>} />
+              <Route path="/dnsp-analytics" element={<PageErrorBoundary pageName="/dnsp-analytics"><DnspPerformanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/reliability-standard-analytics" element={<PageErrorBoundary pageName="/reliability-standard-analytics"><ReliabilityStandardAnalytics /></PageErrorBoundary>} />
+              <Route path="/storage-optimisation-analytics" element={<PageErrorBoundary pageName="/storage-optimisation-analytics"><StorageOptimisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/settlement-analytics" element={<PageErrorBoundary pageName="/settlement-analytics"><SettlementAnalytics /></PageErrorBoundary>} />
+              <Route path="/realtime-operations" element={<PageErrorBoundary pageName="/realtime-operations"><RealtimeOperationsDashboard /></PageErrorBoundary>} />
+              <Route path="/renewable-auction" element={<PageErrorBoundary pageName="/renewable-auction"><RenewableAuctionAnalytics /></PageErrorBoundary>} />
+              <Route path="/voll-analytics" element={<PageErrorBoundary pageName="/voll-analytics"><VollAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-flexibility-analytics" element={<PageErrorBoundary pageName="/demand-flexibility-analytics"><DemandFlexibilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/futures-price-discovery" element={<PageErrorBoundary pageName="/futures-price-discovery"><FuturesPriceDiscovery /></PageErrorBoundary>} />
+              <Route path="/electricity-price-index" element={<PageErrorBoundary pageName="/electricity-price-index"><ElectricityPriceIndex /></PageErrorBoundary>} />
+              <Route path="/interconnector-upgrade-analytics" element={<PageErrorBoundary pageName="/interconnector-upgrade-analytics"><InterconnectorUpgradeAnalytics /></PageErrorBoundary>} />
+              <Route path="/mlf-analytics" element={<PageErrorBoundary pageName="/mlf-analytics"><MlfAnalytics /></PageErrorBoundary>} />
+              <Route path="/csp-analytics" element={<PageErrorBoundary pageName="/csp-analytics"><CspAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-intensity-analytics" element={<PageErrorBoundary pageName="/carbon-intensity-analytics"><CarbonIntensityAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-tariff-reform-analytics" element={<PageErrorBoundary pageName="/network-tariff-reform-analytics"><NetworkTariffReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/tariff-cross-subsidy" element={<PageErrorBoundary pageName="/tariff-cross-subsidy"><TariffCrossSubsidyAnalytics /></PageErrorBoundary>} />
+              <Route path="/ai-digital-twin-analytics" element={<PageErrorBoundary pageName="/ai-digital-twin-analytics"><AiDigitalTwinAnalytics /></PageErrorBoundary>} />
+              <Route path="/esoo-adequacy-analytics" element={<PageErrorBoundary pageName="/esoo-adequacy-analytics"><EsooAdequacyAnalytics /></PageErrorBoundary>} />
+              <Route path="/social-licence-analytics" element={<PageErrorBoundary pageName="/social-licence-analytics"><SocialLicenceAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-options" element={<PageErrorBoundary pageName="/electricity-options"><ElectricityOptionsAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-forming-inverter" element={<PageErrorBoundary pageName="/grid-forming-inverter"><GridFormingInverterAnalytics /></PageErrorBoundary>} />
+              <Route path="/capacity-mechanism" element={<PageErrorBoundary pageName="/capacity-mechanism"><CapacityMechanismAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-forecast-accuracy" element={<PageErrorBoundary pageName="/demand-forecast-accuracy"><DemandForecastAccuracyAnalytics /></PageErrorBoundary>} />
+              <Route path="/transmission-investment" element={<PageErrorBoundary pageName="/transmission-investment"><TransmissionInvestmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez-progress" element={<PageErrorBoundary pageName="/rez-progress"><RezProgressAnalytics /></PageErrorBoundary>} />
+              <Route path="/storage-revenue" element={<PageErrorBoundary pageName="/storage-revenue"><StorageRevenueAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-price-pathway" element={<PageErrorBoundary pageName="/carbon-price-pathway"><CarbonPricePathwayAnalytics /></PageErrorBoundary>} />
+              <Route path="/spot-price-forecast" element={<PageErrorBoundary pageName="/spot-price-forecast"><SpotPriceForecastAnalytics /></PageErrorBoundary>} />
+              <Route path="/ancillary-cost-allocation" element={<PageErrorBoundary pageName="/ancillary-cost-allocation"><AncillaryCostAllocationAnalytics /></PageErrorBoundary>} />
+              <Route path="/wholesale-liquidity" element={<PageErrorBoundary pageName="/wholesale-liquidity"><MarketLiquidityAnalytics /></PageErrorBoundary>} />
+              <Route path="/generator-retirement" element={<PageErrorBoundary pageName="/generator-retirement"><GeneratorRetirementAnalytics /></PageErrorBoundary>} />
+              <Route path="/consumer-hardship" element={<PageErrorBoundary pageName="/consumer-hardship"><ConsumerHardshipAnalytics /></PageErrorBoundary>} />
+              <Route path="/dsr-aggregator" element={<PageErrorBoundary pageName="/dsr-aggregator"><DsrAggregatorAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-system-events" element={<PageErrorBoundary pageName="/power-system-events"><PowerSystemEventsAnalytics /></PageErrorBoundary>} />
+              <Route path="/merchant-renewable" element={<PageErrorBoundary pageName="/merchant-renewable"><MerchantRenewableAnalytics /></PageErrorBoundary>} />
+              <Route path="/retailer-competition" element={<PageErrorBoundary pageName="/retailer-competition"><RetailerCompetitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/storage-cost-curves" element={<PageErrorBoundary pageName="/storage-cost-curves"><StorageCostCurvesAnalytics /></PageErrorBoundary>} />
+              <Route path="/extreme-weather-resilience" element={<PageErrorBoundary pageName="/extreme-weather-resilience"><ExtremeWeatherResilienceAnalytics /></PageErrorBoundary>} />
+              <Route path="/spot-price-volatility-regime" element={<PageErrorBoundary pageName="/spot-price-volatility-regime"><SpotPriceVolatilityRegimeAnalytics /></PageErrorBoundary>} />
+              <Route path="/industrial-electrification" element={<PageErrorBoundary pageName="/industrial-electrification"><IndustrialElectrificationAnalytics /></PageErrorBoundary>} />
+              <Route path="/offshore-wind-dev-analytics" element={<PageErrorBoundary pageName="/offshore-wind-dev-analytics"><OffshoreWindDevAnalytics /></PageErrorBoundary>} />
+              <Route path="/pumped-hydro-resource-assessment" element={<PageErrorBoundary pageName="/pumped-hydro-resource-assessment"><PumpedHydroResourceAssessmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/frequency-control-performance" element={<PageErrorBoundary pageName="/frequency-control-performance"><FrequencyControlPerformanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/cost-reflective-tariff-reform" element={<PageErrorBoundary pageName="/cost-reflective-tariff-reform"><CostReflectiveTariffReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-fleet-grid-impact" element={<PageErrorBoundary pageName="/ev-fleet-grid-impact"><EVFleetGridImpactAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-market-microstructure" element={<PageErrorBoundary pageName="/nem-market-microstructure"><NEMMarketMicrostructureAnalytics /></PageErrorBoundary>} />
+              <Route path="/rooftop-solar-grid" element={<PageErrorBoundary pageName="/rooftop-solar-grid"><RooftopSolarGridAnalytics /></PageErrorBoundary>} />
+              <Route path="/rec-market-analytics" element={<PageErrorBoundary pageName="/rec-market-analytics"><RECMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-poverty-analytics" element={<PageErrorBoundary pageName="/energy-poverty-analytics"><EnergyPovertyAnalytics /></PageErrorBoundary>} />
+              <Route path="/hedge-effectiveness" element={<PageErrorBoundary pageName="/hedge-effectiveness"><HedgeEffectivenessAnalytics /></PageErrorBoundary>} />
+              <Route path="/cbam-trade-exposure" element={<PageErrorBoundary pageName="/cbam-trade-exposure"><CBAMTradeExposureAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-response-programs" element={<PageErrorBoundary pageName="/demand-response-programs"><DemandResponseProgramAnalytics /></PageErrorBoundary>} />
+              <Route path="/interconnector-congestion" element={<PageErrorBoundary pageName="/interconnector-congestion"><InterconnectorCongestionAnalytics /></PageErrorBoundary>} />
+              <Route path="/ppa-market" element={<PageErrorBoundary pageName="/ppa-market"><PPAMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/ppa-structuring" element={<PageErrorBoundary pageName="/ppa-structuring"><PPAStructuringAnalytics /></PageErrorBoundary>} />
+              <Route path="/battery-dispatch-strategy" element={<PageErrorBoundary pageName="/battery-dispatch-strategy"><BatteryDispatchStrategyAnalytics /></PageErrorBoundary>} />
+              <Route path="/generation-mix-transition" element={<PageErrorBoundary pageName="/generation-mix-transition"><GenerationMixTransitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/storage-duration-economics" element={<PageErrorBoundary pageName="/storage-duration-economics"><StorageDurationEconomicsAnalytics /></PageErrorBoundary>} />
+              <Route path="/ancillary-market-depth" element={<PageErrorBoundary pageName="/ancillary-market-depth"><AncillaryServicesMarketDepthAnalytics /></PageErrorBoundary>} />
+              <Route path="/sra-analytics" element={<PageErrorBoundary pageName="/sra-analytics"><SRAAnalyticsPage /></PageErrorBoundary>} />
+              <Route path="/spot-market-stress" element={<PageErrorBoundary pageName="/spot-market-stress"><SpotMarketStressAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-workforce" element={<PageErrorBoundary pageName="/electricity-workforce"><ElectricityWorkforceAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez-transmission" element={<PageErrorBoundary pageName="/rez-transmission"><REZTransmissionAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-regulatory-framework" element={<PageErrorBoundary pageName="/network-regulatory-framework"><NetworkRegulatoryFrameworkAnalytics /></PageErrorBoundary>} />
+              <Route path="/price-model-comparison" element={<PageErrorBoundary pageName="/price-model-comparison"><PriceModelComparisonAnalytics /></PageErrorBoundary>} />
+              <Route path="/gas-electricity-nexus" element={<PageErrorBoundary pageName="/gas-electricity-nexus"><GasElectricityNexusAnalytics /></PageErrorBoundary>} />
+              <Route path="/bidding-compliance" element={<PageErrorBoundary pageName="/bidding-compliance"><BiddingComplianceAnalytics /></PageErrorBoundary>} />
+              <Route path="/community-energy-analytics" element={<PageErrorBoundary pageName="/community-energy-analytics"><CommunityEnergyAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-cybersecurity" element={<PageErrorBoundary pageName="/grid-cybersecurity"><GridCybersecurityAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-participant-financial" element={<PageErrorBoundary pageName="/market-participant-financial"><MarketParticipantFinancialAnalytics /></PageErrorBoundary>} />
+              <Route path="/digital-transformation" element={<PageErrorBoundary pageName="/digital-transformation"><DigitalTransformationAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-transition-finance" element={<PageErrorBoundary pageName="/energy-transition-finance"><EnergyTransitionFinanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/negative-price-events" element={<PageErrorBoundary pageName="/negative-price-events"><NegativePriceEventAnalytics /></PageErrorBoundary>} />
+              <Route path="/cer-orchestration" element={<PageErrorBoundary pageName="/cer-orchestration"><CEROrchestrationAnalytics /></PageErrorBoundary>} />
+              <Route path="/system-load-balancing" element={<PageErrorBoundary pageName="/system-load-balancing"><SystemLoadBalancingAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-accounting" element={<PageErrorBoundary pageName="/carbon-accounting"><CarbonAccountingAnalytics /></PageErrorBoundary>} />
+              <Route path="/wholesale-bidding-strategy" element={<PageErrorBoundary pageName="/wholesale-bidding-strategy"><WholesaleBiddingStrategyAnalytics /></PageErrorBoundary>} />
+              <Route path="/ldes-analytics" element={<PageErrorBoundary pageName="/ldes-analytics"><LDESAnalytics /></PageErrorBoundary>} />
+              <Route path="/emergency-management" element={<PageErrorBoundary pageName="/emergency-management"><EmergencyManagementAnalytics /></PageErrorBoundary>} />
+              <Route path="/consumer-switching-retail-churn" element={<PageErrorBoundary pageName="/consumer-switching-retail-churn"><ConsumerSwitchingRetailChurnAnalytics /></PageErrorBoundary>} />
+              <Route path="/solar-thermal-csp" element={<PageErrorBoundary pageName="/solar-thermal-csp"><SolarThermalCSPAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-post-reform-market-design" element={<PageErrorBoundary pageName="/nem-post-reform-market-design"><NEMPostReformMarketDesignAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-price-forecasting-models" element={<PageErrorBoundary pageName="/electricity-price-forecasting-models"><ElectricityPriceForecastingModelAnalytics /></PageErrorBoundary>} />
+              <Route path="/large-industrial-demand" element={<PageErrorBoundary pageName="/large-industrial-demand"><LargeIndustrialDemandAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-investment-pipeline" element={<PageErrorBoundary pageName="/network-investment-pipeline"><NetworkInvestmentPipelineAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-demand-forecast" element={<PageErrorBoundary pageName="/nem-demand-forecast"><NEMDemandForecastAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-fuel-cell-vehicles" element={<PageErrorBoundary pageName="/hydrogen-fuel-cell-vehicles"><HydrogenFuelCellVehicleAnalytics /></PageErrorBoundary>} />
+              <Route path="/spot-price-spike-prediction" element={<PageErrorBoundary pageName="/spot-price-spike-prediction"><SpotPriceSpikePredictionAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-edge-technology" element={<PageErrorBoundary pageName="/grid-edge-technology"><GridEdgeTechnologyAnalytics /></PageErrorBoundary>} />
+              <Route path="/bess-degradation" element={<PageErrorBoundary pageName="/bess-degradation"><EnergyStorageDegradationAnalytics /></PageErrorBoundary>} />
+              <Route path="/clean-hydrogen-production-cost" element={<PageErrorBoundary pageName="/clean-hydrogen-production-cost"><CleanHydrogenProductionCostAnalytics /></PageErrorBoundary>} />
+              <Route path="/ancillary-services-procurement" element={<PageErrorBoundary pageName="/ancillary-services-procurement"><AncillaryServicesProcurementAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez-connection-queue" element={<PageErrorBoundary pageName="/rez-connection-queue"><REZConnectionQueueAnalytics /></PageErrorBoundary>} />
+              <Route path="/australian-carbon-policy" element={<PageErrorBoundary pageName="/australian-carbon-policy"><AustralianCarbonPolicyAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-design-simulation" element={<PageErrorBoundary pageName="/market-design-simulation"><MarketDesignSimulationAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-system-stability" element={<PageErrorBoundary pageName="/power-system-stability"><PowerSystemStabilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-retail-competition" element={<PageErrorBoundary pageName="/energy-retail-competition"><EnergyRetailCompetitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/clean-energy-finance" element={<PageErrorBoundary pageName="/clean-energy-finance"><CleanEnergyFinanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/nuclear-energy-economics" element={<PageErrorBoundary pageName="/nuclear-energy-economics"><NuclearEnergyEconomicsAnalytics /></PageErrorBoundary>} />
+              <Route path="/behind-meter-commercial" element={<PageErrorBoundary pageName="/behind-meter-commercial"><BehindMeterCommercialAnalytics /></PageErrorBoundary>} />
+              <Route path="/capacity-investment-scheme" element={<PageErrorBoundary pageName="/capacity-investment-scheme"><CapacityInvestmentSchemeAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-flexibility-market" element={<PageErrorBoundary pageName="/demand-flexibility-market"><DemandFlexibilityMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-asset-life-extension" element={<PageErrorBoundary pageName="/energy-asset-life-extension"><EnergyAssetLifeExtensionAnalytics /></PageErrorBoundary>} />
+              <Route path="/green-ammonia-export" element={<PageErrorBoundary pageName="/green-ammonia-export"><GreenAmmoniaExportAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-export-cable" element={<PageErrorBoundary pageName="/electricity-export-cable"><ElectricityExportCableAnalytics /></PageErrorBoundary>} />
+              <Route path="/industrial-decarbonisation" element={<PageErrorBoundary pageName="/industrial-decarbonisation"><IndustrialDecarbonisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/community-energy-storage" element={<PageErrorBoundary pageName="/community-energy-storage"><CommunityEnergyStorageAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-generation-mix" element={<PageErrorBoundary pageName="/nem-generation-mix"><NEMGenerationMixAnalytics /></PageErrorBoundary>} />
+              <Route path="/consumer-energy-affordability" element={<PageErrorBoundary pageName="/consumer-energy-affordability"><ConsumerEnergyAffordabilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-price-risk" element={<PageErrorBoundary pageName="/electricity-price-risk"><ElectricityPriceRiskAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-fleet-depot" element={<PageErrorBoundary pageName="/ev-fleet-depot"><EVFleetDepotAnalytics /></PageErrorBoundary>} />
+              <Route path="/wind-farm-wake" element={<PageErrorBoundary pageName="/wind-farm-wake"><WindFarmWakeAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-bidding-strategy" element={<PageErrorBoundary pageName="/market-bidding-strategy"><MarketBiddingStrategyAnalytics /></PageErrorBoundary>} />
+              <Route path="/solar-pv-soiling" element={<PageErrorBoundary pageName="/solar-pv-soiling"><SolarPVSoilingAnalytics /></PageErrorBoundary>} />
+              <Route path="/ot-ics-cyber-security" element={<PageErrorBoundary pageName="/ot-ics-cyber-security"><OTICSCyberSecurityAnalytics /></PageErrorBoundary>} />
+              <Route path="/stpasa-adequacy" element={<PageErrorBoundary pageName="/stpasa-adequacy"><STPASAAdequacyAnalytics /></PageErrorBoundary>} />
+              <Route path="/generator-performance-standards" element={<PageErrorBoundary pageName="/generator-performance-standards"><GeneratorPerformanceStandardsAnalytics /></PageErrorBoundary>} />
+              <Route path="/biomass-bioenergy" element={<PageErrorBoundary pageName="/biomass-bioenergy"><BiomassBioenergyAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-frequency-performance" element={<PageErrorBoundary pageName="/electricity-frequency-performance"><ElectricityFrequencyPerformanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/lgc-market" element={<PageErrorBoundary pageName="/lgc-market"><LGCMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/wave-tidal-ocean" element={<PageErrorBoundary pageName="/wave-tidal-ocean"><WaveTidalOceanAnalytics /></PageErrorBoundary>} />
+              <Route path="/reactive-power-voltage" element={<PageErrorBoundary pageName="/reactive-power-voltage"><ReactivePowerVoltageAnalytics /></PageErrorBoundary>} />
+              <Route path="/battery-revenue-stack" element={<PageErrorBoundary pageName="/battery-revenue-stack"><BatteryRevenueStackAnalytics /></PageErrorBoundary>} />
+              <Route path="/digital-energy-twin" element={<PageErrorBoundary pageName="/digital-energy-twin"><DigitalEnergyTwinAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-protection-system" element={<PageErrorBoundary pageName="/network-protection-system"><NetworkProtectionSystemAnalytics /></PageErrorBoundary>} />
+              <Route path="/pumped-hydro-dispatch" element={<PageErrorBoundary pageName="/pumped-hydro-dispatch"><PumpedHydroDispatchAnalytics /></PageErrorBoundary>} />
+              <Route path="/retail-market-design" element={<PageErrorBoundary pageName="/retail-market-design"><RetailMarketDesignAnalytics /></PageErrorBoundary>} />
+              <Route path="/spot-market-depth-x" element={<PageErrorBoundary pageName="/spot-market-depth-x"><SpotMarketDepthXAnalytics /></PageErrorBoundary>} />
+              <Route path="/solar-farm-operations" element={<PageErrorBoundary pageName="/solar-farm-operations"><SolarFarmOperationsAnalytics /></PageErrorBoundary>} />
+              <Route path="/distribution-network-planning" element={<PageErrorBoundary pageName="/distribution-network-planning"><DistributionNetworkPlanningAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-flexibility-services" element={<PageErrorBoundary pageName="/grid-flexibility-services"><GridFlexibilityServicesAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-refuelling-station" element={<PageErrorBoundary pageName="/hydrogen-refuelling-station"><HydrogenRefuellingStationAnalytics /></PageErrorBoundary>} />
+              <Route path="/offshore-wind-finance" element={<PageErrorBoundary pageName="/offshore-wind-finance"><OffshoreWindFinanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-offset-project" element={<PageErrorBoundary pageName="/carbon-offset-project"><CarbonOffsetProjectAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-grid-climate-resilience" element={<PageErrorBoundary pageName="/power-grid-climate-resilience"><PowerGridClimateResilienceAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-storage-tech-comparison" element={<PageErrorBoundary pageName="/energy-storage-tech-comparison"><EnergyStorageTechComparisonAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-to-x-economics" element={<PageErrorBoundary pageName="/power-to-x-economics"><PowerToXEconomicsAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-microstructure" element={<PageErrorBoundary pageName="/electricity-market-microstructure"><ElectricityMarketMicrostructureAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-decarbonisation-pathway" element={<PageErrorBoundary pageName="/grid-decarbonisation-pathway"><GridDecarbonisationPathwayAnalytics /></PageErrorBoundary>} />
+              <Route path="/rooftop-solar-network-impact" element={<PageErrorBoundary pageName="/rooftop-solar-network-impact"><RooftopSolarNetworkImpactAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-network-tariff-reform" element={<PageErrorBoundary pageName="/electricity-network-tariff-reform"><ElectricityNetworkTariffReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/long-duration-energy-storage" element={<PageErrorBoundary pageName="/long-duration-energy-storage"><LongDurationEnergyStorageAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-pipeline-infrastructure" element={<PageErrorBoundary pageName="/hydrogen-pipeline-infrastructure"><HydrogenPipelineInfrastructureAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-capture-storage-project" element={<PageErrorBoundary pageName="/carbon-capture-storage-project"><CarbonCaptureStorageProjectAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-poverty-vulnerable-consumer" element={<PageErrorBoundary pageName="/energy-poverty-vulnerable-consumer"><EnergyPovertyVulnerableConsumerAnalytics /></PageErrorBoundary>} />
+              <Route path="/nuclear-small-modular-reactor" element={<PageErrorBoundary pageName="/nuclear-small-modular-reactor"><NuclearSmallModularReactorAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-transparency" element={<PageErrorBoundary pageName="/electricity-market-transparency"><ElectricityMarketTransparencyAnalytics /></PageErrorBoundary>} />
+              <Route path="/geothermal-energy-development" element={<PageErrorBoundary pageName="/geothermal-energy-development"><GeothermalEnergyDevelopmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/solar-thermal-power-plant" element={<PageErrorBoundary pageName="/solar-thermal-power-plant"><SolarThermalPowerPlantAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-trading-algorithmic-strategy" element={<PageErrorBoundary pageName="/energy-trading-algorithmic-strategy"><EnergyTradingAlgorithmicStrategyAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-grid-integration-v2g" element={<PageErrorBoundary pageName="/ev-grid-integration-v2g"><EVGridIntegrationV2GAnalytics /></PageErrorBoundary>} />
+              <Route path="/biomethane-gas-grid-injection" element={<PageErrorBoundary pageName="/biomethane-gas-grid-injection"><BiomethaneGasGridInjectionAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-forecasting-accuracy" element={<PageErrorBoundary pageName="/electricity-market-forecasting-accuracy"><ElectricityMarketForecastingAccuracyAnalytics /></PageErrorBoundary>} />
+              <Route path="/national-energy-transition-investment" element={<PageErrorBoundary pageName="/national-energy-transition-investment"><NationalEnergyTransitionInvestmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-spot-price-seasonality" element={<PageErrorBoundary pageName="/electricity-spot-price-seasonality"><ElectricitySpotPriceSeasonalityAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-congestion-constraint" element={<PageErrorBoundary pageName="/grid-congestion-constraint"><GridCongestionConstraintAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-competition-concentration" element={<PageErrorBoundary pageName="/electricity-market-competition-concentration"><ElectricityMarketCompetitionConcentrationAnalytics /></PageErrorBoundary>} />
+              <Route path="/renewable-energy-zone-development" element={<PageErrorBoundary pageName="/renewable-energy-zone-development"><RenewableEnergyZoneDevelopmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/battery-storage-degradation-lifetime" element={<PageErrorBoundary pageName="/battery-storage-degradation-lifetime"><BatteryStorageDegradationLifetimeAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-consumer-switching-churn" element={<PageErrorBoundary pageName="/electricity-consumer-switching-churn"><ElectricityConsumerSwitchingChurnAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-inertia-synchronous-condenser" element={<PageErrorBoundary pageName="/nem-inertia-synchronous-condenser"><NEMInertiaSynchronousCondenserAnalytics /></PageErrorBoundary>} />
+              <Route path="/offshore-wind-leasing-site" element={<PageErrorBoundary pageName="/offshore-wind-leasing-site"><OffshoreWindLeasingSiteAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-regulatory-appeals" element={<PageErrorBoundary pageName="/electricity-market-regulatory-appeals"><ElectricityMarketRegulatoryAppealsAnalytics /></PageErrorBoundary>} />
+              <Route path="/distributed-energy-resource-management" element={<PageErrorBoundary pageName="/distributed-energy-resource-management"><DistributedEnergyResourceManagementAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-price-formation-review" element={<PageErrorBoundary pageName="/market-price-formation-review"><MarketPriceFormationReviewAnalytics /></PageErrorBoundary>} />
+              <Route path="/residential-solar-self-consumption" element={<PageErrorBoundary pageName="/residential-solar-self-consumption"><ResidentialSolarSelfConsumptionAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-infrastructure-cyber-threat" element={<PageErrorBoundary pageName="/energy-infrastructure-cyber-threat"><EnergyInfrastructureCyberThreatAnalytics /></PageErrorBoundary>} />
+              <Route path="/wholesale-gas-market" element={<PageErrorBoundary pageName="/wholesale-gas-market"><WholesaleGasMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-demand-forecasting-ml" element={<PageErrorBoundary pageName="/electricity-demand-forecasting-ml"><ElectricityDemandForecastingMLAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-storage-merchant-revenue" element={<PageErrorBoundary pageName="/energy-storage-merchant-revenue"><EnergyStorageMerchantRevenueAnalytics /></PageErrorBoundary>} />
+              <Route path="/industrial-electrification-x" element={<PageErrorBoundary pageName="/industrial-electrification-x"><IndustrialElectrificationXAnalytics /></PageErrorBoundary>} />
+              <Route path="/transmission-access-reform" element={<PageErrorBoundary pageName="/transmission-access-reform"><TransmissionAccessReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-export-terminal" element={<PageErrorBoundary pageName="/hydrogen-export-terminal"><HydrogenExportTerminalAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-edge-technology-x" element={<PageErrorBoundary pageName="/grid-edge-technology-x"><GridEdgeTechnologyXAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-retailer-margin" element={<PageErrorBoundary pageName="/energy-retailer-margin"><EnergyRetailerMarginAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-fleet-charging" element={<PageErrorBoundary pageName="/ev-fleet-charging"><EvFleetChargingAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-border-adjustment" element={<PageErrorBoundary pageName="/carbon-border-adjustment"><CarbonBorderAdjustmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-purchase-agreement-market" element={<PageErrorBoundary pageName="/power-purchase-agreement-market"><PowerPurchaseAgreementMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/distributed-solar-forecasting" element={<PageErrorBoundary pageName="/distributed-solar-forecasting"><DistributedSolarForecastingAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-liquidity" element={<PageErrorBoundary pageName="/electricity-market-liquidity"><ElectricityMarketLiquidityAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-transition-finance-x" element={<PageErrorBoundary pageName="/energy-transition-finance-x"><EnergyTransitionFinanceXAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-frequency-control" element={<PageErrorBoundary pageName="/nem-frequency-control"><NemFrequencyControlAnalytics /></PageErrorBoundary>} />
+              <Route path="/battery-second-life" element={<PageErrorBoundary pageName="/battery-second-life"><BatterySecondLifeAnalytics /></PageErrorBoundary>} />
+              <Route path="/utility-solar-farm-operations" element={<PageErrorBoundary pageName="/utility-solar-farm-operations"><UtilitySolarFarmOperationsAnalytics /></PageErrorBoundary>} />
+              <Route path="/wind-farm-wake-effect" element={<PageErrorBoundary pageName="/wind-farm-wake-effect"><WindFarmWakeEffectAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-poverty-hardship" element={<PageErrorBoundary pageName="/energy-poverty-hardship"><EnergyPovertyHardshipAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-network-capital-investment" element={<PageErrorBoundary pageName="/electricity-network-capital-investment"><ElectricityNetworkCapitalInvestmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/gas-to-power-transition" element={<PageErrorBoundary pageName="/gas-to-power-transition"><GasToPowerTransitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-offset-market" element={<PageErrorBoundary pageName="/carbon-offset-market"><CarbonOffsetMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-system-stability-x" element={<PageErrorBoundary pageName="/power-system-stability-x"><PowerSystemStabilityXAnalytics /></PageErrorBoundary>} />
+              <Route path="/aemo-market-operations" element={<PageErrorBoundary pageName="/aemo-market-operations"><AemoMarketOperationsAnalytics /></PageErrorBoundary>} />
+              <Route path="/renewable-energy-certificate" element={<PageErrorBoundary pageName="/renewable-energy-certificate"><RenewableEnergyCertificateAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-storage-dispatch-optimisation" element={<PageErrorBoundary pageName="/energy-storage-dispatch-optimisation"><EnergyStorageDispatchOptimisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/offshore-wind-project-finance" element={<PageErrorBoundary pageName="/offshore-wind-project-finance"><OffshoreWindProjectFinanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/national-energy-market-reform" element={<PageErrorBoundary pageName="/national-energy-market-reform"><NationalEnergyMarketReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-price-formation" element={<PageErrorBoundary pageName="/electricity-market-price-formation"><ElectricityMarketPriceFormationAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez-auction-cis" element={<PageErrorBoundary pageName="/rez-auction-cis"><RezAuctionCisAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-modernisation-digital-twin" element={<PageErrorBoundary pageName="/grid-modernisation-digital-twin"><GridModernisationDigitalTwinAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-market-credit-risk" element={<PageErrorBoundary pageName="/energy-market-credit-risk"><EnergyMarketCreditRiskAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-consumer-behaviour" element={<PageErrorBoundary pageName="/electricity-consumer-behaviour"><ElectricityConsumerBehaviourAnalytics /></PageErrorBoundary>} />
+              <Route path="/thermal-coal-power-transition" element={<PageErrorBoundary pageName="/thermal-coal-power-transition"><ThermalCoalPowerTransitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-response-aggregator" element={<PageErrorBoundary pageName="/demand-response-aggregator"><DemandResponseAggregatorAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-commodity-trading" element={<PageErrorBoundary pageName="/energy-commodity-trading"><EnergyCommodityTradingAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-tariff-design-reform" element={<PageErrorBoundary pageName="/network-tariff-design-reform"><NetworkTariffDesignReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-valley-cluster" element={<PageErrorBoundary pageName="/hydrogen-valley-cluster"><HydrogenValleyClusterAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-congestion-rent" element={<PageErrorBoundary pageName="/nem-congestion-rent"><NemCongestionRentAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-retailer-churn" element={<PageErrorBoundary pageName="/electricity-retailer-churn"><ElectricityRetailerChurnAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-asset-maintenance" element={<PageErrorBoundary pageName="/energy-asset-maintenance"><EnergyAssetMaintenanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/coal-seam-gas" element={<PageErrorBoundary pageName="/coal-seam-gas"><CoalSeamGasAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-battery-technology" element={<PageErrorBoundary pageName="/ev-battery-technology"><EvBatteryTechnologyAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-demand-forecasting-accuracy" element={<PageErrorBoundary pageName="/nem-demand-forecasting-accuracy"><NemDemandForecastingAccuracyAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-system-inertia" element={<PageErrorBoundary pageName="/power-system-inertia"><PowerSystemInertiaAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-network-investment-deferral" element={<PageErrorBoundary pageName="/electricity-network-investment-deferral"><ElectricityNetworkInvestmentDeferralAnalytics /></PageErrorBoundary>} />
+              <Route path="/rez-capacity-factor" element={<PageErrorBoundary pageName="/rez-capacity-factor"><RezCapacityFactorAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-retailer-hedging" element={<PageErrorBoundary pageName="/energy-retailer-hedging"><EnergyRetailerHedgingAnalytics /></PageErrorBoundary>} />
+              <Route path="/gas-power-plant-flexibility" element={<PageErrorBoundary pageName="/gas-power-plant-flexibility"><GasPowerPlantFlexibilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/solar-irradiance-resource" element={<PageErrorBoundary pageName="/solar-irradiance-resource"><SolarIrradianceResourceAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-price-cap-intervention" element={<PageErrorBoundary pageName="/electricity-price-cap-intervention"><ElectricityPriceCapInterventionAnalytics /></PageErrorBoundary>} />
+              <Route path="/biogas-landfill" element={<PageErrorBoundary pageName="/biogas-landfill"><BiogasLandfillAnalytics /></PageErrorBoundary>} />
+              <Route path="/wind-resource-variability" element={<PageErrorBoundary pageName="/wind-resource-variability"><WindResourceVariabilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-storage-duration" element={<PageErrorBoundary pageName="/energy-storage-duration"><EnergyStorageDurationAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-settlement-residue-auction" element={<PageErrorBoundary pageName="/nem-settlement-residue-auction"><NemSettlementResidueAuctionAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-electrolysis-cost" element={<PageErrorBoundary pageName="/hydrogen-electrolysis-cost"><HydrogenElectrolysisCostAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-demand-elasticity" element={<PageErrorBoundary pageName="/electricity-demand-elasticity"><ElectricityDemandElasticityAnalytics /></PageErrorBoundary>} />
+              <Route path="/nuclear-energy-feasibility" element={<PageErrorBoundary pageName="/nuclear-energy-feasibility"><NuclearEnergyFeasibilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/transmission-congestion-revenue" element={<PageErrorBoundary pageName="/transmission-congestion-revenue"><TransmissionCongestionRevenueAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-market-design-reform" element={<PageErrorBoundary pageName="/electricity-market-design-reform"><ElectricityMarketDesignReformAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-capture-utilisation" element={<PageErrorBoundary pageName="/carbon-capture-utilisation"><CarbonCaptureUtilisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-scale-battery-degradation" element={<PageErrorBoundary pageName="/grid-scale-battery-degradation"><GridScaleBatteryDegradationAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-export" element={<PageErrorBoundary pageName="/electricity-export"><AustraliaElectricityExportAnalytics /></PageErrorBoundary>} />
+              <Route path="/dsm-programs" element={<PageErrorBoundary pageName="/dsm-programs"><DemandSideManagementProgramAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-topology" element={<PageErrorBoundary pageName="/grid-topology"><PowerGridTopologyAnalytics /></PageErrorBoundary>} />
+              <Route path="/rooftop-solar-fit" element={<PageErrorBoundary pageName="/rooftop-solar-fit"><RooftopSolarFeedInTariffAnalytics /></PageErrorBoundary>} />
+              <Route path="/lng-export" element={<PageErrorBoundary pageName="/lng-export"><LngExportAnalytics /></PageErrorBoundary>} />
               <Route path="/settings"          element={<Settings />}            />
-              <Route path="/community-microgrids" element={<EnergyCommunityMicrogridAnalytics />} />
-              <Route path="/ewml-dashboard" element={<ElectricityWholesaleMarketLiquidityAnalytics />} />
-              <Route path="/marine-energy"  element={<TidalWaveMarineEnergyAnalytics />}               />
-              <Route path="/geothermal-energy" element={<GeothermalEnergyAnalytics />} />
-              <Route path="/storage-arbitrage" element={<EnergyStorageArbitrageAnalytics />} />
-              <Route path="/carbon-border-adjustment-x" element={<CarbonBorderAdjustmentXAnalytics />} />
-              <Route path="/fcas-procurement" element={<FcasProcurementAnalytics />} />
-              <Route path="/electricity-futures-options" element={<ElectricityFuturesOptionsAnalytics />} />
-              <Route path="/rec-lgc-stc" element={<RenewableEnergyCertificateXAnalytics />} />
-              <Route path="/der-management-x" element={<DistributedEnergyResourceManagementXAnalytics />} />
-              <Route path="/coal-mine-energy" element={<CoalMineEnergyAnalytics />} />
-              <Route path="/nem-5min-settlement" element={<NemFiveMinuteSettlementAnalytics />} />
-              <Route path="/network-congestion-relief" element={<NetworkCongestionReliefAnalytics />} />
-              <Route path="/market-concentration-bidding" element={<MarketConcentrationBiddingAnalytics />} />
-              <Route path="/industrial-energy-efficiency" element={<IndustrialEnergyEfficiencyAnalytics />} />
-              <Route path="/retailer-financial-health" element={<RetailerFinancialHealthAnalytics />} />
-              <Route path="/solar-farm-performance" element={<SolarFarmPerformanceAnalytics />} />
-              <Route path="/gas-network-pipeline" element={<GasNetworkPipelineAnalytics />} />
-              <Route path="/electricity-price-forecasting" element={<ElectricityPriceForecastingAnalytics />} />
-              <Route path="/network-asset-life-cycle" element={<NetworkAssetLifeCycleAnalytics />} />
-              <Route path="/wind-farm-wake-turbine" element={<WindFarmWakeTurbineAnalytics />} />
-              <Route path="/energy-poverty-hardship-x" element={<EnergyPovertyHardshipXAnalytics />} />
-              <Route path="/hydrogen-refuelling-transport" element={<HydrogenRefuellingTransportAnalytics />} />
-              <Route path="/electricity-spot-price-events" element={<ElectricitySpotPriceEventAnalytics />} />
-              <Route path="/large-scale-renewable-auction" element={<LargeScaleRenewableAuctionAnalytics />} />
-              <Route path="/nem-ancillary-services" element={<NemAncillaryServicesAnalytics />} />
-              <Route path="/australian-carbon-credit" element={<AustralianCarbonCreditAnalytics />} />
-              <Route path="/ev-grid-integration" element={<ElectricVehicleGridIntegrationAnalytics />} />
-              <Route path="/generator-capacity-adequacy" element={<GeneratorCapacityAdequacyAnalytics />} />
-              <Route path="/smart-grid-cybersecurity" element={<SmartGridCybersecurityAnalytics />} />
-              <Route path="/pumped-hydro-reservoir" element={<PumpedHydroReservoirAnalytics />} />
-              <Route path="/etjj-dashboard" element={<EnergyTransitionJobsAnalytics />} />
-              <Route path="/nifr-dashboard" element={<InterconnectorFlowRightsAnalytics />} />
-              <Route path="/cefa-dashboard-x" element={<CleanEnergyFinanceXAnalytics />} />
-              <Route path="/bess-performance" element={<BessPerformanceAnalytics />} />
-              <Route path="/elca-dashboard" element={<LoadCurveAnalytics />} />
-              <Route path="/ngts-dashboard" element={<NaturalGasTradingAnalytics />} />
-              <Route path="/aeos-dashboard" element={<EnergyOptimisationAnalytics />} />
-              <Route path="/aemc-rule-change" element={<AemcRuleChangeAnalytics />} />
-              <Route path="/renx-dashboard" element={<RenewableExportAnalytics />} />
-              <Route path="/cppa-dashboard-x" element={<CorporatePpaAnalytics />} />
-              <Route path="/nzem-dashboard" element={<NetZeroEmissionsAnalytics />} />
-              <Route path="/epsa-dashboard" element={<PriceSensitivityAnalytics />} />
-              <Route path="/grpt-dashboard" element={<GridReliabilityAnalytics />} />
-              <Route path="/mats-dashboard" element={<MarketTradingStrategyAnalytics />} />
-              <Route path="/emga-dashboard" element={<EmergingMarketsAnalytics />} />
-              <Route path="/epro-dashboard" element={<PortfolioRiskOptimisationAnalytics />} />
-              <Route path="/aehm-dashboard" element={<EnergyHubMicrostructureAnalytics />} />
-              <Route path="/fmrp-dashboard" element={<FrequencyReservePlanningAnalytics />} />
-              <Route path="/daro-dashboard" element={<DistributedAssetOptimisationAnalytics />} />
-              <Route path="/ecsa-dashboard" element={<ConsumerSegmentationAnalytics />} />
-              <Route path="/gena-dashboard" element={<GenerationExpansionAnalytics />} />
-              <Route path="/nema-dashboard" element={<MarketAnomalyDetectionAnalytics />} />
-              <Route path="/wcms-dashboard" element={<WindCapacityMarketAnalytics />} />
-              <Route path="/spar-dashboard" element={<SolarParkRegistryAnalytics />} />
-              <Route path="/energy-storage-duration-x" element={<EnergyStorageDurationXAnalytics />} />
-              <Route path="/offshore-wind-development" element={<OffshoreWindDevelopmentAnalytics />} />
-              <Route path="/nem-participant-financial" element={<NemParticipantFinancialAnalytics />} />
-              <Route path="/green-tariff-hydrogen" element={<GreenTariffHydrogenAnalytics />} />
-              <Route path="/nem-price-review" element={<NemPriceReviewAnalytics />} />
-              <Route path="/renewable-certificate-nem" element={<RenewableCertificateNemAnalytics />} />
-              <Route path="/demand-curve-price-anchor" element={<DemandCurvePriceAnchorAnalytics />} />
-              <Route path="/market-evolution-policy" element={<MarketEvolutionPolicyAnalytics />} />
-              <Route path="/energy-grid-topology" element={<EnergyGridTopologyAnalytics />} />
-              <Route path="/carbon-voluntary-exchange" element={<CarbonVoluntaryExchangeAnalytics />} />
-              <Route path="/renewable-market-sensitivity" element={<RenewableMarketSensitivityAnalytics />} />
-              <Route path="/natural-gas-pipeline" element={<NaturalGasPipelineAnalytics />} />
-              <Route path="/battery-chemistry-risk" element={<BatteryChemistryRiskAnalytics />} />
-              <Route path="/aemo-5min-settlement" element={<Aemo5MinSettlementAnalytics />} />
-              <Route path="/retail-competition" element={<ElectricityRetailCompetitionAnalytics />} />
-              <Route path="/demand-response-aggregation" element={<DemandResponseAggregationAnalytics />} />
-              <Route path="/grid-frequency" element={<GridFrequencyResponseAnalytics />} />
-              <Route path="/hydrogen-economy-outlook" element={<HydrogenEconomyOutlookAnalytics />} />
-              <Route path="/network-augmentation" element={<NetworkAugmentationDeferralAnalytics />} />
-              <Route path="/ev-fleet-grid" element={<EvFleetGridIntegrationAnalytics />} />
-              <Route path="/grid-emissions-intensity" element={<GridEmissionsIntensityAnalytics />} />
-              <Route path="/microgrid-resilience" element={<MicrogridResilienceAnalytics />} />
-              <Route path="/power-quality" element={<PowerQualityMonitoringAnalytics />} />
-              <Route path="/vpp-operations" element={<VirtualPowerPlantOperationsAnalytics />} />
-              <Route path="/pumped-hydro" element={<PumpedHydroStorageAnalytics />} />
-              <Route path="/smart-meter" element={<SmartMeterDataAnalytics />} />
-              <Route path="/east-coast-gas" element={<EastCoastGasMarketAnalytics />} />
-              <Route path="/isp-analytics" element={<IntegratedSystemPlanAnalytics />} />
-              <Route path="/community-battery" element={<CommunityBatteryAnalytics />} />
-              <Route path="/energy-cyber-security" element={<EnergySectorCyberSecurityAnalytics />} />
-              <Route path="/wholesale-market-reform" element={<WholesaleMarketReformAnalytics />} />
+              <Route path="/community-microgrids" element={<PageErrorBoundary pageName="/community-microgrids"><EnergyCommunityMicrogridAnalytics /></PageErrorBoundary>} />
+              <Route path="/ewml-dashboard" element={<PageErrorBoundary pageName="/ewml-dashboard"><ElectricityWholesaleMarketLiquidityAnalytics /></PageErrorBoundary>} />
+              <Route path="/marine-energy" element={<PageErrorBoundary pageName="/marine-energy"><TidalWaveMarineEnergyAnalytics /></PageErrorBoundary>} />
+              <Route path="/geothermal-energy" element={<PageErrorBoundary pageName="/geothermal-energy"><GeothermalEnergyAnalytics /></PageErrorBoundary>} />
+              <Route path="/storage-arbitrage" element={<PageErrorBoundary pageName="/storage-arbitrage"><EnergyStorageArbitrageAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-border-adjustment-x" element={<PageErrorBoundary pageName="/carbon-border-adjustment-x"><CarbonBorderAdjustmentXAnalytics /></PageErrorBoundary>} />
+              <Route path="/fcas-procurement" element={<PageErrorBoundary pageName="/fcas-procurement"><FcasProcurementAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-futures-options" element={<PageErrorBoundary pageName="/electricity-futures-options"><ElectricityFuturesOptionsAnalytics /></PageErrorBoundary>} />
+              <Route path="/rec-lgc-stc" element={<PageErrorBoundary pageName="/rec-lgc-stc"><RenewableEnergyCertificateXAnalytics /></PageErrorBoundary>} />
+              <Route path="/der-management-x" element={<PageErrorBoundary pageName="/der-management-x"><DistributedEnergyResourceManagementXAnalytics /></PageErrorBoundary>} />
+              <Route path="/coal-mine-energy" element={<PageErrorBoundary pageName="/coal-mine-energy"><CoalMineEnergyAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-5min-settlement" element={<PageErrorBoundary pageName="/nem-5min-settlement"><NemFiveMinuteSettlementAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-congestion-relief" element={<PageErrorBoundary pageName="/network-congestion-relief"><NetworkCongestionReliefAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-concentration-bidding" element={<PageErrorBoundary pageName="/market-concentration-bidding"><MarketConcentrationBiddingAnalytics /></PageErrorBoundary>} />
+              <Route path="/industrial-energy-efficiency" element={<PageErrorBoundary pageName="/industrial-energy-efficiency"><IndustrialEnergyEfficiencyAnalytics /></PageErrorBoundary>} />
+              <Route path="/retailer-financial-health" element={<PageErrorBoundary pageName="/retailer-financial-health"><RetailerFinancialHealthAnalytics /></PageErrorBoundary>} />
+              <Route path="/solar-farm-performance" element={<PageErrorBoundary pageName="/solar-farm-performance"><SolarFarmPerformanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/gas-network-pipeline" element={<PageErrorBoundary pageName="/gas-network-pipeline"><GasNetworkPipelineAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-price-forecasting" element={<PageErrorBoundary pageName="/electricity-price-forecasting"><ElectricityPriceForecastingAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-asset-life-cycle" element={<PageErrorBoundary pageName="/network-asset-life-cycle"><NetworkAssetLifeCycleAnalytics /></PageErrorBoundary>} />
+              <Route path="/wind-farm-wake-turbine" element={<PageErrorBoundary pageName="/wind-farm-wake-turbine"><WindFarmWakeTurbineAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-poverty-hardship-x" element={<PageErrorBoundary pageName="/energy-poverty-hardship-x"><EnergyPovertyHardshipXAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-refuelling-transport" element={<PageErrorBoundary pageName="/hydrogen-refuelling-transport"><HydrogenRefuellingTransportAnalytics /></PageErrorBoundary>} />
+              <Route path="/electricity-spot-price-events" element={<PageErrorBoundary pageName="/electricity-spot-price-events"><ElectricitySpotPriceEventAnalytics /></PageErrorBoundary>} />
+              <Route path="/large-scale-renewable-auction" element={<PageErrorBoundary pageName="/large-scale-renewable-auction"><LargeScaleRenewableAuctionAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-ancillary-services" element={<PageErrorBoundary pageName="/nem-ancillary-services"><NemAncillaryServicesAnalytics /></PageErrorBoundary>} />
+              <Route path="/australian-carbon-credit" element={<PageErrorBoundary pageName="/australian-carbon-credit"><AustralianCarbonCreditAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-grid-integration" element={<PageErrorBoundary pageName="/ev-grid-integration"><ElectricVehicleGridIntegrationAnalytics /></PageErrorBoundary>} />
+              <Route path="/generator-capacity-adequacy" element={<PageErrorBoundary pageName="/generator-capacity-adequacy"><GeneratorCapacityAdequacyAnalytics /></PageErrorBoundary>} />
+              <Route path="/smart-grid-cybersecurity" element={<PageErrorBoundary pageName="/smart-grid-cybersecurity"><SmartGridCybersecurityAnalytics /></PageErrorBoundary>} />
+              <Route path="/pumped-hydro-reservoir" element={<PageErrorBoundary pageName="/pumped-hydro-reservoir"><PumpedHydroReservoirAnalytics /></PageErrorBoundary>} />
+              <Route path="/etjj-dashboard" element={<PageErrorBoundary pageName="/etjj-dashboard"><EnergyTransitionJobsAnalytics /></PageErrorBoundary>} />
+              <Route path="/nifr-dashboard" element={<PageErrorBoundary pageName="/nifr-dashboard"><InterconnectorFlowRightsAnalytics /></PageErrorBoundary>} />
+              <Route path="/cefa-dashboard-x" element={<PageErrorBoundary pageName="/cefa-dashboard-x"><CleanEnergyFinanceXAnalytics /></PageErrorBoundary>} />
+              <Route path="/bess-performance" element={<PageErrorBoundary pageName="/bess-performance"><BessPerformanceAnalytics /></PageErrorBoundary>} />
+              <Route path="/elca-dashboard" element={<PageErrorBoundary pageName="/elca-dashboard"><LoadCurveAnalytics /></PageErrorBoundary>} />
+              <Route path="/ngts-dashboard" element={<PageErrorBoundary pageName="/ngts-dashboard"><NaturalGasTradingAnalytics /></PageErrorBoundary>} />
+              <Route path="/aeos-dashboard" element={<PageErrorBoundary pageName="/aeos-dashboard"><EnergyOptimisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/aemc-rule-change" element={<PageErrorBoundary pageName="/aemc-rule-change"><AemcRuleChangeAnalytics /></PageErrorBoundary>} />
+              <Route path="/renx-dashboard" element={<PageErrorBoundary pageName="/renx-dashboard"><RenewableExportAnalytics /></PageErrorBoundary>} />
+              <Route path="/cppa-dashboard-x" element={<PageErrorBoundary pageName="/cppa-dashboard-x"><CorporatePpaAnalytics /></PageErrorBoundary>} />
+              <Route path="/nzem-dashboard" element={<PageErrorBoundary pageName="/nzem-dashboard"><NetZeroEmissionsAnalytics /></PageErrorBoundary>} />
+              <Route path="/epsa-dashboard" element={<PageErrorBoundary pageName="/epsa-dashboard"><PriceSensitivityAnalytics /></PageErrorBoundary>} />
+              <Route path="/grpt-dashboard" element={<PageErrorBoundary pageName="/grpt-dashboard"><GridReliabilityAnalytics /></PageErrorBoundary>} />
+              <Route path="/mats-dashboard" element={<PageErrorBoundary pageName="/mats-dashboard"><MarketTradingStrategyAnalytics /></PageErrorBoundary>} />
+              <Route path="/emga-dashboard" element={<PageErrorBoundary pageName="/emga-dashboard"><EmergingMarketsAnalytics /></PageErrorBoundary>} />
+              <Route path="/epro-dashboard" element={<PageErrorBoundary pageName="/epro-dashboard"><PortfolioRiskOptimisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/aehm-dashboard" element={<PageErrorBoundary pageName="/aehm-dashboard"><EnergyHubMicrostructureAnalytics /></PageErrorBoundary>} />
+              <Route path="/fmrp-dashboard" element={<PageErrorBoundary pageName="/fmrp-dashboard"><FrequencyReservePlanningAnalytics /></PageErrorBoundary>} />
+              <Route path="/daro-dashboard" element={<PageErrorBoundary pageName="/daro-dashboard"><DistributedAssetOptimisationAnalytics /></PageErrorBoundary>} />
+              <Route path="/ecsa-dashboard" element={<PageErrorBoundary pageName="/ecsa-dashboard"><ConsumerSegmentationAnalytics /></PageErrorBoundary>} />
+              <Route path="/gena-dashboard" element={<PageErrorBoundary pageName="/gena-dashboard"><GenerationExpansionAnalytics /></PageErrorBoundary>} />
+              <Route path="/nema-dashboard" element={<PageErrorBoundary pageName="/nema-dashboard"><MarketAnomalyDetectionAnalytics /></PageErrorBoundary>} />
+              <Route path="/wcms-dashboard" element={<PageErrorBoundary pageName="/wcms-dashboard"><WindCapacityMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/spar-dashboard" element={<PageErrorBoundary pageName="/spar-dashboard"><SolarParkRegistryAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-storage-duration-x" element={<PageErrorBoundary pageName="/energy-storage-duration-x"><EnergyStorageDurationXAnalytics /></PageErrorBoundary>} />
+              <Route path="/offshore-wind-development" element={<PageErrorBoundary pageName="/offshore-wind-development"><OffshoreWindDevelopmentAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-participant-financial" element={<PageErrorBoundary pageName="/nem-participant-financial"><NemParticipantFinancialAnalytics /></PageErrorBoundary>} />
+              <Route path="/green-tariff-hydrogen" element={<PageErrorBoundary pageName="/green-tariff-hydrogen"><GreenTariffHydrogenAnalytics /></PageErrorBoundary>} />
+              <Route path="/nem-price-review" element={<PageErrorBoundary pageName="/nem-price-review"><NemPriceReviewAnalytics /></PageErrorBoundary>} />
+              <Route path="/renewable-certificate-nem" element={<PageErrorBoundary pageName="/renewable-certificate-nem"><RenewableCertificateNemAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-curve-price-anchor" element={<PageErrorBoundary pageName="/demand-curve-price-anchor"><DemandCurvePriceAnchorAnalytics /></PageErrorBoundary>} />
+              <Route path="/market-evolution-policy" element={<PageErrorBoundary pageName="/market-evolution-policy"><MarketEvolutionPolicyAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-grid-topology" element={<PageErrorBoundary pageName="/energy-grid-topology"><EnergyGridTopologyAnalytics /></PageErrorBoundary>} />
+              <Route path="/carbon-voluntary-exchange" element={<PageErrorBoundary pageName="/carbon-voluntary-exchange"><CarbonVoluntaryExchangeAnalytics /></PageErrorBoundary>} />
+              <Route path="/renewable-market-sensitivity" element={<PageErrorBoundary pageName="/renewable-market-sensitivity"><RenewableMarketSensitivityAnalytics /></PageErrorBoundary>} />
+              <Route path="/natural-gas-pipeline" element={<PageErrorBoundary pageName="/natural-gas-pipeline"><NaturalGasPipelineAnalytics /></PageErrorBoundary>} />
+              <Route path="/battery-chemistry-risk" element={<PageErrorBoundary pageName="/battery-chemistry-risk"><BatteryChemistryRiskAnalytics /></PageErrorBoundary>} />
+              <Route path="/aemo-5min-settlement" element={<PageErrorBoundary pageName="/aemo-5min-settlement"><Aemo5MinSettlementAnalytics /></PageErrorBoundary>} />
+              <Route path="/retail-competition" element={<PageErrorBoundary pageName="/retail-competition"><ElectricityRetailCompetitionAnalytics /></PageErrorBoundary>} />
+              <Route path="/demand-response-aggregation" element={<PageErrorBoundary pageName="/demand-response-aggregation"><DemandResponseAggregationAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-frequency" element={<PageErrorBoundary pageName="/grid-frequency"><GridFrequencyResponseAnalytics /></PageErrorBoundary>} />
+              <Route path="/hydrogen-economy-outlook" element={<PageErrorBoundary pageName="/hydrogen-economy-outlook"><HydrogenEconomyOutlookAnalytics /></PageErrorBoundary>} />
+              <Route path="/network-augmentation" element={<PageErrorBoundary pageName="/network-augmentation"><NetworkAugmentationDeferralAnalytics /></PageErrorBoundary>} />
+              <Route path="/ev-fleet-grid" element={<PageErrorBoundary pageName="/ev-fleet-grid"><EvFleetGridIntegrationAnalytics /></PageErrorBoundary>} />
+              <Route path="/grid-emissions-intensity" element={<PageErrorBoundary pageName="/grid-emissions-intensity"><GridEmissionsIntensityAnalytics /></PageErrorBoundary>} />
+              <Route path="/microgrid-resilience" element={<PageErrorBoundary pageName="/microgrid-resilience"><MicrogridResilienceAnalytics /></PageErrorBoundary>} />
+              <Route path="/power-quality" element={<PageErrorBoundary pageName="/power-quality"><PowerQualityMonitoringAnalytics /></PageErrorBoundary>} />
+              <Route path="/vpp-operations" element={<PageErrorBoundary pageName="/vpp-operations"><VirtualPowerPlantOperationsAnalytics /></PageErrorBoundary>} />
+              <Route path="/pumped-hydro" element={<PageErrorBoundary pageName="/pumped-hydro"><PumpedHydroStorageAnalytics /></PageErrorBoundary>} />
+              <Route path="/smart-meter" element={<PageErrorBoundary pageName="/smart-meter"><SmartMeterDataAnalytics /></PageErrorBoundary>} />
+              <Route path="/east-coast-gas" element={<PageErrorBoundary pageName="/east-coast-gas"><EastCoastGasMarketAnalytics /></PageErrorBoundary>} />
+              <Route path="/isp-analytics" element={<PageErrorBoundary pageName="/isp-analytics"><IntegratedSystemPlanAnalytics /></PageErrorBoundary>} />
+              <Route path="/community-battery" element={<PageErrorBoundary pageName="/community-battery"><CommunityBatteryAnalytics /></PageErrorBoundary>} />
+              <Route path="/energy-cyber-security" element={<PageErrorBoundary pageName="/energy-cyber-security"><EnergySectorCyberSecurityAnalytics /></PageErrorBoundary>} />
+              <Route path="/wholesale-market-reform" element={<PageErrorBoundary pageName="/wholesale-market-reform"><WholesaleMarketReformAnalytics /></PageErrorBoundary>} />
             </Routes>
           </main>
         </div>

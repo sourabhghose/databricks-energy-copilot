@@ -33766,6 +33766,28 @@ export const dealApi = {
   createCounterparty(body: { name: string; credit_rating?: string; credit_limit_aud?: number }): Promise<{ counterparty_id: string; status: string }> {
     return post('/api/deals/counterparties', body)
   },
+
+  getApprovalRules(): Promise<{ rules: ApprovalRule[] }> {
+    return get('/api/deals/approvals/rules')
+  },
+
+  createApprovalRule(body: { rule_name: string; event_type: string; trade_type?: string; min_notional_aud: number; approver_role: string }): Promise<{ approval_rule_id: string; status: string }> {
+    return post('/api/deals/approvals/rules', body)
+  },
+
+  getPendingApprovals(): Promise<{ pending: ApprovalRequest[]; count: number }> {
+    return get('/api/deals/approvals/pending')
+  },
+
+  approveRequest(requestId: string, decidedBy = 'approver', reason = ''): Promise<{ request_id: string; trade_id: string; status: string }> {
+    const params = new URLSearchParams({ decided_by: decidedBy, reason })
+    return put(`/api/deals/approvals/${requestId}/approve?${params}`, {})
+  },
+
+  rejectRequest(requestId: string, decidedBy = 'approver', reason = ''): Promise<{ request_id: string; trade_id: string; status: string }> {
+    const params = new URLSearchParams({ decided_by: decidedBy, reason })
+    return put(`/api/deals/approvals/${requestId}/reject?${params}`, {})
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -33990,5 +34012,234 @@ export const riskApi = {
 
   getCreditAlerts(): Promise<{ alerts: CreditExposure[] }> {
     return get('/api/risk/credit/alerts')
+  },
+
+  checkCredit(counterpartyId: string, notionalAud: number, tenorDays = 365): Promise<CreditCheckResult> {
+    const params = new URLSearchParams({
+      counterparty_id: counterpartyId,
+      notional_aud: String(notionalAud),
+      tenor_days: String(tenorDays),
+    })
+    return get<CreditCheckResult>(`/api/credit/check?${params}`)
+  },
+
+  valuePpa(params: {
+    strike_price: number
+    term_years: number
+    technology: string
+    region: string
+    volume_mw: number
+    escalation?: number
+    n_simulations?: number
+  }): Promise<PPAValuation> {
+    const qs = new URLSearchParams()
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined) qs.set(k, String(v))
+    })
+    return post<Record<string, never>, PPAValuation>(`/api/risk/ppa/value?${qs}`, {})
+  },
+}
+
+export interface CreditCheckResult {
+  status: 'pass' | 'warn' | 'block'
+  counterparty_id: string
+  counterparty_name: string
+  utilization_pct: number
+  current_exposure: number
+  proposed_increment: number
+  new_total_exposure: number
+  credit_limit: number
+  message: string
+}
+
+export interface PPAValuation {
+  region: string
+  technology: string
+  volume_mw: number
+  strike_price: number
+  term_years: number
+  escalation: number
+  capacity_factor: number
+  capture_price_discount: number
+  expected_npv: number
+  p10_npv: number
+  p50_npv: number
+  p90_npv: number
+  breakeven_strike: number
+  simulations: number
+  annual_cashflows: Array<{ year: number; cashflow: number; generation_mwh: number; revenue: number; cost: number }>
+}
+
+export interface ApprovalRule {
+  approval_rule_id: string
+  rule_name: string
+  event_type: string
+  trade_type: string
+  min_notional_aud: number
+  required_approvers: number
+  approver_role: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ApprovalRequest {
+  request_id: string
+  trade_id: string
+  rule_id: string
+  event_type: string
+  status: string
+  notional_aud: number
+  submitted_by: string
+  submitted_at: string
+  decided_by: string
+  decided_at: string
+  decision_reason: string
+  trade_type?: string
+  region?: string
+  buy_sell?: string
+  volume_mw?: number
+  price?: number
+  start_date?: string
+  end_date?: string
+  profile?: string
+  rule_name?: string
+  approver_role?: string
+}
+
+// ---------------------------------------------------------------------------
+// Competitive Gap Phase 1 — Alert Engine, Anomaly, Replay, Briefs
+// ---------------------------------------------------------------------------
+
+export interface AlertRule {
+  rule_id: string
+  region: string
+  alert_type: string
+  threshold_value: number
+  notification_channel: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  created_by: string
+}
+
+export interface AnomalyExplanation {
+  explanation_id: string
+  event_id: string
+  region: string
+  event_timestamp: string
+  event_type: string
+  metric_value: number
+  explanation: string
+  root_causes: string[]
+  generation_context: string
+  weather_context: string
+  constraint_context: string
+  cached: boolean
+}
+
+export interface ReplaySnapshot {
+  timestamp: string
+  region: string
+  prices: Record<string, { region: string; rrp: number; demand_mw: number; available_gen_mw: number }>
+  generation: Array<{ fuel_type: string; mw: number; is_renewable: boolean }>
+  interconnectors: Array<{ id: string; from_region: string; to_region: string; flow_mw: number; limit_mw: number; congested: boolean }>
+  weather: { temperature_c: number; wind_kmh: number; solar_wm2: number }
+}
+
+export interface MarketBrief {
+  brief_id: string
+  brief_date: string
+  brief_type: string
+  title: string
+  narrative: string
+  key_metrics: Record<string, any>
+  generated_at: string
+  word_count: number
+}
+
+export interface BindingHeatmapCell {
+  hour: number
+  day: number
+  binding_pct: number
+  binding_count: number
+  total_intervals: number
+}
+
+export interface PriceSeparation {
+  region_a: string
+  region_b: string
+  avg_spread: number
+  max_spread: number
+  intervals: number
+}
+
+export const alertsApi = {
+  createRule(body: { region: string; alert_type: string; threshold_value: number; notification_channel: string }): Promise<{ status: string; rule_id: string }> {
+    return post('/api/alerts', body)
+  },
+
+  deleteRule(ruleId: string): Promise<{ status: string }> {
+    return del(`/api/alerts/${ruleId}`) as any
+  },
+
+  toggleRule(ruleId: string, isActive: boolean): Promise<{ status: string }> {
+    return fetch(`/api/alerts/${ruleId}?is_active=${isActive}`, { method: 'PATCH', headers: getHeaders() }).then(r => r.json())
+  },
+
+  listRules(): Promise<{ rules: AlertRule[]; count: number }> {
+    return get('/api/alerts/rules')
+  },
+
+  evaluate(): Promise<{ evaluated: number; triggered: number; events: any[] }> {
+    return post('/api/alerts/evaluate', {})
+  },
+}
+
+export const anomalyApi = {
+  explain(region: string, timestamp?: string, eventId?: string): Promise<AnomalyExplanation> {
+    const params = new URLSearchParams({ region })
+    if (timestamp) params.set('timestamp', timestamp)
+    if (eventId) params.set('event_id', eventId)
+    return get(`/api/anomaly/explain?${params}`)
+  },
+
+  recent(region: string, hoursBack = 48): Promise<{ explanations: AnomalyExplanation[]; count: number }> {
+    return get(`/api/anomaly/recent?region=${region}&hours_back=${hoursBack}`)
+  },
+}
+
+export const replayApi = {
+  snapshot(timestamp: string, region: string): Promise<ReplaySnapshot> {
+    return get(`/api/replay/snapshot?timestamp=${encodeURIComponent(timestamp)}&region=${region}`)
+  },
+
+  range(start: string, end: string, region: string, stepMinutes = 5): Promise<{ snapshots: ReplaySnapshot[]; count: number }> {
+    const params = new URLSearchParams({ start, end, region, step_minutes: String(stepMinutes) })
+    return get(`/api/replay/range?${params}`)
+  },
+}
+
+export const briefsApi = {
+  list(briefType = 'daily', limit = 20): Promise<{ briefs: MarketBrief[]; count: number }> {
+    return get(`/api/market-briefs?brief_type=${briefType}&limit=${limit}`)
+  },
+
+  latest(briefType = 'daily'): Promise<MarketBrief> {
+    return get(`/api/market-briefs/latest?brief_type=${briefType}`)
+  },
+
+  generate(briefType = 'daily'): Promise<MarketBrief> {
+    return post(`/api/market-briefs/generate?brief_type=${briefType}`, {})
+  },
+}
+
+export const constraintsApi = {
+  bindingHeatmap(region: string, days = 7): Promise<{ region: string; days: number; grid: BindingHeatmapCell[] }> {
+    return get(`/api/constraints/binding-heatmap?region=${region}&days=${days}`)
+  },
+
+  priceSeparation(hoursBack = 24): Promise<{ hours_back: number; spreads: PriceSeparation[] }> {
+    return get(`/api/constraints/price-separation?hours_back=${hoursBack}`)
   },
 }
