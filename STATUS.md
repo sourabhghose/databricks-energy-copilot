@@ -2498,3 +2498,118 @@ ML training notebooks required two gold aggregate tables that didn't exist:
 | `notebooks/main/ml_energy_demand_forecasting.py` | Widened date range, handle existing feature table |
 | `notebooks/main/ml_price_spike_training.py` | Fixed UC-incompatible `order_by` in search_model_versions |
 | `open_electricity.job.yml` | Added 5 new ingestion tasks (notices, STPASA, MTPASA, constraints, BOM) |
+
+---
+
+## Session 12: Phase 2 Enhancements — Risk, Credit & Approvals (2026-03-08)
+
+**Branch:** `feature/phase2-risk-approvals` → merged to `main` (PR #1, commit `a8a84d5`)
+
+### Enhancements Implemented
+
+| ID | Enhancement | Status |
+|----|-------------|--------|
+| E6 | PPA Valuation (Monte Carlo) | DONE |
+| E12 | Pre-Trade Credit Checks | DONE |
+| E13 | Approval Workflows (maker-checker) | DONE |
+| E10 | Additional Copilot Tools (+3) | DONE |
+| E2 | Portfolio MtM Summary | DONE |
+| E3 | Portfolio VaR Badge | DONE |
+
+### E6: PPA Valuation Engine (`risk.py`)
+
+- **Function**: `_value_ppa_core(strike_price, term_years, technology, region, volume_mw, escalation, n_simulations)`
+- **Algorithm**: Monte Carlo with 1000 simulations — forward curve bootstrap, hourly generation shape, price/generation uncertainty sampling, discounted cashflow NPV
+- **Capacity factors**: solar_utility (NSW1:0.24, QLD1:0.27, VIC1:0.20, SA1:0.26, TAS1:0.17), wind (NSW1:0.32, QLD1:0.30, VIC1:0.35, SA1:0.38, TAS1:0.40)
+- **Capture discount**: solar_utility 0.82, wind 0.92 (cannibalization effect)
+- **Endpoint**: `POST /api/risk/ppa/value` — returns expected_npv, p10/p50/p90, breakeven_strike, capture_price_discount, annual_cashflows[]
+- **Test result**: 100MW solar SA1 at $55/MWh for 10 years → breakeven $96.92/MWh, expected NPV -$156.8M
+
+### E12: Pre-Trade Credit Checks (`risk.py` + `deals.py`)
+
+- **Function**: `_credit_check_core(counterparty_id, notional_aud, tenor_days)` in risk.py
+- **Thresholds**: <80% pass (green), 80-90% warn (amber), 90-100% warn+override, >100% block (red)
+- **Endpoint**: `GET /api/credit/check?counterparty_id=X&notional_aud=Y&tenor_days=Z`
+- **Integration**: `create_trade()` in deals.py calls credit check before INSERT — returns 403 on "block", adds `credit_warning` on "warn"
+- **Frontend**: DealCapture.tsx debounced credit indicator (800ms) — green/amber/red shield with utilization message
+
+### E13: Approval Workflows (`deals.py`)
+
+- **DDL**: `setup/15_create_approval_tables.py` — creates `gold.approval_rules` + `gold.approval_requests` Delta tables (CDF enabled, MODIFY granted to app SP)
+- **Seed rules**: High-Value Trade ($500K → RISK_MANAGER), Very High-Value Trade ($2M → TRADING_HEAD), Large Amendment ($1M → RISK_MANAGER)
+- **New status**: `PENDING_APPROVAL` added to `_STATUSES`
+- **Trade creation flow**: After credit check, calculates notional → queries matching approval_rules → if match: status=PENDING_APPROVAL, inserts approval_request, returns `approval_required: true`
+- **5 new endpoints**: `GET/POST /api/deals/approvals/rules`, `GET /api/deals/approvals/pending`, `PUT /api/deals/approvals/{id}/approve`, `PUT /api/deals/approvals/{id}/reject`
+- **Maker-checker**: Approve handler validates approver != submitted_by
+- **Frontend**: TradeBlotter.tsx shows "Pending Approvals (N)" queue with trade details, reason input, Approve/Reject buttons
+- **Test result**: 200MW SWAP NSW1 at $75/MWh ($1.38M notional) → PENDING_APPROVAL → Approved → CONFIRMED
+
+### E10: Additional Copilot Tools (`copilot.py`)
+
+| Tool | Params | Dispatch |
+|------|--------|----------|
+| `get_portfolio_pnl` | portfolio_id, days_back | Calls MtM latest + PnL attribution |
+| `explain_pnl_move` | portfolio_id, valuation_date | Calls PnL attribution breakdown |
+| `value_ppa` | strike_price, term_years, technology, region, volume_mw, escalation | Calls `_value_ppa_core()` from risk.py |
+
+Total FMAPI tools: **20** (17 existing + 3 new)
+
+Copilot test: "Value a 100MW solar PPA in SA at $55/MWh for 10 years" → returned full analysis with annual cashflow table, breakeven strike, key takeaways, and negotiation recommendations.
+
+### E2/E3: Portfolio Enhancements (`Portfolio.tsx`)
+
+- **MtM Summary row**: 4 new KPI cards — Mark-to-Market (with "Run MtM" button), Daily P&L, VaR 95% 1-Day, Credit Alerts
+- **Run MtM**: Calls `POST /api/risk/mtm/run`, displays total_mtm, daily_pnl, trades_valued
+- **VaR badge**: Fetches `/api/risk/var/latest` on load
+- **Credit alert banner**: Amber/red banner if any counterparty at WARNING/CRITICAL level
+- **Test result**: Run MtM returned $10.98M across 14 trades in Hedge Book portfolio
+
+### Files Changed (commit `a8a84d5`)
+
+| File | Action | Lines |
+|------|--------|-------|
+| `setup/15_create_approval_tables.py` | **NEW** | +111 — DDL for approval_rules + approval_requests |
+| `app/routers/risk.py` | Modified | +232 — PPA valuation engine + credit check endpoint |
+| `app/routers/deals.py` | Modified | +232/-6 — Credit guard + approval workflow + 5 endpoints |
+| `app/routers/copilot.py` | Modified | +137 — 3 new FMAPI tools |
+| `app/frontend/src/api/client.ts` | Modified | +114 — 4 interfaces + 7 API methods |
+| `app/frontend/src/pages/Portfolio.tsx` | Modified | +90/-5 — MtM/VaR/Credit KPI row |
+| `app/frontend/src/pages/DealCapture.tsx` | Modified | +73/-3 — Credit indicator + approval banner |
+| `app/frontend/src/pages/TradeBlotter.tsx` | Modified | +89/-3 — Approval queue panel |
+
+**Total**: 8 files, +1061/-17 lines
+
+### New Delta Tables
+
+| Table | Columns | Notes |
+|-------|---------|-------|
+| `gold.approval_rules` | approval_rule_id, rule_name, event_type, trade_type, min_notional_aud, required_approvers, approver_role, is_active, created_at, updated_at | CDF enabled, 3 seed rules |
+| `gold.approval_requests` | request_id, trade_id, rule_id, event_type, status, notional_aud, submitted_by, submitted_at, decided_by, decided_at, decision_reason | CDF enabled |
+
+### New API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/risk/ppa/value` | PPA Monte Carlo valuation |
+| GET | `/api/credit/check` | Pre-trade credit check |
+| GET | `/api/deals/approvals/rules` | List active approval rules |
+| POST | `/api/deals/approvals/rules` | Create approval rule |
+| GET | `/api/deals/approvals/pending` | List pending approval requests |
+| PUT | `/api/deals/approvals/{id}/approve` | Approve with reason |
+| PUT | `/api/deals/approvals/{id}/reject` | Reject with reason |
+
+### Browser Test Results
+
+| Page | Feature | Result |
+|------|---------|--------|
+| Deal Capture | Credit check indicator (debounced) | Pass — green shield, 0.1% utilization |
+| Deal Capture | Approval banner after high-notional trade | Pass — "Submitted for Approval" with request ID |
+| Trade Blotter | Pending Approvals queue | Pass — shows trade details, rule matched, approve/reject |
+| Trade Blotter | Approve workflow | Pass — trade transitions to CONFIRMED, queue clears |
+| Portfolio | MtM/VaR/Credit KPI row | Pass — $10.98M MtM, 14 trades valued |
+| Risk Dashboard | MtM & P&L tab | Pass — waterfall chart, trade-level table |
+| Risk Dashboard | VaR & Greeks tab | Pass — 4 VaR cards, history, Greeks table |
+| Risk Dashboard | Credit Risk tab | Pass — utilization bars for 5 counterparties, exposure aging |
+| PPA endpoint | Monte Carlo valuation | Pass — 1000 sims, annual cashflows, breakeven $96.92 |
+| Credit endpoint | Pass/warn/block | Pass — 1.1% utilization for $5M AGL trade |
+| Copilot | value_ppa tool | Pass — full analysis with cashflow table + recommendations |
