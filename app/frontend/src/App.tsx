@@ -99,6 +99,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 
+import TradingSignals from './pages/TradingSignals'
 import NemInfrastructureMap from './pages/NemInfrastructureMap'
 import ElectricityMarketCompetitionConcentrationAnalytics from './pages/ElectricityMarketCompetitionConcentrationAnalytics'
 import Home from './pages/Home'
@@ -1105,6 +1106,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/trade-blotter': TradeBlotter,
   '/forward-curves': ForwardCurves,
   '/risk-dashboard': RiskDashboard,
+  '/trading-signals': TradingSignals,
   '/market-replay': MarketReplay,
   '/market-briefs': MarketBriefs,
   '/sustainability': Sustainability,
@@ -1581,6 +1583,7 @@ const DASHBOARD_LINKS: { to: string; label: string; Icon: React.ComponentType<{ 
   { to: '/portfolio',         label: 'Portfolio',      Icon: Briefcase },
   { to: '/forward-curves',    label: 'Forward Curves', Icon: TrendingUp },
   { to: '/risk-dashboard',    label: 'Risk',           Icon: Shield },
+  { to: '/trading-signals',  label: 'Trading Signals', Icon: Target },
   // Market Dashboards
   { to: '/bidding-dashboard', label: 'Bidding',        Icon: BarChart2 },
   { to: '/battery-dispatch',  label: 'Battery',        Icon: Battery },
@@ -2167,6 +2170,7 @@ export default function App() {
               <Route path="/trade-blotter" element={<PageErrorBoundary pageName="/trade-blotter"><TradeBlotter /></PageErrorBoundary>} />
               <Route path="/forward-curves" element={<PageErrorBoundary pageName="/forward-curves"><ForwardCurves /></PageErrorBoundary>} />
               <Route path="/risk-dashboard" element={<PageErrorBoundary pageName="/risk-dashboard"><RiskDashboard /></PageErrorBoundary>} />
+              <Route path="/trading-signals" element={<PageErrorBoundary pageName="/trading-signals"><TradingSignals /></PageErrorBoundary>} />
               <Route path="/bidding-dashboard" element={<PageErrorBoundary pageName="/bidding-dashboard"><BiddingDashboard /></PageErrorBoundary>} />
               <Route path="/battery-dispatch" element={<PageErrorBoundary pageName="/battery-dispatch"><BatteryDashboard /></PageErrorBoundary>} />
               <Route path="/gas-market" element={<PageErrorBoundary pageName="/gas-market"><GasMarketDashboard /></PageErrorBoundary>} />

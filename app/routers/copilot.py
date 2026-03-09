@@ -616,6 +616,36 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    # --- Trading Signal Tools ---
+    {
+        "type": "function",
+        "function": {
+            "name": "get_trading_signals",
+            "description": "Retrieve active algorithmic trading signals. Each signal includes a traceable rationale citing exact data points. Signal types: FORWARD_MISPRICING, SPOT_ARBITRAGE, CONSTRAINT_PLAY, WEATHER_SHIFT, DEMAND_SURGE, VOLATILITY_REGIME, RENEWABLE_SHORTFALL, PEAK_SPREAD.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region filter", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "signal_type": {"type": "string", "description": "Filter by signal type"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scan_trading_opportunities",
+            "description": "Run a fresh market scan across all NEM regions to detect trading opportunities. Returns top signals ranked by expected profit with detailed rationale.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "Limit scan to a single region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -1259,6 +1289,21 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
             result = _generate_report_core(
                 report_type=arguments.get("report_type", "DAILY_RISK"),
                 title=arguments.get("title"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_trading_signals":
+            from .trading_signals import _get_trading_signals_core
+            result = _get_trading_signals_core(
+                region=arguments.get("region"),
+                signal_type=arguments.get("signal_type"),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "scan_trading_opportunities":
+            from .trading_signals import _scan_trading_opportunities_core
+            result = _scan_trading_opportunities_core(
+                region=arguments.get("region"),
             )
             return json.dumps(result, default=str)
 

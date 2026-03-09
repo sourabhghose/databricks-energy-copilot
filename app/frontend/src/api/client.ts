@@ -34739,6 +34739,96 @@ export const mapApi = {
   },
 }
 
+// --- Trading Signals ---
+export interface TradingSignal {
+  signal_id: string
+  signal_type: string
+  region: string
+  direction: 'BUY' | 'SELL'
+  confidence: number
+  expected_profit_aud: number
+  risk_aud: number
+  reward_risk_ratio: number
+  suggested_volume_mw: number
+  suggested_price: number
+  suggested_trade_type: string
+  suggested_profile: string
+  suggested_start_date: string
+  suggested_end_date: string
+  rationale: string
+  market_context: string | Record<string, unknown>
+  status: 'ACTIVE' | 'EXPIRED' | 'EXECUTED' | 'DISMISSED'
+  generated_at: string
+  expires_at: string
+  executed_trade_id: string | null
+  executed_at: string | null
+}
+
+export interface SignalPerformance {
+  signal_type: string
+  total_signals: number
+  executed: number
+  expired: number
+  dismissed: number
+  active: number
+  win_rate: number
+  total_expected_profit: number
+  avg_confidence: number
+}
+
+export interface SignalStats {
+  total_active: number
+  total_opportunity_aud: number
+  avg_confidence: number
+  by_type: { signal_type: string; count: number; avg_confidence: number }[]
+  timestamp: string
+}
+
+export interface SignalConfig {
+  config: Record<string, { value: unknown }>
+  timestamp: string
+}
+
+export const signalsApi = {
+  list(filters?: { region?: string; signal_type?: string; min_confidence?: number; status?: string }): Promise<{ signals: TradingSignal[]; count: number }> {
+    const params = new URLSearchParams()
+    if (filters?.region) params.set('region', filters.region)
+    if (filters?.signal_type) params.set('signal_type', filters.signal_type)
+    if (filters?.min_confidence) params.set('min_confidence', String(filters.min_confidence))
+    if (filters?.status) params.set('status', filters.status)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return get(`/api/signals${qs}`)
+  },
+  scan(region?: string): Promise<{ signals: TradingSignal[]; count: number; scanned_at: string }> {
+    const qs = region ? `?region=${region}` : ''
+    return post(`/api/signals/scan${qs}`, {})
+  },
+  detail(id: string): Promise<TradingSignal> {
+    return get(`/api/signals/${id}`)
+  },
+  execute(id: string): Promise<{ status: string; trade_id: string; signal_id: string; trade: Record<string, unknown> }> {
+    return post(`/api/signals/${id}/execute`, {})
+  },
+  dismiss(id: string): Promise<{ status: string; signal_id: string }> {
+    return put(`/api/signals/${id}/dismiss`, {})
+  },
+  performance(): Promise<{ performance: SignalPerformance[]; timestamp: string }> {
+    return get('/api/signals/performance')
+  },
+  stats(): Promise<SignalStats> {
+    return get('/api/signals/stats')
+  },
+  config(): Promise<SignalConfig> {
+    return get('/api/signals/config')
+  },
+  updateConfig(key: string, value: Record<string, unknown>): Promise<{ status: string; key: string }> {
+    return put(`/api/signals/config/${key}`, value)
+  },
+  summary(): Promise<{ top_signals: TradingSignal[]; total_opportunity_aud: number; active_count: number }> {
+    return get('/api/signals/summary')
+  },
+}
+
 // --- WS2: Advanced Risk (extensions) ---
 export const advancedRiskApi = {
   historicalVar(portfolioId = 'all', horizonDays = 1, confidence = 0.95): Promise<{ method: string; var_amount?: number; cvar_amount?: number; results?: Array<Record<string, unknown>> }> {

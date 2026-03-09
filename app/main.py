@@ -151,6 +151,7 @@ from routers.compliance import router as compliance_router  # noqa: E402
 from routers.environmentals import router as environmentals_router  # noqa: E402
 from routers.reports import router as reports_router  # noqa: E402
 from routers.nem_map import router as nem_map_router  # noqa: E402
+from routers.trading_signals import router as trading_signals_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(dashboards_router)
@@ -179,6 +180,7 @@ app.include_router(compliance_router)
 app.include_router(environmentals_router)
 app.include_router(reports_router)
 app.include_router(nem_map_router)
+app.include_router(trading_signals_router)
 app.include_router(auto_stubs_router)
 
 # ---------------------------------------------------------------------------
