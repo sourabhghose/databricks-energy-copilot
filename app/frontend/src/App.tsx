@@ -1955,6 +1955,7 @@ function CategoryPage() {
 
 function Sidebar() {
   const location = useLocation()
+  const [quickAccessOpen, setQuickAccessOpen] = useState(true)
   const [expandedOffice, setExpandedOffice] = useState<string | null>('front')
 
   const pinnedItems = useMemo(
@@ -2020,22 +2021,30 @@ function Sidebar() {
 
         <div className="h-px bg-white/10 my-2 mx-2" />
 
-        {/* Dashboard quick links */}
-        <div className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Dashboards</div>
-        {DASHBOARD_LINKS.map(({ to, label, Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 pl-5 pr-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-              }`
-            }
-          >
-            <Icon size={14} />
-            {label}
-          </NavLink>
-        ))}
+        {/* Quick Access — collapsible pinned links */}
+        <button
+          onClick={() => setQuickAccessOpen(v => !v)}
+          className="flex items-center justify-between w-full px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          <span>Quick Access</span>
+          <ChevronDown size={12} className={`transition-transform duration-200 ${quickAccessOpen ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`overflow-hidden transition-all duration-200 ${quickAccessOpen ? 'max-h-[600px]' : 'max-h-0'}`}>
+          {DASHBOARD_LINKS.map(({ to, label, Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 pl-5 pr-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                }`
+              }
+            >
+              <Icon size={14} />
+              {label}
+            </NavLink>
+          ))}
+        </div>
 
         <div className="h-px bg-white/10 my-2 mx-2" />
 
