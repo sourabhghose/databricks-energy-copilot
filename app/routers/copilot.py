@@ -646,6 +646,151 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    # --- Phase 4: Network Operations & Distribution Intelligence ---
+    {
+        "type": "function",
+        "function": {
+            "name": "get_asset_health",
+            "description": "Get health index, risk factors, and failure probability for a distribution network asset (zone substation or feeder).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "asset_id": {"type": "string", "description": "Asset ID e.g. ZS-SYDNEY_NORTH or FDR-PARRAMATTA-01"},
+                },
+                "required": ["asset_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_network_loading",
+            "description": "Get current MW loading, utilization percentage, and DER output for a zone substation or region.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region to filter", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "min_utilization": {"type": "number", "description": "Minimum utilization % threshold (default 0)", "default": 0},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_reliability_metrics",
+            "description": "Get SAIDI, SAIFI, CAIDI reliability KPIs for a region with AER regulatory targets.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_outage_summary",
+            "description": "Get outage event summary — active outages, causes, affected customers for a region and time period.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "region": {"type": "string", "description": "NEM region", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "days": {"type": "integer", "description": "Lookback period in days (default 90)", "default": 90},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_hosting_capacity",
+            "description": "Get available hosting capacity (kW) for DER connections on a feeder, including limiting constraint.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "feeder_id": {"type": "string", "description": "Feeder ID e.g. FDR-SYDNEY_NORTH-01"},
+                },
+                "required": ["feeder_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_curtailment_analysis",
+            "description": "Get DER curtailment analysis — curtailed MWh, affected customers, reasons and financial impact.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "description": "Lookback period in days (default 30)", "default": 30},
+                    "region": {"type": "string", "description": "NEM region filter", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_constraint_analysis",
+            "description": "Get network constraint analysis — constraint register, breach years, augmentation options with NPV.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "constraint_type": {"type": "string", "description": "Filter by constraint type", "enum": ["thermal", "voltage", "fault_level"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "forecast_ev_impact",
+            "description": "Get EV charging impact projections — peak load delta, assets at risk, upgrade requirements by scenario and year.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "feeder_id": {"type": "string", "description": "Feeder ID for single feeder detail"},
+                    "scenario": {"type": "string", "description": "EV penetration scenario", "enum": ["low", "medium", "high"]},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_vpp_performance",
+            "description": "Get VPP (Virtual Power Plant) dispatch performance — target vs response MW, accuracy, revenue.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "program_id": {"type": "string", "description": "VPP program ID e.g. VPP-SAPN-001"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_der_fleet",
+            "description": "Get DER fleet composition — solar MW, battery MW/MWh, EV chargers by zone substation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "zone_substation": {"type": "string", "description": "Zone substation ID e.g. ZS-SYDNEY_NORTH"},
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -1305,6 +1450,76 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
             result = _scan_trading_opportunities_core(
                 region=arguments.get("region"),
             )
+            return json.dumps(result, default=str)
+
+        # --- Phase 4: Network Operations & Distribution Intelligence ---
+        elif name == "get_asset_health":
+            from .network_assets import _core_asset_detail
+            result = _core_asset_detail(arguments.get("asset_id", ""))
+            return json.dumps(result, default=str)
+
+        elif name == "get_network_loading":
+            from .network_ops import _core_network_loading
+            result = _core_network_loading(
+                region=arguments.get("region"),
+                min_utilization=arguments.get("min_utilization", 0),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_reliability_metrics":
+            from .outages import _core_reliability
+            result = _core_reliability(region=arguments.get("region"))
+            return json.dumps(result, default=str)
+
+        elif name == "get_outage_summary":
+            from .outages import _core_outage_list
+            result = _core_outage_list(
+                region=arguments.get("region"),
+                days=arguments.get("days", 90),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_hosting_capacity":
+            from .der import _core_hosting_capacity_detail
+            result = _core_hosting_capacity_detail(arguments.get("feeder_id", ""))
+            return json.dumps(result, default=str)
+
+        elif name == "get_curtailment_analysis":
+            from .der import _core_curtailment
+            result = _core_curtailment(
+                region=arguments.get("region"),
+                days=arguments.get("days", 30),
+            )
+            return json.dumps(result, default=str)
+
+        elif name == "get_constraint_analysis":
+            from .network_planning import _core_constraints
+            result = _core_constraints(constraint_type=arguments.get("constraint_type"))
+            return json.dumps(result, default=str)
+
+        elif name == "forecast_ev_impact":
+            feeder_id = arguments.get("feeder_id")
+            if feeder_id:
+                from .network_planning import _core_ev_impact_detail
+                result = _core_ev_impact_detail(feeder_id)
+            else:
+                from .network_planning import _core_ev_impact
+                result = _core_ev_impact(scenario=arguments.get("scenario"))
+            return json.dumps(result, default=str)
+
+        elif name == "get_vpp_performance":
+            program_id = arguments.get("program_id")
+            if program_id:
+                from .der import _core_vpp_detail
+                result = _core_vpp_detail(program_id)
+            else:
+                from .der import _core_vpp
+                result = _core_vpp()
+            return json.dumps(result, default=str)
+
+        elif name == "get_der_fleet":
+            from .der import _core_der_fleet
+            result = _core_der_fleet(zone_substation=arguments.get("zone_substation"))
             return json.dumps(result, default=str)
 
         else:

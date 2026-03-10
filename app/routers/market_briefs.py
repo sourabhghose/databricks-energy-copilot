@@ -186,17 +186,17 @@ def _generate_brief_core(brief_type: str = "daily", regions: Optional[List[str]]
     narrative = "\n".join(sections)
     word_count = len(narrative.split())
 
-    # Persist
+    # Persist (don't pre-escape — _insert_gold handles escaping)
     brief_id = str(uuid.uuid4())
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
     _insert_gold(f"{_CATALOG}.gold.market_briefs", {
         "brief_id": brief_id,
         "brief_date": now.strftime("%Y-%m-%d"),
         "brief_type": brief_type,
-        "title": _sql_escape(title),
-        "narrative": _sql_escape(narrative),
-        "key_metrics": _sql_escape(json.dumps(key_metrics)),
-        "regions": _sql_escape(json.dumps(regions or _NEM_REGIONS)),
+        "title": title,
+        "narrative": narrative,
+        "key_metrics": json.dumps(key_metrics),
+        "regions": json.dumps(regions or _NEM_REGIONS),
         "model_id": "heuristic-v1",
         "generated_at": now_str,
         "word_count": word_count,
@@ -279,7 +279,7 @@ async def list_briefs(
 
 @router.get("/api/market-briefs/latest", summary="Latest market brief", tags=["Market Briefs"])
 async def latest_brief(brief_type: str = Query("daily")):
-    """Return the most recent brief."""
+    """Return the most recent brief.  Auto-generates a fresh brief if the latest is >6 hours old."""
     try:
         rows = _query_gold(
             f"SELECT brief_id, brief_date, brief_type, title, narrative, "
@@ -290,6 +290,32 @@ async def latest_brief(brief_type: str = Query("daily")):
         )
         if rows:
             r = rows[0]
+            # Check staleness — auto-regenerate if >6 hours old
+            gen_at = r.get("generated_at")
+            stale = True
+            if gen_at:
+                try:
+                    ts = str(gen_at).replace("Z", "+00:00").replace("T", " ")
+                    # Handle "2026-03-08 06:40:25" and "2026-03-08T06:40:25.000Z"
+                    for fmt in ("%Y-%m-%d %H:%M:%S%z", "%Y-%m-%d %H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S"):
+                        try:
+                            gen_dt = datetime.strptime(ts, fmt)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        gen_dt = None
+                    if gen_dt:
+                        if gen_dt.tzinfo is None:
+                            gen_dt = gen_dt.replace(tzinfo=timezone.utc)
+                        stale = (datetime.now(timezone.utc) - gen_dt) > timedelta(hours=6)
+                except Exception:
+                    stale = True
+            if stale:
+                try:
+                    return _generate_brief_core(brief_type)
+                except Exception as gen_exc:
+                    logger.warning("Auto-regeneration failed, returning stale brief: %s", gen_exc)
             return {
                 "brief_id": r.get("brief_id", ""),
                 "brief_date": str(r.get("brief_date", "")),
@@ -302,6 +328,12 @@ async def latest_brief(brief_type: str = Query("daily")):
             }
     except Exception as exc:
         logger.warning("Latest brief failed: %s", exc)
+
+    # No briefs at all — generate the first one
+    try:
+        return _generate_brief_core(brief_type)
+    except Exception as gen_exc:
+        logger.warning("Initial brief generation failed: %s", gen_exc)
 
     result = await list_briefs(brief_type=brief_type, limit=1)
     if result.get("briefs"):

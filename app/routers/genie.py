@@ -577,6 +577,107 @@ _GENIE_SPACES = [
             },
         ],
     },
+    # ── Phase 4: Distribution Network Intelligence ──────────────────
+    {
+        "space_id": "01f11bb768841db386e1d0252b845a55",
+        "title": "Network Operations & Reliability",
+        "description": "Distribution network asset loading, voltage monitoring, outage events, and reliability KPIs (SAIDI/SAIFI/CAIDI) across Australian DNSPs.",
+        "icon": "activity",
+        "tables": ["network_assets", "asset_loading_5min", "voltage_monitoring", "outage_events", "reliability_kpis", "power_quality"],
+        "question_categories": [
+            {
+                "label": "Asset Loading",
+                "questions": [
+                    "Which zone substations had the highest average utilization in the last 24 hours?",
+                    "Which assets are above 90% utilization right now?",
+                    "Show utilization trends for zone substations in NSW1",
+                ],
+            },
+            {
+                "label": "Voltage & Power Quality",
+                "questions": [
+                    "How many voltage excursion events occurred today by region?",
+                    "Which monitoring points have the worst THD (total harmonic distortion)?",
+                    "Show voltage profile for the last 24 hours",
+                ],
+            },
+            {
+                "label": "Outages & Reliability",
+                "questions": [
+                    "What is the SAIDI YTD for each region compared to AER targets?",
+                    "Show the top 10 outage events by affected customers in the last 30 days",
+                    "What are the worst feeders by SAIFI this month?",
+                    "Break down outage causes by percentage",
+                ],
+            },
+        ],
+    },
+    {
+        "space_id": "01f11bb768c117a4b273d7ba33fe4660",
+        "title": "DER & Hosting Capacity",
+        "description": "Distributed energy resources fleet (solar, battery, EV chargers), hosting capacity by feeder, curtailment events, VPP dispatch performance, and DOE compliance.",
+        "icon": "sun",
+        "tables": ["der_fleet", "hosting_capacity", "curtailment_events", "vpp_dispatch_events", "doe_compliance", "der_output_estimated"],
+        "question_categories": [
+            {
+                "label": "DER Fleet",
+                "questions": [
+                    "What is the total installed rooftop solar capacity by zone substation?",
+                    "Show the breakdown of DER installations by technology type and region",
+                    "How many EV chargers are connected per zone substation?",
+                ],
+            },
+            {
+                "label": "Hosting Capacity & Curtailment",
+                "questions": [
+                    "Which feeders have less than 20% remaining hosting capacity?",
+                    "How much energy was curtailed this week and what was the financial impact?",
+                    "What are the main reasons for curtailment events?",
+                ],
+            },
+            {
+                "label": "VPP & DOE",
+                "questions": [
+                    "What is the average VPP response accuracy across all programs?",
+                    "Which feeders have the lowest DOE compliance rates?",
+                    "Show total VPP revenue by program",
+                ],
+            },
+        ],
+    },
+    {
+        "space_id": "01f11bb768fa1e84925a341546ed0339",
+        "title": "Network Planning & EV Impact",
+        "description": "Spatial demand forecasting by scenario (BAU/high solar/high EV/combined), network constraint register with breach years, EV charging impact projections.",
+        "icon": "trending-up",
+        "tables": ["demand_forecast_spatial", "network_constraints_register", "ev_network_impact", "ev_charging_profiles"],
+        "question_categories": [
+            {
+                "label": "Demand Forecasting",
+                "questions": [
+                    "Which zone substations have the highest peak demand growth by 2030 under BAU?",
+                    "Compare peak demand across BAU vs combined scenario for 2028",
+                    "Show solar impact on peak demand by zone substation",
+                ],
+            },
+            {
+                "label": "Network Constraints",
+                "questions": [
+                    "How many constraints are forecast to breach before 2030?",
+                    "Which zone substations need augmentation before 2032?",
+                    "List all thermal constraints with utilization above 85%",
+                ],
+            },
+            {
+                "label": "EV Impact",
+                "questions": [
+                    "What is the EV impact on peak load under the high scenario by feeder?",
+                    "Show EV charging load profiles by charge point type",
+                    "Which feeders need upgrades due to EV growth in the medium scenario?",
+                ],
+            },
+        ],
+    },
 ]
 
 

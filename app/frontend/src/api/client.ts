@@ -34847,3 +34847,363 @@ export const advancedRiskApi = {
     return get('/api/risk/stress-scenarios')
   },
 }
+
+// =========================================================================
+// Phase 4: Network Operations & Distribution Intelligence
+// =========================================================================
+
+export interface NetworkAsset {
+  asset_id: string
+  asset_type: string
+  asset_name: string
+  nameplate_rating_mva: number
+  installation_year: number
+  condition_score: number
+  replacement_cost_aud: number
+  lat: number
+  lng: number
+  region: string
+  parent_asset_id: string
+  dnsp: string
+  voltage_kv: number
+  status: string
+  health_index?: number
+  risk_factors?: string
+}
+
+export interface AssetLoading {
+  asset_id: string
+  interval_datetime: string
+  mw: number
+  mvar: number
+  utilization_pct: number
+  asset_name?: string
+  nameplate_rating_mva?: number
+  region?: string
+  dnsp?: string
+}
+
+export interface AssetHealth {
+  asset_id: string
+  health_index: number
+  risk_factors: string
+  updated_date: string
+  asset_type?: string
+  asset_name?: string
+  region?: string
+  dnsp?: string
+  replacement_cost_aud?: number
+}
+
+export interface FailurePrediction {
+  asset_id: string
+  failure_probability_12m: number
+  contributing_factors: string
+  model_version: string
+  scoring_date: string
+  asset_type?: string
+  asset_name?: string
+  region?: string
+  dnsp?: string
+}
+
+export interface VoltageEvent {
+  monitoring_point_id: string
+  interval_datetime: string
+  voltage_kv: number
+  nominal_kv: number
+  excursion_flag: boolean
+  excursion_type: string
+}
+
+export interface PowerQuality {
+  monitoring_point_id: string
+  interval_datetime: string
+  thd_pct: number
+  flicker_pst: number
+  voltage_unbalance_pct: number
+}
+
+export interface OutageEvent {
+  event_id: string
+  start_time: string
+  end_time: string
+  feeder_id: string
+  zone_substation: string
+  affected_customers: number
+  cause_code: string
+  region: string
+  status: string
+  etr_minutes: number
+}
+
+export interface ReliabilityKPI {
+  region: string
+  period_type: string
+  period_start: string
+  saidi_minutes: number
+  saifi_count: number
+  caidi_minutes: number
+  maifi_count: number
+  aer_target_saidi: number
+  aer_target_saifi: number
+}
+
+export interface GSLTracking {
+  feeder_id: string
+  total_customers: number
+  eligible_count: number
+  total_projected_aud: number
+}
+
+export interface DERInstallation {
+  zone_substation: string
+  technology: string
+  install_count: number
+  total_capacity_kw: number
+  total_capacity_mw: number
+  region: string
+}
+
+export interface HostingCapacity {
+  feeder_id: string
+  static_capacity_kw: number
+  dynamic_capacity_kw: number
+  limiting_constraint: string
+  scenario: string
+}
+
+export interface CurtailmentEvent {
+  feeder_id: string
+  curtailment_reason: string
+  event_count: number
+  total_mwh: number
+  total_affected: number
+  total_value_aud: number
+}
+
+export interface VPPDispatch {
+  program_id: string
+  program_name: string
+  dispatch_datetime: string
+  target_mw: number
+  response_mw: number
+  response_accuracy_pct: number
+  revenue_aud: number
+}
+
+export interface DOECompliance {
+  feeder_id: string
+  avg_compliance_pct: number
+  avg_doe_limit_kw: number
+  avg_response_kw: number
+  measurement_count: number
+}
+
+export interface DemandForecastSpatial {
+  zone_substation: string
+  scenario: string
+  forecast_year: number
+  peak_demand_mw: number
+  underlying_growth_mw: number
+  solar_impact_mw: number
+  battery_impact_mw: number
+  ev_impact_mw: number
+}
+
+export interface NetworkConstraint {
+  constraint_id: string
+  zone_substation: string
+  constraint_type: string
+  limiting_asset: string
+  current_utilization_pct: number
+  breach_year_bau: number
+  breach_year_high: number
+  options_json?: string
+  options?: Array<{ option: string; type: string; npv_aud: number }>
+}
+
+export interface EVImpact {
+  feeder_id: string
+  scenario: string
+  target_year: number
+  peak_load_delta_mw: number
+  assets_at_risk: number
+  upgrade_required_flag: boolean
+}
+
+export interface EVProfile {
+  charge_point_type: string
+  hour_of_day: number
+  avg_load_kw: number
+}
+
+// --- Network Operations API ---
+export const networkOpsApi = {
+  summary(): Promise<{ total_assets: number; overloaded_count: number; excursions_today: number; total_der_mw: number; timestamp: string }> {
+    return get('/api/network/summary')
+  },
+  loading(params?: { region?: string; min_utilization?: number }): Promise<{ assets: AssetLoading[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.set('region', params.region)
+    if (params?.min_utilization) qs.set('min_utilization', String(params.min_utilization))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/network/loading${q}`)
+  },
+  loadingHistory(assetId: string): Promise<{ asset_id: string; history: AssetLoading[] }> {
+    return get(`/api/network/loading/${assetId}`)
+  },
+  loadingAlerts(threshold = 80): Promise<{ alerts: AssetLoading[]; threshold_pct: number; count: number }> {
+    return get(`/api/network/loading/alerts?threshold=${threshold}`)
+  },
+  voltage(region?: string): Promise<{ excursions: VoltageEvent[]; count: number }> {
+    const qs = region ? `?region=${region}` : ''
+    return get(`/api/network/voltage${qs}`)
+  },
+  voltageProfile(monitoringPointId: string): Promise<{ monitoring_point_id: string; profile: VoltageEvent[] }> {
+    return get(`/api/network/voltage/${monitoringPointId}`)
+  },
+  powerQuality(): Promise<{ metrics: PowerQuality[]; count: number }> {
+    return get('/api/network/power-quality')
+  },
+}
+
+// --- Network Assets API ---
+export const networkAssetsApi = {
+  list(params?: { asset_type?: string; region?: string; health_threshold?: number }): Promise<{ assets: NetworkAsset[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.asset_type) qs.set('asset_type', params.asset_type)
+    if (params?.region) qs.set('region', params.region)
+    if (params?.health_threshold) qs.set('health_threshold', String(params.health_threshold))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/assets${q}`)
+  },
+  detail(assetId: string): Promise<NetworkAsset & { loading_history?: AssetLoading[]; failure_probability_12m?: number; contributing_factors?: string }> {
+    return get(`/api/assets/${assetId}`)
+  },
+  healthRanking(): Promise<{ ranking: AssetHealth[]; count: number }> {
+    return get('/api/assets/health-ranking')
+  },
+  failureRisk(minProbability = 0.5): Promise<{ high_risk_assets: FailurePrediction[]; count: number; threshold: number }> {
+    return get(`/api/assets/failure-risk?min_probability=${minProbability}`)
+  },
+  conditionTrends(): Promise<{ trends: Array<{ asset_type: string; avg_health: number; min_health: number; max_health: number; asset_count: number }> }> {
+    return get('/api/assets/condition-trends')
+  },
+  replacementPriority(): Promise<{ priority: Array<NetworkAsset & { risk_weighted_cost_m: number; failure_probability_12m: number }>; count: number }> {
+    return get('/api/assets/replacement-priority')
+  },
+}
+
+// --- Outages API ---
+export const outagesApi = {
+  list(params?: { region?: string; cause?: string; days?: number }): Promise<{ outages: OutageEvent[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.set('region', params.region)
+    if (params?.cause) qs.set('cause', params.cause)
+    if (params?.days) qs.set('days', String(params.days))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/outages${q}`)
+  },
+  detail(eventId: string): Promise<OutageEvent> {
+    return get(`/api/outages/${eventId}`)
+  },
+  active(): Promise<{ active_outages: OutageEvent[]; count: number }> {
+    return get('/api/outages/active')
+  },
+  reliability(region?: string): Promise<{ kpis: ReliabilityKPI[]; count: number }> {
+    const qs = region ? `?region=${region}` : ''
+    return get(`/api/outages/reliability${qs}`)
+  },
+  causes(days = 90): Promise<{ causes: Array<{ cause_code: string; event_count: number; total_affected: number; avg_duration_min: number }> }> {
+    return get(`/api/outages/causes?days=${days}`)
+  },
+  worstFeeders(): Promise<{ worst_feeders: Array<{ feeder_id: string; zone_substation: string; region: string; outage_count: number; total_affected: number; total_minutes: number }>; count: number }> {
+    return get('/api/outages/worst-feeders')
+  },
+  gsl(): Promise<{ feeders: GSLTracking[]; count: number; total_eligible_customers?: number; total_projected_payment_aud?: number }> {
+    return get('/api/outages/gsl')
+  },
+  summary(): Promise<{ active_outages: number; saidi_ytd: number; saidi_target: number; saidi_pct_of_target: number; worst_region: string; timestamp: string }> {
+    return get('/api/outages/summary')
+  },
+}
+
+// --- DER API ---
+export const derApi = {
+  fleet(zoneSubstation?: string): Promise<{ fleet: DERInstallation[]; count: number }> {
+    const qs = zoneSubstation ? `?zone_substation=${zoneSubstation}` : ''
+    return get(`/api/der/fleet${qs}`)
+  },
+  fleetDetail(zoneSubstation: string): Promise<{ zone_substation: string; breakdown: Array<{ technology: string; count: number; total_kw: number; avg_kw: number }> }> {
+    return get(`/api/der/fleet/${zoneSubstation}`)
+  },
+  hostingCapacity(): Promise<{ feeders: HostingCapacity[]; count: number }> {
+    return get('/api/der/hosting-capacity')
+  },
+  hostingCapacityDetail(feederId: string): Promise<{ feeder_id: string; scenarios: HostingCapacity[] }> {
+    return get(`/api/der/hosting-capacity/${feederId}`)
+  },
+  curtailment(params?: { region?: string; days?: number }): Promise<{ curtailment: CurtailmentEvent[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.set('region', params.region)
+    if (params?.days) qs.set('days', String(params.days))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/der/curtailment${q}`)
+  },
+  curtailmentImpact(): Promise<{ total_curtailed_mwh: number; total_lost_value_aud: number; total_affected_customers: number; total_events: number }> {
+    return get('/api/der/curtailment/impact')
+  },
+  vpp(): Promise<{ events: VPPDispatch[]; count: number }> {
+    return get('/api/der/vpp')
+  },
+  vppDetail(programId: string): Promise<{ program_id: string; program_name: string; dispatch_count: number; avg_accuracy: number; total_revenue_aud: number }> {
+    return get(`/api/der/vpp/${programId}`)
+  },
+  doeCompliance(): Promise<{ feeders: DOECompliance[]; count: number }> {
+    return get('/api/der/doe-compliance')
+  },
+  output(): Promise<{ output: Array<{ feeder_id: string; interval_datetime: string; solar_mw: number; battery_dispatch_mw: number; net_export_mw: number; reverse_power_flow_flag: boolean }>; count: number }> {
+    return get('/api/der/output')
+  },
+  summary(): Promise<{ solar_mw: number; battery_mw: number; ev_count: number; curtailment_today_mwh: number; timestamp: string; solar_count?: number; battery_count?: number; ev_mw?: number }> {
+    return get('/api/der/summary')
+  },
+}
+
+// --- Network Planning API ---
+export const networkPlanningApi = {
+  demandForecast(params?: { zone_substation?: string; scenario?: string }): Promise<{ forecasts: DemandForecastSpatial[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.zone_substation) qs.set('zone_substation', params.zone_substation)
+    if (params?.scenario) qs.set('scenario', params.scenario)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/planning/demand-forecast${q}`)
+  },
+  demandForecastDetail(zoneSub: string): Promise<{ zone_substation: string; forecasts: DemandForecastSpatial[] }> {
+    return get(`/api/planning/demand-forecast/${zoneSub}`)
+  },
+  constraints(constraintType?: string): Promise<{ constraints: NetworkConstraint[]; count: number }> {
+    const qs = constraintType ? `?constraint_type=${constraintType}` : ''
+    return get(`/api/planning/constraints${qs}`)
+  },
+  constraintDetail(constraintId: string): Promise<NetworkConstraint> {
+    return get(`/api/planning/constraints/${constraintId}`)
+  },
+  evImpact(scenario?: string): Promise<{ impacts: EVImpact[]; count: number }> {
+    const qs = scenario ? `?scenario=${scenario}` : ''
+    return get(`/api/planning/ev-impact${qs}`)
+  },
+  evImpactDetail(feederId: string): Promise<{ feeder_id: string; projections: EVImpact[] }> {
+    return get(`/api/planning/ev-impact/${feederId}`)
+  },
+  evProfiles(): Promise<{ profiles: EVProfile[] }> {
+    return get('/api/planning/ev-profiles')
+  },
+  augmentationOptions(): Promise<{ options: Array<{ constraint_id: string; zone_substation: string; option: string; type: string; npv_aud: number }>; count: number }> {
+    return get('/api/planning/augmentation-options')
+  },
+  summary(): Promise<{ total_constraints: number; breach_by_2030: number; avg_ev_impact_2030_mw: number; timestamp: string }> {
+    return get('/api/planning/summary')
+  },
+}

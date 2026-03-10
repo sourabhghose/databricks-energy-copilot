@@ -152,6 +152,11 @@ from routers.environmentals import router as environmentals_router  # noqa: E402
 from routers.reports import router as reports_router  # noqa: E402
 from routers.nem_map import router as nem_map_router  # noqa: E402
 from routers.trading_signals import router as trading_signals_router  # noqa: E402
+from routers.network_ops import router as network_ops_router  # noqa: E402
+from routers.network_assets import router as network_assets_router  # noqa: E402
+from routers.outages import router as outages_router  # noqa: E402
+from routers.der import router as der_router  # noqa: E402
+from routers.network_planning import router as network_planning_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(dashboards_router)
@@ -181,6 +186,11 @@ app.include_router(environmentals_router)
 app.include_router(reports_router)
 app.include_router(nem_map_router)
 app.include_router(trading_signals_router)
+app.include_router(network_ops_router)
+app.include_router(network_assets_router)
+app.include_router(outages_router)
+app.include_router(der_router)
+app.include_router(network_planning_router)
 app.include_router(auto_stubs_router)
 
 # ---------------------------------------------------------------------------

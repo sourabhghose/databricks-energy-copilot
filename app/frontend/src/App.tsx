@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, useLocation, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, useLocation, useParams, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Zap,
@@ -97,6 +97,8 @@ import {
   Rocket,
   CloudRain,
   ChevronDown,
+  Search,
+  X,
 } from 'lucide-react'
 
 import TradingSignals from './pages/TradingSignals'
@@ -591,6 +593,11 @@ import WemDashboard from './pages/WemDashboard'
 import ComplianceDashboard from './pages/ComplianceDashboard'
 import EnvironmentalsDashboard from './pages/EnvironmentalsDashboard'
 import ReportsLibrary from './pages/ReportsLibrary'
+import NetworkOperations from './pages/NetworkOperations'
+import NetworkAssetsPage from './pages/NetworkAssets'
+import OutageManagement from './pages/OutageManagement'
+import DERManagement from './pages/DERManagement'
+import NetworkPlanningPage from './pages/NetworkPlanning'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -618,11 +625,11 @@ const NAV_ITEMS = [
   { to: '/risk-dashboard',  label: 'Risk Dashboard',   Icon: Shield         },
   { to: '/bidding-dashboard', label: 'Bidding Dashboard', Icon: BarChart2    },
   { to: '/battery-dispatch',  label: 'Battery Dispatch',  Icon: Battery      },
-  { to: '/gas-market',        label: 'Gas Market Dashboard', Icon: Flame     },
-  { to: '/wem-dashboard',     label: 'WEM Dashboard',     Icon: Building2    },
+  { to: '/gas-market',        label: 'Gas Market',        Icon: Flame        },
   { to: '/compliance',        label: 'Compliance Dashboard', Icon: FileText  },
   { to: '/environmentals',    label: 'Environmentals',    Icon: Leaf         },
   { to: '/reports',           label: 'Reports Library',   Icon: FileText     },
+  { to: '/nem-map',           label: 'NEM Infrastructure Map', Icon: MapIcon },
   { to: '/sustainability',  label: 'Sustainability',   Icon: Leaf            },
   { to: '/biomass-bioenergy', label: 'Biomass & Bioenergy', Icon: Leaf       },
   { to: '/merit-order',     label: 'Merit Order',      Icon: TrendingUp      },
@@ -637,7 +644,7 @@ const NAV_ITEMS = [
   { to: '/market-share-tracker', label: 'Market Share',      Icon: Users          },
   { to: '/outages',        label: 'Outage Schedule',   Icon: Wrench         },
   { to: '/der',            label: 'VPP & DER',         Icon: HomeIcon       },
-  { to: '/gas',            label: 'Gas Market',        Icon: Flame          },
+  { to: '/gas',            label: 'Gas Pipelines',     Icon: Flame          },
   { to: '/retail',         label: 'Retail Market',     Icon: Users          },
   { to: '/network',        label: 'Network & MLF',     Icon: Network        },
   { to: '/rez',            label: 'REZ & Infrastructure', Icon: Zap         },
@@ -667,7 +674,7 @@ const NAV_ITEMS = [
   { to: '/grid-mod',       label: 'Grid Modernisation', Icon: Wifi           },
   { to: '/spot-cap',       label: 'Price Cap & CPT',   Icon: AlertTriangle  },
   { to: '/causer-pays',    label: 'Causer Pays',        Icon: Gauge          },
-  { to: '/wem',            label: 'WEM Market',        Icon: Building2      },
+  { to: '/wem-dashboard',  label: 'WEM Market',        Icon: Building2      },
   { to: '/inertia',         label: 'Inertia & Strength', Icon: Activity       },
   { to: '/tnsp',           label: 'TNSP & AER',        Icon: Network        },
   { to: '/surveillance',  label: 'Market Surveillance', Icon: Shield         },
@@ -832,7 +839,7 @@ const NAV_ITEMS = [
   { to: '/price-model-comparison',       label: 'Price Forecasting Model Comparison', Icon: Cpu    },
   { to: '/gas-electricity-nexus',        label: 'Gas-Electricity Nexus Analytics',     Icon: Flame         },
   { to: '/bidding-compliance',           label: 'Generator Bidding Compliance',        Icon: AlertOctagon  },
-  { to: '/community-energy-analytics',  label: 'Community Energy & Microgrid',        Icon: Home          },
+  { to: '/community-energy-analytics',  label: 'Community Energy & Microgrid',        Icon: HomeIcon      },
   { to: '/grid-cybersecurity',          label: 'Grid Cybersecurity & Resilience',     Icon: Lock          },
   { to: '/market-participant-financial', label: 'Market Participant Financial Health', Icon: CreditCard    },
   { to: '/digital-transformation',      label: 'Digital Transformation Analytics',   Icon: Smartphone    },
@@ -1083,6 +1090,11 @@ const NAV_ITEMS = [
   { to: '/community-battery', label: 'Community Battery', Icon: Battery },
   { to: '/energy-cyber-security', label: 'Cyber Security', Icon: Lock },
   { to: '/wholesale-market-reform', label: 'Wholesale Market Reform', Icon: Scale },
+  { to: '/network-operations', label: 'Network Operations', Icon: Activity       },
+  { to: '/network-assets',     label: 'Network Assets',     Icon: Shield         },
+  { to: '/outage-management',  label: 'Outage Management',  Icon: AlertTriangle  },
+  { to: '/der-management',     label: 'DER Management',     Icon: Sun            },
+  { to: '/network-planning',   label: 'Network Planning',   Icon: TrendingUp     },
 ]
 
 const ROUTE_MAP: Record<string, React.ComponentType> = {
@@ -1569,6 +1581,16 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/energy-cyber-security': EnergySectorCyberSecurityAnalytics,
   '/wholesale-market-reform': WholesaleMarketReformAnalytics,
   '/nem-map': NemInfrastructureMap,
+  '/gas-market': GasMarketDashboard,
+  '/wem-dashboard': WemDashboard,
+  '/environmentals': EnvironmentalsDashboard,
+  '/reports': ReportsLibrary,
+  // Phase 4: Distribution Network
+  '/network-operations': NetworkOperations,
+  '/network-assets': NetworkAssetsPage,
+  '/outage-management': OutageManagement,
+  '/der-management': DERManagement,
+  '/network-planning': NetworkPlanningPage,
 }
 
 // ---------------------------------------------------------------------------
@@ -1584,17 +1606,11 @@ const DASHBOARD_LINKS: { to: string; label: string; Icon: React.ComponentType<{ 
   { to: '/forward-curves',    label: 'Forward Curves', Icon: TrendingUp },
   { to: '/risk-dashboard',    label: 'Risk',           Icon: Shield },
   { to: '/trading-signals',  label: 'Trading Signals', Icon: Target },
-  // Market Dashboards
+  // Active Dispatch
   { to: '/bidding-dashboard', label: 'Bidding',        Icon: BarChart2 },
   { to: '/battery-dispatch',  label: 'Battery',        Icon: Battery },
-  { to: '/gas-market',        label: 'Gas Market',     Icon: Flame },
-  { to: '/wem-dashboard',     label: 'WEM',            Icon: Building2 },
-  // Operations & Compliance
-  { to: '/nem-map',           label: 'NEM Map',        Icon: MapIcon },
-  { to: '/market-briefs',     label: 'Market Briefs',  Icon: FileText },
-  { to: '/compliance',        label: 'Compliance',     Icon: FileText },
-  { to: '/environmentals',    label: 'Environmentals', Icon: Leaf },
-  { to: '/reports',           label: 'Reports',        Icon: FileText },
+  // Network Monitoring
+  { to: '/network-operations', label: 'Network Ops',  Icon: Activity },
 ]
 
 const GROUP_DEFS: { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
@@ -1639,6 +1655,10 @@ function classifyNavItem(to: string, label: string): string {
     '/risk-dashboard': 'prices',
     '/market-replay': 'operations',
     '/market-briefs': 'operations',
+    '/outage-management': 'network',
+    '/environmentals': 'renewables',
+    '/reports': 'analytics',
+    '/nem-map': 'network',
     '/bidding-dashboard': 'prices',
     '/battery-dispatch': 'storage',
     '/gas-market': 'gas',
@@ -1646,8 +1666,6 @@ function classifyNavItem(to: string, label: string): string {
     '/compliance': 'policy',
     '/spot-forecast': 'prices',
     '/realtime-operations': 'operations',
-    '/environmentals': 'renewables',
-    '/reports': 'analytics',
   }
   if (exact[to]) return exact[to]
 
@@ -1810,9 +1828,17 @@ class PageErrorBoundary extends React.Component<
 
 function CategoryPage() {
   const { groupKey } = useParams<{ groupKey: string }>()
+  const loc = useLocation()
   const [activePath, setActivePath] = useState<string | null>(null)
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const menuBarRef = useRef<HTMLDivElement>(null)
+
+  // Pick up ?page= from search navigation
+  useEffect(() => {
+    const params = new URLSearchParams(loc.search)
+    const page = params.get('page')
+    if (page) setActivePath(page)
+  }, [loc.search])
 
   const group = useMemo(() => {
     const def = GROUP_DEFS.find(g => g.key === groupKey)
@@ -1884,10 +1910,17 @@ function CategoryPage() {
   const ActiveComponent = activePath ? ROUTE_MAP[activePath] : null
   const activeLabel = group.items.find(i => i.to === activePath)?.label
 
+  // Find the open menu's items + position for portal-style dropdown
+  const openMenuDef = openMenu ? menus.find(m => m.key === openMenu) : null
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
+      {/* Backdrop — rendered outside sticky so it covers entire category page */}
+      {openMenu && (
+        <div className="absolute inset-0 z-20 bg-black/20" onClick={() => setOpenMenu(null)} />
+      )}
       {/* Menu bar */}
-      <div className="sticky top-0 z-20 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-[#30363D] shrink-0">
+      <div className="sticky top-0 z-30 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-[#30363D] shrink-0">
         {/* Category title row */}
         <div className="flex items-center gap-2 px-5 pt-3 pb-1">
           <group.Icon size={16} className="text-gray-400" />
@@ -1919,9 +1952,9 @@ function CategoryPage() {
                 </button>
                 {/* Dropdown */}
                 {isOpen && (
-                  <div className="absolute top-full left-0 mt-0 min-w-[220px] max-h-[60vh] overflow-y-auto bg-white dark:bg-[#1C2128] border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-lg z-30">
+                  <div className="absolute top-full left-0 mt-0 min-w-[220px] max-h-[60vh] overflow-y-auto bg-white dark:bg-[#1C2128] border border-gray-200 dark:border-gray-700 rounded-b-lg shadow-xl z-40">
                     {menu.items.map(item => {
-                      const isActive = item.to === activePath
+                      const isItemActive = item.to === activePath
                       return (
                         <button
                           key={item.to}
@@ -1931,7 +1964,7 @@ function CategoryPage() {
                           }}
                           className={[
                             'flex items-center gap-2 w-full px-3 py-2 text-xs text-left transition-colors',
-                            isActive
+                            isItemActive
                               ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
                               : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800',
                           ].join(' ')}
@@ -1949,7 +1982,7 @@ function CategoryPage() {
         </div>
       </div>
       {/* Active page content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto relative z-10">
         {ActiveComponent ? <PageErrorBoundary pageName={activePath ?? undefined}><ActiveComponent /></PageErrorBoundary> : <div className="p-6 text-gray-400 text-sm">Select a dashboard from the menu above</div>}
       </div>
     </div>
@@ -1958,13 +1991,32 @@ function CategoryPage() {
 
 function Sidebar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [quickAccessOpen, setQuickAccessOpen] = useState(true)
   const [expandedOffice, setExpandedOffice] = useState<string | null>('front')
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
 
   const pinnedItems = useMemo(
     () => NAV_ITEMS.filter(item => PINNED_PATHS.has(item.to)),
     []
   )
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const q = searchQuery.toLowerCase()
+    return NAV_ITEMS.filter(item => item.label.toLowerCase().includes(q)).slice(0, 12)
+  }, [searchQuery])
+
+  const handleSearchNav = (to: string) => {
+    setSearchQuery('')
+    const group = classifyNavItem(to, NAV_ITEMS.find(i => i.to === to)?.label ?? '')
+    if (group && group !== 'other') {
+      navigate(`/cat/${group}?page=${encodeURIComponent(to)}`)
+    } else {
+      navigate(to)
+    }
+  }
 
   // Check if current path belongs to a category (for highlighting when on individual routes)
   const activeCategoryKey = useMemo(() => {
@@ -2003,8 +2055,54 @@ function Sidebar() {
         </span>
       </div>
 
+      {/* Search */}
+      <div className="px-2 pt-2 pb-1">
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search dashboards..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') { setSearchQuery(''); searchRef.current?.blur() }
+              if (e.key === 'Enter' && searchResults.length > 0) { handleSearchNav(searchResults[0].to) }
+            }}
+            className="w-full pl-8 pr-7 py-1.5 rounded-md bg-white/5 border border-white/10 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-colors"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
+        {/* Search results */}
+        {searchQuery.trim() ? (
+          <>
+            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+            </div>
+            {searchResults.map(({ to, label, Icon }) => (
+              <button
+                key={to}
+                onClick={() => handleSearchNav(to)}
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors text-gray-400 hover:bg-white/5 hover:text-white w-full text-left"
+              >
+                <Icon size={14} className="shrink-0" />
+                {label}
+              </button>
+            ))}
+            {searchResults.length === 0 && (
+              <div className="px-3 py-2 text-xs text-gray-500">No dashboards found</div>
+            )}
+          </>
+        ) : (
+        <>
         {/* Pinned items */}
         {pinnedItems.map(({ to, label, Icon }) => (
           <NavLink
@@ -2097,6 +2195,8 @@ function Sidebar() {
             </div>
           )
         })}
+        </>
+        )}
       </nav>
 
       {/* Footer */}
@@ -2639,6 +2739,11 @@ export default function App() {
               <Route path="/energy-cyber-security" element={<PageErrorBoundary pageName="/energy-cyber-security"><EnergySectorCyberSecurityAnalytics /></PageErrorBoundary>} />
               <Route path="/wholesale-market-reform" element={<PageErrorBoundary pageName="/wholesale-market-reform"><WholesaleMarketReformAnalytics /></PageErrorBoundary>} />
               <Route path="/nem-map" element={<PageErrorBoundary pageName="/nem-map"><NemInfrastructureMap /></PageErrorBoundary>} />
+              <Route path="/network-operations" element={<PageErrorBoundary pageName="/network-operations"><NetworkOperations /></PageErrorBoundary>} />
+              <Route path="/network-assets" element={<PageErrorBoundary pageName="/network-assets"><NetworkAssetsPage /></PageErrorBoundary>} />
+              <Route path="/outage-management" element={<PageErrorBoundary pageName="/outage-management"><OutageManagement /></PageErrorBoundary>} />
+              <Route path="/der-management" element={<PageErrorBoundary pageName="/der-management"><DERManagement /></PageErrorBoundary>} />
+              <Route path="/network-planning" element={<PageErrorBoundary pageName="/network-planning"><NetworkPlanningPage /></PageErrorBoundary>} />
             </Routes>
           </main>
         </div>
