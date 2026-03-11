@@ -26,7 +26,7 @@ from .sidebar import bess_fleet, alerts_list, demand_response, merit_order
 router = APIRouter()
 
 # =========================================================================
-# Copilot Chat — Databricks Foundation Model API (pay-per-token)
+# AI Market Intelligence Chat — Databricks Foundation Model API (pay-per-token)
 # =========================================================================
 
 _CHAT_MODEL = "databricks-claude-sonnet-4-6"
@@ -1529,7 +1529,7 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
         return json.dumps({"error": f"Tool execution failed: {str(exc)[:200]}"})
 
 _SYSTEM_PROMPT_BASE = (
-    "You are the AUS Energy Copilot, an expert AI assistant specialising in "
+    "You are the AUS Energy AI Market Intelligence, an expert AI assistant specialising in "
     "Australia's National Electricity Market (NEM). You have LIVE access to "
     "NEM market data which is provided below. Use this data to give specific, "
     "data-driven answers. Never say you don't have access to data — you DO. "
@@ -2083,7 +2083,7 @@ async def copilot_chat(req: ChatRequest):
 
 
 # =========================================================================
-# Copilot Sessions (lightweight in-memory mock)
+# AI Market Intelligence Sessions (lightweight in-memory mock)
 # =========================================================================
 
 _sessions: list[dict] = []
@@ -2091,13 +2091,13 @@ _sessions: list[dict] = []
 
 @router.get("/api/sessions")
 async def list_sessions(limit: int = Query(default=20, ge=1, le=100)):
-    """List recent copilot sessions."""
+    """List recent AI Market Intelligence sessions."""
     return sorted(_sessions, key=lambda s: s["last_active"], reverse=True)[:limit]
 
 
 @router.post("/api/sessions", status_code=201)
 async def create_session():
-    """Create a new copilot session."""
+    """Create a new AI Market Intelligence session."""
     now = datetime.now(timezone.utc).isoformat()
     session = {
         "session_id": str(uuid.uuid4()),
@@ -2113,7 +2113,7 @@ async def create_session():
 
 @router.get("/api/sessions/{session_id}")
 async def get_session(session_id: str):
-    """Get a specific copilot session."""
+    """Get a specific AI Market Intelligence session."""
     for s in _sessions:
         if s["session_id"] == session_id:
             return s

@@ -114,7 +114,7 @@ export default function DealCapture() {
         if (!aiText.trim()) return
         setAiParsing(true)
         try {
-            // Send to copilot for NL parsing — the backend will parse trade description
+            // Send to AI Market Intelligence for NL parsing — the backend will parse trade description
             const res = await fetch('/api/copilot/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

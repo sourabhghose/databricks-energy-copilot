@@ -496,7 +496,7 @@ export default function Copilot() {
       {/* Header row */}
       <div className="px-6 py-3 border-b border-gray-200 bg-white shrink-0 flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Copilot</h2>
+          <h2 className="text-xl font-bold text-gray-900">AI Market Intelligence</h2>
           <p className="text-xs text-gray-400 mt-0.5">
             AI-powered NEM market analyst — ask anything · Cmd+K to focus
           </p>

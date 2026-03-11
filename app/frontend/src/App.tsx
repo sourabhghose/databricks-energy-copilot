@@ -607,7 +607,7 @@ const NAV_ITEMS = [
   { to: '/market-briefs',  label: 'Market Briefs',  Icon: FileText        },
   { to: '/forecasts',    label: 'Forecasts',    Icon: TrendingUp      },
   { to: '/market-depth', label: 'Market Depth', Icon: TrendingUp      },
-  { to: '/copilot',      label: 'Copilot',      Icon: MessageSquare   },
+  { to: '/ai-market-intelligence',      label: 'AI Market Intelligence',      Icon: MessageSquare   },
   { to: '/genie',        label: 'Genie',        Icon: Sparkles        },
   { to: '/alerts',       label: 'Alerts',       Icon: Bell            },
   { to: '/monitoring',        label: 'Monitoring',     Icon: Activity        },
@@ -1101,7 +1101,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/': Home,
   '/live': LiveMarket,
   '/forecasts': Forecasts,
-  '/copilot': Copilot,
+  '/ai-market-intelligence': Copilot,
   '/genie': Genie,
   '/alerts': Alerts,
   '/monitoring': Monitoring,
@@ -1597,7 +1597,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
 // Sidebar — Collapsible Front / Middle / Back Office sections
 // ---------------------------------------------------------------------------
 
-const PINNED_PATHS = new Set(['/', '/live', '/copilot', '/genie', '/alerts'])
+const PINNED_PATHS = new Set(['/', '/live', '/ai-market-intelligence', '/genie', '/alerts'])
 
 const DASHBOARD_LINKS: { to: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   // Trading & Risk
@@ -2051,7 +2051,7 @@ function Sidebar() {
           </g>
         </svg>
         <span className="text-sm font-bold leading-tight tracking-tight">
-          AUS Energy<br />Copilot
+          AUS Energy<br />AI Market Intelligence
         </span>
       </div>
 
@@ -2225,7 +2225,7 @@ function TopBar() {
   return (
     <header className="h-12 flex items-center justify-between px-6 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-[#30363D] shrink-0">
       <h1 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-        AUS Energy Copilot
+        AUS Energy AI Market Intelligence
       </h1>
       <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
         <span className="flex items-center gap-1">
@@ -2251,7 +2251,7 @@ export default function App() {
               <Route path="/"          element={<Home />}       />
               <Route path="/live" element={<PageErrorBoundary pageName="/live"><LiveMarket /></PageErrorBoundary>} />
               <Route path="/forecasts" element={<PageErrorBoundary pageName="/forecasts"><Forecasts /></PageErrorBoundary>} />
-              <Route path="/copilot"   element={<Copilot />}    />
+              <Route path="/ai-market-intelligence"   element={<Copilot />}    />
               <Route path="/genie"     element={<Genie />}      />
               <Route path="/alerts" element={<PageErrorBoundary pageName="/alerts"><Alerts /></PageErrorBoundary>} />
               <Route path="/market-replay" element={<PageErrorBoundary pageName="/market-replay"><MarketReplay /></PageErrorBoundary>} />

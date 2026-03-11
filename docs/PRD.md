@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-# AUS Energy Copilot — Phase 1: Market Intelligence & AI Assistant
+# AUS Energy AI Market Intelligence — Phase 1: Market Intelligence & AI Assistant
 
 **Version:** 4.0
 **Date:** 10 March 2026
@@ -10,21 +10,21 @@
 
 | Phase | Scope | Status | Completed |
 |-------|-------|--------|-----------|
-| Phase 1 | Market Intelligence & AI Copilot | COMPLETE | 2026-03-08 |
+| Phase 1 | Market Intelligence & AI Market Intelligence | COMPLETE | 2026-03-08 |
 | Phase 2 | Lightweight ETRM — Trading & Risk | COMPLETE | 2026-03-08 |
 | Phase 3 | Bidding, Advanced Risk & Market Expansion | COMPLETE | 2026-03-09 |
 | Phase 4 | Network Operations & Distribution Intelligence | COMPLETE | 2026-03-09 |
 | Phase 5 | Back-Office & Operational Excellence | PLANNED | — |
 
-**Delivered:** 496 frontend pages, 34 backend routers (~500+ endpoints), 47 FMAPI copilot tools, 11 Genie AI/BI spaces, 80+ gold Delta tables, Lakebase serving layer (10-38ms reads), NEM infrastructure map (742 facilities), algorithmic trading signals engine (8 signal types), market briefs auto-refresh.
+**Delivered:** 496 frontend pages, 34 backend routers (~500+ endpoints), 47 FMAPI AI tools, 11 Genie AI/BI spaces, 80+ gold Delta tables, Lakebase serving layer (10-38ms reads), NEM infrastructure map (742 facilities), algorithmic trading signals engine (8 signal types), market briefs auto-refresh.
 
 ---
 
 ## 1. Executive Summary
 
-AUS Energy Copilot is an AI-powered market intelligence and trading assistant for the Australian National Electricity Market (NEM). Phase 1 delivers a real-time market analytics platform (comparable to NemSight) combined with a conversational AI copilot — built entirely on Databricks-native technologies.
+AUS Energy AI Market Intelligence is an AI-powered market intelligence and trading assistant for the Australian National Electricity Market (NEM). Phase 1 delivers a real-time market analytics platform (comparable to NemSight) combined with a conversational AI assistant — built entirely on Databricks-native technologies.
 
-The product ingests open-source data from AEMO/NEMWEB, OpenElectricity, and Bureau of Meteorology weather feeds, processes it through a medallion lakehouse architecture, and serves it through three interfaces: interactive dashboards, natural language Genie analytics, and an AI agent copilot.
+The product ingests open-source data from AEMO/NEMWEB, OpenElectricity, and Bureau of Meteorology weather feeds, processes it through a medallion lakehouse architecture, and serves it through three interfaces: interactive dashboards, natural language Genie analytics, and an AI Market Intelligence agent.
 
 **Target users:** Energy traders, portfolio analysts, market analysts, and trading desk managers operating in the Australian NEM. Phase 4 extends to Distribution Network Service Providers (DNSPs) with network operations, DER management, and reliability analytics.
 
@@ -60,22 +60,22 @@ Build an AI-first market intelligence platform that:
 ### P1: Energy Trader (Primary)
 - **Goal**: Make profitable trading decisions quickly
 - **Needs**: Real-time prices, generation mix, interconnector flows, price forecasts, competitor bidstack analysis, alerts on price spikes
-- **AI Copilot Use**: "What's the SA spot price forecast for 4-6pm today?", "Why did QLD price spike at 2pm?", "Show me the bidstack changes for Bayswater in the last hour"
+- **AI Market Intelligence Use**: "What's the SA spot price forecast for 4-6pm today?", "Why did QLD price spike at 2pm?", "Show me the bidstack changes for Bayswater in the last hour"
 
 ### P2: Market Analyst (Primary)
 - **Goal**: Produce market reports and identify trends
 - **Needs**: Historical analysis, cross-regional comparisons, seasonal patterns, renewable penetration trends, demand correlations
-- **AI Copilot Use**: "Compare average peak prices across all regions for Q4 2025 vs Q4 2024", "What's the correlation between wind generation and SA prices?"
+- **AI Market Intelligence Use**: "Compare average peak prices across all regions for Q4 2025 vs Q4 2024", "What's the correlation between wind generation and SA prices?"
 
 ### P3: Risk / Portfolio Manager (Secondary)
 - **Goal**: Monitor portfolio exposure to market movements
 - **Needs**: Price volatility metrics, regional risk profiles, interconnector congestion patterns, demand forecast accuracy
-- **AI Copilot Use**: "What was the volatility in VIC prices this week?", "Summarize interconnector congestion events in the last month"
+- **AI Market Intelligence Use**: "What was the volatility in VIC prices this week?", "Summarize interconnector congestion events in the last month"
 
 ### P4: Trading Desk Manager / Executive (Secondary)
 - **Goal**: High-level market overview without technical complexity
 - **Needs**: Daily market summaries, key metrics dashboard, trend alerts
-- **AI Copilot Use**: "Give me a morning market brief", "What were the key market events yesterday?"
+- **AI Market Intelligence Use**: "Give me a morning market brief", "What were the key market events yesterday?"
 
 ---
 
@@ -114,7 +114,7 @@ Build an AI-first market intelligence platform that:
 - [x] Interconnectors & Constraints Genie space
 - [x] Sample questions and business glossary for each space
 
-#### AI Copilot Agent
+#### AI Market Intelligence Agent
 - [x] Conversational chat interface (Streamlit-based)
 - [x] Market Q&A using RAG over AEMO documentation + market rules
 - [x] Price spike / anomaly explanation (causal analysis)
@@ -125,7 +125,7 @@ Build an AI-first market intelligence platform that:
 
 #### Frontend Application
 - [x] Databricks App (Streamlit) with tabbed layout
-- [x] Tabs: Dashboard, Forecasts, Copilot Chat, Genie Analytics, Alerts
+- [x] Tabs: Dashboard, Forecasts, AI Market Intelligence, Genie Analytics, Alerts
 - [x] Responsive web design (desktop + tablet)
 - [x] OAuth authentication via Databricks
 
@@ -137,9 +137,9 @@ Build an AI-first market intelligence platform that:
 - [x] Alert states: triggered → acknowledged → resolved, with auto-resolve on threshold recovery
 - [ ] Alert bundling: suppress duplicate alerts within configurable cooldown window (default 5 min)
 - [x] Alert history with linked market context (what happened when the alert fired)
-- [x] Copilot integration: `create_alert_rule` FMAPI tool — "Set an alert if SA price exceeds $300" → creates alert rule via NL
+- [x] AI integration: `create_alert_rule` FMAPI tool — "Set an alert if SA price exceeds $300" → creates alert rule via NL
 - **Implementation**: `sidebar.py` CRUD endpoints (POST/DELETE/PATCH/GET rules, POST evaluate). `gold.alert_rules` + `gold.alert_history` Delta tables. Alerts page with KPI cards, toggle switches, real-time evaluate against `nem_prices_5min`.
-- **Competitive note**: Closes gap vs. ez2view (audio, SMS, email, on-screen) and NemSight (desktop, email, mobile push). Exceeds both with Copilot NL alert creation.
+- **Competitive note**: Closes gap vs. ez2view (audio, SMS, email, on-screen) and NemSight (desktop, email, mobile push). Exceeds both with AI Market Intelligence NL alert creation.
 
 ##### Market Replay / Time-Travel Mode — **DONE** (2026-03-08)
 - [x] Replay slider on dedicated Market Replay page — scrub to any historical 5-minute dispatch interval
@@ -155,7 +155,7 @@ Build an AI-first market intelligence platform that:
 - [x] Constraint overlay on Network Constraints page: active binding constraints with marginal values ($/MWh)
 - [x] Constraint impact indicator: show which constraints are driving price separation between regions
 - [x] Constraint history: heatmap of constraint binding frequency by time-of-day (24h) and day-of-week (7d)
-- [x] Copilot tool: `get_constraint_forecast` FMAPI tool returns binding heatmap data
+- [x] AI tool: `get_constraint_forecast` FMAPI tool returns binding heatmap data
 - [x] Data source: `nemweb_analytics.gold_nem_constraints` — binding constraints with marginal values, RHS, violation degree per dispatch interval
 - **Implementation**: `sidebar.py` `/api/constraints/dashboard` (real data from gold_nem_constraints), `/api/constraints/binding-heatmap` (24×7 grid), `/api/constraints/price-separation` (inter-regional spreads). `NetworkConstraints.tsx` enhanced with KPI cards, region summaries, equations table, violations table, binding heatmap tab, price separation bar chart.
 - **Competitive note**: Closes gap vs. ez2view (50+ NEM constraint widgets) and NemSight (constraint binding alerts).
@@ -170,7 +170,7 @@ Build an AI-first market intelligence platform that:
   - Price volatility spikes (max > 3× average in window)
 - [ ] Push explanation to alert channels (deferred — currently in-app only)
 - [x] Store explanations in `gold.anomaly_explanations` for historical analysis and caching
-- **Implementation**: `alerts.py` router with `_explain_anomaly_core()` — queries ±30min window of prices, generation, interconnectors, weather. Heuristic root cause identification (7 cause types). Template-based narrative generation. Cached in `gold.anomaly_explanations`. Endpoints: `/api/anomaly/explain`, `/api/anomaly/recent`. Copilot tool: `explain_anomaly`.
+- **Implementation**: `alerts.py` router with `_explain_anomaly_core()` — queries ±30min window of prices, generation, interconnectors, weather. Heuristic root cause identification (7 cause types). Template-based narrative generation. Cached in `gold.anomaly_explanations`. Endpoints: `/api/anomaly/explain`, `/api/anomaly/recent`. AI tool: `explain_anomaly`.
 - **Competitive note**: **No incumbent offers this.** ez2view shows constraints; NemSight shows alerts. Neither auto-explains events. This is a unique AI differentiator.
 
 ##### Scheduled Market Briefs — **DONE** (2026-03-08)
@@ -178,7 +178,7 @@ Build an AI-first market intelligence platform that:
 - [x] Content: overnight price summary per region, key price spike events, today's outlook (weather/generation), watch items (low wind warnings)
 - [x] Delivery: in-app (Home tab — collapsible latest brief widget + dedicated archive page)
 - [ ] Weekly market wrap-up: aggregated weekly summary with trend analysis
-- [x] Copilot NL trigger: `generate_market_brief` FMAPI tool — "Generate a market brief" produces on-demand brief
+- [x] AI Market Intelligence NL trigger: `generate_market_brief` FMAPI tool — "Generate a market brief" produces on-demand brief
 - [ ] Template customization: users configure which regions, metrics, and sections to include
 - **Implementation**: `market_briefs.py` router with `_generate_brief_core()` — queries 24h price stats, anomaly events, renewable share, interconnector congestion, weather. Builds markdown narrative (Overnight Summary, Key Events, Today's Outlook, Watch Items). Persists to `gold.market_briefs`. `MarketBriefs.tsx` archive page + `LatestBriefWidget` on Home page (collapsible card with "View all briefs →" link).
 - **Competitive note**: **No incumbent offers AI-generated briefs.** Traders currently spend 30-60 min writing morning briefs manually. This saves 5+ hours/week per trading desk.
@@ -199,7 +199,7 @@ Build an AI-first market intelligence platform that:
 - Deal capture and portfolio management (ETRM)
 - Forward curve construction and mark-to-market
 - Basic risk analytics (portfolio exposure, P&L attribution)
-- PPA valuation copilot
+- PPA valuation AI
 - FCAS market analytics and co-optimization
 - Settlement reconciliation (AEMO vs internal)
 
@@ -688,7 +688,7 @@ Every endpoint retains its full mock logic. If Lakebase is unavailable:
 
 ---
 
-## 7. AI Copilot Agent Specification
+## 7. AI Market Intelligence Agent Specification
 
 ### 7.1 Architecture
 
@@ -737,7 +737,7 @@ User (Streamlit Chat UI)
 └──────────────────────────────────────────────────────┘
 ```
 
-### 7.2 Copilot Capabilities
+### 7.2 AI Market Intelligence Capabilities
 
 | Capability | Description | Tools Used |
 |------------|-------------|------------|
@@ -758,7 +758,7 @@ User (Streamlit Chat UI)
 **Trader at 2pm:**
 > **User**: "What's the SA spot price forecast for the next 4 hours?"
 >
-> **Copilot**: "The current SA spot price is $87/MWh. My forecast for the next 4 hours:
+> **AI**: "The current SA spot price is $87/MWh. My forecast for the next 4 hours:
 > - 2:30pm: $92/MWh (↑ rising demand, wind dropping)
 > - 3:00pm: $105/MWh (↑ afternoon peak approaching)
 > - 3:30pm: $118/MWh (↑ peak demand, low wind)
@@ -771,7 +771,7 @@ User (Streamlit Chat UI)
 **Analyst at 9am:**
 > **User**: "Give me a morning market brief"
 >
-> **Copilot**: "NEM Morning Brief — 19 Feb 2026:
+> **AI**: "NEM Morning Brief — 19 Feb 2026:
 >
 > **Overnight**: Prices were subdued across all regions. NSW averaged $52/MWh, VIC $48/MWh, QLD $55/MWh, SA $61/MWh, TAS $44/MWh.
 >
@@ -797,10 +797,10 @@ User (Streamlit Chat UI)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🔋 AUS Energy Copilot           [Region: All ▼]  [👤 User] │
+│  🔋 AUS Energy AI Market Intelligence           [Region: All ▼]  [👤 User] │
 ├──────┬──────┬──────────┬──────────┬────────┬────────────────┤
-│ Home │ Live │ Forecasts│ Copilot  │ Genie  │ Alerts         │
-│      │Market│          │  Chat    │Analytics│               │
+│ Home │ Live │ Forecasts│ AI Mkt   │ Genie  │ Alerts         │
+│      │Market│          │  Intel   │Analytics│               │
 ├──────┴──────┴──────────┴──────────┴────────┴────────────────┤
 │                                                             │
 │                    [Active Tab Content]                      │
@@ -831,7 +831,7 @@ User (Streamlit Chat UI)
 - Model accuracy metrics (MAE, MAPE) over rolling windows
 - Forecast horizon selector (1hr, 4hr, 24hr)
 
-#### Tab 4: Copilot Chat
+#### Tab 4: AI Market Intelligence Chat
 - Full-screen chat interface
 - Message history (session-persistent)
 - Inline charts/tables rendered from agent tool responses
@@ -850,7 +850,7 @@ User (Streamlit Chat UI)
 - Alert history with linked market events and AI-generated explanations
 - Predicted alert section (AI-driven "likely to trigger in next 4 hours")
 - Alert rule builder: visual editor for metric × operator × threshold × channel × cooldown
-- NL alert creation: Copilot-powered "Set an alert when..." shortcut
+- NL alert creation: AI-powered "Set an alert when..." shortcut
 
 #### Tab 7: Market Replay
 - Time-travel slider: scrub to any historical 5-minute dispatch interval
@@ -908,7 +908,7 @@ User (Streamlit Chat UI)
 ### 10.1 Performance
 - Dashboard page load: < 3 seconds
 - Chart data refresh: < 5 seconds for 5-min data
-- Copilot response time: < 15 seconds for simple queries, < 30 seconds for complex multi-tool queries
+- AI response time: < 15 seconds for simple queries, < 30 seconds for complex multi-tool queries
 - Genie query response: < 20 seconds
 - Forecast model inference: < 60 seconds per region per horizon
 
@@ -922,7 +922,7 @@ User (Streamlit Chat UI)
 - All data governed via Unity Catalog
 - Row/column-level security where needed
 - OAuth SSO via Databricks identity
-- Audit logging for all copilot queries
+- Audit logging for all AI queries
 - No PII in market data (public AEMO data)
 
 ### 10.4 Scalability
@@ -939,7 +939,7 @@ User (Streamlit Chat UI)
 | Data freshness | < 2 min from AEMO publish to dashboard | Pipeline monitoring |
 | Price forecast accuracy (1-hr MAE) | < $15/MWh | MLflow model metrics |
 | Demand forecast accuracy (1-hr MAPE) | < 3% | MLflow model metrics |
-| Copilot query resolution rate | > 80% answered without human escalation | Agent evaluation |
+| AI query resolution rate | > 80% answered without human escalation | Agent evaluation |
 | Daily active users | 10+ within first month of launch | App analytics |
 | Genie query accuracy | > 85% correct SQL generation | Genie benchmarks |
 | Dashboard load time | < 3 seconds | App performance monitoring |
@@ -970,7 +970,7 @@ User (Streamlit Chat UI)
 |------|--------|------------|------------|
 | AEMO changes NEMWEB file format | High | Low | Schema validation in Bronze layer; alerts on schema drift |
 | Price forecast accuracy insufficient | Medium | Medium | Ensemble models; benchmark against AEMO pre-dispatch; iterate |
-| Copilot hallucination on market data | High | Medium | Tool-calling architecture (grounded); evaluation suite; guardrails |
+| AI hallucination on market data | High | Medium | Tool-calling architecture (grounded); evaluation suite; guardrails |
 | Data volume exceeds cost expectations | Medium | Low | Incremental processing; partitioning; lifecycle policies |
 | User adoption below target | Medium | Medium | Co-design with traders; iterative UX feedback; training |
 
@@ -982,9 +982,9 @@ User (Streamlit Chat UI)
 
 ### 13.1 Competitive Landscape
 
-AUS Energy Copilot competes across three market segments, each dominated by different incumbents:
+AUS Energy AI Market Intelligence competes across three market segments, each dominated by different incumbents:
 
-| Segment | Incumbents | Typical Cost | Energy Copilot Positioning |
+| Segment | Incumbents | Typical Cost | AI Market Intelligence Positioning |
 |---------|-----------|-------------|---------------------------|
 | **Market Intelligence** | ez2view (Global-Roam), NemSight (Energy One) | $20K–$80K/yr per seat | Parity on data + superior AI/ML layer |
 | **ETRM** | SimEnergy, EOT, enTrader (Energy One), Allegro (ION), PCI Energy Solutions | $50K–$500K+/yr | Lightweight-to-enterprise via phased rollout |
@@ -994,10 +994,10 @@ AUS Energy Copilot competes across three market segments, each dominated by diff
 
 | Differentiator | Description | Competitive Moat |
 |---------------|-------------|-----------------|
-| **AI Copilot (NL→insight)** | Claude Sonnet via FMAPI with 10+ tools — answers "why did SA spike?" by correlating prices, generation, weather, constraints in real-time | ez2view/NemSight show data; trader still does analysis manually |
+| **AI Market Intelligence (NL→insight)** | Claude Sonnet via FMAPI with 10+ tools — answers "why did SA spike?" by correlating prices, generation, weather, constraints in real-time | ez2view/NemSight show data; trader still does analysis manually |
 | **Genie NL→SQL** | 6 spaces turning plain English into governed SQL over gold tables | No incumbent has natural language data access |
 | **Predictive ML models** | Independent price spike and demand forecasts (XGBoost) — not just AEMO pre-dispatch relay | NemSight/ez2view are purely retrospective display tools |
-| **NL trade entry** | "Buy 50MW NSW Q3 flat at $85" creates a real trade via Copilot | No ETRM supports conversational deal capture |
+| **NL trade entry** | "Buy 50MW NSW Q3 flat at $85" creates a real trade via AI Market Intelligence | No ETRM supports conversational deal capture |
 | **Unified lakehouse** | Single medallion architecture: market data → analytics → trading → risk → settlement | Incumbents are siloed products (NemSight + SimEnergy + EnergyOffer = 3 separate systems) |
 | **Open data / no lock-in** | Delta Lake + Unity Catalog — data accessible via SQL, Python, any BI tool | Incumbent vendors lock data in proprietary schemas |
 | **Forward curve engine** | Transparent bootstrap from ASX futures with seasonal shaping, stored as versioned Delta tables | SimEnergy "calibration" is a black box |
@@ -1011,7 +1011,7 @@ The following features close specific gaps identified against incumbents. Each i
 
 | Feature | Gap vs. Incumbent | Priority |
 |---------|------------------|----------|
-| Multi-channel alert engine (SMS, email, Slack, mobile push) | ez2view (audio, SMS, email, on-screen), NemSight (desktop, email, push) | **DONE** — in-app alerts + Copilot NL creation. External channels (SMS/email/Slack) deferred. |
+| Multi-channel alert engine (SMS, email, Slack, mobile push) | ez2view (audio, SMS, email, on-screen), NemSight (desktop, email, push) | **DONE** — in-app alerts + AI Market Intelligence NL creation. External channels (SMS/email/Slack) deferred. |
 | Market replay / time-travel mode | ez2view ("Time Travel" — replay any historical dispatch as if live) | **DONE** — `/market-replay` page with playback controls, 4-panel synchronized dashboard. |
 | Constraint binding visualization | ez2view (50+ NEM widgets), NemSight (constraint binding alerts) | **DONE** — enhanced `/constraints` with binding heatmap, price separation, real constraint data. |
 | AI anomaly auto-explanation (proactive push) | **Nobody** — unique differentiator | **P0** — double down on AI advantage |
@@ -1040,12 +1040,12 @@ The following features close specific gaps identified against incumbents. Each i
                         AI/ML Sophistication
                               ▲
                               │
-                              │               ★ Energy Copilot (Phase 3+)
+                              │               ★ Energy AI Market Intelligence (Phase 3+)
                               │                  AI bidding, NL what-if,
                               │                  predictive constraints
                               │
-                              │          ★ Energy Copilot (Today)
-                              │            Copilot, Genie, ML forecasts,
+                              │          ★ Energy AI Market Intelligence (Today)
+                              │            AI Market Intel, Genie, ML forecasts,
                               │            NL trade entry
                               │
            ┌──────────────────┼──────────────────────────────────┐
@@ -1066,13 +1066,13 @@ The following features close specific gaps identified against incumbents. Each i
 # Phase 2: Lightweight ETRM — Trading & Risk
 
 **Estimated Duration:** 12-16 weeks (following Phase 1 completion)
-**Prerequisites:** Phase 1 fully operational (data pipelines, dashboard, copilot, Genie)
+**Prerequisites:** Phase 1 fully operational (data pipelines, dashboard, AI Market Intelligence, Genie)
 
 ---
 
 ## 14. Phase 2 — Executive Summary
 
-Phase 2 transforms AUS Energy Copilot from a market intelligence tool into an active **trading support platform** by adding deal capture, portfolio tracking, forward curve management, risk analytics, PPA valuation, and FCAS market support. This directly addresses the gentailer workflow: traders can now ask the copilot "what's my exposure?" — not just "what's the market doing?"
+Phase 2 transforms AUS Energy AI Market Intelligence from a market intelligence tool into an active **trading support platform** by adding deal capture, portfolio tracking, forward curve management, risk analytics, PPA valuation, and FCAS market support. This directly addresses the gentailer workflow: traders can now ask the AI "what's my exposure?" — not just "what's the market doing?"
 
 The phase targets the core gap identified in Phase 1 for gentailer customers like Alinta Energy and Energy Australia: connecting market intelligence to **portfolio positions**.
 
@@ -1090,7 +1090,7 @@ The phase targets the core gap identified in Phase 1 for gentailer customers lik
   - Options (caps, floors, collars on NEM regional prices)
   - Power Purchase Agreements (fixed price, CPI-escalated, floor/cap, pay-as-produced, baseload-shaped)
   - Renewable Energy Certificates (LGCs, STCs)
-- **AI-assisted deal entry**: Copilot can create trades from natural language ("Enter a 50MW peak swap for VIC Q3 2026 at $85/MWh")
+- **AI-assisted deal entry**: AI Market Intelligence can create trades from natural language ("Enter a 50MW peak swap for VIC Q3 2026 at $85/MWh")
 - **Bulk import** via CSV upload for existing portfolio migration
 - **Trade amendment and cancellation** with full audit trail
 
@@ -1155,10 +1155,10 @@ The phase targets the core gap identified in Phase 1 for gentailer customers lik
 - Alerts when exposure exceeds 80% of credit limit
 - Counterparty exposure aging (current, 30-day, 90-day)
 
-### 15.4 PPA Valuation Copilot
+### 15.4 PPA Valuation AI
 
 #### AI-Powered PPA Analysis
-- **Copilot PPA tool**: `value_ppa(strike_price, term_years, technology, region, profile, escalation, volume_mw)`
+- **AI PPA tool**: `value_ppa(strike_price, term_years, technology, region, profile, escalation, volume_mw)`
 - **Valuation approach**:
   - Project hourly generation profile using technology-specific shape (solar, wind) and regional capacity factors
   - Apply shaped forward curves to calculate merchant revenue baseline
@@ -1166,10 +1166,10 @@ The phase targets the core gap identified in Phase 1 for gentailer customers lik
   - Discount to NPV using configurable WACC
   - Run Monte Carlo simulation (1,000 paths) varying price, generation, and correlation to produce NPV distribution
 - **Key outputs**: Expected NPV, P10/P50/P90 NPV range, breakeven strike price, capture price discount, annual cashflow profile
-- **Copilot conversation example**:
+- **AI conversation example**:
   > "Value a 10-year solar PPA in SA at $55/MWh with 2.5% CPI escalation, 100MW nameplate"
   >
-  > Copilot returns NPV range, capture price analysis, sensitivity table, and recommendation
+  > AI returns NPV range, capture price analysis, sensitivity table, and recommendation
 
 ### 15.5 FCAS Market Analytics
 
@@ -1183,7 +1183,7 @@ The phase targets the core gap identified in Phase 1 for gentailer customers lik
 #### FCAS Forecasting
 - FCAS price forecast models (LightGBM) for each service × region
 - Features: system frequency, inertia levels, renewable penetration, demand, time-of-day
-- Copilot tool: `get_fcas_forecast(service, region, horizon)`
+- AI tool: `get_fcas_forecast(service, region, horizon)`
 
 ### 15.6 Settlement Reconciliation
 
@@ -1192,9 +1192,9 @@ The phase targets the core gap identified in Phase 1 for gentailer customers lik
 - Match AEMO settlements against internal trade positions
 - **Reconciliation dashboard**: Matched, unmatched, and disputed items
 - **Variance analysis**: Highlight settlement differences > $1,000
-- **Copilot tool**: `get_settlement_variance(region, settlement_date)` — explains material variances
+- **AI tool**: `get_settlement_variance(region, settlement_date)` — explains material variances
 
-### 15.7 Phase 2 — Copilot Agent Extensions
+### 15.7 Phase 2 — AI Agent Extensions
 
 New tools added to the Mosaic AI agent:
 
@@ -1222,7 +1222,7 @@ New tools added to the Mosaic AI agent:
 
 #### Enhanced Existing Tabs
 - **Home tab**: Add portfolio P&L ticker, top exposure alerts, settlement status
-- **Copilot Chat**: All new tools available; suggested questions updated with portfolio/risk queries
+- **AI Market Intelligence Chat**: All new tools available; suggested questions updated with portfolio/risk queries
 - **Alerts tab**: Add portfolio-level alerts (position limit breach, credit limit, MtM threshold, settlement variance)
 
 ### 15.9 Phase 2 — Data Architecture Extensions
@@ -1282,11 +1282,11 @@ New tools added to the Mosaic AI agent:
 |--------|--------|-------------|
 | Trade entry time (AI-assisted) | < 30 seconds per trade | App analytics |
 | Daily MtM batch completion | < 15 minutes for full portfolio | Workflow monitoring |
-| PPA valuation response (copilot) | < 45 seconds including Monte Carlo | Agent evaluation |
+| PPA valuation response (AI) | < 45 seconds including Monte Carlo | Agent evaluation |
 | Forward curve build time | < 5 minutes (daily) | Pipeline monitoring |
 | Settlement reconciliation match rate | > 98% auto-matched | Reconciliation dashboard |
 | FCAS forecast accuracy (1-hr MAPE) | < 20% | MLflow model metrics |
-| Portfolio-related copilot queries resolved | > 75% without escalation | Agent evaluation |
+| Portfolio-related AI queries resolved | > 75% without escalation | Agent evaluation |
 | Risk metric calculation freshness | < 30 minutes from market close | Workflow monitoring |
 
 ### 15.12 Phase 2 — Estimated Timeline
@@ -1296,10 +1296,10 @@ New tools added to the Mosaic AI agent:
 | Sprint 5 | 2 weeks | Lakebase trade data model, deal capture UI, basic portfolio views |
 | Sprint 6 | 2 weeks | Forward curve engine, MtM valuation batch, curve dashboard |
 | Sprint 7 | 2 weeks | Risk analytics (VaR, Greeks, stress tests), risk dashboard |
-| Sprint 8 | 2 weeks | PPA valuation engine, PPA copilot tool, Monte Carlo simulation |
+| Sprint 8 | 2 weeks | PPA valuation engine, PPA AI tool, Monte Carlo simulation |
 | Sprint 9 | 2 weeks | FCAS data ingestion, FCAS dashboards, FCAS forecast models |
-| Sprint 10 | 2 weeks | Settlement reconciliation, new copilot tools, new Genie spaces |
-| Sprint 11 | 2 weeks | Integration testing, copilot evaluation, UX polish, launch |
+| Sprint 10 | 2 weeks | Settlement reconciliation, new AI tools, new Genie spaces |
+| Sprint 11 | 2 weeks | Integration testing, AI evaluation, UX polish, launch |
 
 ### 15.13 Phase 2 — Implementation Status & Enhancement Backlog
 
@@ -1308,7 +1308,7 @@ New tools added to the Mosaic AI agent:
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Trade entry form (7 NEM contract types) | Done | DealCapture.tsx — SPOT, FORWARD, SWAP, FUTURE, OPTION, PPA, REC |
-| AI-assisted deal entry | Done | Copilot `create_trade` FMAPI tool |
+| AI-assisted deal entry | Done | AI `create_trade` FMAPI tool |
 | Bulk CSV import | Done | POST `/api/deals/trades/bulk-import` |
 | Trade amendment with audit trail | Done | PUT endpoint + `trade_amendments` table |
 | Trade cancellation (soft delete) | Done | DELETE endpoint sets status=CANCELLED |
@@ -1324,28 +1324,28 @@ New tools added to the Mosaic AI agent:
 | Forward curve engine (E1) | Done | `curves.py` — ASX bootstrap + seasonal shaping + peak/off-peak |
 | Forward curve API (5 endpoints) | Done | term-structure, compare, history, snapshot, snapshots |
 | Forward curve dashboard | Done | `ForwardCurves.tsx` — 3 charts + data table |
-| Forward curve Copilot tool | Done | `get_forward_curve` — 10th FMAPI tool |
+| Forward curve AI tool | Done | `get_forward_curve` — 10th FMAPI tool |
 | `gold.forward_curves` Delta table | Done | 360 rows persisted (5 regions × 3 profiles × 24 months) |
 
 **Enhancement Backlog (Phase 2 remaining scope — PRD 15.2–15.6):**
 
 | ID | Feature | PRD Section | Priority | Complexity | Description |
 |----|---------|-------------|----------|------------|-------------|
-| E1 | **Forward Curve Construction** | 15.2 | High | Large | **DONE** (2026-03-07). Curve engine bootstraps from ASX futures (`asx_futures_eod`), quarterly→monthly decomposition with NEM seasonal shape factors, peak/off-peak shaping per region. 5 API endpoints (`/api/curves/*`), ForwardCurves.tsx page, `get_forward_curve` Copilot tool, `gold.forward_curves` Delta table. Tested: NSW1 FLAT $67-$99/MWh across 24 months from real ASX data. |
+| E1 | **Forward Curve Construction** | 15.2 | High | Large | **DONE** (2026-03-07). Curve engine bootstraps from ASX futures (`asx_futures_eod`), quarterly→monthly decomposition with NEM seasonal shape factors, peak/off-peak shaping per region. 5 API endpoints (`/api/curves/*`), ForwardCurves.tsx page, `get_forward_curve` AI tool, `gold.forward_curves` Delta table. Tested: NSW1 FLAT $67-$99/MWh across 24 months from real ASX data. |
 | E2 | **Mark-to-Market Valuation** | 15.2 | High | Large | **DONE** (2026-03-08). MtM engine in `risk.py`, `POST /api/risk/mtm/run`. P&L attribution. RiskDashboard.tsx MtM & P&L tab. Portfolio.tsx MtM KPI with "Run MtM" button. |
 | E3 | **VaR & Portfolio Greeks** | 15.3 | High | Medium | **DONE** (2026-03-08). Parametric VaR (95/99%, 1-day/10-day). Greeks per region. RiskDashboard.tsx VaR & Greeks tab. Portfolio.tsx VaR badge. |
-| E4 | **Stress Testing** | 15.3 | Medium | Medium | **DONE** (2026-03-08). 4 pre-defined scenarios + custom. `POST /api/risk/stress-test`. Copilot tool `run_stress_test`. |
+| E4 | **Stress Testing** | 15.3 | Medium | Medium | **DONE** (2026-03-08). 4 pre-defined scenarios + custom. `POST /api/risk/stress-test`. AI tool `run_stress_test`. |
 | E5 | **Credit Risk** | 15.3 | Medium | Small | **DONE** (2026-03-08). Credit exposure per counterparty, utilization bars, exposure aging. RiskDashboard.tsx Credit Risk tab. |
-| E6 | **PPA Valuation Copilot** | 15.4 | Medium | Large | **DONE** (2026-03-08). Monte Carlo 1000 paths. `POST /api/risk/ppa/value`. Copilot tool `value_ppa`. |
-| E7 | **FCAS Market Analytics** | 15.5 | Low | Large | **DONE** (2026-03-08). 8 FCAS service prices derived from spot/volatility data. FcasMarketDashboard with services, providers, traps, regional requirements. 3 endpoints (`/api/fcas/market`, `/services`, `/providers`). Copilot tool `get_fcas_summary`. FCAS Genie space added (8 total). |
-| E8 | **Settlement Reconciliation** | 15.6 | Low | Medium | **DONE** (2026-03-08). AEMO settlement vs internal trade positions with variance analysis (>$1K threshold). `/api/settlement/reconciliation` + `/api/settlement/residues`. Copilot tool `get_settlement_summary`. |
+| E6 | **PPA Valuation AI** | 15.4 | Medium | Large | **DONE** (2026-03-08). Monte Carlo 1000 paths. `POST /api/risk/ppa/value`. AI tool `value_ppa`. |
+| E7 | **FCAS Market Analytics** | 15.5 | Low | Large | **DONE** (2026-03-08). 8 FCAS service prices derived from spot/volatility data. FcasMarketDashboard with services, providers, traps, regional requirements. 3 endpoints (`/api/fcas/market`, `/services`, `/providers`). AI tool `get_fcas_summary`. FCAS Genie space added (8 total). |
+| E8 | **Settlement Reconciliation** | 15.6 | Low | Medium | **DONE** (2026-03-08). AEMO settlement vs internal trade positions with variance analysis (>$1K threshold). `/api/settlement/reconciliation` + `/api/settlement/residues`. AI tool `get_settlement_summary`. |
 | E9 | **Synced Tables** | 15.1 | Medium | Small | **DONE** (2026-03-08). 16 synced tables in Lakebase (trades, legs, counterparties, portfolios, mtm, pnl, risk, credit, etc). |
-| E10 | **Additional Copilot Tools** | 15.7 | Medium | Medium | **DONE** (2026-03-08). 25 FMAPI tools total including get_portfolio_pnl, explain_pnl_move, value_ppa, run_stress_test, portfolio_what_if, predict_constraints, get_fcas_summary, get_settlement_summary. |
+| E10 | **Additional AI Tools** | 15.7 | Medium | Medium | **DONE** (2026-03-08). 25 FMAPI tools total including get_portfolio_pnl, explain_pnl_move, value_ppa, run_stress_test, portfolio_what_if, predict_constraints, get_fcas_summary, get_settlement_summary. |
 | E11 | **New Genie Spaces** | 15.10 | Low | Small | **DONE** (2026-03-08). "Portfolio & P&L" + "FCAS & Ancillary Services" Genie spaces. 8 total spaces. |
 | E12 | **Pre-Trade Credit Checks** | 13.3 | High | Medium | **DONE** (2026-03-08). `GET /api/credit/check` pass/warn/block. Integrated into trade creation. DealCapture.tsx credit indicator. |
 | E13 | **Deal Approval Workflows** | 13.3 | Medium | Medium | **DONE** (2026-03-08). approval_rules + approval_requests tables. 5 endpoints. Maker-checker. TradeBlotter.tsx approval queue. |
-| E14 | **Portfolio NL What-If Analysis** | 13.3 | High | Medium | **DONE** (2026-03-08). `POST /api/risk/what-if` with NL parsing. Copilot tool `portfolio_what_if`. Supports heatwave, wind drought, coal trip, interconnector failure, price changes. |
-| E15 | **Predictive Constraint Analytics** | 13.3 | Medium | Large | **DONE** (2026-03-08). Statistical ML prediction of constraint binding (next 4-48h). `constraints.py` router with 3 endpoints (`/api/constraints/forecast`, `/forecast/timeline`, `/forecast/snapshot`). `gold.constraint_forecasts` Delta table. NetworkConstraints.tsx prediction panel with timeline chart. Copilot tool `predict_constraints`. 25 FMAPI tools total. |
+| E14 | **Portfolio NL What-If Analysis** | 13.3 | High | Medium | **DONE** (2026-03-08). `POST /api/risk/what-if` with NL parsing. AI tool `portfolio_what_if`. Supports heatwave, wind drought, coal trip, interconnector failure, price changes. |
+| E15 | **Predictive Constraint Analytics** | 13.3 | Medium | Large | **DONE** (2026-03-08). Statistical ML prediction of constraint binding (next 4-48h). `constraints.py` router with 3 endpoints (`/api/constraints/forecast`, `/forecast/timeline`, `/forecast/snapshot`). `gold.constraint_forecasts` Delta table. NetworkConstraints.tsx prediction panel with timeline chart. AI tool `predict_constraints`. 25 FMAPI tools total. |
 
 ### 15.14 Phase 2 — Competitive Gap Feature Details
 
@@ -1380,9 +1380,9 @@ Rule-based approval engine for trade lifecycle events:
 
 #### Portfolio NL What-If Analysis (E14)
 
-Natural language scenario analysis via Copilot:
+Natural language scenario analysis via AI Market Intelligence:
 
-- **Copilot tool**: `portfolio_what_if(scenario_description: str, portfolio: str)` → structured impact assessment
+- **AI tool**: `portfolio_what_if(scenario_description: str, portfolio: str)` → structured impact assessment
 - **Scenario types supported**:
   - Market moves: "What if NSW price increases 20% for Q3?"
   - New trades: "What if I add a 100MW solar PPA in QLD at $50?"
@@ -1407,7 +1407,7 @@ ML model forecasting transmission constraint binding:
 - **Training data**: Historical constraint binding data from `gold.nem_constraints_binding` (2+ years)
 - **Output**: Probability of binding per constraint per interval, stored in `gold.constraint_forecasts`
 - **Dashboard**: Constraint forecast panel on Live Market tab — show predicted binding constraints as overlay
-- **Copilot tool**: `get_constraint_forecast(region, horizon_hours)` — returns top constraints likely to bind with probability and expected price impact
+- **AI tool**: `get_constraint_forecast(region, horizon_hours)` — returns top constraints likely to bind with probability and expected price impact
 - **Alerts**: Push notification when high-probability binding event predicted (>80% confidence) for constraints known to cause price separation
 
 ---
@@ -1421,7 +1421,7 @@ ML model forecasting transmission constraint binding:
 
 ## 16. Phase 3 — Executive Summary
 
-Phase 3 completes the platform as a full-featured **energy trading and operations system** — adding AI-optimized bid/offer management (EnergyOffer-like), advanced risk analytics, battery dispatch optimization, gas market coverage, WEM expansion, and multi-tenant deployment. This phase positions AUS Energy Copilot as a comprehensive alternative to Energy One's product suite for the Databricks ecosystem.
+Phase 3 completes the platform as a full-featured **energy trading and operations system** — adding AI-optimized bid/offer management (EnergyOffer-like), advanced risk analytics, battery dispatch optimization, gas market coverage, WEM expansion, and multi-tenant deployment. This phase positions AUS Energy AI Market Intelligence as a comprehensive alternative to Energy One's product suite for the Databricks ecosystem.
 
 ---
 
@@ -1435,7 +1435,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
   - Support for daily, rebid, and default bids
   - FCAS bid/offer preparation (8 services)
   - Bid validation against AEMO rules (price band ordering, ramp rate limits, minimum generation)
-- **AI bid optimization copilot**:
+- **AI bid optimization**:
   - Agent analyzes: price forecasts, demand forecasts, weather, competitor bidstack patterns, constraint forecasts, portfolio position, fuel costs, and emission obligations
   - Recommends optimal bid curves per generator to maximize portfolio revenue
   - Tool: `optimize_bid(duid, date, objective)` — returns recommended 10-band bid curve with reasoning
@@ -1482,7 +1482,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
   - Market structure (demand response event, large generator exit, battery saturation)
 - **Reverse stress testing**: "What scenario would cause a $X loss?" — AI agent identifies market conditions
 - **Historical event replay**: Replay portfolio through actual historical events (SA blackout 2016, QLD flood 2022, etc.)
-- **Copilot tool**: `reverse_stress_test(portfolio, loss_threshold)` — identifies breaking scenarios
+- **AI tool**: `reverse_stress_test(portfolio, loss_threshold)` — identifies breaking scenarios
 
 #### Real-Time Risk Monitoring
 - **Intraday risk dashboard**: VaR and exposure updated every 5 minutes with dispatch data
@@ -1498,7 +1498,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
   - Objective: maximize revenue from energy arbitrage + FCAS co-optimization
   - Constraints: state of charge, max cycles/day, degradation budget, grid constraints
   - Horizon: rolling 24-48 hour optimization, re-solved every 5 minutes
-- **Battery dispatch copilot**:
+- **Battery dispatch AI**:
   - Tool: `optimize_battery(asset_id, horizon, objective)` — returns charge/discharge schedule
   - "When should I charge/discharge Hornsdale today for maximum revenue?"
   - "What's the expected FCAS vs energy revenue split for the battery this week?"
@@ -1521,7 +1521,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
 - Deal capture for gas contracts (spot, forwards, transport)
 - Gas portfolio P&L and risk alongside electricity
 - Combined gas + power portfolio view
-- Copilot tools: `get_gas_price(hub)`, `get_gas_forecast(hub, horizon)`, `get_spark_spread(region)`
+- AI tools: `get_gas_price(hub)`, `get_gas_forecast(hub, horizon)`, `get_spark_spread(region)`
 
 ### 17.5 WEM (Western Australian) Market Expansion
 
@@ -1542,7 +1542,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
 - WEM portfolio tracking and P&L
 - Combined NEM + WEM portfolio view for national gentailers
 
-### 17.6 Advanced Copilot Capabilities
+### 17.6 Advanced AI Capabilities
 
 #### New Phase 3 Agent Tools
 
@@ -1610,7 +1610,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
 - **Risk tab**: Full VaR dashboard (historical, Monte Carlo, CVaR), vol surface, scenario library, reverse stress test
 - **Portfolio tab**: Combined NEM + WEM + Gas + Environmentals view, incremental VaR per trade
 - **Home tab**: Bidding deadlines, conformance alerts, battery optimization status, compliance due dates
-- **Copilot Chat**: All Phase 3 tools available, report generation capability, compliance queries
+- **AI Market Intelligence Chat**: All Phase 3 tools available, report generation capability, compliance queries
 
 ### 17.9 Phase 3 — Data Architecture Extensions
 
@@ -1694,7 +1694,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
 | Conformance event detection latency | < 10 minutes from dispatch interval | Streaming pipeline monitoring |
 | Gas price forecast accuracy (1-day MAPE) | < 8% | MLflow model metrics |
 | WEM price forecast accuracy (1-hr MAE) | < $10/MWh | MLflow model metrics |
-| Multi-step copilot query resolution | > 70% | Agent evaluation |
+| Multi-step AI query resolution | > 70% | Agent evaluation |
 | Report generation time (weekly risk) | < 2 minutes | Agent evaluation |
 | NER compliance obligation tracking | 100% of obligations monitored | Compliance dashboard |
 | LGC portfolio reconciliation accuracy | > 99% vs CER registry | Certificate balance audit |
@@ -1713,7 +1713,7 @@ Phase 3 completes the platform as a full-featured **energy trading and operation
 | Sprint 17 | 2 weeks | Gas market data ingestion (STTM, DWGM), gas dashboards, spark spreads |
 | Sprint 18 | 2 weeks | WEM data ingestion, WEM dashboard, WEM forecasting models |
 | Sprint 19 | 2 weeks | Multi-tenancy architecture, RBAC, audit trail, enterprise security |
-| Sprint 20 | 2 weeks | New copilot tools, agent evaluation, report generation capability |
+| Sprint 20 | 2 weeks | New AI tools, agent evaluation, report generation capability |
 | Sprint 21 | 2 weeks | Genie spaces (3 new), white-labeling, integration testing |
 | Sprint 22 | 2 weeks | End-to-end testing, performance tuning, documentation, production launch |
 
@@ -1731,7 +1731,7 @@ Regulatory compliance reporting for NEM participants (closes gap vs. enTrader EM
   - Bid/offer submissions, MTPASA availability, medium-term capacity adequacy
   - Generate exception reports for missed or late submissions
 - **Regulatory calendar**: Upcoming AEMO deadlines, AER reporting dates, rule change submissions
-- **Copilot tool**: `get_compliance_status(participant_id, period)` — summary of compliance obligations and status
+- **AI tool**: `get_compliance_status(participant_id, period)` — summary of compliance obligations and status
 - **Dashboard**: Compliance tab with traffic-light status per obligation, drill-down to individual items
 
 #### LGC & Carbon Certificate Trading
@@ -1750,7 +1750,7 @@ Multi-commodity extension for environmental products (closes gap vs. EOT and All
 - **STC tracking**: Small-scale Technology Certificate balance and liability
 - **Integrated environmental P&L**: Combined electricity + LGC + ACCU + STC portfolio view
 - **New gold tables**: `gold.lgc_trades`, `gold.accu_trades`, `gold.environmental_portfolio`, `gold.certificate_balances`
-- **Copilot tools**: `get_lgc_position(portfolio)`, `get_carbon_exposure(facility)`, `value_bundled_ppa(params)` (energy + LGC combined valuation)
+- **AI tools**: `get_lgc_position(portfolio)`, `get_carbon_exposure(facility)`, `value_bundled_ppa(params)` (energy + LGC combined valuation)
 
 #### AI-Generated Management Reports
 
@@ -1761,11 +1761,11 @@ Automated report generation (unique differentiator — no incumbent offers AI-ge
   - Weekly portfolio review: position changes, MtM movements, trade activity, counterparty exposure
   - Monthly performance attribution: realized P&L by strategy, benchmark comparison, risk-adjusted returns
   - Quarterly board pack: executive summary, market outlook, portfolio composition, risk profile, compliance status
-- **Generation engine**: Copilot assembles data from multiple tools, formats into structured report with charts and tables
+- **Generation engine**: AI assembles data from multiple tools, formats into structured report with charts and tables
 - **Output formats**: In-app HTML view, downloadable PDF, email distribution
 - **Scheduling**: Configurable schedule per report type (daily 7am, weekly Monday 8am, etc.)
 - **Customization**: Template editor for report sections, metrics, and distribution lists
-- **Copilot tool**: `generate_report(report_type, period, portfolio)` — returns formatted report
+- **AI tool**: `generate_report(report_type, period, portfolio)` — returns formatted report
 - **Competitive note**: Traders currently spend 2-4 hours/week on manual reporting. This eliminates manual report writing entirely.
 
 ---
@@ -1773,15 +1773,15 @@ Automated report generation (unique differentiator — no incumbent offers AI-ge
 # Phase 4: Network Operations & Distribution Intelligence
 
 **Estimated Duration:** 14-20 weeks (following Phase 3 completion)
-**Prerequisites:** Phase 1 operational (market data, forecasting, copilot)
+**Prerequisites:** Phase 1 operational (market data, forecasting, AI Market Intelligence)
 
 ---
 
 ## 18. Phase 4 — Executive Summary
 
-Phase 4 extends AUS Energy Copilot beyond the wholesale market to serve **Distribution Network Service Providers (DNSPs)** — the poles-and-wires businesses that deliver electricity to homes and businesses. This phase adds network asset monitoring, DER (Distributed Energy Resource) visibility, outage analytics, regulatory compliance dashboards, and network planning tools. It positions the platform for a new customer segment: DNSPs like Ausgrid, Endeavour Energy, SA Power Networks, Ergon Energy, CitiPower/Powercor, and AusNet Services.
+Phase 4 extends AUS Energy AI Market Intelligence beyond the wholesale market to serve **Distribution Network Service Providers (DNSPs)** — the poles-and-wires businesses that deliver electricity to homes and businesses. This phase adds network asset monitoring, DER (Distributed Energy Resource) visibility, outage analytics, regulatory compliance dashboards, and network planning tools. It positions the platform for a new customer segment: DNSPs like Ausgrid, Endeavour Energy, SA Power Networks, Ergon Energy, CitiPower/Powercor, and AusNet Services.
 
-DNSPs face mounting pressure from rooftop solar proliferation, battery adoption, EV charging load growth, and increasing AEMO/AER regulatory requirements. Their existing SCADA/ADMS systems generate vast volumes of data but lack the AI-driven analytics layer to convert network telemetry into actionable intelligence. AUS Energy Copilot fills this gap by bringing lakehouse analytics, AI forecasting, and a conversational copilot to the distribution network.
+DNSPs face mounting pressure from rooftop solar proliferation, battery adoption, EV charging load growth, and increasing AEMO/AER regulatory requirements. Their existing SCADA/ADMS systems generate vast volumes of data but lack the AI-driven analytics layer to convert network telemetry into actionable intelligence. AUS Energy AI Market Intelligence fills this gap by bringing lakehouse analytics, AI forecasting, and a conversational AI to the distribution network.
 
 ---
 
@@ -1790,22 +1790,22 @@ DNSPs face mounting pressure from rooftop solar proliferation, battery adoption,
 ### P5: Network Operations Engineer (Primary)
 - **Goal**: Maintain network reliability and power quality within regulatory limits
 - **Needs**: Real-time asset loading, voltage monitoring, fault detection, outage management, DER curtailment visibility
-- **AI Copilot Use**: "Which zone substations are above 80% utilization right now?", "Show me all voltage excursions in the Blacktown area today", "Why did feeder FDR-2145 trip at 3pm?"
+- **AI Market Intelligence Use**: "Which zone substations are above 80% utilization right now?", "Show me all voltage excursions in the Blacktown area today", "Why did feeder FDR-2145 trip at 3pm?"
 
 ### P6: Network Planning Engineer (Primary)
 - **Goal**: Plan network augmentation and demand management to defer capex
 - **Needs**: Load growth forecasts, hosting capacity analysis, DER penetration scenarios, constraint identification, augmentation cost-benefit
-- **AI Copilot Use**: "What's the 10-year peak demand forecast for the Canterbury zone substation?", "Which feeders will exceed hosting capacity by 2028 under the high-solar scenario?", "What's the cost of augmenting vs a demand management solution for the Penrith constraint?"
+- **AI Market Intelligence Use**: "What's the 10-year peak demand forecast for the Canterbury zone substation?", "Which feeders will exceed hosting capacity by 2028 under the high-solar scenario?", "What's the cost of augmenting vs a demand management solution for the Penrith constraint?"
 
 ### P7: Regulatory & Performance Manager (Secondary)
 - **Goal**: Meet AER determination targets and report on network performance
 - **Needs**: SAIDI/SAIFI tracking, guaranteed service level (GSL) monitoring, capex/opex efficiency, customer minutes off supply, regulatory benchmarking
-- **AI Copilot Use**: "Are we on track to meet the AER SAIDI target for this year?", "Show me GSL payment liability by region for Q3", "Compare our reliability performance against the AER peer group"
+- **AI Market Intelligence Use**: "Are we on track to meet the AER SAIDI target for this year?", "Show me GSL payment liability by region for Q3", "Compare our reliability performance against the AER peer group"
 
 ### P8: DER Integration Manager (Secondary)
 - **Goal**: Manage the growing fleet of rooftop solar, batteries, and EVs on the distribution network
 - **Needs**: Solar hosting capacity maps, export curtailment analytics, virtual power plant (VPP) performance, EV charging load forecasts, dynamic operating envelope compliance
-- **AI Copilot Use**: "What percentage of solar systems were curtailed in the Randwick area today?", "Show me the VPP dispatch performance for the SA Home Battery Scheme", "Forecast the EV charging load impact on zone substation XYZ for 2028"
+- **AI Market Intelligence Use**: "What percentage of solar systems were curtailed in the Randwick area today?", "Show me the VPP dispatch performance for the SA Home Battery Scheme", "Forecast the EV charging load impact on zone substation XYZ for 2028"
 
 ---
 
@@ -1831,13 +1831,13 @@ DNSPs face mounting pressure from rooftop solar proliferation, battery adoption,
 - **Asset health index**: Composite score per asset based on age, condition, loading history, fault history, and criticality
 - **Predictive failure model**: ML model (XGBoost) predicting asset failure probability within 12 months based on telemetry patterns
 - **Replacement priority ranking**: Risk-weighted prioritization considering: failure probability × consequence (customers affected × outage duration × cost)
-- **Copilot tool**: `get_asset_health(asset_id)` — returns health index, risk factors, recommended actions
+- **AI tool**: `get_asset_health(asset_id)` — returns health index, risk factors, recommended actions
 
 ### 20.2 Outage Management & Reliability Analytics
 
 #### Outage Tracking
 - **Outage event capture**: Start time, end time, affected feeders, affected customers, cause code (vegetation, animal, equipment failure, weather, third party, unknown), restoration steps
-- **Data source**: DNSP OMS (Outage Management System) export — or manual entry via copilot
+- **Data source**: DNSP OMS (Outage Management System) export — or manual entry via AI
 - **Live outage map**: Geographic display of current outages with affected area polygons and estimated restoration times
 
 #### Reliability KPIs (AER Metrics)
@@ -1852,7 +1852,7 @@ DNSPs face mounting pressure from rooftop solar proliferation, battery adoption,
 #### Guaranteed Service Level (GSL) Monitoring
 - **GSL payment tracking**: Customers eligible for GSL payments (e.g., > N interruptions per year, or > M hours cumulative)
 - **GSL liability forecast**: Projected GSL payments based on YTD reliability performance
-- **Copilot tool**: `get_reliability_metrics(region, period)` — returns SAIDI, SAIFI, CAIDI with trends and AER target comparison
+- **AI tool**: `get_reliability_metrics(region, period)` — returns SAIDI, SAIFI, CAIDI with trends and AER target comparison
 
 ### 20.3 Distributed Energy Resources (DER) Management
 
@@ -1867,7 +1867,7 @@ DNSPs face mounting pressure from rooftop solar proliferation, battery adoption,
 - **Dynamic hosting capacity**: Time-varying capacity based on current load, voltage, and network configuration
 - **Hosting capacity map**: Interactive geographic view showing available capacity by area (green = ample, amber = constrained, red = full)
 - **Scenario modeling**: Project hosting capacity under DER growth scenarios (BAU, high solar, high EV, combined)
-- **Copilot tool**: `get_hosting_capacity(feeder_id, scenario)` — returns current and projected capacity with limiting constraint
+- **AI tool**: `get_hosting_capacity(feeder_id, scenario)` — returns current and projected capacity with limiting constraint
 
 #### Export Curtailment Analytics
 - **Curtailment dashboard**: Volume of solar export curtailed (MWh) by feeder and reason (voltage, thermal, DNSP limit, AEMO backstop)
@@ -1902,7 +1902,7 @@ DNSPs face mounting pressure from rooftop solar proliferation, battery adoption,
 - **Augmentation options register**: For each constraint, list options: network build (new assets), non-network (demand management, DER, VPP), or hybrid
 - **Cost-benefit analysis**: NPV comparison of augmentation vs non-network alternatives, considering deferral value
 - **Regulatory Investment Test (RIT-D) support**: Generate data for RIT-D analysis (credible options, market benefit assessment)
-- **Copilot tool**: `get_constraint_analysis(zone_substation, horizon_years)` — returns constraints, breach year, options, and recommended action
+- **AI tool**: `get_constraint_analysis(zone_substation, horizon_years)` — returns constraints, breach year, options, and recommended action
 
 ### 20.5 EV Integration & Load Management
 
@@ -1911,9 +1911,9 @@ DNSPs face mounting pressure from rooftop solar proliferation, battery adoption,
 - **Charging load profiles**: Typical residential overnight, commercial daytime, and fast-charger profiles by time-of-day
 - **Network impact assessment**: Identify feeders and transformers at risk of overload under EV growth scenarios
 - **Managed charging analytics**: Track uptake and effectiveness of managed/smart charging programs (shifting load from peak to off-peak)
-- **Copilot tool**: `forecast_ev_impact(feeder_id, ev_growth_scenario, year)` — returns peak load impact, upgrade requirement, and managed charging benefit
+- **AI tool**: `forecast_ev_impact(feeder_id, ev_growth_scenario, year)` — returns peak load impact, upgrade requirement, and managed charging benefit
 
-### 20.6 Phase 4 — Copilot Agent Extensions
+### 20.6 Phase 4 — AI Agent Extensions
 
 New tools added to the Mosaic AI agent:
 
@@ -1941,7 +1941,7 @@ New tools added to the Mosaic AI agent:
 
 #### Enhanced Existing Tabs
 - **Home tab**: Add network KPI summary (SAIDI YTD vs target, current overloaded assets, active outages, DER curtailment today)
-- **Copilot Chat**: All Phase 4 tools available; suggested questions updated with network operations queries
+- **AI Market Intelligence Chat**: All Phase 4 tools available; suggested questions updated with network operations queries
 - **Alerts tab**: Add network-level alerts (asset overload, voltage excursion, hosting capacity breach, reliability target at risk, GSL payment threshold)
 
 ### 20.8 Phase 4 — Data Architecture Extensions
@@ -2033,7 +2033,7 @@ New tools added to the Mosaic AI agent:
 | Asset failure prediction AUC | > 0.85 | MLflow model metrics |
 | Reliability KPI dashboard freshness | < 1 hour from OMS update | Dashboard monitoring |
 | EV impact forecast error (5-year, peak MW) | < 15% | Backtest validation |
-| Network copilot query resolution | > 75% without escalation | Agent evaluation |
+| Network AI query resolution | > 75% without escalation | Agent evaluation |
 | DER curtailment reporting latency | < 24 hours | Pipeline monitoring |
 | DNSP user adoption (monthly active) | > 80% of registered users | App analytics |
 
@@ -2049,7 +2049,7 @@ New tools added to the Mosaic AI agent:
 | Sprint 28 | 2 weeks | Curtailment analytics, DOE compliance, VPP/DR performance tracking |
 | Sprint 29 | 2 weeks | Spatial demand forecasting model, network constraint identification, planning dashboard |
 | Sprint 30 | 2 weeks | EV integration analytics, managed charging impact, EV scenario modeling |
-| Sprint 31 | 2 weeks | New copilot tools (10), Genie spaces (3), network alerts |
+| Sprint 31 | 2 weeks | New AI tools (10), Genie spaces (3), network alerts |
 | Sprint 32 | 2 weeks | Integration testing, DNSP user testing, performance tuning, launch |
 
 ---
@@ -2113,7 +2113,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 #### 21.4.1 Immutable Audit Trail
 - Every state change (trade, amendment, approval, settlement) writes to an append-only audit log
 - Cryptographic hash chain linking sequential audit entries
-- Queryable via Copilot: "show all changes to trade T-2026-001"
+- Queryable via AI Market Intelligence: "show all changes to trade T-2026-001"
 
 #### 21.4.2 Maker-Checker Approvals
 - Configurable approval workflows by trade value, type, and counterparty
@@ -2291,7 +2291,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 | Sprint 37 | 2 weeks | Credit/collateral management, limit monitoring, exposure aging, ECL |
 | Sprint 38 | 2 weeks | Risk engine extensions (scenario governance, backtesting, limit frameworks) |
 | Sprint 39 | 2 weeks | Operational resilience (data quality SLAs, late file handling, DR/BCP) |
-| Sprint 40 | 2 weeks | Frontend pages (3 new + 2 modified), Copilot tool extensions, integration testing |
+| Sprint 40 | 2 weeks | Frontend pages (3 new + 2 modified), AI tool extensions, integration testing |
 
 ---
 
@@ -2300,24 +2300,24 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 ```
 Phase 1 (Wk 1-10)       Phase 2 (Wk 11-24)       Phase 3 (Wk 25-46)       Phase 4 (Wk 47-66)       Phase 5 (Wk 67-82)
 Market Intelligence      Lightweight ETRM          Full Trading Platform    Network Operations       Back-Office &
-& AI Copilot             & Risk                    & Market Expansion       & Distribution Intel     Operational Excellence
+& AI Market Intelligence             & Risk                    & Market Expansion       & Distribution Intel     Operational Excellence
 ─────────────────        ──────────────────        ─────────────────────    ─────────────────────    ─────────────────────
 ✦ Data pipelines         ✦ Deal capture            ✦ AI bid optimization   ✦ SCADA/GIS ingestion    ✦ Settlement ingestion
 ✦ Medallion lakehouse    ✦ Portfolio tracking       ✦ AEMO bid submission   ✦ Asset health & failure ✦ STP pipeline
 ✦ NemSight-like dash     ✦ Forward curves          ✦ Advanced VaR/CVaR     ✦ Outage management      ✦ Maker-checker controls
 ✦ Price/demand fcst      ✦ Mark-to-market          ✦ Option Greeks & vol   ✦ DER & hosting capacity ✦ Credit & collateral
-✦ AI copilot (13 tools)  ✦ Basic risk (VaR)        ✦ Battery optimization  ✦ Reliability (SAIDI)    ✦ Risk engine depth
+✦ AI agent (13 tools)  ✦ Basic risk (VaR)        ✦ Battery optimization  ✦ Reliability (SAIDI)    ✦ Risk engine depth
 ✦ Genie spaces (3)       ✦ PPA valuation           ✦ Gas markets           ✦ Demand forecasting     ✦ Audit trail & RBAC
 ✦ Alerting               ✦ FCAS analytics          ✦ WEM expansion         ✦ EV integration         ✦ Data quality SLAs
                          ✦ Settlement recon        ✦ Multi-tenancy         ✦ Network planning       ✦ DR/BCP
-                         ✦ Copilot +10 tools       ✦ Copilot +10 tools     ✦ Copilot +10 tools      ✦ Copilot +5 tools
+                         ✦ AI +10 tools       ✦ AI +10 tools     ✦ AI +10 tools      ✦ AI +5 tools
                          ✦ Genie spaces +2         ✦ Genie spaces +3       ✦ Genie spaces +3        ✦ Genie spaces +1
 
          MVP                Trading-Ready             Enterprise-Grade         DNSP-Ready              Production-Grade
      (NemSight++)        (SimEnergy-level)           (EOT Alternative)     (Full Value Chain)     (Book-of-Record Ready)
 ```
 
-| Phase | Cumulative Copilot Tools | Cumulative Genie Spaces | Cumulative Gold Tables | Competitive Gap Features |
+| Phase | Cumulative AI Tools | Cumulative Genie Spaces | Cumulative Gold Tables | Competitive Gap Features |
 |-------|-------------------------|------------------------|----------------------|------------------------|
 | Phase 1 | 17 (+4 gap) | 3 | 21 (+6 gap) | Multi-channel alerts, market replay, constraint viz, anomaly auto-explain, scheduled briefs |
 | Phase 2 | 28 (+1 gap) | 5 | 33 (+2 gap) | Pre-trade credit checks, deal approvals, NL what-if, predictive constraints |
@@ -2396,4 +2396,4 @@ Market Intelligence      Lightweight ETRM          Full Trading Platform    Netw
 | **Causer-Pays** | FCAS cost allocation methodology: generators/loads causing frequency deviations pay more | 3 |
 | **Market Replay** | Ability to replay historical market intervals as if viewing them live, synchronizing all dashboard widgets | 1 |
 | **Time Travel** | Historical data navigation feature allowing users to view any past dispatch interval with full market context | 1 |
-| **NL What-If** | Natural language scenario analysis via AI Copilot — describe a hypothetical scenario and receive portfolio impact assessment | 2 |
+| **NL What-If** | Natural language scenario analysis via AI Market Intelligence — describe a hypothetical scenario and receive portfolio impact assessment | 2 |

@@ -237,7 +237,7 @@ function ResultsTable({ columns, rows }: { columns: string[]; rows: unknown[][] 
 }
 
 // ---------------------------------------------------------------------------
-// Chat message bubble — matches Copilot style with AI/You avatars
+// Chat message bubble — matches AI Market Intelligence style with AI/You avatars
 // ---------------------------------------------------------------------------
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
@@ -425,7 +425,7 @@ function Sidebar({
 }
 
 // ---------------------------------------------------------------------------
-// Chat view for a single space — matches Copilot layout
+// Chat view for a single space — matches AI Market Intelligence layout
 // ---------------------------------------------------------------------------
 
 function ChatView({
@@ -636,7 +636,7 @@ function ChatView({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header row — matches Copilot header */}
+      {/* Header row — matches AI Market Intelligence header */}
       <div className="px-6 py-3 border-b border-gray-200 bg-white shrink-0 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -718,7 +718,7 @@ function ChatView({
             {sidebarOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
 
-          {/* Input area — matches Copilot */}
+          {/* Input area — matches AI Market Intelligence */}
           <div className="border-t border-gray-200 px-5 py-3 bg-white shrink-0">
             <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
               <textarea

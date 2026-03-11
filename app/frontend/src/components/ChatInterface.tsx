@@ -19,7 +19,7 @@ interface Message {
 }
 
 // ---------------------------------------------------------------------------
-// Public imperative handle — consumed by Copilot.tsx via ref
+// Public imperative handle — consumed by AI Market Intelligence page via ref
 // ---------------------------------------------------------------------------
 
 export interface ChatInterfaceHandle {
@@ -162,7 +162,7 @@ function EmptyState({ onSelect }: { onSelect: (q: string) => void }) {
       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mb-4">
         <MessageSquare size={22} className="text-blue-500" />
       </div>
-      <h3 className="text-base font-semibold text-gray-800 mb-1">AUS Energy Copilot</h3>
+      <h3 className="text-base font-semibold text-gray-800 mb-1">AUS Energy AI Market Intelligence</h3>
       <p className="text-sm text-gray-400 max-w-xs mb-6">
         Ask anything about the National Electricity Market — prices, forecasts, outages, and more.
       </p>

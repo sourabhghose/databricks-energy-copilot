@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Typed API client for AUS Energy Copilot
+// Typed API client for AUS Energy AI Market Intelligence
 // All requests are proxied through Vite → FastAPI backend at /api/*
 // ---------------------------------------------------------------------------
 
@@ -3343,7 +3343,7 @@ export const api = {
   },
 
   /**
-   * Send a chat message to the Copilot agent.
+   * Send a chat message to the AI Market Intelligence agent.
    * Returns an EventSource for SSE streaming (text/event-stream).
    * Each event carries `data: {"delta": "..."}` or `data: [DONE]`.
    *
@@ -3380,7 +3380,7 @@ export const api = {
   },
 
   /**
-   * List recent copilot sessions, sorted by last_active descending.
+   * List recent AI Market Intelligence sessions, sorted by last_active descending.
    * @param limit  Maximum number of sessions to return (default 20)
    */
   listSessions(limit?: number): Promise<CopilotSession[]> {
@@ -3397,7 +3397,7 @@ export const api = {
   },
 
   /**
-   * Create a new copilot session.
+   * Create a new AI Market Intelligence session.
    * @returns  The newly created CopilotSession (HTTP 201)
    */
   createSession(): Promise<CopilotSession> {
@@ -3405,7 +3405,7 @@ export const api = {
   },
 
   /**
-   * Rate a copilot session (1-5 stars).
+   * Rate an AI Market Intelligence session (1-5 stars).
    * @param sessionId  Session UUID
    * @param rating     Integer rating from 1 to 5
    */
@@ -3414,7 +3414,7 @@ export const api = {
   },
 
   /**
-   * Delete a copilot session by ID.
+   * Delete an AI Market Intelligence session by ID.
    * @param sessionId  Session UUID
    */
   deleteSession(sessionId: string): Promise<void> {
@@ -3485,7 +3485,7 @@ export const api = {
    * @param webhookUrl Optional webhook URL (required for slack/webhook channels)
    */
   testNotification(channel: string, webhookUrl?: string): Promise<{ success: boolean; message: string; channel: string }> {
-    return post('/api/alerts/test-notification', { channel, webhook_url: webhookUrl, test_message: 'AUS Energy Copilot — test notification' })
+    return post('/api/alerts/test-notification', { channel, webhook_url: webhookUrl, test_message: 'AUS Energy AI Market Intelligence — test notification' })
   },
 
   /**
