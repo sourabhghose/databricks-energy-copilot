@@ -791,6 +791,54 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    # --- Phase 5 Tools (3 new) ---
+    {
+        "type": "function",
+        "function": {
+            "name": "get_settlement_runs",
+            "description": "List AEMO settlement runs with status, type, amounts, and variance. Filter by run_type (PRELIM/FINAL/R1/R2/R3), status, region, or billing_period.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "run_type": {"type": "string", "enum": ["PRELIM", "FINAL", "R1", "R2", "R3"], "description": "Settlement run type"},
+                    "status": {"type": "string", "enum": ["PENDING", "VALIDATED", "ACCEPTED", "DISPUTED", "FAILED"]},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                    "billing_period": {"type": "string", "description": "YYYY-MM format"},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_settlement_trueup",
+            "description": "Get material variance analysis across settlement run versions. Shows runs exceeding materiality threshold with variance details.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "threshold_aud": {"type": "number", "description": "Materiality threshold in AUD (default 5000)", "default": 5000},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_settlement_finance_summary",
+            "description": "Get settlement finance summary — GL journal totals, accruals, and settlement statement for a date range.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string", "description": "Start date YYYY-MM-DD"},
+                    "end_date": {"type": "string", "description": "End date YYYY-MM-DD"},
+                    "region": {"type": "string", "enum": ["NSW1", "QLD1", "VIC1", "SA1", "TAS1"]},
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -1521,6 +1569,95 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
             from .der import _core_der_fleet
             result = _core_der_fleet(zone_substation=arguments.get("zone_substation"))
             return json.dumps(result, default=str)
+
+        # --- Phase 5 Settlement Tools ---
+        elif name == "get_settlement_runs":
+            from .shared import _query_gold, _CATALOG as _C, _sql_escape as _esc
+            where = []
+            if arguments.get("run_type"):
+                where.append(f"run_type = '{_esc(arguments['run_type'])}'")
+            if arguments.get("status"):
+                where.append(f"status = '{_esc(arguments['status'])}'")
+            if arguments.get("region"):
+                where.append(f"region = '{_esc(arguments['region'])}'")
+            if arguments.get("billing_period"):
+                where.append(f"billing_period = '{_esc(arguments['billing_period'])}'")
+            wc = ("WHERE " + " AND ".join(where)) if where else ""
+            runs = _query_gold(
+                f"SELECT * FROM {_C}.gold.settlement_runs {wc} ORDER BY run_date DESC LIMIT 20"
+            ) or []
+            for r in runs:
+                for k in ("run_date", "created_at", "updated_at"):
+                    if k in r and r[k] is not None:
+                        r[k] = str(r[k])
+            lines = [f"Settlement Runs ({len(runs)} found):"]
+            lines.append(f"{'Type':<8} {'Period':<8} {'Region':<6} {'Status':<12} {'AEMO AUD':>14} {'Variance':>14}")
+            lines.append("-" * 70)
+            for r in runs[:15]:
+                lines.append(
+                    f"{r.get('run_type',''):<8} {r.get('billing_period',''):<8} "
+                    f"{r.get('region',''):<6} {r.get('status',''):<12} "
+                    f"${float(r.get('aemo_total_aud',0)):>13,.2f} "
+                    f"${float(r.get('variance_aud',0)):>13,.2f}"
+                )
+            return json.dumps({"text": "\n".join(lines), "runs": runs}, default=str)
+
+        elif name == "get_settlement_trueup":
+            from .shared import _query_gold, _CATALOG as _C
+            threshold = arguments.get("threshold_aud", 5000)
+            material = _query_gold(
+                f"SELECT * FROM {_C}.gold.settlement_runs "
+                f"WHERE ABS(variance_aud) >= {threshold} AND status NOT IN ('ACCEPTED') "
+                f"ORDER BY ABS(variance_aud) DESC LIMIT 20"
+            ) or []
+            for r in material:
+                for k in ("run_date", "created_at", "updated_at"):
+                    if k in r and r[k] is not None:
+                        r[k] = str(r[k])
+            lines = [f"Material Variance Analysis (threshold: ${threshold:,.0f}):"]
+            lines.append(f"  Runs exceeding threshold: {len(material)}")
+            for r in material[:10]:
+                lines.append(
+                    f"  {r.get('run_type','')} {r.get('billing_period','')} {r.get('region','')}: "
+                    f"variance ${float(r.get('variance_aud',0)):,.2f} ({float(r.get('variance_pct',0)):.2f}%)"
+                )
+            return json.dumps({"text": "\n".join(lines), "material_runs": material}, default=str)
+
+        elif name == "get_settlement_finance_summary":
+            from .shared import _query_gold, _CATALOG as _C, _sql_escape as _esc
+            where_parts = []
+            if arguments.get("start_date"):
+                where_parts.append(f"run_date >= '{_esc(arguments['start_date'])}'")
+            if arguments.get("end_date"):
+                where_parts.append(f"run_date <= '{_esc(arguments['end_date'])}'")
+            if arguments.get("region"):
+                where_parts.append(f"region = '{_esc(arguments['region'])}'")
+            wc = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+            runs_summary = _query_gold(
+                f"SELECT run_type, region, COUNT(*) AS run_count, "
+                f"SUM(aemo_total_aud) AS total_aemo, SUM(variance_aud) AS total_variance "
+                f"FROM {_C}.gold.settlement_runs {wc} GROUP BY run_type, region"
+            ) or []
+            journals_summary = _query_gold(
+                f"SELECT journal_type, SUM(debit_aud) AS total_debit, SUM(credit_aud) AS total_credit "
+                f"FROM {_C}.gold.settlement_journals GROUP BY journal_type"
+            ) or []
+            accruals = _query_gold(
+                f"SELECT SUM(debit_aud) AS total_accrued "
+                f"FROM {_C}.gold.settlement_journals WHERE posted = false"
+            ) or []
+            total_accrued = float(accruals[0].get("total_accrued") or 0) if accruals else 0
+            lines = ["Settlement Finance Summary:"]
+            if runs_summary:
+                lines.append("\nRuns by Type:")
+                for r in runs_summary:
+                    lines.append(f"  {r.get('run_type','')}: {r.get('run_count',0)} runs, AEMO ${float(r.get('total_aemo',0)):,.2f}")
+            if journals_summary:
+                lines.append("\nJournals by Type:")
+                for j in journals_summary:
+                    lines.append(f"  {j.get('journal_type','')}: debit ${float(j.get('total_debit',0)):,.2f}, credit ${float(j.get('total_credit',0)):,.2f}")
+            lines.append(f"\nTotal Accrued (unposted): ${total_accrued:,.2f}")
+            return json.dumps({"text": "\n".join(lines), "runs_summary": runs_summary, "journals_summary": journals_summary, "total_accrued_aud": total_accrued}, default=str)
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})

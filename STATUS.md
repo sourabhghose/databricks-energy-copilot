@@ -2616,6 +2616,116 @@ Copilot test: "Value a 100MW solar PPA in SA at $55/MWh for 10 years" → return
 
 ---
 
+## Phase 5: Settlement-Grade Back Office (2026-03-14)
+
+### Overview
+PRD §21.2: AEMO Settlement Ingestion, True-Up/Rebill, Enhanced Disputes, Finance-Ready Outputs. Extracted settlement code from sidebar.py into dedicated router. 25 new endpoints, 6-tab React dashboard, 3 new AI tools (total: 50 FMAPI tools), 5 new Delta tables + 1 ALTER.
+
+### New Delta Tables
+
+| Table | Rows (seeded) | Purpose |
+|-------|---------------|---------|
+| `gold.settlement_runs` | 3 | AEMO billing run tracking (PRELIM/FINAL/R1-R3), variance, auto-accept |
+| `gold.settlement_charges` | 25 | Line items per run: charge_type, AEMO vs internal amount, mapped_status |
+| `gold.settlement_journals` | 0 | GL entries: debit/credit, journal_type (SETTLEMENT/ACCRUAL/REVERSAL), posted flag |
+| `gold.settlement_evidence` | 0 | Dispute attachments: evidence_type, filename, content_json |
+| `gold.settlement_gl_mapping` | 7 | Chart-of-accounts config: charge_type → GL account codes |
+| ALTER `gold.settlement_disputes` | 1 | +9 columns: workflow_state, evidence_ids, billing_run_no, charge_id, assigned_to, priority, due_date, aemo_case_ref, updated_at |
+
+### New API Endpoints (25)
+
+| Group | Method | Path | Purpose |
+|-------|--------|------|---------|
+| Runs | GET | `/api/settlement/runs` | List runs, filter by type/status/date |
+| Runs | GET | `/api/settlement/runs/comparison` | Compare two runs side-by-side |
+| Runs | GET | `/api/settlement/runs/{run_id}` | Run detail with charges summary |
+| Runs | POST | `/api/settlement/runs` | Create new run |
+| Runs | PUT | `/api/settlement/runs/{run_id}/status` | Update run status |
+| Runs | GET | `/api/settlement/runs/{run_id}/charges` | Charges for a run |
+| Charges | POST | `/api/settlement/charges` | Single charge insert |
+| Charges | POST | `/api/settlement/charges/batch` | Bulk insert (≤200) |
+| Charges | PUT | `/api/settlement/charges/{charge_id}/map` | Map charge to internal trade_id |
+| True-Up | GET | `/api/settlement/trueup/summary` | Variance across run versions |
+| True-Up | GET | `/api/settlement/trueup/material` | Runs exceeding materiality threshold |
+| True-Up | POST | `/api/settlement/trueup/accept` | Auto-accept a run version |
+| Disputes | POST | `/api/settlement/disputes/v2` | Create with workflow_state, priority, evidence |
+| Disputes | PUT | `/api/settlement/disputes/{id}/transition` | State machine: DRAFT→SUBMITTED→UNDER_REVIEW→ACCEPTED/REJECTED→CLOSED |
+| Disputes | POST | `/api/settlement/disputes/{id}/evidence` | Attach evidence |
+| Disputes | GET | `/api/settlement/disputes/{id}/evidence` | List evidence |
+| Disputes | GET | `/api/settlement/disputes/{id}/timeline` | CDF audit trail |
+| Finance | POST | `/api/settlement/journals/generate` | Generate GL journals from run |
+| Finance | GET | `/api/settlement/journals` | List by period/entity |
+| Finance | PUT | `/api/settlement/journals/{id}/post` | Mark journal posted |
+| Finance | GET | `/api/settlement/finance/statement` | Settlement statement for date range |
+| Finance | GET | `/api/settlement/finance/accruals` | Month-end accruals |
+| GL Config | GET | `/api/settlement/gl-mappings` | List all mappings |
+| GL Config | POST | `/api/settlement/gl-mappings` | Create/update mapping |
+| GL Config | DELETE | `/api/settlement/gl-mappings/{id}` | Deactivate mapping |
+
+### New FMAPI AI Tools (3, total now 50)
+
+| Tool | Description |
+|------|-------------|
+| `get_settlement_runs` | List runs with status/type/amounts |
+| `get_settlement_trueup` | Material variance analysis |
+| `get_settlement_finance_summary` | GL totals, accruals, statement |
+
+### Frontend: SettlementBackOffice.tsx (860 lines)
+
+6-tab dashboard at `/settlement-backoffice`:
+
+| Tab | Content |
+|-----|---------|
+| **Runs** | KPIs (total/accepted/pending/net AUD), filters, sortable table, + Create Run form |
+| **Reconciliation** | AEMO vs internal variance by region ($1.018B live data), SRA residues |
+| **True-Up** | Materiality threshold slider ($1K-$50K), material variance table, Accept buttons |
+| **Disputes** | KPIs by workflow_state, dispute table with detail slide-out, evidence + CDF timeline |
+| **Finance** | Period selector, settlement statement, GL journals table with Post button, accruals |
+| **GL Config** | GL mapping CRUD table (7 charge types), + Add Mapping form, Deactivate buttons |
+
+### Files Changed
+
+| File | Action | Lines |
+|------|--------|-------|
+| `setup/24_create_settlement_tables.py` | **NEW** | +241 — DDL for 5 tables + ALTER + seeds + grants |
+| `app/routers/settlement.py` | **NEW** | +1028 — 25 endpoints, Pydantic models, dispute state machine |
+| `app/routers/sidebar.py` | Modified | -245, +2 — Extracted settlement code, added re-export |
+| `app/main.py` | Modified | +4 — Import + include settlement_router |
+| `app/routers/copilot.py` | Modified | +80 — 3 FMAPI tool definitions + dispatchers |
+| `app/frontend/src/api/client.ts` | Modified | +180 — 12 interfaces + settlementBackOfficeApi |
+| `app/frontend/src/pages/SettlementBackOffice.tsx` | **NEW** | +860 — 6-tab dashboard |
+| `app/frontend/src/App.tsx` | Modified | +10 — Import, NAV_ITEMS, ROUTE_MAP, Route |
+| `resources/jobs.yml` | Modified | +8 — create_settlement_tables task in setup job |
+
+**Total**: 9 files, ~2,050 new lines, ~245 removed.
+
+### Key Design Decisions
+
+1. **Dedicated router** — settlement.py owns all `/api/settlement/*` paths; sidebar.py re-exports `_build_settlement_reconciliation` for copilot.py backward compat
+2. **Static routes before dynamic** — `/api/settlement/runs/comparison` defined before `/api/settlement/runs/{run_id}`
+3. **Dispute state machine** — validated transitions: DRAFT→SUBMITTED→UNDER_REVIEW→ACCEPTED|REJECTED→CLOSED; REJECTED→DRAFT for re-submission
+4. **Journal generation** — GL mapping config table, double-entry accounting (debit purchase/credit payable per charge type)
+5. **No DEFAULT clauses** — Delta table feature `allowColumnDefaults` not enabled on workspace; defaults handled in INSERT statements
+
+### Bug Fixes During Deployment
+
+1. **`await` in non-async `_dispatch_tool`** — copilot.py `_dispatch_tool` is a regular `def`; used `await` to call async endpoints → SyntaxError on deploy. Fixed by inlining `_query_gold()` SQL queries.
+2. **`put()` missing body** — client.ts `put<TBody, TResponse>(path, body)` requires body arg; fixed 4 API methods by adding `{}`.
+3. **Delta DEFAULT clause** — `CREATE TABLE ... DEFAULT false` failed; removed all DEFAULT clauses from DDL.
+
+### Browser Test Results
+
+| Tab | Data | Result |
+|-----|------|--------|
+| Runs | 3 seeded runs (PRELIM/FINAL/R1) | Pass — KPIs: Total 3, Accepted 1, Pending 1, Net $36.97M |
+| Reconciliation | Live gold table data | Pass — $1.018B AEMO settlement, 5 NEM regions, SRA residues |
+| True-Up | 2 material variances | Pass — FINAL $170K (1.91%), R1 $20K (0.13%), Accept buttons |
+| Disputes | 1 existing dispute | Pass — NSW1 ENERGY_AMOUNT, $150K variance, DRAFT workflow |
+| Finance | Empty (journals generated on demand) | Pass — KPIs $0, GL Journals table renders |
+| GL Config | 7 seeded mappings | Pass — All charge types mapped, Active badges, Deactivate buttons |
+
+---
+
 ## Roadmap
 
 - [ ] **Fresh install test on new workspace** — Spin up a new FEVM workspace and run the full setup chain end-to-end (`databricks bundle deploy` → `databricks bundle run job_00_setup` → upload app files → `databricks apps deploy`). Verify all 73+ gold tables are created, seed data populates, pipelines run, and the app serves real data with no manual intervention.

@@ -138,6 +138,7 @@ from routers.batch_bidding import router as batch_bidding_router  # noqa: E402
 from routers.alerts import router as anomaly_router  # noqa: E402
 from routers.market_briefs import router as market_briefs_router  # noqa: E402
 from routers.replay import router as replay_router  # noqa: E402
+from routers.settlement import router as settlement_router  # noqa: E402
 from routers.auto_stubs import router as auto_stubs_router  # noqa: E402
 from routers.deals import router as deals_router  # noqa: E402
 from routers.curves import router as curves_router  # noqa: E402
@@ -191,6 +192,7 @@ app.include_router(network_assets_router)
 app.include_router(outages_router)
 app.include_router(der_router)
 app.include_router(network_planning_router)
+app.include_router(settlement_router)
 app.include_router(auto_stubs_router)
 
 # ---------------------------------------------------------------------------

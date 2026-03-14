@@ -35207,3 +35207,296 @@ export const networkPlanningApi = {
     return get('/api/planning/summary')
   },
 }
+
+// --- Settlement Back Office Interfaces ---
+
+export interface SettlementRun {
+  run_id: string
+  run_type: string
+  billing_period: string
+  region: string
+  run_date: string
+  status: string
+  aemo_total_aud: number
+  internal_total_aud: number
+  variance_aud: number
+  variance_pct: number
+  prior_run_id?: string
+  auto_accept: boolean
+  materiality_threshold_aud: number
+  notes?: string
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+  charge_summary?: Array<{ charge_type: string; cnt: number; total_aemo: number; total_var: number }>
+}
+
+export interface SettlementCharge {
+  charge_id: string
+  run_id: string
+  charge_type: string
+  charge_code: string
+  region: string
+  interval_date: string
+  aemo_amount_aud: number
+  internal_amount_aud: number
+  variance_aud: number
+  mapped_status: string
+  trade_id?: string
+  description?: string
+  created_at?: string
+}
+
+export interface SettlementRunComparison {
+  run_id_a: string
+  run_id_b: string
+  comparisons: Array<{
+    charge_type: string
+    region: string
+    run_a_aemo: number
+    run_b_aemo: number
+    delta_aemo: number
+    run_a_internal: number
+    run_b_internal: number
+    delta_internal: number
+  }>
+}
+
+export interface TrueUpSummary {
+  trueup: Array<{
+    billing_period: string
+    run_type: string
+    region: string
+    aemo_total: number
+    internal_total: number
+    variance: number
+    avg_variance_pct: number
+  }>
+  count: number
+}
+
+export type DisputeWorkflowState = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'CLOSED'
+
+export interface SettlementDisputeEnhanced {
+  dispute_id: string
+  region: string
+  settlement_date: string
+  dispute_type: string
+  aemo_amount_aud: number
+  internal_amount_aud: number
+  variance_aud: number
+  status: string
+  workflow_state: DisputeWorkflowState
+  description?: string
+  resolution_notes?: string
+  raised_by?: string
+  raised_at?: string
+  resolved_at?: string
+  priority?: string
+  billing_run_no?: string
+  charge_id?: string
+  assigned_to?: string
+  due_date?: string
+  aemo_case_ref?: string
+  evidence_ids?: string
+  updated_at?: string
+}
+
+export interface SettlementEvidence {
+  evidence_id: string
+  dispute_id: string
+  evidence_type: string
+  filename: string
+  content_json: string
+  uploaded_by: string
+  uploaded_at: string
+}
+
+export interface SettlementJournal {
+  journal_id: string
+  run_id: string
+  journal_type: string
+  entity: string
+  period: string
+  account_code: string
+  account_name: string
+  debit_aud: number
+  credit_aud: number
+  charge_type: string
+  region: string
+  posted: boolean
+  posted_at?: string
+  posted_by?: string
+  description?: string
+  created_at?: string
+}
+
+export interface SettlementStatement {
+  runs_summary: Array<{ run_type: string; region: string; run_count: number; total_aemo: number; total_internal: number; total_variance: number }>
+  charges_by_type: Array<{ charge_type: string; total_aemo: number; total_variance: number }>
+  journals_by_type: Array<{ journal_type: string; total_debit: number; total_credit: number }>
+  period: { start: string | null; end: string | null; region: string | null }
+}
+
+export interface AccrualEntry {
+  period: string
+  charge_type: string
+  region: string
+  accrued_debit: number
+  accrued_credit: number
+}
+
+export interface GlMapping {
+  mapping_id: string
+  entity: string
+  charge_type: string
+  debit_account_code: string
+  debit_account_name: string
+  credit_account_code: string
+  credit_account_name: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+// --- Settlement Back Office API ---
+
+export const settlementBackOfficeApi = {
+  // Runs
+  listRuns(params?: { run_type?: string; status?: string; region?: string; billing_period?: string; limit?: number }): Promise<{ runs: SettlementRun[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.run_type) qs.set('run_type', params.run_type)
+    if (params?.status) qs.set('status', params.status)
+    if (params?.region) qs.set('region', params.region)
+    if (params?.billing_period) qs.set('billing_period', params.billing_period)
+    if (params?.limit) qs.set('limit', String(params.limit))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/settlement/runs${q}`)
+  },
+  getRun(runId: string): Promise<SettlementRun> {
+    return get(`/api/settlement/runs/${runId}`)
+  },
+  compareRuns(runIdA: string, runIdB: string): Promise<SettlementRunComparison> {
+    return get(`/api/settlement/runs/comparison?run_id_a=${runIdA}&run_id_b=${runIdB}`)
+  },
+  createRun(body: { run_type: string; billing_period: string; region: string; run_date: string; aemo_total_aud?: number; internal_total_aud?: number; notes?: string }): Promise<{ status: string; run_id: string; auto_accept: boolean; variance_aud: number }> {
+    return post('/api/settlement/runs', body)
+  },
+  updateRunStatus(runId: string, status: string, notes?: string): Promise<{ status: string; run_id: string }> {
+    const qs = new URLSearchParams({ status })
+    if (notes) qs.set('notes', notes)
+    return put(`/api/settlement/runs/${runId}/status?${qs.toString()}`, {})
+  },
+  getRunCharges(runId: string, chargeType?: string): Promise<{ charges: SettlementCharge[]; count: number }> {
+    const qs = chargeType ? `?charge_type=${chargeType}` : ''
+    return get(`/api/settlement/runs/${runId}/charges${qs}`)
+  },
+
+  // Charges
+  createCharge(body: { run_id: string; charge_type: string; charge_code?: string; region?: string; interval_date?: string; aemo_amount_aud: number; internal_amount_aud: number; trade_id?: string }): Promise<{ status: string; charge_id: string; variance_aud: number }> {
+    return post('/api/settlement/charges', body)
+  },
+  createChargesBatch(charges: Array<{ run_id: string; charge_type: string; aemo_amount_aud: number; internal_amount_aud: number }>): Promise<{ status: string; count: number; charges: Array<{ charge_id: string; variance_aud: number }> }> {
+    return post('/api/settlement/charges/batch', charges)
+  },
+  mapCharge(chargeId: string, tradeId: string): Promise<{ status: string }> {
+    return put(`/api/settlement/charges/${chargeId}/map?trade_id=${tradeId}`, {})
+  },
+
+  // True-Up
+  trueupSummary(billingPeriod?: string): Promise<TrueUpSummary> {
+    const qs = billingPeriod ? `?billing_period=${billingPeriod}` : ''
+    return get(`/api/settlement/trueup/summary${qs}`)
+  },
+  trueupMaterial(thresholdAud?: number): Promise<{ material_runs: SettlementRun[]; count: number; threshold_aud: number }> {
+    const qs = thresholdAud ? `?threshold_aud=${thresholdAud}` : ''
+    return get(`/api/settlement/trueup/material${qs}`)
+  },
+  trueupAccept(runId: string): Promise<{ status: string; run_id: string }> {
+    return post(`/api/settlement/trueup/accept?run_id=${runId}`)
+  },
+
+  // Reconciliation
+  reconciliation(daysBack?: number): Promise<{ days_back: number; total_aemo_settlement: number; total_internal_settlement: number; variance: number; variance_pct: number; variances_by_region: Array<{ region: string; aemo_aud: number; internal_aud: number; variance_aud: number; variance_pct: number; status: string }>; threshold_breaches: number; residues: Array<{ interconnector_id: string; flow_mw: number; settlement_residue_aud: number; direction: string }> }> {
+    const qs = daysBack ? `?days_back=${daysBack}` : ''
+    return get(`/api/settlement/reconciliation${qs}`)
+  },
+  residues(interconnector?: string): Promise<Array<{ interconnector_id: string; flow_mw: number; settlement_residue_aud: number; direction: string }>> {
+    const qs = interconnector ? `?interconnector=${interconnector}` : ''
+    return get(`/api/settlement/residues${qs}`)
+  },
+
+  // Enhanced Disputes
+  listDisputes(params?: { region?: string; status?: string; workflow_state?: string; priority?: string; limit?: number }): Promise<{ disputes: SettlementDisputeEnhanced[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.region) qs.set('region', params.region)
+    if (params?.status) qs.set('status', params.status)
+    if (params?.workflow_state) qs.set('workflow_state', params.workflow_state)
+    if (params?.priority) qs.set('priority', params.priority)
+    if (params?.limit) qs.set('limit', String(params.limit))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/settlement/disputes${q}`)
+  },
+  disputeSummary(): Promise<{ by_status: Record<string, { count: number; total_variance_aud: number }>; by_workflow_state: Record<string, number>; total_disputes: number; total_variance_aud: number }> {
+    return get('/api/settlement/disputes/summary')
+  },
+  createDisputeV2(body: { region: string; settlement_date: string; dispute_type: string; aemo_amount_aud: number; internal_amount_aud: number; description?: string; priority?: string; billing_run_no?: string; charge_id?: string; assigned_to?: string; due_date?: string; aemo_case_ref?: string }): Promise<{ status: string; dispute_id: string; variance_aud: number; workflow_state: string }> {
+    return post('/api/settlement/disputes/v2', body)
+  },
+  transitionDispute(disputeId: string, targetState: DisputeWorkflowState): Promise<{ status: string; dispute_id: string; from: string; to: string; error?: string; allowed_transitions?: string[] }> {
+    return put(`/api/settlement/disputes/${disputeId}/transition?target_state=${targetState}`, {})
+  },
+  attachEvidence(disputeId: string, evidenceType: string, filename: string, contentJson?: string): Promise<{ status: string; evidence_id: string }> {
+    const qs = new URLSearchParams({ evidence_type: evidenceType, filename })
+    return post(`/api/settlement/disputes/${disputeId}/evidence?${qs.toString()}`, contentJson || '{}')
+  },
+  listEvidence(disputeId: string): Promise<{ evidence: SettlementEvidence[]; count: number }> {
+    return get(`/api/settlement/disputes/${disputeId}/evidence`)
+  },
+  disputeTimeline(disputeId: string): Promise<{ timeline: Array<{ _change_type: string; _commit_version: number; _commit_timestamp: string; status: string; workflow_state: string }>; dispute_id: string }> {
+    return get(`/api/settlement/disputes/${disputeId}/timeline`)
+  },
+
+  // Finance
+  generateJournals(body: { run_id: string; entity?: string; journal_type?: string }): Promise<{ status: string; run_id: string; journals_count: number; entries: Array<{ charge_type: string; region: string; amount_aud: number }> }> {
+    return post('/api/settlement/journals/generate', body)
+  },
+  listJournals(params?: { period?: string; entity?: string; posted?: boolean; run_id?: string; limit?: number }): Promise<{ journals: SettlementJournal[]; count: number; total_debit_aud: number; total_credit_aud: number }> {
+    const qs = new URLSearchParams()
+    if (params?.period) qs.set('period', params.period)
+    if (params?.entity) qs.set('entity', params.entity)
+    if (params?.posted !== undefined) qs.set('posted', String(params.posted))
+    if (params?.run_id) qs.set('run_id', params.run_id)
+    if (params?.limit) qs.set('limit', String(params.limit))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/settlement/journals${q}`)
+  },
+  postJournal(journalId: string, postedBy?: string): Promise<{ status: string; journal_id: string }> {
+    const qs = postedBy ? `?posted_by=${postedBy}` : ''
+    return put(`/api/settlement/journals/${journalId}/post${qs}`, {})
+  },
+  financeStatement(params?: { start_date?: string; end_date?: string; region?: string }): Promise<SettlementStatement> {
+    const qs = new URLSearchParams()
+    if (params?.start_date) qs.set('start_date', params.start_date)
+    if (params?.end_date) qs.set('end_date', params.end_date)
+    if (params?.region) qs.set('region', params.region)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/settlement/finance/statement${q}`)
+  },
+  accruals(period?: string): Promise<{ accruals: AccrualEntry[]; total_accrued_aud: number }> {
+    const qs = period ? `?period=${period}` : ''
+    return get(`/api/settlement/finance/accruals${qs}`)
+  },
+
+  // GL Mappings
+  listGlMappings(entity?: string): Promise<{ mappings: GlMapping[]; count: number }> {
+    const qs = entity ? `?entity=${entity}` : ''
+    return get(`/api/settlement/gl-mappings${qs}`)
+  },
+  upsertGlMapping(body: { entity?: string; charge_type: string; debit_account_code: string; debit_account_name: string; credit_account_code: string; credit_account_name: string }): Promise<{ status: string; mapping_id: string }> {
+    return post('/api/settlement/gl-mappings', body)
+  },
+  deleteGlMapping(mappingId: string): Promise<{ status: string; mapping_id: string }> {
+    return del(`/api/settlement/gl-mappings/${mappingId}`)
+  },
+}

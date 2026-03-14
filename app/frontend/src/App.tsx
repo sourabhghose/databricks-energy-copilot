@@ -99,6 +99,7 @@ import {
   ChevronDown,
   Search,
   X,
+  FileCheck,
 } from 'lucide-react'
 
 import TradingSignals from './pages/TradingSignals'
@@ -598,6 +599,7 @@ import NetworkAssetsPage from './pages/NetworkAssets'
 import OutageManagement from './pages/OutageManagement'
 import DERManagement from './pages/DERManagement'
 import NetworkPlanningPage from './pages/NetworkPlanning'
+import SettlementBackOffice from './pages/SettlementBackOffice'
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',         Icon: LayoutDashboard },
@@ -1095,6 +1097,7 @@ const NAV_ITEMS = [
   { to: '/outage-management',  label: 'Outage Management',  Icon: AlertTriangle  },
   { to: '/der-management',     label: 'DER Management',     Icon: Sun            },
   { to: '/network-planning',   label: 'Network Planning',   Icon: TrendingUp     },
+  { to: '/settlement-backoffice', label: 'Settlement Back Office', Icon: FileCheck  },
 ]
 
 const ROUTE_MAP: Record<string, React.ComponentType> = {
@@ -1591,6 +1594,8 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/outage-management': OutageManagement,
   '/der-management': DERManagement,
   '/network-planning': NetworkPlanningPage,
+  // Phase 5: Settlement Back Office
+  '/settlement-backoffice': SettlementBackOffice,
 }
 
 // ---------------------------------------------------------------------------
@@ -2744,6 +2749,7 @@ export default function App() {
               <Route path="/outage-management" element={<PageErrorBoundary pageName="/outage-management"><OutageManagement /></PageErrorBoundary>} />
               <Route path="/der-management" element={<PageErrorBoundary pageName="/der-management"><DERManagement /></PageErrorBoundary>} />
               <Route path="/network-planning" element={<PageErrorBoundary pageName="/network-planning"><NetworkPlanningPage /></PageErrorBoundary>} />
+              <Route path="/settlement-backoffice" element={<PageErrorBoundary pageName="/settlement-backoffice"><SettlementBackOffice /></PageErrorBoundary>} />
             </Routes>
           </main>
         </div>
