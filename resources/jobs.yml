@@ -158,6 +158,14 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
+        - task_key: create_wem_fetch_state
+          depends_on:
+            - task_key: create_schemas
+          notebook_task:
+            notebook_path: ../setup/25_create_wem_fetch_state.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
         - task_key: backfill
           depends_on:
             - task_key: create_core_nem_tables
@@ -340,6 +348,32 @@ resources:
               - anthropic>=0.44.0
       max_concurrent_runs: 1
       # email_notifications configured when notification_email variable is set
+
+    # -----------------------------------------------------------------
+    # Job 07 — WEM Ingest (every 30 min)
+    # -----------------------------------------------------------------
+    job_07_wem_ingest:
+      name: "[${bundle.target}] 07 — WEM Ingest"
+      description: "WEM balancing prices, generation, demand from OpenElectricity API. 30-min cadence."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "07_wem_ingest"
+      schedule:
+        quartz_cron_expression: "0 */30 * * * ?"
+        timezone_id: "UTC"
+        pause_status: PAUSED  # Superseded by nemweb-accelerator WEM pipeline
+      tasks:
+        - task_key: wem_ingest
+          notebook_task:
+            notebook_path: ../pipelines/07_wem_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
 
     # -----------------------------------------------------------------
     # Job 08 — Data Quality Report (daily 06:00 AEST = 20:00 UTC)
