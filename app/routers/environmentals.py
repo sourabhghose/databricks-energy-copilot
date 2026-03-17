@@ -217,8 +217,8 @@ async def environmentals_dashboard():
 
     # LGC registry summary (accredited capacity by fuel)
     lgc_reg = _query_gold(
-        f"SELECT fuel_source_type, COUNT(*) as count, SUM(capacity_mw) as total_mw "
-        f"FROM {_SCHEMA}.lgc_registry GROUP BY fuel_source_type"
+        f"SELECT fuel_type, COUNT(*) as count, SUM(capacity_mw) as total_mw "
+        f"FROM {_SCHEMA}.lgc_registry GROUP BY fuel_type"
     )
 
     return {

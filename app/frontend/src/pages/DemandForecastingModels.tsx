@@ -252,29 +252,30 @@ function ModelPerformanceTable({ models }: { models: DFMModelRecord[] }) {
 // 24-hour forecast chart
 // ---------------------------------------------------------------------------
 
-function ForecastChart({ forecasts }: { forecasts: DFMForecastRecord[] }) {
-  const nsw = forecasts.filter(f => f.region === 'NSW1')
+function ForecastChart({ forecasts, region }: { forecasts: DFMForecastRecord[]; region: string }) {
+  const regionData = forecasts.filter(f => f.region === region)
+  const rlower = region.toLowerCase()
 
   const byHour = useMemo(() => {
     const hours: Record<number, Record<string, number | null>> = {}
     for (let h = 0; h < 24; h++) {
       hours[h] = { hour: h, actual: null, lstm: null, ensemble: null, lstm_lo: null, lstm_hi: null, ens_lo: null, ens_hi: null }
     }
-    for (const f of nsw) {
-      if (f.model_id === 'lstm_nsw1') {
+    for (const f of regionData) {
+      if (f.model_id === `lstm_${rlower}`) {
         hours[f.hour].lstm     = f.forecast_mw
         hours[f.hour].lstm_lo  = f.lower_bound_mw
         hours[f.hour].lstm_hi  = f.upper_bound_mw
         hours[f.hour].actual   = f.actual_mw ?? null
       }
-      if (f.model_id === 'ensemble_nsw1') {
+      if (f.model_id === `ensemble_${rlower}`) {
         hours[f.hour].ensemble = f.forecast_mw
         hours[f.hour].ens_lo   = f.lower_bound_mw
         hours[f.hour].ens_hi   = f.upper_bound_mw
       }
     }
     return Array.from({ length: 24 }, (_, h) => ({ ...hours[h], label: `${h}:00` }))
-  }, [nsw])
+  }, [regionData, rlower])
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
@@ -293,10 +294,10 @@ function ForecastChart({ forecasts }: { forecasts: DFMForecastRecord[] }) {
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
       <h2 className="text-base font-semibold text-white mb-1">
-        24-Hour Demand Forecast — NSW1 (15 Jan 2025)
+        24-Hour Demand Forecast — {region}
       </h2>
       <p className="text-xs text-gray-400 mb-4">
-        LSTM vs Ensemble vs Actual demand with 90% confidence intervals
+        LSTM vs Ensemble vs Actual demand with 80% confidence intervals
       </p>
       <ResponsiveContainer width="100%" height={340}>
         <ComposedChart data={byHour} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
@@ -392,24 +393,25 @@ const ALL_FEATURES = [
   'HOLIDAY', 'SOLAR_OUTPUT', 'ECONOMIC_ACTIVITY', 'HUMIDITY',
 ]
 
-function FeatureImportanceChart({ data }: { data: DFMFeatureImportanceRecord[] }) {
-  const nsw1Models = ['lstm_nsw1', 'xgb_nsw1', 'ensemble_nsw1']
-  const nsw1Labels: Record<string, string> = {
-    lstm_nsw1:     'LSTM',
-    xgb_nsw1:      'XGBoost',
-    ensemble_nsw1: 'Ensemble',
+function FeatureImportanceChart({ data, region }: { data: DFMFeatureImportanceRecord[]; region: string }) {
+  const rlower = region.toLowerCase()
+  const regionModels = [`lstm_${rlower}`, `xgb_${rlower}`, `ensemble_${rlower}`]
+  const regionLabels: Record<string, string> = {
+    [`lstm_${rlower}`]:     'LSTM',
+    [`xgb_${rlower}`]:      'XGBoost',
+    [`ensemble_${rlower}`]: 'Ensemble',
   }
 
   const chartData = useMemo(() => {
     return ALL_FEATURES.map(feat => {
       const row: Record<string, string | number> = { feature: FEATURE_LABELS[feat] ?? feat }
-      for (const mid of nsw1Models) {
+      for (const mid of regionModels) {
         const rec = data.find(d => d.model_id === mid && d.feature === feat)
         row[mid] = rec ? parseFloat((rec.importance_score * 100).toFixed(1)) : 0
       }
       return row
     })
-  }, [data])
+  }, [data, rlower])
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
@@ -418,7 +420,7 @@ function FeatureImportanceChart({ data }: { data: DFMFeatureImportanceRecord[] }
         <p className="text-gray-300 font-semibold mb-1">{label}</p>
         {payload.map((p: any) => (
           <p key={p.dataKey} style={{ color: p.fill }} className="mb-0.5">
-            {nsw1Labels[p.dataKey] ?? p.dataKey}: {p.value}%
+            {regionLabels[p.dataKey] ?? p.dataKey}: {p.value}%
           </p>
         ))}
       </div>
@@ -428,7 +430,7 @@ function FeatureImportanceChart({ data }: { data: DFMFeatureImportanceRecord[] }
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-xl p-4">
       <h2 className="text-base font-semibold text-white mb-1">
-        Feature Importance — NSW1 Models
+        Feature Importance — {region} Models
       </h2>
       <p className="text-xs text-gray-400 mb-4">
         Relative importance of each input feature (%) across LSTM, XGBoost, and Ensemble
@@ -454,9 +456,9 @@ function FeatureImportanceChart({ data }: { data: DFMFeatureImportanceRecord[] }
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 12, paddingTop: 8 }} />
-          <Bar dataKey="lstm_nsw1"     name="LSTM"     fill="#3b82f6" radius={[0, 3, 3, 0]} />
-          <Bar dataKey="xgb_nsw1"      name="XGBoost"  fill="#10b981" radius={[0, 3, 3, 0]} />
-          <Bar dataKey="ensemble_nsw1" name="Ensemble" fill="#ef4444" radius={[0, 3, 3, 0]} />
+          <Bar dataKey={`lstm_${rlower}`}     name="LSTM"     fill="#3b82f6" radius={[0, 3, 3, 0]} />
+          <Bar dataKey={`xgb_${rlower}`}      name="XGBoost"  fill="#10b981" radius={[0, 3, 3, 0]} />
+          <Bar dataKey={`ensemble_${rlower}`} name="Ensemble" fill="#ef4444" radius={[0, 3, 3, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -567,6 +569,7 @@ export default function DemandForecastingModels() {
   const [data, setData]     = useState<DemandForecastModelsDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
+  const [chartRegion, setChartRegion] = useState<string>('NSW1')
 
   async function load() {
     setLoading(true)
@@ -671,10 +674,26 @@ export default function DemandForecastingModels() {
       {/* Model Performance Table */}
       <ModelPerformanceTable models={data.models} />
 
-      {/* Charts row */}
+      {/* Chart region selector + charts */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs text-gray-400 font-medium">Chart Region:</span>
+        {['NSW1', 'QLD1', 'VIC1', 'SA1', 'TAS1'].map(r => (
+          <button
+            key={r}
+            onClick={() => setChartRegion(r)}
+            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+              chartRegion === r
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+            }`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <ForecastChart forecasts={data.forecasts} />
-        <FeatureImportanceChart data={data.feature_importance} />
+        <ForecastChart forecasts={data.forecasts} region={chartRegion} />
+        <FeatureImportanceChart data={data.feature_importance} region={chartRegion} />
       </div>
 
       {/* Seasonal Patterns */}

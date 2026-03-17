@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
@@ -9,354 +11,42 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ReferenceLine,
   ResponsiveContainer,
 } from 'recharts'
-import { Zap, RefreshCw, AlertCircle, Info } from 'lucide-react'
-import { api, WemDashboard, WemBalancingPrice, WemFacility, WemSrMcRecord } from '../api/client'
+import { Zap, RefreshCw, AlertCircle, Info, ArrowLeftRight } from 'lucide-react'
+import { wemApi } from '../api/client'
+import type { WemPrice, WemGeneration } from '../api/client'
 
 // ---------------------------------------------------------------------------
-// Technology badge colour map
+// Fuel type colour/label maps (match pipeline output: uppercase with spaces)
 // ---------------------------------------------------------------------------
-const TECH_COLOURS: Record<string, string> = {
-  COAL:     'bg-gray-500 text-white',
-  GAS_GT:   'bg-orange-500 text-white',
-  GAS_CCGT: 'bg-amber-500 text-white',
-  WIND:     'bg-sky-500 text-white',
-  SOLAR:    'bg-yellow-400 text-gray-900',
-  BATTERY:  'bg-green-500 text-white',
-  GAS_COGEN:'bg-purple-500 text-white',
+const FUEL_COLOURS: Record<string, string> = {
+  'GAS CCGT': '#f59e0b',
+  'GAS OCGT': '#f97316',
+  'COAL': '#6b7280',
+  'WIND': '#3b82f6',
+  'SOLAR': '#eab308',
+  'BATTERY': '#14b8a6',
+  'DISTILLATE': '#a855f7',
+  'HYDRO': '#06b6d4',
 }
 
-const TECH_FILTER_OPTIONS = ['ALL', 'COAL', 'GAS_GT', 'GAS_CCGT', 'WIND', 'SOLAR', 'BATTERY', 'GAS_COGEN']
-
-// ---------------------------------------------------------------------------
-// KPI Card
-// ---------------------------------------------------------------------------
-interface KpiCardProps {
-  title: string
-  value: string
-  subtitle?: string
-  colour?: string
+function fuelColour(key: string): string {
+  return FUEL_COLOURS[key] || FUEL_COLOURS[key.toUpperCase()] || '#6b7280'
 }
 
-function KpiCard({ title, value, subtitle, colour = 'text-gray-900 dark:text-gray-100' }: KpiCardProps) {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col gap-1">
-      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-        {title}
-      </span>
-      <span className={`text-2xl font-bold ${colour}`}>{value}</span>
-      {subtitle && (
-        <span className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</span>
-      )}
-    </div>
-  )
+function fuelLabel(key: string): string {
+  // "GAS CCGT" → "Gas CCGT", "WIND" → "Wind"
+  if (!key) return key
+  return key.charAt(0) + key.slice(1).toLowerCase().replace(/ ([a-z])/g, (_, c) => ' ' + c.toUpperCase())
 }
 
-// ---------------------------------------------------------------------------
-// Balancing Price Chart
-// ---------------------------------------------------------------------------
-interface BalancingPriceChartProps {
-  prices: WemBalancingPrice[]
-  mcap: number
-}
-
-function BalancingPriceChart({ prices, mcap }: BalancingPriceChartProps) {
-  const data = prices.map((p) => ({
-    interval: p.trading_interval.substring(11, 16),
-    balancing: p.balancing_price_aud,
-    reference: p.reference_price_aud,
-  }))
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
-        Balancing Price vs Reference Price (48 Trading Intervals)
-      </h2>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={data} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-          <XAxis
-            dataKey="interval"
-            tick={{ fontSize: 10, fill: '#9CA3AF' }}
-            interval={5}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: '#9CA3AF' }}
-            tickFormatter={(v) => `$${v}`}
-            domain={[0, mcap + 20]}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1F2937',
-              border: '1px solid #374151',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: '#F9FAFB',
-            }}
-            formatter={(value: number, name: string) => [
-              `$${value.toFixed(2)}/MWh`,
-              name === 'balancing' ? 'Balancing Price' : 'Reference Price',
-            ]}
-          />
-          <Legend
-            formatter={(value) =>
-              value === 'balancing' ? 'Balancing Price' : 'Reference Price'
-            }
-            wrapperStyle={{ fontSize: '12px' }}
-          />
-          <ReferenceLine
-            y={mcap}
-            stroke="#EF4444"
-            strokeDasharray="4 4"
-            label={{ value: `MCAP $${mcap}`, position: 'right', fontSize: 10, fill: '#EF4444' }}
-          />
-          <Line
-            type="monotone"
-            dataKey="balancing"
-            stroke="#3B82F6"
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-          <Line
-            type="monotone"
-            dataKey="reference"
-            stroke="#F59E0B"
-            strokeWidth={1.5}
-            strokeDasharray="5 3"
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Facility Table
-// ---------------------------------------------------------------------------
-interface FacilityTableProps {
-  facilities: WemFacility[]
-}
-
-function FacilityTable({ facilities }: FacilityTableProps) {
-  const [techFilter, setTechFilter] = useState<string>('ALL')
-
-  const filtered =
-    techFilter === 'ALL'
-      ? facilities
-      : facilities.filter((f) => f.technology === techFilter)
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex-1">
-          Registered Facilities ({filtered.length} / {facilities.length})
-        </h2>
-        <div className="flex flex-wrap gap-1.5">
-          {TECH_FILTER_OPTIONS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTechFilter(t)}
-              className={[
-                'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                techFilter === t
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
-              ].join(' ')}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-600">
-              {[
-                'Facility Name',
-                'Participant',
-                'Technology',
-                'Reg. MW',
-                'Acc. MW',
-                'Cap. Credit MW',
-                'Balancing',
-                'Year',
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="text-left py-2 px-2 font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((f) => (
-              <tr
-                key={f.facility_id}
-                className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-              >
-                <td className="py-2 px-2 font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap">
-                  {f.facility_name}
-                </td>
-                <td className="py-2 px-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                  {f.participant}
-                </td>
-                <td className="py-2 px-2">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      TECH_COLOURS[f.technology] ?? 'bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {f.technology}
-                  </span>
-                </td>
-                <td className="py-2 px-2 text-right text-gray-700 dark:text-gray-200">
-                  {f.registered_capacity_mw.toFixed(0)}
-                </td>
-                <td className="py-2 px-2 text-right text-gray-700 dark:text-gray-200">
-                  {f.accredited_capacity_mw.toFixed(0)}
-                </td>
-                <td className="py-2 px-2 text-right text-gray-700 dark:text-gray-200">
-                  {f.capacity_credit_mw.toFixed(0)}
-                </td>
-                <td className="py-2 px-2 text-center">
-                  {f.balancing_flag ? (
-                    <span className="text-green-500 font-bold">Yes</span>
-                  ) : (
-                    <span className="text-gray-400">No</span>
-                  )}
-                </td>
-                <td className="py-2 px-2 text-center text-gray-600 dark:text-gray-300">
-                  {f.commissioning_year}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div className="text-center py-8 text-gray-400 dark:text-gray-500 text-sm">
-            No facilities match the selected technology filter.
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Reserve Capacity (SRMC) Chart
-// ---------------------------------------------------------------------------
-interface SrmcChartProps {
-  records: WemSrMcRecord[]
-}
-
-function SrmcChart({ records }: SrmcChartProps) {
-  const data = records.map((r) => ({
-    year: r.year,
-    certified: Math.round(r.certified_reserve_capacity_mw),
-    required: Math.round(r.reserve_capacity_requirement_mw),
-    surplus: Math.round(r.surplus_deficit_mw),
-    srmc: r.srmc_aud_per_mwh,
-  }))
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
-        Reserve Capacity Mechanism — Certified vs Required (MW)
-      </h2>
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={data} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-          <XAxis dataKey="year" tick={{ fontSize: 11, fill: '#9CA3AF' }} />
-          <YAxis
-            tick={{ fontSize: 10, fill: '#9CA3AF' }}
-            tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1F2937',
-              border: '1px solid #374151',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: '#F9FAFB',
-            }}
-            formatter={(value: number, name: string) => [
-              `${value.toLocaleString()} MW`,
-              name === 'certified' ? 'Certified Reserve Capacity' : 'Reserve Capacity Requirement',
-            ]}
-          />
-          <Legend
-            formatter={(value) =>
-              value === 'certified'
-                ? 'Certified Reserve Capacity'
-                : 'Reserve Capacity Requirement'
-            }
-            wrapperStyle={{ fontSize: '12px' }}
-          />
-          <Bar dataKey="certified" fill="#3B82F6" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="required" fill="#F59E0B" radius={[3, 3, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-600">
-              {['Year', 'Surplus / Deficit MW', 'SRMC $/MWh', 'RCP Outcome $', 'Facilities'].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="text-left py-1.5 px-2 font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                )
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {records.map((r) => (
-              <tr
-                key={r.year}
-                className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750"
-              >
-                <td className="py-1.5 px-2 font-medium text-gray-800 dark:text-gray-100">
-                  {r.year}
-                </td>
-                <td className="py-1.5 px-2">
-                  <span
-                    className={
-                      r.surplus_deficit_mw >= 0
-                        ? 'text-green-600 dark:text-green-400 font-semibold'
-                        : 'text-red-600 dark:text-red-400 font-semibold'
-                    }
-                  >
-                    {r.surplus_deficit_mw >= 0 ? '+' : ''}
-                    {r.surplus_deficit_mw.toFixed(0)} MW
-                  </span>
-                </td>
-                <td className="py-1.5 px-2 text-gray-700 dark:text-gray-200">
-                  ${r.srmc_aud_per_mwh.toFixed(2)}
-                </td>
-                <td className="py-1.5 px-2 text-gray-700 dark:text-gray-200">
-                  ${(r.rcp_outcome_aud / 1000).toFixed(0)}k
-                </td>
-                <td className="py-1.5 px-2 text-center text-gray-600 dark:text-gray-300">
-                  {r.num_accredited_facilities}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
+const TOOLTIP_STYLE = {
+  backgroundColor: '#1f2937',
+  border: '1px solid #374151',
+  borderRadius: '8px',
+  fontSize: '12px',
+  color: '#F9FAFB',
 }
 
 // ---------------------------------------------------------------------------
@@ -369,10 +59,9 @@ function WemContextNote() {
       <p className="text-xs text-purple-800 dark:text-purple-300 leading-relaxed">
         <span className="font-semibold">WEM Context:</span> WEM is Western Australia&apos;s
         isolated electricity market operated by AEMO. Market price cap (MCAP) is{' '}
-        <span className="font-semibold">$300/MWh</span> vs NEM&apos;s $15,500/MWh. Reserve
-        Capacity Mechanism (RCM) ensures reliability by requiring participants to hold
-        accredited capacity. Short Run Marginal Cost (SRMC) informs the balancing merit order.
-        The WEM is not interconnected with the NEM and operates under separate market rules.
+        <span className="font-semibold">$300/MWh</span> vs NEM&apos;s $15,500/MWh. The WEM
+        is not interconnected with the NEM and operates under separate market rules with
+        30-minute trading intervals.
       </p>
     </div>
   )
@@ -382,25 +71,52 @@ function WemContextNote() {
 // Main WemOverview component
 // ---------------------------------------------------------------------------
 export default function WemOverview() {
-  const [dashboard, setDashboard] = useState<WemDashboard | null>(null)
-  const [prices, setPrices] = useState<WemBalancingPrice[]>([])
-  const [facilities, setFacilities] = useState<WemFacility[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+
+  const [priceSummary, setPriceSummary] = useState<{ avg_price: number; max_price: number; min_price: number; vol: number; high_price_intervals: number }>({ avg_price: 0, max_price: 0, min_price: 0, vol: 0, high_price_intervals: 0 })
+  const [demandSummary, setDemandSummary] = useState<{ avg_demand: number; peak_demand: number; min_demand: number }>({ avg_demand: 0, peak_demand: 0, min_demand: 0 })
+  const [genMix, setGenMix] = useState<Array<{ fuel_type: string; avg_mw: number; total_mw: number }>>([])
+  const [prices, setPrices] = useState<WemPrice[]>([])
+  const [generation, setGeneration] = useState<WemGeneration[]>([])
+  const [demand, setDemand] = useState<Array<{ trading_interval: string; total_demand_mw: number }>>([])
+  const [comparison, setComparison] = useState<{
+    wem: { avg_price: number; max_price: number; avg_demand_mw: number }
+    nem_nsw1: { avg_price: number; max_price: number; avg_demand_mw: number }
+    price_differential: number
+  } | null>(null)
 
   const fetchAll = async () => {
     setLoading(true)
     setError(null)
     try {
-      const [dash, priceData, facilityData] = await Promise.all([
-        api.getWemDashboard(),
-        api.getWemPrices(),
-        api.getWemFacilities(),
+      const [dashRes, pricesRes, genRes, demandRes, compRes] = await Promise.all([
+        wemApi.dashboard(7),
+        wemApi.prices(7),
+        wemApi.generation(7),
+        wemApi.demand(7),
+        wemApi.comparison(7),
       ])
-      setDashboard(dash)
-      setPrices(priceData)
-      setFacilities(facilityData)
+
+      const ps = dashRes.price_summary || {}
+      setPriceSummary({
+        avg_price: ps.avg_price ?? 0,
+        max_price: ps.max_price ?? 0,
+        min_price: (ps as Record<string, number>).min_price ?? 0,
+        vol: ps.vol ?? 0,
+        high_price_intervals: (ps as Record<string, number>).high_price_intervals ?? 0,
+      })
+      const ds = dashRes.demand_summary || {}
+      setDemandSummary({ avg_demand: ds.avg_demand ?? 0, peak_demand: ds.peak_demand ?? 0, min_demand: ds.min_demand ?? 0 })
+      setGenMix(dashRes.generation_mix || [])
+      setPrices(pricesRes.prices || [])
+      setGeneration(genRes.generation || [])
+      setDemand(demandRes.demand || [])
+
+      if (compRes?.wem && compRes?.nem_nsw1) {
+        setComparison(compRes)
+      }
       setLastRefresh(new Date())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load WEM data')
@@ -415,7 +131,30 @@ export default function WemOverview() {
     return () => clearInterval(timer)
   }, [])
 
-  if (loading && !dashboard) {
+  // Price chart data
+  const priceChartData = prices.map((p) => ({
+    time: p.trading_interval.slice(5, 16),
+    price: p.balancing_price,
+  }))
+
+  // Generation mix stacked area
+  const fuelTypes = [...new Set(generation.map((g) => g.fuel_type))]
+  const genByInterval: Record<string, Record<string, number>> = {}
+  generation.forEach((g) => {
+    if (!genByInterval[g.trading_interval]) genByInterval[g.trading_interval] = {}
+    genByInterval[g.trading_interval][g.fuel_type] = g.total_mw
+  })
+  const genChartData = Object.entries(genByInterval)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([interval, fuels]) => ({ time: interval.slice(5, 16), ...fuels }))
+
+  // Demand chart
+  const demandChartData = demand.map((d) => ({
+    time: d.trading_interval.slice(5, 16),
+    demand: d.total_demand_mw,
+  }))
+
+  if (loading && prices.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-3">
@@ -426,38 +165,19 @@ export default function WemOverview() {
     )
   }
 
-  if (error && !dashboard) {
+  if (error && prices.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-3 max-w-sm text-center">
           <AlertCircle size={24} className="text-red-500" />
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button
-            onClick={fetchAll}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors"
-          >
+          <button onClick={fetchAll} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors">
             Retry
           </button>
         </div>
       </div>
     )
   }
-
-  const dash = dashboard!
-
-  const priceColour =
-    dash.current_balancing_price_aud >= dash.mcap_aud
-      ? 'text-red-500'
-      : dash.current_balancing_price_aud >= dash.mcap_aud * 0.8
-      ? 'text-amber-500'
-      : 'text-green-500'
-
-  const renewableColour =
-    dash.renewable_penetration_pct >= 40
-      ? 'text-green-500'
-      : dash.renewable_penetration_pct >= 20
-      ? 'text-amber-500'
-      : 'text-gray-700 dark:text-gray-200'
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -477,18 +197,13 @@ export default function WemOverview() {
               </span>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Operated by AEMO · Isolated from NEM · MCAP $300/MWh
+              Operated by AEMO · Isolated from NEM · MCAP $300/MWh · 30-min intervals
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400 dark:text-gray-500">
-            Last updated:{' '}
-            {lastRefresh.toLocaleTimeString('en-AU', {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            })}
+            Updated: {lastRefresh.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
           <button
             onClick={fetchAll}
@@ -501,76 +216,193 @@ export default function WemOverview() {
         </div>
       </div>
 
-      {/* Context note */}
       <WemContextNote />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Current Balancing Price"
-          value={`$${dash.current_balancing_price_aud.toFixed(2)}`}
-          subtitle={`MCAP: $${dash.mcap_aud.toFixed(0)}/MWh`}
-          colour={priceColour}
-        />
-        <KpiCard
-          title="Current Load"
-          value={`${dash.current_load_mw.toFixed(0)} MW`}
-          subtitle={`Total registered: ${dash.total_registered_capacity_mw.toFixed(0)} MW`}
-        />
-        <KpiCard
-          title="Spinning Reserve"
-          value={`${dash.spinning_reserve_mw.toFixed(0)} MW`}
-          subtitle={`${dash.num_registered_facilities} registered facilities`}
-        />
-        <KpiCard
-          title="Renewable Penetration"
-          value={`${dash.renewable_penetration_pct.toFixed(1)}%`}
-          subtitle="Wind + Solar + BESS capacity"
-          colour={renewableColour}
-        />
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Avg Price</span>
+          <div className="text-2xl font-bold text-green-500 mt-1">${priceSummary.avg_price.toFixed(2)}</div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">$/MWh (7-day)</span>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Max Price</span>
+          <div className={`text-2xl font-bold mt-1 ${priceSummary.max_price >= 300 ? 'text-red-500' : 'text-amber-500'}`}>
+            ${priceSummary.max_price.toFixed(2)}
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            $/MWh · {priceSummary.high_price_intervals} high-price intervals
+          </span>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Avg Demand</span>
+          <div className="text-2xl font-bold text-blue-500 mt-1">{demandSummary.avg_demand.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">MW</span>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Peak Demand</span>
+          <div className="text-2xl font-bold text-yellow-500 mt-1">{demandSummary.peak_demand.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">MW · Min: {demandSummary.min_demand.toLocaleString(undefined, { maximumFractionDigits: 0 })} MW</span>
+        </div>
       </div>
 
       {/* Balancing Price Chart */}
-      <BalancingPriceChart
-        prices={prices.length > 0 ? prices : dash.balancing_prices}
-        mcap={dash.mcap_aud}
-      />
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
+          Balancing Price (7-Day)
+        </h2>
+        {priceChartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={priceChartData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+              <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#9CA3AF' }} interval={Math.max(Math.floor(priceChartData.length / 12), 1)} />
+              <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `$${v}`} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toFixed(2)}/MWh`, 'Balancing Price']} />
+              <Line type="monotone" dataKey="price" stroke="#3B82F6" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-center py-8 text-gray-400 text-sm">No price data available</p>
+        )}
+      </div>
 
-      {/* Facility Table */}
-      <FacilityTable facilities={facilities.length > 0 ? facilities : dash.facilities} />
+      {/* Generation Mix — Stacked Area + Bar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Stacked Area */}
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
+            Generation Mix (Stacked)
+          </h2>
+          {genChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={genChartData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#9CA3AF' }} interval={Math.max(Math.floor(genChartData.length / 12), 1)} />
+                <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} label={{ value: 'MW', angle: -90, fill: '#9CA3AF', position: 'insideLeft' }} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [`${v.toFixed(0)} MW`, fuelLabel(name)]} />
+                <Legend formatter={(v: string) => fuelLabel(v)} wrapperStyle={{ fontSize: '11px' }} />
+                {fuelTypes.map((fuel) => (
+                  <Area
+                    key={fuel}
+                    type="monotone"
+                    dataKey={fuel}
+                    stackId="gen"
+                    stroke={fuelColour(fuel)}
+                    fill={fuelColour(fuel)}
+                    fillOpacity={0.6}
+                    name={fuel}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center py-8 text-gray-400 text-sm">No generation data available</p>
+          )}
+        </div>
 
-      {/* Reserve Capacity (SRMC) Chart */}
-      <SrmcChart records={dash.srmc_records} />
+        {/* Fuel Mix Bar */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
+            Average Generation by Fuel
+          </h2>
+          {genMix.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={genMix.map((g) => ({ fuel: fuelLabel(g.fuel_type), avg_mw: Math.round(g.avg_mw) }))} layout="vertical" margin={{ top: 8, right: 20, left: 60, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                <YAxis type="category" dataKey="fuel" tick={{ fontSize: 10, fill: '#9CA3AF' }} width={55} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v.toLocaleString()} MW`, 'Avg']} />
+                <Bar dataKey="avg_mw" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-center py-8 text-gray-400 text-sm">No fuel mix data</p>
+          )}
+        </div>
+      </div>
 
-      {/* Summary stats footer */}
+      {/* Demand Chart */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
+          Total Demand
+        </h2>
+        {demandChartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={demandChartData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+              <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#9CA3AF' }} interval={Math.max(Math.floor(demandChartData.length / 12), 1)} />
+              <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} label={{ value: 'MW', angle: -90, fill: '#9CA3AF', position: 'insideLeft' }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v.toLocaleString()} MW`, 'Demand']} />
+              <Line type="monotone" dataKey="demand" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-center py-8 text-gray-400 text-sm">No demand data available</p>
+        )}
+      </div>
+
+      {/* WEM vs NEM Comparison */}
+      {comparison && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <ArrowLeftRight size={16} className="text-blue-400" />
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">WEM vs NEM (NSW1) Comparison</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+              <h3 className="text-xs font-medium text-purple-500 mb-3 uppercase tracking-wide">WEM (WA)</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Avg Price</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100">${comparison.wem.avg_price.toFixed(2)}/MWh</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Max Price</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100">${comparison.wem.max_price.toFixed(2)}/MWh</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Avg Demand</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100">{comparison.wem.avg_demand_mw.toLocaleString(undefined, { maximumFractionDigits: 0 })} MW</span>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+              <h3 className="text-xs font-medium text-teal-500 mb-3 uppercase tracking-wide">NEM (NSW1)</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Avg Price</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100">${comparison.nem_nsw1.avg_price.toFixed(2)}/MWh</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Max Price</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100">${comparison.nem_nsw1.max_price.toFixed(2)}/MWh</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500 dark:text-gray-400">Avg Demand</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100">{comparison.nem_nsw1.avg_demand_mw.toLocaleString(undefined, { maximumFractionDigits: 0 })} MW</span>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Price Differential</span>
+              <div className={`text-3xl font-bold ${comparison.price_differential >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {comparison.price_differential >= 0 ? '+' : ''}{comparison.price_differential.toFixed(2)}
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">$/MWh (WEM - NEM)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          {
-            label: 'Reference Price',
-            value: `$${dash.reference_price_aud.toFixed(2)}/MWh`,
-          },
-          {
-            label: 'Total Registered Capacity',
-            value: `${dash.total_registered_capacity_mw.toFixed(0)} MW`,
-          },
-          {
-            label: 'Registered Facilities',
-            value: `${dash.num_registered_facilities}`,
-          },
-          {
-            label: 'Data Timestamp',
-            value:
-              new Date(dash.timestamp).toLocaleTimeString('en-AU', {
-                timeZone: 'Australia/Perth',
-                hour: '2-digit',
-                minute: '2-digit',
-              }) + ' AWST',
-          },
+          { label: 'Volatility (σ)', value: `$${priceSummary.vol.toFixed(2)}/MWh` },
+          { label: 'Min Price', value: `$${priceSummary.min_price.toFixed(2)}/MWh` },
+          { label: 'Price Intervals', value: `${prices.length}` },
+          { label: 'Data Source', value: 'OpenElectricity API' },
         ].map(({ label, value }) => (
-          <div
-            key={label}
-            className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3"
-          >
+          <div key={label} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
             <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 mt-0.5">{value}</p>
           </div>

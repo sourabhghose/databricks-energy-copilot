@@ -166,6 +166,30 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
           environment_key: default
+        - task_key: seed_sttm_gas
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/13_sttm_gas_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: seed_dnsp_outages
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/15_dnsp_outage_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+        - task_key: seed_aer_reliability
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../pipelines/16_aer_reliability_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
         - task_key: backfill
           depends_on:
             - task_key: create_core_nem_tables
@@ -547,4 +571,263 @@ resources:
         - environment_key: default
           spec:
             client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 13 — STTM + DWGM Gas Price Ingest (every 6 hours)
+    # -----------------------------------------------------------------
+    job_13_sttm_gas_ingest:
+      name: "[${bundle.target}] 13 — STTM Gas Ingest"
+      description: "AEMO STTM + DWGM gas prices from NEMWEB public CSV reports."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "13_sttm_gas"
+      schedule:
+        quartz_cron_expression: "0 0 */6 * * ?"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: sttm_gas_ingest
+          notebook_task:
+            notebook_path: ../pipelines/13_sttm_gas_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 14 — CER LGC Weekly Ingest
+    # -----------------------------------------------------------------
+    job_14_cer_lgc_weekly:
+      name: "[${bundle.target}] 14 — CER LGC Weekly"
+      description: "CER accredited power stations, LGC holdings, certificate balances."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "14_cer_lgc_weekly"
+      schedule:
+        quartz_cron_expression: "0 0 8 ? * MON"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: cer_lgc_weekly
+          notebook_task:
+            notebook_path: ../pipelines/14_cer_lgc_weekly.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 15 — DNSP Outage Feeds (every 15 min)
+    # -----------------------------------------------------------------
+    job_15_dnsp_outage_feeds:
+      name: "[${bundle.target}] 15 — DNSP Outage Feeds"
+      description: "Ausgrid + Endeavour Energy real-time outage ingestion."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "15_dnsp_outages"
+      schedule:
+        quartz_cron_expression: "0 */15 * * * ?"
+        timezone_id: "UTC"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: dnsp_outage_ingest
+          notebook_task:
+            notebook_path: ../pipelines/15_dnsp_outage_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 16 — AER Reliability Data (weekly)
+    # -----------------------------------------------------------------
+    job_16_aer_reliability:
+      name: "[${bundle.target}] 16 — AER Reliability"
+      description: "AER SAIDI/SAIFI/CAIDI reliability KPIs per DNSP."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "16_aer_reliability"
+      schedule:
+        quartz_cron_expression: "0 0 9 ? * MON"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: aer_reliability_ingest
+          notebook_task:
+            notebook_path: ../pipelines/16_aer_reliability_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 17 — AER Enforcement Register (weekly)
+    # -----------------------------------------------------------------
+    job_17_aer_enforcement:
+      name: "[${bundle.target}] 17 — AER Enforcement Register"
+      description: "Scrapes AER public enforcement register — real fines, companies, breaches."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "17_aer_enforcement"
+      schedule:
+        quartz_cron_expression: "0 0 9 ? * MON"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: aer_enforcement_ingest
+          notebook_task:
+            notebook_path: ../pipelines/17_aer_enforcement_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - pypi:
+                  package: beautifulsoup4
+              - pypi:
+                  package: requests
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 18 — AER Compliance Calendar (weekly)
+    # -----------------------------------------------------------------
+    job_18_aer_compliance_calendar:
+      name: "[${bundle.target}] 18 — AER Compliance Calendar"
+      description: "AER/AEMO/ESV regulatory obligations and compliance deadlines."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "18_aer_compliance"
+      schedule:
+        quartz_cron_expression: "0 0 8 ? * MON"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: compliance_calendar_ingest
+          notebook_task:
+            notebook_path: ../pipelines/18_aer_compliance_calendar.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - pypi:
+                  package: beautifulsoup4
+              - pypi:
+                  package: requests
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 19 — ESV Incidents & Safety Data (weekly)
+    # -----------------------------------------------------------------
+    job_19_esv_incidents:
+      name: "[${bundle.target}] 19 — ESV Incidents & Safety"
+      description: "Energy Safe Victoria incident reports and DNSP safety performance data."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "19_esv_incidents"
+      schedule:
+        quartz_cron_expression: "0 0 10 ? * MON"
+        timezone_id: "Australia/Melbourne"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: esv_incidents_ingest
+          notebook_task:
+            notebook_path: ../pipelines/19_esv_incidents_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - pypi:
+                  package: beautifulsoup4
+              - pypi:
+                  package: requests
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 20 — ESV Regulations (monthly)
+    # -----------------------------------------------------------------
+    job_20_esv_regulations:
+      name: "[${bundle.target}] 20 — ESV Regulations"
+      description: "Victorian electrical safety regulations and compliance framework."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "20_esv_regulations"
+      schedule:
+        quartz_cron_expression: "0 0 8 ? * 2#1"
+        timezone_id: "Australia/Melbourne"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: esv_regulations_ingest
+          notebook_task:
+            notebook_path: ../pipelines/20_esv_regulations_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - pypi:
+                  package: beautifulsoup4
+              - pypi:
+                  package: requests
+      max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 21 — AEMO Procedures Register (monthly)
+    # -----------------------------------------------------------------
+    job_21_aemo_procedures:
+      name: "[${bundle.target}] 21 — AEMO Procedures"
+      description: "AEMO NEM/WEM procedures, SOPs, guidelines, and market operation documents."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "21_aemo_procedures"
+      schedule:
+        quartz_cron_expression: "0 0 9 ? * 2#1"
+        timezone_id: "Australia/Brisbane"
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: aemo_procedures_ingest
+          notebook_task:
+            notebook_path: ../pipelines/21_aemo_procedures_ingest.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - pypi:
+                  package: beautifulsoup4
+              - pypi:
+                  package: requests
       max_concurrent_runs: 1

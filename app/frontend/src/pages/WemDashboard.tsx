@@ -29,25 +29,29 @@ const TOOLTIP_STYLE = {
 }
 
 const FUEL_COLOURS: Record<string, string> = {
-  gas_ccgt: '#f59e0b',
-  coal_black: '#6b7280',
-  wind: '#3b82f6',
-  solar: '#eab308',
-  battery: '#14b8a6',
-  gas_ocgt: '#f97316',
-  distillate: '#a855f7',
-  hydro: '#06b6d4',
+  'GAS CCGT': '#f59e0b',
+  'GAS OCGT': '#f97316',
+  'COAL': '#6b7280',
+  'WIND': '#3b82f6',
+  'SOLAR': '#eab308',
+  'BATTERY': '#14b8a6',
+  'DISTILLATE': '#a855f7',
+  'HYDRO': '#06b6d4',
 }
 
 const FUEL_LABELS: Record<string, string> = {
-  gas_ccgt: 'Gas CCGT',
-  coal_black: 'Coal',
-  wind: 'Wind',
-  solar: 'Solar',
-  battery: 'Battery',
-  gas_ocgt: 'Gas OCGT',
-  distillate: 'Distillate',
-  hydro: 'Hydro',
+  'GAS CCGT': 'Gas CCGT',
+  'GAS OCGT': 'Gas OCGT',
+  'COAL': 'Coal',
+  'WIND': 'Wind',
+  'SOLAR': 'Solar',
+  'BATTERY': 'Battery',
+  'DISTILLATE': 'Distillate',
+  'HYDRO': 'Hydro',
+}
+
+function fuelColour(key: string): string {
+  return FUEL_COLOURS[key] || FUEL_COLOURS[key.toUpperCase()] || '#6b7280'
 }
 
 export default function WemDashboard() {
@@ -217,17 +221,17 @@ export default function WemDashboard() {
                 />
                 <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} label={{ value: 'MW', angle: -90, fill: '#9ca3af', position: 'insideLeft' }} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: '#fff' }} />
-                <Legend formatter={(v: string) => FUEL_LABELS[v] || v} />
+                <Legend formatter={(v: string) => FUEL_LABELS[v] || v.replace(/_/g, ' ')} />
                 {fuelTypes.map((fuel) => (
                   <Area
                     key={fuel}
                     type="monotone"
                     dataKey={fuel}
                     stackId="gen"
-                    stroke={FUEL_COLOURS[fuel] || '#6b7280'}
-                    fill={FUEL_COLOURS[fuel] || '#6b7280'}
+                    stroke={fuelColour(fuel)}
+                    fill={fuelColour(fuel)}
                     fillOpacity={0.6}
-                    name={fuel}
+                    name={FUEL_LABELS[fuel] || fuel}
                   />
                 ))}
               </AreaChart>
