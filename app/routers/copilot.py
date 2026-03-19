@@ -839,6 +839,63 @@ _FMAPI_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_dnsp_summary",
+            "description": "Get a summary of DNSP performance metrics including AER compliance, bushfire mitigation, connections, and capital program status.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dnsp": {
+                        "type": "string",
+                        "description": "DNSP name e.g. 'AusNet Services', 'Ergon Energy', 'Energex'. Omit for all DNSPs.",
+                        "enum": ["AusNet Services", "Ergon Energy", "Energex"]
+                    },
+                    "module": {
+                        "type": "string",
+                        "description": "Which module to query: 'aer' (AER/STPIS compliance), 'bushfire' (BMP status), 'connections' (NER queue), 'capex' (capital program), 'rural' (CSO/RAPS), 'tariffs' (network tariffs). Omit for overall summary.",
+                        "enum": ["aer", "bushfire", "connections", "capex", "rural", "tariffs"]
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_bushfire_status",
+            "description": "Get AusNet Services Bushfire Mitigation Program (BMP) status — asset compliance, ELC inspections, BMO zone risk summary, and BMP capex vs allowance.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_aer_compliance",
+            "description": "Get AER regulatory compliance metrics — STPIS performance scores, RIN submission status, revenue cap utilisation, and upcoming regulatory milestones.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dnsp": {
+                        "type": "string",
+                        "description": "DNSP name. Omit for all DNSPs.",
+                        "enum": ["AusNet Services", "Ergon Energy", "Energex"]
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_connections_queue",
+            "description": "Get NER connections queue status — pending applications, timely connections compliance rate, overdue applications, and large customer pipeline.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -1659,6 +1716,89 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
             lines.append(f"\nTotal Accrued (unposted): ${total_accrued:,.2f}")
             return json.dumps({"text": "\n".join(lines), "runs_summary": runs_summary, "journals_summary": journals_summary, "total_accrued_aud": total_accrued}, default=str)
 
+        elif name == "query_dnsp_summary":
+            dnsp = args.get("dnsp")
+            module = args.get("module")
+            import httpx
+            results = {}
+            try:
+                base = "http://localhost:8000"
+                with httpx.Client(timeout=10) as client:
+                    if module in (None, "aer"):
+                        params = {"dnsp": dnsp} if dnsp else {}
+                        r = client.get(f"{base}/api/aer/summary", params=params)
+                        if r.status_code == 200:
+                            results["aer_summary"] = r.json()
+                    if module in (None, "bushfire"):
+                        r = client.get(f"{base}/api/bushfire/summary")
+                        if r.status_code == 200:
+                            results["bushfire_summary"] = r.json()
+                    if module in (None, "connections"):
+                        r = client.get(f"{base}/api/connections/summary")
+                        if r.status_code == 200:
+                            results["connections_summary"] = r.json()
+                    if module in (None, "capex"):
+                        r = client.get(f"{base}/api/capex/summary")
+                        if r.status_code == 200:
+                            results["capex_summary"] = r.json()
+                    if module in (None, "rural"):
+                        r = client.get(f"{base}/api/rural/summary")
+                        if r.status_code == 200:
+                            results["rural_summary"] = r.json()
+                    if module in (None, "tariffs"):
+                        r = client.get(f"{base}/api/tariffs/summary")
+                        if r.status_code == 200:
+                            results["tariffs_summary"] = r.json()
+            except Exception as e:
+                results["error"] = str(e)
+            return json.dumps(results)
+        elif name == "query_bushfire_status":
+            import httpx
+            try:
+                with httpx.Client(timeout=10) as client:
+                    r = client.get("http://localhost:8000/api/bushfire/summary")
+                    zones_r = client.get("http://localhost:8000/api/bushfire/risk-zones")
+                    spend_r = client.get("http://localhost:8000/api/bushfire/spend", params={"dnsp": "AusNet Services"})
+                    data = {
+                        "summary": r.json() if r.status_code == 200 else {},
+                        "risk_zones": zones_r.json() if zones_r.status_code == 200 else {},
+                        "spend": spend_r.json() if spend_r.status_code == 200 else {},
+                    }
+                    return json.dumps(data)
+            except Exception as e:
+                return json.dumps({"error": str(e)})
+        elif name == "query_aer_compliance":
+            dnsp = args.get("dnsp", "")
+            import httpx
+            try:
+                params = {"dnsp": dnsp} if dnsp else {}
+                with httpx.Client(timeout=10) as client:
+                    summary_r = client.get("http://localhost:8000/api/aer/summary", params=params)
+                    stpis_r = client.get("http://localhost:8000/api/aer/stpis")
+                    milestones_r = client.get("http://localhost:8000/api/aer/milestones/upcoming")
+                    data = {
+                        "summary": summary_r.json() if summary_r.status_code == 200 else {},
+                        "stpis": stpis_r.json() if stpis_r.status_code == 200 else {},
+                        "upcoming_milestones": milestones_r.json() if milestones_r.status_code == 200 else {},
+                    }
+                    return json.dumps(data)
+            except Exception as e:
+                return json.dumps({"error": str(e)})
+        elif name == "query_connections_queue":
+            import httpx
+            try:
+                with httpx.Client(timeout=10) as client:
+                    summary_r = client.get("http://localhost:8000/api/connections/summary")
+                    compliance_r = client.get("http://localhost:8000/api/connections/compliance")
+                    pipeline_r = client.get("http://localhost:8000/api/connections/large-customers")
+                    data = {
+                        "summary": summary_r.json() if summary_r.status_code == 200 else {},
+                        "compliance": compliance_r.json() if compliance_r.status_code == 200 else {},
+                        "large_customer_pipeline": pipeline_r.json() if pipeline_r.status_code == 200 else {},
+                    }
+                    return json.dumps(data)
+            except Exception as e:
+                return json.dumps({"error": str(e)})
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as exc:
@@ -1667,11 +1807,27 @@ def _dispatch_tool(name: str, arguments: dict) -> str:
 
 _SYSTEM_PROMPT_BASE = (
     "You are the AUS Energy AI Market Intelligence, an expert AI assistant specialising in "
-    "Australia's National Electricity Market (NEM). You have LIVE access to "
-    "NEM market data which is provided below. Use this data to give specific, "
-    "data-driven answers. Never say you don't have access to data — you DO. "
-    "When discussing prices, use AUD $/MWh. Refer to NEM regions as NSW1, "
-    "QLD1, VIC1, SA1, TAS1. Be concise but thorough."
+    "Australia's National Electricity Market (NEM) and Australian Distribution Network Service "
+    "Providers (DNSPs). You have LIVE access to NEM market data which is provided below. "
+    "Use this data to give specific, data-driven answers. Never say you don't have access to "
+    "data — you DO. When discussing prices, use AUD $/MWh. Refer to NEM regions as NSW1, "
+    "QLD1, VIC1, SA1, TAS1. Be concise but thorough.\n\n"
+    "DNSP EXPERTISE: You have deep knowledge of Australian electricity distribution including:\n"
+    "- AER regulatory framework: Revenue cap, STPIS (Service Target Performance Incentive Scheme), "
+    "RIN (Regulatory Information Notice) reporting, DAPR (Distribution Annual Planning Report), "
+    "RAB (Regulatory Asset Base), WACC, MAR (Maximum Allowed Revenue).\n"
+    "- AusNet Services (VIC1 DNSP): Bushfire Mitigation Program (BMP), BMO (Bushfire Mitigation "
+    "Obligation) zones, ELC (Electrical Line Clearance) inspections, ESV regulatory compliance. "
+    "AusNet operates in one of Australia's highest bushfire risk areas — BMO compliance is critical "
+    "for community safety and licence conditions.\n"
+    "- Energy Queensland: Ergon Energy (regional QLD) + Energex (SEQ). CSO (Community Service "
+    "Obligation) subsidies fund rural/remote network costs. RAPS (Remote Area Power Supply) systems "
+    "serve off-grid communities. NER Rule 5.3.4A governs timely connections obligations.\n"
+    "- Network tariff reform: AER requires DNSPs to migrate customers to cost-reflective demand "
+    "tariffs. Track migration progress, tariff structure changes, and revenue impacts.\n"
+    "- Capital program delivery: DNSP capex programs, maintenance backlogs, fault response KPIs, "
+    "contractor performance, and capex/opex split analysis.\n"
+    "- When asked about DNSP data, use the query_dnsp_summary tool to get live DNSP metrics."
 )
 
 

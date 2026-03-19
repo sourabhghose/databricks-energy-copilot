@@ -2816,3 +2816,86 @@ All 8 pipeline jobs ran successfully. All 10 new gold tables populated with expe
 ## Roadmap
 
 - [ ] **Fresh install test on new workspace** — Spin up a new FEVM workspace and run the full setup chain end-to-end (`databricks bundle deploy` → `databricks bundle run job_00_setup` → upload app files → `databricks apps deploy`). Verify all 100+ gold tables are created, seed data populates, pipelines run, and the app serves real data with no manual intervention.
+
+---
+
+## Phase 5B/5C — DNSP Distribution Intelligence — 2026-03-19
+
+### Scope
+Full DNSP Distribution Intelligence feature set: sidebar restructuring, 29 new frontend pages, 17 new backend routers, DNSP Genie Space, enhanced AI Market Intelligence (Copilot) with DNSP expertise, and KPI fixes.
+
+### Changes
+
+**Sidebar Architecture (App.tsx)**
+- Restructured from single-level to two-level sidebar: SUPER_SECTIONS (Wholesale Market, Distribution) each containing OFFICE_SECTIONS
+- Wholesale Market: Front Office, Middle Office, Back Office sub-sections
+- Distribution: Single DNSP office with 6 semantic sub-groups (Regulatory & AER, Bushfire Mitigation, Rural Network, Network & Capital, Customer, ESG & Fleet)
+- DNSP pages routed to sub-groups via `classifyNavItem()` path-prefix matching
+- Eliminated the "More 29" catch-all bucket
+
+**Phase 5B — DNSP Core Modules (18 pages, 6 routers)**
+| File | Description |
+|------|-------------|
+| `app/frontend/src/pages/DnspHub.tsx` | Enterprise hub with cross-module KPI row |
+| `app/frontend/src/pages/AerRinCompliance.tsx` | AER RIN submissions and STPIS compliance |
+| `app/frontend/src/pages/StpisTracker.tsx` | S-factor bands, SAIDI/SAIFI vs targets |
+| `app/frontend/src/pages/RegulatoryCalendar.tsx` | AER determination milestones |
+| `app/frontend/src/pages/NetworkTariffAnalytics.tsx` | Tariff structure, revenue by class |
+| `app/frontend/src/pages/TariffReformTracker.tsx` | Cost-reflective migration progress |
+| `app/frontend/src/pages/BushfireMitigation.tsx` | AusNet BMP asset register, BMO zones |
+| `app/frontend/src/pages/ElcTracking.tsx` | ELC inspection compliance |
+| `app/frontend/src/pages/FireRiskAssets.tsx` | High-risk asset register |
+| `app/frontend/src/pages/SeasonalReadiness.tsx` | Pre-summer bushfire prep checklist |
+| `app/frontend/src/pages/RuralNetworkAnalytics.tsx` | Ergon CSO/RAPS rural feeders |
+| `app/frontend/src/pages/CsoSubsidyTracker.tsx` | QLD CSO payment trends |
+| `app/frontend/src/pages/RapsFleet.tsx` | Off-grid RAPS fleet management |
+| `app/frontend/src/pages/ConnectionQueue.tsx` | NER connection application queue |
+| `app/frontend/src/pages/TimelyConnections.tsx` | NER timeframe compliance |
+| `app/frontend/src/pages/CapitalProgram.tsx` | Project register, budget vs actuals |
+| `app/frontend/src/pages/MaintenanceScheduler.tsx` | Work order and SLA tracking |
+| `app/frontend/src/pages/FaultResponseKpis.tsx` | SLA compliance, response/restoration times |
+| `app/routers/bushfire.py` | `/api/bushfire/*` (seeds 400-403) |
+| `app/routers/aer_compliance.py` | `/api/aer/*` (seeds 420-425) |
+| `app/routers/network_tariffs.py` | `/api/tariffs/*` (seeds 440-443) |
+| `app/routers/rural_network.py` | `/api/rural/*` (seeds 460-463) |
+| `app/routers/connections.py` | `/api/connections/*` (seeds 480-483) |
+| `app/routers/capex_program.py` | `/api/capex/*` (seeds 500-503) |
+
+**Phase 5C — DNSP Advanced Modules (11 pages, 11 routers)**
+| Module | Page | Router | API prefix |
+|--------|------|--------|------------|
+| Asset Health | `AssetHealth.tsx` | `asset_health.py` | `/api/asset-health/*` |
+| Vegetation Management | `VegetationManagement.tsx` | `vegetation.py` | `/api/vegetation/*` |
+| SAIDI/SAIFI Reliability | `ReliabilityDnsp.tsx` | `reliability_dnsp.py` | `/api/reliability-dnsp/*` |
+| RAB Roll-Forward | `RabRollforward.tsx` | `rab_rollforward.py` | `/api/rab/*` |
+| DAPR Compliance | `DaprCompliance.tsx` | `dapr.py` | `/api/dapr/*` |
+| Customer Harm | `CustomerHarm.tsx` | `customer_harm.py` | `/api/customer-harm/*` |
+| DER Export/DOE | `DerExportManagement.tsx` | `der_export.py` | `/api/der-export/*` |
+| Large Load Pipeline | `LargeLoadPipeline.tsx` | `large_load.py` | `/api/large-load/*` |
+| Customer Experience | `CustomerExperience.tsx` | `customer_experience.py` | `/api/cx/*` |
+| SF6 / ESG | `Sf6Esg.tsx` | `sf6_esq.py` | `/api/esq/*` |
+| Fleet Electrification | `FleetElectrification.tsx` | `fleet_electrification.py` | `/api/fleet/*` |
+
+**AI Market Intelligence (Copilot)**
+- `app/routers/copilot.py`: Updated `_SYSTEM_PROMPT_BASE` with DNSP expertise (AER, BMP, CSO, NER 5.3.4A, tariff reform). Added 4 new FMAPI tools: `query_dnsp_summary`, `query_bushfire_status`, `query_aer_compliance`, `query_connections_queue`
+- `app/frontend/src/pages/Copilot.tsx`: Added 4 DNSP question categories (31 sample questions across AER & Regulatory, Bushfire, Rural Network, Connections & Capital)
+
+**DNSP Genie Space**
+- `app/routers/genie.py`: DNSP Enterprise Intelligence space — real space_id `01f12370e4a11b38b4bc0f82d2797eab`, 60 sample questions across 6 categories, 22 Unity Catalog table identifiers
+- Permissions granted to app service principal `67aaaa6b-778c-4c8b-b2f0-9f9b9728b3bb` via REST API
+
+**Fixes**
+- `app/frontend/src/pages/DnspHub.tsx`: Fixed KPI field mismatches — STPIS card now uses `3 - stpis_underperformers` (from `/api/aer/summary`); Capex Actuals uses `total_spend_m` (not `total_actuals_m`) from `/api/capex/summary`
+
+**Data Setup**
+- `setup/26_create_dnsp_tables.py`: 28 gold Delta tables + seed data for all 6 Phase 5B module areas (AER RIN, tariffs, bushfire, rural, connections, capex)
+
+### Test Results
+All 29 new pages load. DNSP sidebar renders in 6 semantic sub-groups. Copilot answers DNSP questions with domain expertise. Genie space accessible with correct permissions. DnspHub KPI cards show real values (not 0). Deployed to `https://energy-copilot-7474645691011751.aws.databricksapps.com`. Deployment ID: `01f1237fc28217e480030d6acf023466`.
+
+### Current Totals
+- **543 frontend pages** (514 + 29 Phase 5B/5C)
+- **57 backend routers** (~608+ endpoints)
+- **51 FMAPI AI tools** (47 + 4 DNSP tools)
+- **12 Genie AI/BI spaces** (11 + DNSP Enterprise Intelligence)
+- **29 scheduled pipeline jobs** (unchanged)

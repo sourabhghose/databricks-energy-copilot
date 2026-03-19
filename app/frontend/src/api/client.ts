@@ -5301,6 +5301,264 @@ export const api = {
   // Sprint 66a — Social Licence & Energy Transition Equity Analytics
   getSocialLicenceDashboard: (): Promise<SocialLicenceDashboard> =>
     get<SocialLicenceDashboard>('/api/social-licence/dashboard'),
+
+  // ---------------------------------------------------------------------------
+  // Phase 5B — DNSP Distribution Intelligence
+  // ---------------------------------------------------------------------------
+
+  // AER Compliance
+  getAerSummary(): Promise<Record<string, number>> {
+    return get('/api/aer/summary')
+  },
+  getAerRin(params?: { dnsp?: string; year?: number; category?: string }): Promise<{ submissions: AerRinRecord[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    if (params?.category) qs.set('category', params.category)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/aer/rin${q}`)
+  },
+  getAerStpis(params?: { dnsp?: string; year?: number }): Promise<{ stpis: StpisRecord[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/aer/stpis${q}`)
+  },
+  getAerStpisRisk(): Promise<{ risk: StpisRiskRecord[] }> {
+    return get('/api/aer/stpis/risk')
+  },
+  getAerRevenue(params?: { dnsp?: string }): Promise<{ revenue: RevenueMonitoringRecord[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/aer/revenue${qs}`)
+  },
+  getAerPricingProposals(): Promise<{ proposals: PricingProposalRecord[]; count: number }> {
+    return get('/api/aer/pricing-proposals')
+  },
+  getAerMilestones(params?: { dnsp?: string; status?: string }): Promise<{ milestones: RegulatoryMilestone[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/aer/milestones${q}`)
+  },
+  getAerUpcomingMilestones(): Promise<{ milestones: RegulatoryMilestone[] }> {
+    return get('/api/aer/milestones/upcoming')
+  },
+
+  // Network Tariffs
+  getTariffSummary(): Promise<Record<string, number>> {
+    return get('/api/tariffs/summary')
+  },
+  getTariffStructures(params?: { dnsp?: string; tariff_class?: string }): Promise<{ structures: TariffStructure[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.tariff_class) qs.set('tariff_class', params.tariff_class)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/tariffs/structures${q}`)
+  },
+  getTariffMigration(params?: { dnsp?: string }): Promise<{ migration: TariffMigrationRecord[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/tariffs/migration${qs}`)
+  },
+  getTariffRevenueByClass(params?: { dnsp?: string }): Promise<{ revenue: TariffRevenueByClass[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/tariffs/revenue-by-class${qs}`)
+  },
+  getTariffDemandPerformance(params?: { dnsp?: string }): Promise<{ performance: DemandTariffPerformance[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/tariffs/demand-performance${qs}`)
+  },
+  getTariffReformTracker(): Promise<{ reform: TariffReformRecord[]; count: number }> {
+    return get('/api/tariffs/reform-tracker')
+  },
+
+  // Bushfire
+  getBushfireSummary(): Promise<Record<string, number>> {
+    return get('/api/bushfire/summary')
+  },
+  getBushfireAssets(params?: { dnsp?: string; bmo_zone?: string; risk_rating?: string }): Promise<{ assets: BmpAsset[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.bmo_zone) qs.set('bmo_zone', params.bmo_zone)
+    if (params?.risk_rating) qs.set('risk_rating', params.risk_rating)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/bushfire/assets${q}`)
+  },
+  getElcInspections(params?: { dnsp?: string; status?: string }): Promise<{ inspections: ElcInspection[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/bushfire/elc${q}`)
+  },
+  getFireIncidents(params?: { dnsp?: string; year?: number }): Promise<{ incidents: FireRiskIncident[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/bushfire/incidents${q}`)
+  },
+  getBmpSpend(params?: { dnsp?: string }): Promise<{ spend: BmpSpend[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/bushfire/spend${qs}`)
+  },
+  getSeasonalReadiness(params?: { dnsp?: string }): Promise<{ readiness: SeasonalReadiness[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/bushfire/seasonal-readiness${qs}`)
+  },
+  getBushfireRiskZones(): Promise<{ zones: BushfireRiskZone[] }> {
+    return get('/api/bushfire/risk-zones')
+  },
+
+  // Rural Network
+  getRuralSummary(): Promise<Record<string, number>> {
+    return get('/api/rural/summary')
+  },
+  getCsoPayments(params?: { year?: number }): Promise<{ cso: CsoPayment[]; count: number }> {
+    const qs = params?.year ? `?year=${params.year}` : ''
+    return get(`/api/rural/cso${qs}`)
+  },
+  getRuralFeederPerformance(): Promise<{ feeders: RuralFeederPerformance[]; count: number }> {
+    return get('/api/rural/feeder-performance')
+  },
+  getRapsFleet(params?: { dnsp?: string; region?: string }): Promise<{ raps: RapsSite[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.region) qs.set('region', params.region)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/rural/raps${q}`)
+  },
+  getNonNetworkAlternatives(): Promise<{ alternatives: NonNetworkAlternative[]; count: number }> {
+    return get('/api/rural/non-network')
+  },
+  getErgonEnergyexSplit(): Promise<{ comparison: ErgonEnergyexRecord[]; count: number }> {
+    return get('/api/rural/ergon-energex')
+  },
+
+  // Connections
+  getConnectionsSummary(): Promise<Record<string, number>> {
+    return get('/api/connections/summary')
+  },
+  getConnectionQueue(params?: { dnsp?: string; status?: string; application_type?: string }): Promise<{ applications: ConnectionApplication[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.status) qs.set('status', params.status)
+    if (params?.application_type) qs.set('application_type', params.application_type)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/connections/queue${q}`)
+  },
+  getConnectionsCompliance(): Promise<{ kpis: TimelyConnectionsKpi[]; count: number }> {
+    return get('/api/connections/compliance')
+  },
+  getLargeCustomerPipeline(): Promise<{ pipeline: LargeCustomerPipeline[]; count: number }> {
+    return get('/api/connections/large-customers')
+  },
+  getConnectionCapacity(): Promise<{ capacity: ConnectionCapacity[]; count: number }> {
+    return get('/api/connections/capacity')
+  },
+
+  // Capital Program
+  getCapexSummary(): Promise<Record<string, number>> {
+    return get('/api/capex/summary')
+  },
+  getCapexProjects(params?: { dnsp?: string; category?: string; status?: string }): Promise<{ projects: CapitalProject[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.category) qs.set('category', params.category)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/capex/projects${q}`)
+  },
+  getMaintenanceOrders(params?: { dnsp?: string; priority?: string; status?: string }): Promise<{ orders: MaintenanceOrder[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.priority) qs.set('priority', params.priority)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/capex/maintenance${q}`)
+  },
+  getFaultResponseKpis(params?: { dnsp?: string; region?: string }): Promise<{ kpis: FaultResponseKpi[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.region) qs.set('region', params.region)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/capex/fault-response${q}`)
+  },
+  getContractorPerformance(params?: { dnsp?: string }): Promise<{ contractors: ContractorPerformance[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/capex/contractors${qs}`)
+  },
+  getCapexOpexAnalysis(params?: { dnsp?: string }): Promise<{ analysis: CapexOpexRecord[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/capex/capex-opex${qs}`)
+  },
+  getCapexDeliveryTrend(): Promise<{ trend: CapexDeliveryTrend[]; count: number }> {
+    return get('/api/capex/delivery-trend')
+  },
+
+  // Asset Health & Risk Management
+  getAssetHealthSummary(): Promise<any> { return get('/api/asset-health/summary') },
+  getAssetHealthAssets(): Promise<any> { return get('/api/asset-health/assets') },
+  getAssetHealthRiskMatrix(): Promise<any> { return get('/api/asset-health/risk-matrix') },
+  getAssetHealthReplacementForecast(): Promise<any> { return get('/api/asset-health/replacement-forecast') },
+
+  // Vegetation Management
+  getVegetationSummary(): Promise<any> { return get('/api/vegetation/summary') },
+  getVegetationByZone(): Promise<any> { return get('/api/vegetation/by-zone') },
+  getVegetationContractors(): Promise<any> { return get('/api/vegetation/contractor-performance') },
+
+  // Reliability DNSP (SAIDI/SAIFI)
+  getReliabilityDnspSummary(): Promise<any> { return get('/api/reliability-dnsp/summary') },
+  getReliabilityDnspKpis(): Promise<any> { return get('/api/reliability-dnsp/kpis') },
+  getReliabilityDnspWorstFeeders(): Promise<any> { return get('/api/reliability-dnsp/worst-feeders') },
+  getReliabilityDnspTrend(): Promise<any> { return get('/api/reliability-dnsp/trend') },
+
+  // RAB Roll-Forward
+  getRabSummary(params?: { dnsp?: string }): Promise<any> {
+    const q = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/rab/summary${q}`)
+  },
+  getRabRollforward(params?: { dnsp?: string }): Promise<any> {
+    const q = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/rab/rollforward${q}`)
+  },
+  getRabWaccSensitivity(): Promise<any> { return get('/api/rab/wacc-sensitivity') },
+
+  // DAPR Compliance
+  getDaprSummary(): Promise<any> { return get('/api/dapr/summary') },
+  getDaprConstraints(): Promise<any> { return get('/api/dapr/constraints') },
+  getDaprObligations(): Promise<any> { return get('/api/dapr/obligations') },
+
+  // Customer Harm Framework
+  getCustomerHarmSummary(): Promise<any> { return get('/api/customer-harm/summary') },
+  getCustomerHarmMetrics(): Promise<any> { return get('/api/customer-harm/metrics') },
+  getCustomerHarmTrend(): Promise<any> { return get('/api/customer-harm/trend') },
+
+  // DER Export Management & Dynamic Operating Envelopes
+  getDerExportSummary(): Promise<any> { return get('/api/der-export/summary') },
+  getDerExportFeeders(): Promise<any> { return get('/api/der-export/feeders') },
+  getDerCurtailmentEvents(): Promise<any> { return get('/api/der-export/curtailment-events') },
+
+  // Large Load Connection Pipeline
+  getLargeLoadSummary(): Promise<any> { return get('/api/large-load/summary') },
+  getLargeLoadPipeline(): Promise<any> { return get('/api/large-load/pipeline') },
+  getLargeLoadRevenueOpportunity(): Promise<any> { return get('/api/large-load/revenue-opportunity') },
+
+  // Customer Experience Analytics
+  getCxSummary(): Promise<any> { return get('/api/cx/summary') },
+  getCxNpsTrend(): Promise<any> { return get('/api/cx/nps-trend') },
+  getCxComplaints(): Promise<any> { return get('/api/cx/complaints') },
+
+  // SF6 & ESG Reporting
+  getEsqSummary(): Promise<any> { return get('/api/esq/summary') },
+  getEsqSf6(): Promise<any> { return get('/api/esq/sf6') },
+  getEsqEmissionsTrend(): Promise<any> { return get('/api/esq/emissions-trend') },
+
+  // Fleet Electrification
+  getFleetSummary(): Promise<any> { return get('/api/fleet/summary') },
+  getFleetVehicles(): Promise<any> { return get('/api/fleet/vehicles') },
+  getFleetTransitionPlan(): Promise<any> { return get('/api/fleet/transition-plan') },
 }
 
 // ---------------------------------------------------------------------------
@@ -35499,4 +35757,573 @@ export const settlementBackOfficeApi = {
   deleteGlMapping(mappingId: string): Promise<{ status: string; mapping_id: string }> {
     return del(`/api/settlement/gl-mappings/${mappingId}`)
   },
+
+  // ---------------------------------------------------------------------------
+  // Phase 5B — DNSP Distribution Intelligence
+  // ---------------------------------------------------------------------------
+
+  // AER Compliance
+  getAerSummary(): Promise<{ total_rins: number; accepted_rins: number; latest_year: number; total_revenue_at_risk_aud: number; stpis_underperformers: number; ytd_revenue_variance_m: number; avg_smoothing_balance_m: number; data_source?: string }> {
+    return get('/api/aer/summary')
+  },
+  getAerRin(params?: { dnsp?: string; year?: number; category?: string }): Promise<{ submissions: AerRinRecord[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    if (params?.category) qs.set('category', params.category)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/aer/rin${q}`)
+  },
+  getAerStpis(params?: { dnsp?: string; year?: number }): Promise<{ stpis: StpisRecord[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/aer/stpis${q}`)
+  },
+  getAerStpisRisk(): Promise<{ risk: StpisRiskRecord[] }> {
+    return get('/api/aer/stpis/risk')
+  },
+  getAerRevenue(params?: { dnsp?: string }): Promise<{ revenue: RevenueMonitoringRecord[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/aer/revenue${qs}`)
+  },
+  getAerPricingProposals(): Promise<{ proposals: PricingProposalRecord[]; count: number }> {
+    return get('/api/aer/pricing-proposals')
+  },
+  getAerMilestones(params?: { dnsp?: string; status?: string }): Promise<{ milestones: RegulatoryMilestone[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/aer/milestones${q}`)
+  },
+  getAerMilestonesUpcoming(): Promise<{ upcoming: RegulatoryMilestone[]; count: number; window_days: number }> {
+    return get('/api/aer/milestones/upcoming')
+  },
+
+  // Network Tariffs
+  getTariffSummary(): Promise<{ total_tariffs: number; dnsp_count: number; customer_class_count: number; avg_cost_reflective_pct: number; avg_aer_target_pct: number; data_source?: string }> {
+    return get('/api/tariffs/summary')
+  },
+  getTariffStructures(params?: { dnsp?: string; customer_class?: string }): Promise<{ structures: TariffStructure[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.customer_class) qs.set('customer_class', params.customer_class)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/tariffs/structures${q}`)
+  },
+  getTariffMigration(params?: { dnsp?: string }): Promise<{ migration: TariffMigrationRecord[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/tariffs/migration${qs}`)
+  },
+  getTariffRevenueByClass(): Promise<{ revenue_by_class: TariffRevenueByClass[]; count: number }> {
+    return get('/api/tariffs/revenue-by-class')
+  },
+  getTariffDemandPerformance(params?: { dnsp?: string }): Promise<{ performance: DemandTariffPerformance[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/tariffs/demand-performance${qs}`)
+  },
+  getTariffReformTracker(): Promise<{ reform: TariffReformRecord[]; count: number }> {
+    return get('/api/tariffs/reform-tracker')
+  },
+
+  // Bushfire Mitigation
+  getBushfireSummary(): Promise<{ total_assets: number; high_risk_assets: number; asset_compliance_pct: number; overdue_assets: number; elc_inspections_90d: number; non_compliant_spans: number; elc_compliance_pct: number; bmp_allowance_m_aud: number; bmp_spend_m_aud: number; data_source?: string }> {
+    return get('/api/bushfire/summary')
+  },
+  getBushfireAssets(params?: { dnsp?: string; risk_rating?: string; clearance_status?: string }): Promise<{ assets: BmpAsset[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.risk_rating) qs.set('risk_rating', params.risk_rating)
+    if (params?.clearance_status) qs.set('clearance_status', params.clearance_status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/bushfire/assets${q}`)
+  },
+  getElcInspections(params?: { dnsp?: string; status?: string }): Promise<{ inspections: ElcInspection[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/bushfire/elc${q}`)
+  },
+  getFireIncidents(params?: { dnsp?: string; year?: number }): Promise<{ incidents: FireRiskIncident[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/bushfire/incidents${q}`)
+  },
+  getBmpSpend(params?: { dnsp?: string }): Promise<{ spend: BmpSpend[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/bushfire/spend${qs}`)
+  },
+  getSeasonalReadiness(params?: { dnsp?: string }): Promise<{ readiness: SeasonalReadiness[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/bushfire/seasonal-readiness${qs}`)
+  },
+  getBushfireRiskZones(): Promise<{ zones: BushfireRiskZone[]; count: number }> {
+    return get('/api/bushfire/risk-zones')
+  },
+
+  // Rural Network / CSO
+  getRuralSummary(): Promise<{ total_cso_ytd_m: number; avg_cso_coverage_pct: number; total_raps_sites: number; operational_raps_sites: number; total_raps_solar_kw: number; total_raps_battery_kwh: number; avg_saidi_all_feeders: number; avg_saidi_long_rural: number; data_source?: string }> {
+    return get('/api/rural/summary')
+  },
+  getCsoPayments(params?: { dnsp?: string; year?: number }): Promise<{ cso: CsoPayment[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.year) qs.set('year', String(params.year))
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/rural/cso${q}`)
+  },
+  getRuralFeederPerformance(params?: { dnsp?: string }): Promise<{ feeders: RuralFeederPerformance[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/rural/feeder-performance${qs}`)
+  },
+  getRapsFleet(params?: { dnsp?: string; region?: string }): Promise<{ raps: RapsSite[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.region) qs.set('region', params.region)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/rural/raps${q}`)
+  },
+  getNonNetworkAlternatives(): Promise<{ alternatives: NonNetworkAlternative[]; count: number }> {
+    return get('/api/rural/non-network')
+  },
+  getErgonEnergyexSplit(): Promise<{ comparison: ErgonEnergyexRecord[]; count: number }> {
+    return get('/api/rural/ergon-energex')
+  },
+
+  // Connections
+  getConnectionsSummary(): Promise<{ total_applications: number; pending_applications: number; ner_compliant: number; ner_compliance_rate_pct: number; avg_offer_price_aud: number; large_customer_pipeline_count: number; large_customer_pipeline_mw: number; data_source?: string }> {
+    return get('/api/connections/summary')
+  },
+  getConnectionQueue(params?: { dnsp?: string; status?: string; application_type?: string }): Promise<{ applications: ConnectionApplication[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.status) qs.set('status', params.status)
+    if (params?.application_type) qs.set('application_type', params.application_type)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/connections/queue${q}`)
+  },
+  getConnectionsCompliance(params?: { dnsp?: string }): Promise<{ compliance: TimelyConnectionsKpi[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/connections/compliance${qs}`)
+  },
+  getLargeCustomerPipeline(): Promise<{ pipeline: LargeCustomerPipeline[]; count: number }> {
+    return get('/api/connections/large-customers')
+  },
+  getConnectionCapacity(): Promise<{ capacity: ConnectionCapacity[]; count: number }> {
+    return get('/api/connections/capacity')
+  },
+
+  // Capital Program
+  getCapexSummary(): Promise<{ total_budget_m: number; total_spend_m: number; avg_completion_pct: number; total_projects: number; complete_projects: number; on_hold_projects: number; maintenance_orders_30d: number; p1_emergency_orders: number; active_maintenance_orders: number; data_source?: string }> {
+    return get('/api/capex/summary')
+  },
+  getCapexProjects(params?: { dnsp?: string; category?: string; status?: string }): Promise<{ projects: CapitalProject[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.category) qs.set('category', params.category)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/capex/projects${q}`)
+  },
+  getMaintenanceOrders(params?: { dnsp?: string; priority?: string; status?: string }): Promise<{ orders: MaintenanceOrder[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.priority) qs.set('priority', params.priority)
+    if (params?.status) qs.set('status', params.status)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/capex/maintenance${q}`)
+  },
+  getFaultResponseKpis(params?: { dnsp?: string; region?: string }): Promise<{ kpis: FaultResponseKpi[]; count: number }> {
+    const qs = new URLSearchParams()
+    if (params?.dnsp) qs.set('dnsp', params.dnsp)
+    if (params?.region) qs.set('region', params.region)
+    const q = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/api/capex/fault-response${q}`)
+  },
+  getContractorPerformance(params?: { dnsp?: string }): Promise<{ contractors: ContractorPerformance[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/capex/contractors${qs}`)
+  },
+  getCapexOpexAnalysis(params?: { dnsp?: string }): Promise<{ analysis: CapexOpexRecord[]; count: number }> {
+    const qs = params?.dnsp ? `?dnsp=${params.dnsp}` : ''
+    return get(`/api/capex/capex-opex${qs}`)
+  },
+  getCapexDeliveryTrend(): Promise<{ trend: CapexDeliveryTrend[]; count: number }> {
+    return get('/api/capex/delivery-trend')
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5B — DNSP Distribution Intelligence interfaces
+// ---------------------------------------------------------------------------
+
+export interface AerRinRecord {
+  rin_id: string
+  dnsp: string
+  submission_year: number
+  category: string
+  data_value: number
+  unit: string
+  submission_date: string
+  aer_accepted: boolean
+  notes: string
+}
+
+export interface StpisRecord {
+  dnsp: string
+  period_year: number
+  saidi_actual: number
+  saidi_target: number
+  saifi_actual: number
+  saifi_target: number
+  s_factor_saidi: number
+  s_factor_saifi: number
+  revenue_at_risk_aud: number
+  performance_band: string
+}
+
+export interface StpisRiskRecord {
+  dnsp: string
+  total_at_risk: number
+  avg_combined_s_factor: number
+  poor_years: number
+}
+
+export interface RevenueMonitoringRecord {
+  dnsp: string
+  period_type: string
+  period_start: string
+  allowed_revenue_m_aud: number
+  actual_revenue_m_aud: number
+  variance_m_aud: number
+  smoothing_account_balance_m_aud: number
+}
+
+export interface PricingProposalRecord {
+  dnsp: string
+  regulatory_year: number
+  proposal_date: string
+  aer_decision_date: string
+  status: string
+  proposed_revenue_m_aud: number
+  aer_approved_revenue_m_aud: number
+}
+
+export interface RegulatoryMilestone {
+  milestone_id: string
+  dnsp: string
+  milestone_type: string
+  description: string
+  due_date: string
+  completed_date: string
+  status: string
+  responsible_team: string
+  days_remaining?: number
+}
+
+export interface TariffStructure {
+  tariff_id: string
+  dnsp: string
+  tariff_name: string
+  tariff_type: string
+  customer_class: string
+  fixed_charge_aud_day: number
+  energy_charge_aud_kwh: number
+  demand_charge_aud_kw: number
+  peak_hours: string
+  effective_date: string
+}
+
+export interface TariffMigrationRecord {
+  dnsp: string
+  period_year: number
+  customer_class: string
+  flat_rate_pct: number
+  tou_pct: number
+  demand_pct: number
+  inclining_block_pct: number
+  aer_target_cost_reflective_pct: number
+}
+
+export interface TariffRevenueByClass {
+  dnsp: string
+  period_year: number
+  customer_class: string
+  actual_revenue_m_aud: number
+  allocated_cost_m_aud: number
+  cost_recovery_ratio: number
+}
+
+export interface DemandTariffPerformance {
+  dnsp: string
+  feeder_id: string
+  customer_nmi: string
+  contracted_peak_reduction_kw: number
+  actual_peak_reduction_kw: number
+  performance_ratio: number
+  period_year: number
+}
+
+export interface TariffReformRecord {
+  dnsp: string
+  customer_class: string
+  flat_rate_pct: number
+  tou_pct: number
+  demand_pct: number
+  inclining_block_pct: number
+  aer_target_cost_reflective_pct: number
+  current_cost_reflective_pct: number
+  gap_to_target_pct?: number
+}
+
+export interface BmpAsset {
+  asset_id: string
+  dnsp: string
+  asset_type: string
+  bmo_zone: string
+  fire_risk_rating: string
+  last_inspection_date: string
+  next_inspection_date: string
+  clearance_status: string
+  action_required: string
+  region: string
+}
+
+export interface ElcInspection {
+  inspection_id: string
+  dnsp: string
+  feeder_id: string
+  span_id: string
+  inspection_date: string
+  inspector: string
+  clearance_status: string
+  vegetation_species: string
+  encroachment_m: number
+  action_taken: string
+}
+
+export interface FireRiskIncident {
+  incident_id: string
+  dnsp: string
+  incident_date: string
+  feeder_id: string
+  region: string
+  fire_origin_electrical: boolean
+  esv_notified: boolean
+  esv_notification_date: string
+  customers_affected: number
+  fire_ha: number
+  corrective_action: string
+}
+
+export interface BmpSpend {
+  dnsp: string
+  period_year: number
+  category: string
+  approved_allowance_m_aud: number
+  actual_spend_m_aud: number
+  projects_complete: number
+  projects_total: number
+}
+
+export interface SeasonalReadiness {
+  dnsp: string
+  season_year: number
+  check_category: string
+  check_item: string
+  target_completion_date: string
+  actual_completion_date: string
+  status: string
+  completion_pct: number
+}
+
+export interface BushfireRiskZone {
+  bmo_zone: string
+  region: string
+  total_assets: number
+  extreme_count: number
+  high_count: number
+  overdue_count: number
+  compliance_pct: number
+}
+
+export interface CsoPayment {
+  dnsp: string
+  period_quarter: string
+  period_year: number
+  uneconomic_cost_m_aud: number
+  cso_payment_m_aud: number
+  payment_date: string
+  qld_govt_approved: boolean
+}
+
+export interface RuralFeederPerformance {
+  dnsp: string
+  feeder_id: string
+  feeder_length_km: number
+  length_tier: string
+  saidi_minutes: number
+  saifi_count: number
+  customers_affected: number
+  period_year: number
+}
+
+export interface RapsSite {
+  site_id: string
+  dnsp: string
+  region: string
+  customer_nmi: string
+  solar_kw: number
+  battery_kwh: number
+  diesel_kva: number
+  site_status: string
+  last_service_date: string
+}
+
+export interface NonNetworkAlternative {
+  constraint_id: string
+  dnsp: string
+  zone_substation: string
+  augmentation_cost_m_aud: number
+  non_network_cost_m_aud: number
+  recommended_solution: string
+  assessment_date: string
+  rit_d_required: boolean
+}
+
+export interface ErgonEnergyexRecord {
+  business_unit: string
+  period_year: number
+  saidi_minutes: number
+  saifi_count: number
+  network_km: number
+  customers: number
+  capex_m_aud: number
+  opex_m_aud: number
+  rab_m_aud: number
+}
+
+export interface ConnectionApplication {
+  application_id: string
+  dnsp: string
+  application_date: string
+  application_type: string
+  customer_type: string
+  zone_substation: string
+  capacity_kw: number
+  status: string
+  offer_date: string
+  ner_deadline_date: string
+  ner_compliant: boolean
+  offer_price_aud: number
+  days_to_ner_deadline?: number
+}
+
+export interface TimelyConnectionsKpi {
+  dnsp: string
+  period_quarter: string
+  period_year: number
+  application_type: string
+  total_applications: number
+  compliant_count: number
+  compliance_rate_pct: number
+  ner_threshold_days: number
+}
+
+export interface LargeCustomerPipeline {
+  application_id: string
+  dnsp: string
+  customer_name: string
+  industry: string
+  capacity_mw: number
+  zone_substation: string
+  network_impact_mw: number
+  assessment_status: string
+  application_date: string
+  target_energisation_date: string
+}
+
+export interface ConnectionCapacity {
+  zone_substation: string
+  dnsp: string
+  application_count: number
+  total_applied_kw: number
+  accepted_kw: number
+  pending_count: number
+}
+
+export interface CapitalProject {
+  project_id: string
+  dnsp: string
+  project_name: string
+  category: string
+  region: string
+  budget_m_aud: number
+  actual_spend_m_aud: number
+  completion_pct: number
+  start_date: string
+  target_completion_date: string
+  status: string
+  aer_approved: boolean
+}
+
+export interface MaintenanceOrder {
+  order_id: string
+  dnsp: string
+  asset_id: string
+  order_type: string
+  priority: string
+  scheduled_date: string
+  completed_date: string
+  crew_id: string
+  contractor: string
+  status: string
+  cost_aud: number
+}
+
+export interface FaultResponseKpi {
+  dnsp: string
+  region: string
+  period_month: string
+  fault_type: string
+  avg_response_time_min: number
+  avg_restoration_time_min: number
+  sla_target_min: number
+  sla_compliance_pct: number
+  total_faults: number
+}
+
+export interface ContractorPerformance {
+  contractor_id: string
+  dnsp: string
+  contractor_name: string
+  period_year: number
+  total_jobs: number
+  completed_on_time: number
+  on_time_pct?: number
+  defect_rate_pct: number
+  avg_cost_variance_pct: number
+  quality_score: number
+}
+
+export interface CapexOpexRecord {
+  dnsp: string
+  asset_id: string
+  asset_type: string
+  period_year: number
+  capex_aud: number
+  opex_aud: number
+  health_index: number
+  recommended_action: string
+}
+
+export interface CapexDeliveryTrend {
+  month: string
+  dnsp: string
+  monthly_spend_m: number
 }

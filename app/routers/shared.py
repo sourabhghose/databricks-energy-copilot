@@ -123,11 +123,15 @@ _AEST = timezone(timedelta(hours=10))
 # ---------------------------------------------------------------------------
 _CATALOG = os.environ.get("DATABRICKS_CATALOG", "energy_copilot_catalog")
 _sql_connection = None
+_sql_unavailable_until: float = 0.0  # monotonic timestamp; skip retries until this time
 
 
 def _get_sql_connection():
     """Lazily create a Databricks SQL connection using SDK auth."""
-    global _sql_connection
+    global _sql_connection, _sql_unavailable_until
+    # Skip retry for 5 minutes after a failed attempt to avoid blocking on SSL retries
+    if _sql_unavailable_until and time.monotonic() < _sql_unavailable_until:
+        return None
     if _sql_connection is not None:
         try:
             _sql_connection.cursor().execute("SELECT 1")
@@ -165,6 +169,7 @@ def _get_sql_connection():
         return _sql_connection
     except Exception as exc:
         logger.warning("Cannot establish SQL connection: %s", exc)
+        _sql_unavailable_until = time.monotonic() + 300.0  # skip retries for 5 min
         return None
 
 

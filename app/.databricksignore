@@ -1,4 +1,11 @@
 frontend/node_modules/
+frontend/src/
+frontend/.gitignore
+frontend/tsconfig*.json
+frontend/vite.config.ts
+frontend/eslint.config.js
+frontend/package*.json
+frontend/index.html
 __pycache__/
 *.pyc
 .env
@@ -6,3 +13,6 @@ __pycache__/
 _spot_endpoints.py
 _spot_endpoints_2.py
 _new_endpoints.py
+*.md
+*.txt
+SETTLEMENT_BACKOFFICE_TEST_REPORT.md

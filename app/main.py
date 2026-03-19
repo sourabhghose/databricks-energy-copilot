@@ -159,6 +159,23 @@ from routers.network_assets import router as network_assets_router  # noqa: E402
 from routers.outages import router as outages_router  # noqa: E402
 from routers.der import router as der_router  # noqa: E402
 from routers.network_planning import router as network_planning_router  # noqa: E402
+from routers.aer_compliance import router as aer_compliance_router  # noqa: E402
+from routers.network_tariffs import router as network_tariffs_router  # noqa: E402
+from routers.bushfire import router as bushfire_router  # noqa: E402
+from routers.rural_network import router as rural_network_router  # noqa: E402
+from routers.connections import router as connections_router  # noqa: E402
+from routers.capex_program import router as capex_program_router  # noqa: E402
+from routers.asset_health import router as asset_health_router  # noqa: E402
+from routers.vegetation import router as vegetation_router  # noqa: E402
+from routers.reliability_dnsp import router as reliability_dnsp_router  # noqa: E402
+from routers.rab_rollforward import router as rab_rollforward_router  # noqa: E402
+from routers.dapr import router as dapr_router  # noqa: E402
+from routers.customer_harm import router as customer_harm_router  # noqa: E402
+from routers.der_export import router as der_export_router  # noqa: E402
+from routers.large_load import router as large_load_router  # noqa: E402
+from routers.customer_experience import router as customer_experience_router  # noqa: E402
+from routers.sf6_esq import router as sf6_esq_router  # noqa: E402
+from routers.fleet_electrification import router as fleet_electrification_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(dashboards_router)
@@ -193,6 +210,23 @@ app.include_router(network_assets_router)
 app.include_router(outages_router)
 app.include_router(der_router)
 app.include_router(network_planning_router)
+app.include_router(aer_compliance_router)
+app.include_router(network_tariffs_router)
+app.include_router(bushfire_router)
+app.include_router(rural_network_router)
+app.include_router(connections_router)
+app.include_router(capex_program_router)
+app.include_router(asset_health_router)
+app.include_router(vegetation_router)
+app.include_router(reliability_dnsp_router)
+app.include_router(rab_rollforward_router)
+app.include_router(dapr_router)
+app.include_router(customer_harm_router)
+app.include_router(der_export_router)
+app.include_router(large_load_router)
+app.include_router(customer_experience_router)
+app.include_router(sf6_esq_router)
+app.include_router(fleet_electrification_router)
 app.include_router(settlement_router)
 app.include_router(live_data_router)
 app.include_router(auto_stubs_router)

@@ -131,6 +131,57 @@ const QUESTION_CATEGORIES: { label: string; questions: string[] }[] = [
       'What are the different FCAS markets and how do they interact?',
     ],
   },
+  {
+    label: 'DNSP — AER & Regulatory',
+    questions: [
+      'What is the current STPIS performance score for AusNet Services?',
+      'Which DNSPs are at risk of missing their AER revenue cap this year?',
+      'Explain the STPIS incentive scheme and what happens if a DNSP underperforms',
+      'What regulatory milestones are coming up for DNSPs in the next 90 days?',
+      'How does the AER revenue cap work for electricity distributors?',
+      'What is a RIN (Regulatory Information Notice) and what does it require DNSPs to report?',
+      'Compare STPIS compliance across AusNet Services, Ergon Energy, and Energex',
+      'What is the difference between DAPR, RIN, and pricing proposals in the AER framework?',
+    ],
+  },
+  {
+    label: 'DNSP — Bushfire Mitigation (AusNet)',
+    questions: [
+      'What is the BMP compliance status for AusNet Services?',
+      'Which BMO zones have the most extreme risk assets?',
+      'What is the ELC inspection compliance rate for AusNet in the last 90 days?',
+      'How many overdue assets does AusNet have across all BMO zones?',
+      'What is AusNet\'s BMP capex spend vs the AER allowance?',
+      'Explain what the Bushfire Mitigation Program (BMP) requires AusNet to do',
+      'What are the five BMO zones in AusNet\'s network and their risk profile?',
+      'What happens if AusNet fails to meet its ELC obligations under the Electricity Safety Act?',
+    ],
+  },
+  {
+    label: 'DNSP — Rural Network & CSO',
+    questions: [
+      'What is the CSO subsidy paid to Ergon Energy this financial year?',
+      'Explain the Community Service Obligation (CSO) framework for Energy Queensland',
+      'What is the difference between Ergon Energy and Energex within Energy Queensland?',
+      'How does the RAPS (Remote Area Power Supply) program work for off-grid customers?',
+      'Which rural feeders have the worst reliability performance?',
+      'Why is rural network service more expensive to deliver than urban service?',
+      'What non-network alternatives does Ergon Energy use instead of traditional augmentation?',
+    ],
+  },
+  {
+    label: 'DNSP — Connections & Capital',
+    questions: [
+      'What is the timely connections compliance rate for each DNSP?',
+      'Explain NER Rule 5.3.4A and the timeframes it sets for connection offers',
+      'How many connection applications are currently overdue?',
+      'What is the large customer connection pipeline across all DNSPs?',
+      'Which capital projects are at risk of budget or schedule overrun?',
+      'What is the capex vs opex split for each DNSP?',
+      'Show me the fault response KPI compliance rate vs AER benchmarks',
+      'What is the maintenance backlog across all DNSPs?',
+    ],
+  },
 ]
 
 // ---------------------------------------------------------------------------

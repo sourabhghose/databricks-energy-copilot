@@ -1044,3 +1044,25 @@ resources:
           spec:
             client: "1"
       max_concurrent_runs: 1
+
+    # -----------------------------------------------------------------
+    # Job 30 — DNSP Gold Tables Setup (one-time / manual)
+    # -----------------------------------------------------------------
+    job_30_dnsp_tables:
+      name: "[${bundle.target}] 30 — DNSP Gold Tables Setup"
+      description: "Creates 28 gold Delta tables + seeds Phase 5B DNSP data (AER RIN, tariffs, bushfire, rural, connections, capex)."
+      tags:
+        environment: ${bundle.target}
+        pipeline: "30_dnsp_tables"
+      tasks:
+        - task_key: create_dnsp_tables
+          notebook_task:
+            notebook_path: ../setup/26_create_dnsp_tables.py
+            base_parameters:
+              catalog: ${var.catalog}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+      max_concurrent_runs: 1

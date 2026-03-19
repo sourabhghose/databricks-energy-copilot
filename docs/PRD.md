@@ -1,10 +1,10 @@
 # Product Requirements Document (PRD)
 # AUS Energy AI Market Intelligence — Phase 1: Market Intelligence & AI Assistant
 
-**Version:** 4.0
-**Date:** 10 March 2026
+**Version:** 4.2
+**Date:** 19 March 2026
 **Author:** Sourabh Ghose
-**Status:** Phases 1–4 Complete
+**Status:** Phases 1–5B Complete
 
 ### Implementation Status
 
@@ -14,9 +14,12 @@
 | Phase 2 | Lightweight ETRM — Trading & Risk | COMPLETE | 2026-03-08 |
 | Phase 3 | Bidding, Advanced Risk & Market Expansion | COMPLETE | 2026-03-09 |
 | Phase 4 | Network Operations & Distribution Intelligence | COMPLETE | 2026-03-09 |
+| Phase 5B | DNSP Distribution Intelligence | COMPLETE | 2026-03-19 |
+| Phase 5C | DNSP Advanced Modules (11 specialist pages) | COMPLETE | 2026-03-19 |
 | Phase 5 | Back-Office & Operational Excellence | PLANNED | — |
+| Phase 6 | DNSP Enterprise Intelligence (Advanced) | PLANNED | — |
 
-**Delivered:** 496 frontend pages, 34 backend routers (~500+ endpoints), 47 FMAPI AI tools, 11 Genie AI/BI spaces, 80+ gold Delta tables, Lakebase serving layer (10-38ms reads), NEM infrastructure map (742 facilities), algorithmic trading signals engine (8 signal types), market briefs auto-refresh.
+**Delivered:** 543 frontend pages, 57 backend routers (~608+ endpoints), 51 FMAPI AI tools, 12 Genie AI/BI spaces (incl. DNSP Enterprise Intelligence), 108+ gold Delta tables, Lakebase serving layer (10-38ms reads), NEM infrastructure map (742 facilities), algorithmic trading signals engine (8 signal types), market briefs auto-refresh, DNSP two-level sidebar (6 sub-groups), DNSP copilot with 31 sample questions across 4 categories.
 
 ---
 
@@ -2054,9 +2057,76 @@ New tools added to the Mosaic AI agent:
 
 ---
 
-## 21. Phase 5 — Back-Office & Operational Excellence
+## 21. Phase 5B — DNSP Distribution Intelligence
 
 ### 21.1 Executive Summary
+
+Phase 5B extends the platform with a dedicated DNSP (Distribution Network Service Provider) intelligence suite covering AER regulatory compliance, network tariff reform, bushfire mitigation, rural network management, connection queue analytics, and capital program delivery. The module provides AusNet Services (VIC), Ergon Energy (QLD), and Energex (QLD) with enterprise-grade dashboards backed by 28 new gold Delta tables and 6 new backend routers.
+
+**Target users:** DNSP regulatory affairs, network planning, field operations, connection teams, finance, and executive leadership.
+
+**Key outcome:** Single unified platform for DNSP regulatory intelligence — covering AER RIN/STPIS compliance, NER connection timeframes, bushfire mitigation program delivery, CSO subsidy tracking, RAPS fleet management, and capital program execution.
+
+### 21.2 Modules Delivered
+
+#### 21.2.1 AER Regulatory Compliance (3 pages)
+- **RIN & Regulatory Compliance** (`/dnsp/aer/rin`) — Regulatory Information Notices table, STPIS performance charts, revenue cap monitoring line chart, KPI cards for compliance rate and revenue at risk
+- **STPIS Tracker** (`/dnsp/aer/stpis`) — SAIDI/SAIFI performance vs target bands A–D, incentive factor (s-factor) tracking, non-compliance badges
+- **Regulatory Calendar** (`/dnsp/aer/calendar`) — 90-day upcoming milestones, full AER milestone table, determination dates, status badges
+
+#### 21.2.2 Network Tariff Analytics (2 pages)
+- **Network Tariff Analytics** (`/dnsp/tariffs`) — Tariff structure migration stacked bar, revenue by customer class bar, structures table with TOU/demand breakdown
+- **Tariff Reform Tracker** (`/dnsp/tariffs/reform`) — Cost-reflective tariff migration progress per DNSP vs AER reform targets
+
+#### 21.2.3 Bushfire Mitigation Program — AusNet Services (4 pages)
+- **Bushfire Mitigation (BMP)** (`/dnsp/bushfire`) — BMP KPI cards, spend vs budget bar chart, zone risk table
+- **ELC Inspection Tracking** (`/dnsp/bushfire/elc`) — Electrical line clearance inspection schedule, vegetation management compliance, non-compliant row highlights
+- **Fire Risk Assets** (`/dnsp/bushfire/assets`) — High-risk asset register in BMO zones with risk rating badges and treatment plans
+- **Seasonal Readiness** (`/dnsp/bushfire/seasonal`) — Pre-summer preparation checklist with category progress bars
+
+#### 21.2.4 Rural Network — Ergon Energy (3 pages)
+- **Rural Network Analytics** (`/dnsp/rural`) — CSO payment trend bar, SAIDI by feeder length tier, Ergon vs Energex comparison table
+- **CSO Subsidy Tracker** (`/dnsp/rural/cso`) — Community Service Obligation payment line chart vs uneconomic cost, non-network alternatives register
+- **RAPS Fleet Management** (`/dnsp/rural/raps`) — Remote Area Power Supply site table with solar/battery/diesel specs, status badges, FAULT alerts
+
+#### 21.2.5 Connection Queue (2 pages)
+- **Connection Queue** (`/dnsp/connections`) — NER application queue with deadline countdown (days remaining), NER compliance badges, filter by type/status/DNSP
+- **Timely Connections** (`/dnsp/connections/timely`) — NER compliance bar chart by application type, large customer pipeline table with capacity and assessment status
+
+#### 21.2.6 Capital Program (3 pages)
+- **Capital Program** (`/dnsp/capex`) — Project register with completion % progress bars, capex actuals vs budget bar chart by category, KPI cards
+- **Maintenance Scheduler** (`/dnsp/capex/maintenance`) — Work order register with priority badges (Emergency/Critical), status tracking, cost monitoring
+- **Fault Response KPIs** (`/dnsp/capex/fault-kpis`) — SLA compliance donut chart, avg response/restoration time bar charts by fault type and DNSP
+
+#### 21.2.7 Hub Page (1 page)
+- **DNSP Hub** (`/dnsp-hub`) — DNSP Enterprise Intelligence landing page with module cards linking to all 17 DNSP pages, cross-module KPI summary row, quick access links
+
+### 21.3 Backend Infrastructure
+
+| Router | Endpoints | Seeds | Description |
+|--------|-----------|-------|-------------|
+| `aer_compliance.py` | 8 | 201–208 | RIN, STPIS, revenue, milestones |
+| `network_tariffs.py` | 6 | 210–215 | Tariff structures, migration, reform |
+| `bushfire.py` | 7 | 220–226 | BMP assets, ELC, incidents, seasonal |
+| `rural_network.py` | 6 | 230–235 | CSO, RAPS, feeders, Ergon/Energex |
+| `connections.py` | 5 | 240–244 | Queue, compliance, large customers |
+| `capex_program.py` | 7 | 250–256 | Projects, maintenance, fault KPIs |
+
+### 21.4 Data Layer
+
+28 new Delta tables in `energy_copilot_catalog.gold`:
+- **AER:** `rin_submissions`, `stpis_performance`, `revenue_monitoring`, `pricing_proposals`, `regulatory_milestones`
+- **Tariffs:** `network_tariff_structures`, `tariff_migration_progress`, `tariff_revenue_by_class`, `demand_tariff_performance`
+- **Bushfire:** `bmp_asset_register`, `elc_inspections`, `fire_risk_incidents`, `bmp_spend`, `seasonal_readiness`
+- **Rural:** `cso_payments`, `rural_feeder_performance`, `raps_fleet`, `non_network_alternatives`, `ergon_energex_split`
+- **Connections:** `connection_applications`, `timely_connections_kpi`, `connection_offers`, `large_customer_pipeline`
+- **Capex:** `capital_projects`, `maintenance_orders`, `fault_response_kpis`, `contractor_performance`, `capex_opex_analysis`
+
+---
+
+## 22. Phase 5 — Back-Office & Operational Excellence
+
+### 22.1 Executive Summary
 
 Phase 5 closes the gap between a front-office trading platform and a production-grade energy ETRM by adding settlement-grade back-office workflows, straight-through processing (STP), enterprise controls, credit/collateral management, deeper risk engine capabilities, and operational resilience. These features are prerequisites for any gentailer or merchant generator running the platform as their primary book-of-record.
 
@@ -2064,7 +2134,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 
 **Key outcome:** The platform can serve as the system-of-record for trade lifecycle management — from deal capture through settlement, with full auditability, credit controls, and regulatory-grade reporting.
 
-### 21.2 Settlement-Grade Back Office
+### 22.2 Settlement-Grade Back Office
 
 #### 21.2.1 AEMO Settlement Ingestion
 - Ingest AEMO preliminary, final, and revision settlement runs (BILLINGRUNNO cycle)
@@ -2086,7 +2156,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - Configurable chart-of-accounts mapping per entity/portfolio
 - Month-end accrual calculations for open positions
 
-### 21.3 Straight-Through Processing (STP)
+### 22.3 Straight-Through Processing (STP)
 
 #### 21.3.1 Trade Confirmation
 - Auto-generate confirmation documents from executed trades
@@ -2108,7 +2178,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - Bi-directional sync with AEMO participant registers
 - Change detection and approval workflow for material updates
 
-### 21.4 Controls & Auditability
+### 22.4 Controls & Auditability
 
 #### 21.4.1 Immutable Audit Trail
 - Every state change (trade, amendment, approval, settlement) writes to an append-only audit log
@@ -2130,7 +2200,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - Immutable once finalized — amendments create new snapshot versions
 - Regulatory and audit retrieval: reproduce any historical valuation state
 
-### 21.5 Credit & Collateral Workflows
+### 22.5 Credit & Collateral Workflows
 
 #### 21.5.1 Counterparty Credit Limits
 - Define and maintain credit limits per counterparty (approved amount, tenor, rating triggers)
@@ -2152,7 +2222,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - Expected credit loss (ECL) calculations per AASB 9
 - Credit committee reporting pack generation
 
-### 21.6 Risk Engine Depth
+### 22.6 Risk Engine Depth
 
 #### 21.6.1 Scenario Governance
 - Formal scenario library with version control and approval workflow
@@ -2174,7 +2244,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - Distribution to risk committee, trading desk heads, and compliance
 - Configurable report templates with drill-down capability
 
-### 21.7 Operational Resilience
+### 22.7 Operational Resilience
 
 #### 21.7.1 Data Quality SLAs
 - Define and monitor SLAs for each data feed (AEMO dispatch, BOM weather, ASX futures)
@@ -2196,7 +2266,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - Unity Catalog row-level and column-level security for sensitive data (counterparty details, credit limits)
 - Integration with enterprise identity providers (Entra ID, Okta)
 
-### 21.8 Phase 5 — New Delta Tables
+### 22.8 Phase 5 — New Delta Tables
 
 | Table | Key Columns | Purpose |
 |-------|-------------|---------|
@@ -2209,7 +2279,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 | `valuation_snapshots` | snapshot_id, snapshot_date, portfolio_id, mtm_total | EOD immutable valuation records |
 | `risk_limits` | limit_id, scope, limit_type, limit_value, utilization | Hierarchical risk limit definitions |
 
-### 21.9 Phase 5 — New Endpoints
+### 22.9 Phase 5 — New Endpoints
 
 **backoffice.py** (~26 endpoints):
 - `/api/settlement/runs` — list settlement runs by period
@@ -2254,7 +2324,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - `/api/ops/rbac/users` — user entitlement management
 - `/api/ops/rbac/audit` — access certification log
 
-### 21.10 Phase 5 — Frontend Extensions
+### 22.10 Phase 5 — Frontend Extensions
 
 **New pages (3):**
 
@@ -2268,7 +2338,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 - `NemSettlement.tsx` — add settlement run browser, charge code drill-down, dispute management tabs
 - `RiskDashboard.tsx` — add scenario library, backtesting panel, limit framework, daily risk report
 
-### 21.11 Phase 5 — Success Metrics
+### 22.11 Phase 5 — Success Metrics
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
@@ -2280,7 +2350,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 | Data quality SLA compliance | > 99.5% | Feeds meeting freshness/completeness targets |
 | DR failover RTO | < 4 hours | Quarterly DR test results |
 
-### 21.12 Phase 5 — Estimated Timeline
+### 22.12 Phase 5 — Estimated Timeline
 
 | Sprint | Duration | Focus |
 |--------|----------|-------|
@@ -2295,7 +2365,7 @@ Phase 5 closes the gap between a front-office trading platform and a production-
 
 ---
 
-## 22. Full Product Roadmap Summary
+## 23. Full Product Roadmap Summary
 
 ```
 Phase 1 (Wk 1-10)       Phase 2 (Wk 11-24)       Phase 3 (Wk 25-46)       Phase 4 (Wk 47-66)       Phase 5 (Wk 67-82)
@@ -2327,7 +2397,7 @@ Market Intelligence      Lightweight ETRM          Full Trading Platform    Netw
 
 ---
 
-## 23. Glossary
+## 24. Glossary
 
 | Term | Definition | Phase |
 |------|-----------|-------|
@@ -2397,3 +2467,13 @@ Market Intelligence      Lightweight ETRM          Full Trading Platform    Netw
 | **Market Replay** | Ability to replay historical market intervals as if viewing them live, synchronizing all dashboard widgets | 1 |
 | **Time Travel** | Historical data navigation feature allowing users to view any past dispatch interval with full market context | 1 |
 | **NL What-If** | Natural language scenario analysis via AI Market Intelligence — describe a hypothetical scenario and receive portfolio impact assessment | 2 |
+| **RIN** | Regulatory Information Notice — annual AER data submission requirement for DNSPs covering network performance, expenditure, and asset data | 5B |
+| **STPIS** | Service Target Performance Incentive Scheme — AER scheme rewarding/penalising DNSPs for SAIDI/SAIFI performance vs targets, with s-factor adjustments to allowed revenue | 5B |
+| **BMP** | Bushfire Mitigation Program — AusNet Services' regulatory obligation to reduce bushfire ignition risk from powerlines in Bushfire Mitigation Obligation (BMO) zones | 5B |
+| **ELC** | Electrical Line Clearance — mandatory vegetation clearance distances from powerlines under the Electricity Safety (Electrical Line Clearance) Regulations | 5B |
+| **CSO** | Community Service Obligation — Queensland Government subsidy paid to Ergon Energy to cover the uneconomic cost of supplying remote and rural customers at uniform tariffs | 5B |
+| **RAPS** | Remote Area Power Supply — off-grid hybrid power systems (solar + battery + diesel backup) operated by Ergon Energy for customers not connected to the main grid | 5B |
+| **BMO** | Bushfire Mitigation Obligation — geographic zones in Victoria where the Electricity Safety Act imposes enhanced asset inspection and vegetation management requirements | 5B |
+| **WACC** | Weighted Average Cost of Capital — regulatory rate of return used in AER revenue determinations to set the allowed return on a DNSP's Regulated Asset Base | 5B |
+| **RAB** | Regulated Asset Base — the value of a DNSP's network assets on which the AER allows a regulated return; grows with approved capital expenditure | 5B |
+| **DAPR** | Distribution Annual Planning Report — annual AER-mandated report detailing a DNSP's demand forecasts, constraints, investment plans, and non-network alternatives | 5B |
