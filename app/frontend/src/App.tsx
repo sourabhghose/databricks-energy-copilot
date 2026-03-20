@@ -619,6 +619,28 @@ import TimelyConnections from './pages/TimelyConnections'
 import CapitalProgram from './pages/CapitalProgram'
 import MaintenanceScheduler from './pages/MaintenanceScheduler'
 import FaultResponseKpis from './pages/FaultResponseKpis'
+// Phase 6: DNSP Intelligence Gaps (7 gap areas, 21 pages)
+import AioHub from './pages/AioHub'
+import StpisCalculator from './pages/StpisCalculator'
+import AioSubmissionPack from './pages/AioSubmissionPack'
+import AssetIntelligenceHub from './pages/AssetIntelligenceHub'
+import AssetRiskMatrix from './pages/AssetRiskMatrix'
+import ExpenditureJustification from './pages/ExpenditureJustification'
+import BenchmarkingHub from './pages/BenchmarkingHub'
+import PeerComparison from './pages/PeerComparison'
+import ResetPreparation from './pages/ResetPreparation'
+import HostingCapacityHub from './pages/HostingCapacityHub'
+import LvScenarioModeller from './pages/LvScenarioModeller'
+import CurtailmentRiskMap from './pages/CurtailmentRiskMap'
+import VegetationRiskHub from './pages/VegetationRiskHub'
+import LineClearanceCompliance from './pages/LineClearanceCompliance'
+import BushfireRiskForecast from './pages/BushfireRiskForecast'
+import WorkforceAnalyticsHub from './pages/WorkforceAnalyticsHub'
+import ContractorScorecard from './pages/ContractorScorecard'
+import OpexBenchmark from './pages/OpexBenchmark'
+import DaprHub from './pages/DaprHub'
+import DemandForecastReview from './pages/DemandForecastReview'
+import NetworkCapabilityStatement from './pages/NetworkCapabilityStatement'
 // Phase 5C: DNSP Advanced Modules
 import AssetHealth from './pages/AssetHealth'
 import VegetationManagement from './pages/VegetationManagement'
@@ -1160,6 +1182,34 @@ const NAV_ITEMS = [
   { to: '/dnsp/cx',                 label: 'Customer Experience',         Icon: Users      },
   { to: '/dnsp/esq',                label: 'SF6 & ESG Reporting',         Icon: Leaf       },
   { to: '/dnsp/fleet',              label: 'Fleet Electrification',       Icon: Car        },
+  // Phase 6: Gap 1 — AER/AIO Compliance
+  { to: '/dnsp/aio',                label: 'AIO Compliance Hub',          Icon: FileCheck  },
+  { to: '/dnsp/aio/stpis-calc',     label: 'STPIS Calculator',            Icon: BarChart2  },
+  { to: '/dnsp/aio/submission',     label: 'AIO Submission Pack',         Icon: Upload     },
+  // Phase 6: Gap 2 — Asset Intelligence
+  { to: '/dnsp/asset-intel',        label: 'Asset Intelligence',          Icon: Cpu        },
+  { to: '/dnsp/asset-intel/risk-matrix',    label: 'Asset Risk Matrix',   Icon: AlertOctagon },
+  { to: '/dnsp/asset-intel/justification',  label: 'Expenditure Justification', Icon: Scale },
+  // Phase 6: Gap 3 — AER Benchmarking
+  { to: '/dnsp/benchmarking',       label: 'AER Benchmarking',            Icon: BarChart3  },
+  { to: '/dnsp/benchmarking/peers', label: 'Peer Comparison',             Icon: Users      },
+  { to: '/dnsp/benchmarking/reset', label: 'Reset Preparation',           Icon: Target     },
+  // Phase 6: Gap 4 — Hosting Capacity
+  { to: '/dnsp/hosting-capacity',           label: 'Hosting Capacity',    Icon: Zap        },
+  { to: '/dnsp/hosting-capacity/scenarios', label: 'LV Scenario Modeller',Icon: Sliders    },
+  { to: '/dnsp/hosting-capacity/curtailment', label: 'Curtailment Risk',  Icon: AlertTriangle },
+  // Phase 6: Gap 5 — Vegetation Risk
+  { to: '/dnsp/veg-risk',           label: 'Vegetation Risk',             Icon: TreePine   },
+  { to: '/dnsp/veg-risk/elc',       label: 'Line Clearance Compliance',   Icon: CheckCircle },
+  { to: '/dnsp/veg-risk/bushfire-forecast', label: 'Bushfire Risk Forecast', Icon: Flame  },
+  // Phase 6: Gap 6 — Workforce Analytics
+  { to: '/dnsp/workforce',          label: 'Workforce Analytics',         Icon: Briefcase  },
+  { to: '/dnsp/workforce/contractors', label: 'Contractor Scorecard',     Icon: Award      },
+  { to: '/dnsp/workforce/opex',     label: 'Opex Benchmarking',           Icon: DollarSign },
+  // Phase 6: Gap 7 — DAPR Assembly
+  { to: '/dnsp/dapr-assembly',      label: 'DAPR Assembly',               Icon: BookOpen   },
+  { to: '/dnsp/dapr-assembly/demand', label: 'Demand Forecast Review',    Icon: TrendingUp },
+  { to: '/dnsp/dapr-assembly/network', label: 'Network Capability',       Icon: Network    },
 ]
 
 const ROUTE_MAP: Record<string, React.ComponentType> = {
@@ -1688,6 +1738,34 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
   '/dnsp/cx': CustomerExperience,
   '/dnsp/esq': Sf6Esg,
   '/dnsp/fleet': FleetElectrification,
+  // Phase 6: Gap 1
+  '/dnsp/aio': AioHub,
+  '/dnsp/aio/stpis-calc': StpisCalculator,
+  '/dnsp/aio/submission': AioSubmissionPack,
+  // Phase 6: Gap 2
+  '/dnsp/asset-intel': AssetIntelligenceHub,
+  '/dnsp/asset-intel/risk-matrix': AssetRiskMatrix,
+  '/dnsp/asset-intel/justification': ExpenditureJustification,
+  // Phase 6: Gap 3
+  '/dnsp/benchmarking': BenchmarkingHub,
+  '/dnsp/benchmarking/peers': PeerComparison,
+  '/dnsp/benchmarking/reset': ResetPreparation,
+  // Phase 6: Gap 4
+  '/dnsp/hosting-capacity': HostingCapacityHub,
+  '/dnsp/hosting-capacity/scenarios': LvScenarioModeller,
+  '/dnsp/hosting-capacity/curtailment': CurtailmentRiskMap,
+  // Phase 6: Gap 5
+  '/dnsp/veg-risk': VegetationRiskHub,
+  '/dnsp/veg-risk/elc': LineClearanceCompliance,
+  '/dnsp/veg-risk/bushfire-forecast': BushfireRiskForecast,
+  // Phase 6: Gap 6
+  '/dnsp/workforce': WorkforceAnalyticsHub,
+  '/dnsp/workforce/contractors': ContractorScorecard,
+  '/dnsp/workforce/opex': OpexBenchmark,
+  // Phase 6: Gap 7
+  '/dnsp/dapr-assembly': DaprHub,
+  '/dnsp/dapr-assembly/demand': DemandForecastReview,
+  '/dnsp/dapr-assembly/network': NetworkCapabilityStatement,
 }
 
 // ---------------------------------------------------------------------------
@@ -1755,10 +1833,10 @@ const SUPER_SECTIONS: { key: string; label: string; Icon: React.ComponentType<{ 
 /** Classify a nav item into a group key based on path and label keywords. */
 function classifyNavItem(to: string, label: string): string {
   // DNSP pages — route to sub-groups before any other regex
-  if (to === '/dnsp-hub' || to.startsWith('/dnsp/aer/') || to.startsWith('/dnsp/tariff') || to === '/dnsp/rab' || to === '/dnsp/dapr') return 'dnsp-regulatory'
-  if (to.startsWith('/dnsp/bushfire') || to === '/dnsp/vegetation') return 'dnsp-bushfire'
+  if (to === '/dnsp-hub' || to.startsWith('/dnsp/aer/') || to.startsWith('/dnsp/tariff') || to === '/dnsp/rab' || to === '/dnsp/dapr' || to.startsWith('/dnsp/aio') || to.startsWith('/dnsp/benchmarking') || to.startsWith('/dnsp/dapr-assembly')) return 'dnsp-regulatory'
+  if (to.startsWith('/dnsp/bushfire') || to === '/dnsp/vegetation' || to.startsWith('/dnsp/veg-risk')) return 'dnsp-bushfire'
   if (to.startsWith('/dnsp/rural')) return 'dnsp-rural'
-  if (to === '/dnsp/reliability' || to === '/dnsp/asset-health' || to.startsWith('/dnsp/connections') || to.startsWith('/dnsp/capex') || to === '/dnsp/der-export' || to === '/dnsp/large-load') return 'dnsp-network'
+  if (to === '/dnsp/reliability' || to === '/dnsp/asset-health' || to.startsWith('/dnsp/connections') || to.startsWith('/dnsp/capex') || to === '/dnsp/der-export' || to === '/dnsp/large-load' || to.startsWith('/dnsp/asset-intel') || to.startsWith('/dnsp/hosting-capacity') || to.startsWith('/dnsp/workforce')) return 'dnsp-network'
   if (to === '/dnsp/customer-harm' || to === '/dnsp/cx') return 'dnsp-customer'
   if (to === '/dnsp/esq' || to === '/dnsp/fleet') return 'dnsp-esq'
 

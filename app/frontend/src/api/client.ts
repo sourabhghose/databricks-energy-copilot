@@ -5559,6 +5559,46 @@ export const api = {
   getFleetSummary(): Promise<any> { return get('/api/fleet/summary') },
   getFleetVehicles(): Promise<any> { return get('/api/fleet/vehicles') },
   getFleetTransitionPlan(): Promise<any> { return get('/api/fleet/transition-plan') },
+
+  // AIO Compliance — AER Annual Information Obligations
+  getAioSummary(): Promise<any> { return get('/api/aio/summary') },
+  getAioSections(): Promise<any> { return get('/api/aio/sections') },
+  getAioValidation(): Promise<any> { return get('/api/aio/validation') },
+  getAioStpis(): Promise<any> { return get('/api/aio/stpis') },
+
+  // Cross-System Asset Intelligence
+  getAssetIntelSummary(): Promise<any> { return get('/api/asset-intel/summary') },
+  getAssetIntelHealthScores(): Promise<any> { return get('/api/asset-intel/health-scores') },
+  getAssetIntelExpenditureJustification(): Promise<any> { return get('/api/asset-intel/expenditure-justification') },
+
+  // AER Benchmarking
+  getBenchmarkingSummary(): Promise<any> { return get('/api/benchmarking/summary') },
+  getBenchmarkingPartialProductivity(): Promise<any> { return get('/api/benchmarking/partial-productivity') },
+  getBenchmarkingPeers(): Promise<any> { return get('/api/benchmarking/peers') },
+  getBenchmarkingResetReadiness(): Promise<any> { return get('/api/benchmarking/reset-readiness') },
+
+  // Hosting Capacity & DER
+  getHostingCapacitySummary(): Promise<any> { return get('/api/hosting-capacity/summary') },
+  getHostingCapacityFeeders(): Promise<any> { return get('/api/hosting-capacity/feeders') },
+  getHostingCapacityScenarios(): Promise<any> { return get('/api/hosting-capacity/scenarios') },
+  getHostingCapacityCurtailment(): Promise<any> { return get('/api/hosting-capacity/curtailment') },
+
+  // Vegetation Risk
+  getVegRiskSummary(): Promise<any> { return get('/api/veg-risk/summary') },
+  getVegRiskSpans(): Promise<any> { return get('/api/veg-risk/spans') },
+  getVegRiskElcCompliance(): Promise<any> { return get('/api/veg-risk/elc-compliance') },
+  getVegRiskBushfireForecast(): Promise<any> { return get('/api/veg-risk/bushfire-forecast') },
+
+  // Workforce & Contractor Analytics
+  getWorkforceSummary(): Promise<any> { return get('/api/workforce/summary') },
+  getWorkforceOpexBenchmark(): Promise<any> { return get('/api/workforce/opex-benchmark') },
+  getWorkforceContractors(): Promise<any> { return get('/api/workforce/contractors') },
+  getWorkforceProductivity(): Promise<any> { return get('/api/workforce/productivity') },
+
+  // DAPR Assembly
+  getDaprDemandForecast(): Promise<any> { return get('/api/dapr/demand-forecast') },
+  getDaprNetworkCapability(): Promise<any> { return get('/api/dapr/network-capability') },
+  getDaprAugmentationPipeline(): Promise<any> { return get('/api/dapr/augmentation-pipeline') },
 }
 
 // ---------------------------------------------------------------------------

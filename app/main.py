@@ -176,6 +176,13 @@ from routers.large_load import router as large_load_router  # noqa: E402
 from routers.customer_experience import router as customer_experience_router  # noqa: E402
 from routers.sf6_esq import router as sf6_esq_router  # noqa: E402
 from routers.fleet_electrification import router as fleet_electrification_router  # noqa: E402
+from routers.aio_compliance import router as aio_compliance_router  # noqa: E402
+from routers.asset_intelligence import router as asset_intelligence_router  # noqa: E402
+from routers.aer_benchmarking import router as aer_benchmarking_router  # noqa: E402
+from routers.hosting_capacity import router as hosting_capacity_router  # noqa: E402
+from routers.vegetation_risk import router as vegetation_risk_router  # noqa: E402
+from routers.workforce_analytics import router as workforce_analytics_router  # noqa: E402
+from routers.dapr_assembly import router as dapr_assembly_router  # noqa: E402
 
 app.include_router(health_router)
 app.include_router(dashboards_router)
@@ -227,6 +234,13 @@ app.include_router(large_load_router)
 app.include_router(customer_experience_router)
 app.include_router(sf6_esq_router)
 app.include_router(fleet_electrification_router)
+app.include_router(aio_compliance_router)
+app.include_router(asset_intelligence_router)
+app.include_router(aer_benchmarking_router)
+app.include_router(hosting_capacity_router)
+app.include_router(vegetation_risk_router)
+app.include_router(workforce_analytics_router)
+app.include_router(dapr_assembly_router)
 app.include_router(settlement_router)
 app.include_router(live_data_router)
 app.include_router(auto_stubs_router)
