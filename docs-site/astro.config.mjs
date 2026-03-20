@@ -10,7 +10,7 @@ export default defineConfig({
       description: 'AI-powered market intelligence for the Australian National Electricity Market — built on Databricks',
       logo: { src: './src/assets/logo.svg' },
       social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/sourabhghose/databricks-energy-copilot' },
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/sourabhghose/databricks-energy-ai-intelligence' },
       ],
       customCss: ['./src/styles/custom.css'],
       sidebar: [
