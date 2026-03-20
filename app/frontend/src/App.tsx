@@ -3030,6 +3030,34 @@ export default function App() {
               <Route path="/dnsp/cx" element={<PageErrorBoundary pageName="/dnsp/cx"><CustomerExperience /></PageErrorBoundary>} />
               <Route path="/dnsp/esq" element={<PageErrorBoundary pageName="/dnsp/esq"><Sf6Esg /></PageErrorBoundary>} />
               <Route path="/dnsp/fleet" element={<PageErrorBoundary pageName="/dnsp/fleet"><FleetElectrification /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 1: AIO Compliance */}
+              <Route path="/dnsp/aio" element={<PageErrorBoundary pageName="/dnsp/aio"><AioHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/aio/stpis-calc" element={<PageErrorBoundary pageName="/dnsp/aio/stpis-calc"><StpisCalculator /></PageErrorBoundary>} />
+              <Route path="/dnsp/aio/submission" element={<PageErrorBoundary pageName="/dnsp/aio/submission"><AioSubmissionPack /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 2: Asset Intelligence */}
+              <Route path="/dnsp/asset-intel" element={<PageErrorBoundary pageName="/dnsp/asset-intel"><AssetIntelligenceHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/asset-intel/risk-matrix" element={<PageErrorBoundary pageName="/dnsp/asset-intel/risk-matrix"><AssetRiskMatrix /></PageErrorBoundary>} />
+              <Route path="/dnsp/asset-intel/justification" element={<PageErrorBoundary pageName="/dnsp/asset-intel/justification"><ExpenditureJustification /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 3: AER Benchmarking */}
+              <Route path="/dnsp/benchmarking" element={<PageErrorBoundary pageName="/dnsp/benchmarking"><BenchmarkingHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/benchmarking/peers" element={<PageErrorBoundary pageName="/dnsp/benchmarking/peers"><PeerComparison /></PageErrorBoundary>} />
+              <Route path="/dnsp/benchmarking/reset" element={<PageErrorBoundary pageName="/dnsp/benchmarking/reset"><ResetPreparation /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 4: Hosting Capacity */}
+              <Route path="/dnsp/hosting-capacity" element={<PageErrorBoundary pageName="/dnsp/hosting-capacity"><HostingCapacityHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/hosting-capacity/scenarios" element={<PageErrorBoundary pageName="/dnsp/hosting-capacity/scenarios"><LvScenarioModeller /></PageErrorBoundary>} />
+              <Route path="/dnsp/hosting-capacity/curtailment" element={<PageErrorBoundary pageName="/dnsp/hosting-capacity/curtailment"><CurtailmentRiskMap /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 5: Vegetation Risk */}
+              <Route path="/dnsp/veg-risk" element={<PageErrorBoundary pageName="/dnsp/veg-risk"><VegetationRiskHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/veg-risk/elc" element={<PageErrorBoundary pageName="/dnsp/veg-risk/elc"><LineClearanceCompliance /></PageErrorBoundary>} />
+              <Route path="/dnsp/veg-risk/bushfire-forecast" element={<PageErrorBoundary pageName="/dnsp/veg-risk/bushfire-forecast"><BushfireRiskForecast /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 6: Workforce Analytics */}
+              <Route path="/dnsp/workforce" element={<PageErrorBoundary pageName="/dnsp/workforce"><WorkforceAnalyticsHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/workforce/contractors" element={<PageErrorBoundary pageName="/dnsp/workforce/contractors"><ContractorScorecard /></PageErrorBoundary>} />
+              <Route path="/dnsp/workforce/opex" element={<PageErrorBoundary pageName="/dnsp/workforce/opex"><OpexBenchmark /></PageErrorBoundary>} />
+              {/* Phase 6 — Gap 7: DAPR Assembly */}
+              <Route path="/dnsp/dapr-assembly" element={<PageErrorBoundary pageName="/dnsp/dapr-assembly"><DaprHub /></PageErrorBoundary>} />
+              <Route path="/dnsp/dapr-assembly/demand" element={<PageErrorBoundary pageName="/dnsp/dapr-assembly/demand"><DemandForecastReview /></PageErrorBoundary>} />
+              <Route path="/dnsp/dapr-assembly/network" element={<PageErrorBoundary pageName="/dnsp/dapr-assembly/network"><NetworkCapabilityStatement /></PageErrorBoundary>} />
             </Routes>
           </main>
         </div>
