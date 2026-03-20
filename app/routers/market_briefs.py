@@ -43,6 +43,25 @@ def _generate_brief_core(brief_type: str = "daily", regions: Optional[List[str]]
         quoted = ", ".join(f"'{_sql_escape(r)}'" for r in regions)
         region_filter = f"AND region_id IN ({quoted})"
 
+    # Anchor to latest available data so the brief works even when the
+    # simulator is temporarily stale (avoids "Price data unavailable").
+    anchor_rows = _query_gold(
+        f"SELECT MAX(interval_datetime) AS latest FROM {_CATALOG}.gold.nem_prices_5min"
+    )
+    anchor_ts = anchor_rows[0]["latest"] if anchor_rows and anchor_rows[0].get("latest") else None
+    if anchor_ts:
+        time_filter = (
+            f"interval_datetime >= TIMESTAMP('{anchor_ts}') - INTERVAL {lookback_hours} HOURS"
+            f" AND interval_datetime <= TIMESTAMP('{anchor_ts}')"
+        )
+        ic_time_filter = (
+            f"interval_datetime >= TIMESTAMP('{anchor_ts}') - INTERVAL {lookback_hours} HOURS"
+            f" AND interval_datetime <= TIMESTAMP('{anchor_ts}')"
+        )
+    else:
+        time_filter = f"interval_datetime >= current_timestamp() - INTERVAL {lookback_hours} HOURS"
+        ic_time_filter = f"interval_datetime >= current_timestamp() - INTERVAL {lookback_hours} HOURS"
+
     # 1. Price stats
     price_stats = _query_gold(
         f"SELECT region_id, "
@@ -53,7 +72,7 @@ def _generate_brief_core(brief_type: str = "daily", regions: Optional[List[str]]
         f"SUM(CASE WHEN rrp > 300 THEN 1 ELSE 0 END) AS spike_intervals, "
         f"SUM(CASE WHEN rrp < 0 THEN 1 ELSE 0 END) AS negative_intervals "
         f"FROM {_CATALOG}.gold.nem_prices_5min "
-        f"WHERE interval_datetime >= current_timestamp() - INTERVAL {lookback_hours} HOURS "
+        f"WHERE {time_filter} "
         f"{region_filter} "
         f"GROUP BY region_id ORDER BY region_id"
     )
@@ -98,7 +117,7 @@ def _generate_brief_core(brief_type: str = "daily", regions: Optional[List[str]]
     anomaly_rows = _query_gold(
         f"SELECT region_id, rrp, interval_datetime "
         f"FROM {_CATALOG}.gold.nem_prices_5min "
-        f"WHERE interval_datetime >= current_timestamp() - INTERVAL {lookback_hours} HOURS "
+        f"WHERE {time_filter} "
         f"{region_filter} "
         f"AND (rrp > 500 OR rrp < -50) "
         f"ORDER BY ABS(rrp) DESC LIMIT 10"
@@ -138,20 +157,26 @@ def _generate_brief_core(brief_type: str = "daily", regions: Optional[List[str]]
     else:
         sections.append("\n## Today's Outlook\n*Generation data unavailable*")
 
-    # 4. Congestion
+    # 4. Congestion — aggregate over the full lookback window (not just latest snapshot)
     congested = _query_gold(
-        f"SELECT interconnector_id, from_region, to_region, utilization_pct "
+        f"SELECT interconnector_id, from_region, to_region, "
+        f"ROUND(AVG(utilization_pct), 1) AS avg_util, "
+        f"SUM(CASE WHEN is_congested = true THEN 1 ELSE 0 END) AS congested_intervals "
         f"FROM {_CATALOG}.gold.nem_interconnectors "
-        f"WHERE interval_datetime = ("
-        f"  SELECT MAX(interval_datetime) FROM {_CATALOG}.gold.nem_interconnectors"
-        f") AND is_congested = true"
+        f"WHERE {ic_time_filter} "
+        f"GROUP BY interconnector_id, from_region, to_region "
+        f"HAVING congested_intervals > 0 "
+        f"ORDER BY congested_intervals DESC"
     )
     if congested:
-        ic_list = ", ".join(f"{r['interconnector_id']} ({r['utilization_pct']:.0f}%)" for r in congested)
+        ic_list = ", ".join(
+            f"{r['interconnector_id']} ({int(r['congested_intervals'])} intervals, avg {float(r['avg_util']):.0f}%)"
+            for r in congested
+        )
         sections.append(f"- Congested interconnectors: {ic_list}")
         key_metrics["congested_ics"] = len(congested)
     else:
-        sections.append("- No interconnector congestion")
+        sections.append("- No interconnector congestion in period")
         key_metrics["congested_ics"] = 0
 
     # 5. Weather

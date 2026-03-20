@@ -3,7 +3,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FileText, BarChart2, Flame, Wifi, Plug, Wrench, Building2, ArrowRight,
-  DollarSign, Activity, AlertTriangle, CheckCircle, type LucideIcon,
+  DollarSign, Activity, AlertTriangle, CheckCircle,
+  BookOpen, Cpu, BarChart3, Zap, TreePine, Briefcase,
+  TrendingUp, Users, Scale, Target, Sliders, Upload, Award,
+  type LucideIcon,
 } from 'lucide-react'
 import { api } from '../api/client'
 
@@ -40,6 +43,34 @@ const MODULES: ModuleCard[] = [
   { label: 'Capital Program', description: 'Project register with completion progress, budget vs actuals, Capex/Opex analysis', to: '/dnsp/capex', Icon: Building2, color: 'bg-gray-600', badge: 'Capex' },
   { label: 'Maintenance Scheduler', description: 'Work order register with priority triage, SLA tracking, and cost monitoring', to: '/dnsp/capex/maintenance', Icon: Wrench, color: 'bg-gray-600', badge: 'Capex' },
   { label: 'Fault Response KPIs', description: 'SLA compliance, average response and restoration times by fault type and DNSP', to: '/dnsp/capex/fault-kpis', Icon: Wrench, color: 'bg-gray-600', badge: 'Capex' },
+  // AIO Compliance
+  { label: 'AIO Compliance Hub', description: 'Annual Information Obligations tracker — section completion, STPIS S-factor, AER submission status', to: '/dnsp/aio', Icon: FileText, color: 'bg-indigo-600', badge: 'AIO' },
+  { label: 'STPIS Calculator', description: 'SAIDI/SAIFI band performance vs targets — S-factor and revenue adjustment per DNSP', to: '/dnsp/aio/stpis-calc', Icon: BarChart2, color: 'bg-indigo-600', badge: 'AIO' },
+  { label: 'AIO Submission Pack', description: 'Section-by-section AIO submission readiness — validation checklist and export', to: '/dnsp/aio/submission', Icon: Upload, color: 'bg-indigo-600', badge: 'AIO' },
+  // Asset Intelligence
+  { label: 'Asset Intelligence', description: 'Cross-system health scoring, failure probability and AER expenditure alignment across all asset classes', to: '/dnsp/asset-intel', Icon: Cpu, color: 'bg-cyan-600', badge: 'Asset Intel' },
+  { label: 'Asset Risk Matrix', description: 'Composite risk ranking — consequence × probability with replacement cost prioritisation', to: '/dnsp/asset-intel/risk-matrix', Icon: AlertTriangle, color: 'bg-cyan-600', badge: 'Asset Intel' },
+  { label: 'Expenditure Justification', description: 'AER capex/opex justification templates linked to asset health evidence', to: '/dnsp/asset-intel/justification', Icon: Scale, color: 'bg-cyan-600', badge: 'Asset Intel' },
+  // AER Benchmarking
+  { label: 'AER Benchmarking', description: 'Partial productivity measures against peer DNSPs and AER frontier — regulatory reset intelligence', to: '/dnsp/benchmarking', Icon: BarChart3, color: 'bg-teal-600', badge: 'Benchmarking' },
+  { label: 'Peer Comparison', description: 'Efficiency scores, opex metrics and reliability benchmarks across all Australian DNSPs', to: '/dnsp/benchmarking/peers', Icon: Users, color: 'bg-teal-600', badge: 'Benchmarking' },
+  { label: 'Reset Preparation', description: 'Regulatory determination readiness — efficiency gap analysis and narrative builder', to: '/dnsp/benchmarking/reset', Icon: Target, color: 'bg-teal-600', badge: 'Benchmarking' },
+  // Hosting Capacity
+  { label: 'DER Hosting Capacity', description: 'Feeder utilisation, DER connection queue and curtailment risk assessment', to: '/dnsp/hosting-capacity', Icon: Zap, color: 'bg-amber-600', badge: 'DER & Hosting' },
+  { label: 'LV Scenario Modeller', description: 'DER integration scenario analysis — constrained feeders, curtailment and augmentation capex', to: '/dnsp/hosting-capacity/scenarios', Icon: Sliders, color: 'bg-amber-600', badge: 'DER & Hosting' },
+  { label: 'Curtailment Risk Map', description: 'Zone-level export curtailment heat map with AER reporting compliance tracker', to: '/dnsp/hosting-capacity/curtailment', Icon: AlertTriangle, color: 'bg-amber-600', badge: 'DER & Hosting' },
+  // Vegetation Risk
+  { label: 'Vegetation Risk Intelligence', description: 'NDVI satellite change detection, risk scoring and ELC compliance tracking', to: '/dnsp/veg-risk', Icon: TreePine, color: 'bg-emerald-600', badge: 'Veg Risk' },
+  { label: 'Line Clearance Compliance', description: 'ELC inspection schedule compliance — overdue spans, zone prioritisation and contractor tracking', to: '/dnsp/veg-risk/elc', Icon: CheckCircle, color: 'bg-emerald-600', badge: 'Veg Risk' },
+  { label: 'Bushfire Risk Forecast', description: 'BMO zone risk scoring — current vs peak season with mitigation plan tracking', to: '/dnsp/veg-risk/bushfire-forecast', Icon: Flame, color: 'bg-emerald-600', badge: 'Veg Risk' },
+  // Workforce Analytics
+  { label: 'Workforce & Contractor Analytics', description: 'Total workforce, contractor ratio, opex benchmarking and AER efficiency gap analysis', to: '/dnsp/workforce', Icon: Briefcase, color: 'bg-violet-600', badge: 'Workforce' },
+  { label: 'Contractor Scorecard', description: 'Contractor performance, cost per work type and SLA compliance tracking', to: '/dnsp/workforce/contractors', Icon: Award, color: 'bg-violet-600', badge: 'Workforce' },
+  { label: 'Opex Benchmarking', description: 'Actual vs AER allowed opex by category — efficiency gap and reset exposure', to: '/dnsp/workforce/opex', Icon: DollarSign, color: 'bg-violet-600', badge: 'Workforce' },
+  // DAPR Assembly
+  { label: 'DAPR Assembly Hub', description: 'Distribution Annual Planning Report — NER cl. 5.20.1 submission tracker', to: '/dnsp/dapr-assembly', Icon: BookOpen, color: 'bg-rose-600', badge: 'DAPR' },
+  { label: 'Demand Forecast Review', description: '5-year peak demand forecast with DER offset — DAPR Section D2 supporting analysis', to: '/dnsp/dapr-assembly/demand', Icon: TrendingUp, color: 'bg-rose-600', badge: 'DAPR' },
+  { label: 'Network Capability Statement', description: 'Bulk supply point headroom, N-1 compliance and transfer capability — DAPR Section D3', to: '/dnsp/dapr-assembly/network', Icon: Activity, color: 'bg-rose-600', badge: 'DAPR' },
 ]
 
 const BADGE_COLORS: Record<string, string> = {
@@ -49,6 +80,13 @@ const BADGE_COLORS: Record<string, string> = {
   Rural: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
   Connections: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
   Capex: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+  AIO: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
+  'Asset Intel': 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
+  Benchmarking: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
+  'DER & Hosting': 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  'Veg Risk': 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+  Workforce: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
+  DAPR: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400',
 }
 
 export default function DnspHub() {
