@@ -16,6 +16,7 @@ jobs:
       DATABRICKS_TOKEN: dummy
       ANTHROPIC_API_KEY: dummy
       PYTHONPATH: .
+      RATE_LIMIT_REQUESTS: "100000"
 
     steps:
       - name: Checkout code
