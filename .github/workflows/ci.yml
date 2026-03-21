@@ -12,8 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      DATABRICKS_HOST: https://dummy.azuredatabricks.net
-      DATABRICKS_TOKEN: dummy
+      # Leave DATABRICKS_HOST empty so DatabricksSQLClient initialises in
+      # mock_mode=True — all endpoints serve built-in mock data without
+      # attempting real Databricks / Lakebase connections.
+      DATABRICKS_HOST: ""
+      DATABRICKS_TOKEN: ""
       ANTHROPIC_API_KEY: dummy
       PYTHONPATH: .
       RATE_LIMIT_REQUESTS: "100000"

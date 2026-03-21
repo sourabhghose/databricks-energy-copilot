@@ -28,8 +28,8 @@ import pytest
 # Environment stubs — must be set before any app-level imports that read
 # os.environ at module load time (FastAPI main.py reads env vars at import).
 # ---------------------------------------------------------------------------
-os.environ.setdefault("DATABRICKS_HOST", "https://fake-workspace.azuredatabricks.net")
-os.environ.setdefault("DATABRICKS_TOKEN", "dapi-fake-token")
+os.environ.setdefault("DATABRICKS_HOST", "")
+os.environ.setdefault("DATABRICKS_TOKEN", "")
 os.environ.setdefault("DATABRICKS_WAREHOUSE_ID", "fake-warehouse-id")
 os.environ.setdefault("DATABRICKS_CATALOG", "energy_copilot")
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-fake-key")

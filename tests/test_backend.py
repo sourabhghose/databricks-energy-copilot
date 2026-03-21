@@ -22,9 +22,11 @@ import pytest
 # ---------------------------------------------------------------------------
 # Environment stubs — must be set BEFORE importing app.backend.main so that
 # DatabricksSQLClient and LakebaseClient initialise in mock_mode=True.
+# Explicitly set DATABRICKS_HOST to empty (overriding any CI env var) so
+# that mock_mode = True regardless of the outer environment.
 # ---------------------------------------------------------------------------
-os.environ.setdefault("DATABRICKS_HOST", "https://dummy.azuredatabricks.net")
-os.environ.setdefault("DATABRICKS_TOKEN", "dapi-dummy-token")
+os.environ["DATABRICKS_HOST"] = ""
+os.environ["DATABRICKS_TOKEN"] = ""
 os.environ.setdefault("DATABRICKS_WAREHOUSE_ID", "dummy-warehouse-id")
 os.environ.setdefault("DATABRICKS_CATALOG", "energy_copilot")
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-dummy-key")
