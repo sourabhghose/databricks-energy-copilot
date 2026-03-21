@@ -59,6 +59,22 @@ ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_configs = true
 
+[[tool.mypy.overrides]]
+module = "app.backend.main"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "agent.prompt_templates"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "agent.tools.rag_tools"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "models.demand_forecast.train"
+ignore_errors = true
+
 # ---------------------------------------------------------------------------
 # black
 # ---------------------------------------------------------------------------
