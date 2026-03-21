@@ -9,7 +9,7 @@
 
 AI-powered market intelligence for the Australian National Electricity Market — built entirely on Databricks.
 
-📖 **[Full Documentation →](https://sourabhghose.github.io/databricks-energy-ai-intelligence)**  &nbsp;|&nbsp;  🚀 **[Live App →](https://energy-copilot-7474645691011751.aws.databricksapps.com)**
+📖 **[Full Documentation →](https://sourabhghose.github.io/databricks-energy-ai-intelligence)**  &nbsp;
 
 ## License
 
