@@ -1,6 +1,7 @@
 """Settlement tool handlers extracted to avoid stale-bytecode scoping issues."""
 import json
-from .shared import _query_gold, _CATALOG
+
+from .shared import _CATALOG, _query_gold
 
 
 def dispatch(name: str, arguments: dict) -> str:
