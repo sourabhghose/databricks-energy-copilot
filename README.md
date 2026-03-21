@@ -7,6 +7,8 @@
 ![Claude Sonnet 4.6](https://img.shields.io/badge/Claude-Sonnet%204.6-8B5CF6?logo=anthropic)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
 
+📖 **[Full Documentation →](https://sourabhghose.github.io/databricks-energy-ai-intelligence)**  &nbsp;|&nbsp;  🚀 **[Live App →](https://energy-copilot-7474645691011751.aws.databricksapps.com)**
+
 AUS Energy Copilot is an AI-powered Australian National Electricity Market (NEM) intelligence platform deployed on Databricks. It ingests live 5-minute dispatch data from AEMO NEMWEB, OpenElectricity, Open-Meteo, APVI rooftop solar, AER retail tariffs, CER LGC registry, and AEMO ISP data into a Unity Catalog Medallion lakehouse, trains 21 LightGBM and IsolationForest models for price/demand/wind/solar forecasting and anomaly detection, and surfaces everything through a FastAPI backend and React 18 frontend. An agentic AI copilot backed by Claude Sonnet 4.6 with 10 FMAPI tools (including deal capture and forward curves) answers free-form market questions in real time, while 6 Databricks Genie Spaces enable natural-language SQL analytics over the full historical dataset. The entire platform deploys from scratch with `databricks bundle deploy` + one setup job.
 
 ---
