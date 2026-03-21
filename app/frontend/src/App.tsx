@@ -183,7 +183,6 @@ import CarbonRegistry from './pages/CarbonRegistry'
 import EvCharging from './pages/EvCharging'
 import StorageArbitrage from './pages/StorageArbitrage'
 import DemandForecastAnalytics from './pages/DemandForecastAnalytics'
-import RezDevelopment from './pages/RezDevelopment'
 import CongestionAnalytics from './pages/CongestionAnalytics'
 import EnergyEquity from './pages/EnergyEquity'
 import DemandResponseAnalytics from './pages/DemandResponseAnalytics'
@@ -570,9 +569,7 @@ import EvFleetGridIntegrationAnalytics from './pages/EvFleetGridIntegrationAnaly
 import GridEmissionsIntensityAnalytics from './pages/GridEmissionsIntensityAnalytics'
 import MicrogridResilienceAnalytics from './pages/MicrogridResilienceAnalytics'
 import PowerQualityMonitoringAnalytics from './pages/PowerQualityMonitoringAnalytics'
-import EnergyPovertyAffordabilityAnalytics from './pages/EnergyPovertyAffordabilityAnalytics'
 import VirtualPowerPlantOperationsAnalytics from './pages/VirtualPowerPlantOperationsAnalytics'
-import CoalFleetRetirementPathwayAnalytics from './pages/CoalFleetRetirementPathwayAnalytics'
 import PumpedHydroStorageAnalytics from './pages/PumpedHydroStorageAnalytics'
 import EastCoastGasMarketAnalytics from './pages/EastCoastGasMarketAnalytics'
 import SmartMeterDataAnalytics from './pages/SmartMeterDataAnalytics'
@@ -1774,7 +1771,7 @@ const ROUTE_MAP: Record<string, React.ComponentType> = {
 
 const PINNED_PATHS = new Set(['/', '/live', '/ai-market-intelligence', '/genie', '/alerts'])
 
-const DASHBOARD_LINKS: { to: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const DASHBOARD_LINKS: { to: string; label: string; Icon: React.ElementType }[] = [
   // Market Operations
   { to: '/cat/operations', label: 'Market Operations', Icon: Radio },
   // Trading & Risk
@@ -1792,7 +1789,7 @@ const DASHBOARD_LINKS: { to: string; label: string; Icon: React.ComponentType<{ 
   { to: '/dnsp-hub',           label: 'DNSP Hub',     Icon: Building2 },
 ]
 
-const GROUP_DEFS: { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const GROUP_DEFS: { key: string; label: string; Icon: React.ElementType }[] = [
   { key: 'operations',  label: 'Market Operations',   Icon: Radio },
   { key: 'prices',      label: 'Prices & Trading',    Icon: DollarSign },
   { key: 'generation',  label: 'Generation',           Icon: Zap },
@@ -1818,14 +1815,14 @@ const GROUP_DEFS: { key: string; label: string; Icon: React.ComponentType<{ size
   { key: 'dnsp-esq',         label: 'ESG & Fleet',             Icon: Leaf      },
 ]
 
-const OFFICE_SECTIONS: { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }>; groups: string[] }[] = [
+const OFFICE_SECTIONS: { key: string; label: string; Icon: React.ElementType; groups: string[] }[] = [
   { key: 'front',  label: 'Front Office',  Icon: Briefcase,  groups: ['operations', 'prices', 'generation', 'gas', 'demand', 'system', 'renewables', 'storage'] },
   { key: 'middle', label: 'Middle Office', Icon: BarChart3,  groups: ['network', 'analytics', 'der', 'climate'] },
   { key: 'back',   label: 'Back Office',   Icon: Building2,  groups: ['retail', 'policy', 'emerging', 'other'] },
   { key: 'dnsp',   label: 'Distribution',  Icon: Wifi,       groups: ['dnsp-regulatory', 'dnsp-bushfire', 'dnsp-rural', 'dnsp-network', 'dnsp-customer', 'dnsp-esq'] },
 ]
 
-const SUPER_SECTIONS: { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }>; offices: string[] }[] = [
+const SUPER_SECTIONS: { key: string; label: string; Icon: React.ElementType; offices: string[] }[] = [
   { key: 'wholesale',    label: 'Wholesale Market', Icon: Briefcase, offices: ['front', 'middle', 'back'] },
   { key: 'distribution', label: 'Distribution',     Icon: Wifi,      offices: ['dnsp'] },
 ]
