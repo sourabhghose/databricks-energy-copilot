@@ -46,6 +46,8 @@ from datetime import datetime, timedelta
 from typing import List
 from unittest.mock import MagicMock, patch
 
+import mlflow
+import mlflow.sklearn
 import numpy as np
 import pandas as pd
 import pytest
@@ -341,7 +343,7 @@ class TestModelLoading(unittest.TestCase):
             from models.price_forecast.evaluate import load_production_model  # noqa
             model = load_production_model("NSW1")
 
-            mock_load.assert_called_once_with("models:/price_forecast_nsw@production")
+            mock_load.assert_called_once_with("models:/energy_copilot.ml.price_forecast_nsw@production")
             self.assertIsNotNone(model)
 
     @pytest.mark.skipif(not IS_INTEGRATION, reason="Integration test only")

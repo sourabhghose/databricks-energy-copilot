@@ -231,10 +231,13 @@ class ProcessedFilesTracker:
         self._cache.add(filename)
         if self._spark is None: return
         try:
-            from pyspark.sql import Row
-            df = self._spark.createDataFrame([Row(filename=filename, report_type=report_type,
-                                                   downloaded_at=datetime.now(timezone.utc),
-                                                   csv_path=csv_path, size_bytes=size_bytes)])
+            df = self._spark.createDataFrame([{
+                "filename": filename,
+                "report_type": report_type,
+                "downloaded_at": datetime.now(timezone.utc),
+                "csv_path": csv_path,
+                "size_bytes": size_bytes,
+            }])
             df.write.format("delta").mode("append").saveAsTable(PROCESSED_FILES_TABLE)
         except Exception as exc:
             logger.error("Failed to persist to Delta", extra={"nem_filename": filename, "error": str(exc)})
