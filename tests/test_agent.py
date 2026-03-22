@@ -563,7 +563,8 @@ class TestFastAPIEndpoints:
             },
         ]
 
-        with patch("app.backend.main._run_query", return_value=mock_rows):
+        with patch("app.backend.main._run_query", return_value=mock_rows), \
+             patch("app.backend.main.MOCK_MODE", False):
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app), base_url="http://test"
             ) as client:

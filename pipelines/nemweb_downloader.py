@@ -237,7 +237,7 @@ class ProcessedFilesTracker:
                                                    csv_path=csv_path, size_bytes=size_bytes)])
             df.write.format("delta").mode("append").saveAsTable(PROCESSED_FILES_TABLE)
         except Exception as exc:
-            logger.error("Failed to persist to Delta", extra={"filename": filename, "error": str(exc)})
+            logger.error("Failed to persist to Delta", extra={"nem_filename": filename, "error": str(exc)})
 
 
 class NemwebDownloader:
@@ -322,14 +322,14 @@ class NemwebDownloader:
                 if bad_entry is not None:
                     logger.error(
                         "Checksum failure — corrupt ZIP entry",
-                        extra={"filename": filename, "bad_entry": bad_entry},
+                        extra={"nem_filename": filename, "bad_entry": bad_entry},
                     )
                     return False
             return True
         except zipfile.BadZipFile as exc:
             logger.error(
                 "BadZipFile during checksum verification",
-                extra={"filename": filename, "error": str(exc)},
+                extra={"nem_filename": filename, "error": str(exc)},
             )
             return False
 
@@ -340,14 +340,14 @@ class NemwebDownloader:
         report_type: str,
         metrics: Optional[DownloadMetrics] = None,
     ) -> bool:
-        logger.info("Downloading", extra={"filename": filename})
+        logger.info("Downloading", extra={"nem_filename": filename})
 
         for attempt in range(1, 3):  # up to 2 attempts (initial + 1 retry on corruption)
             try:
                 resp = self._get_with_backoff(zip_url)
                 zip_bytes = resp.content
             except Exception as exc:
-                logger.error("Download error", extra={"filename": filename, "error": str(exc)})
+                logger.error("Download error", extra={"nem_filename": filename, "error": str(exc)})
                 return False
 
             # Checksum verification — retry once if corrupt
@@ -355,13 +355,13 @@ class NemwebDownloader:
                 if attempt < 2:
                     logger.warning(
                         "Corrupt ZIP — retrying download",
-                        extra={"filename": filename, "attempt": attempt},
+                        extra={"nem_filename": filename, "attempt": attempt},
                     )
                     continue
                 else:
                     logger.error(
                         "ZIP still corrupt after retry — skipping",
-                        extra={"filename": filename},
+                        extra={"nem_filename": filename},
                     )
                     return False
 
@@ -389,12 +389,12 @@ class NemwebDownloader:
                 metrics.total_bytes_downloaded += len(zip_bytes)
                 metrics.total_rows_extracted += row_count
             self._tracker.mark_processed(filename, report_type, json.dumps(written), len(zip_bytes))
-            logger.info("ZIP processed", extra={"filename": filename, "csv_count": len(written), "approx_rows": row_count})
+            logger.info("ZIP processed", extra={"nem_filename": filename, "csv_count": len(written), "approx_rows": row_count})
             return True
         except zipfile.BadZipFile as exc:
-            logger.error("Corrupt ZIP", extra={"filename": filename, "error": str(exc)}); return False
+            logger.error("Corrupt ZIP", extra={"nem_filename": filename, "error": str(exc)}); return False
         except OSError as exc:
-            logger.error("Filesystem error", extra={"filename": filename, "error": str(exc)}); return False
+            logger.error("Filesystem error", extra={"nem_filename": filename, "error": str(exc)}); return False
 
     def _get_with_backoff(self, url) -> requests.Response:
         last_exc = None
