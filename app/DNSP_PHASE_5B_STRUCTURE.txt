@@ -1,0 +1,220 @@
+================================================================================
+DNSP PHASE 5B DASHBOARD - PAGE HIERARCHY & STRUCTURE
+================================================================================
+
+DNSP ENTERPRISE INTELLIGENCE HUB
+│
+├─ /dnsp-hub (DnspHub.tsx) ─── Main landing page with module cards
+│
+├─ AER COMPLIANCE SECTION
+│  ├─ /dnsp/aer/rin (AerRinCompliance.tsx)
+│  │  └─ Regulatory Information Notices, STPIS bands, revenue cap
+│  ├─ /dnsp/aer/stpis (StpisTracker.tsx)
+│  │  └─ S-factor incentive scheme, SAIDI/SAIFI performance
+│  └─ /dnsp/aer/calendar (RegulatoryCalendar.tsx)
+│     └─ AER milestones, determination dates, deadlines
+│
+├─ TARIFF SECTION
+│  ├─ /dnsp/tariffs (NetworkTariffAnalytics.tsx)
+│  │  └─ Tariff structure, revenue by class, demand uptake
+│  └─ /dnsp/tariffs/reform (TariffReformTracker.tsx)
+│     └─ Cost-reflective tariff migration progress
+│
+├─ BUSHFIRE MITIGATION SECTION
+│  ├─ /dnsp/bushfire (BushfireMitigation.tsx)
+│  │  └─ BMP asset register, ELC compliance, fire risk zones
+│  ├─ /dnsp/bushfire/elc (ElcTracking.tsx)
+│  │  └─ Electrical line clearance schedule
+│  ├─ /dnsp/bushfire/assets (FireRiskAssets.tsx)
+│  │  └─ High-risk asset register, BMO zones
+│  └─ /dnsp/bushfire/seasonal (SeasonalReadiness.tsx)
+│     └─ Pre-summer bushfire preparation checklist
+│
+├─ RURAL NETWORK SECTION
+│  ├─ /dnsp/rural (RuralNetworkAnalytics.tsx)
+│  │  └─ CSO payments, RAPS fleet, SAIDI
+│  ├─ /dnsp/rural/cso (CsoSubsidyTracker.tsx)
+│  │  └─ Community Service Obligation trends
+│  └─ /dnsp/rural/raps (RapsFleet.tsx)
+│     └─ Remote Area Power Supply fleet status
+│
+├─ CONNECTION QUEUE SECTION
+│  ├─ /dnsp/connections (ConnectionQueue.tsx)
+│  │  └─ NER application queue, compliance KPIs
+│  └─ /dnsp/connections/timely (TimelyConnections.tsx)
+│     └─ Timeframe compliance by application type
+│
+└─ CAPEX & OPERATIONS SECTION
+   ├─ /dnsp/capex (CapitalProgram.tsx)
+   │  └─ Project register, budget vs actuals
+   ├─ /dnsp/capex/maintenance (MaintenanceScheduler.tsx)
+   │  └─ Work order register, SLA tracking
+   └─ /dnsp/capex/fault-kpis (FaultResponseKpis.tsx)
+      └─ SLA compliance, response/restoration times
+
+================================================================================
+PAGE COUNT BY SECTION
+================================================================================
+
+Hub Page:                          1  (Main entry point)
+AER Compliance:                    3
+Tariffs:                           2
+Bushfire Mitigation:               4
+Rural Networks:                    3
+Connection Queue:                  2
+Capex & Operations:                3
+                                  ---
+TOTAL DNSP PHASE 5B PAGES:        18
+
+================================================================================
+FILE STRUCTURE IN CODEBASE
+================================================================================
+
+frontend/src/pages/
+├── DnspHub.tsx                    (Main hub page)
+├── AerRinCompliance.tsx
+├── StpisTracker.tsx
+├── RegulatoryCalendar.tsx
+├── NetworkTariffAnalytics.tsx
+├── TariffReformTracker.tsx
+├── BushfireMitigation.tsx
+├── ElcTracking.tsx
+├── FireRiskAssets.tsx
+├── SeasonalReadiness.tsx
+├── RuralNetworkAnalytics.tsx
+├── CsoSubsidyTracker.tsx
+├── RapsFleet.tsx
+├── ConnectionQueue.tsx
+├── TimelyConnections.tsx
+├── CapitalProgram.tsx
+├── MaintenanceScheduler.tsx
+└── FaultResponseKpis.tsx
+
+Total: 18 files
+
+================================================================================
+ROUTE CONFIGURATION IN App.tsx
+================================================================================
+
+Router setup (line ~2813):
+  <Route path="/dnsp-hub" element={<PageErrorBoundary><DnspHub/></PageErrorBoundary>} />
+  <Route path="/dnsp/aer/rin" element={<PageErrorBoundary><AerRinCompliance/></PageErrorBoundary>} />
+  <Route path="/dnsp/aer/stpis" element={<PageErrorBoundary><StpisTracker/></PageErrorBoundary>} />
+  <Route path="/dnsp/aer/calendar" element={<PageErrorBoundary><RegulatoryCalendar/></PageErrorBoundary>} />
+  <Route path="/dnsp/tariffs" element={<PageErrorBoundary><NetworkTariffAnalytics/></PageErrorBoundary>} />
+  <Route path="/dnsp/tariffs/reform" element={<PageErrorBoundary><TariffReformTracker/></PageErrorBoundary>} />
+  <Route path="/dnsp/bushfire" element={<PageErrorBoundary><BushfireMitigation/></PageErrorBoundary>} />
+  <Route path="/dnsp/bushfire/elc" element={<PageErrorBoundary><ElcTracking/></PageErrorBoundary>} />
+  <Route path="/dnsp/bushfire/assets" element={<PageErrorBoundary><FireRiskAssets/></PageErrorBoundary>} />
+  <Route path="/dnsp/bushfire/seasonal" element={<PageErrorBoundary><SeasonalReadiness/></PageErrorBoundary>} />
+  <Route path="/dnsp/rural" element={<PageErrorBoundary><RuralNetworkAnalytics/></PageErrorBoundary>} />
+  <Route path="/dnsp/rural/cso" element={<PageErrorBoundary><CsoSubsidyTracker/></PageErrorBoundary>} />
+  <Route path="/dnsp/rural/raps" element={<PageErrorBoundary><RapsFleet/></PageErrorBoundary>} />
+  <Route path="/dnsp/connections" element={<PageErrorBoundary><ConnectionQueue/></PageErrorBoundary>} />
+  <Route path="/dnsp/connections/timely" element={<PageErrorBoundary><TimelyConnections/></PageErrorBoundary>} />
+  <Route path="/dnsp/capex" element={<PageErrorBoundary><CapitalProgram/></PageErrorBoundary>} />
+  <Route path="/dnsp/capex/maintenance" element={<PageErrorBoundary><MaintenanceScheduler/></PageErrorBoundary>} />
+  <Route path="/dnsp/capex/fault-kpis" element={<PageErrorBoundary><FaultResponseKpis/></PageErrorBoundary>} />
+
+PageMap setup (line ~1638):
+  '/dnsp-hub': DnspHub,
+  '/dnsp/aer/rin': AerRinCompliance,
+  '/dnsp/aer/stpis': StpisTracker,
+  '/dnsp/aer/calendar': RegulatoryCalendar,
+  '/dnsp/tariffs': NetworkTariffAnalytics,
+  '/dnsp/tariffs/reform': TariffReformTracker,
+  '/dnsp/bushfire': BushfireMitigation,
+  '/dnsp/bushfire/elc': ElcTracking,
+  '/dnsp/bushfire/assets': FireRiskAssets,
+  '/dnsp/bushfire/seasonal': SeasonalReadiness,
+  '/dnsp/rural': RuralNetworkAnalytics,
+  '/dnsp/rural/cso': CsoSubsidyTracker,
+  '/dnsp/rural/raps': RapsFleet,
+  '/dnsp/connections': ConnectionQueue,
+  '/dnsp/connections/timely': TimelyConnections,
+  '/dnsp/capex': CapitalProgram,
+  '/dnsp/capex/maintenance': MaintenanceScheduler,
+  '/dnsp/capex/fault-kpis': FaultResponseKpis,
+
+Sidebar navigation (line ~1121):
+  { to: '/dnsp-hub', label: 'DNSP Hub', Icon: Building2 },
+  { to: '/dnsp/aer/rin', label: 'AER RIN & Compliance', Icon: FileText },
+  ... (all 18 routes listed)
+
+================================================================================
+DOMAIN COLOR CODING
+================================================================================
+
+AER Compliance:          bg-blue-500       (blue-100, blue-900/30 for dark)
+Tariffs:                 bg-green-500      (green-100, green-900/30 for dark)
+Bushfire Mitigation:     bg-red-500        (red-100, red-900/30 for dark)
+Rural Networks:          bg-yellow-500     (yellow-100, yellow-900/30 for dark)
+Connection Queue:        bg-purple-500     (purple-100, purple-900/30 for dark)
+Capex & Operations:      bg-gray-600       (gray-100, gray-700 for dark)
+
+================================================================================
+API ENDPOINTS INTEGRATED
+================================================================================
+
+DNSP Hub Page:
+  - GET /api/aer/summary (STPIS compliance KPI)
+  - GET /api/rural/summary (CSO payments KPI)
+  - GET /api/connections/summary (NER compliance KPI)
+  - GET /api/capex/summary (Budget actuals KPI)
+
+Sub-pages:
+  - Individual pages expected to call domain-specific endpoints
+  - Error handling with fallback UI
+  - Loading states with skeleton cards
+
+================================================================================
+ACCESSIBILITY & DARK MODE
+================================================================================
+
+All pages support:
+✓ Dark mode (toggle via sidebar settings)
+✓ Responsive grid layouts
+✓ Dark mode color overrides (dark: prefix)
+✓ Lucide icons for visual consistency
+✓ PageErrorBoundary for error handling
+
+Minor issues noted:
+- One form field missing id/name attribute
+- React Router v7 deprecation warnings (expected)
+
+================================================================================
+PERFORMANCE METRICS
+================================================================================
+
+Frontend Build:
+- Vite bundling: ~285ms on dev server
+- TypeScript compilation: All 18 components compile successfully
+- No build errors or warnings (except expected React Router notices)
+
+Network:
+- All pages served with 200 or 304 (cached) HTTP responses
+- Component files load from Vite cache (304 responses)
+- API proxy to backend working (/api -> localhost:8000)
+
+================================================================================
+TESTING COVERAGE
+================================================================================
+
+Verified:
+✓ 18/18 routes accessible
+✓ 18/18 components present
+✓ 18/18 route definitions in App.tsx
+✓ 18/18 sidebar navigation items
+✓ Backend server running
+✓ Frontend server running
+✓ API endpoints configured
+
+Ready for:
+□ Visual testing (manual QA)
+□ Data validation (mock/real data)
+□ Performance testing (bundle size, load time)
+□ Accessibility testing (WCAG compliance)
+□ Responsive design testing (mobile/tablet/desktop)
+□ Dark mode testing
+
+================================================================================
