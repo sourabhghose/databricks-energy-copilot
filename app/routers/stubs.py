@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
-from .shared import _CATALOG, _query_gold
+from .shared import _CATALOG, _query_gold, _query_gold_async
 
 router = APIRouter()
 
@@ -263,7 +263,7 @@ async def forward_curve_dashboard():
 
     # Derive forward curve from real historical spot prices
     try:
-        spot_rows = _query_gold(f"""
+        spot_rows = await _query_gold_async(f"""
             SELECT region_id, MONTH(interval_datetime) AS mth,
                    AVG(rrp) AS avg_price, STDDEV(rrp) AS price_vol,
                    MAX(rrp) AS max_price, MIN(rrp) AS min_price
@@ -367,7 +367,7 @@ async def participant_market_share_dashboard():
 
     # Try real facility + SCADA data for market share
     try:
-        share_rows = _query_gold(f"""
+        share_rows = await _query_gold_async(f"""
             SELECT f.station_name, f.region_id AS region, f.fuel_type, f.is_renewable,
                    SUM(f.capacity_mw) AS total_capacity,
                    SUM(CASE WHEN f.is_renewable THEN f.capacity_mw ELSE 0 END) AS renewable_cap,
@@ -1245,7 +1245,7 @@ async def carbon_intensity_dashboard():
 
     # Try real generation by fuel data for grid intensity
     try:
-        gen_rows = _query_gold(f"""
+        gen_rows = await _query_gold_async(f"""
             SELECT region_id AS network_region, fuel_type,
                    SUM(total_mw) AS total_mw
             FROM {_CATALOG}.gold.nem_generation_by_fuel
@@ -2612,7 +2612,7 @@ async def aemo_market_operations_dashboard():
             GROUP BY p.region_id, DATE_FORMAT(p.interval_datetime, 'yyyy-MM')
             ORDER BY month DESC
         """)
-        gen_rows = _query_gold(f"""
+        gen_rows = await _query_gold_async(f"""
             SELECT region_id,
                    DATE_FORMAT(interval_datetime, 'yyyy-MM') AS month,
                    SUM(CASE WHEN is_renewable THEN total_mw * 5 / 60 ELSE 0 END) / 1000 AS renewable_gwh,

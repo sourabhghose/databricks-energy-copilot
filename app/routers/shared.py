@@ -118,58 +118,43 @@ _AEST = timezone(timedelta(hours=10))
 
 
 # ---------------------------------------------------------------------------
-# SQL query helper — query gold tables via Databricks SQL
+# SQL query helper — query gold tables via Databricks Statement Execution API
 # ---------------------------------------------------------------------------
 _CATALOG = os.environ.get("DATABRICKS_CATALOG", "energy_copilot_catalog")
-_sql_connection = None
-_sql_unavailable_until: float = 0.0  # monotonic timestamp; skip retries until this time
+_SQL_WAREHOUSE_ID = os.environ.get("SQL_WAREHOUSE_ID", "4d5388b3d6cbcb6e")
+
+# WorkspaceClient singleton — used for both SQL and Lakebase cred generation
+_workspace_client = None
+_ws_client_lock = threading.Lock()
+_ws_unavailable_until: float = 0.0
+
+
+def _get_workspace_client():
+    """Lazily create a singleton WorkspaceClient. Thread-safe."""
+    global _workspace_client, _ws_unavailable_until
+    if _ws_unavailable_until and time.monotonic() < _ws_unavailable_until:
+        return None
+    if _workspace_client is not None:
+        return _workspace_client
+    with _ws_client_lock:
+        if _workspace_client is not None:
+            return _workspace_client
+        if _ws_unavailable_until and time.monotonic() < _ws_unavailable_until:
+            return None
+        try:
+            from databricks.sdk import WorkspaceClient
+            _workspace_client = WorkspaceClient()
+            logger.info("WorkspaceClient initialized: host=%s", _workspace_client.config.host)
+            return _workspace_client
+        except Exception as exc:
+            logger.warning("Cannot initialize WorkspaceClient: %s", exc)
+            _ws_unavailable_until = time.monotonic() + 30.0
+            return None
 
 
 def _get_sql_connection():
-    """Lazily create a Databricks SQL connection using SDK auth."""
-    global _sql_connection, _sql_unavailable_until
-    # Skip retry for 5 minutes after a failed attempt to avoid blocking on SSL retries
-    if _sql_unavailable_until and time.monotonic() < _sql_unavailable_until:
-        return None
-    if _sql_connection is not None:
-        try:
-            _sql_connection.cursor().execute("SELECT 1")
-            return _sql_connection
-        except Exception:
-            _sql_connection = None
-
-    try:
-        from databricks import sql as dbsql
-        from databricks.sdk import WorkspaceClient
-
-        w = WorkspaceClient()
-        host = w.config.host.rstrip("/").replace("https://", "")
-        token = w.config.authenticate().get("Authorization", "").replace("Bearer ", "")
-
-        # Find the first available SQL warehouse
-        warehouses = list(w.warehouses.list())
-        wh_id = None
-        for wh in warehouses:
-            if wh.state and str(wh.state).upper() in ("RUNNING", "STARTING"):
-                wh_id = wh.id
-                break
-        if not wh_id and warehouses:
-            wh_id = warehouses[0].id
-        if not wh_id:
-            logger.warning("No SQL warehouse found")
-            return None
-
-        _sql_connection = dbsql.connect(
-            server_hostname=host,
-            http_path=f"/sql/1.0/warehouses/{wh_id}",
-            access_token=token,
-        )
-        logger.info("SQL connection established to %s warehouse %s", host, wh_id)
-        return _sql_connection
-    except Exception as exc:
-        logger.warning("Cannot establish SQL connection: %s", exc)
-        _sql_unavailable_until = time.monotonic() + 300.0  # skip retries for 5 min
-        return None
+    """Compatibility shim — returns truthy if SQL warehouse is reachable."""
+    return _get_workspace_client()
 
 
 # ---------------------------------------------------------------------------
@@ -194,8 +179,9 @@ def _get_lakebase_token():
     try:
         import uuid
 
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
+        w = _get_workspace_client()
+        if w is None:
+            return None
         cred = w.database.generate_database_credential(
             request_id=str(uuid.uuid4()),
             instance_names=[instance_name],
@@ -407,41 +393,92 @@ def _query_snapshot(endpoint_path: str, region: str = "ALL") -> Optional[Dict[st
 
 
 def _query_gold(sql: str, params: Optional[dict] = None) -> Optional[List[Dict[str, Any]]]:
-    """Run a SQL query and return list of dicts, or None on failure."""
+    """Run a SQL query via Statement Execution API and return list of dicts."""
     cache_key = f"sql:{hash(sql)}:{params}"
     cached = _cache_get(cache_key)
     if cached is not None:
         _set_last_source("sql-warehouse-cache", 0.0, sql)
         return cached
 
-    conn = _get_sql_connection()
-    if conn is None:
+    w = _get_workspace_client()
+    if w is None:
         return None
     t0 = time.monotonic()
-    cursor = None
     try:
-        cursor = conn.cursor()
-        cursor.execute(sql, params)
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
-        result = [dict(zip(columns, row)) for row in rows]
+        from databricks.sdk.service.sql import StatementState, Format, Disposition
+        resp = w.statement_execution.execute_statement(
+            statement=sql,
+            warehouse_id=_SQL_WAREHOUSE_ID,
+            wait_timeout="30s",
+            format=Format.JSON_ARRAY,
+            disposition=Disposition.INLINE,
+        )
+        state_val = resp.status.state.value if hasattr(resp.status.state, 'value') else str(resp.status.state)
+        if state_val != "SUCCEEDED":
+            err = resp.status.error if resp.status else "unknown"
+            logger.warning("SQL statement failed: state=%s error=%s sql=%s",
+                           state_val, err, sql[:120])
+            return None
+        manifest = resp.manifest
+        result_data = resp.result
+        logger.info("SQL result: manifest=%s result_data=%s sql=%s",
+                    bool(manifest), bool(result_data), sql[:80])
+        if not manifest or not manifest.schema or not manifest.schema.columns:
+            return []
+        columns = [col.name for col in manifest.schema.columns]
+        # Build type converters from schema
+        _INT_TYPES = {"INT", "INTEGER", "LONG", "BIGINT", "SMALLINT", "TINYINT", "SHORT"}
+        _FLOAT_TYPES = {"DOUBLE", "FLOAT", "DECIMAL", "REAL", "NUMERIC"}
+        _BOOL_TYPES = {"BOOLEAN", "BOOL"}
+        col_types = []
+        for col in manifest.schema.columns:
+            tn = getattr(col, "type_name", None)
+            # SDK returns an enum; extract .value if present (e.g. ColumnInfoTypeName.DOUBLE → "DOUBLE")
+            type_name = (tn.value if hasattr(tn, "value") else str(tn or "")).upper()
+            if type_name in _INT_TYPES:
+                col_types.append("int")
+            elif type_name in _FLOAT_TYPES:
+                col_types.append("float")
+            elif type_name in _BOOL_TYPES:
+                col_types.append("bool")
+            else:
+                col_types.append("str")
+
+        def _coerce(val, typ):
+            if val is None:
+                return None
+            try:
+                if typ == "int":
+                    return int(val)
+                if typ == "float":
+                    return float(val)
+                if typ == "bool":
+                    return str(val).lower() in ("true", "1")
+            except (ValueError, TypeError):
+                pass
+            return val
+
+        rows = []
+        if result_data and result_data.data_array:
+            for row in result_data.data_array:
+                rows.append({col: _coerce(val, typ) for col, val, typ in zip(columns, row, col_types)})
         elapsed = (time.monotonic() - t0) * 1000
         _set_last_source("sql-warehouse", elapsed, sql)
-        # Only cache non-empty results to avoid caching transient misses
-        if result:
-            _cache_set(cache_key, result, ttl_seconds=25)
-        return result
+        logger.info("SQL query returned %d rows in %.0fms", len(rows), elapsed)
+        if rows:
+            _cache_set(cache_key, rows, ttl_seconds=25)
+        return rows
     except Exception as exc:
         elapsed = (time.monotonic() - t0) * 1000
         logger.warning("SQL query failed (%.1fms): %s — %s", elapsed, exc, sql[:120])
         _set_last_source("sql-warehouse-error", elapsed, sql)
         return None
-    finally:
-        if cursor:
-            try:
-                cursor.close()
-            except Exception:
-                pass
+
+
+async def _query_gold_async(sql: str, params: Optional[dict] = None) -> Optional[List[Dict[str, Any]]]:
+    """Non-blocking version of _query_gold — runs in a thread pool."""
+    import asyncio
+    return await asyncio.to_thread(_query_gold, sql, params)
 
 
 # ---------------------------------------------------------------------------
@@ -449,28 +486,31 @@ def _query_gold(sql: str, params: Optional[dict] = None) -> Optional[List[Dict[s
 # ---------------------------------------------------------------------------
 
 def _execute_gold(sql: str, params: Optional[dict] = None) -> bool:
-    """Execute an INSERT/UPDATE/DELETE via SQL Warehouse. Returns True on success."""
-    conn = _get_sql_connection()
-    if conn is None:
+    """Execute an INSERT/UPDATE/DELETE via Statement Execution API. Returns True on success."""
+    w = _get_workspace_client()
+    if w is None:
         return False
     t0 = time.monotonic()
-    cursor = None
     try:
-        cursor = conn.cursor()
-        cursor.execute(sql, params)
+        from databricks.sdk.service.sql import StatementState
+        resp = w.statement_execution.execute_statement(
+            statement=sql,
+            warehouse_id=_SQL_WAREHOUSE_ID,
+            wait_timeout="30s",
+        )
         elapsed = (time.monotonic() - t0) * 1000
-        logger.info("SQL write (%.1fms): %s", elapsed, sql[:120])
-        return True
+        state_val = resp.status.state.value if hasattr(resp.status.state, 'value') else str(resp.status.state)
+        if state_val == "SUCCEEDED":
+            logger.info("SQL write (%.1fms): %s", elapsed, sql[:120])
+            return True
+        err = resp.status.error if resp.status else "unknown"
+        logger.warning("SQL write failed (%.1fms): state=%s error=%s sql=%s",
+                       elapsed, state_val, err, sql[:120])
+        return False
     except Exception as exc:
         elapsed = (time.monotonic() - t0) * 1000
         logger.warning("SQL write failed (%.1fms): %s — %s", elapsed, exc, sql[:120])
         return False
-    finally:
-        if cursor:
-            try:
-                cursor.close()
-            except Exception:
-                pass
 
 
 def _insert_gold(table: str, data: dict) -> bool:

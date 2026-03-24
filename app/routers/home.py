@@ -14,6 +14,7 @@ from .shared import (
     _NEM_REGIONS,
     _REGION_BASE_PRICES,
     _query_gold,
+    _query_gold_async,
     _query_lakebase_fresh,
 )
 
@@ -37,9 +38,9 @@ async def prices_latest():
         LEFT JOIN ranked b ON a.region_id = b.region_id AND b.rn = 2
         WHERE a.rn = 1
     """)
-    # Fallback to SQL Warehouse
+    # Fallback to SQL Warehouse (async to avoid blocking event loop)
     if not rows:
-        rows = _query_gold(f"""
+        rows = await _query_gold_async(f"""
             WITH latest AS (
                 SELECT region_id, rrp, interval_datetime,
                        LAG(rrp) OVER (PARTITION BY region_id ORDER BY interval_datetime) AS prev_rrp
@@ -100,7 +101,7 @@ async def prices_history(
         (region,),
     )
     if not rows:
-        rows = _query_gold(f"""
+        rows = await _query_gold_async(f"""
             SELECT interval_datetime, rrp
             FROM {_CATALOG}.gold.nem_prices_5min
             WHERE region_id = '{region}'
@@ -129,7 +130,7 @@ async def prices_history(
 @router.get("/api/market-summary/latest", summary="Market narrative summary", tags=["Market Data"])
 async def market_summary_latest():
     """AI-generated market summary narrative."""
-    rows = _query_gold(f"""
+    rows = await _query_gold_async(f"""
         SELECT summary_text, key_events, trading_date, avg_price_aud_mwh,
                max_price_aud_mwh, renewables_pct, generated_at
         FROM {_CATALOG}.gold.daily_market_summary
@@ -156,7 +157,7 @@ async def market_summary_latest():
         GROUP BY region_id
     """)
     if not price_rows:
-        price_rows = _query_gold(f"""
+        price_rows = await _query_gold_async(f"""
             SELECT region_id, AVG(rrp) AS avg_rrp, MAX(rrp) AS max_rrp, MIN(rrp) AS min_rrp
             FROM {_CATALOG}.gold.nem_prices_5min
             WHERE interval_datetime >= current_timestamp() - INTERVAL 6 HOURS
@@ -202,7 +203,7 @@ async def generation_timeseries(
     end: Optional[str] = Query(None),
 ):
     """Return generation mix time series (30-min intervals, 24h) for a region."""
-    rows = _query_gold(f"""
+    rows = await _query_gold_async(f"""
         SELECT interval_datetime, fuel_type, total_mw
         FROM {_CATALOG}.gold.nem_generation_by_fuel
         WHERE region_id = '{region}'
@@ -286,7 +287,7 @@ async def interconnectors(intervals: int = Query(12)):
         WHERE interval_datetime = (SELECT MAX(interval_datetime) FROM gold.nem_interconnectors_dedup_synced)
     """)
     if not rows:
-        rows = _query_gold(f"""
+        rows = await _query_gold_async(f"""
             SELECT interconnector_id, mw_flow, export_limit_mw, import_limit_mw, interval_datetime,
                    from_region, to_region
             FROM {_CATALOG}.gold.nem_interconnectors
@@ -365,7 +366,7 @@ async def forecasts(
     elif horizon.endswith("d"):
         hours = int(horizon[:-1]) * 24
 
-    rows = _query_gold(f"""
+    rows = await _query_gold_async(f"""
         SELECT interval_datetime, predicted_rrp, prediction_lower_80, prediction_upper_80,
                spike_probability, horizon_intervals
         FROM {_CATALOG}.gold.price_forecasts
@@ -428,7 +429,7 @@ async def prices_compare(
         ORDER BY interval_datetime
     """)
     if not rows:
-        rows = _query_gold(f"""
+        rows = await _query_gold_async(f"""
             SELECT interval_datetime, region_id, rrp
             FROM {_CATALOG}.gold.nem_prices_5min
             WHERE interval_datetime >= current_timestamp() - INTERVAL 24 HOURS
@@ -473,7 +474,7 @@ async def prices_spikes(
     type_filter = ""
     if spike_type:
         type_filter = f"AND event_type = '{spike_type}'"
-    rows = _query_gold(f"""
+    rows = await _query_gold_async(f"""
         SELECT detected_at, interval_datetime, metric_value, description, event_type, region_id
         FROM {_CATALOG}.gold.anomaly_events
         WHERE (region_id = '{region}' OR region_id IS NULL)
@@ -569,7 +570,7 @@ async def prices_volatility():
         GROUP BY region_id
     """)
     if not rows:
-        rows = _query_gold(f"""
+        rows = await _query_gold_async(f"""
             WITH stats AS (
                 SELECT region_id,
                        AVG(rrp) AS avg_price,
@@ -669,7 +670,7 @@ async def generation_units(region: str = Query("NSW1"), fuel_type: str = Query(N
     if fuel_type:
         safe_fuel = fuel_type.replace("'", "")
         fuel_filter = f"AND LOWER(s.fuel_type) LIKE '%{safe_fuel.lower()}%'"
-    scada_rows = _query_gold(f"""
+    scada_rows = await _query_gold_async(f"""
         WITH latest AS (
             SELECT s.duid, s.fuel_type, s.generation_MW, s.is_battery,
                    f.capacity_mw, f.station_name,
@@ -781,7 +782,7 @@ async def generation_mix_pct(region: str = Query("NSW1")):
     renewables_set = {"hydro", "wind", "solar", "battery"}
     unit_counts = {"coal": 4, "gas": 5, "hydro": 6, "wind": 8, "solar": 10, "battery": 3}
 
-    rows = _query_gold(f"""
+    rows = await _query_gold_async(f"""
         SELECT fuel_type, total_mw, unit_count, capacity_factor, emissions_tco2e, interval_datetime
         FROM {_CATALOG}.gold.nem_generation_by_fuel
         WHERE region_id = '{region}'
@@ -866,7 +867,7 @@ async def generation_facility(facility_id: str, hours: int = Query(24)):
     """Return power timeseries for a specific generator facility."""
     safe_hours = min(max(1, hours), 168)
     try:
-        rows = _query_gold(f"""
+        rows = await _query_gold_async(f"""
             SELECT facility_id, network_region, fuel_type, interval_datetime, power_mw, energy_mwh
             FROM {_CATALOG}.gold.facility_generation_ts
             WHERE facility_id = '{facility_id}'

@@ -4,6 +4,7 @@ STTM prices, DWGM prices, spark spreads, and gas-electricity correlation.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Query
@@ -11,6 +12,7 @@ from fastapi import APIRouter, Query
 from .shared import (
     _CATALOG,
     _query_gold,
+    _query_gold_async,
     _sql_escape,
 )
 
@@ -174,14 +176,43 @@ def _get_spark_spread_core(region: Optional[str] = None, days: int = 30) -> Dict
 @router.get("/api/gas/dashboard")
 async def gas_dashboard(days: int = Query(30)):
     """Gas market overview: STTM, DWGM, spark spreads."""
-    prices = _get_gas_price_core(days=days)
-    spreads = _get_spark_spread_core(days=days)
+    # Use _query_gold_async directly (same pattern as working endpoints)
+    hub_prices = await _query_gold_async(
+        f"SELECT hub, AVG(price_aud_gj) as avg_price, "
+        f"MIN(price_aud_gj) as min_price, MAX(price_aud_gj) as max_price "
+        f"FROM {_SCHEMA}.gas_hub_prices "
+        f"WHERE trade_date >= current_date() - INTERVAL {days} DAYS "
+        f"GROUP BY hub"
+    )
+    if not hub_prices:
+        hub_prices = await _query_gold_async(
+            f"SELECT hub, AVG(ex_ante_price) as avg_price, "
+            f"MIN(ex_ante_price) as min_price, MAX(ex_ante_price) as max_price "
+            f"FROM {_SCHEMA}.gas_sttm_prices "
+            f"WHERE trade_date >= current_date() - INTERVAL {days} DAYS "
+            f"GROUP BY hub"
+        )
+
+    dwgm_latest = await _query_gold_async(
+        f"SELECT trade_date, AVG(price_aud_gj) as avg_price "
+        f"FROM {_SCHEMA}.gas_dwgm_prices "
+        f"WHERE trade_date >= current_date() - INTERVAL {days} DAYS "
+        f"GROUP BY trade_date ORDER BY trade_date DESC LIMIT 5"
+    )
+
+    spread_summary = await _query_gold_async(
+        f"SELECT region, AVG(spark_spread) as avg_spark, "
+        f"AVG(electricity_price) as avg_elec, AVG(gas_price) as avg_gas "
+        f"FROM {_SCHEMA}.gas_spark_spreads "
+        f"WHERE trade_date >= current_date() - INTERVAL {days} DAYS "
+        f"GROUP BY region ORDER BY avg_spark DESC"
+    )
 
     return {
         "period_days": days,
-        "sttm_summary": prices["sttm_summary"],
-        "dwgm_latest": prices["dwgm_prices"][:5] if prices["dwgm_prices"] else [],
-        "spark_spread_summary": spreads["summary_by_region"],
+        "sttm_summary": [{**r, "trade_date": str(r.get("trade_date", ""))} for r in (hub_prices or [])],
+        "dwgm_latest": [{**r, "trade_date": str(r.get("trade_date", ""))} for r in (dwgm_latest or [])],
+        "spark_spread_summary": spread_summary or [],
     }
 
 
@@ -190,7 +221,7 @@ async def sttm_prices(hub: Optional[str] = None, days: int = Query(30)):
     """Get STTM hub prices."""
     # Try real gas_hub_prices
     hub_filter = f"AND hub = '{_sql_escape(hub)}'" if hub else ""
-    real = _query_gold(
+    real = await _query_gold_async(
         f"SELECT hub, trade_date, price_aud_gj as ex_ante_price, "
         f"price_aud_gj as ex_post_price "
         f"FROM {_SCHEMA}.gas_hub_prices "
@@ -201,7 +232,7 @@ async def sttm_prices(hub: Optional[str] = None, days: int = Query(30)):
         return {"prices": [{**r, "trade_date": str(r.get("trade_date", ""))} for r in real]}
 
     where = f"AND hub = '{_sql_escape(hub)}'" if hub else ""
-    rows = _query_gold(
+    rows = await _query_gold_async(
         f"SELECT * FROM {_SCHEMA}.gas_sttm_prices "
         f"WHERE trade_date >= current_date() - INTERVAL {days} DAYS {where} "
         f"ORDER BY trade_date DESC, hub LIMIT 300"
@@ -212,7 +243,7 @@ async def sttm_prices(hub: Optional[str] = None, days: int = Query(30)):
 @router.get("/api/gas/dwgm")
 async def dwgm_prices(days: int = Query(30)):
     """Get DWGM (Victorian gas market) prices."""
-    rows = _query_gold(
+    rows = await _query_gold_async(
         f"SELECT * FROM {_SCHEMA}.gas_dwgm_prices "
         f"WHERE trade_date >= current_date() - INTERVAL {days} DAYS "
         f"ORDER BY trade_date DESC, trading_interval LIMIT 600"
@@ -223,14 +254,14 @@ async def dwgm_prices(days: int = Query(30)):
 @router.get("/api/gas/spark-spread")
 async def spark_spreads(region: Optional[str] = None, days: int = Query(30)):
     """Get spark spread data."""
-    return _get_spark_spread_core(region, days)
+    return await asyncio.to_thread(_get_spark_spread_core, region, days)
 
 
 @router.get("/api/gas/correlation")
 async def gas_electricity_correlation(region: str = Query("NSW1"), days: int = Query(30)):
     """Get gas-electricity price correlation."""
     # Try real: JOIN gas_hub_prices × nem_prices_5min
-    real = _query_gold(
+    real = await _query_gold_async(
         f"SELECT DATE(p.interval_datetime) as trade_date, "
         f"AVG(g.price_aud_gj) as gas_price, AVG(p.rrp) as electricity_price, "
         f"AVG(p.rrp) - AVG(g.price_aud_gj) * {_GAS_HEAT_RATE} as spark_spread "
@@ -249,7 +280,7 @@ async def gas_electricity_correlation(region: str = Query("NSW1"), days: int = Q
         f"GROUP BY DATE(p.interval_datetime) ORDER BY trade_date"
     )
 
-    rows = real if real else _query_gold(
+    rows = real if real else await _query_gold_async(
         f"SELECT gs.trade_date, gs.gas_price, gs.electricity_price, gs.spark_spread "
         f"FROM {_SCHEMA}.gas_spark_spreads gs "
         f"WHERE gs.region = '{_sql_escape(region)}' "

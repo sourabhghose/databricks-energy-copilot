@@ -370,9 +370,10 @@ async def generate_brief(
     regions: Optional[str] = Query(None, description="Comma-separated regions filter"),
 ):
     """Trigger on-demand brief generation."""
+    import asyncio
     try:
         region_list = [r.strip() for r in regions.split(",") if r.strip()] if regions else None
-        return _generate_brief_core(brief_type, regions=region_list)
+        return await asyncio.to_thread(_generate_brief_core, brief_type, region_list)
     except Exception as exc:
         logger.warning("Brief generation failed: %s", exc)
         return {

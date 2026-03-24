@@ -2106,43 +2106,6 @@ async def copilot_chat(req: ChatRequest):
             content={"error": f"Databricks authentication failed: {str(auth_exc)[:200]}"},
         )
 
-    # Gather live market data context
-    try:
-        market_context = await _build_market_context()
-    except Exception:
-        market_context = "(Market data temporarily unavailable)"
-
-    system_prompt = (
-        f"{_SYSTEM_PROMPT_BASE}\n\n"
-        f"=== LIVE NEM MARKET DATA ===\n{market_context}\n"
-        f"=== END MARKET DATA ===\n\n"
-        f"CRITICAL INSTRUCTIONS:\n"
-        f"- You HAVE full live data above. NEVER say 'I don't have access to data' or "
-        f"'real-time data is not included'. The data above IS real-time.\n"
-        f"- Always answer with specific numbers from the data above.\n"
-        f"- For generation questions: use the GENERATION MIX sections which show fuel type, MW, and percentages per region.\n"
-        f"- For renewable questions: use renewable_percentage and renewable_mw from each region.\n"
-        f"- For total NEM output: use the NEM TOTAL GENERATION line.\n"
-        f"- For battery questions: use the BESS FLEET and BESS UNIT DETAIL sections.\n"
-        f"- For forecast questions: use the PRICE FORECAST sections.\n"
-        f"- For participant/generator questions: use the KEY MARKET PARTICIPANTS sections.\n"
-        f"- For price trend questions: use the PRICE TREND section showing monthly averages.\n"
-        f"- For renewable penetration: use the RENEWABLE PENETRATION section for NEM-wide share.\n"
-        f"- For congestion questions: use the CONGESTED INTERCONNECTORS section.\n"
-        f"- Format responses cleanly with markdown tables where appropriate.\n"
-        f"- You have TOOLS available to query live data. Use them when the user asks "
-        f"questions that need specific data not in the context above, or when you need "
-        f"more detail than the summary provides. Available tools: query_spot_prices, "
-        f"query_generation_mix, query_interconnectors, query_price_forecasts, "
-        f"query_weather, query_demand_forecasts, search_market_rules."
-    )
-
-    # Build messages array: system + history + current user message
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
-    for h in req.history[-20:]:  # limit history to last 20 turns
-        messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
-    messages.append({"role": "user", "content": req.message})
-
     url = f"{db_host}/serving-endpoints/{_CHAT_MODEL}/invocations"
 
     async def _call_fmapi_non_streaming(client, msgs, tools=None):
@@ -2162,11 +2125,52 @@ async def copilot_chat(req: ChatRequest):
     async def _stream():
         input_tokens = 0
         output_tokens = 0
+        yield ": keepalive\n\n"  # prevent proxy 504 before first byte
+
+        # Build market context INSIDE the stream so keepalive is sent first
+        try:
+            market_context = await _build_market_context()
+        except Exception:
+            market_context = "(Market data temporarily unavailable)"
+
+        system_prompt = (
+            f"{_SYSTEM_PROMPT_BASE}\n\n"
+            f"=== LIVE NEM MARKET DATA ===\n{market_context}\n"
+            f"=== END MARKET DATA ===\n\n"
+            f"CRITICAL INSTRUCTIONS:\n"
+            f"- You HAVE full live data above. NEVER say 'I don't have access to data' or "
+            f"'real-time data is not included'. The data above IS real-time.\n"
+            f"- Always answer with specific numbers from the data above.\n"
+            f"- For generation questions: use the GENERATION MIX sections which show fuel type, MW, and percentages per region.\n"
+            f"- For renewable questions: use renewable_percentage and renewable_mw from each region.\n"
+            f"- For total NEM output: use the NEM TOTAL GENERATION line.\n"
+            f"- For battery questions: use the BESS FLEET and BESS UNIT DETAIL sections.\n"
+            f"- For forecast questions: use the PRICE FORECAST sections.\n"
+            f"- For participant/generator questions: use the KEY MARKET PARTICIPANTS sections.\n"
+            f"- For price trend questions: use the PRICE TREND section showing monthly averages.\n"
+            f"- For renewable penetration: use the RENEWABLE PENETRATION section for NEM-wide share.\n"
+            f"- For congestion questions: use the CONGESTED INTERCONNECTORS section.\n"
+            f"- Format responses cleanly with markdown tables where appropriate.\n"
+            f"- You have TOOLS available to query live data. Use them when the user asks "
+            f"questions that need specific data not in the context above, or when you need "
+            f"more detail than the summary provides. Available tools: query_spot_prices, "
+            f"query_generation_mix, query_interconnectors, query_price_forecasts, "
+            f"query_weather, query_demand_forecasts, search_market_rules."
+        )
+
+        # Build messages array: system + history + current user message
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        for h in req.history[-20:]:
+            messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+        messages.append({"role": "user", "content": req.message})
+
+        yield ": keepalive\n\n"  # keep alive after context build, before FMAPI call
         try:
             async with _httpx.AsyncClient(timeout=120.0) as client:
                 # --- Tool-calling loop (non-streaming rounds) ---
                 tool_messages = list(messages)
                 for _round in range(_MAX_TOOL_ROUNDS):
+                    yield ": keepalive\n\n"  # keep connection alive during FMAPI round-trips
                     result, err = await _call_fmapi_non_streaming(client, tool_messages, _FMAPI_TOOLS)
                     if err:
                         yield f'data: {json.dumps({"content": err})}\n\n'

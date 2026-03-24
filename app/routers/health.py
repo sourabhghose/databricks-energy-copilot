@@ -39,12 +39,42 @@ async def health():
 @router.get("/api/health", summary="API health check", tags=["Health"])
 async def api_health():
     """Return API health status — primary health endpoint."""
+    import os
+    sql_ok = _get_sql_connection() is not None
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "mock_mode": True,
+        "mock_mode": not sql_ok,
+        "sql_connected": sql_ok,
         "deployment": "slim",
+        "databricks_host": os.environ.get("DATABRICKS_HOST", "not-set"),
+        "has_token": bool(os.environ.get("DATABRICKS_TOKEN")),
+        "sql_test": _run_sql_test(),
     }
+
+
+def _run_sql_test():
+    """Run a simple test query and return diagnostics."""
+    try:
+        from .shared import _get_workspace_client, _SQL_WAREHOUSE_ID
+        w = _get_workspace_client()
+        if w is None:
+            return "workspace_client_none"
+        from databricks.sdk.service.sql import StatementState, Format, Disposition
+        resp = w.statement_execution.execute_statement(
+            statement="SELECT 1 AS n, current_date() AS dt",
+            warehouse_id=_SQL_WAREHOUSE_ID,
+            wait_timeout="30s",
+            format=Format.JSON_ARRAY,
+            disposition=Disposition.INLINE,
+        )
+        state_val = resp.status.state.value if hasattr(resp.status.state, 'value') else str(resp.status.state)
+        if state_val != "SUCCEEDED":
+            return f"failed:{state_val}:{resp.status.error}"
+        data_array = resp.result.data_array if resp.result else None
+        return f"ok:{data_array}"
+    except Exception as exc:
+        return f"exception:{type(exc).__name__}:{str(exc)[:200]}"
 
 
 @router.get("/api/system/health", summary="System health for monitoring dashboard", tags=["Health"])
