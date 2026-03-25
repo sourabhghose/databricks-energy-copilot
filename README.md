@@ -11,6 +11,10 @@ AI-powered market intelligence for the Australian National Electricity Market �
 
 📖 **[Full Documentation →](https://sourabhghose.github.io/databricks-energy-ai-intelligence)**  &nbsp;
 
+## Authors
+
+Built by **Beyza Yalavac** (beyza.yalavac@databricks.com) and **Sourabh Ghose** (sourabh.ghose@databricks.com), Databricks Field Engineering.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
