@@ -1,6 +1,6 @@
 ---
 title: AI & ML Overview
-description: Energy Copilot's AI and ML stack — Claude Sonnet 4.5, 51 tools, 12 Genie spaces, 5 ML models, MLflow, and the Databricks AI story.
+description: Energy Copilot's AI and ML stack — Claude Sonnet 4.5, 58 tools, 16 Genie spaces, 10 ML models, MLflow, and the Databricks AI story.
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
@@ -10,40 +10,55 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 Energy Copilot demonstrates the full Databricks AI stack working together:
 
 1. **Foundation Model API (FMAPI)**: Claude Sonnet 4.5 routed through Databricks, keeping API calls within the network perimeter
-2. **MLflow Model Registry**: all 5 ML models trained, tracked, versioned, and deployed via MLflow
+2. **MLflow Model Registry**: ML models trained, tracked, versioned, and deployed via MLflow
 3. **Model Serving**: inference endpoints for real-time model predictions
-4. **Genie AI/BI**: natural language SQL over Gold Delta tables via 12 Genie spaces
-5. **Unity Catalog SQL Functions**: 14 UC functions provide the AI agent with structured access to data
+4. **Genie AI/BI**: natural language SQL over Gold Delta tables via 16 Genie spaces
+5. **Unity Catalog SQL Functions**: UC functions provide the AI agent with structured access to data
 6. **Vector Search** (RAG): AEMO market rules indexed for semantic retrieval by the copilot
 
 ## AI/ML Capabilities
 
 <CardGrid>
   <Card title="AI Market Intelligence Copilot" icon="star">
-    Claude Sonnet 4.5 with 51 domain-specific tools. Conversational interface for market analysis, DNSP intelligence, and operational queries. Streams responses via SSE.
+    Claude Sonnet 4.5 with 58 domain-specific tools. Conversational interface for market analysis, trading, DNSP intelligence, and operational queries. Streams responses via SSE.
   </Card>
   <Card title="Genie AI/BI Spaces" icon="open-book">
-    12 Genie spaces covering NEM prices, generation, FCAS, settlement, DNSP compliance, assets, vegetation, workforce, and gas markets. Natural language → SQL → results.
+    16 Genie spaces covering NEM prices, generation, interconnectors, FCAS, gas, WEM, settlement, DNSP compliance, assets, DER, network planning, and workforce. Natural language → SQL → results.
+  </Card>
+  <Card title="NEM Price & Demand Forecasting" icon="star">
+    XGBoost multi-horizon forecasting. 5 regions, horizons from 1 to 48 hours. Demand, weather, generation, and constraint features. Outputs P10/P50/P90 confidence bounds and spike probability.
   </Card>
   <Card title="Asset Failure Prediction" icon="setting">
-    XGBoost classifier. AUC 0.961, accuracy 92.3%. Scores all DNSP network assets monthly on failure probability within 12 months.
-  </Card>
-  <Card title="AIO Draft Generator" icon="document">
-    Claude Sonnet 4.5 drafts AIO submission sections from structured DNSP performance data. Async HTTPX call with fallback template.
+    XGBoost classifier. Scores all DNSP network assets on failure probability within 12 months. Feature importances and health index surfaced in Asset Intelligence Hub.
   </Card>
   <Card title="Vegetation Risk ML" icon="list-format">
-    XGBoost classifier for network span vegetation risk. F1-macro 86.3%, AUC 0.923. BMO zone scoring and newly-flagged alert feed.
+    XGBoost classifier for network span vegetation risk. BMO zone scoring and newly-flagged alert feed for AusNet bushfire mitigation program.
   </Card>
   <Card title="Workforce Demand Forecasting" icon="rocket">
-    Prophet + XGBoost ensemble. MAPE 4.2%, 18-month horizon. Bushfire seasonality modelled explicitly. Skills gap output for workforce planners.
+    Prophet time-series model. 18-month horizon. Bushfire seasonality modelled explicitly. Skills gap output for DNSP workforce planners.
   </Card>
   <Card title="STPIS Anomaly Detection" icon="setting">
-    Isolation Forest + Z-score ensemble. 93.4% detection rate, 4.7% FPR. 6-DNSP peer group benchmarking for SAIDI/SAIFI/MAIFI anomalies.
+    Isolation Forest. 6-DNSP peer group benchmarking for SAIDI/SAIFI/MAIFI anomalies. Surfaced in STPIS Calculator page.
   </Card>
-  <Card title="NEM Price Forecasting" icon="star">
-    LightGBM multi-horizon forecasting. 5 regions, 6 forecast horizons (1, 4, 8, 12, 24, 48 × 5-min intervals). Demand, weather, generation features.
+  <Card title="AIO Draft Generator" icon="document">
+    Claude Sonnet 4.5 drafts AIO submission sections from structured DNSP performance data via FMAPI.
   </Card>
 </CardGrid>
+
+## ML Models
+
+| Model | Algorithm | Purpose | Surfaces In |
+|-------|-----------|---------|-------------|
+| NEM Price Forecast | XGBoost | Spot price prediction 1–48 hr, P10/P50/P90 + spike probability | Copilot `query_price_forecasts`, price forecast dashboard |
+| NEM Demand Forecast | Prophet | Demand MW with confidence bounds, 1–48 hr horizon | Copilot `query_demand_forecasts`, demand dashboard |
+| Generation Forecast | XGBoost | Per-fuel-type generation prediction by region | `gold.generation_forecasts`, generation dashboard |
+| Asset Failure Prediction | XGBoost | Failure probability within 12 months, health index, feature importances | DNSP Asset Intelligence Hub, Copilot `get_asset_health` |
+| Vegetation Risk Classifier | XGBoost | Span-level bushfire/vegetation risk score + confidence | DNSP Vegetation Risk Hub |
+| Workforce Demand Forecast | Prophet | 18-month skills demand forecast with bushfire seasonality | DNSP Workforce Analytics Hub |
+| STPIS Anomaly Detection | Isolation Forest | Abnormal STPIS performance vs 6-DNSP peer group | DNSP STPIS Calculator |
+| Constraint Binding Prediction | XGBoost | Probability transmission constraints bind by hour/region, 4–48 hr | Copilot `predict_constraints` |
+| Battery Dispatch Optimisation | Optimisation | Charge/discharge schedule maximising arbitrage revenue over 24 hr | Copilot `optimize_battery` |
+| Bid Optimisation | ML (ML_OPTIMIZED) | Optimal 10-band generator bid; actual vs ML-optimal revenue comparison | Copilot `optimize_bid`, `compare_bid_vs_optimal` |
 
 ## MLflow Experiment Tracking
 
@@ -51,29 +66,132 @@ All ML models are tracked in MLflow experiments within Unity Catalog:
 
 | Experiment | Model Type | Target Variable | Regions |
 |-----------|-----------|----------------|---------|
-| `price_forecast` | LightGBM | NEM spot price | All 5 NEM |
-| `demand_forecast` | LightGBM | Operational demand | All 5 NEM |
-| `wind_forecast` | LightGBM | Wind generation | All 5 NEM |
-| `solar_forecast` | LightGBM | Solar generation | All 5 NEM |
-| `anomaly_detection` | IsolationForest | Price anomaly | NEM-wide |
+| `price_forecast` | XGBoost | NEM spot price | All 5 NEM |
+| `demand_forecast` | Prophet | Operational demand MW | All 5 NEM |
+| `wind_forecast` | XGBoost | Wind generation MW | All 5 NEM |
+| `solar_forecast` | XGBoost | Solar generation MW | All 5 NEM |
+| `anomaly_detection` | Isolation Forest | STPIS anomaly | NEM-wide |
 
 Each experiment tracks:
-- Training hyperparameters (Optuna 50-trial HPO)
+- Training hyperparameters
 - Evaluation metrics (MAE, MAPE, AUC, F1)
 - Feature importances
 - Chronological train/val/test split boundaries (stored as tags)
 - Model artifacts and registered model alias
 
-## Model Serving
+## AI Copilot Tools (58 total)
 
-The following Model Serving endpoints are configured:
+All tools are available to Claude Sonnet 4.5 via FMAPI function calling. The copilot selects and chains tools autonomously based on the user's question.
 
-| Endpoint Name | Model | Purpose |
-|-------------|-------|---------|
-| `nem-price-forecaster` | `price_forecast@production` | 30-min and 24h price forecasts |
-| `asset-failure-predictor` | `asset_failure_predictor@production` | DNSP asset failure probability |
+### Market Data
+| Tool | Description |
+|------|-------------|
+| `query_spot_prices` | Live NEM spot prices (RRP), demand, and available generation per region |
+| `query_generation_mix` | Generation MW by fuel type, capacity factor, and emissions intensity |
+| `query_interconnectors` | Interstate flows, export/import limits, and congestion status |
+| `query_weather` | Temperature, wind speed, solar radiation, cloud cover for all NEM regions |
+| `get_fcas_summary` | All 8 FCAS service prices, total cost, top providers, regional requirements |
+| `get_gas_price` | STTM hub prices (Sydney/Adelaide/Brisbane) and DWGM Victorian market |
 
-Model Serving endpoints use serverless compute and auto-scale to zero when not in use.
+### Forecasting & Signals
+| Tool | Description |
+|------|-------------|
+| `query_price_forecasts` | ML price forecast with P10/P50/P90 and spike probability, 1–48 hr |
+| `query_demand_forecasts` | ML demand forecast MW with confidence bounds |
+| `get_constraint_forecast` | Constraint binding heatmap by hour-of-day and day-of-week |
+| `predict_constraints` | Which transmission constraints bind in next 4–48 hrs and at what probability |
+| `get_trading_signals` | Active algo signals: FORWARD_MISPRICING, SPOT_ARBITRAGE, CONSTRAINT_PLAY, WEATHER_SHIFT, DEMAND_SURGE, VOLATILITY_REGIME, RENEWABLE_SHORTFALL, PEAK_SPREAD |
+| `scan_trading_opportunities` | Fresh cross-region market scan, ranked by expected profit with rationale |
+
+### Anomaly & Intelligence
+| Tool | Description |
+|------|-------------|
+| `explain_anomaly` | Root cause analysis of price spikes / negative prices — generation changes, constraints, weather, congestion |
+| `generate_market_brief` | Daily/weekly/flash NEM brief — overnight prices, key events, renewable share, weather watch |
+
+### Portfolio & Trading
+| Tool | Description |
+|------|-------------|
+| `create_trade` | Parse natural language into a structured trade: "50MW peak swap VIC Q3 at $85" |
+| `get_portfolio_position` | Net MW long/short by region and quarter |
+| `get_forward_curve` | Monthly forward prices bootstrapped from ASX futures with seasonal shaping |
+| `run_mtm_valuation` | Mark-to-market all trades against forward curves |
+| `get_portfolio_pnl` | P&L attribution: price effect, volume effect, new trades, time decay |
+| `explain_pnl_move` | Explain what drove P&L change on a specific date |
+| `get_risk_metrics` | VaR (95%/99%), Greeks (delta/gamma/vega/theta), 1-day and 10-day horizons |
+| `get_credit_exposure` | Counterparty exposure, PFE, credit utilisation, WARNING/CRITICAL alerts |
+| `value_ppa` | Monte Carlo PPA valuation — NPV P10/P50/P90, breakeven strike, annual cashflows |
+| `value_bundled_ppa` | PPA + LGC bundled valuation — energy NPV, LGC NPV, bundled premium |
+
+### Stress Testing & Scenarios
+| Tool | Description |
+|------|-------------|
+| `run_stress_test` | Predefined scenarios: SA heatwave (+300%), wind drought (-80%), 2GW coal trip, QNI failure |
+| `portfolio_what_if` | Natural language what-if: "What if SA prices spike 50%?" |
+| `reverse_stress_test` | Find which scenarios produce a specified target loss |
+
+### Generator Bidding
+| Tool | Description |
+|------|-------------|
+| `optimize_bid` | ML-optimised 10-band bid for a named generator |
+| `suggest_rebid` | Rebid recommendation based on price change, constraint, outage, or wind shift |
+| `get_bid_compliance` | Conformance rate, penalty count, compliance grade A/B/C |
+| `compare_bid_vs_optimal` | Actual vs ML-optimal revenue uplift analysis |
+
+### Battery & Storage
+| Tool | Description |
+|------|-------------|
+| `optimize_battery` | 24 hr charge/discharge schedule for Hornsdale, Victorian Big Battery, Bomen |
+| `get_spark_spread` | Spark spread, clean spark spread, and carbon cost by region |
+
+### Settlement & Finance
+| Tool | Description |
+|------|-------------|
+| `get_settlement_summary` | AEMO vs internal reconciliation, variance, FCAS settlement, inter-regional residues |
+| `get_settlement_runs` | Settlement run list with PRELIM/FINAL/R1–R3 status and amounts |
+| `get_settlement_trueup` | Material variance analysis across run versions |
+| `get_settlement_finance_summary` | GL journal totals, accruals, settlement statement |
+
+### Environmental & Compliance
+| Tool | Description |
+|------|-------------|
+| `get_compliance_status` | NER obligations, conformance rate, overdue items, upcoming deadlines |
+| `get_lgc_position` | LGC, ACCU, STC holdings, balances, and market prices |
+| `get_carbon_exposure` | Emissions by fuel type, annual tCO2, estimated cost |
+| `search_market_rules` | Semantic search over AEMO NER, market procedures, and regulatory documents |
+| `generate_report` | DAILY_RISK, WEEKLY_MARKET, MONTHLY_COMPLIANCE, QUARTERLY_ENVIRONMENTAL, AD_HOC |
+
+### Alerts
+| Tool | Description |
+|------|-------------|
+| `create_alert_rule` | Set PRICE_THRESHOLD / DEMAND_SURGE / FCAS_PRICE / FORECAST_SPIKE alert, evaluated every 5 min |
+
+### Other Markets
+| Tool | Description |
+|------|-------------|
+| `get_wem_price` | Western Australian Electricity Market balancing prices and summary |
+| `get_constraint_analysis` | Network constraint register, breach years, augmentation NPV |
+
+### DNSP Intelligence
+| Tool | Description |
+|------|-------------|
+| `query_dnsp_summary` | Overall DNSP performance: AER compliance, BMP, connections, capex, rural, tariffs |
+| `query_aer_compliance` | STPIS scores, RIN status, revenue cap utilisation, regulatory milestones |
+| `query_bushfire_status` | AusNet BMP asset compliance, ELC inspections, BMO zone risk, capex vs allowance |
+| `query_connections_queue` | NER queue: pending applications, timely connections rate, overdue, large customer pipeline |
+| `get_asset_health` | Health index, risk factors, failure probability for a named asset |
+| `get_network_loading` | MW loading, utilisation %, DER output by zone substation |
+| `get_reliability_metrics` | SAIDI/SAIFI/CAIDI vs AER regulatory targets by region |
+
+### Distribution Network Operations
+| Tool | Description |
+|------|-------------|
+| `get_outage_summary` | Active outages, causes, and affected customers by region |
+| `get_hosting_capacity` | Available DER hosting capacity kW and limiting constraint by feeder |
+| `get_curtailment_analysis` | Curtailed MWh, affected customers, reasons, and financial impact |
+| `forecast_ev_impact` | Peak load delta, assets at risk, upgrade requirements by EV scenario and year |
+| `get_vpp_performance` | VPP dispatch target vs actual response, accuracy, and revenue |
+| `get_der_fleet` | Solar MW, battery MW/MWh, EV chargers by zone substation |
 
 ## How AI/ML Capabilities Work Together
 
@@ -83,16 +201,16 @@ User Question (Copilot)
         ▼
 Claude Sonnet 4.5 (FMAPI)
         │
-        ├──→ get_price_forecast    ──→ Model Serving (LightGBM)
+        ├──→ query_price_forecasts   ──→ Model Serving (XGBoost)
         │                                     │
         │                                     ▼
-        ├──→ get_generation_mix    ──→ Gold Table (Lakebase)
+        ├──→ query_generation_mix    ──→ Gold Table (Lakebase)
         │
-        ├──→ get_stpis_metrics     ──→ Gold Table (SQL Warehouse)
+        ├──→ query_aer_compliance    ──→ Gold Table (SQL Warehouse)
         │
-        ├──→ get_asset_health      ──→ Gold Table + Model Serving
+        ├──→ get_asset_health        ──→ Gold Table + Model Serving
         │
-        └──→ search_market_rules   ──→ Vector Search Index
+        └──→ search_market_rules     ──→ Vector Search Index
 ```
 
 The copilot's agentic loop orchestrates calls to multiple tools in sequence or parallel, synthesising the results into a coherent, contextualised response.
@@ -105,7 +223,8 @@ Both the Copilot and Genie spaces provide natural language access to data, but s
 |---------|-----------|------------|
 | Interface | Conversational chat | Direct question → SQL → result |
 | Access to real-time data | Yes (via tool calls) | Yes (direct table access) |
-| Custom tool calling | Yes (51 tools) | No |
+| Custom tool calling | Yes (58 tools) | No |
 | Multi-step reasoning | Yes (agentic loop) | Limited |
-| Best for | Complex analysis, narratives | Direct data queries |
+| ML model access | Yes | No |
+| Best for | Complex analysis, trading actions, narratives | Direct data queries, ad hoc SQL |
 | SQL visibility | No (abstracted) | Yes (show SQL) |
